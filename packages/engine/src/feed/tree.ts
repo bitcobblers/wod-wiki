@@ -142,7 +142,7 @@ export class MemoryFeedTree implements FeedTree {
   }
 }
 
-type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export class HttpFeedTree implements FeedTreeReader {
   private readonly baseUrl: string;

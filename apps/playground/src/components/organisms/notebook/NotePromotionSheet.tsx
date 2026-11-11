@@ -320,7 +320,7 @@ export function NotePromotionSheet({
             <span className="font-mono text-[11px] uppercase tracking-wider text-[#787774]">Origin</span>
             {provenance.exists ? (
               <Link
-                to={`/notes/${provenance.sourceNoteId}`}
+                to={`/note/${provenance.sourceNoteId}`}
                 onClick={() => onOpenChange(false)}
                 className="rounded-full bg-[#E1F3FE] text-[#1F6C9F] px-2.5 py-0.5 font-mono text-[11px] hover:underline"
               >

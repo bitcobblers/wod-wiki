@@ -221,22 +221,19 @@ test.describe('Journal Entry — /journal/:date', () => {
     await page.goto(`/day/${today}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await expect(page.getByText('2 notes', { exact: true })).toBeVisible({ timeout: 45_000 });
 
-    // Verify both identities in the journal stream before and after reload.
+    // Verify both identities in the journal default Agenda view before and after reload.
     await page.goto('/journal', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
-    await expect(page.getByTestId(`date-group-${today}`)).toBeVisible();
+    const firstAgendaDay = page.getByTestId('calendar-agenda-day').filter({ hasText: uniqueTitle }).first();
+    await expect(firstAgendaDay).toBeVisible({ timeout: 45_000 });
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
-    const dayGroup = page.getByTestId(`date-group-${today}`);
-    await expect(dayGroup).toBeVisible({ timeout: 45_000 });
-    await expect(dayGroup).toContainText('2 entries');
-    const dayRows = dayGroup.getByTestId('library-row-note');
-    await expect(dayRows).toHaveCount(2);
-    // Both cards carry the unique title — identity membership, not a generic
-    // date string (cards render no date breadcrumb).
-    await expect(dayRows.first()).toContainText(uniqueTitle);
-    await expect(dayRows.nth(1)).toContainText(uniqueTitle);
-
+    const reloadedAgendaDay = page.getByTestId('calendar-agenda-day').filter({ hasText: uniqueTitle }).first();
+    await expect(reloadedAgendaDay).toBeVisible({ timeout: 45_000 });
+    const dayChips = reloadedAgendaDay.getByTestId('calendar-entry-chip');
+    await expect(dayChips).toHaveCount(2);
+    await expect(dayChips.first()).toContainText(uniqueTitle);
+    await expect(dayChips.nth(1)).toContainText(uniqueTitle);
     await page.screenshot({ path: testInfo.outputPath('journal-entry-06-clone.png') });
   });
 });

@@ -80,13 +80,13 @@ test.describe('Notebook plane', () => {
 
     const list = page.getByTestId('notebook-list');
     await expect(list).toBeVisible();
-    // The always-present notebooks: defaults (app-owned, writable), and the
+    // The always-present notebooks: read-only defaults, writable custom, and the
     // core references delivered by the core feed.
     await expect(list).toContainText('Defaults');
+    await expect(list).toContainText('Custom');
     await expect(list).toContainText('Efforts');
     await expect(list).toContainText('Equipment');
     await expect(list).toContainText('Dashboards');
-
     // Create → the landing note appears as a Yours row.
     await createNotebook(page, 'Trip 2026');
     const row = page.locator('[data-testid="notebook-list-row"]', { hasText: 'Trip 2026' });
@@ -108,9 +108,8 @@ test.describe('Notebook plane', () => {
   });
 
   test('the notebook plane returns notes from every notebook and narrows by slug', async ({ page }) => {
-    // The retired type:feed gate is gone — the defaults notebook holds the
-    // starter note and the plane reaches it with a plain notebook: filter.
-    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:defaults}')}`);
+    // Starter note lives in writable `notebook/custom` while `notebook/defaults` holds read-only primitives.
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:custom}')}`);
     await waitForFeedReady(page);
     const rows = page.getByTestId('stream-feed-item');
     await expect(rows.first()).toBeVisible();
@@ -128,11 +127,10 @@ test.describe('Notebook plane', () => {
     await expect(all.first()).toBeVisible();
     await expect(all.filter({ hasText: 'My Workout' }).first()).toBeVisible();
 
-    // Negation narrows the same note shape — defaults notes drop out.
-    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{!notebook:defaults}')}`);
+    // Negation narrows the same note shape — custom notes drop out.
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{!notebook:custom}')}`);
     await waitForFeedReady(page);
     await expect(page.getByText('My Workout')).toHaveCount(0);
-
     // A fresh user notebook (created from the plain /notebooks surface —
     // the management controls live there) narrows to its real notes. A new
     // notebook ships one landing note, so the plane answers with exactly
@@ -151,13 +149,9 @@ test.describe('Notebook plane', () => {
     await createNotebook(page, 'Trip 2026');
     await createNotebook(page, 'Trip 2027');
 
-    // Move the starter note from defaults into Trip 2026 via the feed row's
+    // Move the starter note from custom into Trip 2026 via the feed row's
     // move action (the feed layout's real control — the shared move menu).
-    // The move commits asynchronously and the mounted stream re-runs once it
-    // lands — gate on the row leaving the source listing before navigating.
-    // A goto straight after the menu click races the uncommitted move, and
-    // the target page's one-shot stream query then renders pre-move state.
-    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:defaults}')}`);
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:custom}')}`);
     await waitForFeedReady(page);
     const row = page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' }).first();
     await row.getByTestId('stream-feed-move').click();
@@ -203,8 +197,8 @@ test.describe('Notebook plane', () => {
   });
 
   test('editability follows notebook ownership', async ({ page }) => {
-    // A user-owned note (the starter note in defaults) opens editable.
-    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:defaults}')}`);
+    // A user-owned note (the starter note in custom) opens editable.
+    await page.goto(`/notebooks?q=${encodeURIComponent(':notebook{notebook:custom}')}`);
     await waitForFeedReady(page);
     const row = page.getByTestId('stream-feed-item').filter({ hasText: 'My Workout' }).first();
     await row.getByTestId('stream-feed-open').click();
