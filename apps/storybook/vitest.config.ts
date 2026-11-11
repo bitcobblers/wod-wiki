@@ -26,6 +26,9 @@ export default defineConfig({
           }),
         ],
         resolve: resolveConfig,
+        optimizeDeps: {
+          include: ['nuqs/adapters/testing', '@codemirror/search'],
+        },
         test: {
           name: 'storybook-workbench',
           browser: {

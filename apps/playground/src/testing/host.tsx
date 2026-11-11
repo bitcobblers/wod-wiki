@@ -84,9 +84,12 @@ export async function hydratePlaygroundStorage(
     'events',
   ] as const;
 
+  const explicitNoteIds = new Set(world.notes.map((n) => n.id));
   await targetStorage.transaction([...stores], 'readwrite', async (tx) => {
     for (const nb of world.notebooks) {
-      await tx.readwrite('notes').put(nb);
+      if (!explicitNoteIds.has(nb.id)) {
+        await tx.readwrite('notes').put(nb);
+      }
     }
     for (const note of world.notes) {
       await tx.readwrite('notes').put(note);
