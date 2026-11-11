@@ -13,6 +13,7 @@ import { L3DrawerStateProvider, MobileQuerySlotProvider, MobileQuerySlotTarget }
 import { SecondaryNav } from '../../app/nav/SecondaryNav'
 import { useNav } from '../../app/nav/NavContext'
 import { cn } from '@/lib/utils'
+import { TEST_IDS } from '@/lib/testIds'
 import { ResponsiveActionsProvider } from '../../app/nav/ResponsiveActions'
 
 function OpenMenuIcon() {
@@ -48,6 +49,7 @@ function DrawerApplyFooter() {
       <button
         type="button"
         onClick={close}
+        data-testid={TEST_IDS.DRAWER_APPLY_BTN}
         className="h-11 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground"
       >
         Apply
@@ -68,6 +70,7 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
       />
       <Headless.DialogPanel
         transition
+        data-testid={TEST_IDS.MOBILE_NAV_DRAWER}
         className="fixed inset-y-0 left-0 w-full transition duration-300 ease-out data-closed:-translate-x-full"
       >
         {/* Full-viewport edge-to-edge drawer; the close seam lets rail/filter
@@ -87,7 +90,7 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
           </div>
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex items-center px-4 pt-3">
-              <Headless.CloseButton as={NavbarItem} aria-label="Close navigation" title="Close navigation">
+              <Headless.CloseButton as={NavbarItem} aria-label="Close navigation" title="Close navigation" data-testid={TEST_IDS.MOBILE_NAV_CLOSE}>
                 <CloseMenuIcon />
                 <span className="sr-only">Close navigation</span>
               </Headless.CloseButton>
@@ -285,7 +288,7 @@ export function SidebarLayout({
         <div className="flex flex-1 flex-col min-w-0 xl:max-w-[984px] 2xl:max-w-none">
           <header data-page-sticky-boundary="true" className="lg:hidden sticky top-0 z-20 flex items-center px-2 sm:px-4 bg-card">
             <div className="py-2.5 shrink-0">
-              <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation" title="Open navigation">
+              <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation" title="Open navigation" data-testid={TEST_IDS.MOBILE_NAV_OPEN}>
                 <OpenMenuIcon />
                 <span className="sr-only">Open navigation</span>
               </NavbarItem>

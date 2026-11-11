@@ -127,6 +127,60 @@ export const TEST_IDS = {
   COMMAND_PALETTE_TRIGGER: 'command-palette-trigger',
   COMMAND_PALETTE_INPUT: 'command-palette-input',
   COMMAND_PALETTE_RESULTS: 'command-palette-results',
+
+  // ── L1/L2/L3 navigation & mobile drawers ───────────────────────────────────
+  NAV_L1_HOME: 'nav-l1-home',
+  NAV_L1_JOURNAL: 'nav-l1-journal',
+  NAV_L1_LIBRARY: 'nav-l1-library',
+  NAV_L1_DASHBOARDS: 'nav-l1-dashboards',
+  NAV_L1_SEARCH: 'nav-l1-search',
+  MOBILE_NAV_OPEN: 'mobile-nav-open',
+  MOBILE_NAV_DRAWER: 'mobile-nav-drawer',
+  MOBILE_NAV_CLOSE: 'mobile-nav-close',
+  DRAWER_APPLY_BTN: 'drawer-apply-btn',
+  NEW_ENTRY_PRIMARY: 'new-entry-primary',
+
+  // ── Stream & WQL surfaces ──────────────────────────────────────────────────
+  STREAM_VIEW: 'queriable-stream-view',
+  STREAM_FEED_ITEM: 'stream-feed-item',
+  STREAM_QUERY_BAR: 'stream-query-bar',
+  PROPERTY_TABLE: 'property-table',
+  LIBRARY_ROW_NOTEBOOK: 'library-row-notebook',
+  NOTEBOOKS_CREATE_BUTTON: 'notebooks-create-button',
+
+  // ── Entry & Notebook creation / placement dialogs ──────────────────────────
+  ENTRY_CREATE_TITLE_INPUT: 'entry-create-title-input',
+  ENTRY_CREATE_DATE_INPUT: 'entry-create-date-input',
+  ENTRY_CREATE_SUBMIT_BTN: 'entry-create-submit-btn',
+  ENTRY_CREATE_CANCEL_BTN: 'entry-create-cancel-btn',
+  NOTEBOOK_DIALOG_NAME_INPUT: 'notebook-dialog-name-input',
+  NOTEBOOK_DIALOG_SAVE_BTN: 'notebook-dialog-save-btn',
+  PLACEMENT_DIALOG: 'placement-dialog',
+  PLACEMENT_DATE_INPUT: 'placement-date-input',
+  PLACEMENT_SLUG_INPUT: 'placement-slug-input',
+  PLACEMENT_ADD_BTN: 'placement-add-btn',
+  PLACEMENT_MOVE_BTN: 'placement-move-btn',
+  PLACEMENT_REMOVE_BTN: 'placement-remove-btn',
+  PLACEMENT_CLONE_SUBMIT_BTN: 'placement-clone-submit-btn',
+
+  // ── Publication Visibility, Promotion & Scoped Property Overrides ──────────
+  PUBLICATION_PILL: 'publication-pill',
+  PUBLICATION_PILL_POPOVER: 'publication-pill-popover',
+  PROMOTION_PROVENANCE_ROW: 'promotion-provenance-row',
+  PROMOTION_CLONE_READONLY_BTN: 'promotion-clone-readonly-btn',
+  PROMOTION_NEW_NOTEBOOK_INPUT: 'promotion-new-notebook-input',
+  PROMOTION_NEW_NOTEBOOK_SUBMIT: 'promotion-new-notebook-submit',
+  PUBLICATION_NOTEBOOK_PUBLIC_TOGGLE: 'publication-notebook-public-toggle',
+  PUBLICATION_EXPORT_REPO_ZIP_BTN: 'publication-export-repo-zip-btn',
+  PROPERTY_OVERRIDE_SHEET: 'property-override-sheet',
+  PROPERTY_OVERRIDE_EDITOR: 'property-override-editor',
+  PROPERTY_OVERRIDE_SAVE_BTN: 'property-override-save-btn',
+  PROPERTY_OVERRIDE_CANCEL_BTN: 'property-override-cancel-btn',
+
+  // ── Runtime overlays & Feeds ───────────────────────────────────────────────
+  TIMER_FULLSCREEN_OVERLAY: 'timer-fullscreen-overlay',
+  TIMER_DETAIL_SURFACE: 'timer-detail-surface',
+  SYNC_SUBSCRIBED_ONLY_TOGGLE: 'sync-subscribed-only-toggle',
 } as const;
 
 export type TestId = (typeof TEST_IDS)[keyof typeof TEST_IDS];
