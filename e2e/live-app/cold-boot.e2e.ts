@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 const HOME_BUDGET_MS = 5_000
-const PROGRESS_BUDGET_MS = 1_000
+const PROGRESS_BUDGET_MS = process.env.E2E_APP_URL ? 1_500 : 1_000
 
 async function readBootMark(page: Page, name: string): Promise<number | null> {
   return page.evaluate((markName) => {

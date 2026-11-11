@@ -50,8 +50,8 @@ jobs:
         if: inputs.version != ''
         run: bun scripts/stamp-version.ts --version "${{ inputs.version }}"
 
-      - name: Build packages
-        run: bun run build:packages
+      - name: Build workspace runtime packages
+        run: bun run build:packages:runtime
 
       - name: Build Storybook
         run: bun run --filter '@bitcobblers/wod-wiki-storybook' build

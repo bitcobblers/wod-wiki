@@ -60,8 +60,8 @@ jobs:
         with:
           browsers: ''
 
-      - name: Build packages
-        run: bun run build:packages
+      - name: Build workspace runtime packages
+        run: bun run build:packages:runtime
 
       - name: Build playground
         run: bun run build:app

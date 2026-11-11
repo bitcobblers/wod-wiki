@@ -1,10 +1,12 @@
 import { defineConfig } from 'tsup';
 
+const runtimeOnly = process.env.TSUP_RUNTIME_ONLY === '1';
+
 export default defineConfig({
   entry: ['src/index.ts', 'src/extensions/index.ts'],
-  format: ['esm', 'cjs'],
-  dts: true,
-  sourcemap: true,
+  format: runtimeOnly ? ['esm'] : ['esm', 'cjs'],
+  dts: !runtimeOnly,
+  sourcemap: !runtimeOnly,
   clean: true,
   outExtension({ format }) {
     return {

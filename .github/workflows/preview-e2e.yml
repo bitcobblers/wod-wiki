@@ -87,8 +87,8 @@ jobs:
       - name: Set up environment (Bun + caches + chromium)
         uses: ./.github/actions/setup-env
 
-      - name: Build packages
-        run: bun run build:packages
+      - name: Build workspace runtime packages
+        run: bun run build:packages:runtime
 
       - name: Wait for current Playground build on S3/CloudFront
         run: |

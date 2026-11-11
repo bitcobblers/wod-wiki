@@ -1,9 +1,10 @@
 name: Build Verify
 
 # Unified non-deploy verification leg (docs/build-process.canvas):
-#   - packages:   lint, typecheck, skill sync check, vitest, tsup build, CLI web assets
+#   - packages:   lint, typecheck, skill sync check, vitest, full package build,
+#                 CLI web assets smoke check, and Storybook interaction tests
+#                 (sharing the single package build in one VM to save CPU)
 #   - playground: validation script tests, baseline type gate, isolated unit suite
-#   - storybook:  Playwright component / story interaction tests
 
 on:
   workflow_call:
@@ -20,11 +21,11 @@ on:
         default: false
     outputs:
       packages-status:
-        value: ${{ jobs.packages.outputs.status }}
+        value: ${{ jobs.packages.outputs.packages-status }}
       playground-status:
         value: ${{ jobs.playground.outputs.status }}
       storybook-status:
-        value: ${{ jobs.storybook.outputs.status }}
+        value: ${{ jobs.packages.outputs.storybook-status }}
 
 permissions:
   contents: read
@@ -34,17 +35,16 @@ env:
 
 jobs:
   packages:
-    name: Verify packages
+    name: Verify packages & Storybook
     runs-on: ubuntu-22.04
     outputs:
-      status: ${{ steps.status.outputs.status }}
+      packages-status: ${{ steps.pkg-status.outputs.status }}
+      storybook-status: ${{ steps.sb-status.outputs.status }}
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up environment (Bun + caches, no browsers)
+      - name: Set up environment (Bun + caches + chromium)
         uses: ./.github/actions/setup-env
-        with:
-          browsers: ''
 
       - name: Stamp version
         if: inputs.version != ''
@@ -62,10 +62,10 @@ jobs:
       - name: Unit tests (vitest workspace)
         run: bun run test:package
 
-      - name: Build packages (tsup)
+      - name: Build packages (ESM + CJS + DTS)
         run: bun run build:packages
 
-      - name: Build CLI web assets
+      - name: Build CLI web assets & smoke check
         run: bun run build:cli:assets && bun packages/tools/tests/cli-extension-check.ts
 
       - name: Upload packages-dist artifact
@@ -78,10 +78,33 @@ jobs:
             packages/*/package.json
           retention-days: 1
 
-      - name: Record status
-        id: status
+      - name: Record packages status
+        id: pkg-status
         if: always()
         run: echo "status=${{ job.status }}" >> "$GITHUB_OUTPUT"
+
+      # Reuses the already-built workspace packages in the same runner; one
+      # bounded retry absorbs cold Vite dev-server dynamic-import races.
+      - name: Storybook interaction tests (attempt 1)
+        id: sb-attempt-1
+        continue-on-error: true
+        run: bun run --filter '@bitcobblers/wod-wiki-storybook' test
+
+      - name: Storybook interaction tests (attempt 2)
+        id: sb-attempt-2
+        if: steps.sb-attempt-1.outcome == 'failure'
+        run: bun run --filter '@bitcobblers/wod-wiki-storybook' test
+
+      - name: Record Storybook status
+        id: sb-status
+        if: always()
+        run: |
+          if [ "${{ steps.sb-attempt-1.outcome }}" = "success" ] || [ "${{ steps.sb-attempt-2.outcome }}" = "success" ]; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failure" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
   playground:
     name: Verify playground
@@ -96,7 +119,7 @@ jobs:
         with:
           browsers: ''
 
-      - name: Build packages
+      - name: Build packages (ESM + CJS + DTS for type gate)
         run: bun run build:packages
 
       - name: Run validation script tests
@@ -112,40 +135,3 @@ jobs:
         id: status
         if: always()
         run: echo "status=${{ job.status }}" >> "$GITHUB_OUTPUT"
-
-  storybook:
-    name: Verify Storybook
-    runs-on: ubuntu-22.04
-    outputs:
-      status: ${{ steps.test.outputs.status }}
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up environment (Bun + chromium)
-        uses: ./.github/actions/setup-env
-
-      - name: Build packages
-        run: bun run build:packages
-
-      # addon-vitest browser mode occasionally flakes on a cold Vite cache; one
-      # bounded retry absorbs transient dynamic-import startup races.
-      - name: Storybook interaction tests (attempt 1)
-        id: test-attempt-1
-        continue-on-error: true
-        run: bun run --filter '@bitcobblers/wod-wiki-storybook' test
-
-      - name: Storybook interaction tests (attempt 2)
-        id: test-attempt-2
-        if: steps.test-attempt-1.outcome == 'failure'
-        run: bun run --filter '@bitcobblers/wod-wiki-storybook' test
-
-      - name: Record status
-        id: test
-        if: always()
-        run: |
-          if [ "${{ steps.test-attempt-1.outcome }}" = "success" ] || [ "${{ steps.test-attempt-2.outcome }}" = "success" ]; then
-            echo "status=success" >> "$GITHUB_OUTPUT"
-          else
-            echo "status=failure" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi

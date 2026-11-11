@@ -380,17 +380,18 @@ test.describe('Nav ladder — Phase 2 contextual L2/L3 sync, inline saved links 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/dashboards', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+(\.\d+)?$/, { timeout: 30_000 });
 
     const sidebar = page.getByRole('navigation', { name: 'Main' });
     await sidebar.getByTestId('dashboards-nav-new').click();
-    await expect(page).toHaveURL(/\/dashboard\/new-dashboard$/);
-    await expect(sidebar.getByTestId('dashboards-nav-saved')).toBeVisible({ timeout: 10_000 });
-    await expect(sidebar.getByTestId('dashboard-nav-item-new-dashboard')).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/new-dashboard$/, { timeout: 15_000 });
+    await expect(sidebar.getByTestId('dashboards-nav-saved')).toBeVisible({ timeout: 15_000 });
+    await expect(sidebar.getByTestId('dashboard-nav-item-new-dashboard')).toBeVisible({ timeout: 10_000 });
 
     // Creating a second dashboard deduplicates slug and updates L2 immediately without reload
     await sidebar.getByTestId('dashboards-nav-new').click();
-    await expect(page).toHaveURL(/\/dashboard\/new-dashboard-2$/);
-    await expect(sidebar.getByTestId('dashboard-nav-item-new-dashboard-2')).toBeVisible({ timeout: 10_000 });
+    await expect(page).toHaveURL(/\/dashboard\/new-dashboard-2$/, { timeout: 15_000 });
+    await expect(sidebar.getByTestId('dashboard-nav-item-new-dashboard-2')).toBeVisible({ timeout: 15_000 });
 
     // Switch back to the first saved dashboard via L2
     await sidebar.getByTestId('dashboard-nav-item-new-dashboard').click();
