@@ -4,10 +4,10 @@ This document provides core development guidelines for AI assistants working on 
 
 ## Project Overview
 
-WOD Wiki is a React component library for parsing, displaying, and executing workout definitions using the **Whiteboard Language** (fence tag `wod`; `whiteboard` accepted as alias). It features a CodeMirror Editor integration, JIT compiler for workout scripts, and components styled with Tailwind CSS.
+WOD Wiki is a Bun/TypeScript monorepo (`packages/*`, `apps/*`) for authoring, executing, and querying structured workout `Note`s using the **Whiteboard Language** (fence tag `wod` / `time`; `whiteboard` accepted as alias) and **WQL**. See [`GLOSSARY.md`](GLOSSARY.md) for canonical domain terms and `docs/adrs/` for architectural decisions.
 
-**Tech Stack**: TypeScript, React, Storybook, Bun Test, CodeMirror 6, Tailwind CSS, Lezer parser
-**Package Manager**: bun (NOT npm/yarn)
+**Tech Stack**: TypeScript, React, Vite, Storybook 10, Vitest, Playwright, CodeMirror 6, Tailwind CSS, Lezer
+**Package Manager**: `bun` exclusively (NEVER `npm`, `yarn`, or `pnpm`)
 
 ## Essential Development Commands
 
@@ -27,136 +27,13 @@ bun run docs:check       # Validate documentation links (<1 second)
 
 `bun run build:cli` builds packages and bundles both hosting apps into the engine distribution. Use it before packaging or running `wod server`/`wod playground` from a checkout. Hosting never builds assets at startup. The shared HTTP handler lives in `packages/engine/src/server/app.ts`; `apps/api` consumes the engine's `/server` export. After building, `bun packages/tools/tests/cli-extension-check.ts` checks relocated hosting and database persistence outside the checkout.
 
-## Build/Lint/Test Commands
+## Validation & Testing Architecture
 
-### Unit Tests (src/)
-```bash
-bun run test                          # Run all unit tests in src/ only (~3-4 seconds)
-bun run test --watch                  # Watch mode
-bun run test:coverage                 # With coverage report
-```
-
-> **Note:** `bun run test` targets `./src` (not `src`) to avoid accidentally including
-> `playground/src/` test files. Always use `./src` when running bun test manually.
-
-### Component/Integration Tests (tests/)
-```bash
-bun run test:components               # Run tests in tests/ directory
-bun run test:all                      # Run both unit + component tests
-```
-
-### Playground App Tests (playground/src/)
-```bash
-bun run test:playground               # Run tests in playground/src/ directory
-```
-
-### Specific Test Execution
-```bash
-# Run single file
-bun test src/runtime/behaviors/__tests__/TimerBehavior.test.ts --preload ./tests/unit-setup.ts
-
-# Run harness tests
-bun test tests/harness --preload ./tests/unit-setup.ts
-
-# Run test category
-bun test tests/jit-compilation --preload ./tests/setup.ts
-```
-
-### Playwright E2E / Acceptance Tests (e2e/)
-```bash
-bun run test:e2e                      # Run all Playwright e2e tests
-bun x playwright test e2e/runtime-execution  # Run a specific category
-bun x playwright test --headed        # Run with visible browser
-bun x playwright test --ui            # Interactive Playwright UI
-bun x playwright show-report          # View HTML report after run
-```
-
-### Other Test Commands
-```bash
-bun run test:storybook                # Storybook tests (requires Playwright)
-bun run test:perf                     # Performance benchmarks
-bun x tsc --noEmit                    # Type check only
-```
-
-## Test Harness
-
-The project provides a unified test harness under `tests/harness/`. **Use this instead of inline mocks.**
-
-**📚 Full Guide:** [Block Isolation Testing Guide](https://github.com/bitcobblers/wod-wiki/wiki/Block-Isolation-Testing-Guide)
-
-### Available Classes
-
-| Class | Purpose | Use For |
-|-------|---------|---------|
-| `BehaviorTestHarness` | Lightweight harness with real memory/stack | Unit testing behaviors |
-| `MockBlock` | Configurable IRuntimeBlock stub | Testing behaviors in isolation |
-| `RuntimeTestBuilder` | Builder for full ScriptRuntime | Integration testing strategies |
-
-### Example: Unit Testing Behaviors
-
-```typescript
-import { describe, it, expect, beforeEach } from 'bun:test';
-import { BehaviorTestHarness, MockBlock } from '../../../../tests/harness';
-import { TimerBehavior } from '../TimerBehavior';
-
-describe('TimerBehavior', () => {
-  let harness: BehaviorTestHarness;
-
-  beforeEach(() => {
-    harness = new BehaviorTestHarness()
-      .withClock(new Date('2024-01-01T12:00:00Z'));
-  });
-
-  it('should start timer on mount', () => {
-    const block = new MockBlock('test-timer', [new TimerBehavior('up')]);
-    harness.push(block);
-    harness.mount();
-    expect(block.getBehavior(TimerBehavior)!.isRunning()).toBe(true);
-  });
-});
-```
-
-### Example: Integration Testing Strategies
-
-```typescript
-import { describe, it, expect } from 'bun:test';
-import { RuntimeTestBuilder } from '@/testing/harness/RuntimeTestBuilder';
-import { GenericTimerStrategy } from '@/runtime/compiler/strategies/components/GenericTimerStrategy';
-
-describe('GenericTimerStrategy', () => {
-  it('should compile timer block', () => {
-    const harness = new RuntimeTestBuilder()
-      .withScript('10:00 Run')
-      .withStrategy(new GenericTimerStrategy())
-      .build();
-
-    const block = harness.pushStatement(0);
-    expect(block.blockType).toBe('Timer');
-  });
-});
-```
-
-### Key Harness APIs
-
-```typescript
-// BehaviorTestHarness
-harness.withClock(date)              // Set mock clock
-harness.withMemory(type, owner, val) // Pre-allocate memory
-harness.push(block)                  // Push block to stack
-harness.mount()                      // Mount current block
-harness.next()                       // Call next() on block
-harness.unmount()                    // Unmount and dispose
-harness.advanceClock(ms)             // Advance time
-harness.simulateEvent(name, data)    // Dispatch event
-harness.wasEventEmitted(name)        // Assert event emitted
-harness.stackDepth                   // Current stack size
-
-// MockBlock
-new MockBlock('id', [behaviors], { state: { custom: 'value' } })
-block.state.isComplete = true        // Mutable state for conditions
-block.getBehavior(BehaviorType)      // Get behavior instance
-```
-
+- **Validation commands & merge/preview gates**: [`docs/development/validation.md`](docs/development/validation.md) is the single source of truth (`bun run test`, `bun run lint`, `bun run check:playground-types`, `bun run docs:check`, `bun run check:skills`, `bun scripts/check-e2e-specs.ts`, and `bun run test:e2e:preview`).
+- **Authoring or updating tests**: Load [`skills/wod-wiki-testing/SKILL.md`](skills/wod-wiki-testing/SKILL.md) (mirrored in `.agents/skills/wod-wiki-testing/SKILL.md`) and [`skills/wod-wiki-testing/references/catalog.md`](skills/wod-wiki-testing/references/catalog.md):
+  1. **Tier 1 — Business-language domain scenarios** (`bun run test:package`): `@bitcobblers/wod-wiki-core/testing` (`packages/core/src/testing.ts`) builders (`buildDomainWorld`, `buildTestNote`, `buildPropertyNote`, `buildTestSession`), `DomainScenarioHarness` (`packages/engine/tests/harness/DomainScenarioHarness.ts`), low-level runtime block harnesses (`packages/engine/tests/harness/`), and pure `.md` scenario tables in `packages/wql/tests/fixtures/scenarios/` and `packages/lang/tests/fixtures/`.
+  2. **Tier 2 — Component-level Storybook states & Playground host** (`bun run test:storybook` / `bun run test:playground:unit`): `parameters.domainState` presets (`apps/storybook/src/testing/domainStates.tsx`) + `storyActions` (`apps/storybook/src/testing/storyActions.ts`) for isolated Storybook `play()` scripts, and `renderWithPlaygroundHost` / `setupPlaygroundTestHost` (`apps/playground/src/testing/host.tsx`) for in-memory Playground route/hook tests (never use global `mock.module()`).
+  3. **Tier 3 — Two-level Markdown journeys & Playwright** (`bun run test:e2e:preview` / `bun run test:e2e`): pair `e2e/specs/<domain>/<journey>.md` with `e2e/live-app/<journey>.e2e.ts`, compose the 8-namespace `PlaygroundTestActor` (`e2e/fixtures/playgroundActor.ts`) + `TEST_IDS` (`apps/playground/src/lib/testIds.ts`), and verify 1:1 spec parity via `bun scripts/check-e2e-specs.ts`.
 ## Code Style Guidelines
 
 ### TypeScript & Imports
@@ -179,83 +56,38 @@ block.getBehavior(BehaviorType)      // Get behavior instance
 ### React & Components
 - Use functional components with hooks
 - Follow existing Tailwind CSS patterns, avoid custom CSS
-- Create Storybook stories for all public components
-- Export components from `src/index.ts` if part of public API
+- Create Storybook stories in `apps/storybook/src/` for shared UI and Playground organisms
+- Export shared UI primitives from `packages/ui/src/index.ts`
 
-### Atomic Design Classification
-When creating Storybook stories, classify components using this decision tree:
-- Single HTML element, style variants only? → `stories/catalog/atoms/`
-- 2-5 atoms doing one specific thing? → `stories/catalog/molecules/`
-- Multiple molecules forming a distinct UI section? → `stories/catalog/organisms/`
-- Layout skeleton with placeholder content? → `stories/catalog/templates/`
-- Real content at a specific URL? → `stories/catalog/pages/`
-
-Sizing heuristics:
-- Single Responsibility: describable in one sentence without "and"
-- 10-Prop Test: under 10 props
-- Rule of Three: used in 2-3+ contexts before abstracting
-- Whiteboard Test: explainable in under 30 seconds
-
-### Testing
-- Unit tests: `src/**/*.test.ts` or `src/**/*.spec.ts`
-- Integration tests: `tests/**/*.test.ts`
-- Story files: `stories/**/*.stories.tsx`
-- Test files should be co-located with source files when possible
-
-## Project Architecture
-
-### Core Components
-
-**JIT Compiler System** (`src/runtime/compiler/JitCompiler.ts`)
-- Just-In-Time compiler for workout scripts — compiles lazily, as each block is pushed onto the stack (not upfront)
-- Composition pipeline: all matching `IRuntimeBlockStrategy` implementations (priority-ordered: logic → components → enhancements → fallback) apply to a shared `BlockBuilder`, rather than one strategy fully owning a block
-- Coordinates metric classification, metric inheritance/promotion (e.g. rep schemes like `21-15-9` projected round-by-round into child blocks), and block creation
-
-**Runtime Stack** (`src/runtime/RuntimeStack.ts`)
-- Stack-based execution environment for workout blocks
-- Constructor-based initialization pattern (blocks initialize during construction)
-- Consumer-managed disposal pattern (consumer must call `dispose()` on popped blocks)
-- Performance targets: push/pop < 1ms, current() < 0.1ms, dispose() < 50ms
-
-**Parser System** (`src/parser/`, `src/grammar/`)
-- Lezer-based parser (CodeMirror's LR parser) for workout syntax — not Chevrotain
-- Grammar/tokens: `src/grammar/whiteboardscript.grammar` (compiled to `src/grammar/parser.ts` / `parser.terms.ts`)
-- Pipeline: `md-timer.ts` (entry) → Lezer CST → `syntax-parser.ts` (CST → typed `SyntaxPrimitive`s + indentation tree) → `semantic-classifier.ts` (primitives → `IMetric`s) → dialect stack (`src/dialects/`, e.g. unit fusion) → `WhiteboardScript`
-- Parses workout scripts into `ICodeStatement` nodes (`src/core/models/CodeStatement.ts`), each carrying a `MetricContainer` of typed metrics
-- See `src/parser/README.md` for the two-seam design and `docs/parser-compiler-runtime-metrics.md` for the full pipeline
-
-**Metric System** (`src/core/models/Metric.ts`, `src/runtime/compiler/metrics/`)
-- There is no `src/fragments/` directory — "fragments" were replaced by typed `IMetric` objects (RepMetric, EffortMetric, DurationMetric, ResistanceMetric, DistanceMetric, RoundsMetric, etc.)
-- Each metric has a `type: MetricType` and `origin: MetricOrigin` (parser/compiler/dialect/runtime/user/...), which drives ownership precedence downstream
-- Metrics are the universal currency: the same `IMetric`/`MetricContainer` shapes flow from parsing through compilation, runtime memory, and the logged output statements
-
-**Editor Integration** (`src/editor/`)
-- CodeMirror 6 editor integration with custom syntax highlighting
-- Suggestion engine and semantic token processing
-- `WodWiki.tsx` is the main editor component
-
-**Package Boundaries — headless vs React** (`packages/engine`, `packages/lang`)
-- `@bitcobblers/wod-wiki-lang` and `@bitcobblers/wod-wiki-engine` each expose a **headless root** (`.`) and a **React subpath** (`/react`). The root entry must stay free of DOM/React imports — the seed sync worker runs in a Worker, where a React import chain pulls browser-only code (React Refresh's runtime touches `window` at module scope) into worker scope and kills the worker on boot.
-- Headless consumers (workers, CLI, storage, parsers) import the root; React consumers import `@bitcobblers/wod-wiki-engine/react`. Keep it that way: the umbrella barrel is the one place a regression would be invisible until a worker dies.
-- `packages/lang/src/index.ts` is the headless entry point ("0 DOM / React dependencies") — do not re-export React modules from it.
-
-### Key Directories Structure
+### Monorepo Workspace Layout
 ```
-src/
-├── clock/              # Timer/clock components and hooks
-├── components/         # Shared React components (atoms/molecules/organisms/Editor/metrics/workout/workbench)
-├── core/               # Core models (CodeStatement, Metric, MetricContainer, OutputStatement)
-├── dialects/           # Post-parse dialect stack (e.g. unit fusion — src/dialects/units/)
-├── editor/             # Editor-adjacent utilities
-├── grammar/            # Lezer grammar source + generated parser tables
-├── parser/             # Workout script parsing logic (Lezer-based, see src/parser/README.md)
-├── runtime/            # JIT compiler, runtime stack, behaviors, memory, metrics
-└── types/              # TypeScript type definitions
+packages/
+├── core/               # Domain models, storage contracts, portability codecs, @bitcobblers/wod-wiki-core/testing builders
+├── lang/               # Lezer Whiteboard Script grammar, parser, semantic classifier, dialects (0 DOM/React in root)
+├── wql/                # Lezer WQL parser, derivation, selection, and QueryService
+├── storage/            # InMemoryStorage, SqlStorage (SQLite), and IndexedDBStorage adapters
+├── engine/             # JIT compiler, RuntimeStack, Metric Shake-Out Queue, Session/Feed services (. headless, /react UI)
+├── tools/              # Seed compiler, CLI (`bin/wod`), and packaged skills
+└── ui/                 # Shared React + CodeMirror 6 + Tailwind UI components
 
-stories/                # Storybook stories
-├── catalog/            # Component catalog stories
-└── design/             # Design-system stories
+apps/
+├── playground/         # Vite + React workout journal, notebook streams, editor, timer, and dashboards (`@/*` -> `src/*`)
+├── storybook/          # Storybook 10 workbench & deterministic component test suite (`parameters.domainState`)
+└── api/                # Bun/Hono HTTP server wrapping `@bitcobblers/wod-wiki-engine/server`
+
+e2e/
+├── specs/              # Level-1 business-language Markdown user journey specs by domain
+├── fixtures/           # PlaygroundTestActor (`playgroundActor.ts`)
+├── live-app/           # Level-2 Playwright `.e2e.ts` acceptance journeys
+├── helpers/            # Low-level IndexedDB & feed readiness utilities wrapped by PlaygroundTestActor
+└── pages/              # Reusable screen Page Objects wrapped by PlaygroundTestActor
 ```
+
+### Core Subsystem Invariants
+
+- **Package Boundaries — headless vs React** (`packages/engine`, `packages/lang`): `@bitcobblers/wod-wiki-lang` and `@bitcobblers/wod-wiki-engine` each expose a **headless root** (`.`) and, for engine, a **React subpath** (`/react`). Keep root entries free of DOM/React imports so Web Workers (`seed` / `feed` sync) and CLI entrypoints never pull browser globals at module scope.
+- **JIT Compiler & Runtime Stack** (`packages/engine/src/runtime/`): Compiles workout blocks lazily as pushed onto `RuntimeStack`; blocks initialize in constructors and require consumer-managed `dispose()` when popped.
+- **Parser & Metrics** (`packages/lang/src/`, `packages/core/src/models/`): `whiteboardscript.grammar` → `syntax-parser.ts` → `semantic-classifier.ts` → dialect stack → `ICodeStatement`s carrying typed `IMetric` values (`MetricOrigin` precedence drives downstream `Metric Shake-Out Queue` resolution).
 
 ## Critical Development Patterns
 
@@ -265,114 +97,20 @@ stories/                # Storybook stories
 3. **Resource cleanup**: Implement robust disposal patterns with multiple-call safety
 
 ### Parser Development
-- Update tokens/grammar rules in `src/grammar/whiteboardscript.grammar` (regenerates `src/grammar/parser.ts` / `parser.terms.ts` via `lezer-generator`)
-- Update CST → primitive mapping in `src/parser/syntax-parser.ts`
-- Update primitive → metric classification in `src/parser/semantic-classifier.ts`
-- Update unit/dialect fusion in `src/dialects/` if the change involves combining a number with a unit word
-- Test with Parser stories in Storybook and `src/parser/*.test.ts`
+- Update tokens/grammar rules in `packages/lang/src/grammar/whiteboardscript.grammar` (regenerates parser tables via `lezer-generator`)
+- Update CST → primitive mapping in `packages/lang/src/parser/syntax-parser.ts` and metric classification in `packages/lang/src/parser/semantic-classifier.ts`
+- Update unit/dialect fusion in `packages/lang/src/dialects/` when combining numbers with units
+- Validate with `bun run test:package` (`packages/lang` unit + `.md` fixture suites)
 
 ### Component Development
 - Use existing Tailwind CSS classes rather than custom CSS
-- Follow TypeScript interfaces for props
-- Create corresponding Storybook stories in `stories/` directory
-- Export from appropriate index files if part of public API
+- Follow TypeScript interfaces for props and wire interactive controls with `TEST_IDS` (`apps/playground/src/lib/testIds.ts`)
+- Add or update deterministic Storybook `parameters.domainState` stories + `play()` scripts in `apps/storybook/src/`
 
-## Validation Requirements
+## Validation & Documentation
 
-> Canonical reference: [`docs/development/validation.md`](docs/development/validation.md) — single
-> source of truth for validation commands, the targeted-vs-milestone E2E policy, the UI-worker
-> preview acceptance gate, and the ticket-report CLI lifecycle. The checklist below is the
-> quick version; the doc has the details.
-
-After making changes, always validate:
-
-1. **Unit Test Regression**:
-   - Run `bun run test`
-   - Ensure no NEW test failures are introduced
-   - Accept existing 4 module failures and 1 integration test failure as baseline
-
-2. **Type Check**:
-   - Run the narrowest relevant `tsc` command for the touched surface
-   - The repo-wide command (`bun x tsc --noEmit -p tsconfig.json`) is currently diagnostic-only while [WOD-733](/WOD/issues/WOD-733) remains open
-   - No new type errors from your changes within the scoped surface
-
-3. **E2E Acceptance Tests** (required for UI/layout/interaction changes):
-   - Ensure Storybook is running: `bun run storybook`
-   - Run `bun run test:e2e` — all e2e tests must pass
-   - If you changed UI behavior, write or update an e2e test to cover the change
-   - Test both mobile and desktop viewports when layout is affected
-
-4. **Storybook Smoke Test**:
-   - Verify Storybook loads on http://localhost:6006
-   - Navigate to affected stories and confirm they render correctly
-
-5. **Build Validation** (before merge):
-   - Run `bun run build-storybook` and wait for completion (~30 seconds)
-   - Verify build completes without errors and creates `storybook-static/` directory
-
-## Testing Guidelines
-
-### Unit Tests
-- Always invoke tests via `bun run <script>` — **never** call `vitest`, `jest`, `npx`, or `npm test` directly
-- Config files (`vitest.unit.config.js`, `vitest.storybook.config.js`) are internal implementation details invoked by the bun scripts
-- Place test files alongside source files with `.test.ts` or `.spec.ts` suffix
-
-### Storybook Tests
-- Interaction tests defined in story `play` functions
-- Example: timer test in `src/stories/TimerTest.stories.tsx`
-- Requires Storybook running and Playwright browsers installed
-
-### Playwright E2E Acceptance Tests
-
-Playwright e2e tests are **acceptance tests** — they validate features from the user's perspective in a real browser. Changes that affect UI behavior, layout, or user interactions **must** include or update e2e tests before merging.
-
-**Config**: `playwright.config.ts` — tests run against Storybook at `http://localhost:6006`
-
-**Directory structure**:
-```
-e2e/
-├── *.e2e.ts                  # Top-level test files
-├── fixtures/                 # Test data (workout scripts, expected states)
-│   └── workout-data.ts
-├── pages/                    # Page Object Models
-│   ├── JitCompilerDemoPage.ts
-│   └── WorkbenchPage.ts
-├── utils/                    # Shared helpers
-│   ├── assertion-helpers.ts  # RuntimeAssertions, WorkoutAssertions
-│   └── runtime-helpers.ts    # extractRuntimeState(), wait helpers
-├── runtime-execution/        # Runtime execution test suites
-├── metric-inheritance/       # Metric inheritance tests
-└── screenshots/              # Failure screenshots (gitignored)
-```
-
-**Writing e2e tests — patterns to follow**:
-1. **Page Object Model**: Create/reuse page objects in `e2e/pages/` for reusable navigation and interaction methods.
-2. **Assertion helpers**: Use `RuntimeAssertions` and `WorkoutAssertions` from `e2e/utils/` instead of inline assertions.
-3. **Console monitoring**: Capture `page.on('console')` and `page.on('pageerror')` to detect runtime errors.
-4. **Screenshots**: Take screenshots at key checkpoints for debugging — stored in `e2e/screenshots/`.
-5. **Multi-viewport**: Test mobile (375×812) and desktop viewports when layout behavior matters.
-6. **Storybook URLs**: Navigate to `http://localhost:6006/iframe.html?id=<story-id>&viewMode=story` for isolated component testing.
-
-**Agent workflow for e2e tests**:
-1. **Collaborate with the developer** to define acceptance criteria before writing tests.
-2. Write the test file in `e2e/` matching the `*.e2e.ts` naming convention.
-3. Reuse existing page objects and helpers — create new ones only when needed.
-4. Run the test with `bun run test:e2e` (or a specific file) and iterate until green.
-5. Use `--headed` mode or Playwright `page.screenshot()` to debug visual issues.
-6. The developer reviews and confirms the tests capture the intended behavior.
-
-## File Organization
-
-### Public API Exports
-- Main library exports are handled through individual component exports
-- Metric visualization/display components live under `src/components/metrics/` and `src/components/molecules/` (e.g. `MetricSourceRow.tsx`) — not a `src/components/fragments/` directory
-- No single main index.ts file exists - exports are distributed across modules (`src/index.ts`, `src/core-entry.ts`, `src/clock-entry.ts`, `src/editor-entry.ts`)
-
-### Documentation Files
-- Save new Markdown documentation to `/docs` directory
-- Documentation auto-published to GitHub Wiki when pushed to main branch
-- API documentation in the Obsidian vault (`deep-dives/runtime-session-implementation.md`) provides detailed runtime stack patterns
-
+- **Validation checklist & commands**: Follow [`docs/development/validation.md`](docs/development/validation.md) (`bun run test`, `bun run lint`, `bun run check:playground-types`, `bun run check:skills`, `bun scripts/check-e2e-specs.ts`, `bun run docs:check`, and targeted `bun run test:e2e:preview` for UI changes).
+- **Documentation**: Save new Markdown docs under `docs/` or `markdown/` and keep links clean (`bun run docs:check`).
 ### Agent Skills (`skills/`)
 - Parsing/tooling skills for agents live in `skills/<name>/SKILL.md` — one source of truth (`skills/README.md` has the layout and install paths)
 - `wod skills install [--dir <project>]` copies them into a project's `.agents/skills/`; `wod skills list` shows what the CLI ships; `npx skills add bitcobblers/wod-wiki` installs per-agent

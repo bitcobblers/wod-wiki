@@ -6,10 +6,8 @@ Agent skills shipped with the WOD Wiki toolchain. One directory per skill:
 skills/<name>/SKILL.md      # frontmatter: name, description (agentskills.io format)
 ```
 
-`wod-extraction` is the parsing skill: it teaches an agent to read a workout
-description in any form and write correct Whiteboard Script (which metrics a
-workout implies, the collectible `?` placeholders, statement structure).
-
+- `wod-extraction` — the parsing skill: teaches an agent to read a workout description in any form and write Whiteboard Script (which metrics a workout implies, the collectible `?` placeholders, statement structure).
+- `wod-wiki-testing` — the 3-tier repo testing skill: routes agents across Tier 1 domain scenarios (`@bitcobblers/wod-wiki-core/testing` + `DomainScenarioHarness`), Tier 2 Storybook `parameters.domainState` + `storyActions` and Playground `@/testing/host`, and Tier 3 two-level Markdown specs (`e2e/specs/`) + Playwright `PlaygroundTestActor` (`e2e/fixtures/playgroundActor.ts`), mirrored into `.agents/skills/wod-wiki-testing/`.
 ## Install
 
 | Path | Command | Result |

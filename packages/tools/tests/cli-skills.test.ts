@@ -61,11 +61,14 @@ describe('installSkills', () => {
   it('copies each skill into <dir>/.agents/skills/', () => {
     withTempProject((dir) => {
       const result = installSkills({ root: skillsRoot, dir });
-      expect(result.installed).toEqual(['wod-extraction']);
+      expect(result.installed).toEqual(['wod-extraction', 'wod-wiki-testing']);
       expect(result.target).toBe(join(dir, '.agents', 'skills'));
-      expect(readdirSync(result.target)).toEqual(['wod-extraction']);
+      expect(readdirSync(result.target).sort()).toEqual(['wod-extraction', 'wod-wiki-testing']);
       expect(readFileSync(join(result.target, 'wod-extraction', 'SKILL.md'), 'utf-8')).toBe(
         readFileSync(join(skillsRoot, 'wod-extraction', 'SKILL.md'), 'utf-8'),
+      );
+      expect(readFileSync(join(result.target, 'wod-wiki-testing', 'references', 'catalog.md'), 'utf-8')).toBe(
+        readFileSync(join(skillsRoot, 'wod-wiki-testing', 'references', 'catalog.md'), 'utf-8'),
       );
     });
   });
@@ -77,11 +80,11 @@ describe('installSkills', () => {
       writeFileSync(join(target, 'SKILL.md'), 'local edit');
 
       const kept = installSkills({ root: skillsRoot, dir });
-      expect(kept).toMatchObject({ installed: [], skipped: ['wod-extraction'] });
+      expect(kept).toMatchObject({ installed: [], skipped: ['wod-extraction', 'wod-wiki-testing'] });
       expect(readFileSync(join(target, 'SKILL.md'), 'utf-8')).toBe('local edit');
 
       const replaced = installSkills({ root: skillsRoot, dir, force: true });
-      expect(replaced.installed).toEqual(['wod-extraction']);
+      expect(replaced.installed).toEqual(['wod-extraction', 'wod-wiki-testing']);
       expect(readFileSync(join(target, 'SKILL.md'), 'utf-8')).toBe(
         readFileSync(join(skillsRoot, 'wod-extraction', 'SKILL.md'), 'utf-8'),
       );

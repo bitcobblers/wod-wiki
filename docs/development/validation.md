@@ -5,6 +5,8 @@ Canonical validation reference for this repo. Agent instruction files
 duplicating command lists — update this document when validation commands or
 policies change.
 
+For authoring new tests across Tier 1 (domain scenarios), Tier 2 (Storybook `domainState` + `play()` and Playground `@/testing/host`), and Tier 3 (two-level `e2e/specs/` Markdown journeys + Playwright `PlaygroundTestActor`), load [`skills/wod-wiki-testing/SKILL.md`](../../skills/wod-wiki-testing/SKILL.md).
+
 All commands run from the repo root with `bun`.
 
 ## Command reference
@@ -16,6 +18,9 @@ All commands run from the repo root with `bun`.
 | Markdown fixture compile suite | `bun run --cwd apps/playground test:markdown` | Collections + syntax fixtures; decoupled from `bun run test` |
 | Storybook tests | `bun run test:storybook` | Story smoke + `play()` interaction tests |
 | Playground type gate | `bun run check:playground-types` | Compares `tsc` output against the checked-in baseline; pre-existing errors are tracked in that baseline, not by hand count |
+| E2E Markdown <-> Playwright spec parity | `bun scripts/check-e2e-specs.ts` | Enforces 1:1 bidirectional links between `e2e/specs/<domain>/<journey>.md` and `e2e/live-app/<journey>.e2e.ts` |
+| Validation & CLI script unit tests | `bun run test:validation-scripts` | Tests `check-playground-types`, `check-e2e-specs`, `ticket-report`, and `migrate-seed-markdown` |
+| Skill sync & cited-path check | `bun run check:skills` | Verifies served/mirrored skill copies and repo paths cited in `skills/` |
 | Full E2E / milestone acceptance | `bun run test:e2e` | Playwright journal config; heavyweight |
 | Targeted preview acceptance | `bun run test:e2e:preview` | Runs E2E against a production preview build; the UI-worker done gate |
 | Static Storybook build | `bun run build-storybook` | Never cancel; can take up to 60 minutes |
