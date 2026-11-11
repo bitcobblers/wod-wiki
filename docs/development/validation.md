@@ -17,7 +17,7 @@ All commands run from the repo root with `bun`.
 | Storybook tests | `bun run test:storybook` | Story smoke + `play()` interaction tests |
 | Playground type gate | `bun run check:playground-types` | Compares `tsc` output against the checked-in baseline; pre-existing errors are tracked in that baseline, not by hand count |
 | Full E2E / milestone acceptance | `bun run test:e2e` | Playwright journal config; heavyweight |
-| Targeted preview acceptance | `bun run test:e2e:preview` | Builds `apps/playground/dist` and serves it via `scripts/serve-preview-dist.ts` (`E2E_PREVIEW_PORT` overrides `4173`); the UI-worker done gate |
+| Targeted preview acceptance | `bun run test:e2e:preview` | Runs E2E against a production preview build; the UI-worker done gate |
 | Static Storybook build | `bun run build-storybook` | Never cancel; can take up to 60 minutes |
 | Docs link check | `bun run docs:check` | Sub-second; must pass before merge |
 

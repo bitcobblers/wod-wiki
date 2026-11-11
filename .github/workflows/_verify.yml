@@ -1,33 +1,30 @@
-name: Verify
+name: Build Verify
+
+# Unified non-deploy verification leg (docs/build-process.canvas):
+#   - packages:   lint, typecheck, skill sync check, vitest, tsup build, CLI web assets
+#   - playground: validation script tests, baseline type gate, isolated unit suite
+#   - storybook:  Playwright component / story interaction tests
 
 on:
   workflow_call:
     inputs:
-      build-preview-artifact:
-        description: Whether to run the deploy-shaped playground build gate and upload the dist artifact for the preview job (true on PRs; false on main — the site job builds for real)
+      version:
+        description: Unified version string stamped into package manifests before building
+        required: false
+        type: string
+        default: ''
+      upload-packages-dist:
+        description: Upload stamped packages-dist artifact for downstream npm publishing on main
         required: false
         type: boolean
-        default: true
-      preview-base-path:
-        description: VITE_BASE_PATH for the deploy-shaped playground build gate (e.g. /<slug>/dist/ on PRs); empty = default '/'
-        required: false
-        type: string
-        default: ''
-      app-version:
-        description: VITE_APP_VERSION stamped into the playground bundle (e.g. X.Y.Z-pr.N on PR previews); empty = package.json version
-        required: false
-        type: string
-        default: ''
+        default: false
     outputs:
-      unit-status:
-        description: Unit test outcome
-        value: ${{ jobs.verify.outputs.unit-status }}
-      coverage-status:
-        description: Coverage outcome
-        value: ${{ jobs.verify.outputs.coverage-status }}
-      build-status:
-        description: Playground build outcome
-        value: ${{ jobs.verify.outputs.build-status }}
+      packages-status:
+        value: ${{ jobs.packages.outputs.status }}
+      playground-status:
+        value: ${{ jobs.playground.outputs.status }}
+      storybook-status:
+        value: ${{ jobs.storybook.outputs.status }}
 
 permissions:
   contents: read
@@ -36,99 +33,119 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  verify:
+  packages:
+    name: Verify packages
     runs-on: ubuntu-22.04
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     outputs:
-      unit-status: ${{ steps.unit.outcome }}
-      coverage-status: ${{ steps.unit.outcome }}
-      build-status: ${{ steps.build.outcome }}
+      status: ${{ steps.status.outputs.status }}
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up environment (Bun + caches)
+      - name: Set up environment (Bun + caches, no browsers)
         uses: ./.github/actions/setup-env
         with:
           browsers: ''
 
-      # Playground unit tests (isolated runner). Package tests run in the
-      # parallel packages leg (_packages.yml); Storybook in its own leg.
-      # e2e runs post-deploy against the published artifact (preview-e2e.yml).
+      - name: Stamp version
+        if: inputs.version != ''
+        run: bun scripts/stamp-version.ts --version "${{ inputs.version }}"
 
+      - name: Lint packages
+        run: bun run lint:packages
 
-      # Workspace packages must be built before bun-run app tests: the
-      # playground resolves @bitcobblers/wod-wiki-* through their dist
-      # exports maps (Vite aliases source only at bundle time).
-      - name: Build packages
+      - name: Typecheck packages
+        run: bun run typecheck:package
+
+      - name: Check generated skill copies
+        run: bun run check:skills
+
+      - name: Unit tests (vitest workspace)
+        run: bun run test:package
+
+      - name: Build packages (tsup)
         run: bun run build:packages
-      - name: Run validation script tests
-        run: bun run test:validation-scripts
-      # Baseline-aware tsc gate: fails only on NEW playground diagnostics
-      # relative to scripts/baselines/playground-types.json (line moves and
-      # resolved diagnostics never fail). Regenerate intentionally with
-      # `bun scripts/check-playground-types.mjs --update-baseline`.
-      - name: Check playground types
-        run: bun run check:playground-types
-      - name: Run unit tests
-        id: unit
-        run: bun run test:playground:unit
-      # Deploy-shaped build gate (PRs only — on main the site job builds for
-      # real, so a second smoke build is pure duplication). The preview job
-      # downloads this artifact instead of building again.
-      - name: Build playground
-        id: build
-        if: inputs.build-preview-artifact
-        run: bun run build:app
-        env:
-          VITE_BASE_PATH: ${{ inputs.preview-base-path }}
-          VITE_APP_VERSION: ${{ inputs.app-version }}
-          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://wod.wiki/api' }}
-          VITE_CAST_APP_ID: ${{ vars.VITE_CAST_APP_ID }}
 
-      # The receiver ships from its dedicated pipeline — Chrome 92 target for
-      # the Cast Android TV engine plus legacy CSS lowering. Never ship the
-      # main playground bundle as the receiver; it crashes Cast Chromium with
-      # SyntaxError before React mounts (spinner-forever incident 2026-10).
-      # Writes into apps/playground/dist so it uploads with the same artifact.
-      - name: Build receiver
-        if: inputs.build-preview-artifact && steps.build.outcome == 'success'
-        run: bun x vite build --config apps/playground/vite.receiver.config.ts --outDir dist
+      - name: Build CLI web assets
+        run: bun run build:cli:assets && bun packages/tools/tests/cli-extension-check.ts
 
-      # The Cast Android TV engine is Chromium 92 and silently drops CSS it
-      # does not implement — a container-query unit once left the TV timer
-      # with no sizes at all. Guard the built stylesheet's feature floor.
-      - name: Check receiver CSS compatibility
-        if: inputs.build-preview-artifact && steps.build.outcome == 'success'
-        run: bun scripts/check-receiver-css-compat.cjs apps/playground/dist/assets/receiver-*.css
-
-      # GA measurement ID substitution, restored from the pre-consolidation
-      # _build-bun.yml step: the sources ship a G-PROD-ID placeholder
-      # (app/lib/telemetry-gtag.ts bundled into assets/*.js, receiver-rpc.html)
-      # and this rewrites the built dist. Empty vars.G_TAG → placeholder
-      # ships untouched (dev/fork builds).
-      - name: Inject GA tag
-        if: inputs.build-preview-artifact && steps.build.outcome == 'success' && vars.G_TAG != ''
-        run: |
-          grep -rl 'G-PROD-ID' apps/playground/dist \
-            | xargs -r sed -i 's/G-PROD-ID/${{ vars.G_TAG }}/g'
-
-      - name: Upload playground dist
-        if: inputs.build-preview-artifact && steps.build.outcome == 'success'
+      - name: Upload packages-dist artifact
+        if: inputs.upload-packages-dist
         uses: actions/upload-artifact@v7
         with:
-          name: playground-dist
-          path: apps/playground/dist/
+          name: packages-dist
+          path: |
+            packages/*/dist/
+            packages/*/package.json
           retention-days: 1
 
-      - name: Write verification summary
+      - name: Record status
+        id: status
+        if: always()
+        run: echo "status=${{ job.status }}" >> "$GITHUB_OUTPUT"
+
+  playground:
+    name: Verify playground
+    runs-on: ubuntu-22.04
+    outputs:
+      status: ${{ steps.status.outputs.status }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up environment (Bun + caches, no browsers)
+        uses: ./.github/actions/setup-env
+        with:
+          browsers: ''
+
+      - name: Build packages
+        run: bun run build:packages
+
+      - name: Run validation script tests
+        run: bun run test:validation-scripts
+
+      - name: Check playground types
+        run: bun run check:playground-types
+
+      - name: Run playground unit tests
+        run: bun run test:playground:unit
+
+      - name: Record status
+        id: status
+        if: always()
+        run: echo "status=${{ job.status }}" >> "$GITHUB_OUTPUT"
+
+  storybook:
+    name: Verify Storybook
+    runs-on: ubuntu-22.04
+    outputs:
+      status: ${{ steps.test.outputs.status }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up environment (Bun + chromium)
+        uses: ./.github/actions/setup-env
+
+      - name: Build packages
+        run: bun run build:packages
+
+      # addon-vitest browser mode occasionally flakes on a cold Vite cache; one
+      # bounded retry absorbs transient dynamic-import startup races.
+      - name: Storybook interaction tests (attempt 1)
+        id: test-attempt-1
+        continue-on-error: true
+        run: bun run --filter '@bitcobblers/wod-wiki-storybook' test
+
+      - name: Storybook interaction tests (attempt 2)
+        id: test-attempt-2
+        if: steps.test-attempt-1.outcome == 'failure'
+        run: bun run --filter '@bitcobblers/wod-wiki-storybook' test
+
+      - name: Record status
+        id: test
         if: always()
         run: |
-          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
-          ## Verification summary
-
-          | Check | Outcome |
-          | --- | --- |
-          | Unit tests | ${{ steps.unit.outcome }} |
-          | Playground build | ${{ steps.build.outcome }} |
-          EOF
+          if [ "${{ steps.test-attempt-1.outcome }}" = "success" ] || [ "${{ steps.test-attempt-2.outcome }}" = "success" ]; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failure" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi

@@ -1,12 +1,10 @@
 name: Release – Main
 
-# Unified parallel production pipeline (6-phase DAG):
-#   1 version   →  2 [ packages | verify(playground) | storybook ]  (parallel)
-#   → 3 publish-storybook (S3 main/storybook/ → story.wod.wiki)
-#     publish-playground   (S3 main/dist/ + GitHub Pages → wod.wiki)
-#   → 4 e2e-storybook + production smoke vs https://wod.wiki
-#   → 5 release-npm    (gated on e2e-storybook; publishes @bitcobblers/* to npmjs)
-#   → 6 summary
+# Merge To Main pipeline (docs/build-process.canvas):
+#   Slug (main + version) → [ Build Verify | Build Deploy Playground -> s3 | Build Deploy Storybook -> s3 ]
+#                         → E2E tests against deployed s3 branch (main.preview.wod.wiki + main.story.wod.wiki)
+#                         → Publish (npm @bitcobblers/* + GitHub Pages wod.wiki)
+#                         → Create Release
 
 on:
   push:
@@ -22,10 +20,11 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  version:
-    name: Calculate unified version
+  slug:
+    name: Slug
     runs-on: ubuntu-22.04
     outputs:
+      slug: ${{ steps.slug.outputs.slug }}
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
     steps:
@@ -33,8 +32,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Highest v-tag seeds major/minor (engine tags supersed the old app tags
-      # after the reunification); build is the run number, per research 003.
+      - name: Set main branch slug
+        id: slug
+        run: echo "slug=main" >> "$GITHUB_OUTPUT"
+
       - name: Compute next version (conventional commits)
         id: version
         run: |
@@ -73,8 +74,6 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
-  # Static analysis — independent leg, runs in parallel with the whole DAG.
-  # Self-disables when QODANA_TOKEN is unset (repo currently has no such secret).
   qodana:
     permissions:
       contents: read
@@ -83,202 +82,61 @@ jobs:
     uses: ./.github/workflows/_code_quality.yml
     secrets: inherit
 
-  build-test-packages:
-    needs: [version]
-    uses: ./.github/workflows/_packages.yml
-    secrets: inherit
-    with:
-      version: ${{ needs.version.outputs.version }}
-      upload-dist: true
-
-  verify:
-    name: Build & test playground
-    needs: [version]
+  build-verify:
+    name: Build Verify
+    needs: [slug]
     uses: ./.github/workflows/_verify.yml
     secrets: inherit
     with:
-      build-preview-artifact: true
-      app-version: ${{ needs.version.outputs.version }}
+      version: ${{ needs.slug.outputs.version }}
+      upload-packages-dist: true
 
-  build-test-storybook:
-    needs: [version]
+  deploy-playground:
+    name: Build Deploy Playground -> s3
+    needs: [slug]
+    uses: ./.github/workflows/_deploy-playground.yml
+    secrets: inherit
+    with:
+      slug: ${{ needs.slug.outputs.slug }}
+      version: ${{ needs.slug.outputs.version }}
+      upload-dist: true
+
+  deploy-storybook:
+    name: Build Deploy Storybook -> s3
+    needs: [slug]
     uses: ./.github/workflows/_storybook.yml
     secrets: inherit
     with:
-      version: ${{ needs.version.outputs.version }}
-      deploy: true
-      s3-prefix: main/storybook
-      cloudfront-prefix: /main/storybook*
+      slug: ${{ needs.slug.outputs.slug }}
+      version: ${{ needs.slug.outputs.version }}
 
-  publish-playground:
-    name: Publish playground (Pages)
+  e2e:
+    name: E2E (S3 branch)
+    needs: [slug, deploy-playground, deploy-storybook]
+    uses: ./.github/workflows/preview-e2e.yml
+    secrets: inherit
+    with:
+      branch-slug: ${{ needs.slug.outputs.slug }}
+      build-hash: ${{ needs.deploy-playground.outputs.bundle-hash }}
+
+  publish:
+    name: Publish
+    needs: [slug, build-verify, deploy-playground, e2e]
+    uses: ./.github/workflows/_publish.yml
+    secrets: inherit
+
+  create-release:
+    name: Create Release
     runs-on: ubuntu-22.04
-    needs: [verify]
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    outputs:
-      page-url: ${{ steps.deployment.outputs.page_url }}
-      bundle-hash: ${{ steps.fingerprint.outputs.hash }}
+    needs: [slug, publish]
     permissions:
-      contents: read
-      pages: write
-      id-token: write
+      contents: write
     steps:
-      - name: Download playground dist
-        uses: actions/download-artifact@v7
-        with:
-          name: playground-dist
-          path: ./dist/
-
-      # Fingerprint of the deployed entry bundle; the live-app e2e job polls
-      # the deployed index.html until it references main-<hash>.js so tests
-      # never race a stale CloudFront cache (same gate as PR previews).
-      - name: Compute build fingerprint
-        id: fingerprint
-        run: |
-          set -euo pipefail
-          HASH=$(ls dist/assets/main-*.js | head -n1 | sed -E 's/.*main-([^.]+)\.js/\1/')
-          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./dist/
-
-      - name: Deploy Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-      - name: Sync to S3 (main.preview.wod.wiki)
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_PREVIEW_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_PREVIEW_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
-          S3_BUCKET: ${{ secrets.AWS_PREVIEW_S3_BUCKET }}
-          CF_DISTRIBUTION_ID: ${{ secrets.AWS_PREVIEW_CF_DISTRIBUTION_ID }}
-        run: |
-          set -euo pipefail
-          PREFIX="main/dist/"
-          echo "Uploading to s3://$S3_BUCKET/$PREFIX"
-          # Hashed bundles are safe to cache forever; old assets are never deleted
-          # so HTML cached up to max-age can still resolve its bundle.
-          aws s3 sync ./dist/ "s3://$S3_BUCKET/$PREFIX" \
-            --cache-control "public, max-age=31536000, immutable" \
-            --exclude "*" --include "assets/*"
-          aws s3 sync ./dist/ "s3://$S3_BUCKET/$PREFIX" \
-            --delete \
-            --cache-control "max-age=300, must-revalidate" \
-            --exclude "*.map" \
-            --exclude "assets" --exclude "assets/*"
-
-      - name: Invalidate CloudFront (best-effort)
-        continue-on-error: true
-        run: |
-          if aws cloudfront create-invalidation \
-               --distribution-id "$CF_DISTRIBUTION_ID" \
-               --paths "/main/dist/*"; then
-            echo "CloudFront invalidation submitted for /main/dist/*"
-          else
-            echo "::warning::CloudFront invalidation failed; content refreshes within 5 minutes via max-age."
-          fi
-
-  smoke-production:
-    name: Production smoke (wod.wiki)
-    runs-on: ubuntu-22.04
-    needs: [publish-playground]
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up environment (Bun + chromium)
-        uses: ./.github/actions/setup-env
-
-      - name: Run production smoke tests
-        run: bun x playwright test --config playwright.smoke.config.ts
-        env:
-          CI: true
-          E2E_APP_URL: ${{ needs.publish-playground.outputs.page-url }}
-
-      - name: Upload smoke report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: smoke-playwright-report
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 14
-
-  e2e-storybook:
-    name: Storybook E2E (story.wod.wiki)
-    runs-on: ubuntu-22.04
-    needs: [build-test-storybook]
-    if: needs.build-test-storybook.outputs.deploy-status == 'success'
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up environment (Bun + chromium)
-        uses: ./.github/actions/setup-env
-
-      - name: Run Storybook smoke against deployed main
-        run: bun x playwright test --config playwright.storybook.config.ts
-        env:
-          CI: true
-          STORYBOOK_URL: https://story.wod.wiki
-
-      - name: Upload Playwright report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: storybook-playwright-report
-          path: playwright-report/
-          if-no-files-found: ignore
-          retention-days: 14
-
-  release-npm:
-    name: Publish @bitcobblers/* to npm
-    runs-on: ubuntu-22.04
-    needs: [version, build-test-packages, e2e-storybook]
-    # Gate: package publish waits for a green Storybook E2E; playground smoke
-    # failures do NOT block library releases (research 004 §5).
-    if: |
-      needs.build-test-packages.result == 'success' &&
-      needs.e2e-storybook.result == 'success'
-    environment: npm
-    steps:
-      - name: Configure npm auth
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-
-      - name: Download packages-dist
-        uses: actions/download-artifact@v7
-        with:
-          name: packages-dist
-          path: packages/
-
-      - name: Publish all six packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          for pkg in packages/*/; do
-            if [ -f "$pkg/package.json" ]; then
-              echo "Publishing $pkg"
-              (cd "$pkg" && npm publish --access public)
-            fi
-          done
-
       - name: Create or update GitHub release and tag
         uses: actions/github-script@v9
         with:
           script: |
-            const tag = '${{ needs.version.outputs.tag }}';
+            const tag = '${{ needs.slug.outputs.tag }}';
             const sha = context.sha;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -308,25 +166,13 @@ jobs:
               });
             }
 
-  summary:
-    name: Pipeline summary
-    runs-on: ubuntu-22.04
-    if: always()
-    needs: [version, build-test-packages, verify, build-test-storybook, publish-playground, smoke-production, e2e-storybook, release-npm]
-    steps:
-      - name: Write summary
+      - name: Write release summary
         run: |
           cat <<EOF >> "$GITHUB_STEP_SUMMARY"
-          ## Main production pipeline
+          ## Main release pipeline
 
-          | Leg | Status |
-          | --- | --- |
-          | Version | \${{ needs.version.outputs.version }} (\${{ needs.version.result }}) |
-          | Packages | \${{ needs.build-test-packages.result }} |
-          | Playground | \${{ needs.verify.result }} |
-          | Storybook | \${{ needs.build-test-storybook.result }} |
-          | Pages (wod.wiki) | \${{ needs.publish-playground.result }} |
-          | Production smoke | \${{ needs.smoke-production.result }} |
-          | Storybook E2E | \${{ needs.e2e-storybook.result }} |
-          | npm release | \${{ needs.release-npm.result }} |
+          - Version: ${{ needs.slug.outputs.version }} (${{ needs.slug.outputs.tag }})
+          - Pages URL: ${{ needs.publish.outputs.page-url }}
+          - S3 staging verified: https://main.preview.wod.wiki & https://main.story.wod.wiki
+          - E2E report: https://e2e.wod.wiki
           EOF

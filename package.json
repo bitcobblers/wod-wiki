@@ -40,8 +40,6 @@
     "build": "bun run build:packages && bun run build:apps",
     "build:packages": "flock /tmp/wod-wiki-build-packages.lock bun run build:packages:seq",
     "build:packages:seq": "bun run --cwd packages/core build && bun run --cwd packages/lang build && bun run --cwd packages/wql build && bun run --cwd packages/storage build && bun run --cwd packages/engine build && bun run --cwd packages/tools build && bun run --cwd packages/ui build",
-    "build:packages:e2e": "flock /tmp/wod-wiki-build-packages.lock bun run build:packages:e2e:seq",
-    "build:packages:e2e:seq": "bun run --cwd packages/core build && bun run --cwd packages/lang build && bun run --cwd packages/wql build",
     "build:apps": "bun run --filter '@bitcobblers/wod-wiki-playground' build && bun run --filter '@bitcobblers/wod-wiki-storybook' build",
     "build:cli": "bun run build:packages && bun run build:cli:assets",
     "build:cli:assets": "bun scripts/build-cli-assets.ts",

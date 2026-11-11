@@ -1,53 +1,66 @@
 name: Preview E2E
 
+# Runs deployed-branch E2E tests against S3 + CloudFront (docs/build-process.canvas):
+#   - Playground (4 parallel shards): https://{slug}.preview.wod.wiki
+#   - Storybook smoke:                https://{slug}.story.wod.wiki
+# Merges shard blob reports and publishes the HTML report to s3://<bucket>/<slug>/e2e-report/.
+
 on:
   workflow_call:
     inputs:
-      preview-url:
-        description: Deployed playground base URL to smoke-check (or run full suite against when use-dist-artifact is false)
+      branch-slug:
+        description: Branch slug ('main' or PR slug); determines {slug}.preview.wod.wiki, {slug}.story.wod.wiki, and s3://<bucket>/<slug>/e2e-report/
         required: false
         type: string
-        default: https://preview.wod.wiki
-      branch-slug:
-        description: Branch slug; when set, the HTML report is published to s3://<bucket>/<slug>/e2e-report/
+        default: main
+      preview-url:
+        description: Optional override for Playground URL (defaults to https://<branch-slug>.preview.wod.wiki)
+        required: false
+        type: string
+        default: ''
+      storybook-url:
+        description: Optional override for Storybook URL (defaults to https://<branch-slug>.story.wod.wiki)
         required: false
         type: string
         default: ''
       build-hash:
-        description: Hashed entry-bundle fingerprint (main-<hash>.js) of the build under test; when set, the CloudFront smoke step polls the deployed index.html until it references this hash
+        description: Hashed entry-bundle fingerprint (main-<hash>.js) of the playground build under test
         required: false
         type: string
         default: ''
-      use-dist-artifact:
-        description: When true, run the 4 sharded journal suites locally against the uploaded playground-dist artifact while preview-smoke verifies the live CloudFront deploy in parallel
-        required: false
-        type: boolean
-        default: false
     outputs:
       outcome:
-        value: ${{ jobs.preview-e2e.outputs.outcome }}
+        value: ${{ jobs.e2e-report.outputs.outcome }}
+      playground-outcome:
+        value: ${{ jobs.e2e-report.outputs.playground-outcome }}
+      storybook-outcome:
+        value: ${{ jobs.e2e-report.outputs.storybook-outcome }}
       tests:
-        value: ${{ jobs.preview-e2e.outputs.tests }}
+        value: ${{ jobs.e2e-report.outputs.tests }}
       passed:
-        value: ${{ jobs.preview-e2e.outputs.passed }}
+        value: ${{ jobs.e2e-report.outputs.passed }}
       failures:
-        value: ${{ jobs.preview-e2e.outputs.failures }}
+        value: ${{ jobs.e2e-report.outputs.failures }}
       flaky:
-        value: ${{ jobs.preview-e2e.outputs.flaky }}
+        value: ${{ jobs.e2e-report.outputs.flaky }}
       skipped:
-        value: ${{ jobs.preview-e2e.outputs.skipped }}
+        value: ${{ jobs.e2e-report.outputs.skipped }}
   workflow_dispatch:
     inputs:
-      preview-url:
-        description: Deployed playground base URL to test
+      branch-slug:
+        description: Branch slug ('main' or PR slug)
         required: false
-        default: https://preview.wod.wiki
-      build-hash:
-        description: Optional build fingerprint for deploy-freshness gating
+        default: main
+      preview-url:
+        description: Optional override for Playground URL
         required: false
         default: ''
-      branch-slug:
-        description: Branch slug for S3 report publishing (optional)
+      storybook-url:
+        description: Optional override for Storybook URL
+        required: false
+        default: ''
+      build-hash:
+        description: Optional build fingerprint (main-<hash>.js)
         required: false
         default: ''
 
@@ -58,104 +71,50 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  preview-smoke:
-    name: Preview CloudFront smoke
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up environment (Bun + caches + chromium)
-        uses: ./.github/actions/setup-env
-
-      - name: Wait for the current build to be live on CloudFront
-        env:
-          BUILD_HASH: ${{ inputs.build-hash }}
-        run: |
-          set -euo pipefail
-          url="${{ inputs.preview-url || 'https://preview.wod.wiki' }}"
-          for i in $(seq 1 45); do
-            html=$(curl -fsS "$url" 2>/dev/null || true)
-            if [ -n "$html" ]; then
-              if [ -z "$BUILD_HASH" ] || grep -q "main-$BUILD_HASH.js" <<<"$html"; then
-                echo "preview live with current build: $url"
-                exit 0
-              fi
-              echo "preview reachable but stale (want main-$BUILD_HASH.js) ($i/45)"
-            else
-              echo "waiting for $url ($i/45)"
-            fi
-            sleep 5
-          done
-          echo "::error::preview at $url did not serve build main-$BUILD_HASH.js after 3.75 minutes"
-          exit 1
-
-      - name: Run CloudFront preview smoke tests
-        run: bun x playwright test --config playwright.smoke.config.ts
-        env:
-          CI: true
-          E2E_APP_URL: ${{ inputs.preview-url || 'https://preview.wod.wiki' }}
-
-      - name: Upload CloudFront smoke report on failure
-        uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: preview-smoke-playwright-report
-          path: |
-            playwright-report/smoke/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  e2e-shard:
-    name: Journal E2E (${{ matrix.shard }}/4)
+  playground-e2e:
+    name: Playground E2E (${{ matrix.shard }}/4)
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
+    env:
+      TARGET_URL: ${{ inputs.preview-url || format('https://{0}.preview.wod.wiki', inputs.branch-slug || 'main') }}
+      BUILD_HASH: ${{ inputs.build-hash }}
     steps:
       - uses: actions/checkout@v7
 
       - name: Set up environment (Bun + caches + chromium)
         uses: ./.github/actions/setup-env
 
-      - name: Build seed compiler packages
-        run: bun run build:packages:e2e
+      - name: Build packages
+        run: bun run build:packages
 
-      - name: Download playground dist artifact
-        if: inputs.use-dist-artifact
-        uses: actions/download-artifact@v7
-        with:
-          name: playground-dist
-          path: ./dist/
-
-      - name: Wait for remote build when running without dist artifact
-        if: ${{ !inputs.use-dist-artifact }}
-        env:
-          BUILD_HASH: ${{ inputs.build-hash }}
+      - name: Wait for current Playground build on S3/CloudFront
         run: |
           set -euo pipefail
-          url="${{ inputs.preview-url || 'https://preview.wod.wiki' }}"
           for i in $(seq 1 45); do
-            html=$(curl -fsS "$url" 2>/dev/null || true)
+            html=$(curl -fsS "$TARGET_URL" 2>/dev/null || true)
             if [ -n "$html" ]; then
               if [ -z "$BUILD_HASH" ] || grep -q "main-$BUILD_HASH.js" <<<"$html"; then
-                echo "preview live with current build: $url"
+                echo "Playground live: $TARGET_URL"
                 exit 0
               fi
+              echo "Playground reachable but stale (want main-$BUILD_HASH.js) ($i/45)"
+            else
+              echo "Waiting for $TARGET_URL ($i/45)"
             fi
             sleep 5
           done
-          echo "::error::preview at $url did not serve build main-$BUILD_HASH.js"
+          echo "::error::Playground at $TARGET_URL did not serve main-$BUILD_HASH.js"
           exit 1
 
-      - name: Run journal E2E shard ${{ matrix.shard }}/4
+      - name: Run Playground E2E shard ${{ matrix.shard }}/4
         run: bun x playwright test --config playwright.journal.config.ts --shard=${{ matrix.shard }}/4
         env:
           CI: true
           PLAYWRIGHT_BLOB_REPORT: '1'
-          E2E_DIST_DIR: ${{ inputs.use-dist-artifact && './dist' || '' }}
-          E2E_APP_URL: ${{ !inputs.use-dist-artifact && (inputs.preview-url || 'https://preview.wod.wiki') || '' }}
+          E2E_APP_URL: ${{ env.TARGET_URL }}
 
       - name: Upload shard blob report
         uses: actions/upload-artifact@v7
@@ -166,7 +125,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      - name: Upload failure artifacts for shard ${{ matrix.shard }}
+      - name: Upload failure traces for shard ${{ matrix.shard }}
         uses: actions/upload-artifact@v7
         if: failure()
         with:
@@ -175,18 +134,66 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  preview-e2e:
+  storybook-e2e:
+    name: Storybook E2E
+    runs-on: ubuntu-22.04
+    env:
+      STORYBOOK_TARGET_URL: ${{ inputs.storybook-url || format('https://{0}.story.wod.wiki', inputs.branch-slug || 'main') }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up environment (Bun + caches + chromium)
+        uses: ./.github/actions/setup-env
+
+      - name: Wait for Storybook preview to respond
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsS "$STORYBOOK_TARGET_URL" >/dev/null 2>&1; then
+              echo "Storybook live: $STORYBOOK_TARGET_URL"
+              exit 0
+            fi
+            echo "Waiting for $STORYBOOK_TARGET_URL ($i/30)"
+            sleep 5
+          done
+          echo "::error::Storybook unreachable at $STORYBOOK_TARGET_URL"
+          exit 1
+
+      - name: Run Storybook smoke against deployed S3 branch
+        run: bun x playwright test --config playwright.storybook.config.ts
+        env:
+          CI: true
+          STORYBOOK_URL: ${{ env.STORYBOOK_TARGET_URL }}
+
+      - name: Upload Storybook report on failure
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: storybook-playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  e2e-report:
     name: Merge & publish E2E report
     runs-on: ubuntu-22.04
-    needs: [e2e-shard, preview-smoke]
+    needs: [playground-e2e, storybook-e2e]
     if: always()
     outputs:
       outcome: ${{ steps.gate.outputs.outcome }}
+      playground-outcome: ${{ needs.playground-e2e.result }}
+      storybook-outcome: ${{ needs.storybook-e2e.result }}
       tests: ${{ steps.preview_stats.outputs.tests }}
       passed: ${{ steps.preview_stats.outputs.passed }}
       failures: ${{ steps.preview_stats.outputs.failures }}
       flaky: ${{ steps.preview_stats.outputs.flaky }}
       skipped: ${{ steps.preview_stats.outputs.skipped }}
+    env:
+      DEPLOY_URL: ${{ inputs.preview-url || format('https://{0}.preview.wod.wiki', inputs.branch-slug || 'main') }}
+      STORY_URL: ${{ inputs.storybook-url || format('https://{0}.story.wod.wiki', inputs.branch-slug || 'main') }}
+      BRANCH_SLUG: ${{ inputs.branch-slug || 'main' }}
+      BUILD_HASH: ${{ inputs.build-hash }}
+      S3_BUCKET: ${{ secrets.AWS_PREVIEW_S3_BUCKET }}
     steps:
       - uses: actions/checkout@v7
 
@@ -209,18 +216,14 @@ jobs:
         if: steps.download_blobs.outcome == 'success'
         run: bun x playwright merge-reports --config playwright.merge.config.ts ./all-blob-reports
 
-      - name: Collect e2e stats (per-file)
+      - name: Collect Playground E2E stats
         id: preview_stats
         if: always()
-        env:
-          MERGE_OUTCOME: ${{ steps.merge_reports.outcome }}
-          DEPLOY_URL: ${{ inputs.preview-url || 'https://preview.wod.wiki' }}
-          BUILD_HASH: ${{ inputs.build-hash }}
         run: |
           set -euo pipefail
           report="test-results/live-e2e-results.json"
           if [ ! -f "$report" ]; then
-            echo "::error::merged e2e report $report is missing (merge outcome: $MERGE_OUTCOME)"
+            echo "::error::merged e2e report $report is missing"
             for k in tests passed failures flaky skipped; do
               echo "$k=n/a" >> "$GITHUB_OUTPUT"
             done
@@ -235,20 +238,20 @@ jobs:
             "buildHash": "$BUILD_HASH",
             "generatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "deployUrl": "$DEPLOY_URL",
+            "storybookUrl": "$STORY_URL",
             "runUrl": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           }
           EOF
 
-      - name: Publish HTML report to preview S3 folder
-        if: always() && inputs.branch-slug != ''
+      - name: Publish HTML report to S3 folder
+        if: always() && env.BRANCH_SLUG != '' && env.S3_BUCKET != ''
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_PREVIEW_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_PREVIEW_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
-          S3_BUCKET: ${{ secrets.AWS_PREVIEW_S3_BUCKET }}
         run: |
           set -euo pipefail
-          PREFIX="${{ inputs.branch-slug }}/e2e-report/"
+          PREFIX="${BRANCH_SLUG}/e2e-report/"
           if [ ! -f playwright-report/index.html ]; then
             echo "::error::no fresh playwright-report/index.html; refusing to overwrite s3://$S3_BUCKET/$PREFIX"
             exit 1
@@ -267,48 +270,41 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Write preview summary & enforce gate
+      - name: Write summary & enforce gate
         id: gate
         if: always()
         env:
-          SHARDS_RESULT: ${{ needs.e2e-shard.result }}
-          SMOKE_RESULT: ${{ needs.preview-smoke.result }}
-          BRANCH_SLUG: ${{ inputs.branch-slug }}
-          BUILD_HASH: ${{ inputs.build-hash }}
+          PLAYGROUND_RESULT: ${{ needs.playground-e2e.result }}
+          STORYBOOK_RESULT: ${{ needs.storybook-e2e.result }}
           FAILURES: ${{ steps.preview_stats.outputs.failures }}
         run: |
           set -euo pipefail
-          if [ "$SHARDS_RESULT" = "success" ] && [ "$SMOKE_RESULT" = "success" ] && [ "${FAILURES:-1}" = "0" ]; then
+          if [ "$PLAYGROUND_RESULT" = "success" ] && [ "$STORYBOOK_RESULT" = "success" ] && [ "${FAILURES:-1}" = "0" ]; then
             outcome="success"
           else
             outcome="failure"
           fi
           echo "outcome=$outcome" >> "$GITHUB_OUTPUT"
 
-          report_url=""
-          if [ -n "$BRANCH_SLUG" ]; then
-            if [ "$BRANCH_SLUG" = "main" ]; then
-              report_url="https://e2e.wod.wiki"
-            else
-              report_url="https://$BRANCH_SLUG.e2e.wod.wiki"
-            fi
+          if [ "$BRANCH_SLUG" = "main" ]; then
+            report_url="https://e2e.wod.wiki"
+          else
+            report_url="https://$BRANCH_SLUG.e2e.wod.wiki"
           fi
-          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
-          ## Live-app e2e summary
 
-          - Deploy URL: ${{ inputs.preview-url || 'https://preview.wod.wiki' }}
-          - CloudFront smoke outcome: $SMOKE_RESULT
-          - Journal shards outcome (4 shards): $SHARDS_RESULT
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          ## Deployed S3 branch E2E summary
+
+          - Playground URL: $DEPLOY_URL ($PLAYGROUND_RESULT)
+          - Storybook URL: $STORY_URL ($STORYBOOK_RESULT)
           - Overall outcome: $outcome
           - Commit: $GITHUB_SHA
           - Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-          - Tests: ${{ steps.preview_stats.outputs.tests }} (pass ${{ steps.preview_stats.outputs.passed }}, fail ${{ steps.preview_stats.outputs.failures }}, flaky ${{ steps.preview_stats.outputs.flaky }}, skipped ${{ steps.preview_stats.outputs.skipped }})
+          - Playground tests: ${{ steps.preview_stats.outputs.tests }} (pass ${{ steps.preview_stats.outputs.passed }}, fail ${{ steps.preview_stats.outputs.failures }}, flaky ${{ steps.preview_stats.outputs.flaky }}, skipped ${{ steps.preview_stats.outputs.skipped }})
+          - HTML report: [$report_url]($report_url)
           EOF
           if [ -n "$BUILD_HASH" ]; then
             echo "- Deployed build: main-$BUILD_HASH.js" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [ -n "$report_url" ]; then
-            echo "- HTML report: [$report_url]($report_url)" >> "$GITHUB_STEP_SUMMARY"
           fi
           if [ -f test-results/e2e-per-file-summary.md ]; then
             cat test-results/e2e-per-file-summary.md >> "$GITHUB_STEP_SUMMARY"
