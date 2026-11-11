@@ -224,8 +224,8 @@ function getGitHistoryIndex(repoRoot: string, targetRelPath?: string): GitHistor
   const topSegment = normTarget.split('/')[0] ?? '';
   const scopeArg = topSegment && existsSync(join(repoRoot, topSegment)) ? topSegment : '.';
 
-  let prefix = '';
-  let headSha = '';
+  let prefix: string;
+  let headSha: string;
   try {
     const rev = execFileSync('git', ['rev-parse', '--show-prefix', 'HEAD'], {
       cwd: repoRoot,

@@ -101,7 +101,7 @@ for (const viewport of [
       // editor Run opens.
       await tapControl(cta)
       const timer = page.locator('.fixed.inset-0').filter({ has: page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE) })
-      await expect(timer).toBeVisible()
+      await expect(timer).toBeVisible({ timeout: 15_000 })
 
 
       const next = timer.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK)

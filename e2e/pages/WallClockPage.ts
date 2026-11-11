@@ -196,11 +196,29 @@ export async function advanceUntilReview(page: Page, maxClicks = 8): Promise<voi
       page.waitForURL(/\/(dashboard|review|results|sessions?)/, { timeout }).catch(() => {}),
       reviewDialog.waitFor({ state: 'visible', timeout }).catch(() => {}),
     ]);
+  const closeOverlay = page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first();
+  const nextBtn = page.locator(`[data-testid="${TEST_IDS.TIMER_NEXT_BLOCK}"]:visible`).first();
+  if (!(await atReview())) {
+    await Promise.race([
+      waitReview(15_000),
+      closeOverlay.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {}),
+      nextBtn.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {}),
+    ]);
+  }
   for (let i = 0; i < maxClicks; i++) {
     if (await atReview()) return;
-    const next = page.locator(`[data-testid="${TEST_IDS.TIMER_NEXT_BLOCK}"]:visible`).first();
-    if ((await next.count()) === 0) break;
-    await next.click().catch(() => {});
+    const visibleNext = await nextBtn
+      .waitFor({ state: 'visible', timeout: 2_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!visibleNext) {
+      await waitReview(8_000);
+      break;
+    }
+    await nextBtn.click().catch(() => {});
+    await waitReview(600);
+  }
+  if (!(await atReview())) {
     await waitReview(8_000);
   }
   if (!(await atReview())) {

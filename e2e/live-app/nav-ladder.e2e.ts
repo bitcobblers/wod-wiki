@@ -298,6 +298,7 @@ test.describe('Nav ladder — Phase 2 contextual L2/L3 sync, inline saved links 
     await expect(sidebar.getByText('Pages', { exact: true })).toBeVisible({ timeout: 10_000 });
     await expect(sidebar.getByRole('button', { name: 'Morning Prep', exact: true })).toBeVisible();
 
+    await page.locator('.cm-content').first().press('Control+s');
     // Part 2 of 2-part link navigates to /notes filtered by that effort
     await sidebar.getByTestId('menu-filter-note-context-efforts:zottman-curl').click();
     await expect(page).toHaveURL(/\/notes\?q=.*zottman-curl/);
