@@ -26,7 +26,7 @@ import type { StoreName } from './contract';
 // deletion intent still reaches independently converted targets. Old
 // full-data targets are NOT migrated in place by
 // ordinary sync — the CLI converts them into fresh wod-wiki-v32 targets.
-export const DB_VERSION = 32;
+export const DB_VERSION = 33;
 
 /**
  * Typed field metadata — column type per extracted field path, shared with
@@ -87,6 +87,8 @@ export const COLUMN_TYPES: Record<StoreName, Record<string, StorageColumnType>> 
   },
   block_efforts: { createdAt: 'number', isStatic: 'boolean' },
   block_equipment: { createdAt: 'number', isStatic: 'boolean' },
+  notebook_links: { createdAt: 'number' },
+  property_overrides: { updatedAt: 'number' },
   meta: {},
   memberships: { createdAt: 'number' },
 };
@@ -217,6 +219,21 @@ export const STORE_DEFS: StoreDef[] = [
     { name: 'by-note', keyPath: ['noteId'] },
     { name: 'by-equipment', keyPath: ['equipmentSlug'] },
     { name: 'by-block', keyPath: ['blockContentId'] },
+    { name: 'by-user', keyPath: ['userId'] },
+  ] },
+  // 13c. notebook_links (V33) — many-to-many Note & Session <-> Notebook links
+  { name: 'notebook_links', keyPath: ['id'], indexes: [
+    { name: 'by-notebook', keyPath: ['notebookId'] },
+    { name: 'by-note', keyPath: ['noteId'] },
+    { name: 'by-target', keyPath: ['targetKind', 'targetId'] },
+    { name: 'by-notebook-target', keyPath: ['notebookId', 'targetKind', 'targetId'], unique: true },
+    { name: 'by-user', keyPath: ['userId'] },
+  ] },
+  // 13d. property_overrides (V33) — Notebook-scoped Property Note overrides
+  { name: 'property_overrides', keyPath: ['id'], indexes: [
+    { name: 'by-notebook', keyPath: ['notebookId'] },
+    { name: 'by-kind-slug', keyPath: ['kind', 'slug'] },
+    { name: 'by-owner-note', keyPath: ['ownerNoteId'] },
     { name: 'by-user', keyPath: ['userId'] },
   ] },
   // 14. meta

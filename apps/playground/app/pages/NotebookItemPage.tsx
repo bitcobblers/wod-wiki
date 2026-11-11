@@ -106,6 +106,7 @@ export function NotebookItemPage({
         const journalNote = await createJournalNoteFromWorkout({
           workoutName: notebookItem?.name ?? item,
           category: slug,
+          sourceNoteId: noteId,
           sourceNoteLabel: slug,
           sourceNotePath: itemPath,
           wodContent: block.content,
@@ -126,6 +127,7 @@ export function NotebookItemPage({
       const journalNote = await createJournalNoteFromWorkout({
         workoutName: notebookItem?.name ?? item,
         category: slug,
+        sourceNoteId: noteId,
         sourceNoteLabel: slug,
         sourceNotePath: itemPath,
         wodContent: block.content,

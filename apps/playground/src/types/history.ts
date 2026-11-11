@@ -13,7 +13,7 @@
 
 
 import type { Sessions, Section } from '../components/Editor/types';
-import type { NotePlacement } from '@bitcobblers/wod-wiki-core';
+import type { NotePlacement, NoteProvenance } from '@bitcobblers/wod-wiki-core';
 import type { Attachment, NoteKind, NoteBlock, Session } from './storage';
 
 export type { Sessions, Section };
@@ -59,6 +59,8 @@ export interface HistoryRecord {
   slug?: string;                        // V8 — route slug (e.g. 'journal/2026-07-13'); UUID-keyed notes carry their original route id here
   pageId?: string;                      // Dual-ID projection: generic page render target (/p/:slug)
   notebookId?: string;
+  notebookIds?: string[];
+  provenance?: NoteProvenance;
   seedOrigin?: 'seed' | 'user';
 }
 

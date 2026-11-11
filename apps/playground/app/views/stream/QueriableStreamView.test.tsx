@@ -341,6 +341,18 @@ describe('QueriableStreamView component', () => {
     expect(screen.getByText('No date yet')).toBeDefined()
   })
 
+  it('renders the agenda layout by default on /journal without explicit viewSettings', async () => {
+    const engine = createMockEngine(datedNoteEntries)
+    render(
+      <MemoryRouter initialEntries={['/journal']}>
+        <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(screen.getAllByTestId('calendar-agenda-day').length).toBeGreaterThan(0))
+    expect(screen.getByText('Heavy pulls')).toBeDefined()
+    expect(screen.getByText('Fran')).toBeDefined()
+  })
+
   it('renders the planner layout — a board of weeks with a cell per day', async () => {
     writeViewSettings('/journal', {
       level: 'note',
@@ -820,7 +832,7 @@ describe('QueriableStreamView component', () => {
       createdAt: 1_700_000_000_000,
       type: 'note',
       seedOrigin: 'user',
-      notebookId: 'notebook/defaults',
+      notebookId: 'notebook/custom',
       rawContent: '# My Workout\n',
       sourceRevision: 1,
       blocks: {},
@@ -839,7 +851,7 @@ describe('QueriableStreamView component', () => {
     })
 
     render(
-      <MemoryRouter initialEntries={[`/playgrounds?q=${encodeURIComponent(':notebook{notebook:defaults}')}`]}>
+      <MemoryRouter initialEntries={[`/playgrounds?q=${encodeURIComponent(':notebook{notebook:custom}')}`]}>
         <QueriableStreamView profile={PLAYGROUNDS_STREAM_PROFILE} queryEngine={engine} />
       </MemoryRouter>,
     )
@@ -1421,7 +1433,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
 
     render(
       <MemoryRouter initialEntries={['/journal']}>
-        <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
+        <QueriableStreamView profile={{ ...JOURNAL_STREAM_PROFILE, defaultLayout: 'cards' }} queryEngine={engine} />
       </MemoryRouter>,
     )
 
@@ -1454,7 +1466,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     render(
       <MemoryRouter initialEntries={['/journal']}>
         <QueriableStreamView
-          profile={{ ...JOURNAL_STREAM_PROFILE, defaultWql: ':journal{} by {tag}' }}
+          profile={{ ...JOURNAL_STREAM_PROFILE, defaultLayout: 'cards', defaultWql: ':journal{} by {tag}' }}
           queryEngine={engine}
         />
       </MemoryRouter>,
@@ -1481,7 +1493,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     render(
       <MemoryRouter initialEntries={['/journal']}>
         <QueriableStreamView
-          profile={{ ...JOURNAL_STREAM_PROFILE, defaultWql: ':journal{} by {domain}' }}
+          profile={{ ...JOURNAL_STREAM_PROFILE, defaultLayout: 'cards', defaultWql: ':journal{} by {domain}' }}
           queryEngine={engine}
         />
       </MemoryRouter>,
@@ -1504,7 +1516,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     render(
       <MemoryRouter initialEntries={['/journal']}>
         <QueriableStreamView
-          profile={{ ...JOURNAL_STREAM_PROFILE, defaultWql: authored }}
+          profile={{ ...JOURNAL_STREAM_PROFILE, defaultLayout: 'cards', defaultWql: authored }}
           queryEngine={engine}
         />
       </MemoryRouter>,

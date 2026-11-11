@@ -21,8 +21,8 @@ export interface UseEffortContentResult {
   save: (value?: string) => Promise<IEffort | null>;
   remove: () => Promise<void>;
   cloneForEdit: () => Promise<IEffort | null>;
+  overrideInNotebook: (targetNotebookId: string, rawOverride?: string) => Promise<void>;
   error: string | null;
-  isAliasMatch: boolean;
 }
 
 function fromEffortDocument(raw: string, base?: IEffort): { item: IEffort; errors: string[] } {

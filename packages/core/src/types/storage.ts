@@ -30,6 +30,23 @@ export interface BlockRevision {
 // ---------------------------------------------------------------------------
 export type NoteKind = 'journal' | 'playground' | 'dashboard' | 'page' | 'note' | (string & {});
 
+export interface NoteProvenance {
+  /** Canonical UUID of the original Note at the time of cloning/execution. */
+  sourceNoteId: string;
+  /** Upstream seed/manifest version or source revision captured when cloned. */
+  sourceVersion?: number;
+  /** Git commit hash of the upstream publication when available. */
+  sourceCommit?: string;
+  /** Registered Feed id that delivered the upstream Note. */
+  feedSourceId?: FeedId;
+  /** Source Notebook id ('notebook/<slug>') for scoped override inheritance. */
+  sourceNotebookId?: string;
+  /** Original corpus path fallback if the upstream Note is later removed. */
+  sourcePath?: string;
+  /** Epoch-ms timestamp when the clone was created. */
+  clonedAt: number;
+}
+
 export interface Note {
   id: string; // UUID — canonical storage identity
   title: string; // Display name
@@ -42,6 +59,10 @@ export interface Note {
   sourceId?: string;
   /** Canonical notebook identifier ('notebook/{slug}', e.g. 'notebook/journal', 'notebook/playground', 'notebook/guides'). */
   notebookId?: string;
+  /** Many-to-many Notebook memberships linked to this Note (kept in sync with `notebook_links`). */
+  notebookIds?: string[];
+  /** Structured lineage back to an upstream read-only Note when cloned into the Journal or a user Notebook. */
+  provenance?: NoteProvenance;
   tags?: string[];
   /** Artifact provenance — which published bundle this note came from.
    *  Persisted field names; the artifact they describe is a **Seed**. */
@@ -195,8 +216,47 @@ export interface Session {
 
   /** Whether this Session's telemetry is published when its parent Note belongs to a public Notebook. */
   public?: boolean;
+  /** Many-to-many Notebook memberships this Session is attached/promoted to. */
+  notebookIds?: string[];
 }
 
+
+// ---------------------------------------------------------------------------
+// NotebookLink — N:M junction linking Notes and Sessions to Notebooks (V33)
+// ---------------------------------------------------------------------------
+export type NotebookLinkTargetKind = 'note' | 'session';
+
+export interface NotebookLink {
+  /** Deterministic key `${notebookId}:${targetKind}:${targetId}`. */
+  id: string;
+  notebookId: string;
+  targetKind: NotebookLinkTargetKind;
+  targetId: string;
+  /** Owning Note UUID (`targetId` when `targetKind === 'note'`, `session.noteId` when `'session'`). */
+  noteId: string;
+  createdAt: number;
+}
+
+// ---------------------------------------------------------------------------
+// ScopedPropertyOverride — Notebook-scoped Property Note overrides (V33)
+// ---------------------------------------------------------------------------
+export type OverridePropertyKind = 'effort' | 'equipment' | 'tag' | 'tag-type';
+
+export interface ScopedPropertyOverride {
+  /** Composite key `${notebookId}:${kind}:${slug}`. */
+  id: string;
+  notebookId: string;
+  kind: OverridePropertyKind;
+  slug: string;
+  label: string;
+  ownerNoteId: string;
+  rawContent: string;
+  /** Parsed entity payload (`IEffort`, `IEquipment`, `Tag`, or `TagTypeRecord`). */
+  payload?: Record<string, unknown>;
+  seedOrigin?: 'seed' | 'user';
+  feedSourceId?: FeedId;
+  updatedAt: number;
+}
 // ---------------------------------------------------------------------------
 // Attachment — external temporal data blobs (GPS / HR)
 // ---------------------------------------------------------------------------

@@ -39,9 +39,16 @@ The canonical WQL query predicates and `$scope` tokens associated with a Note, P
 _Avoid_: Route filter, ad-hoc query string
 
 **Notebook**:
-A named container of Notes (`notebook/:slug`) that is either user-owned and editable (`origin: 'user'` or `'default'`) or mirrored read-only from a subscribed Feed (`origin: 'feed'`).
+A named container of Notes and promoted Sessions (`notebook/:slug`): read-only base primitives (`notebook/defaults`), personal overrides (`notebook/custom`), the private user training log (`notebook/journal`, tracking all created Notes and Sessions across its `journal` and `playground` filters with Agenda default view), pre-subscribed or peer read-only Feed mirrors (`origin: 'feed'`), or publishable user Notebooks (`origin: 'user'`) linked many-to-many via `NotebookLink`.
 _Avoid_: Collection, catalog, folder
 
+**Note Provenance**:
+The structured lineage (`sourceNoteId`, `sourceVersion`, `sourceCommit`, `feedSourceId`, `sourceNotebookId`, `sourcePath`) stamped onto a Journal or user Notebook clone when snapshotting a read-only Note, linking live to the upstream Note while it exists in storage.
+_Avoid_: Raw URL string, loose template ref
+
+**Scoped Property Override**:
+A Notebook-scoped Property Note definition (`(notebookId, kind, slug)`) that layers subscribed Feed Notebook overrides, shared user Notebook overrides, and personal `notebook/custom` runtime overrides over `notebook/defaults` primitives on the same canonical slug, promoting referenced overrides into user Notebooks upon publication.
+_Avoid_: `-custom` slug fork, global overwrite
 **Feed**:
 A distributed source URL (hosted statically via `wod-wiki-feed-repository` or dynamically on a self-hosted `wod server`) that publishes one or more Notebooks, Property Notes, and optional Session telemetry for others to browse, preview, or subscribe to.
 _Avoid_: Library repo, seed package, remote catalog
@@ -55,9 +62,8 @@ A recorded execution of a pinned workout block on a Note, owning its runtime, lo
 _Avoid_: Workout result, run row
 
 **Publication Visibility**:
-The effective exposure state surfaced on a Note and its Sessions: `Private` when the owning Notebook is private, `Published Note` when the owning Notebook is public and zero Sessions on the Note are marked public, or `Published Note + Data` when the owning Notebook is public and one or more Sessions on the Note are marked public (sharing only those opted-in Sessions).
+The effective exposure state derived across all user Notebooks linked to a Note and its Sessions: `Private` when zero linked user Notebooks are public, `Published Note` when one or more linked user Notebooks are public and zero Sessions on the Note are marked public, or `Published Note + Data` when one or more linked user Notebooks are public and one or more Sessions on the Note are marked public.
 _Avoid_: Share flag, public toggle
-
 ### Metrics, Summaries & Evaluation
 
 **Metric**:

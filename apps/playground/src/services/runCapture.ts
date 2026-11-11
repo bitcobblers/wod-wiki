@@ -1,4 +1,4 @@
-import { createParser } from '@bitcobblers/wod-wiki-engine';
+import { createParser, resolveScopedPropertyCatalog, type ResolvedScopedCatalog } from '@bitcobblers/wod-wiki-engine';
 import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
 import { notePersistence, type INotePersistence, type SaveNoteInput } from '@/services/persistence';
 import { storageService } from '@/services/storage';
@@ -14,7 +14,10 @@ export interface CapturedRun {
   block: ScriptBlock;
 }
 
-export function blockFromRevision(revision: BlockRevision): ScriptBlock {
+export function blockFromRevision(
+  revision: BlockRevision,
+  scopedCatalog?: Pick<ResolvedScopedCatalog, 'tagIndex' | 'referenceIndex'>,
+): ScriptBlock {
   if (revision.kind !== 'wod' || !revision.dialect) throw new Error('The saved revision is not a workout.');
   const section = parseDocumentSections(revision.rawContent).find(section => section.type === revision.dialect);
   if (!section?.scriptBlock) throw new Error('The saved workout fence cannot be read.');
@@ -24,7 +27,10 @@ export function blockFromRevision(revision: BlockRevision): ScriptBlock {
     content,
     dialect: revision.dialect,
     sport: revision.sport,
-    statements: createParser({ tags: getTagIndex() }).read(content, revision.sport).statements,
+    statements: createParser({
+      tags: scopedCatalog?.tagIndex ?? getTagIndex(),
+      ...(scopedCatalog?.referenceIndex ? { references: scopedCatalog.referenceIndex } : {}),
+    }).read(content, revision.sport).statements,
     startLine: 0,
     endLine: revision.rawContent.split('\n').length - 1,
     version: revision.version,
@@ -49,7 +55,10 @@ export async function captureRun(input: SaveNoteInput, block: ScriptBlock, resul
     status: 'in-progress',
     createdAt: startedAt,
   });
-  return { ...captured, block: blockFromRevision(captured.revision) };
+  const scopedCatalog = await resolveScopedPropertyCatalog(storageService.storage, {
+    note: captured.note,
+  }).catch(() => undefined);
+  return { ...captured, block: blockFromRevision(captured.revision, scopedCatalog) };
 }
 
 export async function captureStoredRun(noteId: string, block: ScriptBlock, resultId: string, origin?: ResultOrigin): Promise<CapturedRun> {

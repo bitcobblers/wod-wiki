@@ -21,7 +21,7 @@ import { markBootMilestone } from '@/services/bootDiagnostics';
 import { adoptFeedProvenance, adoptLegacyFeedCheckpoints, adoptNotebookVocabulary, defaultFeedSources, readFeedCoverage, runBootFeedSync, SEED_CLAIM_TTL_MS, subscribeFeedUpdates, type FeedSyncDeps, type FeedSyncOutcome, type FeedSyncProgress } from './feedSync';
 import { mainThreadFeedImportStorage } from './feedStorageDefault';
 import { isFeedSubscribed, migrateFeedSubscriptions } from './feedSubscriptions';
-
+import { ensurePlaygroundDefaultSubscriptions } from './playgroundFeedBootstrap';
 export type FeedReadiness = 'preparing' | 'ready' | 'error';
 
 /** Busy-retry timer handle — browser numbers and Bun timers differ. */
@@ -197,6 +197,7 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
   // Prior imported feeds become subscriptions (explicit on/off wins).
   await migrateFeedSubscriptions(all, deps.storage)
     .catch((err) => console.error('[feedSync] subscription migration failed', err));
+  ensurePlaygroundDefaultSubscriptions(all);
   const storage = deps.storage ?? mainThreadFeedImportStorage();
   let coreMeta;
   try {

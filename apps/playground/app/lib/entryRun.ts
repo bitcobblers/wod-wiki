@@ -93,6 +93,7 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction): P
   const journalNote = await createJournalNoteFromWorkout({
     workoutName: entry.title,
     category: entry.sourceNotebook,
+    sourceNoteId: entry.id,
     sourceNoteLabel: entry.subtitle ?? entry.title,
     sourceNotePath: entryOpenHref(entry),
     wodContent: content,

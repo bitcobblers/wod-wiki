@@ -8,6 +8,7 @@ import {
   KNOWN_SECTION_WIDGETS,
   blockContentId,
   derivePublicationVisibility,
+  isNonPublishableNotebook,
   isPublishableNotebookLanding,
   parseDocumentSections,
   parseNoteBundleFromJsonl,
@@ -28,7 +29,8 @@ import {
   type Tag,
 } from '@bitcobblers/wod-wiki-core';
 import type { IStorage } from '@bitcobblers/wod-wiki-storage';
-import { notebookOfItem } from '@bitcobblers/wod-wiki-wql';
+import { notebookOfItem, notebooksOfItem } from '@bitcobblers/wod-wiki-wql';
+import { getNoteNotebooks } from '../notebook/membership';
 import {
   composeNoteMarkdown,
   csvToTelemetryBundle,
@@ -62,27 +64,23 @@ export async function getNotePublicationSummary(
   if (!note) {
     return derivePublicationVisibility({ notebookPublic: false, publicSessions: 0, totalSessions: 0 });
   }
-  const resolvedNbId =
-    isPublishableNotebookLanding(note)
-      ? note.id
-      : (note.notebookId ?? notebookOfItem(note));
-
-  let notebookPublic = false;
-  if (resolvedNbId) {
-    const landing = resolvedNbId === note.id ? note : await storage.readonly('notes').get(resolvedNbId);
-    if (landing && isPublishableNotebookLanding(landing) && landing.public === true) {
-      notebookPublic = true;
-    }
-  }
 
   if (isPublishableNotebookLanding(note)) {
+    const notebookPublic = note.public === true;
     const [allNotes, allSessions] = await Promise.all([
       storage.readonly('notes').getAll(),
       storage.readonly('sessions').getAll(),
     ]);
+    let linkedNoteIds = new Set<string>();
+    try {
+      const links = await storage.readonly('notebook_links').getAllFromIndex('by-notebook', note.id);
+      linkedNoteIds = new Set(links.filter((l) => l.targetKind === 'note').map((l) => l.noteId));
+    } catch {
+      // Optional index on lightweight mocks
+    }
     const memberIds = new Set(
       allNotes
-        .filter((n) => (n.notebookId ?? notebookOfItem(n)) === note.id)
+        .filter((n) => !isPublishableNotebookLanding(n) && (linkedNoteIds.has(n.id) || notebooksOfItem(n).includes(toNotebookId(note.id))))
         .map((n) => n.id),
     );
     const nbSessions = allSessions.filter((s) => memberIds.has(s.noteId));
@@ -92,8 +90,30 @@ export async function getNotePublicationSummary(
       publicSessions: pubCount,
       totalSessions: nbSessions.length,
       notebookId: note.id,
+      notebookIds: [note.id],
+      publicNotebookIds: notebookPublic ? [note.id] : [],
     });
   }
+
+  const linkedNotebooks = await getNoteNotebooks(storage, note.id);
+  const candidateNotebooks = linkedNotebooks.length > 0
+    ? linkedNotebooks
+    : (note.notebookId ? [toNotebookId(note.notebookId)] : notebooksOfItem(note));
+
+  const publicNotebookIds: string[] = [];
+  for (const nbId of candidateNotebooks) {
+    if (isNonPublishableNotebook(nbId)) continue;
+    const landing = await storage.readonly('notes').get(nbId);
+    if (landing && isPublishableNotebookLanding(landing) && landing.public === true) {
+      publicNotebookIds.push(nbId);
+    }
+  }
+  const notebookPublic = publicNotebookIds.length > 0;
+  const primaryNbId =
+    publicNotebookIds[0] ??
+    candidateNotebooks.find((id) => !isNonPublishableNotebook(id)) ??
+    candidateNotebooks[0] ??
+    notebookOfItem(note);
 
   let noteSessions: Session[];
   try {
@@ -106,7 +126,9 @@ export async function getNotePublicationSummary(
     notebookPublic,
     publicSessions,
     totalSessions: noteSessions.length,
-    notebookId: resolvedNbId,
+    notebookId: primaryNbId,
+    notebookIds: [...candidateNotebooks],
+    publicNotebookIds,
   });
 }
 
@@ -116,6 +138,9 @@ export async function setNotebookPublic(
   isPublic: boolean,
 ): Promise<Note> {
   const notebookId = toNotebookId(notebookIdOrSlug);
+  if (isNonPublishableNotebook(notebookId)) {
+    throw new Error(`Notebook '${notebookId}' is private or system-managed and cannot be published.`);
+  }
   return storage.transaction(['notes'], 'readwrite', async (tx) => {
     const store = tx.readwrite('notes');
     const existing = await store.get(notebookId);

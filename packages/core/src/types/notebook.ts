@@ -8,9 +8,23 @@
 import type { FeedId } from './feed';
 
 /** Predefined default notebook slugs always present in the application. */
-export const DEFAULT_NOTEBOOK_SLUGS = ['journal', 'playground', 'defaults', 'guides'] as const;
+export const DEFAULT_NOTEBOOK_SLUGS = ['journal', 'playground', 'defaults', 'custom', 'guides'] as const;
 export type DefaultNotebookSlug = (typeof DEFAULT_NOTEBOOK_SLUGS)[number];
 export type NotebookId = `notebook/${string}`;
+
+export const READONLY_SYSTEM_NOTEBOOK_SLUGS = ['defaults', 'guides', 'efforts', 'equipment', 'dashboards'] as const;
+export const NON_PUBLISHABLE_NOTEBOOK_SLUGS = ['journal', 'playground', 'defaults', 'custom', 'guides', 'efforts', 'equipment', 'dashboards'] as const;
+
+const READONLY_SET: ReadonlySet<string> = new Set(READONLY_SYSTEM_NOTEBOOK_SLUGS);
+const NON_PUBLISHABLE_SET: ReadonlySet<string> = new Set(NON_PUBLISHABLE_NOTEBOOK_SLUGS);
+
+export function isSystemReadOnlyNotebook(slugOrId: string): boolean {
+  return READONLY_SET.has(notebookSlugFromId(slugOrId));
+}
+
+export function isNonPublishableNotebook(slugOrId: string): boolean {
+  return NON_PUBLISHABLE_SET.has(notebookSlugFromId(slugOrId));
+}
 /** Where a notebook comes from. 'feed' = delivered by a feed (the feed that
  *  delivers it is named by `feedEntryId`); 'user' = the user owns it;
  *  'default' = one of the predefined notebooks. */
@@ -38,9 +52,12 @@ export function toNotebookId(slugOrId: string): NotebookId {
  *  back to the note's own stamps, which match the registry answer for every
  *  importer-written row. */
 export function isNoteEditable(
-  note: { seedOrigin?: string | null; feedOrigin?: string | null },
+  note: { seedOrigin?: string | null; feedOrigin?: string | null; notebookId?: string | null },
   notebookOrigin?: NotebookOrigin,
+  resolvedNotebookId?: string,
 ): boolean {
+  const targetNb = resolvedNotebookId ?? note.notebookId ?? undefined;
+  if (targetNb && isSystemReadOnlyNotebook(targetNb)) return false;
   if (notebookOrigin) return notebookOrigin !== 'feed';
   return note.seedOrigin !== 'seed' && note.feedOrigin !== 'feed';
 }
@@ -52,6 +69,8 @@ export interface BuiltinNotebookSpec {
   description: string;
   icon: string;
   href: string;
+  readOnly?: boolean;
+  publishable?: boolean;
   feedEntryId?: FeedId;
   seedChunkId?: string;
 }
@@ -62,33 +81,51 @@ export const BUILTIN_NOTEBOOKS: readonly BuiltinNotebookSpec[] = [
     slug: 'journal',
     notebookId: 'notebook/journal',
     name: 'Journal',
-    description: 'Dated training log and scheduled workouts.',
-    icon: '📅',
+    description: 'Private training log tracking all created notes and sessions across journal and playground.',
+    icon: 'J',
     href: '/journal',
+    readOnly: false,
+    publishable: false,
   },
   {
     slug: 'playground',
     notebookId: 'notebook/playground',
     name: 'Playground',
     description: 'Scratchpad workouts and timer experiments.',
-    icon: '🧪',
+    icon: 'P',
     href: '/playgrounds',
+    readOnly: false,
+    publishable: false,
   },
   {
     slug: 'defaults',
     notebookId: 'notebook/defaults',
     name: 'Defaults',
-    description: 'Starter notes — clone any of them into your own notebooks.',
-    icon: '📝',
+    description: 'Read-only base primitives: Tags, Efforts, Equipment, and shared dynamic properties.',
+    icon: 'D',
     href: '/notebook/defaults',
+    readOnly: true,
+    publishable: false,
+  },
+  {
+    slug: 'custom',
+    notebookId: 'notebook/custom',
+    name: 'Custom',
+    description: 'User overrides and custom Tags, Efforts, Equipment, and starter workouts.',
+    icon: 'C',
+    href: '/notebook/custom',
+    readOnly: false,
+    publishable: false,
   },
   {
     slug: 'guides',
     notebookId: 'notebook/guides',
     name: 'Guides',
-    description: 'Built-in Whiteboard Language and WQL guides.',
-    icon: '📖',
+    description: 'Pre-subscribed read-only Whiteboard Language and WQL guides.',
+    icon: 'G',
     href: '/notebook/guides',
+    readOnly: true,
+    publishable: false,
     feedEntryId: 'core',
     seedChunkId: 'canvas',
   },

@@ -85,6 +85,8 @@ export function isUserOwnedRow(store: StoreName, row: unknown, ctx: UserScopeCon
       // 'bundled' is the provenance marker the seed importer writes;
       // 'user' and 'synthetic-unresolved' derive from user data.
       return !('registrySource' in row && row.registrySource === 'bundled');
+    case 'property_overrides':
+      return !('seedOrigin' in row && row.seedOrigin === 'seed');
     case 'meta':
       return !isSeedMetaKey('key' in row ? row.key : undefined);
     default:

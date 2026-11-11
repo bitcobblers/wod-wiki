@@ -11,7 +11,7 @@
  * of the same slug, which is how the catalogue has always resolved them.
  */
 
-import { createTagIndex, type TagDefinition, type TagIndex } from '@bitcobblers/wod-wiki-engine'
+import { createTagIndex, listScopedPropertyOverrides, type TagDefinition, type TagIndex } from '@bitcobblers/wod-wiki-engine'
 import type { ITagSource, Tag, TagContribution, TagTypeRecord } from '@bitcobblers/wod-wiki-core'
 import { storageService } from '@/services/storage'
 import { soundProfileIdFromTag } from '@/services/sound/soundTagNaming'
@@ -124,11 +124,23 @@ async function loadIndexDefinitions(): Promise<readonly TagDefinition[]> {
  */
 class StorageTagSource implements ITagSource {
     async loadTags(): Promise<readonly TagDefinition[]> {
-        const [tags, categories] = await Promise.all([
+        const [tags, categories, customOverrides] = await Promise.all([
             storageService.getAllTags(),
             storageService.getAllTagTypes().catch(() => [] as TagTypeRecord[]),
+            listScopedPropertyOverrides(storageService.storage, { notebookId: 'notebook/custom' }).catch(() => []),
         ]);
-        return [...categoryDefinitionsFrom(categories), ...buildTagDefinitions(tags, categories)];
+        const tagsByLabel = new Map<string, Tag>(tags.map((t) => [t.label, t]));
+        const categoriesByName = new Map<string, TagTypeRecord>(categories.map((c) => [c.name, c]));
+        for (const ov of customOverrides) {
+            if (ov.kind === 'tag' && ov.payload) {
+                tagsByLabel.set(ov.slug, ov.payload as unknown as Tag);
+            } else if (ov.kind === 'tag-type' && ov.payload) {
+                categoriesByName.set(ov.slug, ov.payload as unknown as TagTypeRecord);
+            }
+        }
+        const mergedCategories = [...categoriesByName.values()];
+        const mergedTags = [...tagsByLabel.values()];
+        return [...categoryDefinitionsFrom(mergedCategories), ...buildTagDefinitions(mergedTags, mergedCategories)];
     }
 }
 

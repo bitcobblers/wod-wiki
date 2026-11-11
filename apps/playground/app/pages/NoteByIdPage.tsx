@@ -81,6 +81,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   // query block evaluates; a new page context re-populates (@today may have
   // changed since the previous page loaded).
   const sourcesReady = usePageSourcesReady()
+  const [promotionOpen, setPromotionOpen] = useState(false)
   useEffect(() => {
     void refreshPageSources().catch(() => {
       // Failure stays on the cached promise — child queries surface it.
@@ -111,7 +112,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   }, [noteId, searchParams])
 
   // Resolve the source lineage's title so it can link to the original note.
-  const sourceId = entry?.sourceId
+  const sourceId = entry?.provenance?.sourceNoteId ?? entry?.sourceId
   useEffect(() => {
     setSourceEntry(null)
     if (!sourceId) return
@@ -185,7 +186,8 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
       if (!entry) return;
       try {
         const captured = await draft.captureForRun(block, uuidv7());
-        pendingRuntimes.set(captured.session.id, { block: captured.block, noteId: entry.id, captured, returnTo: notePath(entry.id) });
+        const targetNoteId = captured.note.id;
+        pendingRuntimes.set(captured.session.id, { block: captured.block, noteId: targetNoteId, captured, returnTo: notePath(targetNoteId) });
         navigate(runPath(captured.session.id));
       } catch {
         // error is tracked and rendered by draft.saveError
@@ -243,6 +245,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
             label: 'Export Session Data (.csv)',
             onRun: () => { void exportNote(entry, contentProvider, { format: 'csv' }) },
           },
+          { id: 'promote-notebooks', label: 'Notebooks & Promotion', onRun: () => setPromotionOpen(true) },
           { id: 'placements', label: 'Note placements', onRun: () => setPlacement('relationships') },
           { id: 'add-timer', label: 'Add timer', onRun: () => draft.onSourceMutate(appendTimerBlock(draft.content)) },
           { id: 'clone', label: 'Clone', onRun: () => setPlacement('clone') },
@@ -321,6 +324,9 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                   notebookId={entry.notebookId}
                   sessions={results}
                   isReadOnlyFeedNote={isReadOnly}
+                  open={promotionOpen}
+                  onOpenChange={setPromotionOpen}
+                  onCloneRequest={() => setPlacement('clone')}
                 />
                 {entry.journalDate && entry.journalDate !== entry.title && (
                     <Link to={dayPath(entry.journalDate)} className="underline-offset-2 hover:underline">
@@ -411,13 +417,22 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                       + Upgrade to Page
                     </button>
                   ) : null}
-                  {entry.sourceId && (
-                    <span>
+                  {(entry.provenance || entry.sourceId) && (
+                    <span data-testid="note-provenance-banner">
                       Cloned from{' '}
                       {sourceEntry ? (
                         <Link to={notePath(sourceEntry.id)} className="underline-offset-2 hover:underline">
                           {sourceEntry.title || sourceEntry.id}
+                          {entry.provenance?.sourceVersion !== undefined ? ` (v${entry.provenance.sourceVersion})` : ''}
                         </Link>
+                      ) : entry.provenance ? (
+                        <span className="font-mono text-[11px] text-muted-foreground">
+                          {entry.provenance.sourceNotebookId
+                            ? `${entry.provenance.sourceNotebookId.replace(/^notebook\//, '')}`
+                            : entry.provenance.sourceNoteId}
+                          {entry.provenance.sourceVersion !== undefined ? ` · v${entry.provenance.sourceVersion}` : ''}
+                          {' (original unavailable)'}
+                        </span>
                       ) : (
                         (() => {
                           const stamped = provenanceLink(entry.sourceId!)

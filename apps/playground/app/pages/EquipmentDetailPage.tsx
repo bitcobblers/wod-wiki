@@ -36,6 +36,7 @@ import { fileToDisplayName } from '@/repositories/groupings';
 import { appendWidget, resolveEntityScope } from '@bitcobblers/wod-wiki-wql';
 import { queryService } from '@/services/queryService';
 import { WidgetComposerDialog } from '../views/dashboards/WidgetComposerDialog';
+import { PropertyOverrideSheet } from '@/components/organisms/notebook/PropertyOverrideSheet';
 export function EquipmentDetailPage() {
   const { slug: slugParam, tag: tagParam } = useParams<{ slug?: string; tag?: string }>();
   const slug = slugParam ?? tagParam;
@@ -70,6 +71,7 @@ export function EquipmentDetailPage() {
 
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([]);
   const [widgetComposerOpen, setWidgetComposerOpen] = useState(false);
+  const [overrideSheetOpen, setOverrideSheetOpen] = useState(false);
   const equipmentScope = useMemo(
     () => (slug ? resolveEntityScope({ kind: 'equipment', slug, label: equipment?.label ?? slug }) : null),
     [slug, equipment?.label],
@@ -134,6 +136,7 @@ export function EquipmentDetailPage() {
     scriptBlocks,
     enableUnrecognizedActions: false,
     helpfulActions: [
+      ...(equipment ? [{ id: 'override', label: 'Override Scope', onRun: () => setOverrideSheetOpen(true), key: `ov-${equipment.slug}` }] : []),
       ...(equipment && !isEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: equipment.slug }] : []),
       ...(equipment ? [{ id: 'add-widget', label: 'Add widget', onRun: () => setWidgetComposerOpen(true) }] : []),
       { id: 'copy-link', label: 'Copy link', onRun: handleCopyLink },
@@ -305,11 +308,28 @@ export function EquipmentDetailPage() {
   const pageActions = (
     <div className="flex items-center gap-2">
       <ResponsiveActions primary={!isEditable ? (
-        <Button variant="outline" onClick={handleClone} data-testid={TEST_IDS.EQUIPMENT_DETAIL_CLONE_BTN}>
-          <DocumentDuplicateIcon className="size-4 mr-1.5" />
-          Clone
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="default"
+            onClick={() => setOverrideSheetOpen(true)}
+            data-testid="equipment-detail-override-btn"
+          >
+            Override
+          </Button>
+          <Button variant="outline" onClick={handleClone} data-testid={TEST_IDS.EQUIPMENT_DETAIL_CLONE_BTN}>
+            <DocumentDuplicateIcon className="size-4 mr-1.5" />
+            Clone
+          </Button>
+        </div>
+      ) : (
+        <Button
+          variant="outline"
+          onClick={() => setOverrideSheetOpen(true)}
+          data-testid="equipment-detail-override-btn"
+        >
+          Override Scope
         </Button>
-      ) : undefined}>
+      )}>
         <Badge
           data-testid={TEST_IDS.EQUIPMENT_DETAIL_SOURCE}
           variant={equipment.registrySource === 'bundled' ? 'secondary' : 'default'}
@@ -360,6 +380,17 @@ export function EquipmentDetailPage() {
         tokenValues={equipmentScope?.tokens}
         onApply={(spec) => {
           setDocument(appendWidget(document, spec));
+        }}
+      />
+      <PropertyOverrideSheet
+        open={overrideSheetOpen}
+        onOpenChange={setOverrideSheetOpen}
+        kind="equipment"
+        slug={equipment.slug}
+        label={equipment.label}
+        rawContent={document}
+        onSaved={() => {
+          void refresh();
         }}
       />
     </div>

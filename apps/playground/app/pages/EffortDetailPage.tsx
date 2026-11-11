@@ -54,6 +54,7 @@ import { appendWidget, resolveEntityScope } from '@bitcobblers/wod-wiki-wql';
 import { queryService } from '@/services/queryService';
 import { WidgetComposerDialog } from '../views/dashboards/WidgetComposerDialog';
 import { pendingRuntimes } from '../runtimeStore';
+import { PropertyOverrideSheet } from '@/components/organisms/notebook/PropertyOverrideSheet';
 /* ── Resolved view (inline widget) ─────────────────────────────────────────── */
 
 function EffortResolvedInline({ resolved, effort }: { resolved: ResolvedEffort; effort: IEffort }) {
@@ -137,6 +138,7 @@ export function EffortDetailPage() {
   const [pendingScheduleBlock, setPendingScheduleBlock] = useState<ScriptBlock | null>(null);
   const [showResolved, setShowResolved] = useState(false);
   const [widgetComposerOpen, setWidgetComposerOpen] = useState(false);
+  const [overrideSheetOpen, setOverrideSheetOpen] = useState(false);
   const effortScope = useMemo(
     () => (slug ? resolveEntityScope({ kind: 'effort', slug, label: effort?.label ?? slug }) : null),
     [slug, effort?.label],
@@ -527,11 +529,28 @@ export function EffortDetailPage() {
   const pageActions = (
     <div className="flex items-center gap-2">
       <ResponsiveActions primary={!isEditable ? (
-        <Button variant="outline" onClick={handleClone} data-testid={TEST_IDS.EFFORT_DETAIL_CLONE_BTN}>
-          <DocumentDuplicateIcon className="size-4 mr-1.5" />
-          Clone
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="default"
+            onClick={() => setOverrideSheetOpen(true)}
+            data-testid="effort-detail-override-btn"
+          >
+            Override
+          </Button>
+          <Button variant="outline" onClick={handleClone} data-testid={TEST_IDS.EFFORT_DETAIL_CLONE_BTN}>
+            <DocumentDuplicateIcon className="size-4 mr-1.5" />
+            Clone
+          </Button>
+        </div>
+      ) : (
+        <Button
+          variant="outline"
+          onClick={() => setOverrideSheetOpen(true)}
+          data-testid="effort-detail-override-btn"
+        >
+          Override Scope
         </Button>
-      ) : undefined}>
+      )}>
         <Badge
           data-testid={TEST_IDS.EFFORT_DETAIL_SOURCE}
           variant={effort.registrySource === 'bundled' ? 'secondary' : 'default'}
@@ -618,6 +637,17 @@ export function EffortDetailPage() {
         tokenValues={effortScope?.tokens}
         onApply={(spec) => {
           setDocument(appendWidget(document, spec));
+        }}
+      />
+      <PropertyOverrideSheet
+        open={overrideSheetOpen}
+        onOpenChange={setOverrideSheetOpen}
+        kind="effort"
+        slug={effort.slug}
+        label={effort.label}
+        rawContent={document}
+        onSaved={() => {
+          void refresh();
         }}
       />
     </div>

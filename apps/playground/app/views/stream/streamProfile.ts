@@ -128,8 +128,9 @@ export const JOURNAL_STREAM_PROFILE: StreamProfile = {
   defaultWql: ':note{notebook:journal} by {date} last 4w',
   level: 'note',
   target: 'note',
-  scopeOptions: ['journal'],
-  // Journal notes carry a journal date — the calendar layouts place them.
+  scopeOptions: ['journal', 'playground'],
+  defaultLayout: 'agenda',
+  // Journal notes carry a journal date — the calendar/agenda layout is the default view.
   calendarCapable: true,
   legacy: createContentLegacyConfig('journal'),
 }

@@ -111,6 +111,7 @@ export function WorkoutEditorPage({
         const journalNote = await createJournalNoteFromWorkout({
           workoutName: name,
           category,
+          sourceNoteId: entryId ?? noteId,
           sourceNoteLabel: sourceNote?.label,
           sourceNotePath: sourceNote?.path,
           wodContent: block.content,
@@ -134,6 +135,7 @@ export function WorkoutEditorPage({
         const journalNote = await createJournalNoteFromWorkout({
           workoutName: name,
           category,
+          sourceNoteId: entryId ?? noteId,
           sourceNoteLabel: sourceNote?.label,
           sourceNotePath: sourceNote?.path,
           wodContent: block.content,

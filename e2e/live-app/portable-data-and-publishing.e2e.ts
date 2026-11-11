@@ -223,3 +223,49 @@ test('zero-import remote notebook preview & single-note clone from registered pe
   await cloneBtn.click();
   await expect(page.getByText(/Cloned "KB Day 1"/i).first()).toBeVisible();
 });
+
+test('mobile 375x812 thumb-zone multi-Notebook promotion and custom vs shared Effort override sheet', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const noteId = '01950000-0000-7000-8000-000000000777';
+  await gotoFeedSurface(page, '/journal');
+  await seedNote(
+    page,
+    noteId,
+    '# Mobile Promotion WOD\n\n```time\n21-15-9\n  Air Squats\n  Push-ups\n```\n',
+    { title: 'Mobile Promotion WOD' },
+  );
+
+  await gotoFeedSurface(page, `/note/${noteId}`);
+  const pill = page.getByTestId('publication-pill');
+  await expect(pill).toBeVisible();
+  await pill.click();
+
+  const sheet = page.getByTestId('publication-pill-popover');
+  await expect(sheet).toBeVisible();
+
+  // Promote to two user Notebooks inline on 375px mobile without horizontal overflow
+  const newNbInput = page.getByTestId('promotion-new-notebook-input');
+  const newNbSubmit = page.getByTestId('promotion-new-notebook-submit');
+
+  await newNbInput.fill('Garage Crew');
+  await newNbSubmit.click();
+  await expect(page.getByTestId('promotion-notebook-chip-notebook/garage-crew')).toBeVisible();
+
+  await newNbInput.fill('Travel WODs');
+  await newNbSubmit.click();
+  await expect(page.getByTestId('promotion-notebook-chip-notebook/travel-wods')).toBeVisible();
+
+  const hasOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasOverflow).toBe(false);
+
+  // Open bundled Effort at 375px mobile and override into personal Custom runtime
+  await gotoFeedSurface(page, '/effort/air-squat');
+  const overrideBtn = page.getByTestId('effort-detail-override-btn');
+  await expect(overrideBtn).toBeVisible();
+  await overrideBtn.click();
+
+  const overrideSheet = page.getByTestId('property-override-sheet');
+  await expect(overrideSheet).toBeVisible();
+  await page.getByTestId('override-target-notebook/custom').click();
+  await expect(overrideSheet).toBeHidden();
+});
