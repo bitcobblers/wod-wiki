@@ -2,12 +2,43 @@
 
 Storybook is a workbench, not a second hosting level. It runs the same
 storage plane as the playground app: the same IndexedDB schema, the same note
-and session models, the same seed pipeline, the same WQL engine. The stories
-below drive a real browser database instead of fixtures.
+and session models, the same seed pipeline, the same WQL engine. Stories
+choose between two isolated planes.
+
+## Two storage planes
+
+1. **Component-level `domainState` stories** — the default for Playground UI
+   modules (`PropertyOverrideSheet`, `NotePromotionSheet`, `EffortDetailPage`,
+   `SessionDetail`, and the in-memory `SessionExplorer` variants). A story
+   sets `parameters: { domainState: '<preset>' }`, and the preview decorator
+   hydrates a fresh in-memory `InMemoryStorage` per story through
+   `hydratePlaygroundStorage`, mounted under `StaticDatabaseProvider` +
+   `PlaygroundProviderTree`. No IndexedDB and no network fetches — fully
+   deterministic and offline. Interaction scripts drive the UI with the
+   `storyActions` helpers from `apps/storybook/src/testing/storyActions.ts`
+   (`waitForHydrated`, `selectOverrideScope`, `toggleNotebookPromotion`,
+   `toggleNotebookPublic`, `toggleSessionPublic`, `selectSessionRow`; note
+   that portaled sheets render into `canvasElement.ownerDocument.body`, so
+   query them with `within(canvasElement.ownerDocument.body)`). These stories
+   are verified by `bun run test:storybook`.
+
+   The presets live in `apps/storybook/src/testing/domainStates.tsx`:
+   `empty`, `populatedJournal`, `activeSession`, `scopedPropertyOverride`,
+   `skippedDependencyDiagnostic`, and `readOnlyFeedNote`. A story may also
+   pass a raw `DomainWorldInput` for one-off data. Every preset resolves
+   through `buildDomainWorld` from `@bitcobblers/wod-wiki-core/testing` and is
+   covered by `apps/storybook/test/domainStates.test.ts`.
+
+2. **Real IndexedDB workbench stories** — `parameters: { database: true }`.
+   These mount the real browser storage plane against an IndexedDB database
+   in the origin: `database--indexed-db-selection` and the live multi-DB
+   workbench stories in the table below, verified by
+   `playwright.storybook.config.ts`.
 
 ## The landing page
 
-Opening Storybook lands on **Database → IndexedDB Selection**
+This page belongs to the real IndexedDB plane. Opening Storybook lands on
+**Database → IndexedDB Selection**
 (`database--indexed-db-selection`), the first story in the sorted sidebar.
 
 The page shows every local IndexedDB database in the browser origin, marks
@@ -27,6 +58,8 @@ sync, and the seed state card reports the result. A failing source shows a
 message; it never breaks the page.
 
 ## The database stories
+
+The real IndexedDB workbench stories:
 
 | Story | What it proves |
 |---|---|
@@ -83,10 +116,14 @@ not the playground's.
 ## Checks
 
 ```bash
-bun run test:storybook                          # interaction tests
+bun run test:storybook                          # component domainState stories (in-memory plane)
 STORYBOOK_URL=<url> bun x playwright test --config playwright.storybook.config.ts --project storybook-database
 ```
 
-The database suite runs against a deployed Storybook (or a local one) and
+`bun run test:storybook` runs the `play()` interaction scripts of the
+component-level `domainState` stories against the hydrated in-memory storage;
+its node `app-unit` project also unit-tests the preset payloads themselves
+(`apps/storybook/test/domainStates.test.ts`). The database suite runs against
+a deployed Storybook (or a local one) and
 drives a real IndexedDB: it seeds the corpus, creates and switches
 databases, stores a run, and reads it back.
