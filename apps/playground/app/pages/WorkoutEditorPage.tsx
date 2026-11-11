@@ -164,7 +164,7 @@ export function WorkoutEditorPage({
         duration: 7000,
       })
     },
-    [name, category, sourceNote, navigate],
+    [name, category, entryId, noteId, sourceNote, navigate],
   )
 
   const commands = useScriptBlockCommands('notebook-readonly', {

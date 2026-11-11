@@ -27,7 +27,8 @@ async function createNotebook(page: Page, name: string): Promise<void> {
   await dialog.getByRole('button', { name: 'Create' }).click();
   await expect(page).toHaveURL(/\/notebook\//);
   await page.goto('/notebooks');
-  await expect(page.getByTestId('notebook-list')).toContainText(name);
+  await waitForFeedReady(page);
+  await expect(page.getByTestId('queriable-stream-view')).toContainText(name);
 }
 
 /** The Add-to-today handler commits asynchronously; the journal page query
@@ -78,7 +79,7 @@ test.describe('Notebook plane', () => {
     await page.goto('/notebooks');
     await waitForFeedReady(page);
 
-    const list = page.getByTestId('notebook-list');
+    const list = page.getByTestId('queriable-stream-view');
     await expect(list).toBeVisible();
     // The always-present notebooks: read-only defaults, writable custom, and the
     // core references delivered by the core feed.
@@ -89,7 +90,7 @@ test.describe('Notebook plane', () => {
     await expect(list).toContainText('Dashboards');
     // Create → the landing note appears as a Yours row.
     await createNotebook(page, 'Trip 2026');
-    const row = page.locator('[data-testid="notebook-list-row"]', { hasText: 'Trip 2026' });
+    const row = page.locator('[data-testid="stream-feed-item"], [data-testid="library-row-notebook"]', { hasText: 'Trip 2026' }).first();
     await expect(row).toBeVisible();
 
     // Rename through the edit dialog (prefilled).
@@ -98,13 +99,13 @@ test.describe('Notebook plane', () => {
     await expect(dialog.getByPlaceholder('e.g., Morning Routines')).toHaveValue('Trip 2026');
     await dialog.getByPlaceholder('e.g., Morning Routines').fill('Trip 2027');
     await dialog.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByTestId('notebook-list')).toContainText('Trip 2027');
+    await expect(page.getByTestId('queriable-stream-view')).toContainText('Trip 2027');
 
     // Delete: notes return to the journal, the notebook row disappears. The
     // slug is the notebook's identity — a rename does not re-slug it.
     await page.getByTestId('notebook-delete-trip-2026').click();
     await page.getByTestId('notebook-delete-confirm-trip-2026').click();
-    await expect(page.getByTestId('notebook-list')).not.toContainText('Trip 2027');
+    await expect(page.getByTestId('queriable-stream-view')).not.toContainText('Trip 2027');
   });
 
   test('the notebook plane returns notes from every notebook and narrows by slug', async ({ page }) => {

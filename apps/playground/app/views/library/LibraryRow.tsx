@@ -6,8 +6,9 @@
  * The Add-to-today action is a creation flow (not navigation); it is wired
  * in the Library page, not the row.
  */
+import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Copy, Share2 } from 'lucide-react'
+import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Copy, Share2, Pencil, Trash2 } from 'lucide-react'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/atoms/primitives/dropdown-menu'
 import type { Entry } from '../../lib/entryMapper'
 import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryNotebookHref } from '../../lib/entryActions'
@@ -50,6 +51,8 @@ export interface LibraryRowProps {
   onCloneRemote?: (entry: Entry) => void
   onPublishFeed?: (entry: Entry) => void
   onTogglePublicNotebook?: (entry: Entry) => void
+  onEditNotebook?: (entry: Entry) => void
+  onDeleteNotebook?: (entry: Entry) => void
 }
 
 const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
@@ -106,6 +109,8 @@ export function LibraryRow({
   onCloneRemote,
   onPublishFeed,
   onTogglePublicNotebook,
+  onEditNotebook,
+  onDeleteNotebook,
 }: LibraryRowProps) {
   const navigate = useNavigate()
   // Annotation 4 — plain `note` kind conflates journal/guide/playground and
@@ -284,6 +289,8 @@ export function LibraryRow({
           onCloneRemote={onCloneRemote}
           onPublishFeed={onPublishFeed}
           onTogglePublicNotebook={onTogglePublicNotebook}
+          onEditNotebook={onEditNotebook}
+          onDeleteNotebook={onDeleteNotebook}
         />
       )}
     </div>
@@ -300,10 +307,13 @@ interface RowActionsProps {
   onCloneRemote?: (entry: Entry) => void
   onPublishFeed?: (entry: Entry) => void
   onTogglePublicNotebook?: (entry: Entry) => void
+  onEditNotebook?: (entry: Entry) => void
+  onDeleteNotebook?: (entry: Entry) => void
 }
 
-function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook, onToggleSubscribe, onCloneRemote, onPublishFeed, onTogglePublicNotebook }: RowActionsProps) {
+function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook, onToggleSubscribe, onCloneRemote, onPublishFeed, onTogglePublicNotebook, onEditNotebook, onDeleteNotebook }: RowActionsProps) {
   const navigate = useNavigate()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const compareHref = entryCompareHref(entry)
   const notebookHref = entryNotebookHref(entry)
   const canAdd = entryCanAddToToday(entry) && !!onAddToToday
@@ -345,6 +355,45 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
           {entry.isPublic ? <Lock className="size-3" /> : <Globe className="size-3" />}
           <span>{entry.isPublic ? 'Make Private' : 'Make Public'}</span>
         </button>
+      )}
+      {entry.kind === 'notebook' && entry.feedId === 'local' && onEditNotebook && (
+        <button
+          type="button"
+          title={`Edit ${entry.title}`}
+          aria-label={`Edit ${entry.title}`}
+          onClick={() => onEditNotebook(entry)}
+          data-testid={`notebook-edit-${entry.sourceNotebook}`}
+          className="size-8 max-sm:min-h-11 max-sm:min-w-11 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      )}
+      {entry.kind === 'notebook' && entry.feedId === 'local' && onDeleteNotebook && (
+        confirmingDelete ? (
+          <button
+            type="button"
+            title="Notes in this notebook return to the journal"
+            onClick={() => {
+              setConfirmingDelete(false)
+              onDeleteNotebook(entry)
+            }}
+            data-testid={`notebook-delete-confirm-${entry.sourceNotebook}`}
+            className="h-7 px-2.5 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[11px] font-semibold flex items-center gap-1 transition-colors"
+          >
+            Confirm delete
+          </button>
+        ) : (
+          <button
+            type="button"
+            title={`Delete ${entry.title}`}
+            aria-label={`Delete ${entry.title}`}
+            onClick={() => setConfirmingDelete(true)}
+            data-testid={`notebook-delete-${entry.sourceNotebook}`}
+            className="size-8 max-sm:min-h-11 max-sm:min-w-11 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        )
       )}
       {entry.kind === 'feed' && entry.sourceNote === 'local' && onPublishFeed && (
         <button

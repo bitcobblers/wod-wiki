@@ -55,6 +55,15 @@ test.describe('Property Note persistence acceptance', () => {
     await expect(page.locator('.cm-query-block-preview').first()).toBeVisible();
   });
 
+async function ensurePropertyDetailsExpanded(page: Page): Promise<void> {
+  const detailsBtn = page.getByRole('button', { name: 'Show property details' });
+  const summaryBtn = page.getByRole('button', { name: 'Show property summary' });
+  await expect(detailsBtn.or(summaryBtn).first()).toBeVisible({ timeout: 15_000 });
+  if (await detailsBtn.isVisible().catch(() => false)) {
+    await detailsBtn.first().click();
+  }
+}
+
   test('editing a bundled Effort creates and reloads a custom copy without a conflict', async ({ page }) => {
     const pageErrors: string[] = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -64,7 +73,7 @@ test.describe('Property Note persistence acceptance', () => {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await efforts.waitForDetailLoaded();
 
-    await page.getByRole('button', { name: 'Show property details' }).click();
+    await ensurePropertyDetailsExpanded(page);
     const met = efforts.frontmatterProperties().getByLabel('Value for metrics.met');
     await met.fill('9');
     await met.press('Enter');
@@ -79,11 +88,11 @@ test.describe('Property Note persistence acceptance', () => {
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     await efforts.waitForDetailLoaded();
-    await page.getByRole('button', { name: 'Show property details' }).click();
+    await ensurePropertyDetailsExpanded(page);
     await expect(efforts.frontmatterProperties().getByLabel('Value for metrics.met')).toHaveValue('9');
     await efforts.gotoDetail('thruster');
     await expect(efforts.detailSource()).toContainText('Bundled');
-    await page.getByRole('button', { name: 'Show property details' }).click();
+    await ensurePropertyDetailsExpanded(page);
     await expect(efforts.frontmatterProperties().getByLabel('Value for metrics.met')).toHaveValue('8');
     expect(pageErrors).toEqual([]);
   });

@@ -244,10 +244,14 @@ function todayKey(): string {
   return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')}`;
 }
 
-/** Open a note-page action pill — the desktop header renders them inline once
- *  the content store has restored, so wait for the pill rather than probing. */
+/** Open a note-page action — inline at 2xl+ or inside the Page options drawer below 2xl. */
 async function openPageAction(page: Page, name: string): Promise<void> {
   const action = page.getByRole('button', { name, exact: true });
-  await expect(action).toBeVisible({ timeout: 45_000 });
+  const options = page.getByRole('button', { name: 'Page options' });
+  await expect(action.or(options).first()).toBeVisible({ timeout: 45_000 });
+  if (!(await action.isVisible().catch(() => false))) {
+    await options.click();
+  }
+  await expect(action).toBeVisible({ timeout: 15_000 });
   await action.click();
 }

@@ -119,7 +119,7 @@ export function NotebookItemPage({
         toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
     },
-    [slug, item, itemPath, notebookItem, navigate],
+    [slug, item, itemPath, noteId, notebookItem, navigate],
   );
 
   const handleAddToToday = useCallback(async (block: ScriptBlock) => {
@@ -145,7 +145,7 @@ export function NotebookItemPage({
     } catch {
       toast({ title: 'Error', description: 'Could not add to journal', variant: 'destructive' });
     }
-  }, [slug, item, itemPath, notebookItem, navigate]);
+  }, [slug, item, itemPath, noteId, notebookItem, navigate]);
 
   const [pendingScheduleBlock, setPendingScheduleBlock] = useState<ScriptBlock | null>(null);
 

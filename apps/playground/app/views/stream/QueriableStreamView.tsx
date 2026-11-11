@@ -31,6 +31,7 @@ import { isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/fe
 import { toast } from '@/hooks/use-toast'
 import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
 import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog'
+import type { Notebook } from '@/types/notebook'
 import { notebookService } from '@/hooks/useBrowserServices'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
 import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, serialize, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
@@ -356,16 +357,51 @@ export function QueriableStreamView({
     navigate(ROUTE_PATTERNS.settingsSync)
   }, [navigate])
   const [createNotebookOpen, setCreateNotebookOpen] = useState(false)
+  const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null)
   const handleCreateNotebook = useCallback(async (name: string, description: string, icon: string) => {
     const created = await notebookService.create(name, description, icon)
     setSavedTick(t => t + 1)
     return created
   }, [])
+  const handleSaveEditedNotebook = useCallback(async (nb: Notebook, name: string, description: string, icon: string) => {
+    try {
+      const updated = await notebookService.update(nb.id, { name, description, icon })
+      setSavedTick(t => t + 1)
+      return updated
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+      return null
+    }
+  }, [])
+  const handleOpenEditNotebook = useCallback(async (entry: Entry) => {
+    const targetId = entry.notebookId ?? entry.id
+    const all = await notebookService.getAllNotebooks().catch(() => [] as Notebook[])
+    const found = all.find(nb => nb.notebookId === targetId || nb.id === targetId || nb.slug === entry.sourceNotebook)
+    if (found) {
+      setEditingNotebook(found)
+      setCreateNotebookOpen(true)
+    }
+  }, [])
+  const handleDeleteNotebookEntry = useCallback(async (entry: Entry) => {
+    const targetId = entry.notebookId ?? entry.id
+    setActionError(null)
+    try {
+      await notebookService.delete(targetId)
+      setSavedTick(t => t + 1)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    }
+  }, [])
   const createNotebookDialog = isNotebooksRoute ? (
     <CreateNotebookDialog
       open={createNotebookOpen}
-      onOpenChange={setCreateNotebookOpen}
+      onOpenChange={(open) => {
+        setCreateNotebookOpen(open)
+        if (!open) setEditingNotebook(null)
+      }}
       onCreate={handleCreateNotebook}
+      notebook={editingNotebook}
+      onSave={handleSaveEditedNotebook}
     />
   ) : null
 
@@ -1399,6 +1435,8 @@ export function QueriableStreamView({
             onAddToToday={handleAddToToday}
             moveNotebookTargets={moveNotebookTargets}
             onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.id, notebookId)}
+            onEditNotebook={e => void handleOpenEditNotebook(e)}
+            onDeleteNotebook={e => void handleDeleteNotebookEntry(e)}
           />
         ) : loading && entries.length === 0 ? (
           <div className="py-16 text-center text-xs text-muted-foreground/60" data-testid="stream-loading">
@@ -1453,6 +1491,8 @@ export function QueriableStreamView({
                               onTogglePublicNotebook={(e) => void handleTogglePublicNotebookEntry(e)}
                               onPublishFeed={() => void handlePublishOutboundFeed()}
                               onCloneRemote={(e) => void handleCloneRemoteEntry(e)}
+                              onEditNotebook={(e) => void handleOpenEditNotebook(e)}
+                              onDeleteNotebook={(e) => void handleDeleteNotebookEntry(e)}
                             />
                           ))}
                         </div>
@@ -1489,6 +1529,8 @@ export function QueriableStreamView({
                           onTogglePublicNotebook={(e) => void handleTogglePublicNotebookEntry(e)}
                           onPublishFeed={() => void handlePublishOutboundFeed()}
                           onCloneRemote={(e) => void handleCloneRemoteEntry(e)}
+                          onEditNotebook={(e) => void handleOpenEditNotebook(e)}
+                          onDeleteNotebook={(e) => void handleDeleteNotebookEntry(e)}
                         />
                       ))}
                     </div>

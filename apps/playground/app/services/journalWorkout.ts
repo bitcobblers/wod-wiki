@@ -39,7 +39,7 @@ export async function createJournalNoteFromWorkout({
     const sourceNb = notebookOfItem(upstream) ?? (category ? `notebook/${category}` : undefined);
     const created = await journalNotes.create({
       journalDate,
-      title: normalizeNoteTitle(upstream.title || workoutName),
+      title: normalizeNoteTitle(workoutName || upstream.title),
       rawContent: upstream.rawContent,
       tags: upstream.tags,
       sourceId: upstream.id,

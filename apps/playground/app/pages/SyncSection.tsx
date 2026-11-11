@@ -191,7 +191,7 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
             </summary>
             {/* Backdrop closes details on click outside */}
             <div
-              className="fixed inset-0 z-10"
+              className="fixed inset-0 z-50"
               data-testid="feed-more-backdrop"
               aria-hidden="true"
               onClick={(e) => {
@@ -200,7 +200,7 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
               }}
             />
             <div
-              className="absolute right-0 z-20 mt-1 flex w-64 max-w-[80vw] flex-col items-stretch gap-1.5 rounded-lg border border-border bg-card p-2 text-xs shadow-lg"
+              className="absolute right-0 z-[60] mt-1 flex w-64 max-w-[80vw] flex-col items-stretch gap-1.5 rounded-lg border border-border bg-card p-2 text-xs shadow-lg"
               onClick={(e) => {
                 const target = e.target as HTMLElement;
                 if (target.closest('button') || target.closest('a')) {

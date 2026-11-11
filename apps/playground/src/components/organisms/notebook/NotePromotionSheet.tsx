@@ -66,6 +66,7 @@ export function NotePromotionSheet({
   const [provenance, setProvenance] = useState<ResolvedUpstreamProvenance | null>(null);
   const [newNotebookName, setNewNotebookName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [localSessions, setLocalSessions] = useState<Session[]>(() => [...noteSessions]);
 
   useEffect(() => {
@@ -108,16 +109,19 @@ export function NotePromotionSheet({
       }
       setUserNotebooks([...byId.values()]);
       setLinkedIds(currentLinks);
+      setHydrated(true);
     } catch {
       // Ignore transient unmount/storage errors
+      setHydrated(true);
     }
   }, [storageInstance, noteId]);
 
   useEffect(() => {
     if (open) {
+      setHydrated(false);
       void loadSheetState();
     }
-  }, [open, loadSheetState, summary]);
+  }, [open, loadSheetState]);
 
   if (!open) return null;
 
@@ -440,8 +444,8 @@ export function NotePromotionSheet({
               </div>
             )}
 
-            {/* Fallback Public Notebook toggle when note has a pre-stamped single notebookId before userNotebooks loaded */}
-            {primaryUserNotebook && !userNotebooks.some((u) => u.id === primaryUserNotebook.id) && (
+            {/* Fallback Public Notebook toggle when note has a pre-stamped single notebookId without a landing row */}
+            {hydrated && primaryUserNotebook && !userNotebooks.some((u) => u.id === primaryUserNotebook.id) && (
               <label className="flex items-center justify-between gap-2 min-h-11 rounded-lg border border-[#EAEAEA] dark:border-zinc-800 px-3 py-2 cursor-pointer text-xs">
                 <div>
                   <div className="font-medium">Public Notebook</div>

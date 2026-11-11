@@ -120,7 +120,6 @@ const LOAD_TYPES = new Set([
   'load',
   'volume',
   'work',
-  'power',
   'calculated',
   'totalwork',
   'totalvolume',
@@ -170,6 +169,16 @@ export function extractMetricsByCategory(metrics?: Iterable<IMetric>): Categoriz
     else if (HINT_TYPES.has(t) || typeof m.value !== 'number') result.hints.push(m);
     else result.loads.push(m);
   }
+  if (result.efforts.length === 0 && metrics) {
+    const first = Array.from(metrics)[0];
+    const meta = first?.metadata as Record<string, unknown> | undefined;
+    const summaryName =
+      (typeof meta?.originalKey === 'string' && meta.originalKey) ||
+      (typeof meta?.canonicalKey === 'string' && meta.canonicalKey);
+    if (summaryName && first) {
+      result.efforts.push({ type: 'label' as IMetric['type'], value: summaryName, image: summaryName, origin: first.origin });
+    }
+  }
   return result;
 }
 
@@ -218,6 +227,7 @@ export function normalizeOutputFilter(filter: OutputFilterInput): OutputFilterPr
  *  and `EventRecord` event rows alike. */
 export interface OutputStatementRow {
   readonly id?: number | string;
+  readonly grain?: string;
   readonly outputType?: string;
   readonly timeSpan?: { started: number; ended?: number };
   readonly metrics?: Iterable<IMetric>;
@@ -279,7 +289,9 @@ function matchesOutputFilter(out: OutputStatementRow, filter: string): boolean {
 
   const outType = String(out.outputType || '').toLowerCase();
   if (lower.startsWith('type:')) {
-    return outType.includes(lower.slice(5).trim());
+    const wanted = lower.slice(5).trim();
+    if (wanted === 'segment' && outType === 'analytics') return true;
+    return outType.includes(wanted);
   }
 
   const typeMatch = outType.includes(lower);
@@ -423,8 +435,22 @@ function extractMetricsForColumn(
     return all.filter((m) => String(m.type).toLowerCase() === col.metricTypeLower);
   }
   switch (col.kind) {
-    case 'effort':
-      return all.filter((m) => EFFORT_TYPES.has(String(m.type).toLowerCase()));
+    case 'effort': {
+      const explicitEfforts = all.filter((m) => EFFORT_TYPES.has(String(m.type).toLowerCase()));
+      if (explicitEfforts.length > 0) return explicitEfforts;
+      if (String(out.outputType ?? '').toLowerCase() === 'analytics' && all.length > 0) {
+        const first = all[0]!;
+        const meta = first.metadata as Record<string, unknown> | undefined;
+        const summaryName =
+          (typeof meta?.originalKey === 'string' && meta.originalKey) ||
+          (typeof meta?.canonicalKey === 'string' && meta.canonicalKey) ||
+          String(first.type ?? '');
+        if (summaryName) {
+          return [{ type: 'label' as IMetric['type'], value: summaryName, image: summaryName, origin: first.origin }];
+        }
+      }
+      return [];
+    }
     case 'reps':
       return all.filter((m) => String(m.type).toLowerCase() === 'rep');
     case 'loads':
@@ -730,9 +756,13 @@ export function OutputStatementsTable({
   );
 
   const rows = useMemo(() => {
+    const hasEventAnalytics = outputs.some(
+      (out) => out.grain !== 'summary' && String(out.outputType ?? '').toLowerCase() === 'analytics',
+    );
+    const deduped = hasEventAnalytics ? outputs.filter((out) => out.grain !== 'summary') : outputs;
     const filtered = !filter.trim()
-      ? [...outputs]
-      : outputs.filter((out) => matchesOutputFilter(out, filter));
+      ? [...deduped]
+      : deduped.filter((out) => matchesOutputFilter(out, filter));
     if (activeSort.length > 0) {
       filtered.sort((a, b) => compareRowsBySpecs(a, b, activeSort, activeColumns, dynamicLowerTypes));
     }
@@ -798,20 +828,32 @@ export function OutputStatementsTable({
     );
   }, [activeColumns]);
 
-  return (
-    <>
-      {/* Phone: Card List below sm (wayfinder #992/#997) */}
-      <div className="sm:hidden">
-        <StatementCards
-          rows={rows}
-          outputs={outputs}
-          t0={t0}
-          onClearFilter={onClearFilter}
-          prHighlights={prHighlights}
-        />
-      </div>
-      {/* sm and up: dynamic sortable/editable table */}
-      <div className="hidden overflow-x-auto rounded-md border border-border/50 bg-background/40 sm:block">
+  const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia('(max-width: 639px)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mql = window.matchMedia('(max-width: 639px)');
+    const onChange = (e: MediaQueryListEvent) => setIsMobileViewport(e.matches);
+    setIsMobileViewport(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
+  return isMobileViewport ? (
+    <div>
+      <StatementCards
+        rows={rows}
+        outputs={outputs}
+        t0={t0}
+        onClearFilter={onClearFilter}
+        prHighlights={prHighlights}
+      />
+    </div>
+  ) : (
+    <div className="overflow-x-auto rounded-md border border-border/50 bg-background/40">
         <table className="w-full text-left font-mono text-xs border-collapse" data-testid="output-statements-table">
           <thead>
             <tr className="border-b border-border/60 bg-muted/40 text-[10px] uppercase font-bold text-muted-foreground tracking-wider whitespace-nowrap">
@@ -1035,6 +1077,5 @@ export function OutputStatementsTable({
           </tbody>
         </table>
       </div>
-    </>
   );
 }
