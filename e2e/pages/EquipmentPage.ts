@@ -135,13 +135,13 @@ export class EquipmentPage {
     if (mobile) {
       await this.page.getByRole('button', { name: 'Open navigation' }).click();
     }
-    await this.page
-      .getByRole('navigation', { name: 'Primary' })
-      .getByRole('button', { name: 'Equipment' })
-      .click();
+    const primary = mobile
+      ? this.page.getByRole('dialog').getByRole('navigation', { name: 'Primary' })
+      : this.page.getByRole('navigation', { name: 'Primary' });
+    await primary.getByRole('button', { name: 'Equipment' }).click();
     await this.page.waitForURL(/\/equipment/, { timeout: 10_000 });
     if (mobile) {
-      await this.page.getByRole('button', { name: 'Close navigation' }).click();
+      await expect(this.page.getByRole('dialog')).toHaveCount(0);
     }
   }
 }

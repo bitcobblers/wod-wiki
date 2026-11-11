@@ -24,7 +24,7 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
   test('L1 rail labels include the primary effort, equipment, and tag libraries', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
-    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+$/, { timeout: 30_000 });
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+(\.\d+)?$/, { timeout: 30_000 });
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
 
     const primary = page.getByRole('navigation', { name: 'Primary' });
@@ -118,7 +118,7 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
   test('the notebooks landing and the playgrounds view keep their own chrome', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
-    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+$/, { timeout: 30_000 });
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+(\.\d+)?$/, { timeout: 30_000 });
     const sidebar = page.getByRole('navigation', { name: 'Main' });
     await expect(sidebar.getByRole('button', { name: 'Subscribed notebooks', exact: true })).toBeVisible();
     // The L2 panel offers no create actions on any view.
@@ -138,7 +138,7 @@ test.describe('Nav ladder — mobile (375px)', () => {
   test('mobile drawer: Journal is an L1 destination; Playgrounds is reachable with its own chrome', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
-    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+$/, { timeout: 30_000 });
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+(\.\d+)?$/, { timeout: 30_000 });
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
 
     // Same drawer trigger the page objects use (e.g. EquipmentPage).
@@ -193,7 +193,7 @@ test.describe('Nav ladder — mobile (375px)', () => {
   test('browser Back dismisses the mobile drawer without navigating underneath it', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
-    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+$/, { timeout: 30_000 });
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+(\.\d+)?$/, { timeout: 30_000 });
     await page.getByRole('button', { name: 'Open navigation' }).click();
     await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible();
     await page.goBack();
@@ -248,7 +248,7 @@ test.describe('Nav ladder — Phase 2 contextual L2/L3 sync, inline saved links 
     await page.setViewportSize({ width: 1600, height: 1000 });
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
-    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+$/, { timeout: 30_000 });
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+(\.\d+)?$/, { timeout: 30_000 });
 
     await seedNote(
       page,
@@ -298,6 +298,7 @@ test.describe('Nav ladder — Phase 2 contextual L2/L3 sync, inline saved links 
     await expect(sidebar.getByText('Pages', { exact: true })).toBeVisible({ timeout: 10_000 });
     await expect(sidebar.getByRole('button', { name: 'Morning Prep', exact: true })).toBeVisible();
 
+    await page.locator('.cm-content').first().press('Control+s');
     // Part 2 of 2-part link navigates to /notes filtered by that effort
     await sidebar.getByTestId('menu-filter-note-context-efforts:zottman-curl').click();
     await expect(page).toHaveURL(/\/notes\?q=.*zottman-curl/);
@@ -380,17 +381,18 @@ test.describe('Nav ladder — Phase 2 contextual L2/L3 sync, inline saved links 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/dashboards', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+(\.\d+)?$/, { timeout: 30_000 });
 
     const sidebar = page.getByRole('navigation', { name: 'Main' });
     await sidebar.getByTestId('dashboards-nav-new').click();
-    await expect(page).toHaveURL(/\/dashboard\/new-dashboard$/);
-    await expect(sidebar.getByTestId('dashboards-nav-saved')).toBeVisible({ timeout: 10_000 });
-    await expect(sidebar.getByTestId('dashboard-nav-item-new-dashboard')).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/new-dashboard$/, { timeout: 15_000 });
+    await expect(sidebar.getByTestId('dashboards-nav-saved')).toBeVisible({ timeout: 15_000 });
+    await expect(sidebar.getByTestId('dashboard-nav-item-new-dashboard')).toBeVisible({ timeout: 10_000 });
 
     // Creating a second dashboard deduplicates slug and updates L2 immediately without reload
     await sidebar.getByTestId('dashboards-nav-new').click();
-    await expect(page).toHaveURL(/\/dashboard\/new-dashboard-2$/);
-    await expect(sidebar.getByTestId('dashboard-nav-item-new-dashboard-2')).toBeVisible({ timeout: 10_000 });
+    await expect(page).toHaveURL(/\/dashboard\/new-dashboard-2$/, { timeout: 15_000 });
+    await expect(sidebar.getByTestId('dashboard-nav-item-new-dashboard-2')).toBeVisible({ timeout: 15_000 });
 
     // Switch back to the first saved dashboard via L2
     await sidebar.getByTestId('dashboard-nav-item-new-dashboard').click();

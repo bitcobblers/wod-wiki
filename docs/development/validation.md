@@ -46,6 +46,7 @@ checked-in baseline that `check:playground-types` compares against.
   viewports (mobile: 375×812).
 - Acceptance must confirm **feed-ready navigation**: after the change, routes
   reach a feed-ready state without console errors or stuck loading shells.
+- `playwright.journal.config.ts` seeds the `core` IndexedDB snapshot once in `journal-setup` (`indexedDB: true`) for `journal-chromium`, `journal-mobile-375`, and `journal-dark`, while `journal-cold-chromium` runs `cold-boot.e2e.ts` against an empty profile. Demo walkthrough scripts (`*-recording.e2e.ts`) are skipped unless `PLAYWRIGHT_RECORDING=1` is set.
 
 Run the home-page WCAG A/AA checks at mobile and desktop sizes with:
 

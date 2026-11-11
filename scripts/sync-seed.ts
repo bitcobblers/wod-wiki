@@ -72,8 +72,22 @@ const SOURCES: FeedSourceSpec[] = [
   },
 ];
 
+const cliArgs = process.argv.slice(2);
+let targetApp: FeedSourceSpec['app'] | null = null;
+for (let i = 0; i < cliArgs.length; i++) {
+  if (cliArgs[i] === '--app' && i + 1 < cliArgs.length) {
+    const val = cliArgs[++i];
+    if (val !== 'playground' && val !== 'storybook') {
+      console.error(`[sync-seed] Unknown --app "${val}" (expected "playground" or "storybook")`);
+      process.exit(1);
+    }
+    targetApp = val;
+  }
+}
+const activeSources = targetApp ? SOURCES.filter((s) => s.app === targetApp) : SOURCES;
+
 const results: Array<{ spec: FeedSourceSpec; manifest: SeedManifestRef }> = [];
-for (const spec of SOURCES) {
+for (const spec of activeSources) {
   // Previous manifest for the change report (generateSeed wipes OUT_DIR).
   let prevManifest: SeedManifestRef | undefined;
   try {

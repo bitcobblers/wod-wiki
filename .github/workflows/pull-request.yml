@@ -1,19 +1,13 @@
 name: CI – Pull Request
 
-# Unified parallel PR pipeline (6-phase DAG):
-#   slug/version → [ packages | verify(playground) | storybook ]   (phase 2, parallel)
-#   → preview deploys to S3 <slug>/dist + <slug>/storybook          (phase 3)
-#   → deployed-artifact e2e vs <slug>.preview.wod.wiki + <slug>.story.wod.wiki (4)
-#   → pr summary / destroy on close                                 (5-6)
-# Concurrency: a new push cancels the previous run for the same PR.
-
+# Merge Request pipeline (docs/build-process.canvas):
+#   Slug → [ Build Verify | Build Deploy Playground -> s3 | Build Deploy Storybook -> s3 ]
+#        → E2E tests against deployed s3 branch ({slug}.preview.wod.wiki + {slug}.story.wod.wiki)
+#        → Report (or Destroy Preview on close)
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, closed]
-    # Only pull requests targeting main run this preview pipeline. Production
-    # publication is handled by the main branch workflow after merge; preview
-    # resources are isolated by the source branch slug.
     branches: ["main"]
   workflow_dispatch:
 
@@ -30,6 +24,7 @@ concurrency:
 
 jobs:
   slug:
+    name: Slug
     runs-on: ubuntu-22.04
     if: github.event.action != 'closed'
     outputs:
@@ -48,9 +43,6 @@ jobs:
           SLUG=$(echo "$BRANCH" | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-\+//;s/-\+$//' | tr '[:upper:]' '[:lower:]')
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
 
-      # PR previews may only increment {build}: major/minor come from the
-      # latest release tag (read-only — never bumped here), build is the run
-      # number, and the -pr.N prerelease suffix marks it as a preview.
       - name: Compute preview version
         id: version
         run: |
@@ -72,8 +64,6 @@ jobs:
           echo "Preview version: $VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-  # Static analysis — independent leg, runs in parallel with the whole DAG.
-  # Self-disables when QODANA_TOKEN is unset (repo currently has no such secret).
   qodana:
     if: github.event.action != 'closed'
     permissions:
@@ -83,211 +73,52 @@ jobs:
     uses: ./.github/workflows/_code_quality.yml
     secrets: inherit
 
-  verify:
+  build-verify:
+    name: Build Verify
     if: github.event.action != 'closed'
     needs: [slug]
     uses: ./.github/workflows/_verify.yml
     secrets: inherit
     with:
-      build-preview-artifact: true
-      preview-base-path: /${{ needs.slug.outputs.slug }}/dist/
-      app-version: ${{ needs.slug.outputs.preview-version }}
-
-
-
-  build-test-packages:
-    name: Build & test packages
-    if: github.event.action != 'closed'
-    needs: [slug]
-    uses: ./.github/workflows/_packages.yml
-    secrets: inherit
-    with:
       version: ${{ needs.slug.outputs.preview-version }}
 
-  storybook:
-    name: Build, test & deploy Storybook
+  deploy-playground:
+    name: Build Deploy Playground -> s3
+    if: github.event.action != 'closed'
+    needs: [slug]
+    uses: ./.github/workflows/_deploy-playground.yml
+    secrets: inherit
+    with:
+      slug: ${{ needs.slug.outputs.slug }}
+      version: ${{ needs.slug.outputs.preview-version }}
+      base-path: /${{ needs.slug.outputs.slug }}/dist/
+      pr-number: ${{ github.event.pull_request.number && format('{0}', github.event.pull_request.number) || '' }}
+
+  deploy-storybook:
+    name: Build Deploy Storybook -> s3
     if: github.event.action != 'closed'
     needs: [slug]
     uses: ./.github/workflows/_storybook.yml
     secrets: inherit
     with:
+      slug: ${{ needs.slug.outputs.slug }}
       version: ${{ needs.slug.outputs.preview-version }}
-      deploy: true
-      s3-prefix: ${{ needs.slug.outputs.slug }}/storybook
-      cloudfront-prefix: /${{ needs.slug.outputs.slug }}/storybook*
-  # Preview deploy — downloads the deploy-shaped playground bundle the verify
-  # job already built (receiver included — verify builds it with the dedicated
-  # chrome92 receiver pipeline) and syncs to S3 in one job. Storybook previews
-  # are the engine repo's.
-  preview:
-    name: Deploy preview
-    runs-on: ubuntu-22.04
-    if: github.event.action != 'closed'
-    needs: [slug, verify]
-    environment: preview
-    outputs:
-      bundle-hash: ${{ steps.fingerprint.outputs.hash }}
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_PREVIEW_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_PREVIEW_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: us-east-1
-      S3_BUCKET: ${{ secrets.AWS_PREVIEW_S3_BUCKET }}
-      CF_DISTRIBUTION_ID: ${{ secrets.AWS_PREVIEW_CF_DISTRIBUTION_ID }}
-      BRANCH_SLUG: ${{ needs.slug.outputs.slug }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      PREVIEW_VERSION: ${{ needs.slug.outputs.preview-version }}
-    steps:
-      - uses: actions/checkout@v7
 
-      - name: Set up environment (Bun + caches, no browsers)
-        uses: ./.github/actions/setup-env
-        with:
-          browsers: ''
-
-      - name: Download playground dist (built by verify)
-        uses: actions/download-artifact@v7
-        with:
-          name: playground-dist
-          path: ./dist/
-
-      # Fingerprint of the deployed entry bundle; the e2e job polls the live
-      # index.html until it references main-<hash>.js so tests never race a
-      # stale CloudFront cache.
-      - name: Compute build fingerprint
-        id: fingerprint
-        run: |
-          HASH=$(ls dist/assets/main-*.js | head -n1 | sed -E 's/.*main-([^.]+)\.js/\1/')
-          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
-
-      # Receiver ships via the playground-dist artifact — the verify job
-      # builds it with the dedicated chrome92 receiver pipeline.
-
-
-      - name: Deploy playground to S3
-        run: |
-          set -euo pipefail
-          PREFIX="${{ env.BRANCH_SLUG }}/dist/"
-          echo "Uploading to s3://$S3_BUCKET/$PREFIX"
-          aws s3 sync ./dist/ "s3://$S3_BUCKET/$PREFIX" \
-            --cache-control "public, max-age=31536000, immutable" \
-            --exclude "*" --include "assets/*"
-          aws s3 sync ./dist/ "s3://$S3_BUCKET/$PREFIX" \
-            --delete \
-            --cache-control "max-age=300, must-revalidate" \
-            --exclude "*.map" \
-            --exclude "assets" --exclude "assets/*"
-
-
-
-      - name: Create CloudFront invalidation (best-effort)
-        continue-on-error: true
-        run: |
-          set -uo pipefail
-          PREFIX="/${{ env.BRANCH_SLUG }}/*"
-          if aws cloudfront create-invalidation \
-               --distribution-id "$CF_DISTRIBUTION_ID" \
-               --paths "$PREFIX"; then
-            echo "CloudFront invalidation submitted for $PREFIX"
-          else
-            echo "::warning::CloudFront invalidation failed; content refreshes within 5 minutes via max-age."
-          fi
-
-      - name: Post preview link
-        uses: actions/github-script@v9
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const slug = process.env.BRANCH_SLUG;
-            const pr = process.env.PR_NUMBER;
-            const version = process.env.PREVIEW_VERSION;
-            const previewUrl = `https://${slug}.preview.wod.wiki`;
-            const storybookUrl = `https://${slug}.story.wod.wiki`;
-            const e2eUrl = `https://${slug}.e2e.wod.wiki`;
-            const marker = `<!-- wod-wiki-preview-${pr} -->`;
-            const body = `${marker}\n` +
-              `## 🚀 Preview deployed\n\n` +
-              `| Item | Value |\n` +
-              `| --- | --- |\n` +
-              `| PR | #${pr} |\n` +
-              `| Branch | \`${slug}\` |\n` +
-              `| Version | \`${version}\` |\n` +
-              `| 🚀 Playground | [${previewUrl}](${previewUrl}) |\n` +
-              `| 📚 Storybook | [${storybookUrl}](${storybookUrl}) |\n` +
-              `| 📊 E2E report | [${e2eUrl}](${e2eUrl}) (after the E2E jobs run) |\n\n` +
-              `> Build and deploy powered by AWS S3 + CloudFront. ` +
-              `Destroyed automatically when this PR is closed or merged.`;
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: parseInt(pr),
-            });
-
-            const existing = comments.find((c) =>
-              c.user.type === 'Bot' && c.body.includes(marker)
-            );
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: parseInt(pr),
-                body,
-              });
-            }
-
-  # Deployed-artifact e2e against the just-deployed preview. Publishes the
-  # Playwright HTML report to s3://<bucket>/<slug>/e2e-report/, browsable at
-  # https://<slug>.e2e.wod.wiki; gated on the preview build fingerprint so
-  # tests never race a stale CloudFront cache.
   e2e:
-    name: Preview E2E
-    needs: [slug, preview]
+    name: E2E (S3 branch)
     if: github.event.action != 'closed'
+    needs: [slug, deploy-playground, deploy-storybook]
     uses: ./.github/workflows/preview-e2e.yml
     secrets: inherit
     with:
-      preview-url: https://${{ needs.slug.outputs.slug }}.preview.wod.wiki
       branch-slug: ${{ needs.slug.outputs.slug }}
-      build-hash: ${{ needs.preview.outputs.bundle-hash }}
+      build-hash: ${{ needs.deploy-playground.outputs.bundle-hash }}
 
-  e2e-storybook:
-    name: Storybook E2E
-    runs-on: ubuntu-22.04
-    needs: [slug, storybook]
-    if: github.event.action != 'closed' && needs.storybook.outputs.deploy-status == 'success'
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up environment (Bun + chromium)
-        uses: ./.github/actions/setup-env
-
-      - name: Run Storybook smoke against deployed preview
-        run: bun x playwright test --config playwright.storybook.config.ts
-        env:
-          CI: true
-          STORYBOOK_URL: https://${{ needs.slug.outputs.slug }}.story.wod.wiki
-
-      - name: Upload Playwright report
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: storybook-playwright-report
-          path: playwright-report/
-          if-no-files-found: ignore
-          retention-days: 14
-
-  pr-summary:
+  report:
+    name: Report
     runs-on: ubuntu-22.04
     if: always() && github.event_name == 'pull_request' && github.event.action != 'closed'
-    needs: [build-test-packages, verify, storybook, e2e, e2e-storybook]
+    needs: [slug, build-verify, deploy-playground, deploy-storybook, e2e]
     permissions:
       contents: read
       pull-requests: write
@@ -295,44 +126,55 @@ jobs:
       - name: Post PR summary
         uses: actions/github-script@v9
         env:
-          VERIFY_RESULT: ${{ needs.verify.result }}
-          UNIT_STATUS: ${{ needs.verify.outputs.unit-status }}
-          COVERAGE_STATUS: ${{ needs.verify.outputs.coverage-status }}
-          BUILD_STATUS: ${{ needs.verify.outputs.build-status }}
-          PKG_RESULT: ${{ needs.build-test-packages.result }}
-          STORYBOOK_TEST: ${{ needs.storybook.outputs.test-status }}
-          STORYBOOK_RESULT: ${{ needs.storybook.result }}
+          SLUG: ${{ needs.slug.outputs.slug }}
+          VERIFY_RESULT: ${{ needs.build-verify.result }}
+          PACKAGES_STATUS: ${{ needs.build-verify.outputs.packages-status }}
+          PLAYGROUND_UNIT_STATUS: ${{ needs.build-verify.outputs.playground-status }}
+          STORYBOOK_TEST_STATUS: ${{ needs.build-verify.outputs.storybook-status }}
+          DEPLOY_PLAYGROUND_RESULT: ${{ needs.deploy-playground.result }}
+          DEPLOY_STORYBOOK_RESULT: ${{ needs.deploy-storybook.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
-          STORYBOOK_E2E_RESULT: ${{ needs.e2e-storybook.result }}
-          STORYBOOK_BUILD: ${{ needs.storybook.outputs.build-status }}
+          PLAYGROUND_E2E_RESULT: ${{ needs.e2e.outputs.playground-outcome }}
+          STORYBOOK_E2E_RESULT: ${{ needs.e2e.outputs.storybook-outcome }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const slug = process.env.SLUG;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const e2eReportUrl = `https://${slug}.e2e.wod.wiki`;
             const statusIcon = (result) => {
               if (result === 'success') return '✅';
               if (result === 'skipped') return '⏭️';
               return '❌';
             };
 
-            const statuses = {
-              overall: [process.env.VERIFY_RESULT, process.env.PKG_RESULT, process.env.STORYBOOK_RESULT, process.env.E2E_RESULT, process.env.STORYBOOK_E2E_RESULT].every(result => result === 'success') ? 'success' : 'failure',
-              unit: process.env.UNIT_STATUS || 'skipped',
-              coverage: process.env.COVERAGE_STATUS || 'skipped',
-              build: process.env.BUILD_STATUS || 'skipped',
-              packages: process.env.PKG_RESULT || 'skipped',
-              storybookTest: process.env.STORYBOOK_TEST || 'skipped',
-              storybookBuild: process.env.STORYBOOK_BUILD || 'skipped',
-              e2e: process.env.E2E_RESULT || 'skipped',
-              storybookE2e: process.env.STORYBOOK_E2E_RESULT || 'skipped',
-            };
+            const overallOk = [
+              process.env.VERIFY_RESULT,
+              process.env.DEPLOY_PLAYGROUND_RESULT,
+              process.env.DEPLOY_STORYBOOK_RESULT,
+              process.env.E2E_RESULT,
+            ].every((r) => r === 'success');
 
-            const headline = statuses.overall === 'success'
+            const headline = overallOk
               ? '## ✅ PR verification passed'
               : '## ⚠️ PR verification needs attention';
 
+            const rows = [
+              ['Verify: Packages (lint/typecheck/test/build)', process.env.PACKAGES_STATUS || process.env.VERIFY_RESULT || 'skipped'],
+              ['Verify: Playground (types/unit)', process.env.PLAYGROUND_UNIT_STATUS || process.env.VERIFY_RESULT || 'skipped'],
+              ['Verify: Storybook (interaction tests)', process.env.STORYBOOK_TEST_STATUS || process.env.VERIFY_RESULT || 'skipped'],
+              ['Deploy: Playground -> S3', process.env.DEPLOY_PLAYGROUND_RESULT || 'skipped'],
+              ['Deploy: Storybook -> S3', process.env.DEPLOY_STORYBOOK_RESULT || 'skipped'],
+              ['E2E: Playground ({slug}.preview.wod.wiki)', process.env.PLAYGROUND_E2E_RESULT || process.env.E2E_RESULT || 'skipped'],
+              ['E2E: Storybook ({slug}.story.wod.wiki)', process.env.STORYBOOK_E2E_RESULT || process.env.E2E_RESULT || 'skipped'],
+            ];
+
+            const table = rows
+              .map(([label, st]) => `| ${label.replace('{slug}', slug)} | ${statusIcon(st)} ${st} |`)
+              .join('\n');
+
             const marker = '<!-- wod-wiki-pr-verification -->';
-            const body = `${marker}\n${headline}\n\n| Check | Status |\n| --- | --- |\n| Packages (lint/typecheck/test/build) | ${statusIcon(statuses.packages)} ${statuses.packages} |\n| Playground unit | ${statusIcon(statuses.unit)} ${statuses.unit} |\n| Playground coverage | ${statusIcon(statuses.coverage)} ${statuses.coverage} |\n| Playground build | ${statusIcon(statuses.build)} ${statuses.build} |\n| Storybook tests | ${statusIcon(statuses.storybookTest)} ${statuses.storybookTest} |\n| Storybook build | ${statusIcon(statuses.storybookBuild)} ${statuses.storybookBuild} |\n| Playground E2E | ${statusIcon(statuses.e2e)} ${statuses.e2e} |\n| Storybook E2E | ${statusIcon(statuses.storybookE2e)} ${statuses.storybookE2e} |\n\n- Actions run: [View run](${runUrl})\n- Coverage artifact: [Artifacts](${runUrl}#artifacts)`;
+            const body = `${marker}\n${headline}\n\n| Check | Status |\n| --- | --- |\n${table}\n\n- E2E HTML report: [${e2eReportUrl}](${e2eReportUrl})\n- Actions run: [View run](${runUrl})`;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -398,7 +240,7 @@ jobs:
                --paths "$PREFIX"; then
             echo "CloudFront invalidation for cleanup submitted."
           else
-            echo "::warning::CloudFront invalidation failed; S3 objects are deleted and the cache will self-expire within 5 minutes."
+            echo "::warning::CloudFront invalidation failed; S3 objects are deleted and the cache will self-expire."
           fi
 
       - name: Post destroy comment
@@ -417,7 +259,7 @@ jobs:
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: parseInt(pr),
+              issue_number: parseInt(pr, 10),
             });
 
             const existing = comments.find((c) =>
@@ -435,7 +277,7 @@ jobs:
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: parseInt(pr),
+                issue_number: parseInt(pr, 10),
                 body,
               });
             }

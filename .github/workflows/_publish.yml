@@ -1,0 +1,77 @@
+name: Publish
+
+# Production publication leg on main (docs/build-process.canvas):
+#   - publish-npm:   publishes @bitcobblers/* from packages-dist to npmjs.org
+#   - publish-pages: deploys playground-dist to GitHub Pages (https://wod.wiki)
+
+on:
+  workflow_call:
+    outputs:
+      page-url:
+        value: ${{ jobs.publish-pages.outputs.page-url }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  publish-npm:
+    name: Publish @bitcobblers/* to npm
+    runs-on: ubuntu-22.04
+    environment: npm
+    permissions:
+      contents: read
+    steps:
+      - name: Configure npm auth
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Download packages-dist
+        uses: actions/download-artifact@v7
+        with:
+          name: packages-dist
+          path: packages/
+
+      - name: Publish workspace packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          for pkg in packages/*/; do
+            if [ -f "$pkg/package.json" ]; then
+              echo "Publishing $pkg"
+              (cd "$pkg" && npm publish --access public)
+            fi
+          done
+
+  publish-pages:
+    name: Publish wod.wiki (GitHub Pages)
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page-url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Download playground-dist
+        uses: actions/download-artifact@v7
+        with:
+          name: playground-dist
+          path: ./dist/
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist/
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

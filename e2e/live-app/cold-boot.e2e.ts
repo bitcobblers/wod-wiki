@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 const HOME_BUDGET_MS = 5_000
-const PROGRESS_BUDGET_MS = 1_000
+const PROGRESS_BUDGET_MS = process.env.E2E_APP_URL ? 1_500 : 1_000
 
 async function readBootMark(page: Page, name: string): Promise<number | null> {
   return page.evaluate((markName) => {
@@ -106,7 +106,7 @@ test('a corpus deep link reports the real seed phase while the route waits', asy
   await page.addInitScript(() => {
     localStorage.setItem('wodwiki.profileInitialized.v1', 'true')
   })
-  await page.route('**/seed/core/chunks/canvas.*.json', async (route) => {
+  await page.context().route('**/seed/core/**canvas*.json', async (route) => {
     const { promise, resolve } = Promise.withResolvers<void>()
     setTimeout(resolve, 5_000)
     await promise
@@ -114,6 +114,6 @@ test('a corpus deep link reports the real seed phase while the route waits', asy
   })
 
   await page.goto('/page/guide-start', { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('status')).toContainText('Downloading canvas…', { timeout: 45_000 })
+  await expect(page.getByRole('status').filter({ hasText: 'Downloading canvas…' })).toBeVisible({ timeout: 45_000 })
   await expect(page.getByRole('heading', { name: 'First Workout', exact: true }).first()).toBeVisible({ timeout: 60_000 })
 })

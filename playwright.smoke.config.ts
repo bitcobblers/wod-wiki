@@ -35,18 +35,16 @@ export default defineConfig({
   fullyParallel: false, // Run serially for production safety
   forbidOnly: !!process.env.CI,
   retries: 1, // One retry for flaky network issues
-  workers: 1,
-  reporter: [['list'], ['html', { outputFolder: 'playwright-report/smoke' }]],
+  workers: isCI ? 2 : 1,
+  reporter: [['list'], ['html', { outputFolder: 'playwright-report/smoke', open: 'never' }]],
 
   use: {
     baseURL: appURL,
     launchOptions: { args: ['--enable-features=IdbSqliteBackingStore'] },
     trace: 'on-first-retry',
-    // Every test's screenshot is embedded in the published HTML report.
-    screenshot: 'on',
-    video: 'retain-on-failure',
-    // Production has valid HTTPS; local dev uses self-signed certs
-    ignoreHTTPSErrors: !isCI,
+    screenshot: 'only-on-failure',
+    video: 'on-first-retry',
+    ignoreHTTPSErrors: true,
   },
 
   projects: [

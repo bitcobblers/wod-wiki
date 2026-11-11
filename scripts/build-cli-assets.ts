@@ -1,9 +1,9 @@
 // Pin public build settings so developer .env values cannot enter the package.
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { cpSync, existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
-const ROOT = join(import.meta.dir, '..')
+const ROOT = join(import.meta.dirname, '..')
 const PLAYGROUND = join(ROOT, 'apps', 'playground')
 const TOOLS_WEB = join(ROOT, 'packages', 'tools', 'dist', 'web')
 
@@ -14,8 +14,8 @@ const CLEAN_ENV = {
   VITE_STORAGE: '',
 }
 
-function run(script: string): void {
-  const res = spawnSync(process.execPath, ['run', '--filter', '@bitcobblers/wod-wiki-playground', script], {
+function runSync(args: string[]): void {
+  const res = spawnSync(process.execPath, args, {
     cwd: ROOT,
     stdio: 'inherit',
     env: CLEAN_ENV,
@@ -23,11 +23,24 @@ function run(script: string): void {
   if (res.status !== 0) process.exit(res.status ?? 1)
 }
 
-// The playground serves skills from public/, so refresh those copies before it builds.
-{
-  const res = spawnSync(process.execPath, ['scripts/sync-skills.ts'], { cwd: ROOT, stdio: 'inherit' })
-  if (res.status !== 0) process.exit(res.status ?? 1)
+function runPlaygroundScript(script: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      ['run', '--filter', '@bitcobblers/wod-wiki-playground', script],
+      { cwd: ROOT, stdio: 'inherit', env: CLEAN_ENV },
+    )
+    child.on('error', reject)
+    child.on('close', (code) => {
+      if (code === 0) resolve()
+      else reject(new Error(`[build-cli-assets] playground "${script}" exited with code ${code ?? 1}`))
+    })
+  })
 }
+
+// Refresh skill copies and playground core seed once before running both Vite builds in parallel.
+runSync(['scripts/sync-skills.ts'])
+runSync(['scripts/sync-seed.ts', '--app', 'playground'])
 
 function copyFiltered(src: string, dest: string): void {
   if (!existsSync(join(src, 'index.html'))) {
@@ -47,8 +60,10 @@ function copyFiltered(src: string, dest: string): void {
   })
 }
 
-run('build:api')
-run('build')
+await Promise.all([
+  runPlaygroundScript('build:vite:api'),
+  runPlaygroundScript('build:vite'),
+])
 
 rmSync(join(TOOLS_WEB, 'server'), { recursive: true, force: true })
 rmSync(join(TOOLS_WEB, 'playground'), { recursive: true, force: true })

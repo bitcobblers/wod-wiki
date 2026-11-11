@@ -1,0 +1,178 @@
+name: Build & Deploy Playground
+
+# Builds the Playground + Chrome 92 Cast receiver and deploys directly to
+# s3://<bucket>/<slug>/dist/ ({slug}.preview.wod.wiki) in one job.
+
+on:
+  workflow_call:
+    inputs:
+      slug:
+        description: Branch slug (PR branch slug or 'main')
+        required: true
+        type: string
+      version:
+        description: VITE_APP_VERSION stamped into the playground bundle
+        required: true
+        type: string
+      base-path:
+        description: Optional VITE_BASE_PATH override (empty = '/')
+        required: false
+        type: string
+        default: ''
+      upload-dist:
+        description: Upload playground-dist artifact for downstream GitHub Pages publish on main
+        required: false
+        type: boolean
+        default: false
+      pr-number:
+        description: PR number; when set, posts or updates the preview URLs comment on the PR
+        required: false
+        type: string
+        default: ''
+    outputs:
+      bundle-hash:
+        value: ${{ jobs.deploy-playground.outputs.bundle-hash }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy-playground:
+    name: Build & deploy Playground (${{ inputs.slug }})
+    runs-on: ubuntu-22.04
+    environment: preview
+    outputs:
+      bundle-hash: ${{ steps.fingerprint.outputs.hash }}
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_PREVIEW_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_PREVIEW_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: us-east-1
+      S3_BUCKET: ${{ secrets.AWS_PREVIEW_S3_BUCKET }}
+      CF_DISTRIBUTION_ID: ${{ secrets.AWS_PREVIEW_CF_DISTRIBUTION_ID }}
+      BRANCH_SLUG: ${{ inputs.slug }}
+      PR_NUMBER: ${{ inputs.pr-number }}
+      PREVIEW_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up environment (Bun + caches, no browsers)
+        uses: ./.github/actions/setup-env
+        with:
+          browsers: ''
+
+      - name: Build workspace runtime packages
+        run: bun run build:packages:runtime
+
+      - name: Build playground
+        run: bun run build:app
+        env:
+          VITE_BASE_PATH: ${{ inputs.base-path }}
+          VITE_APP_VERSION: ${{ inputs.version }}
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://wod.wiki/api' }}
+          VITE_CAST_APP_ID: ${{ vars.VITE_CAST_APP_ID }}
+
+      - name: Build Chrome 92 receiver
+        run: bun x vite build --config apps/playground/vite.receiver.config.ts --outDir dist
+
+      - name: Check receiver CSS compatibility
+        run: bun scripts/check-receiver-css-compat.cjs apps/playground/dist/assets/receiver-*.css
+
+      - name: Inject GA tag
+        if: vars.G_TAG != ''
+        run: |
+          grep -rl 'G-PROD-ID' apps/playground/dist \
+            | xargs -r sed -i 's/G-PROD-ID/${{ vars.G_TAG }}/g'
+
+      - name: Compute build fingerprint
+        id: fingerprint
+        run: |
+          set -euo pipefail
+          HASH=$(ls apps/playground/dist/assets/main-*.js | head -n1 | sed -E 's/.*main-([^.]+)\.js/\1/')
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload playground-dist artifact
+        if: inputs.upload-dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: playground-dist
+          path: apps/playground/dist/
+          retention-days: 1
+
+      - name: Sync playground to S3
+        run: |
+          set -euo pipefail
+          PREFIX="${{ env.BRANCH_SLUG }}/dist/"
+          echo "Uploading to s3://$S3_BUCKET/$PREFIX"
+          aws s3 sync ./apps/playground/dist/ "s3://$S3_BUCKET/$PREFIX" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*" --include "assets/*"
+          aws s3 sync ./apps/playground/dist/ "s3://$S3_BUCKET/$PREFIX" \
+            --delete \
+            --cache-control "max-age=30, must-revalidate" \
+            --exclude "*.map" \
+            --exclude "assets" --exclude "assets/*"
+
+      - name: Invalidate CloudFront (best-effort)
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          PREFIX="/${{ env.BRANCH_SLUG }}/dist/*"
+          if aws cloudfront create-invalidation \
+               --distribution-id "$CF_DISTRIBUTION_ID" \
+               --paths "$PREFIX"; then
+            echo "CloudFront invalidation submitted for $PREFIX"
+          else
+            echo "::warning::CloudFront invalidation failed; content refreshes within 30s via max-age."
+          fi
+
+      - name: Post PR preview links
+        if: inputs.pr-number != ''
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const slug = process.env.BRANCH_SLUG;
+            const pr = process.env.PR_NUMBER;
+            const version = process.env.PREVIEW_VERSION;
+            const previewUrl = `https://${slug}.preview.wod.wiki`;
+            const storybookUrl = `https://${slug}.story.wod.wiki`;
+            const e2eUrl = `https://${slug}.e2e.wod.wiki`;
+            const marker = `<!-- wod-wiki-preview-${pr} -->`;
+            const body = `${marker}\n` +
+              `## 🚀 Preview deployed\n\n` +
+              `| Item | Value |\n` +
+              `| --- | --- |\n` +
+              `| PR | #${pr} |\n` +
+              `| Branch | \`${slug}\` |\n` +
+              `| Version | \`${version}\` |\n` +
+              `| 🚀 Playground | [${previewUrl}](${previewUrl}) |\n` +
+              `| 📚 Storybook | [${storybookUrl}](${storybookUrl}) |\n` +
+              `| 📊 E2E report | [${e2eUrl}](${e2eUrl}) (after E2E completes) |\n\n` +
+              `> Build and deploy powered by AWS S3 + CloudFront. ` +
+              `Destroyed automatically when this PR is closed or merged.`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(pr, 10),
+            });
+
+            const existing = comments.find((c) =>
+              c.user.type === 'Bot' && c.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(pr, 10),
+                body,
+              });
+            }

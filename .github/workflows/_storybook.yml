@@ -1,40 +1,21 @@
-name: Storybook
+name: Build & Deploy Storybook
 
-# Reusable leg 2b/3a/4a of the unified parallel DAG:
-#   - build-test-storybook  (interaction tests + static build)
-#   - deploy-storybook      (S3 preview or main/storybook/, when deploy=true)
-#
-# e2e-storybook lives in the calling workflows (pull-request.yml / main.yml)
-# because it needs the deployed URL produced by the deploy job there.
+# Builds static Storybook and deploys directly to s3://<bucket>/<slug>/storybook/
+# ({slug}.story.wod.wiki) in one job. Storybook interaction tests live in _verify.yml.
 
 on:
   workflow_call:
     inputs:
+      slug:
+        description: Branch slug (PR branch slug or 'main')
+        required: true
+        type: string
       version:
         description: Unified version string stamped before building
         required: false
         type: string
         default: ''
-      deploy:
-        description: Deploy storybook-static to S3 after a successful build
-        required: false
-        type: boolean
-        default: false
-      s3-prefix:
-        description: S3 key prefix for deployment (e.g. "<slug>/storybook" on PRs, "main/storybook" on main)
-        required: false
-        type: string
-        default: ''
-      cloudfront-prefix:
-        description: CloudFront invalidation path (e.g. "/<slug>/storybook*")
-        required: false
-        type: string
-        default: ''
     outputs:
-      test-status:
-        value: ${{ jobs.build-test-storybook.outputs.test-status }}
-      build-status:
-        value: ${{ jobs.build-test-storybook.outputs.build-status }}
       deploy-status:
         value: ${{ jobs.deploy-storybook.outputs.deploy-status }}
 
@@ -45,78 +26,9 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build-test-storybook:
-    runs-on: ubuntu-22.04
-    outputs:
-      test-status: ${{ steps.test.outputs.status }}
-      build-status: ${{ steps.build.outcome }}
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up environment (Bun + chromium)
-        uses: ./.github/actions/setup-env
-
-      - name: Stamp version
-        if: inputs.version != ''
-        run: bun scripts/stamp-version.ts --version "${{ inputs.version }}"
-
-      - name: Build packages
-        run: bun run build:packages
-      # addon-vitest browser mode occasionally flakes on a cold cache: the
-      # vite dev server behind the chromium runner fails to serve its own
-      # setup module ("Failed to fetch dynamically imported module"), failing
-      # whole suites. One bounded retry absorbs it; the status step keeps the
-      # original success/failure contract for the pipeline gate.
-      - name: Storybook interaction tests (Playwright browser runner, attempt 1)
-        id: test-attempt-1
-        continue-on-error: true
-        run: bun run --filter '@bitcobblers/wod-wiki-storybook' test
-
-      - name: Storybook interaction tests (attempt 2)
-        id: test-attempt-2
-        if: steps.test-attempt-1.outcome == 'failure'
-        run: bun run --filter '@bitcobblers/wod-wiki-storybook' test
-
-      - name: Storybook interaction tests (status)
-        id: test
-        if: always()
-        run: |
-          if [ "${{ steps.test-attempt-1.outcome }}" = "success" ] || [ "${{ steps.test-attempt-2.outcome }}" = "success" ]; then
-            echo "status=success" >> "$GITHUB_OUTPUT"
-          else
-            echo "status=failure" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-
-      - name: Build Storybook
-        id: build
-        run: bun run --filter '@bitcobblers/wod-wiki-storybook' build
-
-      - name: Upload storybook-dist artifact
-        if: inputs.deploy && steps.build.outcome == 'success'
-        uses: actions/upload-artifact@v7
-        with:
-          name: storybook-dist
-          path: apps/storybook/storybook-static/
-          retention-days: 1
-
-      - name: Write summary
-        if: always()
-        run: |
-          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
-          ## Storybook leg
-
-          | Check | Outcome |
-          | --- | --- |
-          | Interaction tests | ${{ steps.test.outcome }} |
-          | Build | ${{ steps.build.outcome }} |
-          EOF
-
   deploy-storybook:
-    name: Deploy Storybook preview
+    name: Build & deploy Storybook (${{ inputs.slug }})
     runs-on: ubuntu-22.04
-    if: inputs.deploy && needs.build-test-storybook.result == 'success'
-    needs: [build-test-storybook]
     environment: preview
     outputs:
       deploy-status: ${{ steps.sync.outcome }}
@@ -127,34 +39,47 @@ jobs:
       S3_BUCKET: ${{ secrets.AWS_PREVIEW_S3_BUCKET }}
       CF_DISTRIBUTION_ID: ${{ secrets.AWS_PREVIEW_CF_DISTRIBUTION_ID }}
     steps:
-      - name: Download storybook-static artifact
-        uses: actions/download-artifact@v7
-        with:
-          name: storybook-dist
-          path: ./storybook-static/
+      - uses: actions/checkout@v7
 
-      - name: Sync to S3
+      - name: Set up environment (Bun + caches, no browsers)
+        uses: ./.github/actions/setup-env
+        with:
+          browsers: ''
+
+      - name: Stamp version
+        if: inputs.version != ''
+        run: bun scripts/stamp-version.ts --version "${{ inputs.version }}"
+
+      - name: Build workspace runtime packages
+        run: bun run build:packages:runtime
+
+      - name: Build Storybook
+        run: bun run --filter '@bitcobblers/wod-wiki-storybook' build
+
+      - name: Sync Storybook to S3
         id: sync
         run: |
           set -euo pipefail
-          PREFIX="${{ inputs.s3-prefix }}/"
+          PREFIX="${{ inputs.slug }}/storybook/"
           echo "Uploading to s3://$S3_BUCKET/$PREFIX"
-          aws s3 sync ./storybook-static/ "s3://$S3_BUCKET/$PREFIX" \
+          aws s3 sync ./apps/storybook/storybook-static/ "s3://$S3_BUCKET/$PREFIX" \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "*" --include "assets/*"
-          aws s3 sync ./storybook-static/ "s3://$S3_BUCKET/$PREFIX" \
+          aws s3 sync ./apps/storybook/storybook-static/ "s3://$S3_BUCKET/$PREFIX" \
             --delete \
-            --cache-control "max-age=300, must-revalidate" \
+            --cache-control "max-age=30, must-revalidate" \
             --exclude "*.map" \
             --exclude "assets" --exclude "assets/*"
 
       - name: Invalidate CloudFront (best-effort)
         continue-on-error: true
         run: |
+          set -uo pipefail
+          PREFIX="/${{ inputs.slug }}/storybook*"
           if aws cloudfront create-invalidation \
                --distribution-id "$CF_DISTRIBUTION_ID" \
-               --paths "${{ inputs.cloudfront-prefix }}"; then
-            echo "CloudFront invalidation submitted for ${{ inputs.cloudfront-prefix }}"
+               --paths "$PREFIX"; then
+            echo "CloudFront invalidation submitted for $PREFIX"
           else
-            echo "::warning::CloudFront invalidation failed; content refreshes within 5 minutes via max-age."
+            echo "::warning::CloudFront invalidation failed; content refreshes within 30s via max-age."
           fi

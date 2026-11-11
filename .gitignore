@@ -150,6 +150,9 @@ apps/*/storybook-static/
 *storybook.log
 playwright-report/
 test-results/
+blob-report/
+all-blob-reports/
+.playwright/*storage-state.json
 tests/e2e/screenshots/
 # API server data (copied from public/ during startup)
 .storybook/api/data/exercises/

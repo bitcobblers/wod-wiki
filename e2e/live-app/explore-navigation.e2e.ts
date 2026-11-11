@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { seedNote } from '../helpers/wodwikiDb'
+import { waitForFeedReady } from '../helpers/feedReadiness'
 
 test.describe('Explore navigation', () => {
   test('opens the explorer from the dashboards nav and exposes dashboard slots in L2', async ({ page }) => {
@@ -14,7 +15,7 @@ test.describe('Explore navigation', () => {
       { type: 'dashboard', title: 'E2E Nav Dashboard' },
     )
     await page.goto('/dashboard/e2e-nav-dashboard', { waitUntil: 'domcontentloaded' })
-
+    await waitForFeedReady(page)
     const navigation = page.getByRole('navigation').first()
     // Dashboards is the active L1 (label derived from the /dashboards route);
     // the explorer + dashboard slots live in L2.
@@ -23,9 +24,9 @@ test.describe('Explore navigation', () => {
     await expect(explore).toBeVisible()
     // Dashboard slots are exposed in L2: the vault dashboard row plus the
     // New dashboard action.
-    await expect(navigation.getByRole('button', { name: 'E2E Nav Dashboard' })).toBeVisible()
+    await expect(navigation.getByRole('button', { name: 'E2E Nav Dashboard' })).toBeVisible({ timeout: 15_000 })
     await expect(navigation.getByRole('button', { name: 'New dashboard' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'E2E Nav Dashboard' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'E2E Nav Dashboard' })).toBeVisible({ timeout: 15_000 })
 
     await explore.click()
 

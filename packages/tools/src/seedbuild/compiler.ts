@@ -33,7 +33,7 @@ import { getScalar, parseFrontmatter } from './frontmatter';
 import { assertNotebookIndex, assertSeedManifest, assertSeedRows } from './validation';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 
 // BlockEffort/BlockIndexRow row types come from @bitcobblers/wod-wiki-storage
@@ -200,15 +200,122 @@ function gateDashboards(groups: ChunkGroup[], corpusRoot: string): void {
 // ── Block index derivation ────────────────────────────────────────────────
 
 
+interface GitPathStats {
+  commit: string;
+  ctMs: number;
+  cI: string;
+  count: number;
+}
+
+interface GitHistoryIndex {
+  files: Map<string, GitPathStats>;
+  dirs: Map<string, GitPathStats>;
+}
+
+const EMPTY_GIT_INDEX: GitHistoryIndex = { files: new Map(), dirs: new Map() };
+const gitHistoryCache = new Map<string, GitHistoryIndex>();
+
+function normalizeRelGitPath(p: string): string {
+  return p.replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+|\/+$/g, '');
+}
+
+function getGitHistoryIndex(repoRoot: string, targetRelPath?: string): GitHistoryIndex {
+  const normTarget = targetRelPath ? normalizeRelGitPath(targetRelPath) : '';
+  const topSegment = normTarget.split('/')[0] ?? '';
+  const scopeArg = topSegment && existsSync(join(repoRoot, topSegment)) ? topSegment : '.';
+
+  let prefix: string;
+  let headSha: string;
+  try {
+    const rev = execFileSync('git', ['rev-parse', '--show-prefix', 'HEAD'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const lines = rev.split('\n');
+    prefix = lines[0] ?? '';
+    headSha = (lines[1] ?? '').trim();
+  } catch {
+    return EMPTY_GIT_INDEX;
+  }
+  if (!headSha) return EMPTY_GIT_INDEX;
+
+  const cacheKey = `${repoRoot}::${prefix}::${scopeArg}::${headSha}`;
+  const cached = gitHistoryCache.get(cacheKey);
+  if (cached) return cached;
+
+  const files = new Map<string, GitPathStats>();
+  const dirs = new Map<string, GitPathStats>();
+  try {
+    const out = execFileSync(
+      'git',
+      ['log', '--format=\x1e%H\t%ct\t%cI', '--name-only', 'HEAD', '--', scopeArg],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        maxBuffer: 64 * 1024 * 1024,
+      },
+    );
+    for (const block of out.split('\x1e')) {
+      const trimmed = block.trim();
+      if (!trimmed) continue;
+      const lines = trimmed.split('\n');
+      const header = lines[0] ?? '';
+      const [commit = '', ctStr = '0', cI = ''] = header.split('\t');
+      const ts = Number(ctStr) * 1000;
+      const ctMs = Number.isFinite(ts) && ts > 0 ? ts : 0;
+      const seenDirs = new Set<string>();
+
+      for (let i = 1; i < lines.length; i++) {
+        let rel = lines[i]!.trim();
+        if (!rel) continue;
+        if (prefix) {
+          if (!rel.startsWith(prefix)) continue;
+          rel = rel.slice(prefix.length);
+        }
+        rel = normalizeRelGitPath(rel);
+        if (!rel) continue;
+
+        const existingFile = files.get(rel);
+        if (!existingFile) {
+          files.set(rel, { commit, ctMs, cI, count: 1 });
+        } else {
+          existingFile.count += 1;
+        }
+
+        let slash = rel.lastIndexOf('/');
+        while (slash > 0) {
+          seenDirs.add(rel.slice(0, slash));
+          slash = rel.lastIndexOf('/', slash - 1);
+        }
+      }
+
+      for (const dir of seenDirs) {
+        const existingDir = dirs.get(dir);
+        if (!existingDir) {
+          dirs.set(dir, { commit, ctMs, cI, count: 1 });
+        } else {
+          existingDir.count += 1;
+        }
+      }
+    }
+  } catch {
+    return EMPTY_GIT_INDEX;
+  }
+
+  if (gitHistoryCache.size >= 8) {
+    gitHistoryCache.clear();
+  }
+  const built: GitHistoryIndex = { files, dirs };
+  gitHistoryCache.set(cacheKey, built);
+  return built;
+}
+
 /** Created-at from the corpus repo's git history (notebooks/guides), 0 fallback when unknown. */
 function getFileCreatedAt(file: string, repoRoot: string): number {
-  try {
-    const out = execSync(`git log -1 --format=%ct -- '${file}'`, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    const ts = Number(out) * 1000;
-    return Number.isFinite(ts) && ts > 0 ? ts : 0;
-  } catch {
-    return 0;
-  }
+  const norm = normalizeRelGitPath(file);
+  return getGitHistoryIndex(repoRoot, norm).files.get(norm)?.ctMs ?? 0;
 }
 
 export function seedNoteIdSync(path: string): string {
@@ -220,47 +327,32 @@ export function seedNoteIdSync(path: string): string {
 }
 
 export function getFileCommit(file: string, repoRoot: string): string {
-  try {
-    return execFileSync('git', ['log', '-1', '--format=%H', '--', file], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch {
-    return '';
-  }
+  const norm = normalizeRelGitPath(file);
+  return getGitHistoryIndex(repoRoot, norm).files.get(norm)?.commit ?? '';
 }
 
 export function getFileVersion(file: string, repoRoot: string): number {
-  try {
-    const out = execFileSync('git', ['rev-list', '--count', 'HEAD', '--', file], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    const count = Number(out);
-    return Number.isFinite(count) && count > 0 ? count : 1;
-  } catch {
-    return 1;
-  }
+  const norm = normalizeRelGitPath(file);
+  return getGitHistoryIndex(repoRoot, norm).files.get(norm)?.count ?? 1;
 }
+
+function lookupPathStats(targetPath: string, repoRoot: string): GitPathStats | undefined {
+  const norm = normalizeRelGitPath(targetPath);
+  const idx = getGitHistoryIndex(repoRoot, norm);
+  return idx.dirs.get(norm) ?? idx.files.get(norm);
+}
+
 export function getPathVersion(targetPath: string, repoRoot: string): number {
-  try {
-    const out = execFileSync('git', ['rev-list', '--count', 'HEAD', '--', targetPath], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    const count = Number(out);
-    return Number.isFinite(count) && count > 0 ? count : 1;
-  } catch {
-    return 1;
-  }
+  return lookupPathStats(targetPath, repoRoot)?.count ?? 1;
 }
 
 export function getPathCommit(targetPath: string, repoRoot: string): string {
-  try {
-    return execFileSync('git', ['log', '-1', '--format=%H', '--', targetPath], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch {
-    return '';
-  }
+  return lookupPathStats(targetPath, repoRoot)?.commit ?? '';
 }
 
 export function getPathUpdatedAt(targetPath: string, repoRoot: string): string | undefined {
-  try {
-    const out = execFileSync('git', ['log', '-1', '--format=%cI', '--', targetPath], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    return out || undefined;
-  } catch {
-    return undefined;
-  }
+  const cI = lookupPathStats(targetPath, repoRoot)?.cI;
+  return cI || undefined;
 }
 
 export function groupCorpusPath(id: string): string {

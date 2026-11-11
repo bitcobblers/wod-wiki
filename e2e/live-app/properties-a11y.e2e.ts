@@ -50,7 +50,10 @@ async function openProperties(page: Page) {
 
   const journal = new JournalEntryPage(page);
   await journal.goto(DATE);
-  await expect(page.locator('.cm-frontmatter-preview').first()).toBeVisible({ timeout: 15_000 });
+  const preview = page.locator('.cm-frontmatter-preview').first();
+  await expect(preview).toBeVisible({ timeout: 15_000 });
+  const showDetails = preview.getByRole('button', { name: 'Show property details' });
+  if (await showDetails.isVisible()) await showDetails.click();
   return journal;
 }
 

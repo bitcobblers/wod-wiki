@@ -41,8 +41,10 @@ test('mobile command palette uses the compact second-row writer', async ({ page 
   await page.goto('/journal', { waitUntil: 'domcontentloaded' });
   await waitForFeedReady(page);
   await page.getByTestId('stream-query-bar-dock').getByTestId('stream-query-bar').click();
-  await expect(page.getByTestId('palette-composer')).toBeVisible();
-  await activateFirstFilter(page);
+  const paletteComposer = page.getByTestId('palette-composer');
+  await expect(paletteComposer).toBeVisible();
+  await paletteComposer.locator('[data-testid^="token-slot-"]:not([data-testid^="token-slot-remove-"]):not([data-testid^="token-slot-value-"])').first().click();
+  await expect(page.getByTestId('wql-field-picker')).toBeVisible();
   const picker = page.getByTestId('wql-picker-search');
   const initialLabel = await picker.getAttribute('aria-label');
   await page.getByTestId('wql-segment-next').click();
