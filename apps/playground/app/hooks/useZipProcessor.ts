@@ -17,16 +17,24 @@
  * Only runs on the plain /load route — /load/journal* is handled by
  * useJournalZipProcessor.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQueryState } from 'nuqs';
 import { playgroundPath, ROUTE_PATTERNS } from '../lib/routes';
 import { decodeZip } from '../services/decodeZip';
 import { buildSharedScript, saveHomeShared } from '../services/homeSharedScript';
-import { createPlaygroundPage, ensurePlaygroundEntry } from '../services/createPlaygroundPage';
+import { playgroundIntake, type PlaygroundIntake } from '../services/createPlaygroundPage';
 import { toast } from '@/hooks/use-toast';
 
-export function useZipProcessor() {
+/** Optional dependency overrides — production singletons by default (test seam). */
+export interface UseZipProcessorDeps {
+  decodeZip?: typeof decodeZip;
+  intake?: Pick<PlaygroundIntake, 'createPage' | 'ensureEntry'>;
+  toast?: (props: Parameters<typeof toast>[0]) => unknown;
+}
+
+export function useZipProcessor(deps: UseZipProcessorDeps = {}) {
+  const { decodeZip: decode = decodeZip, intake = playgroundIntake, toast: showToast = toast } = deps;
   const navigate = useNavigate();
   const location = useLocation();
   const [zipParam] = useQueryState('zip');
@@ -35,29 +43,33 @@ export function useZipProcessor() {
   // Spawn provenance: /load?zip=…&src=/notebook/<cat>/<name> (openBlockInPlayground)
   // stamps the source page path onto the created playground note.
   const [srcParam] = useQueryState('src');
+  const handledShareRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Plain /load route, or home route (/) when handling ?z= home shares (#882).
     if (location.pathname !== '/load' && !(location.pathname === '/' && zParam)) return;
 
     if (zParam) {
+      const shareToken = `${zParam}:${byParam ?? ''}`;
+      if (handledShareRef.current === shareToken) return;
+      handledShareRef.current = shareToken;
       let cancelled = false;
       (async () => {
         try {
-          const content = await decodeZip(zParam);
+          const content = await decode(zParam);
           if (content === null) throw new Error('Invalid workout link');
           if (cancelled) return;
           const script = buildSharedScript(content, byParam ?? undefined);
           // Persist the shared script as the home playground entry — the
           // hero's Run updates this entry and records results against its
           // UUID. Arrival itself never starts a run.
-          await ensurePlaygroundEntry(script, { reuseKey: 'home', title: 'Home playground' });
+          await intake.ensureEntry(script, { reuseKey: 'home', title: 'Home playground' });
           if (cancelled) return;
           saveHomeShared({ content: script, by: byParam ?? undefined });
         } catch (err) {
           console.error('Failed to decode zip:', err);
           if (!cancelled) {
-            toast({
+            showToast({
               title: 'Could not import workout',
               description: 'The link was invalid or the workout could not be saved.',
               variant: 'destructive',
@@ -78,19 +90,19 @@ export function useZipProcessor() {
     const sourcePath = srcParam && srcParam.startsWith('/') ? srcParam : undefined;
     (async () => {
       try {
-        const content = await decodeZip(zipParam);
+        const content = await decode(zipParam);
         if (content === null) throw new Error('Invalid workout link');
         if (cancelled) return;
         const name = sourcePath
-          ? await createPlaygroundPage(content, { sourcePath })
-          : await createPlaygroundPage(content);
+          ? await intake.createPage(content, { sourcePath })
+          : await intake.createPage(content);
         if (!cancelled) {
           navigate(playgroundPath(name), { replace: true });
         }
       } catch (err) {
         console.error('Failed to decode zip:', err);
         if (!cancelled) {
-          toast({
+          showToast({
             title: 'Could not import workout',
             description: 'The link was invalid or the workout could not be saved.',
             variant: 'destructive',
@@ -100,5 +112,5 @@ export function useZipProcessor() {
       }
     })();
     return () => { cancelled = true; };
-  }, [zipParam, zParam, byParam, srcParam, navigate, location.pathname]);
+  }, [zipParam, zParam, byParam, srcParam, navigate, location.pathname, decode, intake, showToast]);
 }

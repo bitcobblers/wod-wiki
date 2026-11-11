@@ -365,7 +365,15 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
  * every other feed (theme repo or custom library) syncs from here, one at a
  * time or all at once.
  */
-export function SyncSection() {
+export interface SyncSectionDeps {
+  /** Feed service seams; production defaults — tests inject fakes. */
+  readFeedStatus?: typeof readFeedStatus
+  syncFeedSource?: typeof syncFeedSource
+  runFeedSync?: typeof runFeedSync
+}
+
+export function SyncSection({ deps = {} }: { deps?: SyncSectionDeps } = {}) {
+  const { readFeedStatus: readStatus = readFeedStatus, syncFeedSource: syncSource = syncFeedSource, runFeedSync: runAllSync = runFeedSync } = deps
   const [status, setStatus] = useState<FeedStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -381,7 +389,7 @@ export function SyncSection() {
   const refresh = useCallback(async () => {
     setLoadError(null)
     try {
-      setStatus(await readFeedStatus())
+      setStatus(await readStatus())
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -418,9 +426,9 @@ export function SyncSection() {
     })
     try {
       const outcome = id
-        ? await syncFeedSource(id, { force: true, onProgress })
+        ? await syncSource(id, { force: true, onProgress })
 
-        : await runFeedSync({ force: true, onProgress })
+        : await runAllSync({ force: true, onProgress })
       const label = id ? (status?.sources.find(s => s.id === id)?.label ?? id) : 'All sources'
       announceOutcome(outcome, label)
       await refresh()

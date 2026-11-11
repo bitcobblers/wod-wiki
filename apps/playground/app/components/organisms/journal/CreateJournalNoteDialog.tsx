@@ -217,6 +217,9 @@ export function CreateJournalNoteDialog({
       }
       setSources({ notebooks: scriptNotebooks, sourceIdByPath })
     })
+    return () => {
+      templatesReq.current++
+    }
   }, [open, supportsTemplates, notebookNotes, sources])
 
   const selectedTemplate = useMemo(() => {

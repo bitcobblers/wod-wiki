@@ -4,25 +4,16 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine/react';
 import { TEST_IDS } from '@/lib/testIds';
 import { RuntimeTestBuilder } from '@/testing/harness/RuntimeTestBuilder';
-import type { ReceiverTimerPanel } from '../wallclock-panel-chromecast';
-import type { ReceiverStackPanel } from '../track-panel-chromecast';
+import { ReceiverTimerPanel } from '../wallclock-panel-chromecast';
+import { ReceiverStackPanel } from '../track-panel-chromecast';
 import type { ClockSnapshot } from '@/clock/clockCommands';
 
-// Dynamic imports below are intentional: bun's mock.module() must register
-// before the module under test is first loaded — static imports would hoist
-// above the mock registration (module-loading boundary test).
-
-mock.module('@/panels/visual-state-panel', () => ({
-  VisualStatePanel: () => <div data-testid="visual-state-panel" />,
-}));
-
-// Board internals are CollectionFlow/BrowserCommands surface; this test pins
-// the panel's contract: snapshot-driven availability + command dispatch only.
-mock.module('@/clock/ClockCommandBoard', () => ({
-  ClockCommandBoard: ({ snapshot }: { snapshot: { runId: string } }) => (
-    <div data-testid="clock-command-board" data-run={snapshot.runId} />
-  ),
-}));
+// Slot stand-ins pin each adapter's contract (delegation + command dispatch)
+// without mounting the board/panel internals (CollectionFlow/BrowserCommands).
+const VisualStateSlot = () => <div data-testid="visual-state-panel" />;
+const CommandBoardSlot = ({ snapshot }: { snapshot: { runId: string } }) => (
+  <div data-testid="clock-command-board" data-run={snapshot.runId} />
+);
 
 const liveSnapshot = (overrides: Partial<ClockSnapshot> = {}): ClockSnapshot => ({
   runId: 'run-panel-test',
@@ -44,25 +35,23 @@ describe('chromecast panel adapters', () => {
     cleanup();
   });
 
-  it('ReceiverStackPanel delegates to shared VisualStatePanel', async () => {
-    const { ReceiverStackPanel: StackPanel } = await import('../track-panel-chromecast') as { ReceiverStackPanel: typeof ReceiverStackPanel };
-
-    render(<StackPanel />);
+  it('ReceiverStackPanel delegates to the shared VisualStatePanel slot', () => {
+    render(<ReceiverStackPanel VisualStateSlot={VisualStateSlot} />);
 
     expect(screen.getByTestId('visual-state-panel')).toBeDefined();
   });
 
-  it('ReceiverTimerPanel renders the General surface and dispatches commands from the snapshot', async () => {
-    const { ReceiverTimerPanel: TimerPanel } = await import('../wallclock-panel-chromecast') as { ReceiverTimerPanel: typeof ReceiverTimerPanel };
+  it('ReceiverTimerPanel renders the General surface and dispatches commands from the snapshot', () => {
     const sendCommand = mock(() => {});
     const harness = new RuntimeTestBuilder().withScript('Helen\n3 Rounds\n400m Run').build();
 
     render(
       <ScriptRuntimeProvider runtime={harness.runtime}>
-        <TimerPanel
+        <ReceiverTimerPanel
           snapshot={liveSnapshot()}
           sendCommand={sendCommand}
           workoutTitle="Helen"
+          CommandBoardSlot={CommandBoardSlot}
         />
       </ScriptRuntimeProvider>,
     );
@@ -92,17 +81,17 @@ describe('chromecast panel adapters', () => {
     harness.dispose();
   });
 
-  it('ReceiverTimerPanel disables Next while the authority reports it unavailable', async () => {
-    const { ReceiverTimerPanel: TimerPanel } = await import('../wallclock-panel-chromecast') as { ReceiverTimerPanel: typeof ReceiverTimerPanel };
+  it('ReceiverTimerPanel disables Next while the authority reports it unavailable', () => {
     const sendCommand = mock(() => {});
     const harness = new RuntimeTestBuilder().withScript('Helen\n3 Rounds\n400m Run').build();
 
     render(
       <ScriptRuntimeProvider runtime={harness.runtime}>
-        <TimerPanel
+        <ReceiverTimerPanel
           snapshot={liveSnapshot({ status: 'paused', canNext: false })}
           sendCommand={sendCommand}
           workoutTitle="Paused"
+          CommandBoardSlot={CommandBoardSlot}
         />
       </ScriptRuntimeProvider>,
     );

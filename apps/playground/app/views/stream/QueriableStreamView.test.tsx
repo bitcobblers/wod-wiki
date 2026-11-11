@@ -1,8 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test'
 import { render, screen, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { Entry } from '../../lib/entryMapper'
 import { StreamQueryEngine } from '../../lib/entrySearch'
+import * as toastModule from '@/hooks/use-toast'
+import * as feedSyncModule from '@/services/feed/feedSync'
+import * as seedContentModule from '@/services/content/seedContent'
+import * as effortRegistryModule from '@/services/effortRegistry'
+import * as createPlaygroundPageModule from '../../services/createPlaygroundPage'
 import { writeViewSettings } from '../../lib/viewSettingsStorage'
 import type { ParsedFindQuery, ParsedRowsQuery } from '@bitcobblers/wod-wiki-engine'
 import { QueriableStreamView } from './QueriableStreamView'
@@ -52,86 +57,18 @@ const syncFeedSourceMock = mock(
   },
 )
 
-// defaultFeedSources stays REAL. Static import cannot work: it would bind
-// the mock.module replacement below. Top-level dynamic import placed BEFORE
-// the mock.module call resolves the real module (same load-boundary
-// exception as the seedContent/entrySearch mocks): the notice's sync
-// worklist is the registry filtered by subscription, and tests drive
-// subscriptions through the real feedSubscriptions store.
-const realSeedSync = await import('@/services/feed/feedSync')
-
 // Radix overlays crash under this bun+jsdom setup (cross-realm Event
 // objects — see tests/unit-setup.ts), so the drawer and toaster are asserted
 // at their seams: the URL param drives the drawer, and toast() payloads are
 // what the app's Toaster would display.
-
-const realUseToast = await import('@/hooks/use-toast')
 let toastCalls: { title?: unknown; description?: unknown; variant?: unknown }[] = []
-mock.module('@/hooks/use-toast', () => ({
-  ...realUseToast,
-  toast: (props: { title?: unknown; description?: unknown; variant?: unknown }) => {
-    toastCalls.push(props)
-  },
-}))
-
-mock.module('@/services/feed/feedSync', () => ({
-  SEED_BROADCAST_CHANNEL: 'wodwiki-seed',
-  SEED_CLAIM_TTL_MS: 45_000,
-  // Real probe resolves past a fake-indexeddb transaction (a macrotask); a
-  // bare microtask here would settle outside act and spam act warnings.
-  readFeedCoverage: () => {
-    const { promise, resolve } = Promise.withResolvers<{ coreImported: boolean; libraryImported: boolean }>()
-    setTimeout(() => resolve(coverageMock), 0)
-    return promise
-  },
-  runBootFeedSync: async () => 'current' as const,
-  syncFeedSource: (...args: [string, { force?: boolean; onProgress?: (event: Record<string, unknown>) => void }?]) =>
-    syncFeedSourceMock(...args),
-  defaultFeedSources: realSeedSync.defaultFeedSources,
-  // The subscribe offer opens the manager drawer, which mounts SyncSection —
-  // an empty registry is enough for it to render.
-  readFeedStatus: async () => ({ sources: [] }),
-  subscribeFeedUpdates: () => () => {},
-}))
-
-// Collection READMEs read through useSeedContent; tests drive the readme by
-// pointing it at an in-memory corpus file. The default-engine override feeds
-// {{:wql}} token blocks — the view's own queryEngine prop is untouched.
-// Dynamic import (load-boundary exception): static bindings would resolve to
-// the mock.module replacement; we need the real module to spread it.
-const realSeedContent = await import('@/services/content/seedContent')
 let seedFilesMock: Record<string, string> | null = null
-mock.module('@/services/content/seedContent', () => ({
-  ...realSeedContent,
-  useSeedContent: () => seedFilesMock,
-}))
-
-// Same load-boundary exception: capture the real entrySearch before the
-// mock.module replacement so {{:wql}} token blocks get a controllable engine.
-const realEntrySearch = await import('../../lib/entrySearch')
 let tokenEntries: Entry[] = []
-mock.module('../../lib/entrySearch', () => ({
-  ...realEntrySearch,
-  defaultStreamQueryEngine: {
-    query: mock(async () => tokenEntries),
-    withNoteBlockInfo: () => realEntrySearch.defaultStreamQueryEngine,
-  },
-}))
-
-// The effort-plane stream re-runs its mounted query when the registry
-// re-hydrates (the corpus import lands after the readiness gate flips).
-// Capture subscribers so a test can play the post-import notify.
-const realEffortRegistry = await import('@/services/effortRegistry')
 let effortRegistryListeners: Array<() => void> = []
-mock.module('@/services/effortRegistry', () => ({
-  ...realEffortRegistry,
-  subscribeAppEffortRegistry: (listener: () => void) => {
-    effortRegistryListeners.push(listener)
-    return () => {
-      effortRegistryListeners = effortRegistryListeners.filter((l) => l !== listener)
-    }
-  },
-}))
+
+// defaultFeedSources stays REAL (never spied). The notice's sync worklist is
+// the registry filtered by subscription; tests drive subscriptions through
+// the real feedSubscriptions store.
 
 beforeEach(() => {
   communitySyncOutcome = 'imported'
@@ -144,9 +81,35 @@ beforeEach(() => {
   // The subscriptions module caches its map — drop it so each test starts
   // from the (unsubscribed) cleared localStorage.
   resetFeedSubscriptionsForTest()
+
+  // Namespace spies instead of mock.module — live bindings, restored after
+  // every test so sibling files in this process keep their real imports.
+  spyOn(toastModule, 'toast').mockImplementation(((props: { title?: unknown; description?: unknown; variant?: unknown }) => {
+    toastCalls.push(props)
+  }) as never)
+  // Real probe resolves past a fake-indexeddb transaction (a macrotask); a
+  // bare microtask here would settle outside act and spam act warnings.
+  spyOn(feedSyncModule, 'readFeedCoverage').mockImplementation((() => {
+    const { promise, resolve } = Promise.withResolvers<{ coreImported: boolean; libraryImported: boolean }>()
+    setTimeout(() => resolve(coverageMock), 0)
+    return promise
+  }) as never)
+  spyOn(feedSyncModule, 'syncFeedSource').mockImplementation(syncFeedSourceMock as never)
+  // An empty registry is enough for SyncSection (the manager drawer) to render.
+  spyOn(feedSyncModule, 'readFeedStatus').mockImplementation((async () => ({ sources: [] })) as never)
+  spyOn(feedSyncModule, 'runBootFeedSync').mockImplementation((async () => 'current' as const) as never)
+  spyOn(seedContentModule, 'useSeedContent').mockImplementation((() => seedFilesMock) as never)
+  // Capture subscribers so tests can play the post-import notify.
+  spyOn(effortRegistryModule, 'subscribeAppEffortRegistry').mockImplementation(((listener: () => void) => {
+    effortRegistryListeners.push(listener)
+    return () => {
+      effortRegistryListeners = effortRegistryListeners.filter((l) => l !== listener)
+    }
+  }) as never)
 })
 
 afterEach(() => {
+  mock.restore()
   cleanup()
   window.localStorage.clear()
 })
@@ -559,58 +522,51 @@ describe('QueriableStreamView component', () => {
   })
 
   it('defaultAddToToday resolves parent note and creates journal note', async () => {
-    const originalGetById = journalNotes.getById
-    const originalCreate = journalNotes.create
-    try {
-      journalNotes.getById = mock(async () => ({
-        id: 'crossfit-girls/fran',
-        title: 'Fran',
-        rawContent: '21-15-9\nThrusters\nPull-ups',
-        type: 'journal',
-      } as any))
-      journalNotes.create = mock(async () => ({} as any))
+    spyOn(journalNotes, 'getById').mockImplementation((async () => ({
+      id: 'crossfit-girls/fran',
+      title: 'Fran',
+      rawContent: '21-15-9\nThrusters\nPull-ups',
+      type: 'journal',
+    })) as never)
+    const createSpy = spyOn(journalNotes, 'create').mockImplementation((async () => ({})) as never)
 
-      const sampleResultEntries: Entry[] = [
-        {
-          id: 'res-42',
-          kind: 'result',
-          sourceNotebook: 'results',
-          sourceNote: 'res-42',
-          title: 'Fran Workout',
-          date: '2026-06-01',
-          execution: {
-            resultId: 'res-42',
-            noteId: 'crossfit-girls/fran',
-            timestamp: 1700000000000,
-            outputType: 'all',
-          },
+    const sampleResultEntries: Entry[] = [
+      {
+        id: 'res-42',
+        kind: 'result',
+        sourceNotebook: 'results',
+        sourceNote: 'res-42',
+        title: 'Fran Workout',
+        date: '2026-06-01',
+        execution: {
+          resultId: 'res-42',
+          noteId: 'crossfit-girls/fran',
+          timestamp: 1700000000000,
+          outputType: 'all',
         },
-      ]
-      const engine = createMockEngine(sampleResultEntries)
+      },
+    ]
+    const engine = createMockEngine(sampleResultEntries)
 
-      render(
-        <MemoryRouter initialEntries={['/results']}>
-          <QueriableStreamView profile={SESSIONS_STREAM_PROFILE} queryEngine={engine} />
-        </MemoryRouter>,
-      )
+    render(
+      <MemoryRouter initialEntries={['/results']}>
+        <QueriableStreamView profile={SESSIONS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
 
-      await waitFor(() => {
-        expect(screen.getByText('Fran Workout')).toBeDefined()
-      })
+    await waitFor(() => {
+      expect(screen.getByText('Fran Workout')).toBeDefined()
+    })
 
-      const addButton = screen.getByTestId('action-add')
-      fireEvent.click(addButton)
+    const addButton = screen.getByTestId('action-add')
+    fireEvent.click(addButton)
 
-      await waitFor(() => {
-        expect(journalNotes.create).toHaveBeenCalledTimes(1)
-      })
-      const createCall = (journalNotes.create as any).mock.calls[0][0]
-      expect(createCall.title).toBe('Fran Workout')
-      expect(createCall.rawContent).toContain('Thrusters')
-    } finally {
-      journalNotes.getById = originalGetById
-      journalNotes.create = originalCreate
-    }
+    await waitFor(() => {
+      expect(createSpy).toHaveBeenCalledTimes(1)
+    })
+    const [createCall] = createSpy.mock.calls[0]!
+    expect(createCall.title).toBe('Fran Workout')
+    expect(createCall.rawContent).toContain('Thrusters')
   })
 
   it('publishes dynamic section links to NavContext and updates them when WQL grouping changes', async () => {
@@ -966,47 +922,38 @@ describe('QueriableStreamView component', () => {
     })
 
     const ensureMock = mock(() => Promise.resolve({ noteId: 'uuid-9', routeId: 'playground/grace-copy' }))
-    mock.module('../../services/createPlaygroundPage', () => ({
-      ensurePlaygroundEntry: ensureMock,
-      createPlaygroundPage: mock(() => Promise.resolve('x')),
-      movePlaygroundToJournal: mock(() => Promise.resolve({})),
-    }))
+    spyOn(createPlaygroundPageModule, 'ensurePlaygroundEntry').mockImplementation(ensureMock as never)
+    spyOn(journalNotes, 'resolve').mockImplementation((async () => ({ id: 'n1', rawContent: '30 Clean & Jerks' })) as never)
 
-    const originalResolve = journalNotes.resolve
-    journalNotes.resolve = mock(async () => ({ id: 'n1', rawContent: '30 Clean & Jerks' }) as any)
-    try {
-      const catalogEntry: Entry = {
-        id: 'crossfit-girls/grace',
-        kind: 'note',
-        sourceNotebook: 'crossfit-girls',
-        sourceNote: 'grace',
-        title: 'Grace',
-        date: null,
-        sourceId: 'notebook:crossfit-girls/grace',
-      }
-      const engine = createMockEngine([catalogEntry])
-
-      render(
-        <MemoryRouter initialEntries={['/journal']}>
-          <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
-        </MemoryRouter>,
-      )
-
-      await waitFor(
-        () => {
-          expect(screen.getByTestId('stream-feed-playground')).toBeDefined()
-        },
-        { timeout: 5000 },
-      )
-
-      fireEvent.click(screen.getByTestId('stream-feed-playground'))
-
-      await waitFor(() => {
-        expect(ensureMock).toHaveBeenCalledWith('30 Clean & Jerks', { title: 'Grace' })
-      })
-    } finally {
-      journalNotes.resolve = originalResolve
+    const catalogEntry: Entry = {
+      id: 'crossfit-girls/grace',
+      kind: 'note',
+      sourceNotebook: 'crossfit-girls',
+      sourceNote: 'grace',
+      title: 'Grace',
+      date: null,
+      sourceId: 'notebook:crossfit-girls/grace',
     }
+    const engine = createMockEngine([catalogEntry])
+
+    render(
+      <MemoryRouter initialEntries={['/journal']}>
+        <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('stream-feed-playground')).toBeDefined()
+      },
+      { timeout: 5000 },
+    )
+
+    fireEvent.click(screen.getByTestId('stream-feed-playground'))
+
+    await waitFor(() => {
+      expect(ensureMock).toHaveBeenCalledWith('30 Clean & Jerks', { title: 'Grace' })
+    })
   })
 
   it('shows the sync notice on feedNotice routes when no manual library has imported', async () => {
@@ -1276,9 +1223,10 @@ describe('QueriableStreamView component', () => {
       { id: 'injected-1', kind: 'note', sourceNotebook: 'testcat', sourceNote: 'injected-1', title: 'Injected Entry', date: null },
     ]
     const engine = createMockEngine([])
+    const readmeEngine = { query: async () => tokenEntries } as unknown as StreamQueryEngine
     render(
       <MemoryRouter initialEntries={['/notebook/testcat']}>
-        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} />
+        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} deps={{ readmeQueryEngine: readmeEngine }} />
       </MemoryRouter>,
     )
 
@@ -1298,9 +1246,10 @@ describe('QueriableStreamView component', () => {
       { id: 'injected-2', kind: 'note', sourceNotebook: 'testcat', sourceNote: 'injected-2', title: 'Injected Entry', date: null },
     ]
     const engine = createMockEngine([])
+    const readmeEngine = { query: async () => tokenEntries } as unknown as StreamQueryEngine
     render(
       <MemoryRouter initialEntries={['/notebook/testcat']}>
-        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} />
+        <QueriableStreamView profile={createNotebookProfile('testcat')} queryEngine={engine} deps={{ readmeQueryEngine: readmeEngine }} />
       </MemoryRouter>,
     )
 

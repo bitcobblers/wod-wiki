@@ -142,12 +142,11 @@ const lastPc = () => {
     return pc;
 };
 
-beforeEach(() => {
-    FakePeerConnection.instances = [];
-    (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection = FakePeerConnection;
-});
-
 describe('WebRtcRpcTransport handshake', () => {
+    beforeEach(() => {
+        FakePeerConnection.instances = [];
+        (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection = FakePeerConnection;
+    });
     it('answerer processes an offer injected via receiveSignal and answers it', async () => {
         const { signaling, sent } = createFakeSignaling();
         const transport = new WebRtcRpcTransport('answerer', signaling);
@@ -240,7 +239,7 @@ describe('WebRtcRpcTransport handshake', () => {
     it('answerer ignores a duplicate offer with the same SDP but processes a changed one', async () => {
         const { signaling, sent } = createFakeSignaling();
         const transport = new WebRtcRpcTransport('answerer', signaling);
-        void transport.connect();
+        transport.connect().catch(() => {});
         const pc = lastPc();
 
         transport.receiveSignal({ type: 'webrtc-offer', sdp: 'offer-1' });
@@ -255,12 +254,13 @@ describe('WebRtcRpcTransport handshake', () => {
         await flush();
         expect(answers()).toHaveLength(2);
         expect(pc.remoteDescription).toEqual({ type: 'offer', sdp: 'offer-2' });
+        transport.dispose();
     });
 
     it('offerer ignores a duplicate answer once the handshake is stable', async () => {
         const { signaling } = createFakeSignaling();
         const transport = new WebRtcRpcTransport('offerer', signaling);
-        void transport.connect();
+        transport.connect().catch(() => {});
         const pc = lastPc();
         await flush();
 
@@ -272,12 +272,13 @@ describe('WebRtcRpcTransport handshake', () => {
         transport.receiveSignal({ type: 'webrtc-answer', sdp: 'answer-1' });
         await flush();
         expect(pc.remoteDescription).toEqual({ type: 'answer', sdp: 'answer-1' });
+        transport.dispose();
     });
 
     it('offerer resends the offer immediately when the receiver announces cast-ready', async () => {
         const { signaling, sent } = createFakeSignaling();
         const transport = new WebRtcRpcTransport('offerer', signaling, { offerRetryIntervalMs: 60_000 });
-        void transport.connect();
+        transport.connect().catch(() => {});
         await flush();
 
         const offers = () => sent.filter((m) => m.type === 'webrtc-offer');
@@ -286,6 +287,7 @@ describe('WebRtcRpcTransport handshake', () => {
         transport.receiveSignal({ type: 'cast-ready' });
         await flush();
         expect(offers()).toHaveLength(2);
+        transport.dispose();
     });
 
     it('connect timeout reports the gathered ICE candidate count', async () => {

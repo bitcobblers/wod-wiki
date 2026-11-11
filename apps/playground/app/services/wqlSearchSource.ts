@@ -59,17 +59,23 @@ export function scopedTextQuery(scope: ParsedFindQuery, terms: string): string {
   return serialize({ ...scope, filters });
 }
 
+export interface WqlSearchSourceDeps {
+  /** Entry pipeline; defaults to the shared `searchEntries` engine (tests inject). */
+  searchEntries?: typeof searchEntries
+}
+
 /** Valid find queries run through the engine. Find-mode prose merges
  *  verbatim as a `text:` phrase into the live scope (`context.scopeWql`,
  *  else the route default); empty restores the scope; ':'-prefixed invalid
  *  drafts stay quiet (WQL mode's stale badge carries those). */
-export function wqlSearchSource(): PaletteDataSource {
+export function wqlSearchSource(deps: WqlSearchSourceDeps = {}): PaletteDataSource {
+  const search = deps.searchEntries ?? searchEntries;
   return {
     id: 'wql-search',
     label: 'Search',
     search: async (wql, context) => {
       const parsed = parseQuery(wql);
-      if (!parsed.error) return (await searchEntries(wql)).slice(0, MAX_RESULTS).map(toPaletteItem);
+      if (!parsed.error) return (await search(wql)).slice(0, MAX_RESULTS).map(toPaletteItem);
       if (wql.trimStart().startsWith(':')) return [];
       const prose = wql.trim();
       // Boundary quotes are phrase intent; interior `"` has no grammar encoding.
@@ -81,7 +87,7 @@ export function wqlSearchSource(): PaletteDataSource {
       const scope = parseQuery(context?.scopeWql ?? searchPaletteQuery());
       if (scope.error || !isFindQuery(scope)) return [];
       const merged = scopedTextQuery(scope, terms);
-      return (await searchEntries(merged)).slice(0, MAX_RESULTS).map(toPaletteItem);
+      return (await search(merged)).slice(0, MAX_RESULTS).map(toPaletteItem);
     },
   };
 }

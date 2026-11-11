@@ -1,21 +1,15 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test'
+import { describe, it, expect, beforeEach } from 'bun:test'
 import { render, screen, waitFor, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { defaultStreamQueryEngine } from '../../lib/entrySearch'
 import type { Entry } from '../../lib/entryMapper'
+import { ReadmeQueryBlock } from './ReadmeQueryBlock'
 
-// Capture the real engine before the registry replacement (load-boundary
-// exception) so the block's default engine becomes controllable per test.
-const realEntrySearch = await import('../../lib/entrySearch')
+// The engine is injected per render — no module mock needed.
 let engineEntries: Entry[] = []
-mock.module('../../lib/entrySearch', () => ({
-  ...realEntrySearch,
-  defaultStreamQueryEngine: {
-    query: mock(async () => engineEntries),
-    withNoteBlockInfo: () => realEntrySearch.defaultStreamQueryEngine,
-  },
-}))
-
-const { ReadmeQueryBlock } = await import('./ReadmeQueryBlock')
+const fakeEngine = {
+  query: async () => engineEntries,
+} as unknown as typeof defaultStreamQueryEngine
 
 const entry = (id: string, title: string, date: string | null): Entry => ({
   id,
@@ -39,7 +33,7 @@ describe('ReadmeQueryBlock', () => {
       entry('c', 'Event 1', '2026-07-22'),
       entry('d', 'Undated thing', null),
     ]
-    render(<MemoryRouter><ReadmeQueryBlock query=":notebook{notebook:test}" heading="2026" /></MemoryRouter>)
+    render(<MemoryRouter><ReadmeQueryBlock query=":notebook{notebook:test}" heading="2026" queryEngine={fakeEngine} /></MemoryRouter>)
     await waitFor(() => screen.getByTestId('readme-query-block'))
 
     const rows = screen.getByTestId('readme-query-block').textContent ?? ''
@@ -55,7 +49,7 @@ describe('ReadmeQueryBlock', () => {
       entry('b', 'Event 1', '2026-07-22'),
       entry('c', 'Event 3', '2026-07-22'),
     ]
-    render(<MemoryRouter><ReadmeQueryBlock query=":notebook{notebook:test} by {date}" heading="" /></MemoryRouter>)
+    render(<MemoryRouter><ReadmeQueryBlock query=":notebook{notebook:test} by {date}" heading="" queryEngine={fakeEngine} /></MemoryRouter>)
     await waitFor(() => screen.getByTestId('readme-query-block'))
 
     expect(screen.queryByTestId('readme-query-heading')).toBeNull()
@@ -69,7 +63,7 @@ describe('ReadmeQueryBlock', () => {
   })
 
   it('renders the empty state when the query matches nothing', async () => {
-    render(<MemoryRouter><ReadmeQueryBlock query=":notebook{notebook:test}" heading="" /></MemoryRouter>)
+    render(<MemoryRouter><ReadmeQueryBlock query=":notebook{notebook:test}" heading="" queryEngine={fakeEngine} /></MemoryRouter>)
     await waitFor(() => screen.getByTestId('readme-query-empty'))
   })
 })

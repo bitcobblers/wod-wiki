@@ -1,15 +1,20 @@
-import { describe, expect, it, mock, afterEach } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+// React 19 only flushes updates inside act() when the test environment opts
+// in; the historical full-suite run got this from a sibling file's global.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { CanvasProse } from './CanvasProse';
+import { refreshPageSources } from '@/services/queryService';
 
 afterEach(cleanup);
 
-// Population is an IndexedDB-backed integration concern — this structural
-// test only needs the gate open.
-mock.module('@/hooks/usePageSourcesReady', () => ({
-  usePageSourcesReady: () => true,
-}));
+// The query-block renderer is gated on page-source population. Open the real
+// gate instead of stubbing the hook: population runs against the unit-setup
+// InMemoryStorage and flips the same service flag production reads.
+beforeEach(async () => {
+  await refreshPageSources();
+});
 
 describe('CanvasProse query block embedding', () => {
   it('renders a query block inside a query-block-view container instead of a raw pre/code', () => {

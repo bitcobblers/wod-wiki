@@ -11,86 +11,45 @@
  *  4. Editor re-entry — always resets the editor to the initial load content
  *     (shared script while active, else welcome-1.md); the initial viewport
  *     entry is arrival, not a re-entry.
+ *
+ * The CodeMirror editor is injected through HomeTour's `editorSlot` seam —
+ * a controlled textarea — instead of a module mock. Hooks and services run
+ * real: the arrival flow never starts a run, so persistence is untouched.
  */
 
-import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
+import { useEffect, type ReactElement } from 'react'
+import { beforeEach, afterEach, describe, expect, it } from 'bun:test'
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router'
 import type { Quest } from '../canvas/parseCanvasMarkdown'
 import type { ScriptBlock } from '@/components/Editor/types'
-
-// ── Heavy / browser-only dependencies ───────────────────────────────────────
-
-mock.module('@/components/organisms/editor/NoteEditor', () => ({
-  NoteEditor: (props: {
-    value?: string
-    onChange?: (value: string) => void
-    onBlocksChange?: (blocks: ScriptBlock[]) => void
-    onStartWorkout?: (block: ScriptBlock) => void
-  }) => {
-    const React = require('react')
-    React.useEffect(() => {
-      props.onBlocksChange?.([{ id: 'block-1', type: 'Timer' } as unknown as ScriptBlock])
-    }, [])
-    return (
-      <div>
-        <textarea
-          data-testid="mock-note-editor"
-          value={props.value ?? ''}
-          onChange={(e) => props.onChange?.(e.target.value)}
-        />
-        {props.onStartWorkout && (
-          <button onClick={() => props.onStartWorkout?.({ id: 'block-1' } as any)}>Run</button>
-        )}
-      </div>
-    )
-  },
-}))
-
-mock.module('@/components/organisms/editor/RuntimeTimerPanel', () => ({
-  RuntimeTimerPanel: () => <div data-testid="mock-timer-panel" />,
-}))
-
-mock.module('@/components/organisms/cast/CastButtonRpc', () => ({
-  CastButtonRpc: () => null,
-}))
-
-mock.module('../hooks/useQuickStartAutoComplete', () => ({
-  useQuickStartAutoComplete: () => {},
-}))
-
-mock.module('../hooks/useCompletionChallenge', () => ({
-  useCompletionChallenge: () => {},
-}))
-
-mock.module('../hooks/useRunStartedChallenge', () => ({
-  useRunStartedChallenge: () => {},
-}))
-
-mock.module('../hooks/useTourScrollQuests', () => ({
-  useTourScrollQuests: () => () => {},
-}))
-
-mock.module('@/services/resultRecorder', () => ({
-  playgroundRecorder: { record: async () => {} },
-}))
-
-mock.module('../services/createPlaygroundPage', () => ({
-  ensurePlaygroundEntry: mock(async () => ({ noteId: 'playground-note-test', routeId: 'playground/test' })),
-  createPlaygroundPage: mock(async () => 'test-page'),
-  movePlaygroundToJournal: mock(async (noteId: string) => ({ id: noteId })),
-}))
-
-mock.module('../services/journalWorkout', () => ({
-  createJournalNoteFromWorkout: async () => ({ id: 'note-clone' }),
-}))
-
-mock.module('../services/journalNotes', () => ({
-  journalNotes: { create: async () => ({ id: 'note-new' }) },
-}))
-
 import { HomeTour } from './HomeTour'
+
+// ── Editor seam ─────────────────────────────────────────────────────────────
+
+function MockNoteEditor(props: {
+  value?: string
+  onChange?: (value: string) => void
+  onBlocksChange?: (blocks: ScriptBlock[]) => void
+  onStartWorkout?: (block: ScriptBlock) => void
+}): ReactElement {
+  useEffect(() => {
+    props.onBlocksChange?.([{ id: 'block-1', type: 'Timer' } as unknown as ScriptBlock])
+  }, [])
+  return (
+    <div>
+      <textarea
+        data-testid="mock-note-editor"
+        value={props.value ?? ''}
+        onChange={(e) => props.onChange?.(e.target.value)}
+      />
+      {props.onStartWorkout && (
+        <button onClick={() => props.onStartWorkout?.({ id: 'block-1' } as unknown as ScriptBlock)}>Run</button>
+      )}
+    </div>
+  )
+}
 
 // ── IntersectionObserver stub — the test drives hero visibility ─────────────
 
@@ -182,6 +141,7 @@ describe('HomeTour arrival & hero-reset contract', () => {
             wodFiles={wodFiles}
             theme="light"
             quests={homeQuests}
+            editorSlot={MockNoteEditor}
           />
         </NuqsAdapter>
       </MemoryRouter>,

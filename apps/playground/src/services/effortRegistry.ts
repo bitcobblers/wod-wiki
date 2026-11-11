@@ -65,3 +65,7 @@ export function getAppEffortRegistry(): CompositeEffortRegistry {
   }
   return appEffortRegistry;
 }
+
+export function resetAppEffortRegistryForTesting(): void {
+  appEffortRegistry = null;
+}

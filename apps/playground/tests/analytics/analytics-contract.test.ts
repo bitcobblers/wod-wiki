@@ -43,10 +43,10 @@ const LOGS: StoredOutputStatement[] = [
 
 /**
  * Inline replica of normalizeAnalyticsSegments' core numeric extraction logic,
- * used here without importing the full IndexedDBNotePersistence module.
+ * used here in isolation.
  *
- * This avoids the need for mock.module('@/services/db/IndexedDBService', ...)
- * and the parallel-worker module-registry contamination it causes.
+ * This avoids importing the full IndexedDBNotePersistence module (and the
+ * IndexedDB service it pulls in) in a pure numeric-equivalence test.
  *
  * The real normalizeAnalyticsSegments is tested in IndexedDBNotePersistence.test.ts.
  * Here we only assert that the NUMERIC VALUES produced by both paths agree —

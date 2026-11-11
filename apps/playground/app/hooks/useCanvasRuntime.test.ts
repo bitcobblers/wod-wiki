@@ -6,7 +6,7 @@
  * once, and a failed completion save keeps the timer open with outputs
  * preserved (retry by completing again).
  */
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import { act, renderHook } from '@testing-library/react'
 
 import type { ScriptBlock, Sessions } from '@/components/Editor/types'
@@ -17,22 +17,23 @@ import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePe
 import { StorageService } from '@/services/storage/StorageService';
 import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
-let persistence = new IndexedDBNotePersistence(new StorageService(new InMemoryStorage()));
-mock.module('@/services/persistence', () => ({
-  notePersistence: {
-    getNote: (...args: Parameters<IndexedDBNotePersistence['getNote']>) => persistence.getNote(...args),
-    startSession: (...args: Parameters<IndexedDBNotePersistence['startSession']>) => persistence.startSession(...args),
-  },
-}));
-
 const toasts: Array<{ title: string }> = []
 const snapshotDocs: string[] = []
-mock.module('@/hooks/use-toast', () => ({ toast: (args: { title: string }) => { toasts.push(args) } }))
 
 let snapshotCount = 0
 let failSnapshot = false
-mock.module('../services/createPlaygroundPage', () => ({
-  playgroundIntake: {
+
+const recorded: RecordResultInput[] = []
+let failRecord = false
+
+// Fresh in-memory fakes per test — injected via the hook's deps seam
+// (production defaults are the real intake/persistence/recorder singletons).
+function buildDeps() {
+  const persistence = new IndexedDBNotePersistence(new StorageService(new InMemoryStorage()))
+  const intake: PlaygroundIntake = {
+    createPage: async () => { throw new Error('not used') },
+    ensureEntry: async () => { throw new Error('not used') },
+    moveToJournal: async () => { throw new Error('not used') },
     snapshotEntry: async (content: string) => {
       if (failSnapshot) {
         failSnapshot = false
@@ -43,13 +44,8 @@ mock.module('../services/createPlaygroundPage', () => ({
       await persistence.saveNote({ noteId: `note-${snapshotCount}`, rawContent: content, blocks: reconcileNoteBlocks(content, { sourceRevision: 1, createId: () => 'blk-1' }), expectedSourceRevision: 0, metadata: { title: 'Syntax Basics' } });
       return { noteId: `note-${snapshotCount}`, routeId: `playground/snap-${snapshotCount}` }
     },
-  } satisfies Pick<PlaygroundIntake, 'snapshotEntry'>,
-}))
-
-const recorded: RecordResultInput[] = []
-let failRecord = false
-mock.module('@/services/resultRecorder', () => ({
-  playgroundRecorder: {
+  }
+  const recorder: ResultRecorder = {
     record: async (input: RecordResultInput) => {
       if (failRecord) {
         failRecord = false
@@ -58,14 +54,15 @@ mock.module('@/services/resultRecorder', () => ({
       recorded.push(input)
       return input as never
     },
-  } satisfies Pick<ResultRecorder, 'record'>,
-}))
+  }
+  const toast = (args: { title: string }) => { toasts.push(args) }
+  return { intake, persistence, recorder, toast }
+}
 
-// Mock factories close over module-scope state — reset it per test or
-// counters/arrays leak across cases (bun runs a file's tests in one process).
+// Per-test fakes close over module-scope state — reset it or counters leak
+// across cases (bun runs a file's tests in one process).
 beforeEach(() => {
   snapshotCount = 0
-  persistence = new IndexedDBNotePersistence(new StorageService(new InMemoryStorage()));
   failSnapshot = false
   failRecord = false
   recorded.length = 0
@@ -97,7 +94,7 @@ function setup() {
       title: 'Syntax Basics',
       getBlock: () => block,
       getContent: () => '# doc\n```time\nAMRAP 5:00\n```',
-    }),
+    }, buildDeps()),
   )
 }
 

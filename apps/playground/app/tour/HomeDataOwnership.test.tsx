@@ -8,41 +8,53 @@ import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-let nextOutcome: string = 'imported'
-const syncFeedSource = mock(async (id: string) => {
-  void id
-  return nextOutcome
-})
-
-mock.module('@/services/feed/feedSync', () => ({
-  syncFeedSource,
-}))
-
-mock.module('@/services/storage', () => ({
-  readDataSettings: () => ({ state: 'indexed-db' }),
-  storageBackend: 'indexed-db',
-}))
-
 import { HomeCommunityFeeds, HomeDataOwnership } from './HomeDataOwnership'
 import { isFeedSubscribed, resetFeedSubscriptionsForTest, setFeedSubscribed } from '@/services/feed/feedSubscriptions'
+import type { FeedSyncOutcome } from '@/services/feed/feedSync'
+
+// Test seam: the feed sync outcome is pinned per test via HomeCommunityFeeds'
+// `deps.syncFeedSourceFn`; storage config is pinned via HomeDataOwnership's
+// `deps.dataSettingsOverride`/`storageBackendOverride`.
+let nextOutcome: FeedSyncOutcome = 'imported'
+const syncFeedSourceFn = mock(async (_id: string) => nextOutcome)
+
+const BROWSER_DATA_DEPS = {
+  dataSettingsOverride: { state: 'indexed-db' },
+  storageBackendOverride: 'indexed-db',
+} as const
+
+function renderDataOwnership() {
+  return render(
+    <MemoryRouter>
+      <HomeDataOwnership deps={BROWSER_DATA_DEPS} />
+    </MemoryRouter>,
+  )
+}
+
+function renderFeeds() {
+  return render(
+    <MemoryRouter>
+      <HomeCommunityFeeds deps={{ syncFeedSourceFn }} />
+    </MemoryRouter>,
+  )
+}
 
 beforeEach(() => {
   localStorage.clear()
   // feedSubscriptions caches its map — drop the cache with the storage.
   resetFeedSubscriptionsForTest()
   nextOutcome = 'imported'
-  syncFeedSource.mockClear()
+  syncFeedSourceFn.mockClear()
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  mock.restore()
+})
 
 describe('HomeDataOwnership', () => {
   it('renders exactly three mode cards and badges the active browser mode', () => {
-    render(
-      <MemoryRouter>
-        <HomeDataOwnership />
-      </MemoryRouter>,
-    )
+    renderDataOwnership()
     const modes = screen.getByTestId('home-data-ownership')
     expect(modes.children).toHaveLength(3)
     expect(screen.getByTestId('home-mode-browser').textContent).toContain('Active')
@@ -59,11 +71,7 @@ describe('HomeDataOwnership', () => {
 
 describe('HomeCommunityFeeds', () => {
   it('shows the two demo feeds with demo labels and real repository links', () => {
-    render(
-      <MemoryRouter>
-        <HomeCommunityFeeds />
-      </MemoryRouter>,
-    )
+    renderFeeds()
     const feeds = screen.getByTestId('home-community-feeds')
     expect(feeds.children).toHaveLength(2)
     expect(screen.getByTestId('home-feed-sport-crossfit').textContent).toContain('Demo')
@@ -79,11 +87,7 @@ describe('HomeCommunityFeeds', () => {
   })
 
   it('subscribes only after a successful sync commit', async () => {
-    render(
-      <MemoryRouter>
-        <HomeCommunityFeeds />
-      </MemoryRouter>,
-    )
+    renderFeeds()
     fireEvent.click(screen.getByTestId('home-feed-sync-legends-of-kettlebell'))
     await waitFor(() => {
       expect(screen.getByTestId('home-feed-status-legends-of-kettlebell').textContent).toContain('Synced')
@@ -94,11 +98,7 @@ describe('HomeCommunityFeeds', () => {
 
   it('does not subscribe when the sync fails', async () => {
     nextOutcome = 'error'
-    render(
-      <MemoryRouter>
-        <HomeCommunityFeeds />
-      </MemoryRouter>,
-    )
+    renderFeeds()
     fireEvent.click(screen.getByTestId('home-feed-sync-legends-of-kettlebell'))
     await waitFor(() => {
       expect(screen.getByTestId('home-feed-status-legends-of-kettlebell').textContent).toContain('Sync failed')
@@ -108,11 +108,7 @@ describe('HomeCommunityFeeds', () => {
   })
 
   it('unsubscribe is explicit and persistent — nothing re-subscribes automatically', async () => {
-    render(
-      <MemoryRouter>
-        <HomeCommunityFeeds />
-      </MemoryRouter>,
-    )
+    renderFeeds()
     fireEvent.click(screen.getByTestId('home-feed-sync-legends-of-kettlebell'))
     await waitFor(() => expect(isFeedSubscribed('legends-of-kettlebell')).toBe(true))
 
@@ -122,21 +118,13 @@ describe('HomeCommunityFeeds', () => {
 
     // Re-render (fresh mount) — the flag stays off with no sync involved.
     cleanup()
-    render(
-      <MemoryRouter>
-        <HomeCommunityFeeds />
-      </MemoryRouter>,
-    )
+    renderFeeds()
     expect(isFeedSubscribed('legends-of-kettlebell')).toBe(false)
     expect(screen.getByTestId('home-feed-subscribe-legends-of-kettlebell').textContent).toBe('Subscribe')
   })
 
   it('core is always subscribed and cannot be unsubscribed', () => {
-    render(
-      <MemoryRouter>
-        <HomeCommunityFeeds />
-      </MemoryRouter>,
-    )
+    renderFeeds()
     expect(isFeedSubscribed('core')).toBe(true)
     // The core seed has no feed card; the invariant lives in feedSubscriptions.
     setFeedSubscribed('core', false)

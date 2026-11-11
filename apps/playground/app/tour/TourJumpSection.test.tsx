@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { cleanup, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { TourJumpSection } from './TourJumpSection'
+import { TourJumpSection, type TourJumpSectionFeedDeps } from './TourJumpSection'
 import { NOTEBOOKS, FEED_SOURCES } from '@/services/feed/feedSources'
 import { parseNotebookChunkId } from '../views/notebook-gallery/notebookGalleryModel'
 
@@ -51,31 +51,29 @@ const pending = new Set<string>()
 const synced: string[] = []
 const subscriptionListeners = new Set<() => void>()
 
-mock.module('@/services/feed/feedSubscriptions', () => ({
-  isFeedSubscribed: (id: string) => subscribed.has(id),
-  isNotebookSubscribed: (feedId: string, chunkId: string) =>
+// Test seam: an in-memory subscription store + controllable sync, injected
+// through TourJumpSection's `feedDeps` instead of module mocks.
+const feedDeps: TourJumpSectionFeedDeps = {
+  isNotebookSubscribed: (feedId, chunkId) =>
     subscribed.has(feedId) || notebookSubscribed.has(`${feedId}#${chunkId}`),
-  setFeedSubscribed: (id: string, value: boolean) => {
-    if (value) subscribed.add(id)
-    else subscribed.delete(id)
-    for (const listener of subscriptionListeners) listener()
-    return true
-  },
-  setNotebookSubscribed: (feedId: string, chunkId: string, value: boolean) => {
+  setNotebookSubscribed: (feedId, chunkId, value) => {
     const key = `${feedId}#${chunkId}`
     if (value) notebookSubscribed.add(key)
     else notebookSubscribed.delete(key)
     for (const listener of subscriptionListeners) listener()
     return true
   },
-  subscribeFeedSubscriptions: (cb: () => void) => {
+  setFeedSubscribed: (id, value) => {
+    if (value) subscribed.add(id)
+    else subscribed.delete(id)
+    for (const listener of subscriptionListeners) listener()
+    return true
+  },
+  subscribeFeedSubscriptions: (cb) => {
     subscriptionListeners.add(cb)
     return () => subscriptionListeners.delete(cb)
   },
-}))
-
-mock.module('@/services/feed/feedSync', () => ({
-  syncFeedSource: (id: string) => {
+  syncFeedSource: (id) => {
     synced.push(id)
     // Held open so the in-flight state is observable; never settles.
     if (pending.has(id)) return Promise.withResolvers<'imported'>().promise
@@ -90,12 +88,12 @@ mock.module('@/services/feed/feedSync', () => ({
     coreImported: true,
     libraryImported: subscribed.size > 0,
   }),
-}))
+}
 
 function renderSection() {
   return render(
     <MemoryRouter>
-      <TourJumpSection />
+      <TourJumpSection feedDeps={feedDeps} />
     </MemoryRouter>,
   )
 }
@@ -113,11 +111,13 @@ function cardIds(el: HTMLElement) {
 
 describe('TourJumpSection', () => {
   beforeEach(() => {
+    localStorage.clear()
     subscribed = new Set()
     notebookSubscribed.clear()
     outcomes = {}
     pending.clear()
     synced.length = 0
+    subscriptionListeners.clear()
     mockMedia(true) // default: desktop, two rows
   })
   afterEach(() => {

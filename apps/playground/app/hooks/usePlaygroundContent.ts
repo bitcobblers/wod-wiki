@@ -5,11 +5,23 @@ import type { NoteBlock, Note } from '@/types/storage';
 import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import { useEditorSave } from './useEditorSave';
 
-interface UsePlaygroundContentOptions {
+export interface UsePlaygroundContentOptions {
   category: string;
   name: string;
   mdContent: string;
   seedOnMount?: boolean;
+}
+
+/** Optional dependency overrides — production singletons by default (test seam). */
+export interface UsePlaygroundContentDeps {
+  /** Structural subset of PlaygroundPage the hook reads — test SavedPage fakes satisfy it. */
+  playgroundContent?: {
+    getPage: (id: string) => Promise<{ id: string; content: string; name?: string; sourceRevision?: number; noteBlocks?: Record<string, NoteBlock> } | undefined>;
+  };
+  /** Structural subset of HistoryRecord the hook reads — test fakes satisfy it. */
+  notePersistence?: {
+    saveNote: (input: Parameters<typeof notePersistence.saveNote>[0]) => Promise<{ id: string; rawContent: string; blocks?: Record<string, NoteBlock>; sourceRevision?: number }>;
+  };
 }
 
 export interface PlaygroundContentSnapshot {
@@ -20,7 +32,10 @@ export interface PlaygroundContentSnapshot {
 
 export const LOAD_TIMEOUT_MS = 8000;
 
-export function usePlaygroundContent({ category, name, mdContent, seedOnMount = true }: UsePlaygroundContentOptions) {
+export function usePlaygroundContent(
+  { category, name, mdContent, seedOnMount = true }: UsePlaygroundContentOptions,
+  { playgroundContent: pages = playgroundContent, notePersistence: persistence = notePersistence }: UsePlaygroundContentDeps = {},
+) {
   const pageId = makePageId(category, name);
   const [content, setContent] = useState(mdContent);
   const [loading, setLoading] = useState(true);
@@ -50,14 +65,14 @@ export function usePlaygroundContent({ category, name, mdContent, seedOnMount = 
 
   const handleSave = useCallback(async (snapshot: PlaygroundContentSnapshot & { routeId: string; noteId: string; title: string }) => {
     if (snapshot.routeId === currentRoute.current && loadError) throw loadError;
-    const saved = await notePersistence.saveNote({ noteId: snapshot.noteId, rawContent: snapshot.rawContent,
+    const saved = await persistence.saveNote({ noteId: snapshot.noteId, rawContent: snapshot.rawContent,
       blocks: snapshot.noteBlocks, expectedSourceRevision: committed.current.id === snapshot.noteId ? committed.current.revision : snapshot.sourceRevision,
       metadata: { title: snapshot.title }, noteType: 'playground' });
     if (currentRoute.current !== snapshot.routeId) return;
     committed.current.id = saved.id;
     setEntryId(saved.id);
     onSaved({ rawContent: saved.rawContent, blocks: saved.blocks ?? {}, sourceRevision: saved.sourceRevision ?? 1 });
-  }, [onSaved, loadError]);
+  }, [onSaved, loadError, persistence]);
 
   const saves = useEditorSave({ onSave: handleSave,
     getSnapshotKey: snapshot => JSON.stringify([snapshot.noteId, snapshot.rawContent, Object.values(snapshot.noteBlocks).map(block => [block.id, block.from, block.to, block.kind, block.dialect, block.sport])]) });
@@ -86,11 +101,11 @@ export function usePlaygroundContent({ category, name, mdContent, seedOnMount = 
     }, LOAD_TIMEOUT_MS);
     void (async () => {
       try {
-        const page = await playgroundContent.getPage(pageId);
+        const page = await pages.getPage(pageId);
         if (cancelled) return;
         if (page) install(page.content, page.noteBlocks ?? {}, page.sourceRevision ?? 1, page.id, page.name);
         else if (seedOnMount) {
-          const saved = await notePersistence.saveNote({ noteId: pageId, rawContent: mdContent, blocks: fallback,
+          const saved = await persistence.saveNote({ noteId: pageId, rawContent: mdContent, blocks: fallback,
             expectedSourceRevision: 0, metadata: { title: name }, noteType: 'playground' });
           if (!cancelled) install(saved.rawContent, saved.blocks ?? {}, saved.sourceRevision ?? 1, saved.id);
         } else install(mdContent, fallback, 0);
@@ -102,7 +117,7 @@ export function usePlaygroundContent({ category, name, mdContent, seedOnMount = 
       }
     })();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [pageId, mdContent, name, seedOnMount]);
+  }, [pageId, mdContent, name, seedOnMount, pages, persistence]);
 
   const onIdentityChange = useCallback((snapshot: PlaygroundContentSnapshot) => {
     const unchanged = draft.current.rawContent === snapshot.rawContent

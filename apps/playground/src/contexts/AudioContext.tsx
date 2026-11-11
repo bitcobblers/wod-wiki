@@ -13,15 +13,26 @@ export interface AudioContextType {
 // Named WodAudioContext to avoid conflict with Web Audio API's native AudioContext
 const WodAudioContext = createContext<AudioContextType | undefined>(undefined);
 
-export function AudioProvider({ children }: { children: React.ReactNode }) {
-    const [isEnabled, setIsEnabled] = useState(audioService.isEnabled());
+export interface AudioAdapter {
+    isEnabled(): boolean;
+    setEnabled(enabled: boolean): void;
+    playSound(name: string, volume?: number): Promise<void>;
+}
+
+export function AudioProvider({
+    children,
+    audioAdapter = audioService,
+}: {
+    children: React.ReactNode;
+    audioAdapter?: AudioAdapter;
+}) {
+    const [isEnabled, setIsEnabled] = useState(audioAdapter.isEnabled());
     const castTransport = useCastTransport();
 
     useEffect(() => {
         // Sync service state with component state
-        audioService.setEnabled(isEnabled);
-    }, [isEnabled]);
-
+        audioAdapter.setEnabled(isEnabled);
+    }, [isEnabled, audioAdapter]);
     const playSound = useCallback((name: string, volume: number = 1.0) => {
         if (!isEnabled) return;
 
@@ -36,12 +47,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             } catch (err) {
                 console.error('[AudioContext] Failed to send rpc-audio', err);
                 // Fallback to local if cast send fails
-                audioService.playSound(name, volume).catch(reportPlaybackFailure);
+                audioAdapter.playSound(name, volume).catch(reportPlaybackFailure);
             }
         } else {
-            audioService.playSound(name, volume).catch(reportPlaybackFailure);
+            audioAdapter.playSound(name, volume).catch(reportPlaybackFailure);
         }
-    }, [isEnabled, castTransport]);
+    }, [isEnabled, castTransport, audioAdapter]);
 
     const toggleAudio = useCallback(() => {
         const newState = !isEnabled;
@@ -52,10 +63,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             // Local beep to confirm toggle. Played directly rather than through
             // `playSound` because the service is still disabled at this point
             // — the effect that enables it runs after this handler.
-            audioService.setEnabled(true);
-            audioService.playSound('beep').catch(reportPlaybackFailure);
+            audioAdapter.setEnabled(true);
+            audioAdapter.playSound('beep').catch(reportPlaybackFailure);
         }
-    }, [isEnabled]);
+    }, [isEnabled, audioAdapter]);
 
     const playTestSound = useCallback(() => {
         playSound('chime');

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { playgroundPath } from '../lib/routes'
@@ -12,25 +12,43 @@ import { DEFAULT_PLAYGROUND_CONTENT } from '../templates/defaultPlaygroundConten
  */
 let pendingPlaygroundId: { attempt: number; promise: Promise<string> } | null = null
 
-async function resolvePlaygroundId(attempt: number): Promise<string> {
+async function resolvePlaygroundId(
+  attempt: number,
+  createPage: (content: string) => Promise<string>,
+  isCancelled: () => boolean,
+): Promise<string> {
   if (!pendingPlaygroundId || pendingPlaygroundId.attempt !== attempt) {
     pendingPlaygroundId = {
       attempt,
       // /playground is the "new playground note" entry — every visit mints a
       // fresh note prefilled with the default template; the list at
       // /playgrounds is how you resume.
-      promise: createPlaygroundPage(DEFAULT_PLAYGROUND_CONTENT.content),
+      promise: createPage(DEFAULT_PLAYGROUND_CONTENT.content),
     }
   }
 
   try {
-    return await pendingPlaygroundId.promise
-  } finally {
+    const id = await pendingPlaygroundId.promise
+    // Only the run that actually finishes (and navigates) clears the shared
+    // attempt. A cancelled run (StrictMode remount, re-render with a new
+    // navigate identity) must leave the promise for its successor — clearing
+    // here minted a fresh note on every re-render.
+    if (!isCancelled() && pendingPlaygroundId?.attempt === attempt) {
+      pendingPlaygroundId = null
+    }
+    return id
+  } catch (err) {
+    // A failed mint clears the slot so an explicit retry mints anew.
     if (pendingPlaygroundId?.attempt === attempt) {
       pendingPlaygroundId = null
     }
+    throw err
   }
 }
+
+/** Production mint: the default template through the real playground intake. */
+const defaultCreatePage = (): Promise<string> =>
+  createPlaygroundPage(DEFAULT_PLAYGROUND_CONTENT.content)
 
 /**
  * Canonical entry route for `/playground` — mints a fresh playground note
@@ -39,8 +57,21 @@ async function resolvePlaygroundId(attempt: number): Promise<string> {
  * from minting two notes; the first-note wizard is unaffected (it gates on
  * profile state, not on freshness).
  */
-export function PlaygroundRedirect() {
+export interface PlaygroundRedirectDeps {
+  /** Mints a fresh playground note; defaults to the real intake over active storage. */
+  createPage?: (content: string) => Promise<string>
+}
+
+export function PlaygroundRedirect({ createPage = defaultCreatePage }: PlaygroundRedirectDeps = {}) {
   const navigate = useNavigate()
+  // `useNavigate` returns a new identity whenever the router context updates
+  // (e.g. during boot-time registry/seed re-renders). Keeping it in a ref
+  // lets the mint effect run once per mount — otherwise every re-render
+  // re-entered the effect and minted yet another note.
+  const navigateRef = useRef(navigate)
+  useLayoutEffect(() => {
+    navigateRef.current = navigate
+  }, [navigate])
   const [error, setError] = useState(false)
   const [attempt, setAttempt] = useState(0)
 
@@ -49,9 +80,9 @@ export function PlaygroundRedirect() {
 
     ;(async () => {
       try {
-        const id = await resolvePlaygroundId(attempt)
+        const id = await resolvePlaygroundId(attempt, createPage, () => cancelled)
         if (!cancelled) {
-          navigate(playgroundPath(id), { replace: true })
+          navigateRef.current(playgroundPath(id), { replace: true })
         }
       } catch {
         if (!cancelled) {
@@ -63,7 +94,7 @@ export function PlaygroundRedirect() {
     return () => {
       cancelled = true
     }
-  }, [navigate, attempt])
+  }, [attempt, createPage])
 
   if (error) {
     return (

@@ -1,23 +1,15 @@
 import React from 'react';
-import { afterEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { TimerStackView } from './TimerStackView';
+import { PanelSizeContext, derivePanelSize, type PanelSizeInfo } from '@/panels/panel-system/PanelSizeContext';
+import { AudioProvider, type AudioAdapter } from '@/contexts/AudioContext';
 
-// ── Mocks ───────────────────────────────────────────────────────────────────
-
-const mockPanelSize = mock(() => ({ width: 800, isCompact: false, isWide: true, isFull: true, mode: 'full' as const }));
-
-mock.module('@/panels/panel-system/PanelSizeContext', () => ({
-  usePanelSize: mockPanelSize,
-}));
-
-mock.module('@/contexts/AudioContext', () => ({
-  useAudio: () => ({
-    playClick: () => {},
-    playTick: () => {},
-    playComplete: () => {},
-  }),
-}));
+const noopAudio: AudioAdapter = {
+  isEnabled: () => false,
+  setEnabled: () => {},
+  playSound: async () => {},
+};
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -31,8 +23,14 @@ const baseProps = {
   isRunning: false,
 };
 
-function renderTimer(props = {}) {
-  return render(<TimerStackView {...baseProps} {...props} />);
+function renderTimer(props = {}, size: PanelSizeInfo = derivePanelSize(800, 600)) {
+  return render(
+    <PanelSizeContext.Provider value={size}>
+      <AudioProvider audioAdapter={noopAudio}>
+        <TimerStackView {...baseProps} {...props} />
+      </AudioProvider>
+    </PanelSizeContext.Provider>,
+  );
 }
 
 function assertFocusVisible(el: HTMLElement) {
@@ -48,7 +46,6 @@ function assertFocusVisible(el: HTMLElement) {
 describe('TimerStackView — Accessibility & Keyboard Navigation', () => {
   afterEach(() => {
     cleanup();
-    mockPanelSize.mockClear?.();
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -286,31 +283,28 @@ describe('TimerStackView — Accessibility & Keyboard Navigation', () => {
 
   describe('Responsive accessibility', () => {
     it('desktop layout keeps all controls visible and focusable', () => {
-      mockPanelSize.mockImplementation(() => ({ width: 1280, isCompact: false, isWide: true, isFull: true, mode: 'full' as const }));
       renderTimer({
         primaryTimer: { id: 't1', ownerId: 'b1', timerMemoryId: '', label: 'Workout', format: 'up' as const },
-      });
+      }, derivePanelSize(1280, 800));
       expect(screen.getByTitle('Stop Session')).toBeTruthy();
       expect(screen.getByTitle('Next Block')).toBeTruthy();
       expect(screen.getAllByTitle('Start').length).toBeGreaterThanOrEqual(1);
     });
 
     it('mobile compact layout keeps all controls visible and focusable', () => {
-      mockPanelSize.mockImplementation(() => ({ width: 375, isCompact: true, isWide: false, isFull: false, mode: 'compact' as const }));
       renderTimer({
         compact: true,
         primaryTimer: { id: 't1', ownerId: 'b1', timerMemoryId: '', label: 'Workout', format: 'up' as const },
-      });
+      }, derivePanelSize(375, 812));
       expect(screen.getByTitle('Stop Session')).toBeTruthy();
       expect(screen.getByTitle('Next Block')).toBeTruthy();
       expect(screen.getAllByTitle('Start').length).toBeGreaterThanOrEqual(1);
     });
 
     it('tablet layout keeps all controls visible and focusable', () => {
-      mockPanelSize.mockImplementation(() => ({ width: 768, isCompact: false, isWide: true, isFull: false, mode: 'wide' as const }));
       renderTimer({
         primaryTimer: { id: 't1', ownerId: 'b1', timerMemoryId: '', label: 'Workout', format: 'up' as const },
-      });
+      }, derivePanelSize(768, 1024));
       expect(screen.getByTitle('Stop Session')).toBeTruthy();
       expect(screen.getByTitle('Next Block')).toBeTruthy();
       expect(screen.getAllByTitle('Start').length).toBeGreaterThanOrEqual(1);

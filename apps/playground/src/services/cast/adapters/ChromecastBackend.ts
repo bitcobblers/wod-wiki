@@ -29,10 +29,11 @@
 import { ChromecastSdk, type CastSdkState } from '../ChromecastSdk';
 import { CAST_APP_ID, hasCustomCastAppId } from '../config';
 import { SenderCastSignaling } from '../CastSignaling';
-import { WebRtcRpcTransport } from '../rpc/WebRtcRpcTransport';
+import { WebRtcRpcTransport, type ISignaling } from '../rpc/WebRtcRpcTransport';
 
 
 import type { IRpcTransport } from '../rpc/IRpcTransport';
+import type { SenderCastSessionLike } from '@/types/cast/sdk';
 
 import { rpcWarn } from '../rpc/rpcLogger';
 
@@ -44,19 +45,63 @@ const sdkToBackend: Record<CastSdkState, ICastBackendState> = {
     'session-active': 'session-active',
 };
 
+/** Structural subset of the `ChromecastSdk` singleton the backend touches. */
+export interface ChromecastSdkLike {
+    getState(): CastSdkState;
+    load(appId: string): Promise<void>;
+    requestSession(): Promise<void>;
+    endSession(): void;
+    getSession(): SenderCastSessionLike | null;
+    on(
+        event: 'state-changed' | 'session-started' | 'session-ended',
+        listener: (...args: unknown[]) => void,
+    ): () => void;
+}
+
+/**
+ * Optional dependencies for `ChromecastBackend`. Every field defaults to the
+ * production implementation, so `new ChromecastBackend()` stays the app path;
+ * tests inject fakes via `deps` instead of mocking modules.
+ */
+export interface ChromecastBackendDeps {
+    /** Cast SDK wrapper; defaults to the shared `ChromecastSdk` singleton. */
+    sdk?: ChromecastSdkLike;
+    /** Transport factory; defaults to a `'offerer'` `WebRtcRpcTransport` over `signaling`. */
+    createTransport?: (signaling: ISignaling) => IRpcTransport;
+    /** Signaling factory; defaults to a `SenderCastSignaling` bound to `session`. */
+    createSignaling?: (session: SenderCastSessionLike) => ISignaling;
+    /** Cast application id; defaults to `CAST_APP_ID` from config. */
+    appId?: string;
+    /** Whether the app id is a custom receiver; defaults to `hasCustomCastAppId`. */
+    hasCustomAppId?: boolean;
+}
+
 export class ChromecastBackend implements ICastBackend {
     private _state: ICastBackendState;
     private readonly stateListeners = new Set<(s: ICastBackendState) => void>();
     private sdkUnsubState: (() => void) | null = null;
     private sdkUnsubEnded: (() => void) | null = null;
-    private activeTransport: WebRtcRpcTransport | null = null;
+    private readonly sdk: ChromecastSdkLike;
+    private readonly createTransport: (signaling: ISignaling) => IRpcTransport;
+    private readonly createSignaling: (session: SenderCastSessionLike) => ISignaling;
+    private readonly appId: string;
+    private readonly hasCustomAppId: boolean;
+    private activeTransport: IRpcTransport | null = null;
     private disposed = false;
 
-    constructor() {
-        this._state = sdkToBackend[ChromecastSdk.getState()];
+    constructor(deps: ChromecastBackendDeps = {}) {
+        this.sdk = deps.sdk ?? ChromecastSdk;
+        this.createTransport =
+            deps.createTransport ?? ((signaling) => new WebRtcRpcTransport('offerer', signaling));
+        this.createSignaling =
+            deps.createSignaling ?? ((session) => new SenderCastSignaling(session));
+        this.appId = deps.appId ?? CAST_APP_ID;
+        this.hasCustomAppId = deps.hasCustomAppId ?? hasCustomCastAppId;
+
+        this._state = sdkToBackend[this.sdk.getState()];
         this.subscribeToSdk();
-        if (hasCustomCastAppId && typeof window !== 'undefined') {
-            void ChromecastSdk.load(CAST_APP_ID).catch(() => {});
+        if (this.hasCustomAppId && typeof window !== 'undefined') {
+            void this.sdk.load(this.appId).catch(() => {});
         }
     }
 
@@ -80,7 +125,7 @@ export class ChromecastBackend implements ICastBackend {
     }
 
     private subscribeToSdk(): void {
-        this.sdkUnsubState = ChromecastSdk.on('state-changed', (next: unknown) => {
+        this.sdkUnsubState = this.sdk.on('state-changed', (next: unknown) => {
             const mapped = sdkToBackend[next as CastSdkState] ?? 'ready';
             // While 'session-active' we trust our own more specific state over
             // the SDK's coarse stream. While 'connecting', only suppress
@@ -96,7 +141,7 @@ export class ChromecastBackend implements ICastBackend {
             }
             this.setState(mapped);
         });
-        this.sdkUnsubEnded = ChromecastSdk.on('session-ended', () => {
+        this.sdkUnsubEnded = this.sdk.on('session-ended', () => {
             this.activeTransport = null;
             this.setState('session-ended');
         });
@@ -106,19 +151,19 @@ export class ChromecastBackend implements ICastBackend {
         if (this.disposed) {
             throw new Error('ChromecastBackend: startSession after dispose');
         }
-        if (!hasCustomCastAppId) {
+        if (!this.hasCustomAppId) {
             this.setState('unavailable');
             throw new Error('ChromecastBackend: VITE_CAST_APP_ID is not configured');
         }
 
         this.setState('connecting');
 
-        let transport: WebRtcRpcTransport | null = null;
+        let transport: IRpcTransport | null = null;
         try {
             try {
-                await ChromecastSdk.load(CAST_APP_ID);
+                await this.sdk.load(this.appId);
             } catch (err) {
-                this.setState(sdkToBackend[ChromecastSdk.getState()]);
+                this.setState(sdkToBackend[this.sdk.getState()]);
                 throw err;
             }
 
@@ -126,20 +171,20 @@ export class ChromecastBackend implements ICastBackend {
                 throw new Error('ChromecastBackend: dispose() called during SDK load');
             }
 
-            if (ChromecastSdk.getState() === 'unavailable') {
+            if (this.sdk.getState() === 'unavailable') {
                 this.setState('unavailable');
                 throw new Error('ChromecastBackend: Cast not supported in this browser');
             }
 
             // Open the native device picker. Throws on user-cancel or when
             // CAF reports a launch error (e.g. session_error).
-            await ChromecastSdk.requestSession();
+            await this.sdk.requestSession();
 
             if (this.disposed) {
                 throw new Error('ChromecastBackend: dispose() called during requestSession');
             }
 
-            const castSession = ChromecastSdk.getSession();
+            const castSession = this.sdk.getSession();
             if (!castSession) {
                 throw new Error('ChromecastBackend: no Cast session after requestSession()');
             }
@@ -152,8 +197,8 @@ export class ChromecastBackend implements ICastBackend {
                 rpcWarn('ChromecastBackend', 'namespace ping failed', err);
             }
 
-            const signaling = new SenderCastSignaling(castSession);
-            transport = new WebRtcRpcTransport('offerer', signaling);
+            const signaling = this.createSignaling(castSession);
+            transport = this.createTransport(signaling);
             await transport.connect();
         } catch (err) {
             // Failure recovery: a cancelled picker, launch error, or handshake
@@ -187,9 +232,9 @@ export class ChromecastBackend implements ICastBackend {
             return this.activeTransport;
         }
 
-        await ChromecastSdk.load(CAST_APP_ID);
+        await this.sdk.load(this.appId);
 
-        const castSession = ChromecastSdk.getSession();
+        const castSession = this.sdk.getSession();
         if (!castSession) {
             throw new Error('ChromecastBackend: no Cast session to resume');
         }
@@ -197,8 +242,8 @@ export class ChromecastBackend implements ICastBackend {
         // The receiver returned to its waiting screen when the previous
         // transport's datachannel closed (page nav / reload). A fresh offer
         // re-claims it; the 15s connect timeout throws if it is gone.
-        const signaling = new SenderCastSignaling(castSession);
-        const transport = new WebRtcRpcTransport('offerer', signaling);
+        const signaling = this.createSignaling(castSession);
+        const transport = this.createTransport(signaling);
         try {
             await transport.connect();
         } catch (err) {
@@ -219,7 +264,7 @@ export class ChromecastBackend implements ICastBackend {
 
     endSession(): void {
         try {
-            ChromecastSdk.endSession();
+            this.sdk.endSession();
         } catch {
             // SDK may already be torn down; ignore
         }

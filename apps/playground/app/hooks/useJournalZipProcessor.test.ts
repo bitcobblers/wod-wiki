@@ -1,111 +1,94 @@
+/**
+ * useJournalZipProcessor.test.ts — journal zip-load pipeline.
+ *
+ * The hook runs inside the real provider tree (MemoryRouter + NuqsTestingAdapter
+ * via PlaygroundProviderTree) with injected deps — no mock.module.
+ * Route/date plumbing is real; decode and journal creation are injected fakes.
+ */
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-import { renderHook, waitFor, act } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
+import { createElement } from 'react';
+import type { Location } from 'react-router-dom';
+import { PlaygroundProviderTree, setupPlaygroundTestHost, type PlaygroundHostHandle } from '@/testing/host';
+import type { CreateJournalNoteInput } from '../services/journalNotes';
 import { useJournalZipProcessor } from './useJournalZipProcessor';
 
-// Mock dependencies
-mock.module('../services/decodeZip', () => ({
-  decodeZip: mock(() => Promise.resolve('# Journal Entry\n\n```time\n\n```\n')),
-}));
+const CONTENT = '# Journal Entry\n\n```time\n\n```\n';
+const TODAY = '2026-05-26';
 
-mock.module('../services/parseJournalDate', () => ({
-  parseJournalDate: mock((dateString) => {
-    // Simple mock that only validates YYYY-MM-DD format
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-      return { dateKey: dateString, date: new Date(dateString) };
-    }
-    return null;
-  }),
-}));
+const toastMock = mock((_args?: unknown) => {});
+const createNoteMock = mock((input: CreateJournalNoteInput) =>
+  Promise.resolve({ id: `journal-${input.journalDate}`, journalDate: input.journalDate, blocks: {} }),
+);
+const decodeMock = mock((_z: string) => Promise.resolve(CONTENT));
 
-mock.module('../services/dateUtils', () => ({
-  getTodayDateKey: mock(() => '2026-05-26'),
-  isDateInPast: mock((dateKey) => dateKey < '2026-05-26'),
-  formatDateKey: mock((date) => date.toISOString().split('T')[0]),
-}));
+// Stable identities across renders — inline arrows inside renderHook would
+// re-trigger the hook's effect every render (infinite loop).
+const journalDeps = {
+  decodeZip: decodeMock,
+  getTodayDateKey: () => TODAY,
+  isDateInPast: (dateKey: string) => dateKey < TODAY,
+  journalNotes: { create: createNoteMock },
+  toast: toastMock,
+};
 
-mock.module('../lib/routes', () => ({
-  notePath: mock((id) => `/notes/${id}`),
-  ROUTE_PATTERNS: {
-    journal: '/journal',
-  },
-}));
+let host: PlaygroundHostHandle;
 
-mock.module('../services/playgroundContent', () => ({
-  playgroundContent: {
-    savePage: mock(() => Promise.resolve()),
-  },
-}));
+function renderAt(route: string, searchParams?: Record<string, string>) {
+  const locations: Location[] = [];
+  const rendered = renderHook(() => useJournalZipProcessor(journalDeps), {
+    wrapper: ({ children }) =>
+      createElement(
+        PlaygroundProviderTree,
+        { route, routePath: '/load/journal/:date?', searchParams, onLocationChange: (loc: Location) => locations.push(loc) },
+        children,
+      ),
+  });
+  return { ...rendered, locations, landed: () => locations.at(-1)?.pathname };
+}
 
-mock.module('@/hooks/use-toast', () => ({
-  toast: mock(() => {}),
-}));
+beforeEach(async () => {
+  host = await setupPlaygroundTestHost({});
+});
 
-// Mock React Router
-let mockNavigate = mock(() => {});
-let mockDateParam = undefined;
-
-mock.module('react-router-dom', () => ({
-  useNavigate: mock(() => mockNavigate),
-  useParams: mock(() => ({ date: mockDateParam })),
-  // The hook reads `location.pathname` to confirm it is on the /load/journal
-  // route. Provide a complete stub so this file passes in isolation rather than
-  // depending on another test file's react-router-dom mock leaking in.
-  useLocation: mock(() => ({
-    pathname: '/load/journal',
-    search: '',
-    hash: '',
-    state: null,
-    key: 'test',
-  })),
-}));
-
-// Mock nuqs (query state)
-let mockZip = 'encoded-zip-content';
-
-mock.module('nuqs', () => ({
-  useQueryState: mock(() => [mockZip, mock(() => {})]),
-}));
+afterEach(async () => {
+  await host.cleanup();
+});
 
 describe('useJournalZipProcessor', () => {
   beforeEach(() => {
-    mockNavigate = mock(() => {});
-    mockDateParam = undefined;
-    mockZip = 'encoded-zip-content';
-  });
-
-  afterEach(() => {
-    // Clean up mocks after each test
+    toastMock.mockClear();
+    createNoteMock.mockClear();
+    decodeMock.mockClear();
   });
 
   it('redirects to /journal when no zip parameter is provided', async () => {
-    mockZip = null;
-    const { result } = renderHook(() => useJournalZipProcessor());
+    const { landed } = renderAt('/load/journal');
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/journal', { replace: true });
+      expect(landed()).toBe('/journal');
     });
   });
 
   it('loads with loading state initially', () => {
-    const { result } = renderHook(() => useJournalZipProcessor());
+    const { result } = renderAt('/load/journal', { zip: 'encoded-zip-content' });
     expect(result.current.state).toBe('loading');
   });
 
   it('creates entry and redirects for today without date param', async () => {
-    const { result } = renderHook(() => useJournalZipProcessor());
+    const { result, landed } = renderAt('/load/journal', { zip: 'encoded-zip-content' });
 
     await waitFor(() => {
       expect(result.current.state).toBe('success');
     });
 
     expect(result.current.dateKey).toBe('2026-05-26');
-    expect(mockNavigate.mock.calls[0]?.[0]).toMatch(/^\/notes\/[0-9a-f-]+$/);
-    expect(mockNavigate.mock.calls[0]?.[1]).toEqual({ replace: true });
+    expect(landed()).toBe('/note/journal-2026-05-26');
+    expect(createNoteMock.mock.calls[0]?.[0]).toMatchObject({ journalDate: '2026-05-26' });
   });
 
   it('sets pending-confirmation state for past dates', async () => {
-    mockDateParam = '2026-05-20'; // Past date
-    const { result } = renderHook(() => useJournalZipProcessor());
+    const { result } = renderAt('/load/journal/2026-05-20', { zip: 'encoded-zip-content' }); // Past date
 
     await waitFor(() => {
       expect(result.current.state).toBe('pending-confirmation');
@@ -114,52 +97,44 @@ describe('useJournalZipProcessor', () => {
     expect(result.current.dateKey).toBe('2026-05-20');
     expect(result.current.content).toBeDefined();
     expect(result.current.onConfirmBackdate).toBeDefined();
+    expect(createNoteMock).not.toHaveBeenCalled();
   });
 
   it('creates entry directly for future dates', async () => {
-    mockDateParam = '2026-06-01'; // Future date
-    const { result } = renderHook(() => useJournalZipProcessor());
+    const { result, landed } = renderAt('/load/journal/2026-06-01', { zip: 'encoded-zip-content' }); // Future date
 
     await waitFor(() => {
       expect(result.current.state).toBe('success');
     });
 
     expect(result.current.dateKey).toBe('2026-06-01');
-    expect(mockNavigate.mock.calls[0]?.[0]).toMatch(/^\/notes\/[0-9a-f-]+$/);
-    expect(mockNavigate.mock.calls[0]?.[1]).toEqual({ replace: true });
+    expect(landed()).toBe('/note/journal-2026-06-01');
   });
 
   it('sets error state and redirects on invalid date format', async () => {
-    mockDateParam = 'invalid-date';
-    const { result } = renderHook(() => useJournalZipProcessor());
+    const { result, landed } = renderAt('/load/journal/invalid-date', { zip: 'encoded-zip-content' });
 
     await waitFor(() => {
       expect(result.current.state).toBe('error');
     });
 
     expect(result.current.error).toBe('Invalid date format');
-    expect(mockNavigate).toHaveBeenCalledWith('/journal', { replace: true });
+    expect(landed()).toBe('/journal');
+    expect(toastMock).toHaveBeenCalled();
   });
 
-  it('returns onConfirmBackdate callback for past dates', async () => {
-    mockDateParam = '2026-05-20';
-    const { result } = renderHook(() => useJournalZipProcessor());
+  it('confirms backdate via onConfirmBackdate for past dates', async () => {
+    const { result } = renderAt('/load/journal/2026-05-20', { zip: 'encoded-zip-content' });
 
     await waitFor(() => {
       expect(result.current.state).toBe('pending-confirmation');
     });
 
     expect(typeof result.current.onConfirmBackdate).toBe('function');
-  });
-
-  it('sets error state for invalid dates', async () => {
-    mockDateParam = 'invalid-date';
-    const { result } = renderHook(() => useJournalZipProcessor());
-
+    await result.current.onConfirmBackdate!();
     await waitFor(() => {
-      expect(result.current.state).toBe('error');
+      expect(result.current.state).toBe('success');
     });
-
-    expect(result.current.error).toBe('Invalid date format');
+    expect(createNoteMock.mock.calls[0]?.[0]).toMatchObject({ journalDate: '2026-05-20' });
   });
 });

@@ -1,9 +1,23 @@
-import { describe, expect, it, mock, beforeEach } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
+// React 19 only flushes updates inside act() when the test environment opts
+// in; the historical full-suite run got this from a sibling file's global.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import type { Notebook } from '@/types/notebook'
+import type { HistoryRecord } from '@/types/history'
+import type { CreateJournalNoteInput } from '../../../services/journalNotes'
+import * as journalNotesModule from '../../../services/journalNotes'
+import * as NotebookServiceModule from '@/services/NotebookService'
+import * as createPlaygroundPageModule from '../../../services/createPlaygroundPage'
 import type { CommitReferenceNoteInput } from '@/repositories/referenceNotes'
+import * as referenceNotesModule from '@/repositories/referenceNotes'
 
-const createNoteMock = mock(async (input: { title: string; journalDate?: string; slug?: string; type?: string; rawContent: string }) => ({
+import { CreateJournalNoteDialog } from './CreateJournalNoteDialog'
+
+// The wizard writes through four service seams. Real modules load; the
+// methods under assertion are spied and restored per test.
+const createNoteMock = mock(async (input: CreateJournalNoteInput): Promise<HistoryRecord> => ({
   id: 'note-123',
   title: input.title,
   rawContent: input.rawContent,
@@ -14,10 +28,11 @@ const createNoteMock = mock(async (input: { title: string; journalDate?: string;
   journalDate: input.journalDate,
   slug: input.slug,
   type: input.type ?? 'journal',
-}))
+  // Test fixture — only the fields the wizard reads back are populated.
+} as unknown as HistoryRecord))
 
-const moveNoteMock = mock(async () => {})
-const createNotebookMock = mock(async (name: string, description: string, icon: string) => ({
+const moveNoteMock = mock(async (_noteId: string, _notebookId: string | null): Promise<void> => {})
+const createNotebookMock = mock(async (name: string, description: string, icon: string): Promise<Notebook> => ({
   notebookId: `notebook/${name.toLowerCase().replace(/\s+/g, '-')}`,
   slug: name.toLowerCase().replace(/\s+/g, '-'),
   name,
@@ -25,47 +40,37 @@ const createNotebookMock = mock(async (name: string, description: string, icon: 
   icon,
   createdAt: Date.now(),
   updatedAt: Date.now(),
-}))
+  // Test fixture — Notebook landing-note projection is covered elsewhere.
+} as unknown as Notebook))
 
-const createPlaygroundMock = mock(async () => 'pg-1')
+const createPlaygroundMock = mock(async (): Promise<string> => 'pg-1')
 const commitReferenceNoteMock = mock(async (_input: CommitReferenceNoteInput) => ({ id: 't/tag/heavy', sourceRevision: 1 }))
 
-mock.module('../../../services/journalNotes', () => ({
-  journalNotes: {
-    create: createNoteMock,
-  },
-}))
+beforeEach(() => {
+  cleanup()
+  createNoteMock.mockClear()
+  moveNoteMock.mockClear()
+  createNotebookMock.mockClear()
+  createPlaygroundMock.mockClear()
+  commitReferenceNoteMock.mockClear()
 
-mock.module('@/services/NotebookService', () => ({
-  notebookService: {
-    getAll: async () => [
-      { notebookId: 'notebook/strength', slug: 'strength', name: 'Strength', icon: '🏋️', createdAt: 1, updatedAt: 1 },
-    ],
-    moveNote: moveNoteMock,
-    create: createNotebookMock,
-  },
-}))
+  spyOn(journalNotesModule.journalNotes, 'create').mockImplementation(createNoteMock)
+  spyOn(NotebookServiceModule.notebookService, 'getAll').mockImplementation(async () => [
+    { notebookId: 'notebook/strength', slug: 'strength', name: 'Strength', icon: '🏋️', createdAt: 1, updatedAt: 1 },
+    // Test fixture — full Notebook shape asserted in NotebookService tests.
+  ] as unknown as Notebook[])
+  spyOn(NotebookServiceModule.notebookService, 'moveNote').mockImplementation(moveNoteMock)
+  spyOn(NotebookServiceModule.notebookService, 'create').mockImplementation(createNotebookMock)
+  spyOn(createPlaygroundPageModule, 'createPlaygroundPage').mockImplementation(createPlaygroundMock)
+  spyOn(referenceNotesModule, 'commitReferenceNote').mockImplementation(commitReferenceNoteMock)
+})
 
-mock.module('../../../services/createPlaygroundPage', () => ({
-  createPlaygroundPage: createPlaygroundMock,
-}))
-
-mock.module('@/repositories/referenceNotes', () => ({
-  commitReferenceNote: commitReferenceNoteMock,
-}))
-
-import { CreateJournalNoteDialog } from './CreateJournalNoteDialog'
+afterEach(() => {
+  cleanup()
+  mock.restore()
+})
 
 describe('CreateJournalNoteDialog unified wizard', () => {
-  beforeEach(() => {
-    cleanup()
-    createNoteMock.mockClear()
-    moveNoteMock.mockClear()
-    createNotebookMock.mockClear()
-    createPlaygroundMock.mockClear()
-    commitReferenceNoteMock.mockClear()
-  })
-
   it('tracks the preselected calendar date into the created note and target notebook', async () => {
     const onCreated = mock(() => {})
     render(

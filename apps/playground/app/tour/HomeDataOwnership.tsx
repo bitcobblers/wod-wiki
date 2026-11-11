@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Cloud, CloudDownload, Database, RefreshCw, Server } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
 import { cn } from '@/lib/utils'
-import { readDataSettings, storageBackend } from '@/services/storage'
+import { readDataSettings, storageBackend, type DataSettingsRead, type StorageProvider } from '@/services/storage'
 import { demoFeedSources, type DemoFeedSource } from '@/services/feed/feedSources'
 import { syncFeedSource, type FeedSyncOutcome, type FeedSyncProgress } from '@/services/feed/feedSync'
 import { isFeedSubscribed, setFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
@@ -28,11 +28,17 @@ interface ModeCard {
   note?: string
 }
 
-function useModeCards(): ModeCard[] {
+/** Test seams — production defaults read live storage config. */
+export interface HomeDataOwnershipDeps {
+  dataSettingsOverride?: DataSettingsRead
+  storageBackendOverride?: StorageProvider
+}
+
+function useModeCards(deps?: HomeDataOwnershipDeps): ModeCard[] {
   // Read once per mount — every settings change path (enable/disable Turso,
   // repair invalid config) reloads the page, so mount-time state is live.
-  const settings = readDataSettings()
-  const backend = storageBackend
+  const settings = deps?.dataSettingsOverride ?? readDataSettings()
+  const backend = deps?.storageBackendOverride ?? storageBackend
   const invalid = settings.state === 'invalid'
   const browserActive = backend === 'indexed-db' || backend === 'invalid'
   return [
@@ -67,8 +73,8 @@ function useModeCards(): ModeCard[] {
   ]
 }
 
-export function HomeDataOwnership() {
-  const cards = useModeCards()
+export function HomeDataOwnership({ deps }: { deps?: HomeDataOwnershipDeps }) {
+  const cards = useModeCards(deps)
   return (
     <section className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8" aria-labelledby="home-data-ownership-heading">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -147,7 +153,7 @@ function outcomeSubscribes(outcome: FeedSyncOutcome): boolean {
   return outcome === 'imported' || outcome === 'current' || outcome === 'server-stale'
 }
 
-function FeedCard({ feed }: { feed: DemoFeedSource }) {
+function FeedCard({ feed, syncFn = syncFeedSource }: { feed: DemoFeedSource; syncFn?: typeof syncFeedSource }) {
   const [subscribed, setSubscribed] = useState(() => isFeedSubscribed(feed.id))
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
@@ -162,7 +168,7 @@ function FeedCard({ feed }: { feed: DemoFeedSource }) {
     setFailed(false)
     setStatus('Checking feed…')
     try {
-      const outcome = await syncFeedSource(feed.id, {
+      const outcome = await syncFn(feed.id, {
         onProgress: event => setStatus(progressText(event)),
       })
       const ok = outcomeSubscribes(outcome)
@@ -241,7 +247,12 @@ function FeedCard({ feed }: { feed: DemoFeedSource }) {
   )
 }
 
-export function HomeCommunityFeeds() {
+/** Test seams — production defaults use the real feed sync. */
+export interface HomeCommunityFeedsDeps {
+  syncFeedSourceFn?: typeof syncFeedSource
+}
+
+export function HomeCommunityFeeds({ deps }: { deps?: HomeCommunityFeedsDeps }) {
   const feeds = demoFeedSources()
   return (
     <section className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8" aria-labelledby="home-community-feeds-heading">
@@ -265,7 +276,7 @@ export function HomeCommunityFeeds() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="home-community-feeds">
-        {feeds.map(feed => <FeedCard key={feed.id} feed={feed} />)}
+        {feeds.map(feed => <FeedCard key={feed.id} feed={feed} syncFn={deps?.syncFeedSourceFn} />)}
       </div>
     </section>
   )

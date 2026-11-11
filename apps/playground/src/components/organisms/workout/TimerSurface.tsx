@@ -20,7 +20,7 @@ import { TimerDisplay } from '@/panels/wallclock-panel';
 import { MetricTrackerCard } from '@/components/organisms/track/MetricTrackerCard';
 import { MinimalTimerSurface } from './MinimalTimerSurface';
 import { GeneralTimerSurface } from './GeneralTimerSurface';
-import { useTimerSurfaceModel, type TimerSurfaceHandlers } from './useTimerSurfaceModel';
+import { useTimerSurfaceModel, type TimerSurfaceHandlers, type TimerSurfaceModel } from './useTimerSurfaceModel';
 import { TEST_IDS } from '@/lib/testIds';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 
@@ -40,11 +40,20 @@ export interface TimerSurfaceProps extends TimerSurfaceHandlers {
   /** Workout title for the General top bar */
   workoutTitle?: string;
   getFocusProps?: (id: string) => FocusProps;
+  // Test/storybook seams — production defaults keep normal renders untouched.
+  /** Pre-built model; overrides the live derivation when provided. */
+  modelOverride?: TimerSurfaceModel;
+  /** Detail-tier surface; defaults to the live TimerDisplay. */
+  DetailSurface?: React.ComponentType<any>;
+  /** Prompt-row content; defaults to the live MetricTrackerCard. */
+  MetricPrompts?: React.ComponentType;
+  /** Force the prompt row on/off; default shows it on Minimal/General only. */
+  showMetricPrompts?: boolean;
 }
 
 export const TimerSurface: React.FC<TimerSurfaceProps> = (props) => {
   const { isCompact, isFull } = usePanelSize();
-  const model = useTimerSurfaceModel({
+  const liveModel = useTimerSurfaceModel({
     onStart: props.onStart,
     onPause: props.onPause,
     onStop: props.onStop,
@@ -52,10 +61,14 @@ export const TimerSurface: React.FC<TimerSurfaceProps> = (props) => {
     isPaused: !!props.isPaused,
     canNext: props.canNext,
   });
+  const model = props.modelOverride ?? liveModel;
+  const Detail = props.DetailSurface ?? TimerDisplay;
+  const Prompts = props.MetricPrompts ?? MetricTrackerCard;
+  const showPrompts = props.showMetricPrompts ?? !isFull;
 
   if (isFull) {
     return (
-      <TimerDisplay
+      <Detail
         elapsedMs={props.elapsedMs}
         hasActiveBlock={props.hasActiveBlock}
         onStart={props.onStart}
@@ -76,14 +89,14 @@ export const TimerSurface: React.FC<TimerSurfaceProps> = (props) => {
   // Live metric bubbles ride Minimal and General. ponytail: live metric
   // bubbles only — in-run metric INPUT stays Detail-only until an input
   // design exists (ADR 0003 §4); upgrade path is a slot prop per surface.
-  const promptRow = (
+  const promptRow = showPrompts ? (
     <div
       data-testid={TEST_IDS.TIMER_METRIC_PROMPTS}
       className="shrink-0 overflow-y-auto border-b border-border px-4 py-1.5"
     >
-      <MetricTrackerCard />
+      <Prompts />
     </div>
-  );
+  ) : null;
 
   if (isCompact) {
     return (

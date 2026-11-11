@@ -1,58 +1,17 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, describe, expect, it } from 'bun:test'
+// React 19 only flushes updates inside act() when the test environment opts
+// in; the historical full-suite run got this from a sibling file's global.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
-class FakeDoc {
-  constructor(private readonly value: string) {}
-  toString() {
-    return this.value
-  }
-}
-
-const readOnly = { of: (value: boolean) => ({ type: 'readonly', value }) }
-
-mock.module('@codemirror/state', () => ({
-  EditorState: {
-    readOnly,
-    create: ({ doc, extensions }: { doc: string; extensions: unknown[] }) => ({
-      doc: new FakeDoc(doc),
-      extensions,
-    }),
-  },
-}))
-
-mock.module('@codemirror/view', () => {
-  class MockEditorView {
-    state: { doc: FakeDoc; extensions: unknown[] }
-
-    constructor({ state, parent }: { state: { doc: FakeDoc; extensions: unknown[] }; parent: HTMLElement }) {
-      this.state = state
-      const host = document.createElement('div')
-      host.className = 'cm-editor'
-      parent.appendChild(host)
-    }
-
-    destroy() {}
-
-    static theme(spec: unknown) {
-      return { type: 'theme', spec }
-    }
-  }
-
-  return {
-    EditorView: MockEditorView,
-    lineNumbers: () => ({ type: 'lineNumbers' }),
-  }
-})
-
-mock.module('@codemirror/lang-markdown', () => ({
-  markdown: () => ({ type: 'markdown' }),
-}))
-
-mock.module('@codemirror/theme-one-dark', () => ({
-  oneDark: { type: 'oneDark' },
-}))
-
 import { CodeExampleWidget, type CodeExampleWidgetConfig } from './CodeExampleWidget'
+
+// Real CodeMirror 6 in jsdom — same measure polyfills as the NoteEditor suites
+// (scrollIntoView schedules a CM6 measure pass that reads text rects).
+const zeroRect = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) };
+(window.Range.prototype as any).getClientRects ??= () => [];
+(window.Range.prototype as any).getBoundingClientRect ??= () => zeroRect;
+(window.Element.prototype as any).getClientRects ??= () => [];
 
 const validConfig: CodeExampleWidgetConfig = {
   lines: [

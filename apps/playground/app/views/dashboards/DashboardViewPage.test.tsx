@@ -1,8 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-// Must precede the react-router-dom import: repairs the partial
-// react-router-dom mock that useJournalZipProcessor.test.ts leaks
-// process-wide (see tests/helpers/repair-react-router-dom.ts).
-import '../../../tests/helpers/repair-react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -62,33 +58,10 @@ sum:tis{}
 ## Trailing
 `;
 
-// The store behind the mocked journalNotes — mutated directly to simulate
+// The store behind the spied journalNotes — mutated directly to simulate
 // a concurrent writer (another tab, another surface).
 let storedRaw = DASH_RAW;
 let updateCalls: string[] = [];
-
-mock.module('../../services/journalNotes', () => ({
-  journalNotes: {
-    getById: mock(async () => ({ id: 'n1', rawContent: storedRaw })),
-    update: mock(async (_note: { id: string }, raw: string) => {
-      updateCalls.push(raw);
-      storedRaw = raw;
-      return { id: 'n1', rawContent: raw };
-    }),
-    resolve: mock(async () => ({ id: 'n1', rawContent: storedRaw })),
-    create: mock(async () => { throw new Error('not used'); }),
-    listByDate: mock(async () => []),
-    moveToDate: mock(async () => { throw new Error('not used'); }),
-    delete: mock(async () => undefined),
-  },
-}));
-
-mock.module('../../services/dashboardNotes', () => ({
-  dashboardNotes: {
-    createDashboard: mock(async () => { throw new Error('not used'); }),
-    cloneDashboard: mock(async () => { throw new Error('not used'); }),
-  },
-}));
 
 function resultOf(raw: string): QueryResult {
   return {
@@ -100,67 +73,77 @@ function resultOf(raw: string): QueryResult {
   } as unknown as QueryResult;
 }
 
-mock.module('@/services/queryService', () => ({
-  queryService: {
-    runQuery: mock(async (raw: string) => resultOf(raw)),
-    runFind: mock(async () => ({}) as never),
-    runRows: mock(async () => ({}) as never),
-  },
-}));
-
+import { journalNotes } from '../../services/journalNotes';
+import { dashboardNotes } from '../../services/dashboardNotes';
+import { queryService } from '@/services/queryService';
 import { storageService } from '@/services/storage';
-storageService.countEvents = mock(async () => 1);
-
-mock.module('@/services/analytics/sample', () => ({
-  loadSampleData: mock(async () => ({ facts: 0 })),
-  purgeSampleData: mock(async () => undefined),
-  hasSampleData: mock(async () => false),
-}));
-
-mock.module('../../hooks/useAnalyticsRange', () => ({
-  useAnalyticsRange: () => [16, () => {}],
-}));
-
-// Pass-through: the real dock registers with a provider the test doesn't mount.
-mock.module('../../nav/ResponsiveActions', () => ({
-  ResponsiveActions: ({ primary, children }: { primary?: unknown; children?: unknown }) => (
-    <>
-      {primary}
-      {children}
-    </>
-  ),
-}));
+import * as sampleModule from '@/services/analytics/sample';
+import * as useAnalyticsRangeModule from '../../hooks/useAnalyticsRange';
+import * as ResponsiveActionsModule from '../../nav/ResponsiveActions';
+import * as useDashboardsModule from '../../hooks/useDashboards';
 
 // Mirrors useDashboardSource's real transition semantics: a refreshKey bump
 // flips loading to true but KEEPS the previously resolved source until the
 // new resolution lands.
-mock.module('../../hooks/useDashboards', () => ({
-  useDashboardSource: (slug: string | undefined, refreshKey?: number) => {
-    const [source, setSource] = useState<{
-      slug: string; title: string; rawContent: string; editable: boolean; noteId: string;
-    } | null>(null);
-    const [loading, setLoading] = useState(true);
-    useEffect(() => {
-      let cancelled = false;
-      setLoading(true);
-      void Promise.resolve().then(() => {
-        if (cancelled || !slug) return;
-        setSource({ slug, title: 'Stale Board', rawContent: storedRaw, editable: true, noteId: 'n1' });
-        setLoading(false);
-      });
-      return () => { cancelled = true; };
-    }, [slug, refreshKey]);
-    return { source, loading };
-  },
-}));
+function fakeUseDashboardSource(slug: string | undefined, refreshKey?: number) {
+  const [source, setSource] = useState<{
+    slug: string; title: string; rawContent: string; editable: boolean; noteId: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void Promise.resolve().then(() => {
+      if (cancelled || !slug) return;
+      setSource({ slug, title: 'Stale Board', rawContent: storedRaw, editable: true, noteId: 'n1' });
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [slug, refreshKey]);
+  return { source, loading };
+}
+
+// Spies over the production singletons — no module replacement, so sibling
+// test files in the same process keep their real imports.
+function installSpies(): void {
+  spyOn(journalNotes, 'getById').mockImplementation((async () => ({ id: 'n1', rawContent: storedRaw })) as never);
+  spyOn(journalNotes, 'update').mockImplementation((async (_note: unknown, raw: string) => {
+    updateCalls.push(raw);
+    storedRaw = raw;
+    return { id: 'n1', rawContent: raw };
+  }) as never);
+  spyOn(journalNotes, 'resolve').mockImplementation((async () => ({ id: 'n1', rawContent: storedRaw })) as never);
+  spyOn(journalNotes, 'create').mockImplementation((async () => { throw new Error('not used'); }) as never);
+  spyOn(journalNotes, 'listByDate').mockImplementation((async () => []) as never);
+  spyOn(dashboardNotes, 'createDashboard').mockImplementation((async () => { throw new Error('not used'); }) as never);
+  spyOn(dashboardNotes, 'cloneDashboard').mockImplementation((async () => { throw new Error('not used'); }) as never);
+  spyOn(queryService, 'runQuery').mockImplementation((async (raw: string) => resultOf(raw)) as never);
+  spyOn(queryService, 'runFind').mockImplementation((async () => ({})) as never);
+  spyOn(queryService, 'runRows').mockImplementation((async () => ({})) as never);
+  spyOn(storageService, 'countEvents').mockImplementation((async () => 1) as never);
+  spyOn(sampleModule, 'loadSampleData').mockImplementation((async () => ({ facts: 0 })) as never);
+  spyOn(sampleModule, 'purgeSampleData').mockImplementation((async () => undefined) as never);
+  spyOn(sampleModule, 'hasSampleData').mockImplementation((async () => false) as never);
+  spyOn(useAnalyticsRangeModule, 'useAnalyticsRange').mockImplementation((() => [16, () => {}]) as never);
+  // Pass-through: the real dock registers with a provider the test doesn't mount.
+  spyOn(ResponsiveActionsModule, 'ResponsiveActions').mockImplementation(((props: { primary?: unknown; children?: unknown }) => (
+    <>
+      {props.primary}
+      {props.children}
+    </>
+  )) as never);
+  spyOn(useDashboardsModule, 'useDashboardSource').mockImplementation(fakeUseDashboardSource as never);
+}
 
 import { DashboardViewPage } from './DashboardViewPage';
 import { NavContext, initialNavState } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
 
 afterEach(cleanup);
+afterEach(() => mock.restore());
 
 beforeEach(() => {
+  installSpies();
   storedRaw = DASH_RAW;
   updateCalls = [];
 });

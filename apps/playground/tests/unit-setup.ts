@@ -1,5 +1,5 @@
 import { vi } from 'bun:test';
-import { mock } from 'bun:test';
+import { afterEach, beforeEach } from 'bun:test';
 import { JSDOM } from 'jsdom';
 
 // ── JSDOM setup ─────────────────────────────────────────────────────────────
@@ -50,6 +50,25 @@ if (!(globalThis as any).window || !globalThis.document) {
     (dom.window as any).requestAnimationFrame = (globalThis as any).requestAnimationFrame;
     (dom.window as any).cancelAnimationFrame = (globalThis as any).cancelAnimationFrame;
   }
+  const winRec = dom.window as unknown as Record<string, unknown>;
+  const globalRec = globalThis as unknown as Record<string, unknown>;
+  globalRec.IS_REACT_ACT_ENVIRONMENT = true;
+  if (typeof winRec.scrollTo !== 'function') {
+    winRec.scrollTo = () => {};
+  }
+  globalRec.scrollTo = winRec.scrollTo;
+  const rangeCtor = winRec.Range as { prototype?: Record<string, unknown> } | undefined;
+  const rangeProto = rangeCtor?.prototype;
+  if (rangeProto) {
+    if (typeof rangeProto.getClientRects !== 'function') {
+      rangeProto.getClientRects = () => [] as unknown as DOMRectList;
+    }
+    if (typeof rangeProto.getBoundingClientRect !== 'function') {
+      rangeProto.getBoundingClientRect = () => ({
+        x: 0, y: 0, width: 0, height: 0, top: 0, right: 0, bottom: 0, left: 0, toJSON: () => ({}),
+      });
+    }
+  }
 }
 
 // ResizeObserver/IntersectionObserver: jsdom ships neither, but app chrome
@@ -77,30 +96,54 @@ if (typeof (globalThis as unknown as Record<string, unknown>).IntersectionObserv
 
 // ── IndexedDB polyfill ──────────────────────────────────────────────────────
 import 'fake-indexeddb/auto';
-// ── Seeded-corpus repository stubs ──────────────────────────────────────────
-// The repository adapters now read through the seed-content seam (IndexedDB).
-// The real modules are import-safe; spread them to keep the pure builders
-// exercising real code while the async corpus reads stay stubbed empty.
-const realScriptNotebooks = await import('@/repositories/script-notebooks');
-mock.module('@/repositories/script-notebooks', () => ({
-  ...realScriptNotebooks,
-  getScriptNotebooks: async () => [],
-}));
+const { cleanup } = await import('@testing-library/react');
+const { invalidateSeedContent } = await import('@/services/content/seedContent');
+const { resetFeedSubscriptionsForTest } = await import('@/services/feed/feedSubscriptions');
+const { resetAppEffortRegistryForTesting } = await import('@/services/effortRegistry');
+const { resetAppEquipmentRegistryForTesting } = await import('@/services/equipmentRegistry');
+const { resetTagIndexForTesting } = await import('@/services/tags/tagCatalogue');
 
-mock.module('@/repositories/script-loader', () => ({
-  getScriptContent: async (_id: string) => undefined,
-}));
+const initialGlobals = globalThis as unknown as Record<string, unknown>;
+const savedWindow = initialGlobals.window as Record<string, unknown>;
+const savedDocument = initialGlobals.document;
+const savedNavigator = initialGlobals.navigator;
+const savedLocation = initialGlobals.location;
+const savedMatchMedia = savedWindow.matchMedia;
+const savedIntersectionObserver = initialGlobals.IntersectionObserver;
+const savedResizeObserver = initialGlobals.ResizeObserver;
 
-// Test loading boundary: capture the real module before replacing only its
-// React bindings; static imports cannot express this mock.module ordering.
-const realCanvasRoutes = await import('../app/canvas/canvasRoutes');
-mock.module('../app/canvas/canvasRoutes', () => ({
-  ...realCanvasRoutes,
-  useCanvasRoutes: () => [],
-  useFindCanvasPage: () => null,
-}));
+function restoreDomGlobals(): void {
+  const g = globalThis as unknown as Record<string, unknown>;
+  if (!g.window) Object.defineProperty(g, 'window', { value: savedWindow, configurable: true, writable: true });
+  if (!g.document) Object.defineProperty(g, 'document', { value: savedDocument, configurable: true, writable: true });
+  if (!g.navigator) Object.defineProperty(g, 'navigator', { value: savedNavigator, configurable: true, writable: true });
+  if (!g.location) Object.defineProperty(g, 'location', { value: savedLocation, configurable: true, writable: true });
+  savedWindow.matchMedia = savedMatchMedia;
+  g.IntersectionObserver = savedIntersectionObserver;
+  savedWindow.IntersectionObserver = savedIntersectionObserver;
+  g.ResizeObserver = savedResizeObserver;
+  savedWindow.ResizeObserver = savedResizeObserver;
+}
 
-// effort-markdown is glob-free since the efforts flip — the real module's
+beforeEach(() => {
+  restoreDomGlobals();
+});
+
+afterEach(() => {
+  cleanup();
+  restoreDomGlobals();
+  try {
+    window.localStorage.clear();
+    window.sessionStorage?.clear();
+  } catch {
+    // ignore storage errors on synthetic origins
+  }
+  resetFeedSubscriptionsForTest();
+  invalidateSeedContent();
+  resetAppEffortRegistryForTesting();
+  resetAppEquipmentRegistryForTesting();
+  resetTagIndexForTesting();
+});
 // pure document-format functions (effortToDocument, documentToEffort,
 // parseEffortFile) are exercised everywhere.
 
