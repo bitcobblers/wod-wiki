@@ -12,8 +12,10 @@
 
 import {
   blockContentId,
+  isNonPublishableNotebook,
   isPublishableNotebookLanding,
   notebookSlugFromId,
+  toNotebookId,
   parseDocumentSections,
   reconcileNoteBlocks,
   serializeNoteBundleToJsonl,
@@ -29,7 +31,7 @@ import {
 } from '@bitcobblers/wod-wiki-core';
 import type { IStorage } from '@bitcobblers/wod-wiki-storage';
 import { createReferenceIndex, extractStatementRefs, parseScript, type IEffort, type IEquipment, type ReferenceIndex } from '@bitcobblers/wod-wiki-lang';
-import { notebookOfItem, notebookSlugOfSourceId } from '@bitcobblers/wod-wiki-wql';
+import { notebooksOfItem, notebookSlugOfSourceId } from '@bitcobblers/wod-wiki-wql';
 import {
   EFFORTS_CHUNK_ID,
   EQUIPMENT_CHUNK_ID,
@@ -43,9 +45,14 @@ import {
   type SeedRecordRef,
   type SeedRow,
 } from '../seed/contract';
+import {
+  listScopedPropertyOverrides,
+  promoteReferencedOverridesToNotebook,
+  resolveScopedPropertyCatalog,
+} from '../notebook/propertyInheritance';
 import { seedNoteId } from '../seed/runtime';
 import { assertNotebookIndex, assertSeedManifest, assertSeedRows } from '../seed/validation';
-import { composeNoteMarkdown, effortToMarkdown, equipmentToMarkdown, readFrontmatterMeta } from '../exchange';
+import { composeNoteMarkdown, effortToMarkdown, equipmentToMarkdown, extractTypedTags, readFrontmatterMeta } from '../exchange';
 import { VERSION } from '../version';
 import { renderFeedLandingHtml, type LandingNotebook } from './landing';
 import {
@@ -395,6 +402,12 @@ async function collectPublicStorageState(
   storage: IStorage,
   options: PublishFeedOptions = {},
 ): Promise<CollectedPublicData> {
+  let allLinks: Array<{ notebookId: string; targetKind: string; targetId: string; noteId: string }> = [];
+  try {
+    allLinks = await storage.readonly('notebook_links').getAll();
+  } catch {
+    // Optional store on lightweight mocks
+  }
   const [allNotes, allSessions, allEvents, allRevisions, efforts, equipment, storedMeta] = await Promise.all([
     storage.readonly('notes').getAll(),
     storage.readonly('sessions').getAll(),
@@ -408,7 +421,7 @@ async function collectPublicStorageState(
   const notesById = new Map(allNotes.map((n) => [n.id, n]));
   const landingsBySlug = new Map<string, Note>();
   for (const n of allNotes) {
-    if (n.id.startsWith('notebook/') && n.notebookId === n.id && n.feedOrigin !== 'feed' && n.seedOrigin !== 'seed') {
+    if (isPublishableNotebookLanding(n)) {
       landingsBySlug.set(notebookSlugFromId(n.id), n);
     }
   }
@@ -430,37 +443,50 @@ async function collectPublicStorageState(
     });
   }
 
+  const noteLinkSlugsByNoteId = new Map<string, Set<string>>();
+  for (const link of allLinks) {
+    if (link.targetKind !== 'note') continue;
+    const set = noteLinkSlugsByNoteId.get(link.noteId) ?? new Set<string>();
+    set.add(notebookSlugFromId(link.notebookId));
+    noteLinkSlugsByNoteId.set(link.noteId, set);
+  }
+
   for (const note of allNotes) {
     if (note.id.startsWith('notebook/') && note.notebookId === note.id) continue;
+    if (isPublishableNotebookLanding(note)) continue;
     if (note.feedOrigin === 'feed' || note.seedOrigin === 'seed') {
-      // Allow explicit CLI single-notebook publish of an imported notebook only when includePrivateWhenFiltered is set
       if (!filterSlug || !options.includePrivateWhenFiltered) continue;
     }
+    const candidateSlugs = new Set<string>();
     const noteFm = readFrontmatterMeta(note.rawContent);
     const fmNotebook =
       (typeof noteFm['notebook'] === 'string' ? noteFm['notebook'] : undefined) ??
       (typeof noteFm['catalog'] === 'string' ? noteFm['catalog'] : undefined);
-    const resolvedNbId =
-      note.notebookId ??
-      (fmNotebook ? `notebook/${notebookSlugFromId(fmNotebook)}` : undefined) ??
-      (notebookOfItem(note) ??
-        (note.sourceId
-          ? notebookSlugOfSourceId(note.sourceId)
-            ? `notebook/${notebookSlugOfSourceId(note.sourceId)}`
-            : undefined
-          : undefined));
-    if (!resolvedNbId) continue;
-    const slug = notebookSlugFromId(resolvedNbId);
-    if (filterSlug && slug !== filterSlug) continue;
-
-    let group = notebooks.get(slug);
-    if (!group && options.includePrivateWhenFiltered) {
-      group = { label: slug, notes: [] };
-      notebooks.set(slug, group);
+    if (fmNotebook) candidateSlugs.add(notebookSlugFromId(fmNotebook));
+    for (const nbId of notebooksOfItem(note)) {
+      candidateSlugs.add(notebookSlugFromId(nbId));
     }
-    if (!group) continue;
-    if (isPublishableNotebookLanding(note)) continue;
-    group.notes.push(note);
+    if (note.sourceId) {
+      const srcSlug = notebookSlugOfSourceId(note.sourceId);
+      if (srcSlug) candidateSlugs.add(srcSlug);
+    }
+    for (const linkedSlug of noteLinkSlugsByNoteId.get(note.id) ?? []) {
+      candidateSlugs.add(linkedSlug);
+    }
+
+    for (const slug of candidateSlugs) {
+      if (!slug || isNonPublishableNotebook(slug)) continue;
+      if (filterSlug && slug !== filterSlug) continue;
+      let group = notebooks.get(slug);
+      if (!group && options.includePrivateWhenFiltered) {
+        group = { label: slug, notes: [] };
+        notebooks.set(slug, group);
+      }
+      if (!group) continue;
+      if (!group.notes.some((existing) => existing.id === note.id)) {
+        group.notes.push(note);
+      }
+    }
   }
 
   // Sort member notes deterministically by path/id so sha256 is stable
@@ -526,11 +552,16 @@ export async function publishFeedFromStorage(
     throw new Error('No public notebooks found to publish. Mark at least one user-owned notebook as Public first.');
   }
 
-  const referenceIndex = createReferenceIndex({
-    efforts: state.efforts,
-    equipment: state.equipment,
-  });
+  const globalCatalog = await resolveScopedPropertyCatalog(storage, { mode: 'custom-runtime' });
+  const mergedEffortsBySlug = new Map<string, IEffort>(state.efforts.map((e) => [e.slug, e]));
+  for (const eff of globalCatalog.efforts) mergedEffortsBySlug.set(eff.slug, eff);
+  const mergedEquipBySlug = new Map<string, IEquipment>(state.equipment.map((e) => [e.slug, e]));
+  for (const eq of globalCatalog.equipment) mergedEquipBySlug.set(eq.slug, eq);
 
+  const referenceIndex = createReferenceIndex({
+    efforts: [...mergedEffortsBySlug.values()],
+    equipment: [...mergedEquipBySlug.values()],
+  });
   const nextVersion = options.version ?? ((state.storedCheckpoint?.version ?? 0) + 1);
   const builtAt = options.builtAt ?? new Date().toISOString();
   const artifactPrefix = layout === 'repository' ? 'dist/' : '';
@@ -553,6 +584,9 @@ export async function publishFeedFromStorage(
     const rows: SeedRow[] = [];
     const records: SeedRecordRef[] = [];
     const landingNotes: LandingNotebook['notes'] = [];
+    const nbReferencedEfforts = new Set<string>();
+    const nbReferencedEquipment = new Set<string>();
+    const nbReferencedTags = new Set<string>();
 
     if (layout === 'repository') {
       const readmeMd = group.landing
@@ -578,9 +612,15 @@ export async function publishFeedFromStorage(
       });
       // SeedRow stores the clean authored content (or portableMd when exporting repo)
       const contentForSeed = layout === 'repository' ? portableMd : note.rawContent;
-      const publicSessions = state.publicSessionsByNote.get(note.id) ?? [];
+      const targetNbId = toNotebookId(notebookSlug);
+      const allPublicForNote = state.publicSessionsByNote.get(note.id) ?? [];
+      const publicSessions = allPublicForNote.filter((sess) => {
+        const userPinned = (sess.notebookIds ?? [])
+          .map((id) => toNotebookId(id))
+          .filter((id) => !isNonPublishableNotebook(id));
+        return userPinned.length === 0 || userPinned.includes(targetNbId);
+      });
       totalPublicSessions += publicSessions.length;
-
       const { row, uuid, companionBundle } = await compileSeedRowForNote({
         notePath,
         content: contentForSeed,
@@ -594,8 +634,20 @@ export async function publishFeedFromStorage(
         referenceIndex,
       });
 
-      for (const eff of row.blockEfforts) referencedUserEfforts.add(eff.effortSlug);
-      for (const eq of row.blockEquipment) referencedUserEquipment.add(eq.equipmentSlug);
+      for (const eff of row.blockEfforts) {
+        referencedUserEfforts.add(eff.effortSlug);
+        nbReferencedEfforts.add(eff.effortSlug);
+      }
+      for (const eq of row.blockEquipment) {
+        referencedUserEquipment.add(eq.equipmentSlug);
+        nbReferencedEquipment.add(eq.equipmentSlug);
+      }
+      for (const t of extractTypedTags(note.rawContent)) {
+        nbReferencedTags.add(t.label);
+      }
+      for (const m of note.rawContent.matchAll(/#([a-z0-9][a-z0-9-]*)/gi)) {
+        if (m[1]) nbReferencedTags.add(m[1].toLowerCase());
+      }
 
       rows.push(row);
 
@@ -650,6 +702,13 @@ export async function publishFeedFromStorage(
     });
     totalNotes += rows.length;
 
+    await promoteReferencedOverridesToNotebook(storage, {
+      notebookId: `notebook/${notebookSlug}`,
+      effortSlugs: nbReferencedEfforts,
+      equipmentSlugs: nbReferencedEquipment,
+      tagSlugs: nbReferencedTags,
+    });
+
     const indexPath = `indexes/notebooks/${chunkId}.json`;
     const summary: NotebookIndexSummary = {
       notebookId: chunkId,
@@ -678,15 +737,34 @@ export async function publishFeedFromStorage(
     });
   }
 
-  // Emit referenced user-authored Effort and Equipment Property Notes
-  const userEfforts = state.efforts.filter(
-    (e) => e.registrySource !== 'bundled' && referencedUserEfforts.has(e.slug),
-  );
-  if (userEfforts.length > 0) {
+  // Emit referenced user-authored and promoted Effort & Equipment Property Notes
+  const promotedOverrides = await listScopedPropertyOverrides(storage);
+  const overrideEffortBySlug = new Map<string, { eff: IEffort; md: string }>();
+  const overrideEquipBySlug = new Map<string, { eq: IEquipment; md: string }>();
+  for (const ov of promotedOverrides) {
+    if (ov.seedOrigin === 'seed') continue;
+    if (ov.kind === 'effort' && ov.payload) {
+      overrideEffortBySlug.set(ov.slug, { eff: ov.payload as unknown as IEffort, md: ov.rawContent });
+    } else if (ov.kind === 'equipment' && ov.payload) {
+      overrideEquipBySlug.set(ov.slug, { eq: ov.payload as unknown as IEquipment, md: ov.rawContent });
+    }
+  }
+
+  const userEffortMap = new Map<string, { eff: IEffort; md: string }>();
+  for (const e of state.efforts) {
+    if (e.registrySource !== 'bundled' && referencedUserEfforts.has(e.slug)) {
+      const owner = e.ownerNoteId ? state.notesById.get(e.ownerNoteId) : undefined;
+      userEffortMap.set(e.slug, { eff: e, md: owner?.rawContent ?? effortToMarkdown(e) });
+    }
+  }
+  for (const slug of referencedUserEfforts) {
+    const ov = overrideEffortBySlug.get(slug);
+    if (ov) userEffortMap.set(slug, ov);
+  }
+
+  if (userEffortMap.size > 0) {
     const effortRows: SeedRow[] = [];
-    for (const eff of userEfforts.sort((a, b) => (a.slug < b.slug ? -1 : 1))) {
-      const owner = eff.ownerNoteId ? state.notesById.get(eff.ownerNoteId) : undefined;
-      const md = owner?.rawContent ?? effortToMarkdown(eff);
+    for (const { eff, md } of [...userEffortMap.values()].sort((a, b) => (a.eff.slug < b.eff.slug ? -1 : 1))) {
       const effPath = `markdown/efforts/${eff.slug}.md`;
       await tree.write(effPath, encodeUtf8(md));
       const { row } = await compileSeedRowForNote({
@@ -710,14 +788,21 @@ export async function publishFeedFromStorage(
     manifestChunks.push({ id: EFFORTS_CHUNK_ID, path: rel, sha256: sha, bytes: bytes.byteLength, count: effortRows.length });
   }
 
-  const userEquipment = state.equipment.filter(
-    (eq) => eq.registrySource !== 'bundled' && referencedUserEquipment.has(eq.slug),
-  );
-  if (userEquipment.length > 0) {
-    const eqRows: SeedRow[] = [];
-    for (const eq of userEquipment.sort((a, b) => (a.slug < b.slug ? -1 : 1))) {
+  const userEquipMap = new Map<string, { eq: IEquipment; md: string }>();
+  for (const eq of state.equipment) {
+    if (eq.registrySource !== 'bundled' && referencedUserEquipment.has(eq.slug)) {
       const owner = eq.ownerNoteId ? state.notesById.get(eq.ownerNoteId) : undefined;
-      const md = owner?.rawContent ?? equipmentToMarkdown(eq);
+      userEquipMap.set(eq.slug, { eq, md: owner?.rawContent ?? equipmentToMarkdown(eq) });
+    }
+  }
+  for (const slug of referencedUserEquipment) {
+    const ov = overrideEquipBySlug.get(slug);
+    if (ov) userEquipMap.set(slug, ov);
+  }
+
+  if (userEquipMap.size > 0) {
+    const eqRows: SeedRow[] = [];
+    for (const { eq, md } of [...userEquipMap.values()].sort((a, b) => (a.eq.slug < b.eq.slug ? -1 : 1))) {
       const eqPath = `markdown/equipment/${eq.slug}.md`;
       await tree.write(eqPath, encodeUtf8(md));
       const { row } = await compileSeedRowForNote({

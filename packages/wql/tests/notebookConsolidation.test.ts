@@ -4,6 +4,7 @@ import {
   parseQuery,
   feedOfItem,
   notebookOfItem,
+  notebooksOfItem,
   notebookOriginOfItem,
   sourceMatches,
   toNotebookId,
@@ -26,9 +27,8 @@ const uuid = (n: number): string =>
   `01950000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
 describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
-  it('normalizes canonical notebook/{slug} identifiers including default slugs (journal, playground, defaults, guides)', () => {
-    expect(DEFAULT_NOTEBOOK_SLUGS).toEqual(['journal', 'playground', 'defaults', 'guides']);
-    expect(toNotebookId('journal')).toBe('notebook/journal');
+  it('normalizes canonical notebook/{slug} identifiers including default slugs (journal, playground, defaults, custom, guides)', () => {
+    expect(DEFAULT_NOTEBOOK_SLUGS).toEqual(['journal', 'playground', 'defaults', 'custom', 'guides']);
     expect(toNotebookId('notebook/journal')).toBe('notebook/journal');
     expect(toNotebookId('notebook:playground')).toBe('notebook/playground');
     expect(toNotebookId('guides')).toBe('notebook/guides');
@@ -79,9 +79,9 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
   it('reports the notebook origin: user assignment, feed delivery, defaults', () => {
     expect(notebookOriginOfItem({ id: 'w1', seedOrigin: 'user', notebookId: 'notebook/open-prep' })).toBe('user');
     expect(notebookOriginOfItem({ id: 'w2', seedOrigin: 'user', tags: ['notebook:mine'] })).toBe('user');
-    // A clone that kept its delivery stamps still resolves through tier 1.
-    expect(notebookOriginOfItem({ id: 'w3', seedOrigin: 'seed', feedOrigin: 'feed', notebookId: 'notebook/defaults' })).toBe('user');
-    // Feed-delivered corpus: collection items, efforts, dashboards, guides.
+    // A clone into custom or a user notebook resolves through tier 1 ('user'), while defaults is read-only 'default'.
+    expect(notebookOriginOfItem({ id: 'w3', seedOrigin: 'seed', feedOrigin: 'feed', notebookId: 'notebook/custom' })).toBe('user');
+    expect(notebookOriginOfItem({ id: 'w3b', seedOrigin: 'seed', feedOrigin: 'feed', notebookId: 'notebook/defaults' })).toBe('default');
     expect(notebookOriginOfItem({ id: 'w4', seedOrigin: 'seed', sourceId: 'notebook:girls/fran' })).toBe('feed');
     expect(notebookOriginOfItem({ id: 'w5', seedOrigin: 'seed', sourceId: 'efforts', sourcePath: 'markdown/efforts/bodyweight/air-squat.md' })).toBe('feed');
     expect(notebookOriginOfItem({ id: 'w6', seedOrigin: 'seed', sourceId: 'guides:guide/clock' })).toBe('feed');
@@ -161,6 +161,35 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
     // The :catalog head is retired (ticket 08/12) — the notebook plane is
     // :notebook{}, narrowed to feed-delivered notes via notebook filters.
     expect(parseQuery(':catalog{}').error).toContain('Unknown find target');
+  });
+
+  it('matches a Note across multiple linked Notebooks (journal + multiple user Notebooks) in WQL without eviction', async () => {
+    const multiNote = makeNote({
+      id: '01950000-0000-7000-8000-000000000099',
+      title: 'Promoted Benchmark',
+      seedOrigin: 'user',
+      notebookIds: ['notebook/journal', 'notebook/open-prep', 'notebook/club-wod'],
+      notebookId: 'notebook/open-prep',
+    });
+    expect(notebooksOfItem(multiNote)).toEqual([
+      'notebook/journal',
+      'notebook/open-prep',
+      'notebook/club-wod',
+    ]);
+
+    const service = new QueryService({
+      noteStore: {
+        getAllNotes: async () => [multiNote],
+        getNoteIdsForTag: async () => new Set<string>(),
+        getNoteTagLabels: async () => [],
+      },
+      blockStore: { getAllBlocks: async () => [] as BlockIndexRow[] },
+    });
+
+    for (const q of [':note{notebook:journal}', ':note{notebook:open-prep}', ':note{notebook:club-wod}']) {
+      const res = await service.runFind(parseQuery(q) as Parameters<typeof service.runFind>[0]);
+      expect(res.notes.map((n) => n.id)).toEqual([multiNote.id]);
+    }
   });
 
   it('resolves every corpus family from its corpus path alone (effort, equipment, dashboard, guide, notebook)', () => {

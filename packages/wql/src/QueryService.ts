@@ -149,7 +149,7 @@ export function feedOfItem(item: { feedSourceId?: string | null }): FeedId | und
  * (`seedNoteSourceId`/`chunkIdFor`) derives the sourceId from the same path
  * the importer stamps as `sourcePath`.
  */
-export function notebookOfItem(item: {
+export interface NotebookResolvableItem {
   id?: string;
   noteId?: string;
   sourceId?: string;
@@ -160,25 +160,11 @@ export function notebookOfItem(item: {
   feedSourceId?: string;
   sourcePath?: string;
   notebookId?: string;
+  notebookIds?: readonly string[];
   tags?: readonly string[];
-}): NotebookId | undefined {
-  if (item.notebookId && item.notebookId.trim()) {
-    return toNotebookId(item.notebookId);
-  }
-  if (item.tags) {
-    for (const tag of item.tags) {
-      if (tag.startsWith('notebook:') || tag.startsWith('notebook/')) {
-        const slug = notebookSlugFromId(tag);
-        if (slug) return toNotebookId(slug);
-      }
-    }
-  }
-  // Corpus path — `markdown/<family>/…` rows written by the seed compiler
-  // (`chunkIdFor` mirrors these family rules). Notebooks carry the slug in
-  // the next segment; a file directly under `markdown/notebooks/` is the
-  // writer's root landing (`notebook._root`) — it claims no notebook here.
-  // Canvas guides, efforts, dashboards, and equipment map to their family
-  // notebook.
+}
+
+function resolveIntrinsicNotebook(item: NotebookResolvableItem): NotebookId | undefined {
   const corpus = /^markdown\/(notebooks|canvas|efforts|dashboards|equipment)\/(.+)$/.exec(item.sourcePath ?? '');
   if (corpus) {
     const [, family, rest] = corpus;
@@ -189,8 +175,6 @@ export function notebookOfItem(item: {
   }
   if (sourceMatches(item, 'playground')) return 'notebook/playground';
   if (sourceMatches(item, 'guides')) return 'notebook/guides';
-  // Corpus source-id literals and the typed-dashboard convention — same
-  // answers the corpus-path tier produces for writer rows.
   if (item.sourceId === 'efforts') return 'notebook/efforts';
   if (item.sourceId === 'equipment') return 'notebook/equipment';
   if (item.sourceId === 'dashboards' || item.type === 'dashboard') return 'notebook/dashboards';
@@ -198,6 +182,71 @@ export function notebookOfItem(item: {
   if (slug) return toNotebookId(slug);
   if (isJournalRow(item)) return 'notebook/journal';
   return undefined;
+}
+
+/**
+ * Resolve ALL notebooks an item belongs to (many-to-many).
+ * User-owned notes retain their base container (`notebook/journal` or `notebook/playground`)
+ * alongside every promoted user notebook (`notebookIds`, `notebookId`, `notebook:` tags).
+ */
+export function notebooksOfItem(item: NotebookResolvableItem): NotebookId[] {
+  const out: NotebookId[] = [];
+  const push = (raw: string | undefined) => {
+    if (!raw || !raw.trim()) return;
+    const id = toNotebookId(raw);
+    if (!out.includes(id)) out.push(id);
+  };
+
+  if (item.notebookIds?.length) {
+    for (const raw of item.notebookIds) push(raw);
+  }
+  if (item.notebookId?.trim()) {
+    push(item.notebookId);
+  }
+  if (item.tags) {
+    for (const tag of item.tags) {
+      if (tag.startsWith('notebook:') || tag.startsWith('notebook/')) {
+        const slug = notebookSlugFromId(tag);
+        if (slug) push(slug);
+      }
+    }
+  }
+  if (out.length === 0) {
+    const intrinsic = resolveIntrinsicNotebook(item);
+    if (intrinsic) {
+      push(intrinsic);
+      const isCorePrimitive =
+        (intrinsic === 'notebook/efforts' || intrinsic === 'notebook/equipment') &&
+        item.seedOrigin === 'seed' &&
+        (!item.feedSourceId || item.feedSourceId === 'core');
+      if (isCorePrimitive) {
+        push('notebook/defaults');
+      }
+    }
+  }
+  return out;
+}
+
+export function notebookOfItem(item: NotebookResolvableItem): NotebookId | undefined {
+  if (item.notebookId && item.notebookId.trim()) {
+    return toNotebookId(item.notebookId);
+  }
+  if (item.notebookIds?.length) {
+    const nonDefaultUser = item.notebookIds
+      .map((id) => toNotebookId(id))
+      .find((id) => id !== 'notebook/journal' && id !== 'notebook/playground');
+    if (nonDefaultUser) return nonDefaultUser;
+    return toNotebookId(item.notebookIds[0]!);
+  }
+  if (item.tags) {
+    for (const tag of item.tags) {
+      if (tag.startsWith('notebook:') || tag.startsWith('notebook/')) {
+        const slug = notebookSlugFromId(tag);
+        if (slug) return toNotebookId(slug);
+      }
+    }
+  }
+  return resolveIntrinsicNotebook(item);
 }
 
 /**
@@ -213,10 +262,15 @@ export function notebookOfItem(item: {
  * A user-owned copy (clone) keeps its provenance stamps but resolves through
  * tier 1, so it is editable while its origin stays visible.
  */
-export function notebookOriginOfItem(item: Parameters<typeof notebookOfItem>[0]): NotebookOrigin | undefined {
+export function notebookOriginOfItem(item: NotebookResolvableItem): NotebookOrigin | undefined {
   const notebook = notebookOfItem(item);
   if (!notebook) return undefined;
+  if (notebook === 'notebook/defaults') return 'default';
   if (item.notebookId?.trim()) return 'user';
+  if (item.notebookIds?.some((id) => {
+    const norm = toNotebookId(id);
+    return norm !== 'notebook/journal' && norm !== 'notebook/playground' && norm !== 'notebook/defaults';
+  })) return 'user';
   if (item.tags?.some((t) => t.startsWith('notebook:') || t.startsWith('notebook/'))) return 'user';
   if (notebook === 'notebook/journal' || notebook === 'notebook/playground') return 'default';
   return 'feed';
@@ -386,14 +440,14 @@ function applySourceFilter<T extends { sourceId?: string; type?: string }>(items
 }
 
 /** Apply the `notebook:` filter key to a list of Note or BlockIndexRow items. */
-function applyNotebookFilter<T extends Parameters<typeof notebookOfItem>[0]>(items: T[], filters: TagFilter[]): T[] {
+function applyNotebookFilter<T extends NotebookResolvableItem>(items: T[], filters: TagFilter[]): T[] {
   for (const filter of filters) {
     if (filter.key !== 'notebook') continue;
     const wanted = new Set(filter.values.map(v => toNotebookId(v.value)));
     items = items.filter(item => {
-      const nb = notebookOfItem(item);
-      if (!nb) return filter.negate;
-      const hit = wanted.has(nb);
+      const memberships = notebooksOfItem(item);
+      if (memberships.length === 0) return filter.negate;
+      const hit = memberships.some(nb => wanted.has(nb));
       return filter.negate ? !hit : hit;
     });
   }

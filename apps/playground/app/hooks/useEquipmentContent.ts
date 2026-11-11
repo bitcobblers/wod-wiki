@@ -39,8 +39,8 @@ export interface UseEquipmentContentResult {
   save: (value?: string) => Promise<IEquipment | null>;
   remove: () => Promise<void>;
   cloneForEdit: () => Promise<IEquipment | null>;
+  overrideInNotebook: (targetNotebookId: string, rawOverride?: string) => Promise<void>;
   error: string | null;
-  isAliasMatch: boolean;
 }
 
 function fromEquipmentDocument(raw: string, base?: IEquipment): { item: IEquipment; errors: string[] } {

@@ -45,6 +45,8 @@ export function validateStorageRow(store: StoreName, value: unknown): void {
       || (row.seedVersion !== undefined && !(typeof row.seedVersion === 'number' && Number.isSafeInteger(row.seedVersion) && row.seedVersion >= 0))
       || (row.tags !== undefined && (!Array.isArray(row.tags) || !row.tags.every(tag => typeof tag === 'string')))
       || (row.public !== undefined && typeof row.public !== 'boolean')
+      || (row.notebookIds !== undefined && (!Array.isArray(row.notebookIds) || !row.notebookIds.every(nb => typeof nb === 'string')))
+      || (row.provenance !== undefined && (typeof row.provenance !== 'object' || row.provenance === null || Array.isArray(row.provenance) || typeof (row.provenance as Record<string, unknown>).sourceNoteId !== 'string'))
       || ['type', 'sourceId', 'sourcePath', 'notebookId', 'seedChunkId', 'feedSourceId'].some(field => row[field] !== undefined && typeof row[field] !== 'string')) {
       throw new StorageError(400, 'invalid whole Note', 'invalid_note_blocks');
     }
@@ -67,6 +69,7 @@ export function validateStorageRow(store: StoreName, value: unknown): void {
   } else if (store === 'sessions') {
     if (!required('noteId') || !required('blockId') || !positive('blockVersion')
       || (row.public !== undefined && typeof row.public !== 'boolean')
+      || (row.notebookIds !== undefined && (!Array.isArray(row.notebookIds) || !row.notebookIds.every(nb => typeof nb === 'string')))
       || ['segmentId', 'segmentVersion', 'version', 'rawContent', 'script', 'serializedScript', 'source', 'data', 'logs'].some(field => field in row)) {
       throw new StorageError(400, 'Session requires immutable block pin', 'invalid_session_pin');
     }

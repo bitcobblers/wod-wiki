@@ -221,22 +221,20 @@ test.describe('Journal Entry — /journal/:date', () => {
     await page.goto(`/day/${today}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await expect(page.getByText('2 notes', { exact: true })).toBeVisible({ timeout: 45_000 });
 
-    // Verify both identities in the journal stream before and after reload.
+    // Verify both identities in the journal default Agenda view before and after reload.
     await page.goto('/journal', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
-    await expect(page.getByTestId(`date-group-${today}`)).toBeVisible();
+    const firstAgendaSection = page.locator('section', { has: page.locator(`#calendar-day-${today}`) });
+    await expect(firstAgendaSection).toBeVisible({ timeout: 45_000 });
+    await expect(firstAgendaSection.getByTestId('library-row-note').filter({ hasText: uniqueTitle })).toHaveCount(2);
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
-    const dayGroup = page.getByTestId(`date-group-${today}`);
-    await expect(dayGroup).toBeVisible({ timeout: 45_000 });
-    await expect(dayGroup).toContainText('2 entries');
-    const dayRows = dayGroup.getByTestId('library-row-note');
+    const reloadedAgendaSection = page.locator('section', { has: page.locator(`#calendar-day-${today}`) });
+    await expect(reloadedAgendaSection).toBeVisible({ timeout: 45_000 });
+    const dayRows = reloadedAgendaSection.getByTestId('library-row-note').filter({ hasText: uniqueTitle });
     await expect(dayRows).toHaveCount(2);
-    // Both cards carry the unique title — identity membership, not a generic
-    // date string (cards render no date breadcrumb).
     await expect(dayRows.first()).toContainText(uniqueTitle);
     await expect(dayRows.nth(1)).toContainText(uniqueTitle);
-
     await page.screenshot({ path: testInfo.outputPath('journal-entry-06-clone.png') });
   });
 });
@@ -247,10 +245,14 @@ function todayKey(): string {
   return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')}`;
 }
 
-/** Open a note-page action pill — the desktop header renders them inline once
- *  the content store has restored, so wait for the pill rather than probing. */
+/** Open a note-page action — inline at 2xl+ or inside the Page options drawer below 2xl. */
 async function openPageAction(page: Page, name: string): Promise<void> {
   const action = page.getByRole('button', { name, exact: true });
-  await expect(action).toBeVisible({ timeout: 45_000 });
+  const options = page.getByRole('button', { name: 'Page options' });
+  await expect(action.or(options).first()).toBeVisible({ timeout: 45_000 });
+  if (!(await action.isVisible().catch(() => false))) {
+    await options.click();
+  }
+  await expect(action).toBeVisible({ timeout: 15_000 });
   await action.click();
 }

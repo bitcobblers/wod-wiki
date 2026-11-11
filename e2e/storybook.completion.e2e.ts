@@ -89,6 +89,13 @@ const LINE = { queryBody: 12, wqlBody: 16, timeBodyRest: 23, prose: 8, frontmatt
 /** Empty an existing fence-body line before typing a fresh statement/query. */
 async function openBodyLine(page: Page, lineNumber: number, host?: Locator) {
   await gotoLine(page, lineNumber, host);
+  if (lineNumber === LINE.queryBody) {
+    const scope = host ?? page.getByTestId('note-editor-host');
+    const sourceBtn = scope.getByTestId('query-edit-source').first();
+    if (await sourceBtn.isVisible()) {
+      await sourceBtn.click();
+    }
+  }
   await page.evaluate((line) => {
     const root =
       document.querySelector('[data-testid="note-editor-host"]') ??

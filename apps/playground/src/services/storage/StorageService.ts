@@ -116,7 +116,7 @@ export class StorageService implements NotePersistenceStorage {
    *   expose the remote queryDomain capability (stale remote reads).
    */
   constructor(
-    private readonly storage: IStorage,
+    readonly storage: IStorage,
     private readonly scopedTx = false,
     private readonly txCatalogState?: { changed: boolean },
   ) {}

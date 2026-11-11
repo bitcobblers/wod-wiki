@@ -1,13 +1,13 @@
-import { mapNoteBlockChanges, reconcileNoteBlocks, validateNoteBlocks, type BlockRevision, type Note, type NoteBlock, type NoteTag, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core';
+import { mapNoteBlockChanges, reconcileNoteBlocks, validateNoteBlocks, type BlockRevision, type Note, type NoteBlock, type NoteTag, type OverridePropertyKind, type Page, type PageNote, type ScopedPropertyOverride, type Tag } from '@bitcobblers/wod-wiki-core';
 import type { EventRecord, IStorage, IReadWriteStore, Session } from '@bitcobblers/wod-wiki-storage';
 import { userDeletedSeedNoteId } from '@bitcobblers/wod-wiki-storage';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import { hasLegacyIdentity, migrateLegacyChunkId, migrateLegacyRow } from '@bitcobblers/wod-wiki-wql';
 import { extractTypedTags, readFrontmatterMeta } from '../exchange';
-import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_NAMESPACE, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, feedIdOfMetaKey, seedNoteSourceId, seedPrecedenceRank, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
+import { DASHBOARDS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_NAMESPACE, SEED_REGISTERED_WIDGETS, SEED_SCHEMA, feedIdOfMetaKey, notebookSlugForChunkId, seedNoteSourceId, seedPrecedenceRank, type SeedManifest, type SeedMetaRecord, type SeedRow } from './contract';
 import { assertSeedManifest, assertSeedRows } from './validation';
-
+import { makeScopedOverrideId } from '../notebook/propertyInheritance';
 export async function seedNoteId(path: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(`${SEED_NAMESPACE}:${path}`));
   const bytes = new Uint8Array(digest.slice(0, 16));
@@ -194,7 +194,7 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
       if (!tagIds.has(label)) tagIds.set(label, await seedNoteId(`tag:${label}`));
     }
   }
-  return storage.transaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'page', 'page_notes', 'tags', 'note_tags', 'efforts', 'equipment', 'meta', 'sessions', 'events'], 'readwrite', async (tx) => {
+  return storage.transaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'page', 'page_notes', 'tags', 'note_tags', 'efforts', 'equipment', 'property_overrides', 'meta', 'sessions', 'events'], 'readwrite', async (tx) => {
     const metaStore = tx.readwrite('meta');
     // Durable user deletion intent (StorageService.deleteNote tombstones):
     // seed rows the user deleted through the app are never re-created by
@@ -423,11 +423,68 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
       for (const link of currentPages[n]) await pageLinks.delete(link.id);
       result.deleted++;
     }
+    const recordSeedPropertyOverrides = async <T extends IEffort | IEquipment>(
+      kind: OverridePropertyKind,
+      parse: (raw: string) => T | null,
+    ): Promise<void> => {
+      let overrideStore: IReadWriteStore<ScopedPropertyOverride> | undefined;
+      try {
+        overrideStore = tx.readwrite('property_overrides');
+      } catch {
+        return;
+      }
+      const scopes: string[] =
+        feedSourceId === 'core'
+          ? ['notebook/defaults']
+          : [
+              `feed:${feedSourceId}`,
+              ...write.manifest.chunks
+                .filter((c) => c.id.startsWith('notebook.'))
+                .map((c) => `notebook/${notebookSlugForChunkId(c.id)}`),
+            ];
+      const wantedIds = new Set<string>();
+      const toPut: ScopedPropertyOverride[] = [];
+      for (const [idx, row] of write.rows.entries()) {
+        const parsed = parse(row.content);
+        if (!parsed) continue;
+        for (const scope of scopes) {
+          const ovId = makeScopedOverrideId(scope, kind, parsed.slug);
+          wantedIds.add(ovId);
+          toPut.push({
+            id: ovId,
+            notebookId: scope,
+            kind,
+            slug: parsed.slug,
+            label: parsed.label,
+            ownerNoteId: ids[idx],
+            rawContent: row.content,
+            payload: parsed as unknown as Record<string, unknown>,
+            seedOrigin: 'seed',
+            feedSourceId,
+            updatedAt: write.meta.importedAt,
+          });
+        }
+      }
+      if (toPut.length > 0) await overrideStore.putMany(toPut);
+      const existingAll = await overrideStore.getAll();
+      for (const existingOv of existingAll) {
+        if (
+          existingOv.seedOrigin === 'seed' &&
+          existingOv.feedSourceId === feedSourceId &&
+          existingOv.kind === kind &&
+          !wantedIds.has(existingOv.id)
+        ) {
+          await overrideStore.delete(existingOv.id);
+        }
+      }
+    };
     if (write.chunkId === EFFORTS_CHUNK_ID) {
       result.totalEfforts = await applyDefinitionChunk(tx.readwrite('efforts'), noteStore, parseEffortFile, 'efforts', seedSource, incomingRank, otherCheckpoints, priorIds, write.rows, ids, owned, existingById, allIds);
+      await recordSeedPropertyOverrides('effort', parseEffortFile);
     }
     if (write.chunkId === EQUIPMENT_CHUNK_ID) {
       result.totalEquipment = await applyDefinitionChunk(tx.readwrite('equipment'), noteStore, parseEquipmentFile, 'equipment', seedSource, incomingRank, otherCheckpoints, priorIds, write.rows, ids, owned, existingById, allIds);
+      await recordSeedPropertyOverrides('equipment', parseEquipmentFile);
     }
     if (changedNotes.length) await noteStore.putMany(changedNotes);
     if (revisions.length) await revisionStore.putMany(revisions);

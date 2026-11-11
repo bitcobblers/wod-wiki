@@ -84,3 +84,40 @@ describe('SQL additive schema migration (v30 → v31)', () => {
     await expect(new SqlStorage(db).readonly('notes').get(note.id)).rejects.toThrow(/schema_incompatible|incompatible/);
   });
 });
+
+describe('SQL additive schema migration (v32 → v33)', () => {
+  it('creates notebook_links and property_overrides tables on a v32 database while preserving existing rows', async () => {
+    const db = libsqlDatabase(createClient({ url: ':memory:' }));
+    const v33 = new SqlStorage(db);
+    await v33.readwrite('notes').put(note);
+    await db.transaction(async (tx) => {
+      await tx.exec(`DROP TABLE notebook_links`);
+      await tx.exec(`DROP TABLE property_overrides`);
+      await tx.exec(`INSERT INTO "${SCHEMA_TABLE}" ("key", "value") VALUES ('schema', '{"version":32}') ON CONFLICT ("key") DO UPDATE SET "value" = excluded."value"`);
+    });
+
+    const migrated = new SqlStorage(db);
+    expect(await migrated.readonly('notes').get(note.id)).toMatchObject({ id: note.id, title: note.title });
+    await migrated.readwrite('notebook_links').put({
+      id: 'notebook/open-prep:note:n1',
+      notebookId: 'notebook/open-prep',
+      targetKind: 'note',
+      targetId: 'n1',
+      noteId: 'n1',
+      createdAt: 100,
+    });
+    await migrated.readwrite('property_overrides').put({
+      id: 'notebook/custom:effort:snatch',
+      notebookId: 'notebook/custom',
+      kind: 'effort',
+      slug: 'snatch',
+      label: 'Snatch',
+      ownerNoteId: 'effort/snatch',
+      rawContent: '---\nslug: snatch\n---\n',
+      updatedAt: 200,
+    });
+    expect(await migrated.readonly('notebook_links').getAllFromIndex('by-note', 'n1')).toHaveLength(1);
+    expect(await migrated.readonly('property_overrides').getAllFromIndex('by-notebook', 'notebook/custom')).toHaveLength(1);
+    await migrated.close();
+  });
+});

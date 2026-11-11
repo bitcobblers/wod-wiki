@@ -14,8 +14,10 @@ import type {
   Note,
   BlockRevision,
   NoteTag,
+  NotebookLink,
   Page,
   PageNote,
+  ScopedPropertyOverride,
   Session,
   Tag,
   TagTypeRecord,
@@ -49,6 +51,8 @@ export interface StorageSchema {
   block_index: BlockIndexRow;
   block_efforts: BlockEffort;
   block_equipment: BlockEquipment;
+  notebook_links: NotebookLink;
+  property_overrides: ScopedPropertyOverride;
   meta: unknown;
   memberships: Membership;
 }

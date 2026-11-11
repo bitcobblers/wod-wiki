@@ -24,6 +24,7 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
   test('L1 rail labels include the primary effort, equipment, and tag libraries', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+$/, { timeout: 30_000 });
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
 
     const primary = page.getByRole('navigation', { name: 'Primary' });
@@ -117,6 +118,7 @@ test.describe('Nav ladder — L1 zones derive from the route scheme', () => {
   test('the notebooks landing and the playgrounds view keep their own chrome', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+$/, { timeout: 30_000 });
     const sidebar = page.getByRole('navigation', { name: 'Main' });
     await expect(sidebar.getByRole('button', { name: 'Subscribed notebooks', exact: true })).toBeVisible();
     // The L2 panel offers no create actions on any view.
@@ -136,6 +138,7 @@ test.describe('Nav ladder — mobile (375px)', () => {
   test('mobile drawer: Journal is an L1 destination; Playgrounds is reachable with its own chrome', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+$/, { timeout: 30_000 });
     await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
 
     // Same drawer trigger the page objects use (e.g. EquipmentPage).
@@ -190,6 +193,7 @@ test.describe('Nav ladder — mobile (375px)', () => {
   test('browser Back dismisses the mobile drawer without navigating underneath it', async ({ page }) => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+$/, { timeout: 30_000 });
     await page.getByRole('button', { name: 'Open navigation' }).click();
     await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible();
     await page.goBack();
@@ -244,6 +248,7 @@ test.describe('Nav ladder — Phase 2 contextual L2/L3 sync, inline saved links 
     await page.setViewportSize({ width: 1600, height: 1000 });
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
+    await expect(page.locator('html')).toHaveAttribute('data-boot-feed-settled', /^\d+$/, { timeout: 30_000 });
 
     await seedNote(
       page,
@@ -256,10 +261,10 @@ test.describe('Nav ladder — Phase 2 contextual L2/L3 sync, inline saved links 
     const editor = page.locator('.cm-content').first();
     await expect(editor).toBeVisible({ timeout: 15_000 });
 
-    const sidebar = page.getByRole('navigation', { name: 'Main' });
+    const sidebar = page.getByRole('navigation', { name: 'Main' }).locator('nav').last();
 
     // Initial recognized efforts appear in L2 with 2-part filter buttons
-    await expect(sidebar.getByText('Efforts', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(sidebar.getByText('Efforts', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(sidebar.getByRole('button', { name: 'Thruster', exact: true })).toBeVisible();
 
     // Append a new heading + known equipment + unrecognized effort & tag live into the editor

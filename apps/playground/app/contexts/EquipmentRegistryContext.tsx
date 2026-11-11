@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { IEquipmentRegistry, IEquipment } from '@bitcobblers/wod-wiki-lang';
-import { getAppEquipmentRegistry, hydrateAppEquipmentRegistry } from '@/services/equipmentRegistry';
+import { getAppEquipmentRegistry, hydrateAppEquipmentRegistry, subscribeAppEquipmentRegistry } from '@/services/equipmentRegistry';
 import { SEED_BROADCAST_CHANNEL } from '@/services/feed/feedSync';
 
 interface EquipmentRegistryContextValue {
@@ -51,7 +51,15 @@ export function EquipmentRegistryProvider({ children }: { children: React.ReactN
     init();
   }, [init]);
 
-  // A feed import landed/removed content → re-read equipment from Storage.
+  // Same-tab feed imports hydrate the singleton directly (BroadcastChannel
+  // does not echo to the posting context) → bump revision so consumers re-read.
+  useEffect(() => {
+    return subscribeAppEquipmentRegistry(() => {
+      setStatus((s) => ({ isReady: true, error: null, revision: s.revision + 1 }));
+    });
+  }, []);
+
+  // A sibling tab's feed import landed/removed content → re-read equipment from Storage.
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
     const channel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);

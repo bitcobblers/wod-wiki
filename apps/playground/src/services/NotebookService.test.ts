@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'bun:test';
-import { NotebookService, DEFAULTS_NOTEBOOK_ID } from './NotebookService';
+import { NotebookService, CUSTOM_NOTEBOOK_ID, DEFAULTS_NOTEBOOK_ID } from './NotebookService';
 import { StorageService } from './storage/StorageService';
 import { InMemoryStorage } from './storage/InMemoryStorage';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
@@ -23,27 +23,30 @@ describe('NotebookService (notes-store backed)', () => {
         } as Note);
     };
 
-    it('ensureNotebooks seeds the defaults notebook with a starter note, idempotently', async () => {
+    it('ensureNotebooks seeds custom notebook with a starter note while keeping defaults read-only', async () => {
         await service.ensureNotebooks();
         await service.ensureNotebooks();
 
-        const landing = await store.getNote(DEFAULTS_NOTEBOOK_ID);
-        expect(landing?.title).toBe('Defaults');
-        expect(landing?.notebookId).toBe(DEFAULTS_NOTEBOOK_ID);
+        const customLanding = await store.getNote(CUSTOM_NOTEBOOK_ID);
+        expect(customLanding?.title).toBe('Custom');
+        expect(customLanding?.notebookId).toBe(CUSTOM_NOTEBOOK_ID);
 
-        const starters = await service.listNotes(DEFAULTS_NOTEBOOK_ID);
+        const starters = await service.listNotes(CUSTOM_NOTEBOOK_ID);
         expect(starters).toHaveLength(1);
         expect(starters[0]!.type).toBe('note');
         expect(starters[0]!.seedOrigin).toBe('user');
+
+        // Read-only defaults rejects user note moves
+        await expect(service.moveNote(starters[0]!.id, DEFAULTS_NOTEBOOK_ID)).rejects.toThrow(/read-only/);
     });
 
-    it('migrates retired template notes into defaults as ordinary notes', async () => {
+    it('migrates retired template notes into custom as ordinary notes', async () => {
         await saved({ id: 'tpl-1', type: 'template', title: 'Benchmark day' });
         await service.ensureNotebooks();
 
         const migrated = await store.getNote('tpl-1');
         expect(migrated?.type).toBe('note');
-        expect(migrated?.notebookId).toBe(DEFAULTS_NOTEBOOK_ID);
+        expect(migrated?.notebookId).toBe(CUSTOM_NOTEBOOK_ID);
         expect(migrated?.title).toBe('Benchmark day');
     });
 
@@ -134,38 +137,44 @@ describe('NotebookService (notes-store backed)', () => {
     });
 
     it('update and delete reject reserved always-present slugs at the service boundary', async () => {
-        // Only defaults has a stored landing (journal/playground/guides are
-        // resolver fallbacks) — the guard must fire regardless.
         await service.ensureNotebooks();
-        for (const slug of ['journal', 'playground', 'defaults', 'guides']) {
+        for (const slug of ['journal', 'playground', 'defaults', 'custom', 'guides']) {
             await expect(service.update(`notebook/${slug}`, { name: 'Hijacked' }))
                 .rejects.toThrow(/always present/);
             await expect(service.delete(`notebook/${slug}`))
                 .rejects.toThrow(/always present/);
         }
-        // Nothing was renamed, deleted, or created.
-        expect((await store.getNote(DEFAULTS_NOTEBOOK_ID))?.title).toBe('Defaults');
-        for (const slug of ['journal', 'playground', 'guides']) {
+        expect((await store.getNote(CUSTOM_NOTEBOOK_ID))?.title).toBe('Custom');
+        for (const slug of ['journal', 'playground', 'defaults', 'guides']) {
             expect(await store.getNote(`notebook/${slug}`)).toBeUndefined();
         }
     });
 
-    it('ensureNotebooks recreates the defaults landing independently, keeping other notebooks', async () => {
+    it('ensureNotebooks recreates the custom landing independently, keeping other notebooks', async () => {
         const survivor = await service.create('Trip 2026');
         await service.ensureNotebooks();
-        // Only the defaults landing is deleted — the user notebook survives.
-        await store.deleteNote(DEFAULTS_NOTEBOOK_ID);
-        expect(await store.getNote(DEFAULTS_NOTEBOOK_ID)).toBeUndefined();
+        await store.deleteNote(CUSTOM_NOTEBOOK_ID);
+        expect(await store.getNote(CUSTOM_NOTEBOOK_ID)).toBeUndefined();
 
         await service.ensureNotebooks();
 
-        const restored = await store.getNote(DEFAULTS_NOTEBOOK_ID);
-        expect(restored?.title).toBe('Defaults');
-        expect(restored?.notebookId).toBe(DEFAULTS_NOTEBOOK_ID);
-        // The survivor is neither duplicated nor touched; the restored
-        // defaults landing joins the list (creation order: survivor first).
-        expect((await service.getAll()).map((n) => n.id)).toEqual(['notebook/trip-2026', DEFAULTS_NOTEBOOK_ID]);
+        const restored = await store.getNote(CUSTOM_NOTEBOOK_ID);
+        expect(restored?.title).toBe('Custom');
+        expect(restored?.notebookId).toBe(CUSTOM_NOTEBOOK_ID);
+        expect((await service.getAll()).map((n) => n.id)).toEqual(['notebook/trip-2026', CUSTOM_NOTEBOOK_ID]);
         expect(await store.getNote(survivor.id)).toBeDefined();
+    });
+
+    it('supports many-to-many promoteNote across multiple user notebooks while preserving journal membership', async () => {
+        const nbA = await service.create('Open Prep');
+        const nbB = await service.create('Garage Gym');
+        await saved({ id: 'w-multi', title: 'Murph' });
+
+        const promoted = await service.promoteNote('w-multi', [nbA.id, nbB.id]);
+        expect(promoted.notebookIds).toEqual(['notebook/journal', nbA.notebookId, nbB.notebookId]);
+        expect((await service.listNotes(nbA.id)).map((n) => n.id)).toEqual(['w-multi']);
+        expect((await service.listNotes(nbB.id)).map((n) => n.id)).toEqual(['w-multi']);
+        expect((await service.listNotes('notebook/journal')).map((n) => n.id)).toContain('w-multi');
     });
 
     it('cloneNote copies content into a user notebook, editable, with source lineage', async () => {

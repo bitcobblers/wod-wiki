@@ -1,12 +1,7 @@
 import type { EffortStorageAdapter, IEffort } from '@bitcobblers/wod-wiki-lang';
 import { storageService, type StorageService } from '@/services/storage';
+import { mergeCustomOverridesIntoList } from './mergeCustomOverrides';
 
-/**
- * IndexedDB Effort Storage Adapter
- *
- * Implements EffortStorageAdapter using IndexedDBService to persist
- * user-defined custom efforts in the browser's 'efforts' object store.
- */
 export class IndexedDBEffortStorage implements EffortStorageAdapter {
   private _db?: StorageService;
   constructor(db?: StorageService) {
@@ -16,7 +11,8 @@ export class IndexedDBEffortStorage implements EffortStorageAdapter {
     return this._db ?? storageService;
   }
   async load(): Promise<IEffort[]> {
-    return this.db.getAllEfforts();
+    const base = await this.db.getAllEfforts();
+    return mergeCustomOverridesIntoList(this.db.storage, 'effort', base);
   }
 
   async save(effort: IEffort): Promise<void> {

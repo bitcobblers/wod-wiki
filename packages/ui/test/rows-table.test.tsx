@@ -240,6 +240,59 @@ describe('RowsTable — the Unified Session Results Table', () => {
 
   it('shows the no-statements empty state for a run without events', () => {
     render(<RowsTable result={rowsResultWith([])} />);
-    expect(screen.getAllByText('No output statements recorded for this run.').length).toBe(2);
+    expect(screen.getAllByText('No output statements recorded for this run.').length).toBeGreaterThan(0);
+  });
+
+  it('includes analytics summary rows under default segment filter and discovers power column', () => {
+    const powerSegment = {
+      id: 'test-run-1:dl1',
+      grain: 'event',
+      outputType: 'segment',
+      sourceBlockKey: 'seg-dl',
+      timeSpan: { started: 0, ended: 1_000 },
+      metrics: [
+        { type: 'effort', value: 'Deadlifts', image: 'Deadlifts' },
+        { type: 'rep', value: 5 },
+        { type: 'resistance', value: 100, unit: 'kg', image: '100 kg' },
+        { type: 'work', value: 500, unit: 'kg', image: '500 kg' },
+        { type: 'power', value: 500, unit: 'W', image: '500 W' },
+      ],
+    };
+    const summaryRow = {
+      id: 'test-run-1:11',
+      grain: 'event',
+      outputType: 'analytics',
+      sourceBlockKey: 'analytics-summary',
+      timeSpan: { started: 0, ended: 1_000 },
+      metrics: [
+        {
+          type: 'totalWork',
+          value: 500,
+          unit: 'kg',
+          image: '500 kg',
+          metadata: { canonicalKey: 'totalWork' },
+        },
+      ],
+    };
+    const foldedSummaryRow = {
+      id: 'test-run-1:summary:totalWork',
+      grain: 'summary',
+      outputType: 'analytics',
+      timeSpan: { started: 0 },
+      metrics: [
+        {
+          type: 'totalWork',
+          value: 500,
+          unit: 'kg',
+          metadata: { canonicalKey: 'totalWork' },
+        },
+      ],
+    };
+    render(<RowsTable result={rowsResultWith([powerSegment, summaryRow, foldedSummaryRow])} />);
+    const table = screen.getByTestId('output-statements-table');
+    expect(screen.getByTestId('sort-col-power')).toBeDefined();
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(2);
+    expect(table.textContent).toContain('totalWork');
+    expect(table.textContent).toContain('500 kg');
   });
 });

@@ -38,6 +38,8 @@ import {
   FlaskConical,
   BookOpen,
   Tag as TagIcon,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
 import type { Entry } from '../../lib/entryMapper'
 import { formatDuration } from '../../lib/entryMapper'
@@ -156,13 +158,16 @@ export interface StreamFeedProps {
    *  and excluded by the caller). Omitted → the move action is not offered. */
   moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
   onMoveNotebook?: (entry: Entry, notebookId: string) => void
+  onEditNotebook?: (entry: Entry) => void
+  onDeleteNotebook?: (entry: Entry) => void
   /** Viewport `top` for the sticky section header — the live bottom of the
    *  page's sticky boundary (StickyPageHeader on desktop, navbar on mobile),
    *  measured via useStickyBoundaryOffset in the caller. */
   stickyOffset: number
 }
 
-export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAddToToday, moveNotebookTargets, onMoveNotebook, stickyOffset }: StreamFeedProps) {
+export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAddToToday, moveNotebookTargets, onMoveNotebook, onEditNotebook, onDeleteNotebook, stickyOffset }: StreamFeedProps) {
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
   return (
     <div className="flex-1 divide-y divide-border/40" data-testid="stream-feed">
       {groups.map(group => (
@@ -289,6 +294,45 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAd
                             triggerClassName="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
                             onMove={(notebookId) => onMoveNotebook?.(entry, notebookId)}
                           />
+                        )}
+                        {entry.kind === 'notebook' && entry.feedId === 'local' && onEditNotebook && (
+                          <button
+                            type="button"
+                            aria-label={`Edit ${entry.title}`}
+                            onClick={() => onEditNotebook(entry)}
+                            data-testid={`notebook-edit-${entry.sourceNotebook}`}
+                            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
+                          >
+                            <Pencil className="size-3" />
+                            Edit
+                          </button>
+                        )}
+                        {entry.kind === 'notebook' && entry.feedId === 'local' && onDeleteNotebook && (
+                          confirmingDeleteId === entry.id ? (
+                            <button
+                              type="button"
+                              title="Notes in this notebook return to the journal"
+                              onClick={() => {
+                                setConfirmingDeleteId(null)
+                                onDeleteNotebook(entry)
+                              }}
+                              data-testid={`notebook-delete-confirm-${entry.sourceNotebook}`}
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-destructive text-destructive-foreground px-3 text-[10px] font-black uppercase tracking-widest hover:bg-destructive/90 transition-colors"
+                            >
+                              Confirm delete
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              aria-label={`Delete ${entry.title}`}
+                              onClick={() => setConfirmingDeleteId(entry.id)}
+                              data-testid={`notebook-delete-${entry.sourceNotebook}`}
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors"
+                            >
+                              <Trash2 className="size-3" />
+                              Delete
+                            </button>
+                          )
                         )}
                       </div>
                     </div>

@@ -520,6 +520,8 @@ export function useNoteContextLinks({
   const equipmentCtx = useOptionalEquipmentRegistry()
   const effortsReady = effortCtx ? effortCtx.isReady : true
   const equipmentReady = equipmentCtx ? equipmentCtx.isReady : true
+  const effortRevision = effortCtx?.revision ?? 0
+  const equipmentRevision = equipmentCtx?.revision ?? 0
   const liveFacets = useLiveNoteFacets(liveContent, {
     enabled: liveContent !== undefined,
   })
@@ -632,7 +634,7 @@ export function useNoteContextLinks({
     return () => {
       cancelled = true
     }
-  }, [noteId, stampKey, effortSlug, identityKey, revision, catalogVersion])
+  }, [noteId, stampKey, effortSlug, identityKey, revision, catalogVersion, effortRevision, equipmentRevision])
 
   return useMemo(() => {
     if (liveContent === undefined || !effortsReady || !equipmentReady || !liveFacets.ready) {

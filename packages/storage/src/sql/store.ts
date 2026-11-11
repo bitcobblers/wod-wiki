@@ -40,6 +40,7 @@ const SCHEMA_KEY = 'schema';
  */
 const ADDED_STORES_BY_VERSION: Readonly<Record<number, readonly string[]>> = {
   31: ['equipment', 'block_equipment'],
+  33: ['notebook_links', 'property_overrides'],
 };
 
 /** Store tables this server may create on a database stamped `stored`. */

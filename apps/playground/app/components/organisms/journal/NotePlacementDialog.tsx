@@ -212,10 +212,6 @@ export function NotePlacementDialog({
           setError('Choose a destination date or named page for the clone.')
           return
         }
-        if (nextDate && nextSlug) {
-          setError('Choose a destination date OR a named page — a clone targets one page, never both.')
-          return
-        }
         const created = await journalNotes.create({
           journalDate: nextDate || undefined,
           slug: nextSlug || undefined,

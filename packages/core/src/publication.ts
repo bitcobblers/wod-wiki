@@ -1,4 +1,5 @@
 import type { Note } from './types/storage';
+import { isNonPublishableNotebook } from './types/notebook';
 
 export type PublicationVisibility =
   | 'Private'
@@ -11,6 +12,8 @@ export interface PublicationVisibilitySummary {
   publicSessions: number;
   totalSessions: number;
   notebookId?: string;
+  notebookIds?: string[];
+  publicNotebookIds?: string[];
 }
 
 export function isPublishableNotebookLanding(
@@ -19,6 +22,7 @@ export function isPublishableNotebookLanding(
   return (
     note.id.startsWith('notebook/') &&
     note.notebookId === note.id &&
+    !isNonPublishableNotebook(note.id) &&
     note.feedOrigin !== 'feed' &&
     note.seedOrigin !== 'seed'
   );
@@ -29,6 +33,8 @@ export function derivePublicationVisibility(input: {
   publicSessions: number;
   totalSessions: number;
   notebookId?: string;
+  notebookIds?: string[];
+  publicNotebookIds?: string[];
 }): PublicationVisibilitySummary {
   const notebookPublic = input.notebookPublic === true;
   const publicSessions = Math.max(0, Math.trunc(input.publicSessions));
@@ -45,5 +51,7 @@ export function derivePublicationVisibility(input: {
     publicSessions,
     totalSessions,
     ...(input.notebookId ? { notebookId: input.notebookId } : {}),
+    ...(input.notebookIds ? { notebookIds: input.notebookIds } : {}),
+    ...(input.publicNotebookIds ? { publicNotebookIds: input.publicNotebookIds } : {}),
   };
 }

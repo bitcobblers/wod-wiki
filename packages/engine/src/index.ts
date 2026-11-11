@@ -246,8 +246,8 @@ export {
   toNotebookId,
   notebookSlugFromId,
   notebookOfItem,
+  notebooksOfItem,
   isNoteEditable,
-  type DefaultNotebookSlug,
   type NotebookId,
   type EventStore,
   type NoteQueryStore,
@@ -558,3 +558,6 @@ export * from './feed/landing';
 export * from './feed/tree';
 export * from './feed/publisher';
 export * from './feed/ingestor';
+export * from './notebook/membership';
+export * from './notebook/sessionIntake';
+export * from './notebook/propertyInheritance';

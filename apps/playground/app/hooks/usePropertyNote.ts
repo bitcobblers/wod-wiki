@@ -13,6 +13,7 @@ import {
   tagCategoryRecordToDocument,
   tagRecordToDocument,
 } from '@bitcobblers/wod-wiki-lang';
+import { saveScopedPropertyOverride } from '@bitcobblers/wod-wiki-engine';
 import { commitReferenceNote, deleteReferenceNote, type ReferenceKind } from '@/repositories/referenceNotes';
 import { storageService } from '@/services/storage';
 import { refreshTagIndex } from '@/services/tags/tagCatalogue';
@@ -79,6 +80,7 @@ export interface UseRegistryPropertyNoteResult<T extends RegistryEntityBase> {
   save: (value?: string) => Promise<T | null>;
   remove: () => Promise<void>;
   cloneForEdit: () => Promise<T | null>;
+  overrideInNotebook: (targetNotebookId: string, rawOverride?: string) => Promise<void>;
   error: string | null;
   isAliasMatch: boolean;
 }
@@ -315,6 +317,32 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
     return cloned;
   }, [kind, item, document, toDocument, applyCloneFields, refresh]);
 
+  const overrideInNotebook = useCallback(
+    async (targetNotebookId: string, rawOverride?: string): Promise<void> => {
+      if (!item) return;
+      const source = rawOverride ?? (document || toDocument(item));
+      try {
+        const saved = await saveScopedPropertyOverride(storageService.storage, {
+          targetNotebookId,
+          kind,
+          slug: item.slug,
+          rawContent: source,
+          title: item.label,
+        });
+        committedNote.current = { id: saved.ownerNoteId, revision: 1 };
+        await refresh();
+      } catch (err) {
+        toast({
+          title: 'Override failed',
+          description: err instanceof Error ? err.message : `Failed to override ${kind}.`,
+          variant: 'destructive',
+        });
+        throw err;
+      }
+    },
+    [kind, item, document, toDocument, refresh],
+  );
+
   return {
     document,
     setDocument,
@@ -328,6 +356,7 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
     save,
     remove,
     cloneForEdit,
+    overrideInNotebook,
     error,
     isAliasMatch,
   };

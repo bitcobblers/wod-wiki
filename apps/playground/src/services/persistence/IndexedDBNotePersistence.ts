@@ -1,5 +1,6 @@
 import { v7 as uuidv7 } from 'uuid';
 import {
+  isNoteEditable,
   parseDocumentSections,
   reconcileNoteBlocks,
   KNOWN_SECTION_WIDGETS,
@@ -7,8 +8,8 @@ import {
   resolvePlacements,
   type PageTarget,
 } from '@bitcobblers/wod-wiki-core';
-import { createParser } from '@bitcobblers/wod-wiki-engine';
-import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
+import { createParser, prepareJournalSessionRun } from '@bitcobblers/wod-wiki-engine';
+import { notebookOfItem, notebookOriginOfItem, toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import type { DomainDetail, DomainPredicate } from '@bitcobblers/wod-wiki-storage';
 
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
@@ -90,6 +91,8 @@ function entryFromDomainRow(row: DomainDetail): HistoryRecord {
     type: row.note.type ?? 'note',
     sourceId: row.note.sourceId,
     notebookId: row.note.notebookId,
+    notebookIds: row.note.notebookIds,
+    provenance: row.note.provenance,
     seedOrigin: row.note.seedOrigin,
     schemaVersion: 1,
   };
@@ -306,8 +309,31 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
     if (session.noteId !== input.noteId) {
       throw new NotePersistenceError('RESULT_NOTE_MISMATCH', 'Session belongs to another Note');
     }
+    const existingStored = await this.storage.getNote(input.noteId);
+    if (
+      existingStored &&
+      !isNoteEditable(
+        existingStored,
+        notebookOriginOfItem(existingStored),
+        notebookOfItem(existingStored),
+      )
+    ) {
+      const prepared = await prepareJournalSessionRun(this.storage.storage, {
+        noteId: existingStored.id,
+        blockId: session.blockId,
+        sessionId: session.id,
+        journalDate: localDateKey(new Date(session.startTime || Date.now())),
+        startedAt: session.startTime,
+        origin: session.origin,
+      });
+      return {
+        note: prepared.note,
+        revision: prepared.revision,
+        session: prepared.session,
+      };
+    }
     return this.storage.withTransaction(
-      ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'sessions', 'events', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types'],
+      ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'sessions', 'events', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'notebook_links'],
       async scoped => {
         const scopedPersistence = new IndexedDBNotePersistence(scoped);
         await scopedPersistence.saveNote(input);

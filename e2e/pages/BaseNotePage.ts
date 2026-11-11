@@ -112,6 +112,12 @@ export abstract class BaseNotePage {
 
   /** Clear a test marker and place the caret at its position. */
   async replaceEditorMarker(marker: string): Promise<void> {
+    if (marker === 'QUERY') {
+      const sourceBtn = this.page.getByTestId('query-edit-source').first();
+      if (await sourceBtn.isVisible()) {
+        await sourceBtn.click();
+      }
+    }
     const handle = await this.codeMirrorView();
     try {
       await handle.evaluate((view, text) => {

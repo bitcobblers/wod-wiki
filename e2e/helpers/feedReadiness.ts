@@ -55,17 +55,30 @@ export async function gotoFeedSurface(
  * the test when the feed does not reach an imported/current state instead of
  * silently proceeding.
  */
+const LEGACY_FEED_IDS: Record<string, string> = {
+  'seed-crossfit': 'sport-crossfit',
+  'seed-hyrox': 'sport-hyrox',
+  'seed-kettlebell': 'legends-of-kettlebell',
+  'seed-swimming': 'sport-swimming',
+  'seed-track': 'sport-track',
+  'seed-zombie-fit': 'wayback-zombie-fit',
+  'seed-golos-method': 'sport-golos-method',
+  'example-movement': 'samples-movement',
+  'example-yoga': 'sport-yoga',
+};
+
 export async function syncFeed(page: Page, feedId: string, timeout = 180_000): Promise<void> {
+  const canonicalId = LEGACY_FEED_IDS[feedId] ?? feedId;
   await page.goto('/settings/sync', { waitUntil: 'domcontentloaded' });
   const subscribedOnly = page.getByTestId('sync-subscribed-only-toggle');
   if (await subscribedOnly.isChecked()) await subscribedOnly.uncheck();
-  const card = page.getByTestId(`feed-source-${feedId}`);
-  await expect(card, `${feedId} feed must be registered`).toBeVisible({ timeout: 15_000 });
+  const card = page.getByTestId(`feed-source-${canonicalId}`);
+  await expect(card, `${canonicalId} feed must be registered`).toBeVisible({ timeout: 15_000 });
   const localVersion = card.getByTestId('feed-local-version');
   if (!(await localVersion.textContent())?.includes('Not imported yet')) return;
-  await card.getByTestId(`feed-subscribe-${feedId}`).click();
+  await card.getByTestId(`feed-subscribe-${canonicalId}`).click();
   await expect(
     localVersion,
-    `${feedId} import must commit rows`,
+    `${canonicalId} import must commit rows`,
   ).not.toContainText('Not imported yet', { timeout });
 }

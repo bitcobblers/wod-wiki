@@ -57,6 +57,8 @@ describe('streamProfile', () => {
     expect(parsed.target).toBe('note')
     expect(parsed.groupBy).toEqual(['date'])
     expect(JOURNAL_STREAM_PROFILE.defaultWql).toContain('notebook:journal')
+    expect(JOURNAL_STREAM_PROFILE.defaultLayout).toBe('agenda')
+    expect(JOURNAL_STREAM_PROFILE.scopeOptions).toEqual(['journal', 'playground'])
   })
 
   it('the tags surface binds the tag plane — one row per tag, no storage scope', () => {

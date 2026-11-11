@@ -93,6 +93,7 @@ test.describe('Efforts catalog — /efforts', () => {
 
     await efforts.gotoCatalog();
     await efforts.createCustomButton().click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Create', exact: true }).click();
 
     // Create mode opens the notebook editor pre-filled with an effort
     // document (stable id + user registrySource); the user fills the

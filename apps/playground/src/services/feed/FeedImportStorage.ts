@@ -70,7 +70,7 @@ export class IndexedDBFeedImportStorage implements FeedImportStorage {
   }
   async removeSourceContent(meta: SeedMetaRecord): Promise<number> {
     return await this.storageInstance.transaction(
-      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'efforts', 'equipment', 'meta'],
+      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'efforts', 'equipment', 'property_overrides', 'meta'],
       'readwrite',
       async (tx) => {
         const targetIds = new Set<string>();
@@ -172,6 +172,16 @@ export class IndexedDBFeedImportStorage implements FeedImportStorage {
             }
             if (!restored) await store.delete(row.slug);
           }
+        }
+        try {
+          const overrideStore = tx.readwrite('property_overrides');
+          for (const ov of await overrideStore.getAll()) {
+            if (ov.seedOrigin === 'seed' && ov.feedSourceId === removedSourceId) {
+              await overrideStore.delete(ov.id);
+            }
+          }
+        } catch {
+          // Optional store
         }
         await metaStore.delete(meta.key);
         return deleted;
