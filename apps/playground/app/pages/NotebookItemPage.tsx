@@ -222,14 +222,14 @@ export function NotebookItemPage({
       <JournalPageShell
         title={notebookItem?.name ?? item}
         actions={
-          <ResponsiveActions label="Workout actions">
-          {/* No `index`: the ⋯ menu mirrors NavContext l3Items (outline + helpful). */}
-          <PageActions
-            mode="notebook-readonly"
-            currentWorkout={{ name: notebookItem?.name ?? item, content }}
-            index={[]}
-          />
-          </ResponsiveActions>
+          <div className="flex items-center gap-2">
+            <ResponsiveActions label="Workout actions" />
+            <PageActions
+              mode="notebook-readonly"
+              currentWorkout={{ name: notebookItem?.name ?? item, content }}
+              index={[]}
+            />
+          </div>
         }
         editor={
           <div className="flex flex-col gap-3 px-4 py-6 sm:px-6">

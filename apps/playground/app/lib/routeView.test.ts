@@ -32,28 +32,15 @@ function makeDeps(overrides: Partial<RouteViewDeps> = {}): RouteViewDeps {
 const NO_PARAMS: RouteViewParams = {}
 
 describe('resolveRouteView — journal nav', () => {
-  it('derives the top-10 distinct result dates for /journal, newest first', () => {
+  it('returns an empty static nav for /journal so QueriableStreamView is the sole L3 owner', () => {
     const deps = makeDeps({
       recentResults: [
         makeResult(Date.parse('2026-06-28T10:00:00Z')),
-        makeResult(Date.parse('2026-06-28T18:00:00Z')), // same day → deduped
         makeResult(Date.parse('2026-06-01T10:00:00Z')),
       ],
     })
     const view = resolveRouteView('/journal', NO_PARAMS, deps)
-    expect(view.nav.map(l => l.id)).toEqual(['2026-06-28', '2026-06-01'])
-  })
-
-  it('skips results with invalid dates instead of crashing the nav', () => {
-    const deps = makeDeps({
-      recentResults: [
-        makeResult(NaN),                              // partially-migrated row
-        makeResult(undefined as unknown as number),   // legacy row missing the field
-        makeResult(Date.parse('2026-06-28T10:00:00Z')),
-      ],
-    })
-    const view = resolveRouteView('/journal', NO_PARAMS, deps)
-    expect(view.nav.map(l => l.id)).toEqual(['2026-06-28'])
+    expect(view.nav).toEqual([])
   })
 
   it('classifies /journal directly as library page with Journal title', () => {

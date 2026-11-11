@@ -108,6 +108,9 @@ mock.module('../../services/journalNotes', () => ({
 }));
 
 import { AnalyticsExplorerPage } from './AnalyticsExplorerPage';
+import { NavProvider } from '../../nav/NavContext';
+import { SecondaryNav } from '../../nav/SecondaryNav';
+import { NuqsAdapter } from 'nuqs/adapters/react-router';
 
 afterEach(cleanup);
 
@@ -121,8 +124,13 @@ function renderPage(initialQuery: string) {
   const suffix = initialQuery ? `?q=${encodeURIComponent(initialQuery)}` : '';
   return render(
     <MemoryRouter initialEntries={[`/analytics/explorer${suffix}`]} initialIndex={0}>
-      <NavProbe />
-      <AnalyticsExplorerPage />
+      <NuqsAdapter>
+        <NavProvider tree={[]}>
+          <NavProbe />
+          <AnalyticsExplorerPage />
+          <SecondaryNav />
+        </NavProvider>
+      </NuqsAdapter>
     </MemoryRouter>,
   );
 }
@@ -320,18 +328,19 @@ describe('AnalyticsExplorerPage', () => {
     await waitFor(() => expect(screen.getByTestId('library-row-note').textContent).toContain('StrongLifts 5×5'));
   });
 
-  it('keeps range and units in the options menu; examples are not duplicated on the page', async () => {
+  it('publishes range and units into L3 analyticsControls; examples are not duplicated on the page', async () => {
     renderPage('sum:totalVolume{}');
     await waitFor(() => expect(pageRuns()).toContain('sum:totalVolume{}'));
 
-    // The options menu no longer hosts examples (they moved to the L2 panel).
-    fireEvent.click(screen.getByTestId('explorer-options'));
-    await waitFor(() => expect(screen.getByText('Past 4 weeks')).toBeDefined());
+    // Range and units live in L3 Slot 1 (`l3-analytics-controls`); examples stay in L2 only.
+    const l3Controls = await waitFor(() => screen.getByTestId('l3-analytics-controls'));
+    expect(within(l3Controls).getByText('Past 4 weeks')).toBeDefined();
+    expect(within(l3Controls).getByTestId('l3-unit-kg')).toBeDefined();
     expect(screen.queryByText('Weekly strength volume')).toBeNull();
 
-    // Changing the range re-runs the submitted analytics query.
+    // Changing the range in L3 re-runs the submitted analytics query.
     const runsBefore = pageRuns().length;
-    fireEvent.click(screen.getByText('Past 4 weeks'));
+    fireEvent.click(within(l3Controls).getByText('Past 4 weeks'));
     await waitFor(() => expect(pageRuns().length).toBeGreaterThan(runsBefore));
   });
 

@@ -252,10 +252,12 @@ describe('DashboardViewPage widget layers', () => {
   });
 });
 
-describe('DashboardViewPage L3 outline', () => {
-  it('publishes real anchors for consecutive and trailing headings without lossy remapping', async () => {
+describe('DashboardViewPage L3 3-slot contract', () => {
+  it('publishes pure structural anchors to l3Items, Range/Units to analyticsControls, and board actions to l3Actions', async () => {
     storedRaw = HEADING_RAW;
-    const captured: NavItemL3[][] = [];
+    const capturedOutline: NavItemL3[][] = [];
+    let capturedAnalytics: unknown = null;
+    let capturedActions: Array<{ id: string; label: string }> = [];
     render(
       <MemoryRouter initialEntries={['/dashboard/outline-board']} initialIndex={0}>
         <NavContext.Provider
@@ -264,12 +266,17 @@ describe('DashboardViewPage L3 outline', () => {
             navState: initialNavState,
             dispatch: () => {},
             l3Items: [],
-            setL3Items: (items: NavItemL3[]) => captured.push(items),
+            setL3Items: (items: NavItemL3[]) => capturedOutline.push(items),
+            setL3Actions: (actions) => { capturedActions = actions; },
+            setAnalyticsControls: (controls) => { capturedAnalytics = controls; },
             secondarySpec: undefined,
             setSecondarySpec: () => {},
             scrollToSection: () => {},
             registerScrollFn: () => {},
             setContextNav: () => {},
+            setStreamControls: () => {},
+            openCreateJournal: () => {},
+            registerCreateJournal: () => {},
           }}
         >
           <Routes>
@@ -281,16 +288,22 @@ describe('DashboardViewPage L3 outline', () => {
 
     await waitFor(() => expect(screen.getByText('Standalone A')).toBeDefined());
     await waitFor(() => {
-      const ids = captured.at(-1)?.map((item) => item.id) ?? [];
-      // Document order: sticky title, titled widget, both consecutive
-      // standalone headings (each its own anchor), second widget, trailing —
-      // then the L3 view-control widgets and helpful actions (whiteboard:
-      // on-this-page first, Edit/Clone/range/units/Copy link after).
+      const ids = capturedOutline.at(-1)?.map((item) => item.id) ?? [];
+      // Slot 2 ("On this page") holds ONLY pure document/widget anchors in document order.
       expect(ids).toEqual([
         'dashboard-title', 'widget-w0', 'note-h4', 'note-h5', 'widget-w1', 'note-h9',
-        'dashboard-range', 'dashboard-units', 'helpful-edit', 'helpful-copy-link',
       ]);
     });
+
+    // Slot 1 (Modifiers): Range + Units via AnalyticsControlsNav.
+    expect(capturedAnalytics).toEqual({ showRange: true, showUnits: true });
+
+    // Slot 3 ("Actions"): Edit, Add widget (editable vault board), Copy link.
+    expect(capturedActions.map(a => a.id)).toEqual([
+      'helpful-edit',
+      'helpful-add-widget',
+      'helpful-copy-link',
+    ]);
 
     // Every heading entry targets a rendered anchor — no fake targets.
     for (const id of ['dashboard-title', 'note-h4', 'note-h5', 'note-h9']) {

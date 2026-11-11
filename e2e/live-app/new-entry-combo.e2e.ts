@@ -49,7 +49,7 @@ test.describe('Contextual new entry actions', () => {
     await expect(page.locator('.cm-content')).toBeVisible();
     await expect(page.getByTestId('new-entry-combo')).toHaveCount(0);
     await page.getByRole('button', { name: 'Page options' }).click();
-    await page.getByRole('menuitem', { name: 'Add timer', exact: true }).click();
+    await page.getByRole('button', { name: 'Add timer', exact: true }).click();
     await expect(page.locator('.cm-content').getByText('10:00', { exact: true }).first()).toBeVisible();
   });
   test('adds a timer to a blank journal note without crashing', async ({ page }) => {
@@ -61,7 +61,7 @@ test.describe('Contextual new entry actions', () => {
     await expect(page).toHaveURL(/\/note\/[0-9a-f-]+\?edit=1$/);
     await expect(page.locator('.cm-content')).toBeVisible();
     await page.getByRole('button', { name: 'Page options' }).click();
-    await page.getByRole('menuitem', { name: 'Add timer', exact: true }).click();
+    await page.getByRole('button', { name: 'Add timer', exact: true }).click();
     await expect(page.locator('.cm-content').getByText('10:00', { exact: true }).first()).toBeVisible();
   });
 
@@ -97,13 +97,12 @@ test.describe('Contextual new entry actions', () => {
     await expect(page.getByRole('button', { name: 'New Journal entry', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'New journal note', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Cast to TV/ })).toBeVisible();
-    await expect(page.getByTestId('actions-overflow')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open page options' })).toBeVisible();
+    await expect(page.getByTestId('actions-overflow')).toHaveCount(0);
 
     const searchY = (await page.getByTestId('search-fab').boundingBox())!.y;
     const newY = (await page.getByTestId('new-entry-primary').boundingBox())!.y;
-    const menuY = (await page.getByTestId('actions-overflow').boundingBox())!.y;
     expect(searchY).toBeLessThan(newY);
-    expect(newY).toBeLessThan(menuY);
   });
 
   test('offers dashboard creation from WQL except on dashboard pages', async ({ page }) => {

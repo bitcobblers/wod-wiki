@@ -93,14 +93,6 @@ export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'source
   const isPlayground = entry.type === 'playground' || entry.sourceId === 'playground' || entry.notebookId === 'notebook/playground' || id.startsWith('playground/')
   const ref = parseNoteId(id)
 
-  if (entry.type === 'journal' || entry.journalDate || (!isPlayground && ref.kind === 'journal')) {
-    const date = entry.journalDate ?? (ref.kind === 'journal' ? ref.id : undefined)
-    return {
-      zone: 'notebooks',
-      up: date ? { id: date, title: 'Journal', to: dayPath(date) } : null,
-      stamps: [id],
-    }
-  }
   if (isPlayground || ref.kind === 'playground') {
     const name = playgroundRouteName({ id, slug: entry.slug })
     return {
@@ -147,6 +139,14 @@ export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'source
         up: { id: slug, title: slug, to: notebookPath(slug) },
         stamps: [notebookItemPath(slug, id)],
       }
+    }
+  }
+  if (entry.type === 'journal' || entry.journalDate || ref.kind === 'journal') {
+    const date = entry.journalDate ?? (ref.kind === 'journal' ? ref.id : undefined)
+    return {
+      zone: 'notebooks',
+      up: date ? { id: date, title: 'Journal', to: dayPath(date) } : null,
+      stamps: [id],
     }
   }
   if (entry.type === 'page' && (entry.pageId ?? entry.slug)) {

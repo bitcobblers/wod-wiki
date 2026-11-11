@@ -19,7 +19,7 @@
  * analytics queries through `queryService.runQuery` with range/unit options
  * (calc.* metrics resolve directly against the unified event store).
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AlertCircle, CalendarIcon, CheckCircle2, ChevronDown, ChevronRight, Save } from 'lucide-react';
 import { queryService } from '@/services/queryService';
 import { parseQuery, serialize, isAggregateQuery, isFindQuery, type QueryResult, type TagFilter } from '@bitcobblers/wod-wiki-engine';
@@ -59,7 +59,6 @@ import { useExplorerVocabulary } from '@/utils/analytics/useExplorerVocabulary';
 import { useExplorerQueryState } from '../../hooks/useExplorerQueryState';
 import { useNav } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
-import { ExplorerOptionsMenu } from './ExplorerOptionsMenu';
 import { ResponsiveActions } from '../../nav/ResponsiveActions';
 import { MobileNewEntryCombo } from '../../pages/shared/NewEntryCombo';
 import { SampleDataPrompt } from './SampleDataPrompt';
@@ -294,11 +293,34 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
     submit(next);
   };
 
-  // L3 group index: the find result's date groups, using the same shared
-  // stream-group ids the DOM carries (GroupedEntryList anchors). Cleared when
-  // the result leaves or the page unmounts. Aggregate results have no groups
-  // and publish an empty index.
-  const { setL3Items } = useNav();
+  // L3 Slot 1 (Modifiers): Range, Units, and Query settings; Slot 2 (Goto):
+  // find result date groups; Slot 3 (Actions): Save to dashboard.
+  const { setL3Items, setL3Actions, setAnalyticsControls } = useNav();
+  const handleOpenQuerySettings = useCallback(() => setQuerySettingsOpen(true), []);
+  useEffect(() => {
+    setAnalyticsControls?.({
+      weeks: activeWeeks,
+      onWeeksChange: setWeeks,
+      showRange: true,
+      showUnits: true,
+      unitForced,
+      onOpenQuerySettings: handleOpenQuerySettings,
+    });
+    return () => setAnalyticsControls?.(null);
+  }, [activeWeeks, setWeeks, unitForced, handleOpenQuerySettings, setAnalyticsControls]);
+
+  useEffect(() => {
+    setL3Actions?.([
+      {
+        id: 'explorer-save-to-dashboard',
+        label: 'Save to dashboard',
+        disabled: !saveReady,
+        onRun: () => setDashOpen(true),
+      },
+    ]);
+    return () => setL3Actions?.([]);
+  }, [saveReady, setL3Actions]);
+
   const findGroups = useMemo(
     () => (entries !== undefined && entries.length > 0 ? groupEntriesByDimension(entries, 'date') : []),
     [entries],
@@ -365,12 +387,6 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
         title="Metric Explorer"
         actions={
           <ResponsiveActions primary={<MobileNewEntryCombo />} label="Explorer actions">
-            <ExplorerOptionsMenu
-              weeks={activeWeeks}
-              onWeeks={setWeeks}
-              unitForced={unitForced}
-              onOpenQuerySettings={() => setQuerySettingsOpen(true)}
-            />
             {actions}
           </ResponsiveActions>
         }

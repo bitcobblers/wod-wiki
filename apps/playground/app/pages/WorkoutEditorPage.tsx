@@ -215,10 +215,10 @@ export function WorkoutEditorPage({
     stamps: ownership?.stamps ?? [],
   })
   const headerActions = (
-    <ResponsiveActions>
-      {/* index=[] → the ⋯ menu mirrors NavContext l3Items (outline + helpful). */}
+    <div className="flex items-center gap-2">
+      <ResponsiveActions />
       <PageActions mode="notebook-readonly" currentWorkout={{ name: noteId, content }} index={[]} />
-    </ResponsiveActions>
+    </div>
   )
 
   if (loading) {

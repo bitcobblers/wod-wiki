@@ -2,14 +2,13 @@
  * QuerySettingsTrigger — the button that opens a surface's query-settings
  * dialog.
  *
- * It appears in the app's existing "page options" chrome: the 2xl+ right
- * rail, the `⋯` dropdown below it, and the mobile right drawer — all three
- * render the same stream-controls block, so one button covers every
- * breakpoint.
+ * Rendered inside the L3 rail (2xl+) and the L3 slide-over drawer (< 2xl) —
+ * one SecondaryNav component covers every breakpoint.
  */
 import { SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
 import { useCloseDropdownMenu } from '@/components/atoms/primitives/dropdown-menu'
+import { useCloseNavigationDrawer } from '../../../nav/NavigationDrawerContext'
 
 export interface QuerySettingsTriggerProps {
   /** Open the surface's query settings. */
@@ -17,10 +16,10 @@ export interface QuerySettingsTriggerProps {
 }
 
 export function QuerySettingsTrigger({ onOpen }: QuerySettingsTriggerProps) {
-  // The trigger lives inside the `⋯` dropdown on some breakpoints. Dismiss
-  // the menu first — its portaled content would otherwise paint over the
-  // dialog it opens.
+  // Dismiss any enclosing dropdown or L3 slide-over drawer first so its
+  // portaled overlay never stacks above the modal dialog it opens.
   const closeDropdown = useCloseDropdownMenu()
+  const closeDrawer = useCloseNavigationDrawer()
 
   return (
     <Button
@@ -29,6 +28,7 @@ export function QuerySettingsTrigger({ onOpen }: QuerySettingsTriggerProps) {
       size="sm"
       onClick={() => {
         closeDropdown()
+        closeDrawer()
         onOpen()
       }}
       data-testid="query-settings-trigger"

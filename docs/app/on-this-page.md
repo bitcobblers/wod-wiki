@@ -1,170 +1,62 @@
-# On This Page (L3) Navigation — Inventory & Design
+# L2 & L3 Space Architecture — Navigation Helper vs. Context Action Panel
 
-Working document for the L3 / "On this page" channel: what feeds it per view
-today, and how we want it to behave. **Sections marked ✏️ are the design
-space — edit freely.** The inventory tables describe current code; update them
-when behavior changes.
+Canonical mental model and implementation contract for the app shell's two side columns across **Note pages**, **Library / Stream pages**, and **Dashboard pages**.
 
 ---
 
-## 1. How the channel works
+## 1. Core Mental Model
 
-Single shared state: `NavContext.l3Items: NavItemL3[]`
-(`app/nav/NavContext.tsx`). Writers publish per page; consumers render.
-
-```
-PageNavLink[]  ──mapIndexToL3──▶  NavItemL3[]  ──setL3Items──▶  NavContext
-(pageUtils.ts)                   (id, label, action,            l3Items
-                                  secondaryAction)
-```
-
-**Click dispatch:** item `action` is `{ type: 'scroll', sectionId }` (default)
-or `{ type: 'call', handler }`. Scrolls go through
-`NavContext.scrollToSection` → registered scroll fn (editor-aware fallback via
-`usePageScrollSync.registerScrollFn`) → DOM `getElementById` fallback. A
-`secondaryAction` renders a small icon button (e.g. Run) beside the label.
-
-**Active-section tracking** (two parallel mechanisms):
-- `usePageScrollSync` IntersectionObserver → `SET_ACTIVE_L3` dispatch →
-  `navState.activeL3Id`.
-- `CanvasPage` `useActiveScrollSection` → `?s=` query param (shallow, replace
-  on scroll / push on explicit TOC click).
-- Consumers read via `useActiveSectionId()` (`?s=` wins over `activeL3Id`).
-
-**Consumers:**
-| Surface | Breakpoint | Shows |
-|---|---|---|
-| `SecondaryNav` right rail | 2xl+ (≥ 1520px) | Properties (stream routes: the shared facet accordion, `FacetProperties` — same model as the L2 conditions panel) + stream controls (date window + group by) + route secondary spec + "On this page" + page action (`PageDownloadAction`) |
-| `ActionsMenu` (`⋯` header dropdown) | lg–2xl (984–1519px) | the SAME L3 content, uniformly (same `FacetProperties`/`StreamControlsNav` components/links/toggles); the `⋯` trigger is `2xl:hidden` — it exists only where the rail does not (content capped at 984px with growing right padding from 1280px to 1519px) |
-| Mobile right drawer (`MobileRightDrawer` in `SidebarLayout`) | below lg (< 1024px) | the SAME L3 content, sliding in full-viewport from the right edge; trigger (sliders icon) mirrors the hamburger in the mobile header and appears only when the rail has content; Apply footer + close button dismiss — facet edits keep it open |
-| `NavSidebar` L2 panel | all | active-state highlighting of scroll items |
-> **2026-10 change:** the stream profiles' `secondary` recent-* WQL listing
-> menus (Recent entries / Recent sessions / Recent playground pages) were
-> removed — L3 surfaces the shared facet **Properties** instead
-> (`FacetProperties`, extracted from `ConditionsNavPanel`). The mobile dock
-> sheet also dropped the global Page-options fallback rows; page-specific
-> sheet rows (e.g. playground New/Reset) remain.
-
-**Invariants (as implemented):**
-- Exactly one writer owns `l3Items` per page kind. Writers clear on unmount
-  (`setL3Items([])`).
-- Writers with an empty index **skip publishing** — they must not clobber a
-  page-generated index (`usePageScrollSync` gate, 2026-09).
-- Items passed via `ActionsMenu`/`PageActions` props override context only
-  when non-empty.
-
----
-
-## 2. Writer inventory
-
-| Writer | File | Page kinds | Content |
+| Space | Role | Direction | Allowed Content |
 |---|---|---|---|
-| `useNotePageNav` | `app/pages/shared/useNotePageNav.ts` | note pages | Document headings + ```` ```time ```` blocks (Run affordance) + ```` ```log ```` blocks (display-only, result badges) extracted from the editor document |
-| `deriveNav` + `usePageScrollSync`/`AppContent` | `app/lib/routeView.ts`, `app/hooks/usePageScrollSync.ts`, `app/App.tsx` | canvas pages | Sections (level > 1) + `Workout N` entries per ```` ```time/```log ```` fence (skipped on `/page/guide-*`) + notebook workout links |
-| `QueriableStreamView` | `app/views/stream/QueriableStreamView.tsx` | stream pages | Dynamic group headers from `groupEntriesByDimension` — dim = WQL `by {…}` → view-setting `groupBy` → page default |
-| `deriveNav('/journal')` | `app/lib/routeView.ts` | `/journal` only | Top-10 distinct session dates (pre-load placeholder; superseded by stream groups once entries resolve) |
+| **L2** (`NavSidebar` / `contextNav`) | **Navigation Helper** | **Outbound** — jumps to related views & entities derived from the current content | `Up` parent link, `Views` / saved shortcuts / date calendar, `Related` content graph (efforts, equipment, notebooks, backlinks, sibling dashboards, example queries). Zero in-page query filters or mutations. |
+| **L3** (`SecondaryNav`) | **Context Action Panel** | **Inbound** — modifies, navigates within, or acts on the current page | Strict 3-slot hierarchy rendered by a single `<SecondaryNav />` component across every breakpoint: **1. Modifiers**, **2. Goto ("On this page")**, **3. Context Actions ("Actions")**. |
 
 ---
 
-## 3. Per-view inventory (current behavior)
+## 2. L3 Three-Slot Anatomy (`SecondaryNav.tsx`)
 
-### Stream pages — `QueriableStreamView` dynamic groups
+All L3 writers publish into typed `NavContext` channels (`apps/playground/app/nav/NavContext.tsx`) rather than multiplexing widgets or action buttons into `l3Items`:
 
-| Route | Default group dim | DOM id shape | Notes |
-|---|---|---|---|
-| `/library` | date | `date-group-YYYY-MM-DD` | |
-| `/journal` | date | `date-group-YYYY-MM-DD` | overlaps with deriveNav top-10 dates until entries load |
-| `/notebooks` | date | `date-group-*` | |
-| `/feeds`, `/feed` | date | `date-group-*` | |
-| `/efforts` | discipline | `group-discipline-<slug>` | undated entries → `Undated` bucket under date dims |
-| `/results`, `/results/*` | date | `date-group-*` | |
+1. **Slot 1 — Modifiers (`streamControls` / `analyticsControls`)**
+   - `StreamControlsNav` (`streamControls`): `QuerySettingsTrigger`, `WqlWindowPicker`, `Group by` toggles, `Layout` switcher, `Fields` checklist, and `FacetProperties` (`where`-clause tri-state filters).
+   - `AnalyticsControlsNav` (`analyticsControls`): `QuerySettingsTrigger` (when configurable), `Date range` (`EXPLORER_RANGE_OPTIONS` on Metric Explorer or `RangeSelector` on Dashboard boards), and `Units` (`kg` / `lb`, locked when pinned by `in <unit>`). Also published automatically (`{ showRange: false, showUnits: true }`) by `useNotePageNav` when a note contains embedded ```` ```query ```` blocks.
+2. **Slot 2 — Goto (`secondarySpec` + `l3Items` → `"On this page"`)**
+   - Pure structural scroll anchors (`h2`/`h3` headings, ```` ```time ```` / ```` ```log ```` workout blocks with secondary Run/Edit icon affordance, stream group anchors, dashboard widget cards) + scroll-spy active tracking (`usePageScrollSync` / `?h=` / `?s=`).
+3. **Slot 3 — Context Actions (`l3Actions` + `pageAction` → `"Actions"`)**
+   - Context shortcuts acting on the current entity or query (`Add timer`, `Add widget`, `Save to dashboard`, `Add to dashboard`, `Clone to vault`, `Note placements`, `Upgrade to Page`, `Show Resolved`, `Edit` / `Done`, `Copy link`, `Download Markdown`). Clicking an action row dismisses any open L3 drawer before running.
 
-Overrides: WQL `by {discipline|origin|kind|tag|day|week|month|year}` in the
-composer wins; otherwise per-route View Settings **Group By**
-(`wodwiki:view-settings:<route>`).
+---
 
-### Canvas pages — `deriveNav` static index (`withIndex: true`)
+## 3. Unified Responsive Rendering (`SidebarLayout.tsx`)
 
-| Route | Content |
-|---|---|
-| `/` (Home) | markdown sections (level > 1) + `Workout N` per time/log fence |
-| `/page/guide-*` (8 consolidated chapters) | sections only (workout fences skipped on guide pages) |
-| `/notebook/:slug` | sections + `Explore` + one link per notebook workout (`onRun` → open editor) |
+One `<SecondaryNav />` component powers every viewport width — there is no separate Radix `ActionsMenu` dropdown or mobile thumb-dock `MobileStreamControlsNav` mirror:
 
-### Note pages — `useNotePageNav` document index
-
-| Route | Component | Content |
+| Breakpoint | Surface | Trigger |
 |---|---|---|
-| `/playground/:id` | `PlaygroundNotePage` | headings + time blocks (Run) + log blocks |
-| `/workout/:id` | `WorkoutEditorPage` | same |
-| `/effort/:id` | `EffortDetailPage` | same + results-by-version badges |
-| `/feed/:slug/:date/:item` | `FeedItemPage` | same |
+| `2xl+` (`>= 1520px`) | Inline 240px right `<aside>` rail | Always visible when any L3 slot has content |
+| `lg–2xl` (`1024px–1519px`) | `RightL3Drawer` (`w-80` right slide-over sheet) | `L3DrawerTrigger` (`aria-label="Page options"`, `title="Page options (⌘.)"`) mounted automatically inside `StickyPageHeader` (and non-`StickyPageHeader` detail headers) + `⌘.` / `Ctrl+.` shortcut |
+| `< lg` (`< 1024px`) | `RightL3Drawer` (`w-full` right slide-over sheet + `Apply` footer) | Mobile navbar sliders button (`aria-label="Open page options"`) + `⌘.` / `Ctrl+.` shortcut |
 
-### No L3 today (empty section)
-
-| Route | PageKind | Gap? |
-|---|---|---|
-| `/day/:date` | `journalEntry` (`JournalDatePage`) | ✏️ date page shows multiple notes; no per-note index |
-| `/feed/:slug` | `feedDetail` | ✏️ date-keyed content, no index |
-| `/dashboards`, `/dashboard/:slug` | dashboard pages | ✏️ |
-| `/dashboards` explorer | dashboardExplorer | ✏️ |
-| `/settings/*` | settings | intentionally none |
+Both header triggers render an amber active-filter dot (`header-filters-active` / `drawer-filters-active`) whenever `streamControls.query` carries active `find` filters.
 
 ---
 
-## 4. Desired behavior ✏️
+## 4. Per-Page Family Inventory
 
-Design space for how the section *should* work. Current rule: "On this page"
-mirrors the structural anchors of whatever is rendered.
-
-### 4.1 Section identity
-
-- What belongs under "On this page" vs the route secondary menu (e.g.
-  RECENT ENTRIES)?
-  - Today: secondary = cross-page shortcuts; L3 = in-page scroll anchors only.
-  - Desired: ✏️
-- Should L3 links ever navigate (change route/query) instead of scroll?
-  - Today: scroll-only, except `call` actions (Run) as secondaryAction.
-  - Desired: ✏️
-
-### 4.2 Stream pages
-
-- Default grouping per route (today: efforts→discipline, others→date). ✏️
-- Should the active group header be highlighted on scroll? (Today: no
-  IntersectionObserver on stream groups — active tracking only covers
-  canvas/note pages.) ✏️
-- Cap on links shown (long date lists)? Collapse by month/year? ✏️
-- Should clicking a date group deep-link (`?s=` / hash) for shareability? ✏️
-
-### 4.3 Journal date page (`/day/:date`)
-
-- Currently no L3. Candidates: per-note anchors (time of day / note title),
-  per-workout-block entries with Run, or nothing (page is one editor doc). ✏️
-
-### 4.4 Feed detail / dashboards / analytics
-
-- Candidates: date keys for feeds; widget/chart section anchors for
-  dashboards. Or keep intentionally empty. ✏️
-
-### 4.5 Ownership & precedence
-
-- Today: one writer per page kind; empty writers skip; prop > context.
-- Open: should a page be able to *append* to a route-declared base index
-  instead of replacing it? ✏️
-- On `/journal` the stream's date groups and deriveNav's top-10 dates both
-  exist pre/post load — keep last-writer-wins, or remove the deriveNav
-  journal branch? ✏️
+| Page Family | L2 (Outbound Navigation Helper) | L3 Slot 1 (Modifiers) | L3 Slot 2 (`On this page`) | L3 Slot 3 (`Actions`) |
+|---|---|---|---|---|
+| **Note / Detail** (`/note/:id`, `/day/:date`, `/playground/:id`, `/effort/:slug`, `/equipment/:slug`, `/notebook/:slug/:date`, `/t/:type/:tag`, `/feed/:slug`, `/page/:slug`) | `NoteContextNav`: `Up` parent, `CalendarCard` (dated views), `Related` WQL/graph sections | `Units (kg/lb)` when note has ```` ```query ```` fences | Document headings, ```` ```time ```` (with Run), ```` ```log ````, or note/tag section anchors | `Add timer`, `Note placements`, `Upgrade to Page`, `Clone`, `Show Resolved`, `Copy link`, `Download Markdown` |
+| **Library / Stream** (`/journal`, `/workouts`, `/notebooks`, `/feeds`, `/efforts`, `/equipment`, `/tags`, `/pages`, `/sessions`) | `ConditionsNavPanel`: scope sub-routes, pinned/saved WQL shortcuts, recent items | `StreamControlsNav` + `FacetProperties` | Dynamic stream group headers (`groupEntriesByDimension`) | `Add to dashboard` (when `dashboardEnabled`) |
+| **Dashboard Board** (`/dashboard/:slug`) | `DashboardsNavPanel`: `Explorer` + merged vault/prebuilt `Dashboards` + `New dashboard` | `AnalyticsControlsNav` (`RangeSelector` + `Units`) | Sticky title + standalone markdown headings + widget cards (`widget-<key>`) | `Edit` / `Done`, `Add widget` (vault), `Clone to vault` (prebuilt), `Copy link` |
+| **Metric Explorer** (`/dashboards`) | `DashboardsNavPanel`: `Explorer` + `Examples` catalog + saved `Dashboards` + `New dashboard` | `AnalyticsControlsNav` (`Past 4/8/16 weeks` + `Units` + `Query settings`) | Date-group anchors when running a `find` query | `Save to dashboard` |
 
 ---
 
-## 5. When changing this, touch
+## 5. Key Files to Touch When Extending L2 / L3
 
-- `app/nav/NavContext.tsx` — channel state, `setL3Items` dedupe, scrollToSection
-- `app/pages/shared/pageUtils.ts` — `mapIndexToL3` mapping shape
-- `app/pages/shared/useNotePageNav.ts` — note-page document index
-- `app/lib/routeView.ts` — `deriveNav` static indexes per route
-- `app/views/stream/QueriableStreamView.tsx` + `app/lib/entryGrouping.ts` — stream groups
-- `app/nav/SecondaryNav.tsx`, `app/pages/shared/PageToolbar.tsx` — consumers (rail / ⋯ menu)
-- `app/hooks/usePageScrollSync.ts` — scroll tracking + the empty-index gate
-- Tests: `PageToolbar.test.tsx`, `useNotePageNav.test.tsx`,
-  `QueriableStreamView.test.tsx`, `pageUtils.test.ts`
+- `apps/playground/app/nav/NavContext.tsx` — `l3Items`, `l3Actions`, `streamControls`, `analyticsControls`, `rightDrawerOpen`
+- `apps/playground/app/nav/SecondaryNav.tsx` — `StreamControlsNav`, `AnalyticsControlsNav`, and 3-slot `SecondaryNav`
+- `apps/playground/src/templates/SidebarLayout.tsx` & `apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx` — `2xl+` rail, `RightL3Drawer`, `L3DrawerTrigger`, `⌘.` shortcut
+- `apps/playground/src/panels/page-shells/StickyPageHeader.tsx` — mounts `L3DrawerTrigger` automatically on `lg–2xl`
+- `apps/playground/app/pages/shared/useNotePageNav.ts` — note outline (`setL3Items`), helpful actions (`setL3Actions`), and embedded-query unit controls (`setAnalyticsControls`)
+- `apps/playground/app/nav/panels/DashboardsNavPanel.tsx`, `apps/playground/app/views/dashboards/DashboardViewPage.tsx`, `apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx` — dashboard L2/L3 wiring

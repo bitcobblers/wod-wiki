@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc'
+import { L3DrawerTrigger } from '@/panels/page-shells'
 import { useNav } from '../nav/NavContext'
 import type { NavItemL3 } from '../nav/navTypes'
 import type { MenuSpec } from '../nav/menuModel'
@@ -53,8 +54,9 @@ export function NamedPagePage({ slug }: NamedPagePageProps) {
     })
   }, [])
 
-  // L3: the listed notes as scroll anchors, Copy link after.
-  const { setL3Items } = useNav()
+  // L3: Slot 2 ("On this page") holds listed note scroll anchors; Slot 3
+  // ("Actions") holds Copy link.
+  const { setL3Items, setL3Actions } = useNav()
   useEffect(() => {
     const links: NavItemL3[] = (entries ?? []).map(entry => ({
       id: `page-note-${entry.id}`,
@@ -62,15 +64,20 @@ export function NamedPagePage({ slug }: NamedPagePageProps) {
       level: 3,
       action: { type: 'scroll', sectionId: `page-note-${entry.id}` },
     }))
-    links.push({
-      id: 'helpful-copy-link',
-      label: copied ? 'Copied' : 'Copy link',
-      level: 3,
-      action: { type: 'call', handler: handleCopyLink },
-    })
     setL3Items(links)
     return () => setL3Items([])
-  }, [entries, copied, handleCopyLink, setL3Items])
+  }, [entries, setL3Items])
+
+  useEffect(() => {
+    setL3Actions?.([
+      {
+        id: 'helpful-copy-link',
+        label: copied ? 'Copied' : 'Copy link',
+        onRun: handleCopyLink,
+      },
+    ])
+    return () => setL3Actions?.([])
+  }, [copied, handleCopyLink, setL3Actions])
 
   // L2: Up to the Pages library + the notes placed on this page.
   const up = useMemo(
@@ -105,9 +112,10 @@ export function NamedPagePage({ slug }: NamedPagePageProps) {
                 : `${entries.length} ${entries.length === 1 ? 'note' : 'notes'} on this page.`}
           </p>
         </div>
-        {/* Cast: shared navbar on mobile, desktop header here. */}
-        <div className="max-lg:hidden">
+        {/* Cast + lg–2xl Page options: shared navbar on mobile, desktop header here. */}
+        <div className="max-lg:hidden flex items-center gap-1.5">
           <CastButtonRpc />
+          <L3DrawerTrigger />
         </div>
       </header>
       {entries !== null && entries.length > 0 && (

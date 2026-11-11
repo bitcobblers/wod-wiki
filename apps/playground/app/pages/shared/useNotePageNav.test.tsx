@@ -9,7 +9,7 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { NavContext, NavProvider, useNav, initialNavState } from '../../nav/NavContext';
+import { NavContext, NavProvider, useNav, initialNavState, type AnalyticsNavControls, type L3ActionItem } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
 import { useNotePageNav } from './useNotePageNav';
 import { NoteContextNav } from './noteContextLinks';
@@ -63,11 +63,14 @@ function renderNav(scriptBlocks: ScriptBlock[]): PageNavLink[] {
 describe('useNotePageNav — log link gating', () => {
   afterEach(() => cleanup());
 
-  it('publishes helpful actions after the outline (On this page first)', () => {
-    let published: NavItemL3[] = [];
+  it('separates pure outline into l3Items and helpful actions into l3Actions (plus units for embedded query fences)', () => {
+    let publishedOutline: NavItemL3[] = [];
+    let publishedActions: L3ActionItem[] = [];
+    let publishedAnalytics: AnalyticsNavControls | null = null;
+    const contentWithQuery = `${CONTENT}\n\n\`\`\`query\nsum:totalVolume{}\n\`\`\``;
     function Harness() {
       useNotePageNav({
-        content: CONTENT,
+        content: contentWithQuery,
         scriptBlocks: [],
         helpfulActions: [
           { id: 'clone', label: 'Clone', onRun: () => {} },
@@ -84,7 +87,9 @@ describe('useNotePageNav — log link gating', () => {
             navState: initialNavState,
             dispatch: () => {},
             l3Items: [],
-            setL3Items: (items: NavItemL3[]) => { published = items; },
+            setL3Items: (items: NavItemL3[]) => { publishedOutline = items; },
+            setL3Actions: (actions: L3ActionItem[]) => { publishedActions = actions; },
+            setAnalyticsControls: (controls: AnalyticsNavControls | null) => { publishedAnalytics = controls; },
             scrollToSection: () => {},
             registerScrollFn: () => {},
             setContextNav: () => {},
@@ -98,12 +103,11 @@ describe('useNotePageNav — log link gating', () => {
         </NavContext.Provider>
       </MemoryRouter>,
     );
-    const ids = published.map(item => item.id);
-    // Outline rows (time/log fences) precede every helpful row.
-    expect(ids.indexOf('helpful-clone')).toBeGreaterThan(ids.indexOf('time-line-3'));
-    expect(ids.indexOf('helpful-copy-link')).toBe(ids.length - 1);
-    const clone = published.find(item => item.id === 'helpful-clone')!;
-    expect(clone.action.type).toBe('call');
+    const outlineIds = publishedOutline.map(item => item.id);
+    expect(outlineIds).toContain('time-line-3');
+    expect(outlineIds).not.toContain('helpful-clone');
+    expect(publishedActions.map(a => a.id)).toEqual(['helpful-clone', 'helpful-copy-link']);
+    expect(publishedAnalytics).toEqual({ showRange: false, showUnits: true });
   });
 
   it('time links keep onRun; log links are display-only', () => {
@@ -229,12 +233,12 @@ describe('useNotePageNav — log link gating', () => {
   });
 
   it('invokes the latest onRun handler when helpful action closure updates without label change', () => {
-    let capturedL3: NavItemL3[] = [];
+    let capturedActions: L3ActionItem[] = [];
     const calls: string[] = [];
 
     function Consumer({ value }: { value: string }) {
-      const { l3Items } = useNav();
-      capturedL3 = l3Items;
+      const { l3Actions = [] } = useNav();
+      capturedActions = l3Actions;
       useNotePageNav({
         content: CONTENT,
         scriptBlocks: [],
@@ -261,11 +265,9 @@ describe('useNotePageNav — log link gating', () => {
       </MemoryRouter>,
     );
 
-    const actionItem = capturedL3.find(i => i.id === 'helpful-action');
+    const actionItem = capturedActions.find(i => i.id === 'helpful-action');
     expect(actionItem).toBeDefined();
-    if (actionItem?.action.type === 'call') {
-      actionItem.action.handler();
-    }
+    actionItem?.onRun();
     expect(calls).toEqual(['second']);
   });
 

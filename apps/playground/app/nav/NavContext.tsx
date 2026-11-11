@@ -19,6 +19,7 @@ import {
   useCallback,
   useMemo,
   useRef,
+  type ComponentType,
 } from 'react'
 import { useLocation } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
@@ -32,6 +33,7 @@ import type {
 import type { MenuSpec } from './menuModel'
 import type { EntityLevel } from '../lib/fieldProjection'
 import type { LayoutMode, ViewSettings } from '../lib/viewSettingsStorage'
+import type { ExplorerRangeWeeks } from '../hooks/useExplorerQueryState'
 
 // ─── Initial State ────────────────────────────────────────────────────────────
 
@@ -106,6 +108,40 @@ export interface StreamNavControls {
   onOpenQuerySettings?: () => void
 }
 
+/**
+ * L3 Slot 1 modifier controls for analytics & query-widget surfaces
+ * (Metric Explorer, Dashboard boards, and Note pages carrying embedded
+ * `query` blocks).
+ */
+export interface AnalyticsNavControls {
+  /** Controlled week window (Metric Explorer). Omit to use global RangeSelector. */
+  weeks?: ExplorerRangeWeeks
+  onWeeksChange?: (weeks: ExplorerRangeWeeks) => void
+  /** Show the Date range section (default: true). */
+  showRange?: boolean
+  /** Show the Units (kg/lb) toggle section (default: true). */
+  showUnits?: boolean
+  /** When true, the query pins its own `in <unit>` clause and locks the toggle. */
+  unitForced?: boolean
+  /** Open the surface's query settings modal. */
+  onOpenQuerySettings?: () => void
+}
+
+/**
+ * L3 Slot 3 context action row — shortcuts acting on the current entity or
+ * query (e.g. Add timer, Add widget, Clone to vault, Note placements,
+ * Upgrade to Page, Copy link). Rendered under the "Actions" header in
+ * SecondaryNav rather than mixed into "On this page".
+ */
+export interface L3ActionItem {
+  id: string
+  label: string
+  icon?: ComponentType<{ className?: string }>
+  onRun: () => void
+  disabled?: boolean
+  testId?: string
+}
+
 /** Route-scoped static L2 content registered by a page (e.g. note
  *  relationships). The sidebar renders it instead of the active L1's panel
  *  while `pathname` matches the current location. */
@@ -120,12 +156,16 @@ export interface NavContextValue {
   dispatch: NavDispatch
   l3Items: NavItemL3[]
   setL3Items: (items: NavItemL3[]) => void
+  l3Actions?: L3ActionItem[]
+  setL3Actions?: (actions: L3ActionItem[]) => void
   secondarySpec?: MenuSpec
   setSecondarySpec: (spec?: MenuSpec) => void
   contextNav?: ContextNav
   setContextNav: (nav?: ContextNav | ((prev?: ContextNav) => ContextNav | undefined)) => void
   streamControls?: StreamNavControls | null
   setStreamControls: (controls: StreamNavControls | null) => void
+  analyticsControls?: AnalyticsNavControls | null
+  setAnalyticsControls?: (controls: AnalyticsNavControls | null) => void
   scrollToSection: (id: string) => void
   /**
    * Register a custom scroll-to handler. Called by AppContent so the sidebar
@@ -158,12 +198,16 @@ export const NavContext = createContext<NavContextValue>({
   dispatch: () => {},
   l3Items: [],
   setL3Items: () => {},
+  l3Actions: [],
+  setL3Actions: () => {},
   secondarySpec: undefined,
   setSecondarySpec: () => {},
   contextNav: undefined,
   setContextNav: () => {},
   streamControls: null,
   setStreamControls: () => {},
+  analyticsControls: null,
+  setAnalyticsControls: () => {},
   scrollToSection: defaultScroll,
   registerScrollFn: () => {},
   openCreateJournal: () => {},
@@ -199,9 +243,11 @@ export interface NavProviderProps {
 export function NavProvider({ tree, children }: NavProviderProps) {
   const [navState, dispatch] = useReducer(navReducer, initialNavState)
   const [l3Items, setL3ItemsInternal] = useState<NavItemL3[]>([])
+  const [l3Actions, setL3ActionsInternal] = useState<L3ActionItem[]>([])
   const [secondarySpec, setSecondarySpecInternal] = useState<MenuSpec | undefined>(undefined)
   const [contextNav, setContextNavInternal] = useState<ContextNav | undefined>(undefined)
   const [streamControls, setStreamControlsInternal] = useState<StreamNavControls | null>(null)
+  const [analyticsControls, setAnalyticsControlsInternal] = useState<AnalyticsNavControls | null>(null)
 
   const setSecondarySpec = useCallback((next?: MenuSpec) => {
     setSecondarySpecInternal(prev => (prev === next ? prev : next))
@@ -230,6 +276,47 @@ export function NavProvider({ tree, children }: NavProviderProps) {
   const setStreamControls = useCallback((next: StreamNavControls | null) => {
     setStreamControlsInternal(prev => (prev === next ? prev : next))
   }, [])
+
+  const setAnalyticsControls = useCallback((next: AnalyticsNavControls | null) => {
+    setAnalyticsControlsInternal(prev => {
+      if (prev === next) return prev
+      if (!prev && !next) return prev
+      if (
+        prev &&
+        next &&
+        prev.weeks === next.weeks &&
+        prev.onWeeksChange === next.onWeeksChange &&
+        prev.showRange === next.showRange &&
+        prev.showUnits === next.showUnits &&
+        prev.unitForced === next.unitForced &&
+        prev.onOpenQuerySettings === next.onOpenQuerySettings
+      ) {
+        return prev
+      }
+      return next
+    })
+  }, [])
+
+  const setL3Actions = useCallback((actions: L3ActionItem[]) => {
+    setL3ActionsInternal(prev => {
+      if (
+        prev.length === actions.length &&
+        prev.every(
+          (item, i) =>
+            item.id === actions[i]?.id &&
+            item.label === actions[i]?.label &&
+            item.icon === actions[i]?.icon &&
+            item.disabled === actions[i]?.disabled &&
+            item.testId === actions[i]?.testId &&
+            item.onRun === actions[i]?.onRun,
+        )
+      ) {
+        return prev
+      }
+      return actions
+    })
+  }, [])
+
   const location = useLocation()
 
   // Mutable ref so AppContent can override scroll behaviour without re-rendering
@@ -250,13 +337,12 @@ export function NavProvider({ tree, children }: NavProviderProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname])
 
-  // Close left drawer on route change. Stream controls are NOT cleared here:
-  // this effect fires after children on mount/update, which would wipe the
-  // stream view's just-published controls (child effects run first, so the
-  // pathname clear always won the race). The stream view's own unmount
-  // cleanup clears them when the route actually leaves the stream.
+  // Close drawers on route change. Stream/analytics controls are NOT cleared
+  // here: this effect fires after children on mount/update, which would wipe
+  // a view's just-published controls. Each view's unmount cleanup clears them.
   useEffect(() => {
     dispatch({ type: 'SET_LEFT_DRAWER', open: false })
+    dispatch({ type: 'SET_RIGHT_DRAWER', open: false })
   }, [location.pathname])
   const setL3Items = useCallback((items: NavItemL3[]) => {
     setL3ItemsInternal((prev) => {
@@ -298,18 +384,41 @@ export function NavProvider({ tree, children }: NavProviderProps) {
       dispatch,
       l3Items,
       setL3Items,
+      l3Actions,
+      setL3Actions,
       secondarySpec,
       setSecondarySpec,
       contextNav,
       setContextNav,
       streamControls,
       setStreamControls,
+      analyticsControls,
+      setAnalyticsControls,
       scrollToSection,
       registerScrollFn,
       openCreateJournal,
       registerCreateJournal,
     }),
-    [tree, navState, l3Items, setL3Items, secondarySpec, setSecondarySpec, contextNav, setContextNav, streamControls, setStreamControls, scrollToSection, registerScrollFn, openCreateJournal, registerCreateJournal],
+    [
+      tree,
+      navState,
+      l3Items,
+      setL3Items,
+      l3Actions,
+      setL3Actions,
+      secondarySpec,
+      setSecondarySpec,
+      contextNav,
+      setContextNav,
+      streamControls,
+      setStreamControls,
+      analyticsControls,
+      setAnalyticsControls,
+      scrollToSection,
+      registerScrollFn,
+      openCreateJournal,
+      registerCreateJournal,
+    ],
   )
   return (
     <NavContext.Provider value={value}>

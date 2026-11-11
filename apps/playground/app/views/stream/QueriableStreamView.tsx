@@ -62,7 +62,6 @@ import { publishStreamResults } from './streamResults'
 import { useNav } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
-import { MobileStreamControlsNav } from '../../nav/SecondaryNav'
 import { NotebookLibraryBrowser } from '../notebook-gallery/NotebookLibraryBrowser'
 import { FeedIntakeBanner } from '../notebook-gallery/FeedIntakeBanner'
 import { OUTCOME_LABEL } from '../../pages/SyncSection'
@@ -744,7 +743,7 @@ export function QueriableStreamView({
   const groupCountMap = useMemo(() => new Map(allGroups.map(g => [g.id, g.entries.length])), [allGroups])
 
   // Publish dynamic section links and L3 stream controls to NavContext
-  const { setL3Items, scrollToSection, navState, setStreamControls } = useNav()
+  const { setL3Items, setL3Actions, scrollToSection, navState, setStreamControls } = useNav()
   useEffect(() => {
     if (allGroups.length === 0) {
       setL3Items([])
@@ -787,6 +786,24 @@ export function QueriableStreamView({
     },
     [groupDims, query, setQuery, handleGroupByChange],
   )
+
+  const saveDisabled = Boolean(parsed.error) || query.trim() === ''
+  useEffect(() => {
+    if (!profile.dashboardEnabled) {
+      setL3Actions?.([])
+      return
+    }
+    setL3Actions?.([
+      {
+        id: 'stream-save-to-dashboard',
+        label: 'Add to dashboard',
+        icon: Save,
+        disabled: saveDisabled,
+        onRun: () => setDashboardOpen(true),
+      },
+    ])
+    return () => setL3Actions?.([])
+  }, [profile.dashboardEnabled, saveDisabled, setL3Actions])
 
   useEffect(() => {
     setStreamControls?.({
@@ -998,7 +1015,7 @@ export function QueriableStreamView({
                 variant="outline"
                 size="sm"
                 data-testid="save-stream-query"
-                disabled={Boolean(parsed.error) || query.trim() === ''}
+                disabled={saveDisabled}
                 onClick={() => setDashboardOpen(true)}
               >
                 <Save className="size-3.5" aria-hidden="true" />
@@ -1006,11 +1023,6 @@ export function QueriableStreamView({
               </Button>
             )}
             {actions}
-            {/* Mobile thumb ⋯ sheet carries the same L3 controls (whiteboard
-                bottom-up Search → New → … contract). ResponsiveActions
-                registers children only on mobile, so the desktop header row
-                and the 2xl+ rail keep sole ownership — no duplicates. */}
-            <MobileStreamControlsNav />
           </ResponsiveActions>
         }
         queryBar={

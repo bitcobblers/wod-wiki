@@ -1,29 +1,37 @@
 /**
- * SecondaryNav — shell zone 4: the right-hand "On this page" rail.
+ * SecondaryNav — shell zone 4: the canonical L3 context action panel.
  *
- * Content = the stream surface's L3 CONTROLS (where-filters via FacetProperties,
- * date window, group-by, layout, visible fields — the same state the View
- * dialog and header buttons drive) + stream controls + route-declared spec
- * (shell.secondary) + the page's own index (NavContext l3Items — published by
- * useNotePageNav / CanvasPage / HomeTour). Where-clause filters are L3-only:
- * the L2 ConditionsNavPanel keeps navigation, labeled shortcuts and recent
- * results. Desktop (2xl+) renders this rail; below 2xl the same entries
- * collapse into the ⋯ header menu (ActionsMenu) and the mobile thumb ⋯ sheet
- * (MobileStreamControlsNav), per the responsive shell contract.
+ * Every page family renders the same 3-slot L3 anatomy across all breakpoints
+ * (inline rail at 2xl+, slide-over drawer at lg–2xl, full-width right drawer
+ * below lg):
+ *   1. Modifiers  — `streamControls` (FacetProperties, date window, group-by,
+ *                   layout, fields, query settings) and/or `analyticsControls`
+ *                   (range, units kg/lb, query settings).
+ *   2. Goto       — route-declared `secondary` spec + `l3Items` ("On this page"
+ *                   structural scroll anchors & scroll-spy).
+ *   3. Actions    — `l3Actions` + `pageAction` ("Actions" context shortcuts).
  */
 
 import { useMemo, type ReactNode } from 'react'
-import { CalendarDays, Columns3, LayoutGrid, Rss, Table } from 'lucide-react'
+import { CalendarDays, Check, Columns3, LayoutGrid, Rss, Table } from 'lucide-react'
+import { RangeSelector, useAnalyticsUnitPreference } from '@bitcobblers/wod-wiki-ui'
+import { cn } from '@/lib/utils'
 
 import { MenuList, useActiveSectionId, useResolvedMenu } from './MenuList'
-import { useNav, type StreamNavControls } from './NavContext'
+import {
+  useNav,
+  type AnalyticsNavControls,
+  type L3ActionItem,
+  type StreamNavControls,
+} from './NavContext'
+import { useCloseNavigationDrawer } from './NavigationDrawerContext'
 import { l3ToMenuEntries } from './menuModel'
 import type { MenuSpec } from './menuModel'
 import { WqlWindowPicker } from '../views/stream/WqlWindowPicker'
 import { QuerySettingsTrigger } from '../components/organisms/wql/QuerySettingsTrigger'
 import type { LayoutMode } from '../lib/viewSettingsStorage'
 import { getFieldsForLevel } from '../lib/fieldProjection'
-import { useIsMobile } from '../hooks/useIsMobile'
+import { EXPLORER_RANGE_OPTIONS } from '../hooks/useExplorerQueryState'
 import { FacetProperties } from './panels/FacetProperties'
 
 const LAYOUT_OPTIONS: readonly { id: LayoutMode; label: string; icon: typeof LayoutGrid }[] = [
@@ -35,12 +43,8 @@ const LAYOUT_OPTIONS: readonly { id: LayoutMode; label: string; icon: typeof Lay
 ]
 
 /**
- * StreamControlsNav — the L3 stream-controls block (where-filters +
- * date window picker + group-by toggles + layout + visible fields + the
- * query-settings entry). Rendered by the 2xl+ rail, by the header ⋯
- * dropdown below 2xl, and by the mobile thumb ⋯ sheet via
- * MobileStreamControlsNav — every surface carries the same components bound
- * to the same NavContext streamControls.
+ * StreamControlsNav — L3 Slot 1 modifier block for stream/library surfaces
+ * (query settings + date window + group-by + layout + fields + FacetProperties).
  */
 export function StreamControlsNav({ streamControls }: { streamControls: StreamNavControls }) {
   const available = streamControls.availableLayouts
@@ -163,32 +167,145 @@ export function StreamControlsNav({ streamControls }: { streamControls: StreamNa
 }
 
 /**
- * MobileStreamControlsNav — the mobile thumb ⋯ sheet's L3 block, registered
- * by QueriableStreamView as a ResponsiveActions child. ResponsiveActions only
- * registers children with the dock on mobile and renders them inline on
- * desktop, so gating on useIsMobile keeps the desktop header and 2xl rail the
- * sole L3 owners — no duplicate controls.
+ * AnalyticsControlsNav — L3 Slot 1 modifier block for Dashboard boards,
+ * Metric Explorer, and Note pages carrying embedded `query` blocks.
  */
-export function MobileStreamControlsNav() {
-  const isMobile = useIsMobile()
-  const { streamControls } = useNav()
-  if (!isMobile || !streamControls) return null
-  return <StreamControlsNav streamControls={streamControls} />
+export function AnalyticsControlsNav({ controls }: { controls: AnalyticsNavControls }) {
+  const { unit, setUnit } = useAnalyticsUnitPreference()
+  const showRange = controls.showRange !== false
+  const showUnits = controls.showUnits !== false
+  const controlledRange = controls.weeks !== undefined && controls.onWeeksChange !== undefined
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="l3-analytics-controls">
+      {controls.onOpenQuerySettings && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            This page
+          </span>
+          <QuerySettingsTrigger onOpen={controls.onOpenQuerySettings} />
+        </div>
+      )}
+
+      {showRange && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            Date range
+          </span>
+          {controlledRange ? (
+            <div className="flex flex-col gap-0.5" data-testid="l3-range-options">
+              {EXPLORER_RANGE_OPTIONS.map(w => {
+                const active = controls.weeks === w
+                return (
+                  <button
+                    key={w}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => controls.onWeeksChange?.(w)}
+                    data-testid={`l3-range-${w}w`}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors',
+                      active
+                        ? 'bg-primary/10 font-semibold text-primary'
+                        : 'text-foreground/80 hover:bg-muted/60 hover:text-foreground',
+                    )}
+                  >
+                    <span className="w-3.5 text-primary">
+                      {active ? <Check className="size-3.5" aria-hidden="true" /> : null}
+                    </span>
+                    <span>Past {w} weeks</span>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <RangeSelector />
+          )}
+        </div>
+      )}
+
+      {showUnits && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            Units{controls.unitForced ? ' — pinned by query' : ''}
+          </span>
+          <div className="grid grid-cols-2 gap-1" data-testid="l3-unit-options">
+            {(['kg', 'lb'] as const).map(u => {
+              const active = unit === u
+              return (
+                <button
+                  key={u}
+                  type="button"
+                  disabled={Boolean(controls.unitForced)}
+                  aria-pressed={active}
+                  onClick={() => setUnit(u)}
+                  data-testid={`l3-unit-${u}`}
+                  className={cn(
+                    'flex min-h-8 items-center justify-center rounded-md border px-2 py-1 text-xs font-medium transition-colors',
+                    controls.unitForced
+                      ? 'border-transparent text-muted-foreground/50 cursor-not-allowed'
+                      : active
+                        ? 'border-border/80 bg-card text-foreground shadow-sm'
+                        : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {u}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function L3ActionRow({ action }: { action: L3ActionItem }) {
+  const closeDrawer = useCloseNavigationDrawer()
+  const Icon = action.icon
+  return (
+    <button
+      type="button"
+      disabled={action.disabled}
+      data-testid={action.testId}
+      onClick={() => {
+        if (action.disabled) return
+        closeDrawer()
+        action.onRun()
+      }}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] transition-colors',
+        action.disabled
+          ? 'cursor-not-allowed text-muted-foreground/45'
+          : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+      )}
+    >
+      {Icon && <Icon className="size-4 shrink-0" />}
+      <span className="min-w-0 flex-1 truncate" title={action.label}>
+        {action.label}
+      </span>
+    </button>
+  )
 }
 
 export function SecondaryNav({ spec, pageAction }: { spec?: MenuSpec; pageAction?: ReactNode }) {
-  const { l3Items, streamControls } = useNav()
+  const { l3Items, l3Actions = [], streamControls, analyticsControls } = useNav()
   const resolved = useResolvedMenu(spec)
   const toc = useMemo(() => l3ToMenuEntries(l3Items), [l3Items])
   const activeId = useActiveSectionId()
 
-  if (resolved.length === 0 && toc.length === 0 && !streamControls && !pageAction) return null
+  const hasModifiers = Boolean(streamControls || analyticsControls)
+  const hasGoto = resolved.length > 0 || toc.length > 0
+  const hasActions = l3Actions.length > 0 || Boolean(pageAction)
+
+  if (!hasModifiers && !hasGoto && !hasActions) return null
 
   return (
     <div className="flex flex-col px-3 py-4 gap-4">
-      {streamControls && (
-        <div className="pb-3 border-b border-border/50">
-          <StreamControlsNav streamControls={streamControls} />
+      {hasModifiers && (
+        <div className={cn('flex flex-col gap-4', (hasGoto || hasActions) && 'pb-3 border-b border-border/50')}>
+          {streamControls && <StreamControlsNav streamControls={streamControls} />}
+          {analyticsControls && <AnalyticsControlsNav controls={analyticsControls} />}
         </div>
       )}
 
@@ -201,7 +318,21 @@ export function SecondaryNav({ spec, pageAction }: { spec?: MenuSpec; pageAction
           <MenuList entries={toc} activeId={activeId} />
         </div>
       )}
-      {pageAction && <div className="pt-2 border-t border-border/50">{pageAction}</div>}
+
+      {hasActions && (
+        <div
+          data-testid="l3-actions"
+          className={cn('flex flex-col gap-0.5', hasGoto && 'pt-2 border-t border-border/50')}
+        >
+          <div className="px-2 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            Actions
+          </div>
+          {l3Actions.map(action => (
+            <L3ActionRow key={action.id} action={action} />
+          ))}
+          {pageAction && <div className={cn(l3Actions.length > 0 && 'pt-1')}>{pageAction}</div>}
+        </div>
+      )}
     </div>
   )
 }

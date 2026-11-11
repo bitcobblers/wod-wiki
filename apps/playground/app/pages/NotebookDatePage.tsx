@@ -118,7 +118,7 @@ export function NotebookDatePage({ slug, date }: NotebookDatePageProps) {
     await notebookService.moveNote(created.id, slug)
     navigate(notePath(created.id))
   }, [date, slug, navigate])
-  const { setL3Items } = useNav()
+  const { setL3Items, setL3Actions } = useNav()
   useEffect(() => {
     const links: NavItemL3[] = groups.map(group => ({
       id: group.id,
@@ -126,23 +126,28 @@ export function NotebookDatePage({ slug, date }: NotebookDatePageProps) {
       level: 3,
       action: { type: 'scroll', sectionId: group.id },
     }))
-    links.push({
-      id: 'helpful-add-timer',
-      label: 'Add timer',
-      level: 3,
-      action: { type: 'call', handler: () => void handleAddTimer() },
-    })
-    if (slug) {
-      links.push({
-        id: 'helpful-today',
-        label: 'Today',
-        level: 3,
-        action: { type: 'call', handler: () => navigate(notebookDatePath(slug, localDateKey(new Date()))) },
-      })
-    }
     setL3Items(links)
     return () => setL3Items([])
-  }, [groups, setL3Items, slug, navigate, handleAddTimer])
+  }, [groups, setL3Items])
+
+  useEffect(() => {
+    const actions = [
+      {
+        id: 'helpful-add-timer',
+        label: 'Add timer',
+        onRun: () => void handleAddTimer(),
+      },
+      ...(slug
+        ? [{
+            id: 'helpful-today',
+            label: 'Today',
+            onRun: () => navigate(notebookDatePath(slug, localDateKey(new Date()))),
+          }]
+        : []),
+    ]
+    setL3Actions?.(actions)
+    return () => setL3Actions?.([])
+  }, [setL3Actions, slug, navigate, handleAddTimer])
 
   // ── L2 (whiteboard "notebook day"): Up to this notebook; calendar scoped
   // to notebook dates; recent notes in the notebook.
@@ -210,13 +215,14 @@ export function NotebookDatePage({ slug, date }: NotebookDatePageProps) {
         // (NewEntryCombo resolves this route to a note in `slug`; read-only
         // notebooks get Clone), plus Cast, sync, and page options. Mobile:
         // New note rides the dock, Cast stays in the navbar.
-        <ResponsiveActions label="Notebook day actions" primary={<NewEntryCombo />}>
+        <div className="flex items-center gap-2">
+          <ResponsiveActions label="Notebook day actions" primary={<NewEntryCombo />} />
           <PageActions
             mode="notebook-readonly"
             currentWorkout={{ name: `${slug} · ${date}`, content: '' }}
             index={[]}
           />
-        </ResponsiveActions>
+        </div>
       }
       editor={
         <div className="flex flex-col gap-6 px-4 py-6 sm:px-6">

@@ -11,8 +11,7 @@
  * in the rail on desktop and inside the ⋯ menu on tablet/phone.
  */
 
-import { createElement, type ReactNode } from 'react'
-import type { ComponentType } from 'react'
+import type { ReactNode, ComponentType } from 'react'
 import type { Entry } from '../lib/entryMapper'
 import type { NavItemL3 } from './navTypes'
 
@@ -81,32 +80,12 @@ export type MenuEntry = MenuLink | MenuSection | MenuWql | MenuWidget
 /** Top-level menu content for a shell zone. */
 export type MenuSpec = MenuEntry[]
 
-/** Adapt the page-index L3 items (NavContext) into standard menu entries.
- *  Items carrying a `panel` render as live widgets (e.g. dashboard
- *  range/units view controls); the rest become links. */
+/** Adapt the page-index L3 items (NavContext) into standard menu link entries
+ *  for the "On this page" Goto slot. Modifiers and context actions live in
+ *  their own dedicated L3 slots (`analyticsControls` / `streamControls` and
+ *  `l3Actions`). */
 export function l3ToMenuEntries(items: NavItemL3[]): MenuEntry[] {
   return items.map(item => {
-    if (item.panel) {
-      const Panel = item.panel
-      return {
-        kind: 'widget' as const,
-        id: item.id,
-        // ponytail: L3 view-control widgets ignore NavPanelProps — fabricated
-        // props keep the typed `panel` slot; upgrade to a dedicated widget
-        // field on NavItemL3 when navTypes grows one.
-        render: () =>
-          createElement(
-            'div',
-            { className: 'flex flex-col gap-1' },
-            createElement(
-              'span',
-              { className: 'px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground' },
-              item.label,
-            ),
-            createElement(Panel, { currentPath: '', location: null as never }),
-          ),
-      }
-    }
     const action = item.action
     const run = item.secondaryAction?.action
     // No `muted` here: a run affordance is not a reason to dim a row — the
@@ -121,9 +100,9 @@ export function l3ToMenuEntries(items: NavItemL3[]): MenuEntry[] {
       base.onRun = run.handler
       base.runIcon = item.secondaryRunIcon ?? 'play'
     }
-    if (action.type === 'route') return { ...base, to: action.to }
-    if (action.type === 'scroll') return { ...base, sectionId: action.sectionId }
-    if (action.type === 'call') return { ...base, onRun: action.handler }
+    if (action?.type === 'route') return { ...base, to: action.to }
+    if (action?.type === 'scroll') return { ...base, sectionId: action.sectionId }
+    if (action?.type === 'call') return { ...base, onRun: action.handler }
     return base
   })
 }

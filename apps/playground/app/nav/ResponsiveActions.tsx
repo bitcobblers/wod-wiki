@@ -27,6 +27,7 @@
  */
 
 import {
+  Children,
   createContext,
   useCallback,
   useContext,
@@ -106,7 +107,7 @@ export function ResponsiveActions({
   const registers = registry !== null && !nested && isMobile && !fallback
   const fallbackRegisters = registry !== null && fallback
 
-  const hasContent = children !== undefined && children !== null && children !== false
+  const hasContent = Children.toArray(children).length > 0
   const registeredChildren = useMemo(() => (
     <InsideActionsContext.Provider value={true}>
       {children}

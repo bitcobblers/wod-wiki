@@ -21,19 +21,13 @@ import { publishStreamResults, type StreamResultSnapshot } from '../../views/str
 import { FEEDS_STREAM_PROFILE } from '../../views/stream/streamProfile'
 import { GROUP_BY_DIMENSION_IDS, resolveGroupByOptions } from '../../lib/groupByOptions'
 import type { Entry } from '../../lib/entryMapper'
-import type { StreamNavControls } from '../NavContext'
+import type { AnalyticsNavControls, L3ActionItem, StreamNavControls } from '../NavContext'
 import { wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
 
 import { NavContext, initialNavState } from '../NavContext'
-import { MobileStreamControlsNav, SecondaryNav } from '../SecondaryNav'
+import { NavigationDrawerProvider } from '../NavigationDrawerContext'
+import { SecondaryNav } from '../SecondaryNav'
 import { facetOptions } from '../panels/conditionsFacets'
-
-// The mobile ⋯ sheet gate — flipped per test (defaults to the real hook's
-// no-matchMedia behavior).
-let isMobile = false
-mock.module('../../hooks/useIsMobile', () => ({
-  useIsMobile: () => isMobile,
-}))
 
 const entry = (over: Partial<Entry> & { id: string; title: string }): Entry => ({
   kind: 'note',
@@ -119,7 +113,6 @@ const originalGetAllNotes = storageService.getAllNotes
 
 beforeEach(() => {
   lastLocation = null
-  isMobile = false
   storageService.getNoteTagLabelsBatch = async () => MEMBERSHIP
   storageService.getEffortSlugsByNoteBatch = async () => EFFORT_MEMBERSHIP
   storageService.getAllNotes = async () => []
@@ -191,13 +184,82 @@ describe('SecondaryNav L3 controls on stream routes', () => {
   })
 })
 
-// ── mobile thumb ⋯ sheet: the same L3 block, mobile-only ─────────────────────
+// ── 3-slot L3 anatomy: AnalyticsControlsNav + Goto + Actions ─────────────────
 
-describe('MobileStreamControlsNav', () => {
-  it('renders the full L3 block — filters included — on mobile', () => {
-    isMobile = true
+describe('SecondaryNav 3-slot anatomy (AnalyticsControlsNav + Actions)', () => {
+  it('renders AnalyticsControlsNav (Range, Units, Query settings) in Slot 1 and Actions in Slot 3', () => {
+    const onWeeksChange = mock(() => {})
+    const onOpenQuerySettings = mock(() => {})
+    const onRunAction = mock(() => {})
+    const closeDrawer = mock(() => {})
+
+    const analyticsControls: AnalyticsNavControls = {
+      weeks: 8,
+      onWeeksChange,
+      showRange: true,
+      showUnits: true,
+      unitForced: false,
+      onOpenQuerySettings,
+    }
+    const l3Actions: L3ActionItem[] = [
+      { id: 'save-dash', label: 'Save to dashboard', onRun: onRunAction },
+    ]
+
     render(
-      <MemoryRouter initialEntries={['/feeds']}>
+      <MemoryRouter initialEntries={['/dashboards']}>
+        <NuqsAdapter>
+          <NavigationDrawerProvider close={closeDrawer}>
+            <NavContext.Provider
+              value={{
+                tree: [],
+                navState: initialNavState,
+                dispatch: () => {},
+                l3Items: [{ id: 'sec-1', label: 'Overview', level: 3, action: { type: 'scroll', sectionId: 'sec-1' } }],
+                setL3Items: () => {},
+                l3Actions,
+                setL3Actions: () => {},
+                analyticsControls,
+                setAnalyticsControls: () => {},
+                secondarySpec: undefined,
+                setSecondarySpec: () => {},
+                streamControls: null,
+                setStreamControls: () => {},
+                scrollToSection: () => {},
+                registerScrollFn: () => {},
+                openCreateJournal: () => {},
+                registerCreateJournal: () => () => {},
+                setContextNav: () => {},
+              }}
+            >
+              <SecondaryNav />
+            </NavContext.Provider>
+          </NavigationDrawerProvider>
+        </NuqsAdapter>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByTestId('l3-analytics-controls')).toBeTruthy()
+    expect(screen.getByTestId('l3-range-8w').getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByTestId('l3-range-4w'))
+    expect(onWeeksChange).toHaveBeenCalledWith(4)
+
+    fireEvent.click(screen.getByTestId('query-settings-trigger'))
+    expect(closeDrawer).toHaveBeenCalledTimes(1)
+    expect(onOpenQuerySettings).toHaveBeenCalledTimes(1)
+
+    expect(screen.getByText('On this page')).toBeTruthy()
+    expect(screen.getByText('Overview')).toBeTruthy()
+
+    const actionsSection = screen.getByTestId('l3-actions')
+    expect(actionsSection.textContent).toContain('Actions')
+    fireEvent.click(screen.getByRole('button', { name: 'Save to dashboard' }))
+    expect(onRunAction).toHaveBeenCalledTimes(1)
+    expect(closeDrawer).toHaveBeenCalledTimes(2)
+  })
+
+  it('disables unit buttons with pinned hint when unitForced is true', () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboards']}>
         <NuqsAdapter>
           <NavContext.Provider
             value={{
@@ -206,9 +268,11 @@ describe('MobileStreamControlsNav', () => {
               dispatch: () => {},
               l3Items: [],
               setL3Items: () => {},
+              analyticsControls: { showRange: false, showUnits: true, unitForced: true },
+              setAnalyticsControls: () => {},
               secondarySpec: undefined,
               setSecondarySpec: () => {},
-              streamControls: controls(),
+              streamControls: null,
               setStreamControls: () => {},
               scrollToSection: () => {},
               registerScrollFn: () => {},
@@ -217,72 +281,15 @@ describe('MobileStreamControlsNav', () => {
               setContextNav: () => {},
             }}
           >
-            <MobileStreamControlsNav />
+            <SecondaryNav />
           </NavContext.Provider>
         </NuqsAdapter>
       </MemoryRouter>,
     )
 
-    expect(screen.getByTestId('l3-stream-controls')).toBeTruthy()
-    expect(screen.getByText('Filters')).toBeTruthy()
-    expect(screen.getByTestId('conditions-section-tags')).toBeTruthy()
-    expect(screen.getByTestId('l3-layout-options')).toBeTruthy()
-  })
-
-  it('renders nothing on desktop (rail and header ⋯ keep ownership) and without published controls', () => {
-    isMobile = false
-    const { container } = render(
-      <MemoryRouter initialEntries={['/feeds']}>
-        <NavContext.Provider
-          value={{
-            tree: [],
-            navState: initialNavState,
-            dispatch: () => {},
-            l3Items: [],
-            setL3Items: () => {},
-            secondarySpec: undefined,
-            setSecondarySpec: () => {},
-            streamControls: controls(),
-            setStreamControls: () => {},
-            scrollToSection: () => {},
-            registerScrollFn: () => {},
-            openCreateJournal: () => {},
-            registerCreateJournal: () => () => {},
-            setContextNav: () => {},
-          }}
-        >
-          <MobileStreamControlsNav />
-        </NavContext.Provider>
-      </MemoryRouter>,
-    )
-    expect(container.firstChild).toBeNull()
-
-    isMobile = true
-    const { container: empty } = render(
-      <MemoryRouter initialEntries={['/feeds']}>
-        <NavContext.Provider
-          value={{
-            tree: [],
-            navState: initialNavState,
-            dispatch: () => {},
-            l3Items: [],
-            setL3Items: () => {},
-            secondarySpec: undefined,
-            setSecondarySpec: () => {},
-            streamControls: null,
-            setStreamControls: () => {},
-            scrollToSection: () => {},
-            registerScrollFn: () => {},
-            openCreateJournal: () => {},
-            registerCreateJournal: () => () => {},
-            setContextNav: () => {},
-          }}
-        >
-          <MobileStreamControlsNav />
-        </NavContext.Provider>
-      </MemoryRouter>,
-    )
-    expect(empty.firstChild).toBeNull()
+    expect(screen.getByText(/pinned by query/i)).toBeTruthy()
+    expect((screen.getByTestId('l3-unit-kg') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByTestId('l3-unit-lb') as HTMLButtonElement).disabled).toBe(true)
   })
 })
 

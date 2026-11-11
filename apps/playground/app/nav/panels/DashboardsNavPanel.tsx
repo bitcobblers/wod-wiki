@@ -63,7 +63,7 @@ export function DashboardsNavPanel(_props: NavPanelProps) {
         }}
       />
 
-      {onExplorer ? (
+      {onExplorer && (
         <>
           <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
             Examples
@@ -81,42 +81,40 @@ export function DashboardsNavPanel(_props: NavPanelProps) {
             />
           ))}
         </>
-      ) : (
-        <>
-          <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
-            Dashboards
-          </div>
-
-          {loading ? (
-            <div className="px-3 py-2 text-xs text-muted-foreground/60">Loading…</div>
-          ) : items.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-muted-foreground/60">No dashboards yet.</div>
-          ) : (
-            items.map((d) => (
-              <NavRow
-                key={d.slug}
-                label={d.title}
-                badge={d.editable ? undefined : 'prebuilt'}
-                active={location.pathname === `/dashboard/${d.slug}`}
-                onClick={() => {
-                  navigate(dashboardViewPath(d.slug));
-                  closeDrawer();
-                }}
-              />
-            ))
-          )}
-          <button
-            type="button"
-            onClick={handleNew}
-            disabled={creating}
-            data-testid="dashboards-nav-new"
-            className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <Plus className="size-3.5" />
-            New dashboard
-          </button>
-        </>
       )}
+
+      <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
+        Dashboards
+      </div>
+
+      {loading ? (
+        <div className="px-3 py-2 text-xs text-muted-foreground/60">Loading…</div>
+      ) : items.length === 0 ? (
+        <div className="px-3 py-2 text-xs text-muted-foreground/60">No dashboards yet.</div>
+      ) : (
+        items.map((d) => (
+          <NavRow
+            key={d.slug}
+            label={d.title}
+            badge={d.editable ? undefined : 'prebuilt'}
+            active={location.pathname === `/dashboard/${d.slug}`}
+            onClick={() => {
+              navigate(dashboardViewPath(d.slug));
+              closeDrawer();
+            }}
+          />
+        ))
+      )}
+      <button
+        type="button"
+        onClick={handleNew}
+        disabled={creating}
+        data-testid="dashboards-nav-new"
+        className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+      >
+        <Plus className="size-3.5" />
+        New dashboard
+      </button>
     </div>
   );
 }

@@ -1,9 +1,11 @@
 /**
  * routeNav — per-route nav-rail derivation, split out of routeView.ts.
  *
- * Pure: a pathname plus injected data yields the nav links a page publishes
- * (canvas section indexes, guide TOCs, the journal date list). No React, no
- * fetching. `routeView.resolveRouteView` calls into this for `view.nav`.
+ * Pure: a pathname plus injected data yields the structural nav links a canvas
+ * or guide page publishes into L3 ("On this page"). Stream/library routes
+ * (such as `/journal`) do not inject static session dates into L3 — their L3
+ * slot is reserved for live stream modifiers (`StreamControlsNav` +
+ * `FacetProperties`) and stream actions.
  */
 import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown'
 import type { Session } from '@/types/storage'
@@ -11,37 +13,22 @@ import type { WorkoutItem } from './workoutIndex'
 import type { ParsedCanvasPage } from '../canvas/parseCanvasMarkdown'
 import type { SelectWorkoutItem } from './routeView'
 import { getSectionProse } from '../canvas/parseCanvasMarkdown'
-import { formatDateMedium } from '@/lib/dateFormat'
-import { formatDateKey } from '../services/dateUtils'
 
 export interface RouteNavDeps {
   workoutItems: WorkoutItem[]
   canvasPage: ParsedCanvasPage | null
-  recentResults: Session[]
+  recentResults?: Session[]
   selectWorkout: (item: SelectWorkoutItem) => void
 }
 
-interface JournalItemPayload {
-  targetDate?: string | number
-  updatedAt?: string | number
-}
-
-function readItemDate(item: WorkoutItem): string | number | undefined {
-  if (!('payload' in item)) return undefined
-  const payload = item.payload
-  if (!payload || typeof payload !== 'object') return undefined
-  const p = payload as JournalItemPayload
-  return p.targetDate ?? p.updatedAt
-}
-
 export function deriveNav(pathname: string, deps: RouteNavDeps): PageNavLink[] {
-  const { canvasPage, workoutItems, recentResults, selectWorkout } = deps
+  const { canvasPage, workoutItems, selectWorkout } = deps
 
   // The bundle-owned home tour publishes its own L3 outline. Return before
   // the corpus branch so `/` has the same nav with or without a canvas page.
   if (pathname === '/') return []
 
-  // 1. Canvas pages
+  // Canvas pages (guide chapters + notebook landing pages)
   if (canvasPage) {
     const isNotebook = /^\/notebook\//.test(pathname)
     const notebookSlug = isNotebook ? pathname.split('/').pop() ?? null : null
@@ -73,7 +60,6 @@ export function deriveNav(pathname: string, deps: RouteNavDeps): PageNavLink[] {
             }
           })
         }
-
       })
 
     if (isNotebook && notebookSlug) {
@@ -94,25 +80,5 @@ export function deriveNav(pathname: string, deps: RouteNavDeps): PageNavLink[] {
     return links
   }
 
-  // 2. Journal list page — top-10 distinct session dates
-  if (pathname === '/journal') {
-    const dates = new Set<string>()
-    recentResults.forEach(r => {
-      // Tolerate rows from partially-migrated dev databases — a bad date must
-      // not take down the whole nav derivation.
-      const time = new Date(r.createdAt).getTime()
-      if (Number.isFinite(time)) dates.add(formatDateKey(new Date(time)))
-    })
-    workoutItems.forEach(item => {
-      const d = readItemDate(item)
-      if (d && Number.isFinite(new Date(d).getTime())) dates.add(formatDateKey(new Date(d)))
-    })
-    return Array.from(dates).sort().reverse().slice(0, 10).map(d => ({
-      id: d,
-      label: formatDateMedium(new Date(d + 'T00:00:00')),
-      type: 'heading' as const,
-    }))
-  }
   return []
 }
-

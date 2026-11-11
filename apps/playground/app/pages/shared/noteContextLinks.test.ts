@@ -113,10 +113,11 @@ describe('noteOwnership — source-aware zone / up / stamps', () => {
     expect(own.stamps).toEqual([])
   })
 
-  it('user-created notebook note: notebooks zone, notebook slug up from notebookId', () => {
+  it('user-created notebook note: notebooks zone, notebook slug up from notebookId even when dated', () => {
     const own = noteOwnership({
       id: '018f3c2a-9b7c-7d4e-8f1a-2b3c4d5e6f70',
       type: 'note',
+      journalDate: '2026-11-10',
       notebookId: 'notebook/dogfood-notebook',
     })
     expect(own.zone).toBe('notebooks')

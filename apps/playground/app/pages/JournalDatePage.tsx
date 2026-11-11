@@ -192,7 +192,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
 
   // ── L3 outline: full per-note outline with Run + badges for single-note
   // dates; grouped per-note outline (one entry per note card) otherwise.
-  const { setL3Items } = useNav();
+  const { setL3Items, setL3Actions } = useNav();
   // Result badges per note (keyed like blocks). Stable ids key the fetch so
   // content edits don't re-query.
   const [resultsByNote, setResultsByNote] = useState<Record<string, Session[]>>({});
@@ -271,30 +271,33 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
         items.push(...mapIndexToL3([{ ...link, id: `note-${note.id}:${link.id}`, label: `${labelPrefix} · ${link.label}` }]));
       }
     }
-    const first = notes[0]!;
-    items.push({
-      id: 'helpful-add-timer',
-      label: 'Add timer',
-      level: 3,
-      action: { type: 'call', handler: () => handleNoteContentChange(first.id, appendTimerBlock(first.rawContent)) },
-    });
     return items;
-  }, [notes, blocksByNote, resultsByNote, handleOutlineRunFor, handleNoteContentChange]);
+  }, [notes, blocksByNote, resultsByNote, handleOutlineRunFor]);
+
+  const multiNoteFirst = notes && notes.length > 1 ? notes[0]! : null;
   // Publish-on-mount / clear-on-unmount, guarded so the single-note outline
   // published by useNotePageNav is never clobbered on transitions (destroy
   // phase runs before create phase, so the flag keeps clear/create paired).
   const publishedGroupedRef = useRef(false);
   useEffect(() => {
-    if (groupedL3.length === 0) return;
+    if (!multiNoteFirst) return;
     publishedGroupedRef.current = true;
     setL3Items(groupedL3);
+    setL3Actions?.([
+      {
+        id: 'helpful-add-timer',
+        label: 'Add timer',
+        onRun: () => handleNoteContentChange(multiNoteFirst.id, appendTimerBlock(multiNoteFirst.rawContent)),
+      },
+    ]);
     return () => {
       if (publishedGroupedRef.current) {
         publishedGroupedRef.current = false;
         setL3Items([]);
+        setL3Actions?.([]);
       }
     };
-  }, [groupedL3, setL3Items]);
+  }, [groupedL3, multiNoteFirst, handleNoteContentChange, setL3Items, setL3Actions]);
 
   if (!notes) return <div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>;
 
