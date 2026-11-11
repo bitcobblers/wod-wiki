@@ -1,6 +1,7 @@
 import type { Preview } from '@storybook/react-vite';
 import { useEffect } from 'react';
 import { DatabaseProvider } from '../src/database/DatabaseContext';
+import { StoryDomainStateProvider, type StoryDomainStateSpec } from '../src/testing/domainStates';
 import '../src/index.css';
 
 const preview: Preview = {
@@ -19,10 +20,19 @@ const preview: Preview = {
     },
   },
   decorators: [
-    // Opt-in IndexedDB plane: only stories with `parameters: { database: true }`
-    // mount the full DatabaseProvider and boot seed sync. All other component
-    // stories stay fast and state-free in memory.
+    // Opt-in deterministic in-memory domain state (`parameters: { domainState }`)
+    // or real browser IndexedDB plane (`parameters: { database: true }`).
     (Story, context) => {
+      const domainState = context.parameters?.domainState as StoryDomainStateSpec | undefined;
+      const storyRoute = context.parameters?.route as string | undefined;
+      const storyRoutePath = context.parameters?.routePath as string | undefined;
+      if (domainState !== undefined) {
+        return (
+          <StoryDomainStateProvider spec={domainState} route={storyRoute} routePath={storyRoutePath}>
+            <Story />
+          </StoryDomainStateProvider>
+        );
+      }
       if (context.parameters?.database) {
         return (
           <DatabaseProvider>

@@ -227,6 +227,33 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
 
   return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;
 }
+export function StaticDatabaseProvider({
+  children,
+  activeName = 'in-memory-domain-state',
+  dataVersion = 1,
+}: {
+  children: ReactNode;
+  activeName?: string;
+  dataVersion?: number;
+}) {
+  const value = useMemo<DatabaseContextValue>(
+    () => ({
+      activeName,
+      databases: [{ name: activeName, version: 33 }],
+      loading: false,
+      error: null,
+      feed: { status: 'imported', message: 'In-memory domain state hydrated', coreImported: true },
+      feedSources: [],
+      dataVersion,
+      selectDatabase: async () => {},
+      createDatabase: async () => {},
+      importFeedSource: async () => {},
+      refreshDatabases: async () => {},
+    }),
+    [activeName, dataVersion],
+  );
+  return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;
+}
 
 export function useDatabase(): DatabaseContextValue {
   const value = useContext(DatabaseContext);
