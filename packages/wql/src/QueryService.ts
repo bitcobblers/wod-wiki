@@ -78,6 +78,7 @@ import type {
   EffortQueryStore,
   IEffort,
   QueryServiceStores,
+  FeedCatalogQueryStore,
   NoteRelationBundle,
   WqlDomainOrder,
   WqlDomainPredicate,
@@ -100,6 +101,7 @@ export type {
   EffortQueryStore,
   IEffort,
   QueryServiceStores,
+  FeedCatalogQueryStore,
 };
 
 
@@ -680,6 +682,8 @@ export interface FindOptions {
   skipContainers?: boolean;
   /** Active `$param` bindings applied to `ParamRef` AST nodes at execution time. */
   params?: Record<string, string>;
+  /** When 'containers' (e.g. `/notebooks` library plane), `:notebook{…}` returns Notebook container rows instead of member Notes. */
+  notebookPlane?: 'notes' | 'containers';
 }
 
 export interface QueryResult {
@@ -1081,6 +1085,7 @@ export class QueryService {
     getDataset(name: string): { events: EventRecord[]; notes: Note[] } | undefined;
   };
   private readonly isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
+  private readonly feedCatalogStore?: FeedCatalogQueryStore;
 
   // Optional storage seam properties for block_efforts, block_equipment, and typed tag resolution.
   // Injected by the app adapter (`services/queryService.ts`); tests can supply fakes.
@@ -1116,7 +1121,9 @@ export class QueryService {
         'noteTagsStore' in storesOrEventStore ||
         'pageStore' in storesOrEventStore ||
         'relationStore' in storesOrEventStore ||
-        'datasetStore' in storesOrEventStore)
+        'datasetStore' in storesOrEventStore ||
+        'feedCatalogStore' in storesOrEventStore ||
+        'isNotebookSubscribed' in storesOrEventStore)
     ) {
       const stores = storesOrEventStore as QueryServiceStores;
       this.store = stores.eventStore ?? defaultEventStore;
@@ -1131,6 +1138,7 @@ export class QueryService {
       if (stores.tagsStore) this.tagsStore = stores.tagsStore;
       if (stores.noteTagsStore) this.noteTagsStore = stores.noteTagsStore;
       if (stores.isNotebookSubscribed) this.isNotebookSubscribed = stores.isNotebookSubscribed;
+      if (stores.feedCatalogStore) this.feedCatalogStore = stores.feedCatalogStore;
     } else {
       this.store = (storesOrEventStore as EventStore | undefined) ?? defaultEventStore;
       this.noteStore = noteStore ?? defaultNoteStore;
@@ -1561,6 +1569,9 @@ export class QueryService {
     if (parsed.target === 'equipment') {
       return this.runFindEquipment(parsed, options);
     }
+    if (parsed.target === 'feed') {
+      return this.runFindFeed(parsed, options);
+    }
     // Domain candidate read: selection (source clauses + the explicit source
     // fence) narrows before the wire's selectedCount; compiled positive
     // literal type/id clauses ride as post-count FILTERS — never selection —
@@ -1645,6 +1656,36 @@ export class QueryService {
     }
 
     notes = applyNotebookFilter(notes, parsed.filters);
+    // Zero-import remote preview fallback: after `applyNotebookFilter` narrows local notes,
+    // if the requested `notebook:<slug>` has zero local rows, fetch its lightweight index records.
+    if (notes.length === 0 && this.feedCatalogStore?.getRemoteNotebookNotes) {
+      const posNbFilter = parsed.filters.find((f) => f.key === 'notebook' && !f.negate && f.values.length === 1 && !f.values[0]!.wildcard);
+      const subFilter = parsed.filters.find((f) => f.key === 'subscribed' && !f.negate);
+      const explicitlySubscribedOnly =
+        subFilter !== undefined &&
+        subFilter.values.some((v) => v.value === 'true') &&
+        !subFilter.values.some((v) => v.value === 'false');
+      if (posNbFilter && !explicitlySubscribedOnly) {
+        const wantedSlug = notebookSlugFromId(posNbFilter.values[0]!.value);
+        const posFeedFilter = parsed.filters.find((f) => f.key === 'feed' && !f.negate && f.values.length === 1 && !f.values[0]!.wildcard);
+        let remoteNotes = await this.feedCatalogStore.getRemoteNotebookNotes(
+          wantedSlug,
+          posFeedFilter?.values[0]?.value,
+        );
+        for (const filter of parsed.filters) {
+          if (filter.key === 'text') {
+            const search = filter.values.map((v) => v.value).join(' ').toLowerCase();
+            remoteNotes = remoteNotes.filter((n) => {
+              const hit = n.title.toLowerCase().includes(search);
+              return filter.negate ? !hit : hit;
+            });
+          }
+        }
+        if (remoteNotes.length > 0) {
+          notes = remoteNotes;
+        }
+      }
+    }
     const isSubscribedFn = options.isNotebookSubscribed ?? this.isNotebookSubscribed ?? (() => true);
 
     // feed: filter
@@ -2835,7 +2876,183 @@ export class QueryService {
    * management surface) is the app's NotebookService model, not WQL rows.
    */
   async runFindNotebook(parsed: ParsedFindQuery, options: FindOptions = {}): Promise<FindQueryResult> {
+    const wantsContainers =
+      options.notebookPlane === 'containers' ||
+      parsed.filters.some(
+        (f) => f.key === 'type' && !f.negate && f.values.some((v) => v.value === 'notebook'),
+      );
+    if (wantsContainers && this.feedCatalogStore) {
+      return this.runFindNotebookContainers(parsed);
+    }
     return this.runFind({ ...parsed, target: 'note' }, options);
+  }
+
+  /**
+   * Execute `:feed{}` — the distributed Feed sources plane.
+   * Returns one synthetic Note-shaped row per registered Feed source
+   * (including "My Published Feed" when local public content or server snapshot exists).
+   */
+  async runFindFeed(parsed: ParsedFindQuery, _options: FindOptions = {}): Promise<FindQueryResult> {
+    const allFeeds = this.feedCatalogStore ? await this.feedCatalogStore.getAllFeeds() : [];
+    const selected = allFeeds.length;
+    let matched = allFeeds;
+
+    for (const filter of parsed.filters) {
+      if (filter.key === 'feed') {
+        const wanted = new Set(filter.values.map((v) => v.value));
+        const hasWildcard = filter.values.some((v) => v.wildcard);
+        matched = matched.filter((f) => {
+          const hit = hasWildcard ? f.id !== 'local' : wanted.has(f.id);
+          return filter.negate ? !hit : hit;
+        });
+      } else if (filter.key === 'subscribed') {
+        const vals = new Set(filter.values.map((v) => v.value));
+        const wantsTrue = vals.has('true');
+        const wantsFalse = vals.has('false');
+        matched = matched.filter((f) => {
+          const hit = wantsTrue && wantsFalse ? true : wantsTrue ? f.subscribed : wantsFalse ? !f.subscribed : true;
+          return filter.negate ? !hit : hit;
+        });
+      } else if (filter.key === 'text') {
+        const search = filter.values.map((v) => v.value).join(' ').toLowerCase();
+        matched = matched.filter((f) => {
+          const hit =
+            f.label.toLowerCase().includes(search) ||
+            (f.description ?? '').toLowerCase().includes(search) ||
+            f.url.toLowerCase().includes(search);
+          return filter.negate ? !hit : hit;
+        });
+      } else if (isTagLabelKey(filter.key)) {
+        const wanted = new Set(filter.values.map((v) => v.value.toLowerCase()));
+        matched = matched.filter((f) => {
+          const rowTags = [
+            `tier:${f.tier}`,
+            f.tier,
+            f.subscribed ? 'subscribed:true' : 'subscribed:false',
+            ...(f.unpublishedChanges ? ['status:unpublished', 'unpublished'] : []),
+            ...(f.updateAvailable ? ['status:update-available', 'update-available'] : []),
+          ].map((t) => t.toLowerCase());
+          const hit = rowTags.some((t) => wanted.has(t));
+          return filter.negate ? !hit : hit;
+        });
+      }
+    }
+
+    let rows: Note[] = matched.map((f) => {
+      const summaryParts = [
+        `${f.notebookCount} notebook${f.notebookCount === 1 ? '' : 's'}`,
+        f.itemCount > 0 ? `${f.itemCount} notes` : '',
+        f.unpublishedChanges ? 'Unpublished changes' : '',
+        f.updateAvailable ? `Update v${f.localVersion ?? 0} → v${f.remoteVersion}` : '',
+      ].filter(Boolean);
+      const body = [f.description ?? '', summaryParts.join(' · '), f.url].filter(Boolean).join('\n');
+      return {
+        id: `feed/${f.id}`,
+        title: f.label,
+        type: 'feed',
+        rawContent: body,
+        sourceRevision: 1,
+        blocks: {},
+        createdAt: f.builtAt ? (Date.parse(f.builtAt) || 0) : 0,
+        sourceId: `feed:${f.id}`,
+        sourcePath: f.url,
+        ...(f.id !== 'local' ? { feedOrigin: 'feed' as const, feedSourceId: f.id, seedOrigin: 'seed' as const } : { seedOrigin: 'user' as const }),
+        tags: [
+          `tier:${f.tier}`,
+          f.subscribed ? 'subscribed:true' : 'subscribed:false',
+          ...(f.unpublishedChanges ? ['status:unpublished'] : []),
+          ...(f.updateAvailable ? ['status:update-available'] : []),
+        ],
+      };
+    });
+
+    rows = applyOrderAndPage(rows, parsed);
+    return { parsed, notes: rows, blocks: [], stages: { selected, matched: rows.length } };
+  }
+
+  /**
+   * Execute `:notebook{type:notebook, ...}` — the Notebook container listing
+   * across user-owned local notebooks and manifest-discovered remote Feed notebooks.
+   */
+  private async runFindNotebookContainers(parsed: ParsedFindQuery): Promise<FindQueryResult> {
+    const allNotebooks = this.feedCatalogStore ? await this.feedCatalogStore.getAllNotebooks() : [];
+    const selected = allNotebooks.length;
+    let matched = allNotebooks;
+
+    for (const filter of parsed.filters) {
+      if (filter.key === 'feed') {
+        const wanted = new Set(filter.values.map((v) => v.value));
+        const hasWildcard = filter.values.some((v) => v.wildcard);
+        matched = matched.filter((nb) => {
+          const hit = hasWildcard ? nb.feedId !== 'local' : wanted.has(nb.feedId);
+          return filter.negate ? !hit : hit;
+        });
+      } else if (filter.key === 'notebook') {
+        const wanted = new Set(filter.values.map((v) => notebookSlugFromId(v.value)));
+        matched = matched.filter((nb) => {
+          const hit = wanted.has(nb.slug) || wanted.has(nb.id) || wanted.has(notebookSlugFromId(nb.chunkId));
+          return filter.negate ? !hit : hit;
+        });
+      } else if (filter.key === 'text') {
+        const search = filter.values.map((v) => v.value).join(' ').toLowerCase();
+        matched = matched.filter((nb) => {
+          const hit =
+            nb.label.toLowerCase().includes(search) ||
+            (nb.description ?? '').toLowerCase().includes(search) ||
+            nb.feedLabel.toLowerCase().includes(search);
+          return filter.negate ? !hit : hit;
+        });
+      }
+    }
+
+    const subFilter = parsed.filters.find((f) => f.key === 'subscribed');
+    if (subFilter) {
+      const vals = new Set(subFilter.values.map((v) => v.value));
+      const wantsTrue = vals.has('true');
+      const wantsFalse = vals.has('false');
+      matched = matched.filter((nb) => {
+        const isSub = nb.origin === 'user' || nb.origin === 'default' || nb.subscribed;
+        const hit = wantsTrue && wantsFalse ? true : wantsTrue ? isSub : wantsFalse ? !isSub : false;
+        return subFilter.negate ? !hit : hit;
+      });
+    } else {
+      matched = matched.filter((nb) => nb.origin === 'user' || nb.origin === 'default' || nb.subscribed);
+    }
+
+    let rows: Note[] = matched.map((nb) => {
+      const isLocal = nb.origin === 'user' || nb.origin === 'default';
+      return {
+        id: isLocal ? `notebook/${nb.slug}` : `feed-notebook/${nb.feedId}/${nb.slug}`,
+        title: nb.label,
+        type: 'notebook',
+        rawContent: nb.description ?? '',
+        sourceRevision: 1,
+        blocks: {},
+        createdAt: nb.updatedAt ? (Date.parse(nb.updatedAt) || 0) : 0,
+        notebookId: `notebook/${nb.slug}`,
+        sourceId: `notebook:${nb.slug}`,
+        ...(nb.feedUrl ? { sourcePath: nb.feedUrl } : {}),
+        ...(isLocal
+          ? { seedOrigin: 'user' as const, ...(nb.public !== undefined ? { public: nb.public } : {}) }
+          : {
+              feedOrigin: 'feed' as const,
+              feedSourceId: nb.feedId,
+              seedOrigin: 'seed' as const,
+              seedChunkId: nb.chunkId,
+              ...(nb.version !== undefined ? { seedVersion: nb.version } : {}),
+            }),
+        tags: [
+          ...(nb.category ? [`category:${nb.category}`] : []),
+          `origin:${nb.origin}`,
+          `count:${nb.count}`,
+          nb.subscribed ? 'subscribed:true' : 'subscribed:false',
+          ...(nb.public ? ['visibility:public'] : []),
+        ],
+      };
+    });
+
+    rows = applyOrderAndPage(rows, parsed);
+    return { parsed, notes: rows, blocks: [], stages: { selected, matched: rows.length } };
   }
 
   /**

@@ -993,7 +993,11 @@ function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuer
     // (they intersect any explicit source:/type: — plain AND).
     result.target = 'note';
   } else {
-    result.target = (WQL_NOTE_HEAD_ALIASES as readonly string[]).includes(headName) ? 'note' : headName;
+    result.target = (WQL_NOTE_HEAD_ALIASES as readonly string[]).includes(headName)
+      ? 'note'
+      : headName === 'feeds'
+        ? 'feed'
+        : headName;
     // C7: closed target enum — unknown targets error at parse instead of
     // silently returning empty at runtime.
     if (!(WQL_FIND_TARGETS as readonly string[]).includes(result.target)) {

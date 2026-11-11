@@ -21,7 +21,16 @@ export { convertDisplay as convert, getUnitFamily } from '@bitcobblers/wod-wiki-
 export { getProfileDisplayName } from '@/services/profile';
 
 // ── Export / import ───────────────────────────────────────────────────────
-export { exportAllNotes, exportNote, importFromZip, pickFile } from '@/services/ExportImportService';
+export {
+  exportAllNotes,
+  exportNote,
+  exportFeedRepositoryToDirectory,
+  exportFeedRepositoryZip,
+  importFromZip,
+  pickFile,
+  publishSelfHostedFeed,
+  supportsDirectoryPicker,
+} from '@/services/ExportImportService';
 
 // ── React hook ────────────────────────────────────────────────────────────
 

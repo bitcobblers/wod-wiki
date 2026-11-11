@@ -254,6 +254,7 @@ export {
   type BlockQueryStore,
   type EffortQueryStore,
   type QueryServiceStores,
+  type FeedCatalogQueryStore,
   type QueryOptions,
   type FindOptions,
   type QueryResult,
@@ -306,6 +307,8 @@ export {
   WQL_FIND_TARGETS,
   WQL_SOURCE_VALUES,
   WQL_SOURCE_HEADS,
+  type WqlFindTarget,
+  type WqlSourceValue,
   WQL_FUNCTION_HEADS,
   WQL_CHART_HEADS,
   WQL_STANDARD_DATASETS,
@@ -398,24 +401,28 @@ export {
 // the website (download/upload against IndexedDB rows uses the same code).
 export {
   composeNoteMarkdown,
+  parseNoteMarkdown,
+  parseFrontmatterDateMs,
   csvToSessionRows,
+  csvToTelemetryBundle,
+  telemetryBundleToCsv,
   extractNoteIdentity,
   injectIdentityFrontmatter,
   sessionToCsv,
   parseCsvLine,
   splitCsvRecords,
   SESSION_CSV_HEADER,
+  TELEMETRY_CSV_HEADER,
   NOTE_ID_FRONTMATTER_KEY,
-  type NoteIdentity,
-  type SessionImportRows,
-} from './exchange';
-export {
   readFrontmatterMeta,
   extractTypedTags,
   effortToMarkdown,
   equipmentToMarkdown,
   equipmentToCsv,
   csvToEquipmentLabels,
+  type NoteIdentity,
+  type ParsedNoteMarkdown,
+  type SessionImportRows,
   type TypedTagItem,
 } from './exchange';
 
@@ -546,3 +553,8 @@ export type {
 export * from './seed/contract';
 export * from './seed/runtime';
 export * from './seed/validation';
+export * from './feed/qr';
+export * from './feed/landing';
+export * from './feed/tree';
+export * from './feed/publisher';
+export * from './feed/ingestor';

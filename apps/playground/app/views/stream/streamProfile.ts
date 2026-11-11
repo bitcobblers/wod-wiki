@@ -165,15 +165,13 @@ export const NOTES_STREAM_PROFILE: StreamProfile = {
 export const FEEDS_STREAM_PROFILE: StreamProfile = {
   route: '/feeds',
   title: 'Feeds',
-  // Feeds are the sources — the feed-delivered notebook plane.
-  defaultWql: ':notebook{source:notebooks}',
+  defaultWql: ':feed{}',
   level: 'session',
-  target: 'notebook',
+  target: 'feed',
   scopeOptions: ['notebooks'],
   shelfVisible: false,
   defaultLayout: 'cards',
   emptyMessage: 'No feeds match your search.',
-  // Corpus comes from feeds — surface the core-only notice.
   feedNotice: true,
   legacy: createContentLegacyConfig('notebooks'),
 }

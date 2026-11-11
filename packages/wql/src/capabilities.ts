@@ -49,6 +49,7 @@ const TARGET_TYPES: Readonly<Record<string, ReadonlySet<string>>> = {
   page: new Set(['page', 'notebook', 'text', 'note', 'time']),
   tag: new Set(['tag', 'type', 'text', 'contributes', 'time']),
   equipment: new Set(['equipment', 'tags', 'text', 'notebook', 'time']),
+  feed: new Set(['feed', 'tag', 'text', 'subscribed', 'groupby']),
 };
 /** Empty fallback keeps the exported ReadonlySet contract for unknown targets. */
 const EMPTY_TYPES: ReadonlySet<string> = new Set();

@@ -209,9 +209,12 @@ export async function runCliServer(
   let server: HttpServerLike;
   try {
     const dist = resolveDist(mode, options);
-    // Bundled server handler
-    const handler = createHandler(db?.db ?? null, { playgroundDist: dist });
-    // Playground: no database exists to close — createHandler(null) answers
+    // Bundled server handler; persist self-hosted published feed next to local SQLite DB when applicable
+    const feedDir =
+      mode === 'server' && options.database?.kind === 'sqlite'
+        ? `${options.database.path}.feed`
+        : undefined;
+    const handler = createHandler(db?.db ?? null, { playgroundDist: dist, feedDir });
     server = await startHttpServer(handler, host, port);
     if (mode === 'server') {
       writeOut(`wod server: http://${host}:${port} — ${dbLabel} · dist ${dist}`);

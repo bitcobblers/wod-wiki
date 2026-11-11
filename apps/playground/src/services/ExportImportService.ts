@@ -1,370 +1,632 @@
 /**
- * ExportImportService — the single Note Portability module.
+ * ExportImportService — canonical Note & Telemetry portability + Feed Repository export.
  *
- * Owns the round-trip a user performs: export a Note → archive → import →
- * recover the Note and its telemetry. Format logic lives in the pure
- * serializer/deserializer modules; browser file I/O stays here.
+ * All format logic delegates to `@bitcobblers/wod-wiki-engine`:
+ *   - `.md`   : canonical Markdown with YAML frontmatter (`composeNoteMarkdown` / `parseNoteMarkdown`)
+ *   - `.jsonl`: lossless TelemetryBundle (`serializeNoteBundleToJsonl` / `parseNoteBundleFromJsonl`)
+ *   - `.csv`  : lossless tabular TelemetryBundle (`telemetryBundleToCsv` / `csvToTelemetryBundle`)
+ *   - `.zip`  : ZipFeedTree archive for multi-Note bundles and `wod-wiki-feed-repository` exports
  */
 
+import JSZip from 'jszip';
+import {
+  DirectoryHandleFeedTree,
+  FeedTreeError,
+  composeNoteMarkdown,
+  csvToTelemetryBundle,
+  encodeUtf8,
+  normalizeFeedTreePath,
+  parseNoteBundleFromJsonl,
+  parseNoteMarkdown,
+  publishFeedFromStorage,
+  checkUnpublishedFeedChanges,
+  serializeNoteBundleToJsonl,
+  sha256HexAsync,
+  streamNoteBundleToJsonlLines,
+  telemetryBundleToCsv,
+  wallClockNow,
+  type FeedFileStat,
+  type FeedPath,
+  type FeedTree,
+  type FileSystemDirectoryHandleLike,
+  type INowProvider,
+  type NoteTelemetryBundle,
+  type NoteTelemetryBundleResult,
+  type PublishFeedOptions,
+  type PublishFeedReport,
+  type UnpublishedFeedStatus,
+} from '@bitcobblers/wod-wiki-engine';
+import { eventsToStoredLogs, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import type { HistoryRecord } from '@/types/history';
 import type { IContentProvider, NoteSaveInput } from '@/types/content-provider';
-import type { EventRecord } from '@/types/storage';
-import { wallClockNow } from '@bitcobblers/wod-wiki-engine';
-import { eventsToStoredLogs, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import JSZip from 'jszip';
+import type { EventRecord, Note, NoteBlock } from '@/types/storage';
+import { storage, storageBackend, whenStorageReady } from '@/services/storage';
 
-import { eventsToCSV, resultsToCSV, statementsToCSV } from './export/NoteCsvFormatter';
-import {
-    parseNoteBundleFromJsonl,
-    serializeNoteBundleToJsonl,
-    type NoteJsonlNote,
-    type NoteTelemetryBundle,
-} from './export/NoteJsonlFormatter';
-import { noteToMarkdown } from './export/NoteMarkdownSerializer';
-import { parseMarkdownToEntry } from './export/NoteMarkdownDeserializer';
+export type { NoteTelemetryBundle, NoteTelemetryBundleResult };
+export { parseNoteBundleFromJsonl, serializeNoteBundleToJsonl, streamNoteBundleToJsonlLines };
 
 export interface NoteImportResult {
-    imported: number;
-    sessionsImported?: number;
-    eventsImported?: number;
-    errors: string[];
+  imported: number;
+  sessionsImported?: number;
+  eventsImported?: number;
+  errors: string[];
 }
 
-/** Build a zip archive incrementally, then materialize it as a Blob. */
-class NoteArchive {
-    private readonly zip = new JSZip();
-    addText(name: string, content: string): void { this.zip.file(name, content); }
-    toBlob(): Promise<Blob> { return this.zip.generateAsync({ type: 'blob' }); }
+export type ParsedNoteEntry = Omit<HistoryRecord, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'> & {
+  id?: string;
+  createdAt?: number;
+  updatedAt?: number;
+};
+
+/**
+ * Browser `JSZip` adapter implementing `FeedTree`.
+ */
+export class ZipFeedTree implements FeedTree {
+  private readonly zip: JSZip;
+
+  constructor(zip?: JSZip) {
+    this.zip = zip ?? new JSZip();
+  }
+
+  static async fromBlob(file: Blob | ArrayBuffer | Uint8Array): Promise<ZipFeedTree> {
+    const loaded = await JSZip.loadAsync(file);
+    return new ZipFeedTree(loaded);
+  }
+
+  async read(path: FeedPath): Promise<Uint8Array> {
+    const clean = normalizeFeedTreePath(path);
+    const entry = this.zip.file(clean);
+    if (!entry) throw new FeedTreeError('not-found', `Zip entry not found: ${clean}`);
+    return entry.async('uint8array');
+  }
+
+  async stat(path: FeedPath): Promise<FeedFileStat | undefined> {
+    const clean = normalizeFeedTreePath(path);
+    const entry = this.zip.file(clean);
+    if (!entry) return undefined;
+    const bytes = await entry.async('uint8array');
+    return {
+      bytes: bytes.byteLength,
+      sha256: await sha256HexAsync(bytes),
+    };
+  }
+
+  async write(path: FeedPath, bytes: Uint8Array): Promise<void> {
+    const clean = normalizeFeedTreePath(path);
+    this.zip.file(clean, bytes);
+  }
+
+  async writeText(path: FeedPath, text: string): Promise<void> {
+    await this.write(path, encodeUtf8(text));
+  }
+
+  async delete(path: FeedPath): Promise<void> {
+    const clean = normalizeFeedTreePath(path);
+    this.zip.remove(clean);
+  }
+
+  async list(prefix = ''): Promise<FeedPath[]> {
+    const clean = prefix ? normalizeFeedTreePath(prefix) + '/' : '';
+    return Object.keys(this.zip.files)
+      .filter((k) => !this.zip.files[k]?.dir && (!clean || k.startsWith(clean)))
+      .sort();
+  }
+
+  toBlob(): Promise<Blob> {
+    return this.zip.generateAsync({ type: 'blob' });
+  }
+
+  toUint8Array(): Promise<Uint8Array> {
+    return this.zip.generateAsync({ type: 'uint8array' });
+  }
 }
 
-/** Trigger a browser download of a Blob under the given filename. */
-function downloadBlob(blob: Blob, filename: string): void {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
-/** Open the browser file picker; resolves to the chosen File or null. */
-function pickFileFromBrowser(accept: string = '*'): Promise<File | null> {
-    const { promise, resolve } = Promise.withResolvers<File | null>();
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = accept;
-    input.onchange = () => resolve(input.files?.[0] ?? null);
-    input.oncancel = () => resolve(null);
-    input.click();
-    return promise;
+export function downloadTextFile(text: string, filename: string, mime = 'text/plain;charset=utf-8'): void {
+  downloadBlob(new Blob([text], { type: mime }), filename);
 }
 
-function noteFilenameStem(id: string): string {
-    return id.replace(/[^a-zA-Z0-9-_]/g, '_');
+export function pickFile(accept = '.md,.jsonl,.csv,.zip'): Promise<File | null> {
+  const { promise, resolve } = Promise.withResolvers<File | null>();
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = accept;
+  input.onchange = () => resolve(input.files?.[0] ?? null);
+  input.oncancel = () => resolve(null);
+  input.click();
+  return promise;
+}
+
+function noteFilenameStem(idOrTitle: string): string {
+  return idOrTitle.replace(/[^a-zA-Z0-9-_]/g, '_') || 'note';
+}
+
+function historyRecordToPortableNote(entry: HistoryRecord): Note {
+  return {
+    id: entry.id,
+    title: entry.title,
+    rawContent: entry.rawContent,
+    sourceRevision: entry.sourceRevision ?? 1,
+    blocks: (entry.blocks ?? {}) as Record<string, NoteBlock>,
+    date: entry.targetDate,
+    createdAt: entry.createdAt,
+    ...(entry.tags.length > 0 ? { tags: entry.tags } : {}),
+    ...(entry.sourceId ? { sourceId: entry.sourceId } : {}),
+    ...(entry.notebookId ? { notebookId: entry.notebookId } : {}),
+  };
+}
+
+/**
+ * Parse canonical frontmatter or plain Markdown into a `ParsedNoteEntry`.
+ */
+export function createNoteFromMarkdown(
+  markdown: string,
+  clock: INowProvider = wallClockNow,
+): ParsedNoteEntry {
+  const parsed = parseNoteMarkdown(markdown, { defaultDate: clock.nowMs() });
+  return {
+    ...(parsed.id ? { id: parsed.id } : {}),
+    title: parsed.title,
+    rawContent: parsed.rawContent,
+    tags: parsed.tags,
+    targetDate: parsed.date ?? clock.nowMs(),
+    sections: [],
+    blocks: parsed.blocks,
+    sourceRevision: 1,
+    ...(parsed.notebookId ? { notebookId: parsed.notebookId } : {}),
+  };
 }
 
 async function readTelemetry(entry: HistoryRecord, provider?: IContentProvider): Promise<NoteTelemetryBundle> {
-    await provider?.persistenceReady;
-    const storage = provider?.persistenceStorage;
-    const sessions = storage ? await storage.getSessionsForNote(entry.id) : entry.extendedResults ?? [];
-    const events: EventRecord[] = [];
-    if (storage) {
-        for (const session of sessions) events.push(...await storage.getEventsByResult(session.id));
+  await provider?.persistenceReady;
+  const persistence = provider?.persistenceStorage;
+  const sessions = persistence ? await persistence.getSessionsForNote(entry.id) : entry.extendedResults ?? [];
+  const events: EventRecord[] = [];
+  if (persistence) {
+    for (const session of sessions) events.push(...(await persistence.getEventsByResult(session.id)));
+  }
+  const revisions = persistence ? await persistence.getNoteBlockHistory(entry.id) : [];
+  return { sessions, events, revisions };
+}
+
+function hasTelemetryData(bundle: NoteTelemetryBundle): boolean {
+  return (
+    bundle.sessions.length > 0 ||
+    bundle.events.length > 0 ||
+    (bundle.revisions !== undefined && bundle.revisions.length > 0)
+  );
+}
+
+/**
+ * Export all Notes and their telemetry as canonical `.md` + `.jsonl` (or `.csv`) pairs inside a `.zip`.
+ */
+export async function exportAllNotes(
+  provider: IContentProvider,
+  options: { telemetryFormat?: 'jsonl' | 'csv' | 'both' } = {},
+): Promise<void> {
+  const entries = await provider.getRecords();
+  if (entries.length === 0) throw new Error('No notes to export');
+
+  const telemetryFormat = options.telemetryFormat ?? 'jsonl';
+  const clock = wallClockNow;
+  const archive = new ZipFeedTree();
+
+  for (const entry of entries) {
+    const stem = noteFilenameStem(entry.id);
+    const md = composeNoteMarkdown(historyRecordToPortableNote(entry));
+    await archive.writeText(`${stem}.md`, md);
+
+    const bundle = await readTelemetry(entry, provider);
+    if (hasTelemetryData(bundle)) {
+      if (telemetryFormat === 'jsonl' || telemetryFormat === 'both') {
+        await archive.writeText(`${stem}.jsonl`, serializeNoteBundleToJsonl(bundle) + '\n');
+      }
+      if (telemetryFormat === 'csv' || telemetryFormat === 'both') {
+        await archive.writeText(`${stem}.csv`, telemetryBundleToCsv(bundle));
+      }
     }
-    const revisions = storage ? await storage.getNoteBlockHistory(entry.id) : [];
-    return { sessions, events, revisions };
+  }
+
+  const blob = await archive.toBlob();
+  downloadBlob(blob, `wod-wiki-export-${clock.nowMs()}.zip`);
 }
 
-function hasTelemetrySource(entry: HistoryRecord, provider?: IContentProvider): boolean {
-    return provider?.persistenceStorage !== undefined || entry.extendedResults !== undefined || entry.results !== undefined;
+/**
+ * Export a single Note as standalone `.md`, standalone `.jsonl`/`.csv` telemetry, or a paired `.zip`.
+ */
+export async function exportNote(
+  entry: HistoryRecord,
+  provider?: IContentProvider,
+  options: { format?: 'md' | 'jsonl' | 'csv' | 'zip' } = {},
+): Promise<void> {
+  const clock = wallClockNow;
+  const stem = noteFilenameStem(entry.title || entry.id);
+  const noteMd = composeNoteMarkdown(historyRecordToPortableNote(entry));
+
+  if (options.format === 'md') {
+    downloadTextFile(noteMd, `${stem}.md`, 'text/markdown;charset=utf-8');
+    return;
+  }
+
+  const bundle = await readTelemetry(entry, provider);
+  if (options.format === 'jsonl') {
+    downloadTextFile(serializeNoteBundleToJsonl(bundle) + '\n', `${stem}.jsonl`, 'application/x-ndjson;charset=utf-8');
+    return;
+  }
+  if (options.format === 'csv') {
+    downloadTextFile(telemetryBundleToCsv(bundle), `${stem}.csv`, 'text/csv;charset=utf-8');
+    return;
+  }
+
+  const archive = new ZipFeedTree();
+  const idStem = noteFilenameStem(entry.id);
+  await archive.writeText(`${idStem}.md`, noteMd);
+  if (hasTelemetryData(bundle)) {
+    await archive.writeText(`${idStem}.jsonl`, serializeNoteBundleToJsonl(bundle) + '\n');
+    await archive.writeText(`${idStem}.csv`, telemetryBundleToCsv(bundle));
+  }
+  const blob = await archive.toBlob();
+  downloadBlob(blob, `${stem}-${clock.nowMs()}.zip`);
 }
 
-export async function exportAllNotes(provider: IContentProvider): Promise<void> {
-    const entries = await provider.getRecords();
-    if (entries.length === 0) throw new Error('No notes to export');
-
-    const clock = wallClockNow;
-    const archive = new NoteArchive();
-    const bundles: NoteTelemetryBundle[] = [];
-    const readme = [
-        '# WOD Wiki Note Export',
-        '',
-        `Exported: ${new Date(clock.nowMs()).toISOString()}`,
-        `Notes: ${entries.length}`,
-        '',
-        '## Files',
-        ...entries.map(e => `- ${noteFilenameStem(e.id)}.md — ${e.title}`),
-        '- telemetry.jsonl — Note-linked Session and EventRecord telemetry',
-        '',
-        'Each .md file is a note with a `## Metadata` block (ID, Created, Updated,',
-        'Target Date, Tags) followed by `## Content`. Re-importing preserves note',
-        'identity (same ID → overwrites instead of duplicating).',
-    ].join('\n');
-    archive.addText('README.md', readme);
-
-    for (const entry of entries) {
-        const noteId = noteFilenameStem(entry.id);
-        const bundle = await readTelemetry(entry, provider);
-        archive.addText(`${noteId}.md`, noteToMarkdown(entry, clock));
-        archive.addText(`${noteId}_statements.csv`, statementsToCSV(entry));
-        archive.addText(`${noteId}_results.csv`, resultsToCSV(entry));
-        if (bundle.events.length > 0) archive.addText(`${noteId}_events.csv`, eventsToCSV(entry.id, bundle.events));
-        bundles.push(bundle);
-    }
-    archive.addText('telemetry.jsonl', bundles.map(serializeNoteBundleToJsonl).filter(Boolean).join('\n'));
-
-    const blob = await archive.toBlob();
-    downloadBlob(blob, `wod-wiki-export-${clock.nowMs()}.zip`);
-}
-
-export async function exportNote(entry: HistoryRecord, provider?: IContentProvider): Promise<void> {
-    const clock = wallClockNow;
-    const archive = new NoteArchive();
-    const noteId = noteFilenameStem(entry.id);
-
-    archive.addText(`${noteId}.md`, noteToMarkdown(entry, clock));
-    archive.addText(`${noteId}_statements.csv`, statementsToCSV(entry));
-    archive.addText(`${noteId}_results.csv`, resultsToCSV(entry));
-
-    const files = [
-        `- \`${noteId}.md\` - Markdown representation with metadata`,
-        `- \`${noteId}_statements.csv\` - Parsed code statements and metrics`,
-        `- \`${noteId}_results.csv\` - Workout results`,
-    ];
-    if (hasTelemetrySource(entry, provider)) {
-        const bundle = await readTelemetry(entry, provider);
-        archive.addText(`${noteId}_telemetry.jsonl`, serializeNoteBundleToJsonl(bundle));
-        archive.addText(`${noteId}_events.csv`, eventsToCSV(entry.id, bundle.events));
-        files.push(`- \`${noteId}_telemetry.jsonl\` - Note-linked sessions and events`);
-        files.push(`- \`${noteId}_events.csv\` - Event metrics with note and session identity`);
-    }
-
-    archive.addText('README.md', [
-        `# ${entry.title}`,
-        '',
-        `Export Date: ${clock.now().toISOString()}`,
-        '',
-        '## Files',
-        '',
-        ...files,
-    ].join('\n'));
-
-    const blob = await archive.toBlob();
-    downloadBlob(blob, `${noteFilenameStem(entry.title)}-${clock.nowMs()}.zip`);
-}
-
-async function saveJsonlNote(note: NoteJsonlNote, provider: IContentProvider): Promise<void> {
-    const existing = await provider.getRecord(note.id);
-    const input: NoteSaveInput = {
-        ...note,
-        tags: note.tags ?? [],
-        sourceRevision: existing?.sourceRevision ?? note.sourceRevision,
-        blocks: existing?.rawContent === note.rawContent ? existing.blocks : note.blocks,
-    };
-    await provider.saveRecord(input);
-}
-
-async function importTelemetryBundle(
-    bundle: NoteTelemetryBundle,
-    provider: IContentProvider,
-): Promise<{ sessions: number; events: number; errors: string[] }> {
-    const errors: string[] = [];
-    let sessionsImported = 0;
-    let eventsImported = 0;
-    if ((bundle.sessions.length > 0 || bundle.events.length > 0) && !provider.persistenceStorage) {
-        return { sessions: 0, events: 0, errors: ['Telemetry import requires provider.persistenceStorage'] };
-    }
-    const storage = provider.persistenceStorage;
-    if (!storage) return { sessions: 0, events: 0, errors };
-    await provider.persistenceReady;
-
-    for (const session of bundle.sessions) {
-        try {
-            const note = await provider.getRecord(session.noteId);
-            if (!note) throw new Error(`Parent note ${session.noteId} does not exist`);
-            const revision = await storage.getBlockRevision(session.noteId, session.blockId, session.blockVersion);
-            if (!revision || revision.kind !== 'wod') {
-                throw new Error(`Pinned wod BlockRevision [${session.noteId}, ${session.blockId}, ${session.blockVersion}] does not exist`);
-            }
-            const rows = bundle.events.filter((event) => event.resultId === session.id);
-            for (const event of rows) {
-                if (event.noteId !== session.noteId || event.blockId !== session.blockId
-                    || event.blockVersion !== session.blockVersion || event.blockContentId !== session.blockContentId) {
-                    throw new Error(`Event ${event.id} does not match session ${session.id} identity`);
-                }
-            }
-            const raw = rows.filter((event) => event.grain === 'event');
-            const suppliedSummaries = rows.filter((event) => event.grain === 'summary');
-            const summaries = suppliedSummaries.length > 0 ? suppliedSummaries : toSummaryEventRows(eventsToStoredLogs(raw), {
-                noteId: session.noteId,
-                resultId: session.id,
-                blockId: session.blockId,
-                blockVersion: session.blockVersion,
-                blockContentId: session.blockContentId,
-                origin: session.origin,
-                pageId: session.pageId,
-                workoutTimestamp: session.startTime,
-            });
-            await storage.withTransaction(['notes', 'block_revisions', 'sessions', 'events'], async (scoped) => {
-                await scoped.saveSession(session);
-                if (rows.length > 0) {
-                    await scoped.appendEvents(raw);
-                    await scoped.finalizeSummaries(session.id, summaries);
-                }
-            });
-            sessionsImported++;
-            eventsImported += raw.length + summaries.length;
-        } catch (error) {
-            errors.push(`Failed to import session ${session.id}: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-    return { sessions: sessionsImported, events: eventsImported, errors };
-}
-
-async function restoreBundleRevisions(bundle: NoteTelemetryBundle, provider: IContentProvider): Promise<void> {
-    const revisions = bundle.revisions ?? [];
-    if (revisions.length === 0) return;
-    const storage = provider.persistenceStorage;
-    if (!storage) throw new Error('Revision import requires provider.persistenceStorage');
-    await provider.persistenceReady;
-    await storage.saveBlockRevisions(revisions);
-}
-
-async function importJsonl(
-    jsonlText: string,
-    provider: IContentProvider,
-    options: {
-        skipNotes: ReadonlySet<string>;
-        revisionsRestored?: boolean;
-        skipBundles?: ReadonlySet<string>;
-    },
+async function importTelemetryBundlesIntoProvider(
+  bundles: readonly NoteTelemetryBundle[],
+  provider: IContentProvider,
+  options: { skipNotes: ReadonlySet<string>; revisionsRestored?: boolean; skipBundles?: ReadonlySet<string> },
 ): Promise<{ noteIds: Set<string>; sessions: number; events: number; errors: string[] }> {
-    const parsed = parseNoteBundleFromJsonl(jsonlText);
-    const errors = [...parsed.errors];
-    const noteIds = new Set<string>();
-    let sessions = 0;
-    let events = 0;
+  const errors: string[] = [];
+  const noteIds = new Set<string>();
+  let sessions = 0;
+  let events = 0;
 
-    for (const bundle of parsed.bundles) {
-        const bundleNoteId = bundle.note?.id ?? bundle.revisions?.[0]?.noteId ?? bundle.sessions[0]?.noteId ?? bundle.events[0]?.noteId;
-        if (bundleNoteId && options.skipBundles?.has(bundleNoteId)) continue;
-        if (!options.revisionsRestored) {
-            try {
-                await restoreBundleRevisions(bundle, provider);
-            } catch (error) {
-                errors.push(`Failed to restore revisions for ${bundleNoteId ?? 'unknown note'}: ${error instanceof Error ? error.message : String(error)}`);
-                continue;
-            }
-        }
-        if (bundle.note && !options.skipNotes.has(bundle.note.id)) {
-            try {
-                await saveJsonlNote(bundle.note, provider);
-                noteIds.add(bundle.note.id);
-            } catch (error) {
-                errors.push(`Failed to import note ${bundle.note.id}: ${error instanceof Error ? error.message : String(error)}`);
-                continue;
-            }
-        }
-        const imported = await importTelemetryBundle(bundle, provider);
-        sessions += imported.sessions;
-        events += imported.events;
-        errors.push(...imported.errors);
+  for (const bundle of bundles) {
+    const bundleNoteId =
+      bundle.note?.id ??
+      bundle.revisions?.[0]?.noteId ??
+      bundle.sessions[0]?.noteId ??
+      bundle.events[0]?.noteId;
+    if (bundleNoteId && options.skipBundles?.has(bundleNoteId)) continue;
+
+    if (!options.revisionsRestored && bundle.revisions && bundle.revisions.length > 0) {
+      try {
+        const persistence = provider.persistenceStorage;
+        if (!persistence) throw new Error('Revision import requires provider.persistenceStorage');
+        await provider.persistenceReady;
+        await persistence.saveBlockRevisions(bundle.revisions);
+      } catch (err) {
+        errors.push(
+          `Failed to restore revisions for ${bundleNoteId ?? 'unknown note'}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        continue;
+      }
     }
-    return { noteIds, sessions, events, errors };
+
+    if (bundle.note && !options.skipNotes.has(bundle.note.id)) {
+      try {
+        const existing = await provider.getRecord(bundle.note.id);
+        const input: NoteSaveInput = {
+          ...bundle.note,
+          tags: bundle.note.tags ?? [],
+          sourceRevision: existing?.sourceRevision ?? bundle.note.sourceRevision,
+          blocks: existing?.rawContent === bundle.note.rawContent ? existing.blocks : bundle.note.blocks,
+        };
+        await provider.saveRecord(input);
+        noteIds.add(bundle.note.id);
+      } catch (err) {
+        errors.push(
+          `Failed to import note ${bundle.note.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        continue;
+      }
+    }
+
+    if (bundle.sessions.length > 0 || bundle.events.length > 0) {
+      const persistence = provider.persistenceStorage;
+      if (!persistence) {
+        errors.push('Telemetry import requires provider.persistenceStorage');
+        continue;
+      }
+      await provider.persistenceReady;
+
+      for (const session of bundle.sessions) {
+        try {
+          const parent = await provider.getRecord(session.noteId);
+          if (!parent) throw new Error(`Parent note ${session.noteId} does not exist`);
+          const rev = await persistence.getBlockRevision(session.noteId, session.blockId, session.blockVersion);
+          if (!rev || rev.kind !== 'wod') {
+            throw new Error(
+              `Pinned wod BlockRevision [${session.noteId}, ${session.blockId}, ${session.blockVersion}] does not exist`,
+            );
+          }
+          const rows = bundle.events.filter((ev) => ev.resultId === session.id);
+          for (const ev of rows) {
+            if (
+              ev.noteId !== session.noteId ||
+              ev.blockId !== session.blockId ||
+              ev.blockVersion !== session.blockVersion ||
+              ev.blockContentId !== session.blockContentId
+            ) {
+              throw new Error(`Event ${ev.id} does not match session ${session.id} identity`);
+            }
+          }
+          const raw = rows.filter((ev) => ev.grain === 'event');
+          const suppliedSummaries = rows.filter((ev) => ev.grain === 'summary');
+          const summaries =
+            suppliedSummaries.length > 0
+              ? suppliedSummaries
+              : toSummaryEventRows(eventsToStoredLogs(raw), {
+                  noteId: session.noteId,
+                  resultId: session.id,
+                  blockId: session.blockId,
+                  blockVersion: session.blockVersion,
+                  blockContentId: session.blockContentId,
+                  origin: session.origin,
+                  pageId: session.pageId,
+                  workoutTimestamp: session.startTime,
+                });
+          await persistence.withTransaction(['notes', 'block_revisions', 'sessions', 'events'], async (scoped) => {
+            await scoped.saveSession(session);
+            if (rows.length > 0) {
+              await scoped.appendEvents(raw);
+              await scoped.finalizeSummaries(session.id, summaries);
+            }
+          });
+          sessions++;
+          events += raw.length + summaries.length;
+        } catch (err) {
+          errors.push(
+            `Failed to import session ${session.id}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+    }
+  }
+
+  return { noteIds, sessions, events, errors };
 }
 
-export async function importFromJsonl(jsonlText: string, provider: IContentProvider): Promise<NoteImportResult> {
-    const result = await importJsonl(jsonlText, provider, { skipNotes: new Set() });
+export async function importFromMarkdown(
+  markdownText: string,
+  provider: IContentProvider,
+): Promise<NoteImportResult> {
+  try {
+    const entry = createNoteFromMarkdown(markdownText, wallClockNow);
+    const existing = entry.id ? await provider.getRecord(entry.id) : null;
+    await provider.saveRecord({
+      ...entry,
+      sourceRevision: existing?.sourceRevision ?? entry.sourceRevision,
+      blocks: existing?.rawContent === entry.rawContent ? existing.blocks : entry.blocks,
+    });
+    return { imported: 1, sessionsImported: 0, eventsImported: 0, errors: [] };
+  } catch (err) {
     return {
-        imported: result.noteIds.size,
-        sessionsImported: result.sessions,
-        eventsImported: result.events,
-        errors: result.errors,
+      imported: 0,
+      sessionsImported: 0,
+      eventsImported: 0,
+      errors: [err instanceof Error ? err.message : String(err)],
     };
+  }
 }
 
+export async function importFromJsonl(
+  jsonlText: string,
+  provider: IContentProvider,
+): Promise<NoteImportResult> {
+  const parsed = parseNoteBundleFromJsonl(jsonlText);
+  const res = await importTelemetryBundlesIntoProvider(parsed.bundles, provider, { skipNotes: new Set() });
+  return {
+    imported: res.noteIds.size,
+    sessionsImported: res.sessions,
+    eventsImported: res.events,
+    errors: [...parsed.errors, ...res.errors],
+  };
+}
+
+export async function importFromCsv(
+  csvText: string,
+  provider: IContentProvider,
+): Promise<NoteImportResult> {
+  const parsed = csvToTelemetryBundle(csvText);
+  const res = await importTelemetryBundlesIntoProvider(parsed.bundles, provider, { skipNotes: new Set() });
+  return {
+    imported: res.noteIds.size,
+    sessionsImported: res.sessions,
+    eventsImported: res.events,
+    errors: [...parsed.errors, ...res.errors],
+  };
+}
+
+/**
+ * Import from a `.zip` archive OR a standalone `.md` / `.jsonl` / `.csv` file.
+ */
 export async function importFromZip(file: File, provider: IContentProvider): Promise<NoteImportResult> {
-    const clock = wallClockNow;
-    const zip = await JSZip.loadAsync(file);
-    const errors: string[] = [];
-    const noteIds = new Set<string>();
-    const failedRevisionNotes = new Set<string>();
-    let sessionsImported = 0;
-    let eventsImported = 0;
+  const lower = file.name.toLowerCase();
+  if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
+    return importFromMarkdown(await file.text(), provider);
+  }
+  if (lower.endsWith('.jsonl')) {
+    return importFromJsonl(await file.text(), provider);
+  }
+  if (lower.endsWith('.csv')) {
+    return importFromCsv(await file.text(), provider);
+  }
 
-    const jsonlFiles = Object.keys(zip.files).filter(name => name.endsWith('.jsonl'));
-    const jsonlTexts = await Promise.all(jsonlFiles.map(filename => zip.files[filename].async('text')));
+  const clock = wallClockNow;
+  const zip = await JSZip.loadAsync(file);
+  const errors: string[] = [];
+  const noteIds = new Set<string>();
+  const failedRevisionNotes = new Set<string>();
+  let sessionsImported = 0;
+  let eventsImported = 0;
 
-    // Revisions must exist before markdown reconciliation. Otherwise a fresh
-    // note save assigns current text to version 1 and falsifies historical pins.
-    for (const [index, jsonlText] of jsonlTexts.entries()) {
-        const parsed = parseNoteBundleFromJsonl(jsonlText);
-        for (const bundle of parsed.bundles) {
-            const bundleNoteId = bundle.note?.id ?? bundle.revisions?.[0]?.noteId ?? bundle.sessions[0]?.noteId ?? bundle.events[0]?.noteId;
-            try {
-                await restoreBundleRevisions(bundle, provider);
-            } catch (error) {
-                if (bundleNoteId) failedRevisionNotes.add(bundleNoteId);
-                errors.push(`${jsonlFiles[index]}: Failed to restore revisions for ${bundleNoteId ?? 'unknown note'}: ${error instanceof Error ? error.message : String(error)}`);
-            }
-        }
+  const allPaths = Object.keys(zip.files).filter((name) => !zip.files[name]?.dir && !name.startsWith('dist/'));
+  const jsonlFiles = allPaths.filter((name) => name.endsWith('.jsonl'));
+  const csvFiles = allPaths.filter((name) => name.endsWith('.csv'));
+  const mdFiles = allPaths.filter(
+    (name) => name.endsWith('.md') && !/(?:^|\/)README\.md$/i.test(name),
+  );
+
+  const parsedBundles: Array<{ source: string; parsed: NoteTelemetryBundleResult }> = [];
+  for (const name of jsonlFiles) {
+    const text = await zip.files[name]!.async('text');
+    parsedBundles.push({ source: name, parsed: parseNoteBundleFromJsonl(text) });
+  }
+  // Only import .csv bundles whose stem does not already have a lossless .jsonl sibling
+  const jsonlStems = new Set(jsonlFiles.map((f) => f.replace(/\.jsonl$/i, '')));
+  for (const name of csvFiles) {
+    if (jsonlStems.has(name.replace(/\.csv$/i, ''))) continue;
+    const text = await zip.files[name]!.async('text');
+    parsedBundles.push({ source: name, parsed: csvToTelemetryBundle(text) });
+  }
+
+  // 1. Restore revisions first so historical session pins survive markdown saves
+  for (const { source, parsed } of parsedBundles) {
+    for (const bundle of parsed.bundles) {
+      if (!bundle.revisions || bundle.revisions.length === 0) continue;
+      const bundleNoteId = bundle.note?.id ?? bundle.revisions[0]?.noteId;
+      try {
+        const persistence = provider.persistenceStorage;
+        if (!persistence) throw new Error('Revision import requires provider.persistenceStorage');
+        await provider.persistenceReady;
+        await persistence.saveBlockRevisions(bundle.revisions);
+      } catch (err) {
+        if (bundleNoteId) failedRevisionNotes.add(bundleNoteId);
+        errors.push(
+          `${source}: Failed to restore revisions for ${bundleNoteId ?? 'unknown'}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
+  }
 
-    const mdFiles = Object.keys(zip.files).filter(name => name.endsWith('.md') && name !== 'README.md');
-    for (const filename of mdFiles) {
-        try {
-            const content = await zip.files[filename].async('text');
-            const entry = parseMarkdownToEntry(content, clock);
-            if (!entry) {
-                errors.push(`Failed to import ${filename}: Invalid markdown format or missing metadata`);
-                continue;
-            }
-            if (entry.id && failedRevisionNotes.has(entry.id)) {
-                errors.push(`Failed to import ${filename}: revision restoration failed for ${entry.id}`);
-                continue;
-            }
-            const existing = entry.id ? await provider.getRecord(entry.id) : null;
-            const saved = await provider.saveRecord({
-                ...entry,
-                sourceRevision: existing?.sourceRevision ?? entry.sourceRevision,
-                blocks: existing?.rawContent === entry.rawContent ? existing.blocks : entry.blocks,
-            });
-            noteIds.add(saved.id);
-        } catch (error) {
-            errors.push(`Failed to import ${filename}: ${error instanceof Error ? error.message : String(error)}`);
-        }
+  // 2. Import Markdown notes
+  for (const filename of mdFiles) {
+    try {
+      const content = await zip.files[filename]!.async('text');
+      const entry = createNoteFromMarkdown(content, clock);
+      if (entry.id && failedRevisionNotes.has(entry.id)) {
+        errors.push(`Failed to import ${filename}: revision restoration failed for ${entry.id}`);
+        continue;
+      }
+      const existing = entry.id ? await provider.getRecord(entry.id) : null;
+      const saved = await provider.saveRecord({
+        ...entry,
+        sourceRevision: existing?.sourceRevision ?? entry.sourceRevision,
+        blocks: existing?.rawContent === entry.rawContent ? existing.blocks : entry.blocks,
+      });
+      noteIds.add(saved.id);
+    } catch (err) {
+      errors.push(`Failed to import ${filename}: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
 
-    for (const [index, jsonlText] of jsonlTexts.entries()) {
-        try {
-            const result = await importJsonl(jsonlText, provider, {
-                skipNotes: noteIds,
-                revisionsRestored: true,
-                skipBundles: failedRevisionNotes,
-            });
-            for (const id of result.noteIds) noteIds.add(id);
-            sessionsImported += result.sessions;
-            eventsImported += result.events;
-            errors.push(...result.errors.map(error => `${jsonlFiles[index]}: ${error}`));
-        } catch (error) {
-            errors.push(`Failed to import ${jsonlFiles[index]}: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
+  // 3. Import telemetry sessions & events
+  for (const { source, parsed } of parsedBundles) {
+    errors.push(...parsed.errors.map((e) => `${source}: ${e}`));
+    const res = await importTelemetryBundlesIntoProvider(parsed.bundles, provider, {
+      skipNotes: noteIds,
+      revisionsRestored: true,
+      skipBundles: failedRevisionNotes,
+    });
+    for (const id of res.noteIds) noteIds.add(id);
+    sessionsImported += res.sessions;
+    eventsImported += res.events;
+    errors.push(...res.errors.map((e) => `${source}: ${e}`));
+  }
 
-    return { imported: noteIds.size, sessionsImported, eventsImported, errors };
+  return { imported: noteIds.size, sessionsImported, eventsImported, errors };
 }
 
-export function pickFile(accept: string = '*'): Promise<File | null> {
-    return pickFileFromBrowser(accept);
+// ── Consistent Feed Publishing (Self-Hosted Server vs Browser IndexedDB Repo) ─
+
+export interface OutboundFeedStatus extends UnpublishedFeedStatus {
+  mode: 'self-hosted' | 'browser-repo';
+  feedUrl?: string;
 }
 
-export { createNoteFromMarkdown } from './export/NoteMarkdownDeserializer';
-export {
-    parseNoteBundleFromJsonl,
-    serializeNoteBundleToJsonl,
-    streamNoteBundleToJsonlLines,
-    type NoteTelemetryBundle,
-    type NoteTelemetryBundleResult,
-} from './export/NoteJsonlFormatter';
+export async function getOutboundFeedStatus(): Promise<OutboundFeedStatus> {
+  if (storageBackend === 'api') {
+    const apiBase = import.meta.env.VITE_API_URL ?? '/api';
+    const res = await fetch(`${apiBase}/v1/feed/status`);
+    if (res.ok) {
+      const data = (await res.json()) as UnpublishedFeedStatus & { feedUrl?: string };
+      return { ...data, mode: 'self-hosted' };
+    }
+  }
+  await whenStorageReady();
+  const localStatus = await checkUnpublishedFeedChanges(storage);
+  return { ...localStatus, mode: 'browser-repo' };
+}
+
+export async function publishSelfHostedFeed(
+  options: Pick<PublishFeedOptions, 'name' | 'description' | 'repositoryUrl' | 'notebookSlug'> = {},
+): Promise<{ report: PublishFeedReport; feedUrl: string }> {
+  const apiBase = import.meta.env.VITE_API_URL ?? '/api';
+  const res = await fetch(`${apiBase}/v1/feed/publish`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(options),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Publish failed (HTTP ${res.status})`);
+  }
+  const data = (await res.json()) as PublishFeedReport & { feedUrl: string };
+  return { report: data, feedUrl: data.feedUrl };
+}
+
+export async function exportFeedRepositoryZip(
+  options: Pick<PublishFeedOptions, 'name' | 'description' | 'repositoryUrl' | 'notebookSlug'> = {},
+): Promise<PublishFeedReport> {
+  await whenStorageReady();
+  const zipTree = new ZipFeedTree();
+  const report = await publishFeedFromStorage(storage, zipTree, {
+    ...options,
+    layout: 'repository',
+    recordCheckpoint: true,
+  });
+  const blob = await zipTree.toBlob();
+  const slug = (options.name ?? 'wod-wiki-feed-repository')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'wod-wiki-feed-repository';
+  downloadBlob(blob, `${slug}.zip`);
+  return report;
+}
+
+export function supportsDirectoryPicker(): boolean {
+  return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+}
+
+export async function exportFeedRepositoryToDirectory(
+  options: Pick<PublishFeedOptions, 'name' | 'description' | 'repositoryUrl' | 'notebookSlug'> = {},
+): Promise<PublishFeedReport | null> {
+  const win = window as unknown as {
+    showDirectoryPicker?: (opts?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandleLike>;
+  };
+  if (!win.showDirectoryPicker) {
+    throw new Error('Directory picker is not supported in this browser; use ZIP export instead.');
+  }
+  let dirHandle: FileSystemDirectoryHandleLike;
+  try {
+    dirHandle = await win.showDirectoryPicker({ mode: 'readwrite' });
+  } catch {
+    return null; // user cancelled picker
+  }
+  await whenStorageReady();
+  const tree = new DirectoryHandleFeedTree(dirHandle);
+  return publishFeedFromStorage(storage, tree, {
+    ...options,
+    layout: 'repository',
+    recordCheckpoint: true,
+  });
+}

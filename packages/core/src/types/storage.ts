@@ -59,6 +59,8 @@ export interface Note {
   sourcePath?: string;
   /** Git commit hash in which this note was published or changed. */
   seedCommit?: string;
+  /** Whether a user-owned notebook landing note (`notebook/{slug}`) publishes its member notes to the outbound Feed. */
+  public?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,6 +192,9 @@ export interface Session {
   completed: boolean;
 
   createdAt: number;
+
+  /** Whether this Session's telemetry is published when its parent Note belongs to a public Notebook. */
+  public?: boolean;
 }
 
 // ---------------------------------------------------------------------------

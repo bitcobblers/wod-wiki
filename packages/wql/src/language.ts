@@ -486,6 +486,7 @@ function resolveColonHead(name: string): Head {
   if ((WQL_CHART_HEADS as readonly string[]).includes(n)) return { family: 'find', target: '__chart__' };
   const headTarget = (head: string): string => {
     if ((WQL_NOTE_HEAD_ALIASES as readonly string[]).includes(head)) return 'note';
+    if (head === 'feeds') return 'feed';
     const scoped = (WQL_SOURCE_HEAD_SCOPES as Readonly<Record<string, string>>)[head]
       || (WQL_TYPE_HEADS as Readonly<Record<string, string>>)[head];
     return scoped ? 'note' : head;

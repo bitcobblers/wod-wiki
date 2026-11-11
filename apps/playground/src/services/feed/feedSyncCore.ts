@@ -14,7 +14,7 @@ import { assertManifest, type IFeedSource } from './IFeedSource';
 import { FeedImporter, type FeedImportProgress } from './FeedImporter';
 import type { FeedImportStorage } from './FeedImportStorage';
 import { decideFeedImport, storedFeedIsCurrent } from './feedVersion';
-import { EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_SCHEMA, emptySeedMeta, seedMetaKey, type SeedMetaRecord, type SeedPrecedenceTier } from '@/types/seed';
+import { EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_SCHEMA, emptySeedMeta, seedMetaKey, type SeedManifest, type SeedMetaRecord, type SeedPrecedenceTier } from '@/types/seed';
 
 /** Worst-case sync outcomes, aggregated by the driver (worst-first). */
 export type FeedSyncOutcome = 'disabled' | 'current' | 'busy' | 'imported' | 'server-stale' | 'error' | 'update-pending';
@@ -76,6 +76,7 @@ export interface SourceSyncCoreResult {
   /** Import counters — set when chunks applied. */
   added?: number;
   updated?: number;
+  manifest?: SeedManifest;
 }
 
 /** User-display-safe error text: credential fragments and hosts only, capped. */
@@ -126,6 +127,7 @@ export async function runSourceSyncCore(
 
     const manifest = assertManifest(await input.source.fetchManifest());
     result.manifestChecked = true;
+    result.manifest = manifest;
     const decision = deps.force ? 'import' : decideFeedImport(stored?.seedVersion, manifest.version);
     if (decision === 'server-stale') {
       result.outcome = 'server-stale';

@@ -29,6 +29,8 @@ import type { ScriptBlock } from '@/components/Editor/types'
 import { useNotePageNav } from './shared/useNotePageNav'
 import { appendTimerBlock } from './shared/pageUtils'
 import { PageActions } from './shared/PageActions'
+import { PublicationPill } from '@/components/molecules/PublicationPill'
+import { exportNote } from '@/services/ExportImportService'
 import {
   NoteContextNav,
   noteOwnership,
@@ -226,6 +228,21 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                 },
               ]
             : []),
+          {
+            id: 'export-md',
+            label: 'Export Note (.md)',
+            onRun: () => { void exportNote(entry, contentProvider, { format: 'md' }) },
+          },
+          {
+            id: 'export-jsonl',
+            label: 'Export Session Data (.jsonl)',
+            onRun: () => { void exportNote(entry, contentProvider, { format: 'jsonl' }) },
+          },
+          {
+            id: 'export-csv',
+            label: 'Export Session Data (.csv)',
+            onRun: () => { void exportNote(entry, contentProvider, { format: 'csv' }) },
+          },
           { id: 'placements', label: 'Note placements', onRun: () => setPlacement('relationships') },
           { id: 'add-timer', label: 'Add timer', onRun: () => draft.onSourceMutate(appendTimerBlock(draft.content)) },
           { id: 'clone', label: 'Clone', onRun: () => setPlacement('clone') },
@@ -298,9 +315,14 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
           editor={
             <div className="flex flex-col gap-4 px-4 py-6 sm:px-6 min-w-0 max-w-full">
               <NoteContextNav data={contextLinks} up={ownership.up} calendar={calendar} />
-              {((entry.journalDate && entry.journalDate !== entry.title) || entry.slug || entry.sourceId || !isReadOnly) && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-                  {entry.journalDate && entry.journalDate !== entry.title && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground" data-testid="note-header-meta-row">
+                <PublicationPill
+                  noteId={entry.id}
+                  notebookId={entry.notebookId}
+                  sessions={results}
+                  isReadOnlyFeedNote={isReadOnly}
+                />
+                {entry.journalDate && entry.journalDate !== entry.title && (
                     <Link to={dayPath(entry.journalDate)} className="underline-offset-2 hover:underline">
                       {entry.journalDate}
                     </Link>
@@ -410,8 +432,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                       )}
                     </span>
                   )}
-                </div>
-              )}
+              </div>
               {!isReadOnly && stackedWidgets.length > 0 && (
                 <div
                   className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-xs"

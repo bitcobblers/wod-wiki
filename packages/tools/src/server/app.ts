@@ -21,6 +21,7 @@ import { realpathSync, createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { HttpError } from './errors';
 import {
+  SqlStorage,
   handleDomainQuery,
   refreshDomain,
   wipeDomain,
@@ -34,7 +35,14 @@ import {
   type Database,
 } from '@bitcobblers/wod-wiki-storage/sql';
 import { keyFromValue, type KeyDTO, type RangeDTO, type TxOp } from '@bitcobblers/wod-wiki-storage';
-
+import {
+  FeedTreeError,
+  MemoryFeedTree,
+  checkUnpublishedFeedChanges,
+  publishFeedFromStorage,
+  type FeedTree,
+} from '@bitcobblers/wod-wiki-engine';
+import { NodeFsFeedTree } from '../cli/nodeFeedTree';
 const json = (value: unknown, status: number): Response =>
   new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
 
@@ -160,6 +168,9 @@ const MIME: Record<string, string> = {
   webmanifest: 'application/manifest+json',
   xml: 'application/xml',
   txt: 'text/plain; charset=utf-8',
+  md: 'text/markdown; charset=utf-8',
+  jsonl: 'application/x-ndjson; charset=utf-8',
+  csv: 'text/csv; charset=utf-8',
 };
 
 async function realpathSafe(path: string): Promise<string | undefined> {
@@ -294,9 +305,92 @@ async function storeRoutes(db: Database, method: string, sub: string, url: URL, 
   return methodNotAllowed();
 }
 
-async function apiRoutes(db: Database, req: Request, method: string, sub: string, url: URL): Promise<Response> {
+function isPublishedFeedAssetPath(pathname: string): string | null {
+  if (pathname === '/feed' || pathname === '/feed/') return 'index.html';
+  if (!pathname.startsWith('/feed/')) return null;
+  const sub = pathname.slice('/feed/'.length);
+  if (
+    sub === 'index.html' ||
+    sub === 'manifest.json' ||
+    sub === 'report.html' ||
+    sub.startsWith('chunks/') ||
+    sub.startsWith('indexes/') ||
+    sub.startsWith('markdown/')
+  ) {
+    return sub;
+  }
+  return null;
+}
+
+async function servePublishedFeed(feedTree: FeedTree, method: string, relPath: string): Promise<Response> {
+  if (method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'access-control-allow-origin': '*',
+        'access-control-allow-methods': 'GET, HEAD, OPTIONS',
+      },
+    });
+  }
+  if (method !== 'GET') return methodNotAllowed();
+  try {
+    const decoded = decodeURIComponent(relPath);
+    const bytes = await feedTree.read(decoded);
+    const ext = decoded.includes('.') ? decoded.slice(decoded.lastIndexOf('.') + 1).toLowerCase() : 'html';
+    const cache = decoded.startsWith('chunks/')
+      ? 'public, max-age=31536000, immutable'
+      : 'no-cache';
+    const copy = new Uint8Array(bytes.byteLength);
+    copy.set(bytes);
+    return new Response(copy.buffer, {
+      status: 200,
+      headers: {
+        'content-type': MIME[ext] ?? 'application/octet-stream',
+        'cache-control': cache,
+        'access-control-allow-origin': '*',
+      },
+    });
+  } catch (err) {
+    if (err instanceof FeedTreeError && err.code === 'not-found') return notFound();
+    if (err instanceof FeedTreeError && err.code === 'layout') return plain('forbidden', 403);
+    throw err;
+  }
+}
+
+async function apiRoutes(
+  db: Database,
+  feedTree: FeedTree,
+  req: Request,
+  method: string,
+  sub: string,
+  url: URL,
+): Promise<Response> {
   if (sub === '/health') {
     return json({ ok: true, driver: db.dialect }, 200);
+  }
+  if (sub === '/v1/feed/status' && method === 'GET') {
+    const storage = new SqlStorage(db);
+    const status = await checkUnpublishedFeedChanges(storage, feedTree);
+    return json({ ...status, feedUrl: `${url.origin}/feed/` }, 200);
+  }
+  if (sub === '/v1/feed/publish' && method === 'POST') {
+    const body = req.headers.get('content-length') === '0' ? {} : await readJsonBody(req).catch(() => ({}));
+    const opts = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+    const storage = new SqlStorage(db);
+    const report = await publishFeedFromStorage(storage, feedTree, {
+      layout: 'feed',
+      ...(typeof opts.name === 'string' ? { name: opts.name } : {}),
+      ...(typeof opts.description === 'string' ? { description: opts.description } : {}),
+      ...(typeof opts.repositoryUrl === 'string' ? { repositoryUrl: opts.repositoryUrl } : {}),
+      ...(typeof opts.notebookSlug === 'string' ? { notebookSlug: opts.notebookSlug } : {}),
+    });
+    return json({
+      manifest: report.manifest,
+      notebooks: report.notebooks,
+      totalNotes: report.totalNotes,
+      totalPublicSessions: report.totalPublicSessions,
+      feedUrl: `${url.origin}/feed/`,
+    }, 200);
   }
   if (sub === '/v1/wipe' && method === 'POST') {
     await db.transaction(async (tx) => {
@@ -335,20 +429,29 @@ function distRootOf(playgroundDist: string | undefined): string | undefined {
 
 export function createHandler(
   db: Database | null,
-  options: { playgroundDist: string },
+  options: { playgroundDist: string; feedDir?: string; feedTree?: FeedTree },
 ): (request: Request) => Promise<Response> {
   const distRoot = distRootOf(options.playgroundDist);
+  const feedTree: FeedTree =
+    options.feedTree ??
+    (options.feedDir ? new NodeFsFeedTree(options.feedDir) : new MemoryFeedTree());
   return async (request: Request): Promise<Response> => {
     try {
       const url = new URL(request.url);
       const method = request.method === 'HEAD' ? 'GET' : request.method; // Bun strips HEAD bodies
       const path = url.pathname;
-      const response = path === '/api' || path.startsWith('/api/')
-        ? db
-          ? await apiRoutes(db, request, method, path.slice('/api'.length) || '/', url)
-          : notFound()
-        : await staticResponse(distRoot, method, path);
-      return response;
+      if (path === '/api' || path.startsWith('/api/')) {
+        return db
+          ? await apiRoutes(db, feedTree, request, method, path.slice('/api'.length) || '/', url)
+          : notFound();
+      }
+      if (db) {
+        const feedAsset = isPublishedFeedAssetPath(path);
+        if (feedAsset !== null) {
+          return await servePublishedFeed(feedTree, request.method === 'OPTIONS' ? 'OPTIONS' : method, feedAsset);
+        }
+      }
+      return await staticResponse(distRoot, method, path);
     } catch (e) {
       if (e instanceof HttpError || e instanceof StorageError) {
         const status = e.status;

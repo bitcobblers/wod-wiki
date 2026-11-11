@@ -112,6 +112,7 @@ export const TARGET_OPTIONS = WQL_FIND_TARGETS.map((t) => ({
     page: 'Find page placements — notes placed on pages, narrowed with page:',
     tag: 'Find tags — labels, types, and what they contribute',
     equipment: 'Find equipment notes — narrowed with equipment: or tags:',
+    feed: 'Find distributed feed sources — narrowed with feed: or subscribed:',
   }[t],
 }));
 

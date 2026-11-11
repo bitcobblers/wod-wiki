@@ -14,3 +14,4 @@ export * from './types';
 export * from './sections';
 export * from './version';
 export * from './portability/note-jsonl';
+export * from './publication';

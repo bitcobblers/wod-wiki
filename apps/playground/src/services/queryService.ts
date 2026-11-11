@@ -36,7 +36,8 @@ import type { IOutputStatement } from '@bitcobblers/wod-wiki-core';
 import { useActiveRunStore } from '@/stores/activeRunStore';
 import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
 import { storageService } from '@/services/storage';
-
+import { playgroundFeedCatalogStore } from '@/services/feed/feedCatalog';
+import { isNotebookSubscribed } from '@/services/feed/feedSubscriptions';
 /** Unified event store over IndexedDB — the `events` object store (V16).
  *
  *  Wrapped in `coalescingEventStore`: dashboard widgets sharing one resolved
@@ -325,6 +326,8 @@ export function createQueryService(): QueryService {
     datasetStore: {
       getDataset: (name) => (name === '@session' ? projectLiveSession() : pageSourceRegistry.getDataset(name)),
     },
+    feedCatalogStore: playgroundFeedCatalogStore,
+    isNotebookSubscribed: (feedId, chunkId) => isNotebookSubscribed(feedId, chunkId),
   });
 }
 

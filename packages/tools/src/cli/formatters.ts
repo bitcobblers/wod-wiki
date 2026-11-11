@@ -8,7 +8,7 @@
 import type { WodWikiIRFile, StatementNode, ExecutionLog } from '@bitcobblers/wod-wiki-engine';
 import type { QueryResult, RowsQueryResult, FindQueryResult, PipelineResult } from '@bitcobblers/wod-wiki-wql';
 
-export type OutputFormat = 'json' | 'table' | 'csv';
+export type OutputFormat = 'json' | 'table' | 'csv' | 'jsonl';
 
 function escapeCsvField(field: unknown): string {
   if (field === undefined || field === null) return '';

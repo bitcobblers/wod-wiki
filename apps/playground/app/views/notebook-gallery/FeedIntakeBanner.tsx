@@ -5,6 +5,7 @@ import { HttpFeedSource } from '@/services/feed/HttpFeedSource';
 import { addCustomFeedSource, normalizeFeedUrl } from '@/services/feed/feedSources';
 import { setFeedAutoSync, setFeedSubscribed } from '@/services/feed/feedSubscriptions';
 import { syncFeedSource } from '@/services/feed/feedSync';
+import { saveFeedCatalogManifest } from '@/services/feed/feedCatalog';
 import { assertSeedManifest, type SeedManifest } from '@bitcobblers/wod-wiki-engine';
 import { Loader2, AlertCircle, X } from 'lucide-react';
 
@@ -83,14 +84,18 @@ export function FeedIntakeBanner({
       });
   };
 
-  const handleRegisterOnly = () => {
+  const handleRegisterOnly = async () => {
     if (!normalizedUrl || !manifest || busy) return;
+    setBusy(true);
     try {
       const added = addCustomFeedSource(manifest.name ?? 'Custom Feed', normalizedUrl);
       setFeedSubscribed(added.id, false);
+      await saveFeedCatalogManifest(added.id, manifest);
       onRegistered(added.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to register feed.');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -101,6 +106,7 @@ export function FeedIntakeBanner({
     try {
       const added = addCustomFeedSource(manifest.name ?? 'Custom Feed', normalizedUrl);
       setFeedSubscribed(added.id, false);
+      await saveFeedCatalogManifest(added.id, manifest);
       await syncFeedSource(added.id, { subscribe: false, manifest });
       onSubscribed(added.id);
     } catch (err) {
@@ -118,6 +124,7 @@ export function FeedIntakeBanner({
       const added = addCustomFeedSource(manifest.name ?? 'Custom Feed', normalizedUrl);
       setFeedSubscribed(added.id, true);
       setFeedAutoSync(added.id, autoSyncChecked);
+      await saveFeedCatalogManifest(added.id, manifest);
       await syncFeedSource(added.id, { manifest });
       onSubscribed(added.id);
     } catch (err) {

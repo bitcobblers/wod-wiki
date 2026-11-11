@@ -14,11 +14,24 @@ export interface NoteJsonlNote {
   sourceId?: string;
 }
 
+export interface ParseLoadRecord {
+  id: string;
+  noteId: string;
+  blockId?: string;
+  blockVersion?: number;
+  stage: 'parse' | 'load';
+  status: 'ok' | 'warning' | 'error';
+  timestamp: number;
+  diagnostics?: string[];
+  metrics?: Record<string, unknown>;
+}
+
 export interface NoteTelemetryBundle {
   note?: NoteJsonlNote;
   sessions: Session[];
   events: EventRecord[];
   revisions?: BlockRevision[];
+  parses?: ParseLoadRecord[];
 }
 
 export interface NoteTelemetryBundleResult {
@@ -35,6 +48,7 @@ type JsonlRecord =
   | ({ kind: 'note' } & NoteJsonlNote)
   | ({ kind: 'session' } & Session)
   | ({ kind: 'event' } & EventRecord)
+  | ({ kind: 'parse' } & ParseLoadRecord)
   | RevisionJsonlRecord;
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -73,9 +87,21 @@ function validSession(value: Record<string, unknown>): boolean {
     && isPositiveInteger(value.blockVersion) && isString(value.blockContentId)
     && hasValidOrigin(value.origin)
     && (value.status === undefined || value.status === 'in-progress' || value.status === 'completed')
+    && (value.public === undefined || typeof value.public === 'boolean')
     && isFiniteNumber(value.startTime) && isFiniteNumber(value.endTime)
     && isFiniteNumber(value.duration) && typeof value.completed === 'boolean'
     && isFiniteNumber(value.createdAt);
+}
+
+function validParseRecord(value: Record<string, unknown>): boolean {
+  return isString(value.id) && isString(value.noteId)
+    && (value.blockId === undefined || isString(value.blockId))
+    && (value.blockVersion === undefined || isPositiveInteger(value.blockVersion))
+    && (value.stage === 'parse' || value.stage === 'load')
+    && (value.status === 'ok' || value.status === 'warning' || value.status === 'error')
+    && isFiniteNumber(value.timestamp)
+    && (value.diagnostics === undefined || (Array.isArray(value.diagnostics) && value.diagnostics.every((d) => typeof d === 'string')))
+    && (value.metrics === undefined || isObject(value.metrics));
 }
 
 function validEvent(value: Record<string, unknown>): boolean {
@@ -106,8 +132,9 @@ function revisionToJsonl(revision: BlockRevision): RevisionJsonlRecord {
 export function serializeNoteBundleToJsonl(bundle: NoteTelemetryBundle): string {
   const records: JsonlRecord[] = [
     ...(bundle.note ? [{ kind: 'note' as const, ...bundle.note }] : []),
-    ...bundle.sessions.map((session) => ({ kind: 'session' as const, ...session })),
     ...(bundle.revisions ?? []).map(revisionToJsonl),
+    ...(bundle.parses ?? []).map((parse) => ({ kind: 'parse' as const, ...parse })),
+    ...bundle.sessions.map((session) => ({ kind: 'session' as const, ...session })),
     ...bundle.events.map((event) => ({ kind: 'event' as const, ...event })),
   ];
   return records.map((record) => JSON.stringify(record)).join('\n');
@@ -118,8 +145,9 @@ export async function* streamNoteBundleToJsonlLines(
 ): AsyncGenerator<string, void, unknown> {
   for await (const bundle of bundles) {
     if (bundle.note) yield JSON.stringify({ kind: 'note', ...bundle.note });
-    for (const session of bundle.sessions) yield JSON.stringify({ kind: 'session', ...session });
     for (const revision of bundle.revisions ?? []) yield JSON.stringify(revisionToJsonl(revision));
+    for (const parse of bundle.parses ?? []) yield JSON.stringify({ kind: 'parse', ...parse });
+    for (const session of bundle.sessions) yield JSON.stringify({ kind: 'session', ...session });
     for (const event of bundle.events) yield JSON.stringify({ kind: 'event', ...event });
   }
 }
@@ -181,6 +209,13 @@ export function parseNoteBundleFromJsonl(jsonlText: string): NoteTelemetryBundle
         }
         const event = value as unknown as EventRecord;
         bundleFor(event.noteId).events.push(event);
+      } else if (kind === 'parse') {
+        if (!validParseRecord(value)) {
+          errors.push(`Line ${lineNumber}: invalid parse/load record`);
+          continue;
+        }
+        const parseRec = value as unknown as ParseLoadRecord;
+        (bundleFor(parseRec.noteId).parses ??= []).push(parseRec);
       } else {
         errors.push(`Line ${lineNumber}: unknown record kind ${kind}`);
       }
