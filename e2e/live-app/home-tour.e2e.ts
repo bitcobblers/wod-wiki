@@ -424,7 +424,7 @@ test('wod wiki university lists guide cards in the on-this-page outline', async 
 
   // One card per guide chapter: title, one-line description, watch thumbnail.
   const cards = section.locator('ul > li')
-  await expect(cards).toHaveCount(8)
+  await expect(cards).toHaveCount(9)
   const first = cards.first()
   await expect(first.getByRole('link', { name: 'First Workout' })).toBeVisible()
   await expect(first.getByText(/one-line workout/)).toBeVisible()

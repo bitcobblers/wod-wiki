@@ -95,7 +95,7 @@ test.describe('Feed Source Settings & Library Navigation', () => {
 
     await expect(page.getByTestId('feed-settings-button')).toHaveCount(0);
     await page.getByRole('button', { name: 'Open navigation' }).click();
-    await page.getByTestId('notebooks-configure-sources').click();
+    await page.getByRole('dialog').getByTestId('notebooks-configure-sources').click();
     await expect(page).toHaveURL(/\/settings\/sync$/);
 
     const subscribedOnly = page.getByRole('checkbox', { name: 'Subscribed only' });
@@ -194,8 +194,8 @@ test.describe('Feed Source Settings & Library Navigation', () => {
     await waitForFeedReady(page);
     const subscribedOnly = page.getByRole('checkbox', { name: 'Subscribed only' });
     await subscribedOnly.setChecked(false);
-    const row = page.getByTestId('feed-source-seed-crossfit');
-    await row.getByTestId('feed-subscribe-seed-crossfit').click();
+    const row = page.getByTestId('feed-source-sport-crossfit');
+    await row.getByTestId('feed-subscribe-sport-crossfit').click();
     await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
     expect(await getNoteContentByRouteId(page, seedNoteIdSync(chunks[0].path))).toBe(chunks[0].content);
     expect(await getNoteContentByRouteId(page, seedNoteIdSync(chunks[1].path))).toBe(chunks[1].content);

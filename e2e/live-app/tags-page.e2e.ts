@@ -92,7 +92,7 @@ test.describe('Tags — /tags query surface', () => {
     await page.getByLabel('Metric type').fill('intensity');
     await page.getByLabel('Metric value').fill('heavy');
     await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByText('Saved')).toBeVisible();
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 
     await gotoFeedSurface(page, `/tags?q=${encodeURIComponent(`:tag{tag:${TAG_NAME}}`)}`);
     const row = page.getByTestId('library-row-tag').filter({ hasText: TAG_NAME });
@@ -113,19 +113,19 @@ test.describe('Tags — /t/:type/:tag editor', () => {
     await expect(page.getByRole('heading', { name: `Edit ${TAG_NAME}` })).toBeVisible();
 
     await page.getByRole('button', { name: 'Metric' }).click();
-    await page.getByLabel('Metric type').fill('intensity');
-    await page.getByLabel('Metric value').fill('heavy');
-    await page.getByLabel('Metric unit').fill('text');
+    await page.getByLabel('Metric type').fill('resistance');
+    await page.getByLabel('Metric value').fill('24');
+    await page.getByLabel('Metric unit').fill('kg');
     await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByText('Saved')).toBeVisible();
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 
     // The contribution survives a reload — it is stored, not just held in
     // the editor.
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: `Edit ${TAG_NAME}` })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByLabel('Metric type')).toHaveValue('intensity');
-    await expect(page.getByLabel('Metric value')).toHaveValue('heavy');
-    await expect(page.getByLabel('Metric unit')).toHaveValue('text');
+    await expect(page.getByLabel('Metric type')).toHaveValue('resistance');
+    await expect(page.getByLabel('Metric value')).toHaveValue('24');
+    await expect(page.getByLabel('Metric unit')).toHaveValue('kg');
 
     await page.getByRole('button', { name: 'Delete' }).click();
     await expect(page.getByRole('heading', { name: `Edit ${TAG_NAME}` })).toHaveCount(0);

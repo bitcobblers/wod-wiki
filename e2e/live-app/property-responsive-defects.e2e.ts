@@ -181,7 +181,7 @@ test.describe('effort properties vs fixed dock at 375×812 (finding #11)', () =>
     await seedBundledEfforts(page);
     await efforts.waitForSeedRegistry();
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await efforts.waitForDetailLoaded();
+    await expect(efforts.detailRoot()).toBeVisible({ timeout: 15_000 });
 
     // Expand at the very top of the page: the detailed fields appear with
     // no scroll event, and the normal-flow action row cannot overlap them.

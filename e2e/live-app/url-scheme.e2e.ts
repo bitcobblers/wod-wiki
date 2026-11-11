@@ -111,10 +111,14 @@ test.describe('URL scheme — canonical direct routes', () => {
     // No emitted link may use a retired prefix anywhere on the surface.
     await expect(page.locator('a[href^="/c/"]')).toHaveCount(0);
     await expect(page.locator('a[href^="/collections"]')).toHaveCount(0);
-    // Landing rows link to the notebook's own prefix — assert the emitted
-    // href, then click through.
-    const girls = page.getByRole('link', { name: 'CrossFit Girls' });
-    await expect(girls).toHaveAttribute('href', '/notebook/crossfit-girls');
+    // Recent nav links emit /notebook/:slug hrefs, and clicking a landing row
+    // in "All configured" navigates to /notebook/crossfit-girls.
+    await expect(page.getByRole('link', { name: 'Guides' })).toHaveAttribute('href', '/notebook/guides');
+    await page.getByRole('button', { name: 'All configured', exact: true }).click();
+    const girls = page
+      .getByTestId('library-row-notebook')
+      .filter({ has: page.getByRole('heading', { name: 'CrossFit Girls', exact: true }) });
+    await expect(girls).toBeVisible();
     await girls.click();
     await expect
       .poll(() => new URL(page.url()).pathname, { timeout: 15_000 })

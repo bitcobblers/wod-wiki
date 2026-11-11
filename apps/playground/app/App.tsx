@@ -215,7 +215,17 @@ export function App() {
                   <Route path={ROUTE_PATTERNS.subscribe} element={<SubscribePage />} />
                   {/* Page concept — /pages the library, /page/:slug one page. */}
                   <Route path={ROUTE_PATTERNS.pages} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.page} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
+                  <Route
+                    path={ROUTE_PATTERNS.page}
+                    element={
+                      canvasRouteList.length === 0 &&
+                      (feedReadiness === 'preparing' || (isFeedImportEnabled() && feedReadiness !== 'error')) ? (
+                        <RootUnavailable settling />
+                      ) : (
+                        <AppContent searchHandlerRef={searchHandlerRef} />
+                      )
+                    }
+                  />
                   <Route path={ROUTE_PATTERNS.load} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><LoadZipPage /></Suspense>} />
                   <Route path={ROUTE_PATTERNS.loadJournal} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><JournalZipLoadPage /></Suspense>} />
                   <Route path={ROUTE_PATTERNS.loadJournalDate} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><JournalZipLoadPage /></Suspense>} />

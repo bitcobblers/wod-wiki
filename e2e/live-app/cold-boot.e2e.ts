@@ -106,7 +106,7 @@ test('a corpus deep link reports the real seed phase while the route waits', asy
   await page.addInitScript(() => {
     localStorage.setItem('wodwiki.profileInitialized.v1', 'true')
   })
-  await page.route('**/seed/core/chunks/canvas.*.json', async (route) => {
+  await page.context().route('**/seed/core/**canvas*.json', async (route) => {
     const { promise, resolve } = Promise.withResolvers<void>()
     setTimeout(resolve, 5_000)
     await promise
@@ -114,6 +114,6 @@ test('a corpus deep link reports the real seed phase while the route waits', asy
   })
 
   await page.goto('/page/guide-start', { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('status')).toContainText('Downloading canvas…', { timeout: 45_000 })
+  await expect(page.getByRole('status').filter({ hasText: 'Downloading canvas…' })).toBeVisible({ timeout: 45_000 })
   await expect(page.getByRole('heading', { name: 'First Workout', exact: true }).first()).toBeVisible({ timeout: 60_000 })
 })

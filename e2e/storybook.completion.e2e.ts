@@ -291,6 +291,9 @@ test('dialog host floats completion menus and Escape gates menu before dialog', 
   await expect(firstOptionLabel(page)).toHaveText('note');
 
   // The tooltip floats within the viewport above the dialog panel.
+  await expect
+    .poll(async () => (await menu(page).boundingBox())?.y ?? -10_000, { timeout: 5_000 })
+    .toBeGreaterThanOrEqual(0);
   const box = await menu(page).boundingBox();
   expect(box).not.toBeNull();
   const viewport = page.viewportSize()!;

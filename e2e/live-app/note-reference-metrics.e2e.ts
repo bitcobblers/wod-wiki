@@ -60,6 +60,8 @@ async function openNote(page: Page, doc: string): Promise<string> {
   // reveals raw YAML and hides the properties preview; click into the body so
   // the preview (and its diagnostics) render for the assertions below.
   await page.locator('.cm-content').getByText('Refs').click();
+  const showDetails = page.locator('.cm-frontmatter-preview').getByRole('button', { name: 'Show property details' });
+  if (await showDetails.isVisible()) await showDetails.click();
   return page.evaluate(() => {
     const view = document.querySelector('.cm-editor')?.parentElement?.__codemirrorView as
       | { state: { doc: { toString(): string } } }

@@ -101,6 +101,8 @@ test.describe('Efforts catalog — /efforts', () => {
     await expect(page).toHaveURL(/\/effort\/new\?mode=create$/);
     const properties = page.locator('[data-testid="effort-create-editor"] .cm-frontmatter-preview');
     await expect(properties).toBeVisible();
+    const showDetails = properties.getByRole('button', { name: 'Show property details' });
+    if (await showDetails.isVisible()) await showDetails.click();
     await properties.getByLabel('Value for slug').fill(slug);
     await properties.getByLabel('Value for slug').press('Tab');
     await properties.getByLabel('Value for label').fill('E2E Create Flow');
