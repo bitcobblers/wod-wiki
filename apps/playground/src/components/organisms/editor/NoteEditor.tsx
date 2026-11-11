@@ -39,9 +39,9 @@ import { indentOnInput } from "@codemirror/language";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { acceptCompletion, completionKeymap, completionStatus, closeCompletion, closeBrackets, closeBracketsKeymap, startCompletion } from "@codemirror/autocomplete";
 import { lintKeymap } from "@codemirror/lint";
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 
-import { editorTheme } from '@bitcobblers/wod-wiki-ui/extensions';
+import { editorTheme, editorFocusTracker, navigationFacet } from '@bitcobblers/wod-wiki-ui/extensions';
 import { smartIncrement } from '@bitcobblers/wod-wiki-ui/extensions';
 
 // Note editor extensions
@@ -75,7 +75,7 @@ import { cursorFocusExtension, getCursorFocusState } from "@/app/editor/cursorFo
 import { createParser } from '@bitcobblers/wod-wiki-engine';
 import type { INotePersistence } from "@/services/persistence";
 import { queryService, onResultSaved } from "@/hooks/useCastSignaling";
-import { createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, loadReferenceCatalog, resolveNotePersistence, buildNestedCompletionOptions } from "@/app/editor/noteEditorServices";
+import { createAttachmentUrlExtension, createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, loadReferenceCatalog, resolveNotePersistence, buildNestedCompletionOptions } from "@/app/editor/noteEditorServices";
 import { readSoundProfiles } from "@/hooks/useBrowserServices";
 
 import { entryOpenHref } from '../../../../app/lib/entryActions';
@@ -93,9 +93,11 @@ import { FullscreenTimer } from "@/components/organisms/review/FullscreenTimer";
 import { InlineCommandBar } from "@/components/organisms/editor/InlineCommandBar";
 import { EditorCastBridge } from "@/components/organisms/editor/EditorCastBridge";
 import { MetricInlinePanel } from "@/components/organisms/editor/MetricInlinePanel";
+import { MobileWheelComposer } from "@/components/organisms/editor/MobileWheelComposer";
+import { SelectionFormatBar } from "@/components/organisms/editor/SelectionFormatBar";
 import { v7 as uuidv7 } from "uuid";
 
-import { themeCompartment, languageCompartment, modeCompartment } from "@/components/Editor/compartments";
+import { themeCompartment, languageCompartment, modeCompartment, inputModeCompartment } from "@/components/Editor/compartments";
 
 import type { ScriptBlock } from "@/components/Editor/types";
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store';
@@ -279,6 +281,27 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const overlayState = useOverlayWidthState(sections, effectiveActiveSectionId);
 
   const [viewInstance, setViewInstance] = useState<EditorView | null>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState<boolean>(
+    () => typeof window !== "undefined" && typeof window.matchMedia === "function"
+      && window.matchMedia("(max-width: 1023px)").matches,
+  );
+  const [isWheelOpen, setIsWheelOpen] = useState(false);
+  const [isMobileTypingMode, setIsMobileTypingMode] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia("(max-width: 1023px)");
+    const handleChange = (e: MediaQueryListEvent) => {
+      setIsMobileViewport(e.matches);
+      if (!e.matches) {
+        setIsWheelOpen(false);
+        setIsMobileTypingMode(false);
+      }
+    };
+    setIsMobileViewport(mql.matches);
+    mql.addEventListener("change", handleChange);
+    return () => mql.removeEventListener("change", handleChange);
+  }, []);
   // Full-screen timer block: when set, the FullscreenTimer overlay is shown.
   const [fullscreenTimerBlock, setFullscreenTimerBlock] = useState<ScriptBlock | null>(null);
   // Pinned run session id for the open overlay — unlocks durable post-run
@@ -518,6 +541,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       ])),
       keymap.of([
         ...closeBracketsKeymap,
+        ...markdownKeymap,
         ...defaultKeymap,
         ...searchKeymap,
         ...historyKeymap,
@@ -570,8 +594,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
       // Block-level preview decorations
       ...(enablePreview ? [
+        editorFocusTracker,
         previewDecorations,
         embedPreviewDecorations,
+        createAttachmentUrlExtension(noteId),
         createFrontmatterSuggestions(),
         createFrontmatterReferenceProvider(),
         markdownTablePreview,
@@ -599,7 +625,21 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       // Section geometry measurement (for overlay track)
       sectionGeometry,
 
-      // Ctrl+Click link opening
+      // Ctrl+Click & Link Pill navigation (SPA-friendly for internal paths)
+      navigationFacet.of((url) => {
+        if (/^(https?:|mailto:|tel:)/i.test(url)) {
+          window.open(url, "_blank", "noopener,noreferrer");
+          return;
+        }
+        if (url.startsWith("/") && typeof window !== "undefined") {
+          window.history.pushState({}, "", url);
+          window.dispatchEvent(new PopStateEvent("popstate"));
+          return;
+        }
+        if (typeof window !== "undefined") {
+          window.location.assign(url);
+        }
+      }),
       linkOpen,
 
       // Inline metric hover tooltip
@@ -661,9 +701,28 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       // File drop handler
       createFileDropHandler(noteId, notePersistence),
 
-      // Blur handler — fires when the editor loses focus
+      // Focus / blur handlers — sync mobile wheel deck and host blur callback
       EditorView.domEventHandlers({
-        blur: () => { onBlur?.(); return false; },
+        focus: () => {
+          if (
+            typeof window !== "undefined" &&
+            typeof window.matchMedia === "function" &&
+            window.matchMedia("(max-width: 1023px)").matches &&
+            !readonly
+          ) {
+            setIsWheelOpen(true);
+          }
+          return false;
+        },
+        blur: (event) => {
+          const related = event.relatedTarget as HTMLElement | null;
+          if (!related || !editorRef.current?.contains(related)) {
+            setIsWheelOpen(false);
+            setIsMobileTypingMode(false);
+          }
+          onBlur?.();
+          return false;
+        },
       }),
 
       // Update listener
@@ -677,7 +736,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           // Typing-like transactions stay coalesced; everything else (widget
           // commits, query-block inserts, undo) is a deliberate commit — save now.
           const typed = update.transactions.some(t =>
-            t.isUserEvent("input") || t.isUserEvent("delete") || t.isUserEvent("paste") || t.isUserEvent("drop"));
+            (t.isUserEvent("input") && !t.isUserEvent("input.wheel") && !t.isUserEvent("input.format"))
+            || t.isUserEvent("delete")
+            || t.isUserEvent("paste")
+            || t.isUserEvent("drop"));
           if (!typed) void onCommitChange?.();
         }
         if (update.selectionSet || update.docChanged) {
@@ -748,6 +810,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           themeCompartment.of(editorTheme(isDark)),
           languageCompartment.of(languages),
           modeCompartment.of([]),
+          inputModeCompartment.of(
+            EditorView.contentAttributes.of({
+              inputmode: isMobileViewport && !isMobileTypingMode ? "none" : "text",
+            }),
+          ),
           ...(extraExtensions ?? []),
         ],
       });
@@ -848,6 +915,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   }, [isDark]);
 
+  const isMobileViewportRef = useRef(isMobileViewport);
+  isMobileViewportRef.current = isMobileViewport;
+  const isMobileTypingModeRef = useRef(isMobileTypingMode);
+  isMobileTypingModeRef.current = isMobileTypingMode;
+
   // Sync mode and extensions
   useEffect(() => {
     if (viewRef.current) {
@@ -859,6 +931,14 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             themeCompartment.of(editorTheme(isDark)),
             languageCompartment.of(languages),
             modeCompartment.of(modeExtensions),
+            inputModeCompartment.of(
+              EditorView.contentAttributes.of({
+                inputmode:
+                  isMobileViewportRef.current && !isMobileTypingModeRef.current
+                    ? "none"
+                    : "text",
+              }),
+            ),
             ...(extraExtensions ?? []),
           ]),
         ],
@@ -866,11 +946,30 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   }, [baseExtensions, extraExtensions, mode, isDark, languages]);
 
-  // Focus on open / readonly→editable transition. Must stay AFTER the
-  // reconfigure effect above: .cm-content only takes focus once the view is
-  // actually editable (previously activeElement stayed on the Edit button).
+  // Sync mobile inputmode attribute via its dedicated compartment so opening
+  // the wheel or toggling [Type]/[Wheel] never reconfigures the whole editor
+  // or clobbers selection!
   useEffect(() => {
-    if (!readonly) viewRef.current?.focus();
+    if (viewRef.current) {
+      viewRef.current.dispatch({
+        effects: inputModeCompartment.reconfigure(
+          EditorView.contentAttributes.of({
+            inputmode: isMobileViewport && !isMobileTypingMode ? "none" : "text",
+          }),
+        ),
+      });
+    }
+  }, [isMobileViewport, isMobileTypingMode]);
+
+  // Focus on open / readonly->editable transition on desktop (>=1024px) only.
+  // Mobile (<1024px) opens cleanly blurred so notes read as pure documents
+  // without auto-popping the OS keyboard or wheel deck until a line is tapped.
+  useEffect(() => {
+    const isMobile =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(max-width: 1023px)").matches;
+    if (!readonly && !isMobile) viewRef.current?.focus();
   }, [readonly]);
 
   // Handle external scroll requests
@@ -974,10 +1073,15 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     );
   };
 
+  const mobileDeckPadding =
+    isMobileViewport && isWheelOpen && !isMobileTypingMode && !readonly
+      ? "pb-[42dvh]"
+      : "";
+
   return (
     <div
       ref={editorRef}
-      className={`cm-note-editor relative w-full min-w-0 ${className}`}
+      className={`cm-note-editor relative w-full min-w-0 ${mobileDeckPadding} ${className}`}
     >
       {enableOverlay && (
         <OverlayTrack
@@ -995,13 +1099,34 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           commands={effectiveCommands}
         />
       )}
+      {!readonly && !isMobileViewport && (
+        <SelectionFormatBar
+          view={viewInstance ?? viewRef.current}
+          cursorVersion={cursorVersion}
+        />
+      )}
       {/* Cursor-focus metric panel — fixed-position chip row below the
           cursor line inside WOD blocks (ADR-0009). Rendered regardless of
           enableOverlay: it anchors to the cursor, not a section slot. */}
       <MetricInlinePanel
         view={viewInstance ?? viewRef.current}
         cursorVersion={cursorVersion}
+        hidden={isMobileViewport && isWheelOpen}
       />
+      {isMobileViewport && !readonly && (
+        <MobileWheelComposer
+          view={viewInstance ?? viewRef.current}
+          noteId={noteId}
+          cursorVersion={cursorVersion}
+          isOpen={isWheelOpen}
+          isTypingMode={isMobileTypingMode}
+          onSwitchToTyping={setIsMobileTypingMode}
+          onClose={() => {
+            setIsWheelOpen(false);
+            setIsMobileTypingMode(false);
+          }}
+        />
+      )}
       {fullscreenTimerBlock && viewRef.current && (
         <FullscreenTimer
           block={fullscreenTimerBlock}

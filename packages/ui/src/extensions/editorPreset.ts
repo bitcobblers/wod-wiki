@@ -12,14 +12,16 @@ import {
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { whiteboardScriptLanguage, whiteboardScript } from '@bitcobblers/wod-wiki-lang';
 import type { WhiteboardScriptCompletionOptions } from '@bitcobblers/wod-wiki-lang';
 import { wql, wqlLanguage, type IFieldCatalog } from '@bitcobblers/wod-wiki-wql';
 import { editorTheme } from "./theme";
+import { editorFocusTracker } from "./editor-focus";
 import { autocompleteTooltipTheme } from "./autocomplete-theme";
 import { sectionField, sectionIdentityHistory } from './section-state';
 import { previewDecorations } from "./preview-decorations";
+import { embedPreviewDecorations } from "./embed-preview";
 import { wodLinter } from "./whiteboard-linter";
 import {
   wodAutocompletion,
@@ -103,11 +105,12 @@ export function editorPreset(optionsOrDialect: string | EditorPresetOptions = 'm
     highlightActiveLine(),
     keymap.of([
       ...closeBracketsKeymap,
+      ...(dialect === 'markdown' ? markdownKeymap : []),
       ...defaultKeymap,
       ...historyKeymap,
       indentWithTab,
     ]),
-    editorTheme(isDark),
+    editorTheme(isDark, dialect),
     // One token-based autocomplete tooltip theme for every dialect.
     autocompleteTooltipTheme,
     lineIdsExtension,
@@ -144,9 +147,11 @@ export function editorPreset(optionsOrDialect: string | EditorPresetOptions = 'm
     };
     extensions.push(
       markdown({ codeLanguages: resolveCodeLanguage }),
+      editorFocusTracker,
       sectionField,
       sectionIdentityHistory,
       previewDecorations,
+      embedPreviewDecorations,
       wodLinter,
       wodAutocompletion,
       wodEditorKeymap,

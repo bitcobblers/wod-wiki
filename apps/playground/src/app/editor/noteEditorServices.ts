@@ -1,6 +1,6 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin } from '@codemirror/view';
-import { frontmatterSuggestions, frontmatterReferenceIndex, referenceIndexReload, type FrontmatterReferenceProvider, type NestedCompletionOptions } from '@bitcobblers/wod-wiki-ui/extensions';
+import { attachmentUrlFacet, frontmatterSuggestions, frontmatterReferenceIndex, referenceIndexReload, type FrontmatterReferenceProvider, type NestedCompletionOptions } from '@bitcobblers/wod-wiki-ui/extensions';
 import { loadSuggestions } from '@bitcobblers/wod-wiki-ui';
 import {
   addAliasToEffort,
@@ -500,6 +500,93 @@ export function resolveNotePersistence(
   return cache.current;
 }
 
+function persistAndInsertAttachmentFiles(
+  files: FileList,
+  pos: number,
+  view: EditorView,
+  noteId: string | undefined,
+  notePersistence: INotePersistence,
+): void {
+  Array.from(files).forEach((file) => {
+    const id = uuidv7();
+    const reader = new FileReader();
+
+    reader.onload = async () => {
+      const data = reader.result as ArrayBuffer;
+
+      if (noteId) {
+        try {
+          await notePersistence.mutateNote(noteId, {
+            attachments: {
+              add: [{
+                id,
+                file: new File([data], file.name || `paste-${id.slice(0, 8)}`, { type: file.type }),
+              }],
+            },
+          });
+        } catch (error) {
+          appWarn('NoteEditor', 'Attachment persist skipped:', error);
+        }
+      }
+
+      const isImage = file.type.startsWith('image/');
+      const prefix = isImage ? '!' : '';
+      const displayName = file.name || (isImage ? 'Pasted image' : 'Attachment');
+      const markdown = `\n${prefix}[${displayName}](${id})\n`;
+      const insertAt = Math.min(pos, view.state.doc.length);
+
+      view.dispatch({
+        changes: { from: insertAt, insert: markdown },
+        selection: { anchor: insertAt + markdown.length },
+      });
+    };
+
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+export function createAttachmentUrlExtension(
+  noteId: string | undefined,
+): Extension {
+  const objectUrlCache = new Map<string, string>();
+
+  const cleanupPlugin = ViewPlugin.fromClass(
+    class {
+      destroy() {
+        for (const url of objectUrlCache.values()) {
+          URL.revokeObjectURL(url);
+        }
+        objectUrlCache.clear();
+      }
+    },
+  );
+
+  return [
+    attachmentUrlFacet.of(async (target) => {
+      const cached = objectUrlCache.get(target);
+      if (cached) return cached;
+      if (!noteId) return null;
+      try {
+        const attachments = await storageService.getAttachmentsForNote(noteId);
+        const match = attachments.find((att) => att.id === target);
+        if (!match) return null;
+        if (typeof match.data === 'string' && /^(https?:\/\/|data:|blob:)/i.test(match.data)) {
+          return match.data;
+        }
+        const blob = new Blob([match.data], {
+          type: match.mimeType || 'application/octet-stream',
+        });
+        const url = URL.createObjectURL(blob);
+        objectUrlCache.set(target, url);
+        return url;
+      } catch {
+        return null;
+      }
+    }),
+    cleanupPlugin,
+  ];
+}
+
 export function createFileDropHandler(
   noteId: string | undefined,
   notePersistence: INotePersistence,
@@ -514,41 +601,16 @@ export function createFileDropHandler(
       const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
       if (pos === null) return false;
 
-      Array.from(files).forEach(async (file) => {
-        const id = uuidv7();
-        const reader = new FileReader();
+      persistAndInsertAttachmentFiles(files, pos, view, noteId, notePersistence);
+      return true;
+    },
+    paste: (event, view) => {
+      const files = event.clipboardData?.files;
+      if (!files || files.length === 0) return false;
 
-        reader.onload = async () => {
-          const data = reader.result as ArrayBuffer;
-
-          if (noteId) {
-            try {
-              await notePersistence.mutateNote(noteId, {
-                attachments: {
-                  add: [{
-                    id,
-                    file: new File([data], file.name, { type: file.type }),
-                  }],
-                },
-              });
-            } catch (error) {
-              appWarn('NoteEditor', 'Attachment persist skipped:', error);
-            }
-          }
-
-          const isImage = file.type.startsWith('image/');
-          const prefix = isImage ? '!' : '';
-          const markdown = `\n${prefix}[${file.name}](${id})\n`;
-
-          view.dispatch({
-            changes: { from: pos, insert: markdown },
-            selection: { anchor: pos + markdown.length },
-          });
-        };
-
-        reader.readAsArrayBuffer(file);
-      });
-
+      event.preventDefault();
+      const pos = view.state.selection.main.to;
+      persistAndInsertAttachmentFiles(files, pos, view, noteId, notePersistence);
       return true;
     },
   });

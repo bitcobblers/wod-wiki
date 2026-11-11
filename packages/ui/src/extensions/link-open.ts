@@ -11,8 +11,15 @@ export const navigationFacet = Facet.define<NavigationHook, NavigationHook | nul
   },
 });
 
-function isNavigableUrl(url: string): boolean {
-  return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url);
+export function isNavigableUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (/^(?:javascript|vbscript|data):/i.test(trimmed)) return false;
+  return (
+    /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed) ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("#")
+  );
 }
 
 export function urlAtPos(view: EditorView, pos: number): string | null {
@@ -39,7 +46,27 @@ export function urlAtPos(view: EditorView, pos: number): string | null {
     }
   });
 
-  return foundUrl;
+  if (foundUrl) return foundUrl;
+
+  // Fallback for wiki-links `[[target]]` or unparsed markdown links on line
+  const line = view.state.doc.lineAt(pos);
+  const offset = pos - line.from;
+  const mdLinkRe = /(?<!!)\[([^\]]*)\]\(([^)\s]+)\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = mdLinkRe.exec(line.text)) !== null) {
+    if (offset >= m.index && offset <= m.index + m[0].length && isNavigableUrl(m[2])) {
+      return m[2];
+    }
+  }
+  const wikiRe = /\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g;
+  while ((m = wikiRe.exec(line.text)) !== null) {
+    if (offset >= m.index && offset <= m.index + m[0].length) {
+      const target = m[1].trim();
+      return target.startsWith("/") ? target : `/notes/${encodeURIComponent(target)}`;
+    }
+  }
+
+  return null;
 }
 
 const linkHoverTooltip = hoverTooltip(
@@ -54,10 +81,14 @@ const linkHoverTooltip = hoverTooltip(
       create() {
         const dom = document.createElement("div");
         dom.className =
-          "cm-link-tooltip px-2 py-1 text-[11px] text-muted-foreground bg-popover border border-border rounded shadow-sm flex items-center gap-1.5";
-        dom.innerHTML =
-          '<kbd class="px-1 py-0.5 rounded bg-muted border border-border/70 font-mono text-[10px]">Ctrl</kbd>' +
-          '<span>+Click to open link</span>';
+          "cm-link-tooltip px-2 py-1 text-[11px] text-muted-foreground bg-card border border-border rounded-[4px] flex items-center gap-1.5";
+        const kbd = document.createElement("kbd");
+        kbd.className = "px-1 py-0.5 rounded-[3px] bg-muted border border-border font-mono text-[10px]";
+        kbd.textContent = "Ctrl";
+        const text = document.createElement("span");
+        text.textContent = "+Click to open link";
+        dom.appendChild(kbd);
+        dom.appendChild(text);
         return { dom };
       },
     };
@@ -88,7 +119,8 @@ const ctrlClickPlugin = ViewPlugin.fromClass(
         if (navHook) {
           navHook(url, view);
         } else if (typeof window !== "undefined") {
-          window.open(url, "_blank", "noopener,noreferrer");
+          const isInternal = url.startsWith("/") || url.startsWith("#");
+          window.open(url, isInternal ? "_self" : "_blank", isInternal ? undefined : "noopener,noreferrer");
         }
       };
 

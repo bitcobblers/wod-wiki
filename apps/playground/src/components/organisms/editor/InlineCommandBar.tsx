@@ -1,30 +1,25 @@
 /**
  * InlineCommandBar
  *
- * Lightweight command buttons rendered at the opening fence of each workout block
- * when enableOverlay is false.  This ensures Run / Playground / Plan buttons
- * remain accessible even without the full overlay panel.
- *
- * Uses the sectionField (already in the editor state) and section-geometry
- * rects to position a floating toolbar at the top-right of each workout section.
+ * Utilitarian Minimalism command buttons rendered at the opening fence of each
+ * workout block when enableOverlay is false. Keeps Run / Playground / Plan
+ * controls crisp, flat (1px border, 5px radius), and accessible on both
+ * desktop and mobile.
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import type { EditorView } from "@codemirror/view";
-import { sectionField, type EditorSection } from '@bitcobblers/wod-wiki-ui/extensions';
-import { sectionGeometry as sectionGeometryPlugin, type SectionRect } from '@bitcobblers/wod-wiki-ui/extensions';
+import { sectionField, type EditorSection } from "@bitcobblers/wod-wiki-ui/extensions";
+import { sectionGeometry as sectionGeometryPlugin, type SectionRect } from "@bitcobblers/wod-wiki-ui/extensions";
 import { commandsForAffordance, type ScriptCommand } from "@/components/Editor/overlays/ScriptCommand";
-import type { ScriptBlock, FenceDialect } from '@/components/Editor/types';
-import { runAffordance } from '@/components/Editor/types/section';
+import type { ScriptBlock, FenceDialect } from "@/components/Editor/types";
+import { runAffordance } from "@/components/Editor/types/section";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/atoms/primitives/button";
 import { ButtonGroup } from "@/components/molecules/ButtonGroup";
 import type { INavActivation } from "@/nav/navTypes";
 import { TEST_IDS } from "@/lib/testIds";
 
-// ── Helpers ──────────────────────────────────────────────────────────
-
-/** Build a ScriptBlock from section data (matches WhiteboardCompanion's buildScriptBlock). */
 function buildScriptBlock(view: EditorView, section: EditorSection): ScriptBlock {
   const content =
     section.contentFrom !== undefined && section.contentTo !== undefined
@@ -47,13 +42,6 @@ function buildScriptBlock(view: EditorView, section: EditorSection): ScriptBlock
   };
 }
 
-// ── Icon adapter ─────────────────────────────────────────────────────
-
-/**
- * Wraps a ReactNode icon into a ComponentType compatible with INavActivation.
- * If the node is a cloneable React element, the className from ButtonGroup is
- * merged in so icon sizing/color remain controllable.
- */
 function wrapNodeAsIcon(
   node: React.ReactNode,
 ): React.ComponentType<{ className?: string }> {
@@ -67,8 +55,6 @@ function wrapNodeAsIcon(
     return <span className={cn("flex items-center", className)}>{node}</span>;
   };
 }
-
-// ── CommandPill ──────────────────────────────────────────────────────
 
 const CommandPill: React.FC<{
   cmd: ScriptCommand;
@@ -130,7 +116,6 @@ const CommandPill: React.FC<{
     e.stopPropagation();
   }, []);
 
-  // Standalone button — no split action
   if (!cmd.onSplitClick) {
     const currentIcon = actionOk ? (cmd.successIcon ?? cmd.icon) : cmd.icon;
     return (
@@ -138,14 +123,17 @@ const CommandPill: React.FC<{
         variant={cmd.primary ? "default" : "secondary"}
         className={cn(
           cmd.iconOnly
-            ? "h-11 w-11 rounded-full p-0 sm:h-auto sm:min-h-[44px] sm:min-w-[44px] sm:w-auto sm:rounded-sm sm:px-1.5 sm:py-0.5 text-[10px] font-medium shadow-sm"
-            : "h-11 w-11 rounded-full p-0 text-[10px] font-medium shadow-sm gap-0 sm:h-auto sm:min-h-[44px] sm:w-auto sm:gap-1 sm:rounded-sm sm:px-2 sm:py-0.5",
-          !cmd.primary && "border border-border/50",
-          actionOk && "text-emerald-600 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/20 border-emerald-500/30",
+            ? "h-8 min-w-[34px] rounded-[5px] px-2 py-0.5 text-[11px] font-medium shadow-none"
+            : "h-8 rounded-[5px] px-2.5 py-0.5 text-[11px] font-medium shadow-none gap-1.5",
+          cmd.primary
+            ? "bg-foreground text-background hover:bg-foreground/90 border border-foreground"
+            : "bg-card text-foreground hover:bg-muted border border-border",
+          actionOk &&
+            "text-success bg-success/15 border-success/30",
         )}
         title={cmd.label}
         aria-label={cmd.label}
-        data-testid={cmd.id === 'run' ? TEST_IDS.EDITOR_START_WORKOUT : undefined}
+        data-testid={cmd.id === "run" ? TEST_IDS.EDITOR_START_WORKOUT : undefined}
         onClick={(e) => {
           stopEvent(e);
           handleAction();
@@ -153,13 +141,12 @@ const CommandPill: React.FC<{
         onMouseDown={stopEvent}
         onPointerDown={stopEvent}
       >
-        <span className="flex items-center justify-center size-4 sm:size-3">{currentIcon}</span>
-        {!cmd.iconOnly && <span className="sr-only sm:not-sr-only sm:inline">{cmd.label}</span>}
+        <span className="flex items-center justify-center size-3.5">{currentIcon}</span>
+        {!cmd.iconOnly && <span>{cmd.label}</span>}
       </Button>
     );
   }
 
-  // Split button: primary action + secondary icon via ButtonGroup
   return (
     <div
       onClick={stopEvent}
@@ -171,29 +158,18 @@ const CommandPill: React.FC<{
         secondary={secondaryActivation}
         size="xs"
         variant={cmd.primary ? "primary" : "default"}
-        className="rounded-full sm:rounded-sm"
+        className="rounded-[5px] shadow-none"
         labelClassName="sr-only sm:not-sr-only sm:inline"
       />
     </div>
   );
 };
 
-// ── InlineCommandBar ─────────────────────────────────────────────────
-
 interface InlineCommandBarProps {
-  /** The CodeMirror EditorView instance */
   view: EditorView | null;
-  /** Command definitions (Run, Playground, Plan, …) */
   commands: ScriptCommand[];
 }
 
-/**
- * Renders a floating command bar at the top-right of every workout section.
- *
- * The component listens to section-geometry updates (which fire on scroll,
- * viewport change, and document change) and positions one toolbar per workout
- * block.
- */
 export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
   view,
   commands,
@@ -201,10 +177,8 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
   const [rects, setRects] = useState<SectionRect[]>(() => view?.plugin(sectionGeometryPlugin)?.rects ?? []);
   const [scrollTop, setScrollTop] = useState(0);
 
-  // Subscribe to geometry changes from the CM6 plugin
   useEffect(() => {
     if (!view) return;
-
     const plugin = view.plugin(sectionGeometryPlugin);
     if (!plugin) return;
 
@@ -214,8 +188,6 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
     );
   }, [view]);
 
-  // Track cm-scroller scroll to compensate rect.top (document-space) for scroll offset.
-  // RAF-throttled to prevent a setState on every scroll pixel.
   useEffect(() => {
     if (!view) return;
     const scroller = view.scrollDOM;
@@ -227,22 +199,22 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
         setScrollTop(scroller.scrollTop);
       });
     };
-    scroller.addEventListener('scroll', onScroll, { passive: true });
+    scroller.addEventListener("scroll", onScroll, { passive: true });
     setScrollTop(scroller.scrollTop);
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
-      scroller.removeEventListener('scroll', onScroll);
+      scroller.removeEventListener("scroll", onScroll);
     };
   }, [view]);
+
   const plugin = view ? view.plugin(sectionGeometryPlugin) : null;
   const currentRects = rects.length > 0 ? rects : (plugin?.rects ?? []);
 
-  // Only render for workout (time/log) sections
   const workoutRects = currentRects.filter(
-    (r) => r.type === "time" || r.type === "log"
+    (r) => r.type === "time" || r.type === "log",
   );
 
-  if (workoutRects.length === 0) return null;
+  if (workoutRects.length === 0 || !view) return null;
   const { sections } = view.state.field(sectionField);
   const sectionMap = new Map(sections.map((s) => [s.id, s]));
 
@@ -259,12 +231,8 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
         return (
           <div
             key={rect.sectionId}
-            className="absolute right-1 z-10 flex items-end gap-1 pointer-events-auto"
+            className="absolute right-1.5 z-10 flex items-end gap-1 pb-0.5 pointer-events-auto"
             style={{
-              // rect.top is document-space; subtract scrollTop to get the correct
-              // position relative to .cm-note-editor as the editor scrolls.
-              // Fill the (padded) fence line and bottom-align so the buttons
-              // can't cover the previous line or the block's first content line.
               top: rect.top - scrollTop,
               height: rect.firstLineHeight,
             }}
@@ -278,4 +246,3 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
     </>
   );
 };
-

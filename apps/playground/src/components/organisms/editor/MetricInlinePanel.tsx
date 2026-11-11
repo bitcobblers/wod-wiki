@@ -1,31 +1,36 @@
 /**
  * MetricInlinePanel
  *
- * React overlay that appears directly below the cursor line when the cursor
- * is inside a WOD code fence. Shows a compact row of metric chips with:
- *   - Color-coded labels matching the underline decorations
- *   - Metric type icon + label + value
- *   - Per-line execution history (if available)
- *   - Action buttons passed via the `commands` prop
- *
- * Positioning: uses CM6's `view.coordsAtPos()` to get the bottom of the
- * cursor line in viewport coordinates, then uses `position: fixed` so no
- * scroll-offset math is needed.
- *
- * The panel hides automatically when the cursor leaves a WOD section.
+ * Utilitarian Minimalism inline metric row rendered adjacent to or directly
+ * below the active cursor line inside Whiteboard Script blocks on desktop (or
+ * when the mobile wheel composer is closed). Zero emojis; uses crisp Phosphor
+ * Bold icons and flat 1px bordered tags.
  */
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { EditorView } from "@codemirror/view";
 import { completionStatus } from "@codemirror/autocomplete";
-import { MetricType } from '@bitcobblers/wod-wiki-engine';
-import type { IMetric } from '@bitcobblers/wod-wiki-engine';
-import { getReferenceMetadata, getTagReference, type TagReferenceMetadata } from '@bitcobblers/wod-wiki-core';
-import { getCursorFocusState, type CursorFocusState } from '@/app/editor/cursorFocusExtension';
-import { frontmatterReferenceIndex } from '@bitcobblers/wod-wiki-ui/extensions';
+import {
+  ArrowsClockwise,
+  ArrowUpRight,
+  Barbell,
+  Hash,
+  Lightning,
+  Ruler,
+  Scales,
+  Tag,
+  Timer,
+  Toolbox,
+  WarningCircle,
+} from "@phosphor-icons/react";
+import { MetricType } from "@bitcobblers/wod-wiki-engine";
+import type { IMetric } from "@bitcobblers/wod-wiki-engine";
+import { getReferenceMetadata, getTagReference, type TagReferenceMetadata } from "@bitcobblers/wod-wiki-core";
+import { getCursorFocusState, type CursorFocusState } from "@/app/editor/cursorFocusExtension";
+import { frontmatterReferenceIndex } from "@bitcobblers/wod-wiki-ui/extensions";
 import { presentThemedGroup } from "@/components/metrics/presentation";
 import type { SegmentType } from "@/components/organisms/command-palette/segmentSources";
-import { usePaletteStore } from '@/components/organisms/command-palette/palette-store';
+import { usePaletteStore } from "@/components/organisms/command-palette/palette-store";
 import {
   referencePaletteSource,
   parseLineRefs,
@@ -34,16 +39,14 @@ import {
   addInlineEffortAlias,
   createInlineEquipmentFromToken,
   createInlineTagFromSlug,
-} from '@/app/editor/noteEditorServices';
-import { catalogueReload } from '@/app/editor/catalogueReload';
+} from "@/app/editor/noteEditorServices";
+import { catalogueReload } from "@/app/editor/catalogueReload";
 import { cn } from "@/lib/utils";
 import type { ScriptCommand } from "@/components/Editor/overlays/ScriptCommand";
 
-// ── Metric display config ────────────────────────────────────────────
-
 interface MetricStyle {
   label: string;
-  icon: string;
+  Icon: React.ComponentType<{ className?: string; weight?: "bold" | "regular" | "fill" }>;
   textClass: string;
   bgClass: string;
   borderClass: string;
@@ -51,68 +54,74 @@ interface MetricStyle {
 
 const METRIC_STYLES: Partial<Record<string, MetricStyle>> = {
   [MetricType.Duration]: {
-    label: "Timer", icon: "⏱",
+    label: "Timer",
+    Icon: Timer,
     textClass: "text-metric-time",
-    bgClass:   "bg-metric-time/10",
+    bgClass: "bg-metric-time/10",
     borderClass: "border-metric-time/30",
   },
   [MetricType.Rep]: {
-    label: "Reps", icon: "✕",
+    label: "Reps",
+    Icon: Hash,
     textClass: "text-metric-rep",
-    bgClass:   "bg-metric-rep/10",
+    bgClass: "bg-metric-rep/10",
     borderClass: "border-metric-rep/30",
   },
   [MetricType.Effort]: {
-    label: "Exercise", icon: "🏋",
+    label: "Exercise",
+    Icon: Barbell,
     textClass: "text-metric-effort",
-    bgClass:   "bg-metric-effort/10",
+    bgClass: "bg-metric-effort/10",
     borderClass: "border-metric-effort/30",
   },
   [MetricType.Rounds]: {
-    label: "Rounds", icon: "↻",
+    label: "Rounds",
+    Icon: ArrowsClockwise,
     textClass: "text-metric-rounds",
-    bgClass:   "bg-metric-rounds/10",
+    bgClass: "bg-metric-rounds/10",
     borderClass: "border-metric-rounds/30",
   },
   [MetricType.Distance]: {
-    label: "Distance", icon: "📏",
+    label: "Distance",
+    Icon: Ruler,
     textClass: "text-metric-distance",
-    bgClass:   "bg-metric-distance/10",
+    bgClass: "bg-metric-distance/10",
     borderClass: "border-metric-distance/30",
   },
   [MetricType.Resistance]: {
-    label: "Weight", icon: "⚖",
+    label: "Weight",
+    Icon: Scales,
     textClass: "text-metric-resistance",
-    bgClass:   "bg-metric-resistance/10",
+    bgClass: "bg-metric-resistance/10",
     borderClass: "border-metric-resistance/30",
   },
   [MetricType.Equipment]: {
-    label: "Equipment", icon: "🧰",
+    label: "Equipment",
+    Icon: Toolbox,
     textClass: "text-metric-equipment",
-    bgClass:   "bg-metric-equipment/10",
+    bgClass: "bg-metric-equipment/10",
     borderClass: "border-metric-equipment/30",
   },
   [MetricType.Action]: {
-    label: "Action", icon: "⚡",
+    label: "Action",
+    Icon: Lightning,
     textClass: "text-metric-action",
-    bgClass:   "bg-metric-action/10",
+    bgClass: "bg-metric-action/10",
     borderClass: "border-metric-action/30",
   },
   [MetricType.Label]: {
-    label: "Label", icon: "🏷",
+    label: "Label",
+    Icon: Tag,
     textClass: "text-muted-foreground",
-    bgClass:   "bg-muted/30",
-    borderClass: "border-border/40",
+    bgClass: "bg-muted/40",
+    borderClass: "border-border",
   },
 };
 
-// ── Metric chip ───────────────────────────────────────────────────────
-
-/** Metric types that map onto statement-builder segments (clickable). */
 const SEGMENT_FOR_METRIC: Partial<Record<string, SegmentType>> = {
-  [MetricType.Rep]:        'reps',
-  [MetricType.Effort]:     'movement',
-  [MetricType.Resistance]: 'weight',
+  [MetricType.Rep]: "reps",
+  [MetricType.Effort]: "movement",
+  [MetricType.Resistance]: "weight",
 };
 
 const MetricChip: React.FC<{
@@ -126,41 +135,40 @@ const MetricChip: React.FC<{
   const displayVal =
     metric.name ?? metric.image ?? (metric.value !== undefined ? String(metric.value) : "");
   const label = style?.label ?? String(metric.type);
+  const IconComp = style?.Icon;
 
   return (
     <span
       title={tooltip}
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] leading-none font-medium whitespace-nowrap",
+        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] leading-none font-medium whitespace-nowrap tabular-nums",
         "pointer-events-auto transition-opacity hover:opacity-80",
-        style?.bgClass ?? "bg-muted/30",
+        style?.bgClass ?? "bg-muted/40",
         style?.textClass ?? "text-muted-foreground",
-        style?.borderClass ?? "border-border/40",
+        style?.borderClass ?? "border-border",
         onClick && "cursor-pointer",
-        isFocused && "font-bold shadow-xs",
+        isFocused && "font-bold ring-1 ring-foreground/20",
       )}
     >
-      <span>{isHint ? metric.icon : (style?.icon ?? "•")}</span>
+      {isHint ? (
+        <span>{metric.icon}</span>
+      ) : IconComp ? (
+        <IconComp weight="bold" className="h-2.5 w-2.5 shrink-0" />
+      ) : null}
       {!isHint && <span className="sr-only">{label}</span>}
-      {!isHint && (
-        <span className="font-semibold">{displayVal || label}</span>
-      )}
+      {!isHint && <span className="font-semibold">{displayVal || label}</span>}
     </span>
   );
 };
 
-// ── Panel position ────────────────────────────────────────────────────
-
-/** Canonical references attached by the shared resolver (parser metadata). */
 interface ReferenceRefShape {
-  kind: 'effort' | 'equipment';
+  kind: "effort" | "equipment";
   slug: string;
   label: string;
   matchedAlias?: string;
 }
 
-/** Resolver diagnostics for authored references (unknown/ambiguous/conflicting). */
 interface DiagnosticShape {
   reason: string;
   message: string;
@@ -196,8 +204,6 @@ function computePosition(
     const endLeft = endCoords.left - editorRect.left + 12;
     const roomAtEnd = contentRight - endLeft;
 
-    // Place inline at the end of the active row when at least 180px of horizontal
-    // space remains; otherwise wrap cleanly beneath the row (mobile / long lines).
     if (roomAtEnd >= 180) {
       const rowTop = typeof endCoords.top === "number" ? endCoords.top : endCoords.bottom - 20;
       return {
@@ -219,34 +225,28 @@ function computePosition(
   }
 }
 
-// ── Panel component ───────────────────────────────────────────────────
-
 export interface MetricInlinePanelProps {
-  /** Live editor view reference. */
   view: EditorView | null;
-  /** Increment when cursor line changes (drives re-render). */
   cursorVersion: number;
-  /** Optional override of getCursorFocusState for testing. */
   getCursorFocusState?: typeof getCursorFocusState;
-  /** Commands available on WOD blocks (forwarded to action buttons). */
   commands?: ScriptCommand[];
-  /** Note ID (forwarded to commands if needed). */
   noteId?: string;
+  hidden?: boolean;
 }
 
 export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
   view,
   cursorVersion,
   getCursorFocusState: getCursorFocusStateProp,
+  hidden = false,
 }) => {
   const [pos, setPos] = useState<PanelPosition | null>(null);
   const [focus, setFocus] = useState<CursorFocusState | null>(null);
   const [openDiagKey, setOpenDiagKey] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Recompute focus state and position whenever cursor version changes
   const update = useCallback(() => {
-    if (!view) {
+    if (!view || hidden) {
       setFocus(null);
       setPos(null);
       return;
@@ -255,15 +255,14 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     const nextFocus = (getCursorFocusStateProp ?? getCursorFocusState)(view.state);
     setFocus(nextFocus);
     setPos(nextFocus ? computePosition(view, nextFocus) : null);
-  }, [view, getCursorFocusStateProp]);
+  }, [view, getCursorFocusStateProp, hidden]);
 
   useEffect(() => {
     update();
   }, [update, cursorVersion]);
 
-  // Also recompute on window scroll/resize to keep position accurate
   useEffect(() => {
-    if (!view) return;
+    if (!view || hidden) return;
     const handler = () => update();
     window.addEventListener("scroll", handler, true);
     window.addEventListener("resize", handler, true);
@@ -271,19 +270,15 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
       window.removeEventListener("scroll", handler, true);
       window.removeEventListener("resize", handler, true);
     };
-  }, [view, update]);
+  }, [view, update, hidden]);
 
-  // Don't render if cursor is outside a WOD section or autocomplete menu is open
-  const isAutocompleteOpen = view?.state && typeof view.state.field === 'function'
-    ? completionStatus(view.state) === 'active'
+  const isAutocompleteOpen = view?.state && typeof view.state.field === "function"
+    ? completionStatus(view.state) === "active"
     : false;
-  if (!pos || !focus?.section || isAutocompleteOpen) return null;
+  if (hidden || !pos || !focus?.section || isAutocompleteOpen) return null;
 
   const lineStatements = focus.allStatements?.filter(s => s.meta?.line === focus.cursorLine - focus.section.startLine)
     ?? (focus.statement ? [focus.statement] : []);
-  // Filter out Effort/Equipment metrics that already resolved to canonical
-  // `refs` chips or `diagnostics` chips so the pill never shows duplicate
-  // Exercise + Ref + Diagnostic items for the same token.
   const visibleMetrics = lineStatements.flatMap(s => s.metrics.toArray()).filter((m) => {
     if (m.type === MetricType.Sound || m.type === MetricType.System) return false;
     if (m.type === MetricType.Hint && !m.icon) return false;
@@ -300,10 +295,8 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     }
     return true;
   });
-  const tokens = presentThemedGroup(visibleMetrics, 'runtime-badge');
+  const tokens = presentThemedGroup(visibleMetrics, "runtime-badge");
 
-  // Canonical refs + resolver diagnostics straight off the parser-attached
-  // metadata — the panel never re-resolves labels from display text.
   const lineMetrics = lineStatements.flatMap(s => s.metrics.toArray());
   const seenRefKeys: string[] = [];
   const refs: ReferenceRefShape[] = [];
@@ -319,8 +312,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     }
     diagnostics.push(...metadata.diagnostics);
   }
-  // The tag references the line carries — what a `#slug` brought, and the
-  // sound profile a `#sound-` reference names.
+
   const tagRefs: TagReferenceMetadata[] = [];
   const unresolvedTagSlugs: string[] = [];
   for (const metric of lineMetrics) {
@@ -340,28 +332,26 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
       if (!unresolvedTagSlugs.includes(slug)) unresolvedTagSlugs.push(slug);
     }
   }
-  const referenceProvider = typeof view?.state?.facet === 'function' ? (view.state.facet(frontmatterReferenceIndex)?.() ?? null) : null;
-  const lineRefs = typeof view?.state?.doc?.sliceString === 'function' ? parseLineRefs(view.state.doc.sliceString(focus.lineFrom, focus.lineTo)) : null;
+  const referenceProvider = typeof view?.state?.facet === "function" ? (view.state.facet(frontmatterReferenceIndex)?.() ?? null) : null;
+  const lineRefs = typeof view?.state?.doc?.sliceString === "function" ? parseLineRefs(view.state.doc.sliceString(focus.lineFrom, focus.lineTo)) : null;
 
-  /** Resolve which catalog a diagnostic repair should offer. */
-  const diagnosticKind = (diag: DiagnosticShape): 'effort' | 'equipment' => {
-    if (diag.reason === 'conflict' || diag.reason.endsWith('equipment')) return 'equipment';
-    if (diag.reason === 'invalid-explicit') {
-      if (diag.token && lineRefs?.equipment.includes(diag.token)) return 'equipment';
+  const diagnosticKind = (diag: DiagnosticShape): "effort" | "equipment" => {
+    if (diag.reason === "conflict" || diag.reason.endsWith("equipment")) return "equipment";
+    if (diag.reason === "invalid-explicit") {
+      if (diag.token && lineRefs?.equipment.includes(diag.token)) return "equipment";
     }
-    return 'effort';
+    return "effort";
   };
 
-  /** Palette payloads are author-validated slugs; anything else is refused. */
   const payloadSlug = (payload: unknown): string | null =>
-    typeof payload === 'string' && payload.trim() ? payload : null;
+    typeof payload === "string" && payload.trim() ? payload : null;
 
-  const changeRefSource = async (kind: 'effort' | 'equipment') => {
+  const changeRefSource = async (kind: "effort" | "equipment") => {
     if (!view) return;
     const lineText = view.state.doc.sliceString(focus.lineFrom, focus.lineTo);
     const palette = usePaletteStore.getState();
-    if (kind === 'effort') {
-      const result = await palette.open({ placeholder: 'Change effort…', sources: [referencePaletteSource('effort')] });
+    if (kind === "effort") {
+      const result = await palette.open({ placeholder: "Change effort...", sources: [referencePaletteSource("effort")] });
       if (result.dismissed) return;
       const slug = payloadSlug(result.item.payload);
       if (!slug) return;
@@ -373,8 +363,8 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     const equipment = [...(lineRefs?.equipment ?? [])];
     for (;;) {
       const result = await palette.open({
-        placeholder: equipment.length > 0 ? 'Add equipment (Esc to finish)…' : 'Set equipment…',
-        sources: [referencePaletteSource('equipment')],
+        placeholder: equipment.length > 0 ? "Add equipment (Esc to finish)..." : "Set equipment...",
+        sources: [referencePaletteSource("equipment")],
       });
       if (result.dismissed) break;
       const slug = payloadSlug(result.item.payload);
@@ -387,19 +377,16 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     }
   };
 
-  // Add metric on the focused line: explicit refs land as quoted JSON
-  // (effort string, equipment array) merged into the statement's JSON
-  // suffix, preserving existing refs and unrelated metric keys.
   const addLineMetric = async () => {
     if (!view) return;
     const lineText = view.state.doc.sliceString(focus.lineFrom, focus.lineTo);
     const palette = usePaletteStore.getState();
     let effort: string | undefined;
-    const effortResult = await palette.open({ placeholder: 'Add effort (Esc to skip)…', sources: [referencePaletteSource('effort')] });
+    const effortResult = await palette.open({ placeholder: "Add effort (Esc to skip)...", sources: [referencePaletteSource("effort")] });
     if (!effortResult.dismissed) effort = payloadSlug(effortResult.item.payload) ?? undefined;
     const equipment: string[] = [];
     for (;;) {
-      const result = await palette.open({ placeholder: 'Add equipment (Esc to finish)…', sources: [referencePaletteSource('equipment')] });
+      const result = await palette.open({ placeholder: "Add equipment (Esc to finish)...", sources: [referencePaletteSource("equipment")] });
       if (result.dismissed) break;
       const slug = payloadSlug(result.item.payload);
       if (slug && !equipment.includes(slug)) equipment.push(slug);
@@ -411,7 +398,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
   };
 
   const dispatchReload = () => {
-    if (view && typeof view.dispatch === 'function') {
+    if (view && typeof view.dispatch === "function") {
       view.dispatch({ effects: [catalogueReload.of(null)] });
     }
     update();
@@ -422,7 +409,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     const kind = diagnosticKind(diag);
     const palette = usePaletteStore.getState();
     const result = await palette.open({
-      placeholder: `Replace “${diag.token}”…`,
+      placeholder: `Replace "${diag.token}"...`,
       sources: [referencePaletteSource(kind, diag.candidates)],
     });
     if (result.dismissed) return;
@@ -440,9 +427,9 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     });
   };
 
-  const handleCreateFromToken = async (kind: 'effort' | 'equipment', token: string) => {
+  const handleCreateFromToken = async (kind: "effort" | "equipment", token: string) => {
     if (!token.trim()) return;
-    if (kind === 'effort') {
+    if (kind === "effort") {
       await createInlineEffortFromToken(token);
     } else {
       await createInlineEquipmentFromToken(token);
@@ -454,8 +441,8 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     if (!token.trim()) return;
     const palette = usePaletteStore.getState();
     const result = await palette.open({
-      placeholder: `Link “${token}” as alias to effort…`,
-      sources: [referencePaletteSource('effort')],
+      placeholder: `Link "${token}" as alias to effort...`,
+      sources: [referencePaletteSource("effort")],
     });
     if (result.dismissed) return;
     const targetSlug = payloadSlug((result as { item: { payload?: unknown } }).item.payload);
@@ -473,11 +460,9 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
   const handleChipClick = (metric: IMetric) => {
     const segment = SEGMENT_FOR_METRIC[metric.type as string];
     if (!segment || !view) return;
-    // Explicit JSON refs are edited as refs; plain statement text still goes
-    // through the statement builder (which owns the phrase segments).
-    const kind: 'effort' | 'equipment' | null =
-      metric.type === MetricType.Effort ? 'effort'
-      : metric.type === MetricType.Equipment ? 'equipment'
+    const kind: "effort" | "equipment" | null =
+      metric.type === MetricType.Effort ? "effort"
+      : metric.type === MetricType.Equipment ? "equipment"
       : null;
     if (kind && lineRefs?.jsonFrom !== undefined && lineRefs.jsonFrom >= 0) {
       void changeRefSource(kind);
@@ -486,7 +471,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     import("@/components/Editor/services/statementBuilderFlow").then(
       ({ runStatementBuilderFlow }) => {
         runStatementBuilderFlow(focus, view, segment);
-      }
+      },
     );
   };
 
@@ -498,7 +483,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
         "absolute z-40 pointer-events-auto",
         "inline-flex items-center gap-1 px-1.5 py-0.5 min-h-[22px]",
         pos.belowLine
-          ? "bg-popover/95 backdrop-blur-md border border-border/70 rounded-md shadow-sm"
+          ? "bg-card border border-border rounded-[6px]"
           : "bg-transparent",
         "transition-opacity duration-100 max-w-full",
       )}
@@ -512,219 +497,218 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     >
       {visibleMetrics.length > 0 || refs.length > 0 || tagRefs.length > 0 || diagnostics.length > 0 || unresolvedTagSlugs.length > 0 ? (
         <div className="flex items-center gap-1 flex-wrap">
-            {visibleMetrics.map((metric, i) => (
-              <MetricChip
-                key={`${metric.type}-${i}`}
-                metric={metric}
-                tooltip={metric.type === MetricType.Hint
-                  ? String(metric.value ?? '')
-                  : tokens[i]?.tooltip}
-                isFocused={focus.focusedMetric === metric}
-                onClick={SEGMENT_FOR_METRIC[metric.type as string]
-                  ? () => handleChipClick(metric)
-                  : undefined}
-              />
-            ))}
+          {visibleMetrics.map((metric, i) => (
+            <MetricChip
+              key={`${metric.type}-${i}`}
+              metric={metric}
+              tooltip={metric.type === MetricType.Hint
+                ? String(metric.value ?? "")
+                : tokens[i]?.tooltip}
+              isFocused={focus.focusedMetric === metric}
+              onClick={SEGMENT_FOR_METRIC[metric.type as string]
+                ? () => handleChipClick(metric)
+                : undefined}
+            />
+          ))}
 
-            {/* Canonical resolved references — click changes the source,
-                ↗ opens the effort/equipment page. */}
-            {refs.map((ref) => {
-              const isFocusedRef =
-                (ref.kind === 'effort' && focus.focusedMetric?.type === MetricType.Effort) ||
-                (ref.kind === 'equipment' && focus.focusedMetric?.type === MetricType.Equipment);
-              return (
-                <span
-                  key={`${ref.kind}:${ref.slug}`}
-                  title={`${ref.kind === 'effort' ? 'Effort' : 'Equipment'}: ${ref.label} (${ref.slug})${ref.matchedAlias ? ` · matched alias "${ref.matchedAlias}"` : ''} · click to change`}
-                  onClick={() => void changeRefSource(ref.kind)}
-                  className={cn(
-                    "pointer-events-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] leading-none font-medium cursor-pointer hover:opacity-80 whitespace-nowrap",
-                    ref.kind === 'effort'
-                      ? "bg-metric-effort/10 text-metric-effort border-metric-effort/30"
-                      : "bg-metric-equipment/10 text-metric-equipment border-metric-equipment/30",
-                    isFocusedRef && "font-bold shadow-xs",
-                  )}
-                >
-                  <span>{ref.kind === 'effort' ? '🏋' : '🧰'}</span>
-                  <span className="sr-only">{ref.kind === 'effort' ? 'Exercise' : 'Equipment'}</span>
-                  <span className="font-semibold">{ref.label}</span>
-                  {referenceProvider && (
-                    <a
-                      href={referenceProvider.openHref(ref.kind, ref.slug)}
-                      title={`Open ${ref.label} page`}
-                      aria-label={`Open ${ref.label} page`}
-                      className="opacity-70 hover:opacity-100 ml-0.5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      ↗
-                    </a>
-                  )}
-                </span>
-              );
-            })}
-
-            {tagRefs.map((ref) => (
+          {refs.map((ref) => {
+            const isFocusedRef =
+              (ref.kind === "effort" && focus.focusedMetric?.type === MetricType.Effort) ||
+              (ref.kind === "equipment" && focus.focusedMetric?.type === MetricType.Equipment);
+            const RefIcon = ref.kind === "effort" ? Barbell : Toolbox;
+            return (
               <span
-                key={`tag:${ref.slug}`}
-                title={ref.soundProfileId
-                  ? `Tag ${ref.label} · names the ${ref.soundProfileId} sound profile`
-                  : `Tag ${ref.label}`}
-                className="pointer-events-auto inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border text-[10px] leading-none font-medium bg-primary/10 text-primary border-primary/30 whitespace-nowrap"
+                key={`${ref.kind}:${ref.slug}`}
+                title={`${ref.kind === "effort" ? "Effort" : "Equipment"}: ${ref.label} (${ref.slug})${ref.matchedAlias ? ` · matched alias "${ref.matchedAlias}"` : ""} · click to change`}
+                onClick={() => void changeRefSource(ref.kind)}
+                className={cn(
+                  "pointer-events-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] leading-none font-medium cursor-pointer hover:opacity-80 whitespace-nowrap",
+                  ref.kind === "effort"
+                    ? "bg-metric-effort/10 text-metric-effort border-metric-effort/30"
+                    : "bg-metric-equipment/10 text-metric-equipment border-metric-equipment/30",
+                  isFocusedRef && "font-bold ring-1 ring-foreground/20",
+                )}
               >
-                <span>#</span>
-                <span className="font-semibold font-mono">{ref.label}</span>
+                <RefIcon weight="bold" className="h-2.5 w-2.5 shrink-0" />
+                <span className="sr-only">{ref.kind === "effort" ? "Exercise" : "Equipment"}</span>
+                <span className="font-semibold">{ref.label}</span>
                 {referenceProvider && (
                   <a
-                    href={referenceProvider.openHref('tag', ref.slug)}
-                    title={`Open the ${ref.label} tag`}
-                    aria-label={`Open the ${ref.label} tag`}
-                    className="opacity-70 hover:opacity-100 ml-0.5"
+                    href={referenceProvider.openHref(ref.kind, ref.slug)}
+                    title={`Open ${ref.label} page`}
+                    aria-label={`Open ${ref.label} page`}
+                    className="opacity-70 hover:opacity-100 ml-0.5 inline-flex items-center"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    ↗
+                    <ArrowUpRight weight="bold" className="h-2.5 w-2.5" />
                   </a>
                 )}
               </span>
-            ))}
+            );
+          })}
 
-            {lineRefs?.malformed && (
+          {tagRefs.map((ref) => (
+            <span
+              key={`tag:${ref.slug}`}
+              title={ref.soundProfileId
+                ? `Tag ${ref.label} · names the ${ref.soundProfileId} sound profile`
+                : `Tag ${ref.label}`}
+              className="pointer-events-auto inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border text-[10px] leading-none font-medium bg-primary/10 text-primary border-primary/30 whitespace-nowrap"
+            >
+              <span>#</span>
+              <span className="font-semibold font-mono">{ref.label}</span>
+              {referenceProvider && (
+                <a
+                  href={referenceProvider.openHref("tag", ref.slug)}
+                  title={`Open the ${ref.label} tag`}
+                  aria-label={`Open the ${ref.label} tag`}
+                  className="opacity-70 hover:opacity-100 ml-0.5 inline-flex items-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ArrowUpRight weight="bold" className="h-2.5 w-2.5" />
+                </a>
+              )}
+            </span>
+          ))}
+
+          {lineRefs?.malformed && (
+            <span
+              data-testid="editor-ref-unknown"
+              title="Reference JSON on this line does not parse — fix it in the raw text."
+              className="pointer-events-auto inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border text-[11px] font-medium bg-destructive/10 text-destructive border-destructive/30"
+            >
+              <WarningCircle weight="bold" className="h-3 w-3 shrink-0" />
+              <span>Malformed reference JSON</span>
+            </span>
+          )}
+
+          {unresolvedTagSlugs.map((slug) => (
+            <span
+              key={`unresolved-tag:${slug}`}
+              data-testid="editor-tag-unknown"
+              title={`Unknown tag #${slug} — click to create`}
+              className="pointer-events-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-dashed text-[10px] leading-none font-medium bg-warning/10 text-warning border-warning/40 whitespace-nowrap"
+            >
+              <span className="font-mono font-semibold">#{slug}</span>
+              <button
+                type="button"
+                data-testid="editor-create-tag-inline"
+                className="underline cursor-pointer hover:text-foreground font-semibold ml-0.5"
+                onClick={() => void handleCreateTag(slug)}
+              >
+                + Tag
+              </button>
+            </span>
+          ))}
+
+          {diagnostics.map((diag, i) => {
+            const diagKind = diagnosticKind(diag);
+            const token = diag.token?.trim() ?? "";
+            const isUnknownEffort = diag.reason === "unknown-effort";
+            const diagKey = `${diag.reason}-${token || i}`;
+            const isExpanded = openDiagKey === diagKey || openDiagKey === "all";
+            return (
               <span
+                key={diagKey}
                 data-testid="editor-ref-unknown"
-                title="Reference JSON on this line does not parse — fix it in the raw text."
-                className="pointer-events-auto inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[11px] font-medium bg-destructive/10 text-destructive border-destructive/30"
+                title={diag.message}
+                onClick={() => {
+                  if (!isExpanded) setOpenDiagKey(diagKey);
+                }}
+                className={cn(
+                  "pointer-events-auto inline-flex flex-wrap items-center gap-1.5 px-1.5 py-0.5 rounded-[6px] border border-dashed text-[10px] leading-tight font-medium bg-warning/10 text-warning border-warning/40 max-w-full",
+                  !isExpanded && "rounded-full whitespace-nowrap cursor-pointer hover:bg-warning/15",
+                )}
               >
-                <span>⚠</span>
-                <span>Malformed reference JSON</span>
-              </span>
-            )}
-
-            {unresolvedTagSlugs.map((slug) => (
-              <span
-                key={`unresolved-tag:${slug}`}
-                data-testid="editor-tag-unknown"
-                title={`Unknown tag #${slug} — click to create`}
-                className="pointer-events-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-dashed text-[10px] leading-none font-medium bg-warning/10 text-warning border-warning/40 whitespace-nowrap"
-              >
-                <span className="font-mono font-semibold">#{slug}</span>
-                <button
-                  type="button"
-                  data-testid="editor-create-tag-inline"
-                  className="underline cursor-pointer hover:text-foreground font-semibold ml-0.5"
-                  onClick={() => void handleCreateTag(slug)}
-                >
-                  + Tag
-                </button>
-              </span>
-            ))}
-
-            {diagnostics.map((diag, i) => {
-              const diagKind = diagnosticKind(diag);
-              const token = diag.token?.trim() ?? '';
-              const isUnknownEffort = diag.reason === 'unknown-effort';
-              const diagKey = `${diag.reason}-${token || i}`;
-              const isExpanded = openDiagKey === diagKey || openDiagKey === 'all';
-              return (
-                <span
-                  key={diagKey}
-                  data-testid="editor-ref-unknown"
-                  title={diag.message}
-                  onClick={() => {
-                    if (!isExpanded) setOpenDiagKey(diagKey);
-                  }}
-                  className={cn(
-                    "pointer-events-auto inline-flex flex-wrap items-center gap-1.5 px-1.5 py-0.5 rounded-xl border border-dashed text-[10px] leading-tight font-medium bg-warning/10 text-warning border-warning/40 max-w-full",
-                    !isExpanded && "rounded-full whitespace-nowrap cursor-pointer hover:bg-warning/15",
-                  )}
-                >
-                  <span>?</span>
-                  <span className="font-semibold">{diag.token ?? diag.reason}</span>
-                  {!isExpanded ? (
-                    <button
-                      type="button"
-                      data-testid="editor-define-token"
-                      className="underline cursor-pointer hover:text-foreground font-semibold"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenDiagKey(diagKey);
-                      }}
-                    >
-                      Define ▾
-                    </button>
-                  ) : (
-                    <span className="inline-flex flex-wrap items-center gap-1.5 pl-1 border-l border-warning/30">
-                      {token && (
-                        <button
-                          type="button"
-                          data-testid={`editor-create-${diagKind}-inline`}
-                          className="underline cursor-pointer hover:text-foreground font-semibold"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleCreateFromToken(diagKind, token);
-                          }}
-                        >
-                          + {diagKind === 'effort' ? 'Effort' : 'Equipment'}
-                        </button>
-                      )}
-                      {token && isUnknownEffort && (
-                        <button
-                          type="button"
-                          data-testid="editor-link-alias-inline"
-                          className="underline cursor-pointer hover:text-foreground font-semibold"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleAddAliasFromToken(token);
-                          }}
-                        >
-                          + Alias
-                        </button>
-                      )}
-                      {token && isUnknownEffort && (
-                        <button
-                          type="button"
-                          data-testid="editor-create-equipment-from-token"
-                          className="underline cursor-pointer hover:text-foreground font-semibold"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleCreateFromToken('equipment', token);
-                          }}
-                        >
-                          + Equipment
-                        </button>
-                      )}
+                <span>?</span>
+                <span className="font-semibold">{diag.token ?? diag.reason}</span>
+                {!isExpanded ? (
+                  <button
+                    type="button"
+                    data-testid="editor-define-token"
+                    className="underline cursor-pointer hover:text-foreground font-semibold"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenDiagKey(diagKey);
+                    }}
+                  >
+                    Define
+                  </button>
+                ) : (
+                  <span className="inline-flex flex-wrap items-center gap-1.5 pl-1 border-l border-warning/30">
+                    {token && (
                       <button
                         type="button"
-                        className="underline cursor-pointer hover:text-foreground"
+                        data-testid={`editor-create-${diagKind}-inline`}
+                        className="underline cursor-pointer hover:text-foreground font-semibold"
                         onClick={(e) => {
                           e.stopPropagation();
-                          void repairDiagnostic(diag);
+                          void handleCreateFromToken(diagKind, token);
                         }}
                       >
-                        Select existing
+                        + {diagKind === "effort" ? "Effort" : "Equipment"}
                       </button>
-                      {referenceProvider && (
-                        <a
-                          href={referenceProvider.createHref(diagKind)}
-                          className="underline hover:text-foreground"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Create page
-                        </a>
-                      )}
-                    </span>
-                  )}
-                </span>
-              );
-            })}
+                    )}
+                    {token && isUnknownEffort && (
+                      <button
+                        type="button"
+                        data-testid="editor-link-alias-inline"
+                        className="underline cursor-pointer hover:text-foreground font-semibold"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleAddAliasFromToken(token);
+                        }}
+                      >
+                        + Alias
+                      </button>
+                    )}
+                    {token && isUnknownEffort && (
+                      <button
+                        type="button"
+                        data-testid="editor-create-equipment-from-token"
+                        className="underline cursor-pointer hover:text-foreground font-semibold"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleCreateFromToken("equipment", token);
+                        }}
+                      >
+                        + Equipment
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="underline cursor-pointer hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void repairDiagnostic(diag);
+                      }}
+                    >
+                      Select existing
+                    </button>
+                    {referenceProvider && (
+                      <a
+                        href={referenceProvider.createHref(diagKind)}
+                        className="underline hover:text-foreground"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Create page
+                      </a>
+                    )}
+                  </span>
+                )}
+              </span>
+            );
+          })}
 
-            <button
-              type="button"
-              data-testid="editor-add-metric-line"
-              title="Add effort/equipment reference to this line"
-              onClick={() => void addLineMetric()}
-              className="pointer-events-auto inline-flex items-center px-1.5 py-0.5 rounded-full border border-dashed border-border/60 text-[10px] leading-none text-muted-foreground hover:text-foreground hover:border-primary/50 cursor-pointer whitespace-nowrap"
-            >
-              + Metric
-            </button>
+          <button
+            type="button"
+            data-testid="editor-add-metric-line"
+            title="Add effort/equipment reference to this line"
+            onClick={() => void addLineMetric()}
+            className="pointer-events-auto inline-flex items-center px-1.5 py-0.5 rounded-full border border-dashed border-border text-[10px] leading-none text-muted-foreground hover:text-foreground hover:border-foreground cursor-pointer whitespace-nowrap"
+          >
+            + Metric
+          </button>
         </div>
       ) : (
         <span className="text-[10px] text-muted-foreground/60 italic select-none">

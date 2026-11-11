@@ -61,6 +61,8 @@ export interface QueryBlockViewProps {
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   /** Optional resolver returning the destination href for an item in :note results. */
   noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
+  /** Optional handler to reveal the raw fenced WQL source in the host editor. */
+  onEditSource?: () => void;
 }
 
 export function QueryBlockView({
@@ -79,6 +81,7 @@ export function QueryBlockView({
   onEditMetric,
   onOpenNote,
   noteHref,
+  onEditSource,
 }: QueryBlockViewProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -205,6 +208,7 @@ export function QueryBlockView({
 
   const canEdit = onSaveQuery !== undefined && !readOnly;
   const onEdit = canEdit ? () => setIsModalOpen(true) : undefined;
+  const effectiveEditSource = !readOnly ? onEditSource : undefined;
 
   const resultId = useMemo(() => {
     if (!isFindQuery(parsed) || parsed.target !== 'session') return undefined;
@@ -221,33 +225,33 @@ export function QueryBlockView({
   return (
     <div data-testid="query-block-view">
       {effectiveWidgetError ? (
-        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
             {effectiveWidgetError}
           </div>
         </QueryBlockShell>
       ) : unknownType ? (
-        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <WidgetProblemBadge message={unknownWidgetTypeMessage(effectiveWidgetType)} />
         </QueryBlockShell>
       ) : missing.length > 0 ? (
-        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <WidgetProblemBadge message={unknownTokensMessage(missing)} />
         </QueryBlockShell>
       ) : syntaxError ? (
-        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
             Query syntax error: {syntaxError}
           </div>
         </QueryBlockShell>
       ) : runError ? (
-        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
             Query execution error: {runError}
           </div>
         </QueryBlockShell>
       ) : (
-        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
           <QueryBlockBody
             parsed={parsed}
             result={runResult}
@@ -414,6 +418,7 @@ function QueryBlockShell({
   description,
   children,
   onEdit,
+  onEditSource,
   readOnly,
   onAddToDashboard,
 }: {
@@ -421,13 +426,34 @@ function QueryBlockShell({
   description?: string;
   children: React.ReactNode;
   onEdit?: () => void;
+  onEditSource?: () => void;
   readOnly?: boolean;
   onAddToDashboard?: () => void;
 }) {
   return (
-    <div className="relative group/block my-2 p-3 rounded-lg border border-border/80 bg-card/60 shadow-sm">
-      {(onAddToDashboard || (onEdit && !readOnly)) && (
+    <div className="relative group/block p-3 rounded-[8px] border border-border bg-card">
+      {(onAddToDashboard || (onEdit && !readOnly) || (onEditSource && !readOnly)) && (
         <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+          {onEditSource && !readOnly && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onEditSource();
+              }}
+              aria-label="Edit query source"
+              title="Edit raw WQL source"
+              data-testid="query-edit-source"
+              className="px-1.5 py-0.5 rounded-[4px] border border-border bg-muted/70 text-[10px] font-mono font-medium text-muted-foreground hover:text-foreground opacity-80 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+            >
+              Source
+            </button>
+          )}
           {onAddToDashboard && (
             <button
               type="button"
@@ -435,7 +461,7 @@ function QueryBlockShell({
               aria-label="Add to dashboard"
               title="Add to dashboard"
               data-testid="query-add-dashboard"
-              className="p-1 rounded bg-muted/80 text-muted-foreground hover:text-foreground"
+              className="p-1 rounded-[4px] border border-border bg-muted/70 text-muted-foreground hover:text-foreground"
             >
               <ChartBar className="w-3.5 h-3.5" />
             </button>
@@ -446,7 +472,7 @@ function QueryBlockShell({
               onClick={onEdit}
               aria-label="Edit query in Omni-Composer"
               title="Edit query in Omni-Composer"
-              className="p-1 rounded bg-muted/80 text-muted-foreground hover:text-foreground opacity-0 group-hover/block:opacity-100 focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity"
+              className="p-1 rounded-[4px] border border-border bg-muted/70 text-muted-foreground hover:text-foreground opacity-0 group-hover/block:opacity-100 focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity"
             >
               <Edit3 className="w-3.5 h-3.5" />
             </button>
@@ -454,7 +480,7 @@ function QueryBlockShell({
         </div>
       )}
       {(title || description) && (
-        <div className="mb-2 pr-14">
+        <div className="mb-2 pr-24">
           {title && <div className="text-xs font-semibold text-foreground">{title}</div>}
           {description && <div className="text-[11px] text-muted-foreground">{description}</div>}
         </div>

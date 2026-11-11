@@ -44,6 +44,7 @@ export { telemetry, engagementMs } from '@/services/telemetry';
 
 // ── Registries & tags ─────────────────────────────────────────────────────
 export { getAppEffortRegistry } from '@/services/effortRegistry';
+export { getAppEquipmentRegistry } from '@/services/equipmentRegistry';
 export { getTagIndex } from '@/services/tags/tagCatalogue';
 
 // ── Run capture & recording ───────────────────────────────────────────────

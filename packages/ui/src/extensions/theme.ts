@@ -2,7 +2,14 @@ import { EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 
-export function editorTheme(isDark: boolean): Extension {
+export function editorTheme(isDark: boolean, dialect = "markdown"): Extension {
+  const isCodeDialect =
+    dialect === "wod" ||
+    dialect === "whiteboard" ||
+    dialect === "time" ||
+    dialect === "log" ||
+    dialect === "wql";
+
   const baseTheme = EditorView.theme({
     "&": {
       height: "auto",
@@ -12,6 +19,7 @@ export function editorTheme(isDark: boolean): Extension {
       boxSizing: "border-box",
       fontSize: "14px",
       textAlign: "left",
+      color: "hsl(var(--foreground))",
     },
     "&.cm-focused": {
       outline: "none",
@@ -21,34 +29,41 @@ export function editorTheme(isDark: boolean): Extension {
       width: "100%",
       maxWidth: "100%",
       boxSizing: "border-box",
+      fontFamily: "inherit",
     },
     ".cm-content": {
-      fontFamily: "JetBrains Mono, ui-monospace, SFMono-Regular, monospace",
+      fontFamily: isCodeDialect
+        ? 'var(--font-mono, "JetBrains Mono", ui-monospace, SFMono-Regular, monospace)'
+        : 'var(--font-sans, "Geist Sans", "SF Pro Display", Switzer, "Helvetica Neue", system-ui, sans-serif)',
       lineHeight: "22px",
       padding: "0",
       margin: "0 3px",
       textAlign: "left",
     },
     ".cm-gutters": {
-      backgroundColor: isDark ? "#252841" : "transparent",
-      color: isDark ? "#A0AEC0" : "#717D96",
+      backgroundColor: "transparent",
+      color: "hsl(var(--muted-foreground) / 0.65)",
       border: "none",
       padding: "0",
+      fontFamily: 'var(--font-mono, "JetBrains Mono", ui-monospace, SFMono-Regular, monospace)',
+      fontSize: "11px",
+      fontVariantNumeric: "tabular-nums",
     },
     ".cm-activeLine": {
-      backgroundColor: isDark ? "rgba(165, 180, 252, 0.08)" : "rgba(129, 140, 248, 0.08)",
+      backgroundColor: isDark ? "rgba(255, 255, 255, 0.035)" : "rgba(17, 17, 17, 0.028)",
     },
     ".cm-activeLineGutter": {
-      backgroundColor: isDark ? "rgba(165, 180, 252, 0.08)" : "rgba(129, 140, 248, 0.08)",
+      backgroundColor: "transparent",
+      color: "hsl(var(--foreground))",
     },
     "&.cm-focused .cm-selectionBackground": {
-      backgroundColor: isDark ? "rgba(165, 180, 252, 0.3)" : "rgba(129, 140, 248, 0.35)",
+      backgroundColor: isDark ? "rgba(255, 255, 255, 0.14)" : "rgba(17, 17, 17, 0.11)",
     },
     ".cm-selectionBackground": {
-      backgroundColor: isDark ? "rgba(100, 160, 255, 0.20)" : "rgba(30, 100, 230, 0.25)",
+      backgroundColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(17, 17, 17, 0.07)",
     },
     "::selection": {
-      backgroundColor: isDark ? "rgba(100, 160, 255, 0.35) !important" : "rgba(30, 100, 230, 0.50) !important",
+      backgroundColor: isDark ? "rgba(255, 255, 255, 0.18) !important" : "rgba(17, 17, 17, 0.14) !important",
     },
   }, { dark: isDark });
 

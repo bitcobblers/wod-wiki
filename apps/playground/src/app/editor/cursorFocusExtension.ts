@@ -375,14 +375,14 @@ const metricUnderlineTheme = EditorView.baseTheme({
   ".cm-metric-underline-action, .cm-metric-underline-action *":         { borderBottom: "2px solid hsl(var(--metric-action))",     color: "hsl(var(--metric-action)) !important" },
   ".cm-metric-underline-equipment, .cm-metric-underline-equipment *":   { borderBottom: "2px solid hsl(var(--metric-equipment))",  color: "hsl(var(--metric-equipment)) !important" },
 
-  ".cm-metric-underline-duration-dim, .cm-metric-underline-duration-dim *":     { borderBottom: "1.5px solid hsl(var(--metric-time) / 0.35)",       color: "hsl(var(--metric-time) / 0.82) !important" },
-  ".cm-metric-underline-rep-dim, .cm-metric-underline-rep-dim *":               { borderBottom: "1.5px solid hsl(var(--metric-rep) / 0.35)",        color: "hsl(var(--metric-rep) / 0.82) !important" },
-  ".cm-metric-underline-effort-dim, .cm-metric-underline-effort-dim *":         { borderBottom: "1.5px solid hsl(var(--metric-effort) / 0.35)",     color: "hsl(var(--metric-effort) / 0.82) !important" },
-  ".cm-metric-underline-rounds-dim, .cm-metric-underline-rounds-dim *":         { borderBottom: "1.5px solid hsl(var(--metric-rounds) / 0.35)",     color: "hsl(var(--metric-rounds) / 0.82) !important" },
-  ".cm-metric-underline-distance-dim, .cm-metric-underline-distance-dim *":     { borderBottom: "1.5px solid hsl(var(--metric-distance) / 0.35)",   color: "hsl(var(--metric-distance) / 0.82) !important" },
-  ".cm-metric-underline-resistance-dim, .cm-metric-underline-resistance-dim *": { borderBottom: "1.5px solid hsl(var(--metric-resistance) / 0.35)", color: "hsl(var(--metric-resistance) / 0.82) !important" },
-  ".cm-metric-underline-action-dim, .cm-metric-underline-action-dim *":         { borderBottom: "1.5px solid hsl(var(--metric-action) / 0.35)",     color: "hsl(var(--metric-action) / 0.82) !important" },
-  ".cm-metric-underline-equipment-dim, .cm-metric-underline-equipment-dim *":   { borderBottom: "1.5px solid hsl(var(--metric-equipment) / 0.35)",  color: "hsl(var(--metric-equipment) / 0.82) !important" },
+  ".cm-metric-underline-duration-dim, .cm-metric-underline-duration-dim *":     { borderBottom: "1.5px solid hsl(var(--metric-time) / 0.35)",       color: "hsl(var(--metric-time)) !important" },
+  ".cm-metric-underline-rep-dim, .cm-metric-underline-rep-dim *":               { borderBottom: "1.5px solid hsl(var(--metric-rep) / 0.35)",        color: "hsl(var(--metric-rep)) !important" },
+  ".cm-metric-underline-effort-dim, .cm-metric-underline-effort-dim *":         { borderBottom: "1.5px solid hsl(var(--metric-effort) / 0.35)",     color: "hsl(var(--metric-effort)) !important" },
+  ".cm-metric-underline-rounds-dim, .cm-metric-underline-rounds-dim *":         { borderBottom: "1.5px solid hsl(var(--metric-rounds) / 0.35)",     color: "hsl(var(--metric-rounds)) !important" },
+  ".cm-metric-underline-distance-dim, .cm-metric-underline-distance-dim *":     { borderBottom: "1.5px solid hsl(var(--metric-distance) / 0.35)",   color: "hsl(var(--metric-distance)) !important" },
+  ".cm-metric-underline-resistance-dim, .cm-metric-underline-resistance-dim *": { borderBottom: "1.5px solid hsl(var(--metric-resistance) / 0.35)", color: "hsl(var(--metric-resistance)) !important" },
+  ".cm-metric-underline-action-dim, .cm-metric-underline-action-dim *":         { borderBottom: "1.5px solid hsl(var(--metric-action) / 0.35)",     color: "hsl(var(--metric-action)) !important" },
+  ".cm-metric-underline-equipment-dim, .cm-metric-underline-equipment-dim *":   { borderBottom: "1.5px solid hsl(var(--metric-equipment) / 0.35)",  color: "hsl(var(--metric-equipment)) !important" },
 
   ".cm-metric-unresolved, .cm-metric-unresolved *": {
     borderBottomStyle: "dashed !important",

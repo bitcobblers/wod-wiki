@@ -142,11 +142,13 @@ export class MemoryFeedTree implements FeedTree {
   }
 }
 
+type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
 export class HttpFeedTree implements FeedTreeReader {
   private readonly baseUrl: string;
-  private readonly fetchImpl: typeof fetch;
+  private readonly fetchImpl: FetchLike;
 
-  constructor(baseUrl: string, fetchImpl?: typeof fetch) {
+  constructor(baseUrl: string, fetchImpl?: FetchLike) {
     this.baseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
     this.fetchImpl = fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
   }

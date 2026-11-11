@@ -42,11 +42,112 @@ const FENCE_TAGS: Completion[] = [
     boost: 80,
   },
   {
+    label: "```wod",
+    detail: "Timer workout block (inserts ```time)",
+    type: "keyword",
+    apply: snippet("```time\n${}\n```"),
+    boost: 78,
+  },
+  {
+    label: "```whiteboard",
+    detail: "Timer workout block (inserts ```time)",
+    type: "keyword",
+    apply: snippet("```time\n${}\n```"),
+    boost: 77,
+  },
+  {
     label: "```widget",
     detail: "Custom React Widget",
     type: "keyword",
     apply: snippet("```widget:${name}\n${}\n```"),
     boost: 75,
+  },
+];
+
+const SLASH_COMMANDS: Completion[] = [
+  {
+    label: "/time",
+    detail: "Timer workout block",
+    type: "keyword",
+    apply: snippet("```time\n${10:00 Run}\n```"),
+    boost: 95,
+  },
+  {
+    label: "/wod",
+    detail: "Timer workout block",
+    type: "keyword",
+    apply: snippet("```time\n${10:00 Run}\n```"),
+    boost: 94,
+  },
+  {
+    label: "/log",
+    detail: "Completed workout log block",
+    type: "keyword",
+    apply: snippet("```log\n${5x5 Back Squat 100kg}\n```"),
+    boost: 92,
+  },
+  {
+    label: "/query",
+    detail: "WQL analytics query block",
+    type: "keyword",
+    apply: snippet("```query\n${sum:reps{} every week}\n```"),
+    boost: 90,
+  },
+  {
+    label: "/table",
+    detail: "Markdown data table",
+    type: "keyword",
+    apply: snippet("| ${Movement} | ${Sets} | ${Load} |\n| --- | --- | --- |\n| ${Squat} | ${5} | ${100kg} |"),
+    boost: 85,
+  },
+  {
+    label: "/task",
+    detail: "Interactive task item",
+    type: "keyword",
+    apply: snippet("- [ ] ${}"),
+    boost: 82,
+  },
+  {
+    label: "/h1",
+    detail: "Section title (H1)",
+    type: "keyword",
+    apply: snippet("# ${}"),
+    boost: 80,
+  },
+  {
+    label: "/h2",
+    detail: "Subsection heading (H2)",
+    type: "keyword",
+    apply: snippet("## ${}"),
+    boost: 78,
+  },
+  {
+    label: "/h3",
+    detail: "Minor heading (H3)",
+    type: "keyword",
+    apply: snippet("### ${}"),
+    boost: 76,
+  },
+  {
+    label: "/quote",
+    detail: "Editorial blockquote",
+    type: "keyword",
+    apply: snippet("> ${}"),
+    boost: 74,
+  },
+  {
+    label: "/link",
+    detail: "External or workspace link",
+    type: "keyword",
+    apply: snippet("[${Label}](${https://})"),
+    boost: 72,
+  },
+  {
+    label: "/divider",
+    detail: "Horizontal rule",
+    type: "keyword",
+    apply: "---\n",
+    boost: 70,
   },
 ];
 
@@ -65,6 +166,97 @@ export function fenceCompletion(context: CompletionContext): CompletionResult | 
     options: FENCE_TAGS,
     validFor: /^`{1,3}\w*$/,
   };
+}
+
+export function slashBlockCompletion(context: CompletionContext): CompletionResult | null {
+  const line = context.state.doc.lineAt(context.pos);
+  const textBefore = line.text.slice(0, context.pos - line.from);
+
+  const match = textBefore.match(/^\/([a-zA-Z0-9-]*)$/);
+  if (!match) return null;
+
+  const section = activeCursorSection(context.state);
+  if (section && section.type !== "markdown") return null;
+
+  return {
+    from: line.from,
+    options: SLASH_COMMANDS,
+    validFor: /^\/[a-zA-Z0-9-]*$/,
+  };
+}
+
+export function toggleInlineMarkdown(
+  view: EditorView,
+  marker: string,
+): boolean {
+  if (view.state.readOnly) return false;
+  const section = activeCursorSection(view.state);
+  if (section && section.type !== "markdown") return false;
+
+  const { from, to } = view.state.selection.main;
+  const selected = view.state.doc.sliceString(from, to);
+  const len = marker.length;
+
+  // Unwrap when the selection itself or surrounding characters already hold the marker
+  if (
+    selected.length >= len * 2 &&
+    selected.startsWith(marker) &&
+    selected.endsWith(marker)
+  ) {
+    const inner = selected.slice(len, selected.length - len);
+    view.dispatch({
+      changes: { from, to, insert: inner },
+      selection: EditorSelection.range(from, from + inner.length),
+      userEvent: "input.format",
+    });
+    return true;
+  }
+
+  if (
+    from >= len &&
+    to + len <= view.state.doc.length &&
+    view.state.doc.sliceString(from - len, from) === marker &&
+    view.state.doc.sliceString(to, to + len) === marker
+  ) {
+    view.dispatch({
+      changes: [
+        { from: from - len, to: from, insert: "" },
+        { from: to, to: to + len, insert: "" },
+      ],
+      selection: EditorSelection.range(from - len, to - len),
+      userEvent: "input.format",
+    });
+    return true;
+  }
+
+  const wrapped = `${marker}${selected}${marker}`;
+  view.dispatch({
+    changes: { from, to, insert: wrapped },
+    selection: selected
+      ? EditorSelection.range(from + len, from + len + selected.length)
+      : EditorSelection.cursor(from + len),
+    userEvent: "input.format",
+  });
+  return true;
+}
+
+export function insertMarkdownLinkCommand(view: EditorView): boolean {
+  if (view.state.readOnly) return false;
+  const section = activeCursorSection(view.state);
+  if (section && section.type !== "markdown") return false;
+
+  const { from, to } = view.state.selection.main;
+  const selected = view.state.doc.sliceString(from, to);
+  const label = selected || "Link";
+  const urlPlaceholder = "https://";
+  const insert = `[${label}](${urlPlaceholder})`;
+  const urlStart = from + 1 + label.length + 2;
+  view.dispatch({
+    changes: { from, to, insert },
+    selection: EditorSelection.range(urlStart, urlStart + urlPlaceholder.length),
+    userEvent: "input.format",
+  });
+  return true;
 }
 
 export function wrapInTimeFence(view: EditorView): boolean {
@@ -105,13 +297,27 @@ export function handleFenceAutoWrap(event: InputEvent, view: EditorView): boolea
   if (from === to) return false;
 
   const selected = view.state.doc.sliceString(from, to);
-  view.dispatch({
-    changes: {
-      from,
-      to,
-      insert: `\`\`\`time\n${selected}\n\`\`\``,
-    },
-  });
+  // Multi-line selections wrap into a runnable ```time fence; single-line
+  // selections wrap as standard Markdown inline `code` (use Mod-Alt-w to wrap
+  // a single line in a ```time block).
+  if (selected.includes("\n")) {
+    view.dispatch({
+      changes: {
+        from,
+        to,
+        insert: `\`\`\`time\n${selected}\n\`\`\``,
+      },
+    });
+  } else {
+    view.dispatch({
+      changes: {
+        from,
+        to,
+        insert: `\`${selected}\``,
+      },
+      selection: EditorSelection.range(from + 1, from + 1 + selected.length),
+    });
+  }
   return true;
 }
 
@@ -124,6 +330,22 @@ export const wodEditorKeymap = keymap.of([
   {
     key: "Mod-Alt-w",
     run: wrapInTimeFence,
+  },
+  {
+    key: "Mod-b",
+    run: (view) => toggleInlineMarkdown(view, "**"),
+  },
+  {
+    key: "Mod-i",
+    run: (view) => toggleInlineMarkdown(view, "*"),
+  },
+  {
+    key: "Mod-e",
+    run: (view) => toggleInlineMarkdown(view, "`"),
+  },
+  {
+    key: "Mod-k",
+    run: insertMarkdownLinkCommand,
   },
 ]);
 export type CustomCompletionSource = (
@@ -255,14 +477,18 @@ export function nestedCompletion(
 /**
  * The note editor's combined completion provider. Explicit order — first
  * result wins: (1) per-editor custom sources via the facet, (2) opening-fence
- * snippets, (3) nested fence-body sources. Exported for direct testing.
+ * snippets, (3) `/` slash block commands, (4) nested fence-body sources.
  */
 export async function wodCompletionSource(context: CompletionContext): Promise<CompletionResult | null> {
   for (const source of context.state.facet(customCompletionSources)) {
     const result = await source(context);
     if (result) return result;
   }
-  return fenceCompletion(context) ?? nestedCompletion(context);
+  return (
+    fenceCompletion(context) ??
+    slashBlockCompletion(context) ??
+    nestedCompletion(context)
+  );
 }
 
 export const wodAutocompletion: Extension = autocompletion({

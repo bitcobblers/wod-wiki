@@ -361,7 +361,7 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     }
   });
 
-  it('guards backtick auto-wrap to markdown sections', () => {
+  it('guards backtick auto-wrap to markdown sections (inline code for single-line, time fence for multi-line)', () => {
     const host = document.createElement('div');
     document.body.appendChild(host);
     const markdownView = new EditorView({
@@ -370,7 +370,16 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     });
     markdownView.dispatch({ selection: EditorSelection.range(0, 3) });
     expect(handleFenceAutoWrap({ data: '`' } as InputEvent, markdownView)).toBe(true);
-    expect(markdownView.state.doc.toString()).toBe('```time\nsel\n```');
+    expect(markdownView.state.doc.toString()).toBe('`sel`');
+
+    const multiDoc = '10:00 Run\n15 Squat';
+    const multiView = new EditorView({
+      state: EditorState.create({ doc: multiDoc, extensions: [wodAutoWrap] }),
+      parent: host,
+    });
+    multiView.dispatch({ selection: EditorSelection.range(0, multiDoc.length) });
+    expect(handleFenceAutoWrap({ data: '`' } as InputEvent, multiView)).toBe(true);
+    expect(multiView.state.doc.toString()).toBe('```time\n10:00 Run\n15 Squat\n```');
 
     const queryDoc = '```query\nsel\n```';
     const queryView = new EditorView({
@@ -382,6 +391,7 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     expect(queryView.state.doc.toString()).toBe(queryDoc);
 
     markdownView.destroy();
+    multiView.destroy();
     queryView.destroy();
     host.remove();
   });
