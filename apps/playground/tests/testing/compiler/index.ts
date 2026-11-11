@@ -1,5 +1,2 @@
-/**
- * Compiler testing surface — re-exports the consumer-facing factory and the
- * production strategy list (Tier 3 §3.4: now a `Registry`).
- */
-export { createCompiler, PRODUCTION_STRATEGIES } from '@bitcobblers/wod-wiki-engine';
+// Canonical implementation lives in @wod-wiki/lang-harness/compiler — re-export shim.
+export { createCompiler, PRODUCTION_STRATEGIES } from '@wod-wiki/lang-harness/compiler';

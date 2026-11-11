@@ -1,9 +1,9 @@
 import { ExecutionContextTestBuilder } from '../harness/ExecutionContextTestBuilder';
 import { ExecutionContextTestHarness } from '../harness/ExecutionContextTestHarness';
 import { MockBlock } from '../harness/MockBlock';
-import { IRuntimeBehavior } from '../../../src/runtime/contracts/IRuntimeBehavior';
-import { IRuntimeBlockStrategy } from '../../../src/runtime/contracts/IRuntimeBlockStrategy';
-import { IEventHandler } from '../../../src/runtime/contracts/events/IEventHandler';
+import { IRuntimeBehavior } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeBlockStrategy } from '@bitcobblers/wod-wiki-lang';
+import { IEventHandler } from '@bitcobblers/wod-wiki-lang';
 
 /**
  * Configuration for timer test harness.

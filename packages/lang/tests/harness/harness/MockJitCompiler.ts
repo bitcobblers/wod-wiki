@@ -1,7 +1,7 @@
-import { JitCompiler } from '../../../src/runtime/compiler/JitCompiler';
-import { IRuntimeBlock } from '../../../src/runtime/contracts/IRuntimeBlock';
-import { IScriptRuntime } from '../../../src/runtime/contracts/IScriptRuntime';
-import { IRuntimeBlockStrategy } from '../../../src/runtime/contracts/IRuntimeBlockStrategy';
+import { JitCompiler } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeBlock } from '@bitcobblers/wod-wiki-lang';
+import { IScriptRuntime } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeBlockStrategy } from '@bitcobblers/wod-wiki-lang';
 import type { CodeStatement } from '@bitcobblers/wod-wiki-core';
 
 /**

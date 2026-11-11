@@ -4,7 +4,7 @@
  * Tests the parser's ability to produce correct CodeStatement trees
  * for timer-based whiteboard language constructs.
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { parse } from '../helpers/parser-test-utils';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 

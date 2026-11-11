@@ -13,6 +13,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@bitcobblers/wod-wiki-core/testing': resolve(import.meta.dirname, '../core/src/testing.ts'),
       '@bitcobblers/wod-wiki-core': resolve(import.meta.dirname, '../core/src'),
       '@bitcobblers/wod-wiki-lang': resolve(import.meta.dirname, '../lang/src'),
       '@bitcobblers/wod-wiki-wql': resolve(import.meta.dirname, '../wql/src'),

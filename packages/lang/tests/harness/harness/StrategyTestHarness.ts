@@ -1,16 +1,16 @@
-import { IRuntimeBlockStrategy } from '../../../src/runtime/contracts/IRuntimeBlockStrategy';
-import { BlockBuilder } from '../../../src/runtime/compiler/BlockBuilder';
+import { IRuntimeBlockStrategy } from '@bitcobblers/wod-wiki-lang';
+import { BlockBuilder } from '@bitcobblers/wod-wiki-lang';
 import { ICodeStatement } from '@bitcobblers/wod-wiki-core';
 import { ParsedCodeStatement } from '@bitcobblers/wod-wiki-core';
-import { IScriptRuntime } from '../../../src/runtime/contracts/IScriptRuntime';
-import { IRuntimeBehavior } from '../../../src/runtime/contracts/IRuntimeBehavior';
+import { IScriptRuntime } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeBehavior } from '@bitcobblers/wod-wiki-lang';
 import { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
-import { IRuntimeMemory } from '../../../src/runtime/contracts/IRuntimeMemory';
-import { IRuntimeClock } from '../../../src/runtime/contracts/IRuntimeClock';
-import { IEventBus } from '../../../src/runtime/contracts/events/IEventBus';
-import { IRuntimeStack } from '../../../src/runtime/contracts/IRuntimeStack';
-import { WhiteboardScript } from '../../../src/parser/WhiteboardScript';
+import { IRuntimeMemory } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeClock } from '@bitcobblers/wod-wiki-lang';
+import { IEventBus } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeStack } from '@bitcobblers/wod-wiki-lang';
+import { WhiteboardScript } from '@bitcobblers/wod-wiki-lang';
 
 /**
  * Frozen view of a strategy application result.
@@ -38,11 +38,11 @@ export class AppliedStrategy {
         return this.builder.getSourceIds();
     }
 
-    hasBehavior<T extends IRuntimeBehavior>(type: new (...args: any[]) => T): boolean {
+    hasBehavior<T extends IRuntimeBehavior>(type: new (...args: unknown[]) => T): boolean {
         return this.builder.hasBehavior(type);
     }
 
-    getBehavior<T extends IRuntimeBehavior>(type: new (...args: any[]) => T): T | undefined {
+    getBehavior<T extends IRuntimeBehavior>(type: new (...args: unknown[]) => T): T | undefined {
         return this.builder.getBehavior(type);
     }
     get exitMode(): 'immediate' | 'deferred' | undefined {

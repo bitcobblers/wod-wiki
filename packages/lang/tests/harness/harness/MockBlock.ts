@@ -1,23 +1,23 @@
 import { BlockKey } from '@bitcobblers/wod-wiki-core';
-import { IRuntimeBehavior } from '../../../src/runtime/contracts/IRuntimeBehavior';
-import { IRuntimeAction } from '../../../src/runtime/contracts';
-import { PopBlockAction } from '../../../src/runtime/actions/stack/PopBlockAction';
-import { BlockLifecycleOptions, CompletionDecision, IRuntimeBlock } from '../../../src/runtime/contracts';
-import { IScriptRuntime } from '../../../src/runtime/contracts';
-import type { IRuntimeActionable } from '../../../src/runtime/contracts/primitives/IRuntimeActionable';
-import { IBlockContext } from '../../../src/runtime/contracts';
+import { IRuntimeBehavior } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeAction } from '@bitcobblers/wod-wiki-lang';
+import { PopBlockAction } from '@bitcobblers/wod-wiki-lang';
+import { BlockLifecycleOptions, CompletionDecision, IRuntimeBlock } from '@bitcobblers/wod-wiki-lang';
+import { IScriptRuntime } from '@bitcobblers/wod-wiki-lang';
+import type { IRuntimeActionable } from '@bitcobblers/wod-wiki-lang';
+import { IBlockContext } from '@bitcobblers/wod-wiki-lang';
 import { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
-import { IMemoryReference, TypedMemoryReference } from '../../../src/runtime/contracts';
-import { MemoryTypeEnum } from '../../../src/runtime/models/MemoryTypeEnum';
-import { IAnchorValue } from '../../../src/runtime/contracts/IAnchorValue';
-import { IBehaviorContext, BehaviorEventType, BehaviorEventListener, SubscribeOptions, Unsubscribe } from '../../../src/runtime/contracts/IBehaviorContext';
-import { IRuntimeClock } from '../../../src/runtime/contracts/IRuntimeClock';
+import { IMemoryReference, TypedMemoryReference } from '@bitcobblers/wod-wiki-lang';
+import { MemoryTypeEnum } from '@bitcobblers/wod-wiki-lang';
+import { IAnchorValue } from '@bitcobblers/wod-wiki-lang';
+import { IBehaviorContext, BehaviorEventType, BehaviorEventListener, SubscribeOptions, Unsubscribe } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeClock } from '@bitcobblers/wod-wiki-lang';
 import { OutputStatementType, OutputStatement } from '@bitcobblers/wod-wiki-core';
-import { IMemoryLocation, MemoryLocation, MemoryTag } from '../../../src/runtime/memory/MemoryLocation';
-import { IEventHandler } from '../../../src/runtime/contracts/events/IEventHandler';
-import { IEvent } from '../../../src/runtime/contracts/events/IEvent';
-import { TimeSpan } from '../../../src/runtime/models/TimeSpan';
-import { MetricVisibility, getMetricVisibility } from '../../../src/runtime/memory/MetricVisibility';
+import { IMemoryLocation, MemoryLocation, MemoryTag } from '@bitcobblers/wod-wiki-lang';
+import { IEventHandler } from '@bitcobblers/wod-wiki-lang';
+import { IEvent } from '@bitcobblers/wod-wiki-lang';
+import { TimeSpan } from '@bitcobblers/wod-wiki-lang';
+import { MetricVisibility, getMetricVisibility } from '@bitcobblers/wod-wiki-lang';
 
 /**
  * Minimal stub context for MockBlock
@@ -43,9 +43,12 @@ class MockBlockContext implements IBlockContext {
       value: () => currentValue,
       get: () => currentValue,
       set: (value: T) => { currentValue = value; },
-      _subscriptions: [],
-      _memory: {} as any, // Mock
-      subscribe: (cb: any) => { (ref as any)._subscriptions.push(cb); return () => { }; }
+      _subscriptions: [] as Array<(newValue: T | undefined, oldValue: T | undefined) => void>,
+      _memory: {} as unknown,
+      subscribe: (cb: (newValue: T | undefined, oldValue: T | undefined) => void) => {
+        (ref as unknown as { _subscriptions: Array<(newValue: T | undefined, oldValue: T | undefined) => void> })._subscriptions.push(cb);
+        return () => { };
+      }
     } as unknown as TypedMemoryReference<T>;
 
     this.references.push(ref);
@@ -74,6 +77,12 @@ class MockBlockContext implements IBlockContext {
   }
 }
 
+/** Legacy two-arg behavior shape still supported by the mock harness. */
+interface LegacyBehavior {
+  onNext?(runtime: IRuntimeBlock, clock: IRuntimeClock): IRuntimeAction[] | void;
+  onDispose?(ctx: IBehaviorContext): void;
+}
+
 /**
  * Recorded calls from MockBehaviorContext for spy-like assertions.
  */
@@ -82,8 +91,8 @@ export interface BehaviorContextRecordings {
   updateMemory: Array<{ tag: string; metrics: IMetric[] }>;
   subscribe: Array<{ eventType: BehaviorEventType; options?: SubscribeOptions; unsubscribe: Unsubscribe }>;
   markComplete: Array<{ reason?: string }>;
-  emitOutput: Array<{ type: OutputStatementType; metrics: IMetric[]; options?: any }>;
-  emitEvent: Array<{ event: any }>;
+  emitOutput: Array<{ type: OutputStatementType; metrics: IMetric[]; options?: unknown }>;
+  emitEvent: Array<{ event: IEvent }>;
 }
 
 /**
@@ -264,7 +273,7 @@ class MockBehaviorContext implements IBehaviorContext {
    */
   dispose(): void {
     for (const unsub of this._unsubscribers) {
-      try { unsub(); } catch (_e) { /* cleanup */ }
+      try { unsub(); } catch { /* cleanup */ }
     }
     this._unsubscribers = [];
   }
@@ -293,7 +302,7 @@ export interface MockBlockConfig {
   /** Pre-configured metrics */
   metrics?: IMetric[][];
   /** Custom state object accessible in conditions */
-  state?: Record<string, any>;
+  state?: Record<string, unknown>;
 }
 
 /**
@@ -323,7 +332,7 @@ export class MockBlock implements IRuntimeBlock {
   }
 
   /** Mutable state accessible in tests and condition functions */
-  public state: Record<string, any>;
+  public state: Record<string, unknown>;
 
   private _runtime?: IScriptRuntime;
   private _behaviorContext?: MockBehaviorContext;
@@ -469,7 +478,7 @@ export class MockBlock implements IRuntimeBlock {
       const usesNewApi = typeof behavior.onMount === 'function';
       const result = usesNewApi 
         ? behavior.onNext?.(ctx) 
-        : (behavior as any).onNext?.(this, clock);
+        : (behavior as unknown as LegacyBehavior).onNext?.(this, clock);
       if (result) actions.push(...result);
     }
     return actions;
@@ -538,8 +547,8 @@ export class MockBlock implements IRuntimeBlock {
     // Pass BehaviorContext to onDispose (matches production RuntimeBlock)
     const ctx = this._behaviorContext ?? new MockBehaviorContext(this, _runtime?.clock ?? { currentDate: new Date(), now: () => new Date(), nowMs: () => Date.now(), elapsed: 0, isRunning: false, spans: [], start: () => new Date(), stop: () => new Date() } as IRuntimeClock, 0);
     for (const behavior of this.behaviors) {
-      if (typeof (behavior as any).onDispose === 'function') {
-        (behavior as any).onDispose(ctx);
+      if (typeof (behavior as unknown as LegacyBehavior).onDispose === 'function') {
+        (behavior as unknown as LegacyBehavior).onDispose(ctx);
       }
     }
     // Dispose the behavior context (cleans up event subscriptions)
@@ -549,7 +558,7 @@ export class MockBlock implements IRuntimeBlock {
     }
   }
 
-  getBehavior<T extends IRuntimeBehavior>(behaviorType: new (...args: any[]) => T): T | undefined {
+  getBehavior<T extends IRuntimeBehavior>(behaviorType: new (...args: unknown[]) => T): T | undefined {
     return this.behaviors.find(b => b instanceof behaviorType) as T | undefined;
   }
 

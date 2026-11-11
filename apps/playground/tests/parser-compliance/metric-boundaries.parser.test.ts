@@ -4,7 +4,7 @@
  * Tests parser behavior with boundary-value metric inputs — zero, minimal,
  * large, very large, decimal, and edge-case quantities across all metric types.
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { parse } from '../helpers/parser-test-utils';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 

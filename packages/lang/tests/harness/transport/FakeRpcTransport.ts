@@ -1,49 +1,44 @@
-import { IRpcTransport, RpcUnsubscribe } from '../../../src/services/cast/rpc/IRpcTransport';
-import { RpcMessage } from '../../../src/services/cast/rpc/RpcMessages';
+import type { RpcMessage } from './RpcMessages';
+
+/** Unsubscribe function returned by transport event registration. */
+export type RpcUnsubscribe = () => void;
 
 /**
- * FakeRpcTransport — in-memory IRpcTransport for tests.
- * Two adapters on IRpcTransport make the seam real (WebRtcRpcTransport + this).
+ * FakeRpcTransport — in-memory RPC transport for tests. Generic in TMsg so
+ * app-level wrappers can bind their exact wire union without structural drift.
  */
-export class FakeRpcTransport implements IRpcTransport {
-    public readonly sent: RpcMessage[] = [];
-    private readonly messageHandlers = new Set<(m: RpcMessage) => void>();
+export class FakeRpcTransport<TMsg extends { type: string } = RpcMessage> {
+    public readonly sent: TMsg[] = [];
+    private readonly messageHandlers = new Set<(m: TMsg) => void>();
     private readonly connectedHandlers = new Set<() => void>();
     private readonly disconnectedHandlers = new Set<() => void>();
     private _connected = false;
     private _disposed = false;
-    public peer: FakeRpcTransport | null = null;
+    public peer: FakeRpcTransport<TMsg> | null = null;
 
     get connected(): boolean {
         return this._connected;
     }
 
-    /**
-     * In-memory test transport — no real network, no clock skew. Tests that
-     * want to exercise clock-sync wiring set this on the specific instance;
-     * the default mirrors the local-tab transport, where sync would be a
-     * no-op handshake.
-     */
     get needsClockSync(): boolean {
         return false;
     }
 
     /** All sent messages (append-only). */
-    get messages(): readonly RpcMessage[] {
+    get messages(): readonly TMsg[] {
         return this.sent;
     }
 
     /** Sent messages filtered by RpcMessage discriminator. */
-    filter<T extends RpcMessage['type']>(type: T): Extract<RpcMessage, { type: T }>[] {
-        return this.sent.filter((m): m is Extract<RpcMessage, { type: T }> => m.type === type);
+    filter<T extends TMsg['type']>(type: T): Extract<TMsg, { type: T }>[] {
+        return this.sent.filter((m): m is Extract<TMsg, { type: T }> => m.type === type);
     }
 
-    send(message: RpcMessage): void {
+    send(message: TMsg): void {
         if (this._disposed) {
             throw new Error('FakeRpcTransport: send after dispose');
         }
         this.sent.push(message);
-        // Deliver to peer if paired (synchronous)
         if (this.peer && this.peer._connected) {
             for (const h of [...this.peer.messageHandlers]) {
                 h(message);
@@ -52,7 +47,7 @@ export class FakeRpcTransport implements IRpcTransport {
     }
 
     /** Inject a message as if it arrived from the remote peer. */
-    receive(message: RpcMessage): void {
+    receive(message: TMsg): void {
         if (this._disposed) {
             throw new Error('FakeRpcTransport: receive after dispose');
         }
@@ -61,7 +56,7 @@ export class FakeRpcTransport implements IRpcTransport {
         }
     }
 
-    onMessage(handler: (m: RpcMessage) => void): RpcUnsubscribe {
+    onMessage(handler: (m: TMsg) => void): RpcUnsubscribe {
         this.messageHandlers.add(handler);
         return () => {
             this.messageHandlers.delete(handler);
@@ -112,8 +107,6 @@ export class FakeRpcTransport implements IRpcTransport {
         }
         this.peer = null;
 
-        // Match WebRtcRpcTransport behavior: notify after clearing so that
-        // re-entrant calls inside the notification find an already-empty set.
         if (wasConnected) {
             for (const h of disconnectedSnapshot) {
                 h();
@@ -122,13 +115,12 @@ export class FakeRpcTransport implements IRpcTransport {
     }
 }
 
-/**
- * Connect two FakeRpcTransports so that send() on one delivers to the
- * other's onMessage() handlers, simulating a bidirectional RPC session.
- */
-export function connectPair(a: FakeRpcTransport, b: FakeRpcTransport): void {
+export function connectPair<TMsg extends { type: string } = RpcMessage>(
+    a: FakeRpcTransport<TMsg>,
+    b: FakeRpcTransport<TMsg>,
+): void {
     a.peer = b;
     b.peer = a;
-    a.connect();
-    b.connect();
+    void a.connect();
+    void b.connect();
 }

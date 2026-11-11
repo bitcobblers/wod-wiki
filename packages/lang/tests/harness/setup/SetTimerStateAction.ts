@@ -5,7 +5,8 @@
  * Useful for testing timer-dependent logic at specific time points.
  */
 
-import { IScriptRuntime } from '../../../src/runtime/contracts/IScriptRuntime';
+import { IScriptRuntime } from '@bitcobblers/wod-wiki-lang';
+import type { MemoryTag } from '@bitcobblers/wod-wiki-lang';
 import {
   ITestSetupAction,
   TestSetupActionJSON,
@@ -64,33 +65,34 @@ export class SetTimerStateAction implements ITestSetupAction {
     }
 
     // Try 'time:state' then 'time'
-    const timeLoc = block.getMemoryByTag('time:state' as any)[0] ?? block.getMemoryByTag('time' as any)[0];
+    const timeLoc = block.getMemoryByTag('time:state' as unknown as MemoryTag)[0] ?? block.getMemoryByTag('time')[0];
 
     if (timeLoc?.metrics[0]) {
       const currentValue = timeLoc.metrics[0].value;
-      const newValue = typeof currentValue === 'object' && currentValue !== null
-        ? { ...currentValue }
-        : {};
+      const newValue: Record<string, unknown> =
+        typeof currentValue === 'object' && currentValue !== null
+          ? { ...currentValue }
+          : {};
 
       if (this.params.elapsedMs !== undefined) {
-        (newValue as any).elapsedMs = this.params.elapsedMs;
-        (newValue as any).elapsed = this.params.elapsedMs;
+        newValue.elapsedMs = this.params.elapsedMs;
+        newValue.elapsed = this.params.elapsedMs;
       }
       if (this.params.remainingMs !== undefined) {
-        (newValue as any).remainingMs = this.params.remainingMs;
-        (newValue as any).remaining = this.params.remainingMs;
+        newValue.remainingMs = this.params.remainingMs;
+        newValue.remaining = this.params.remainingMs;
       }
       if (this.params.totalMs !== undefined) {
-        (newValue as any).totalMs = this.params.totalMs;
-        (newValue as any).total = this.params.totalMs;
+        newValue.totalMs = this.params.totalMs;
+        newValue.total = this.params.totalMs;
       }
       if (this.params.isPaused !== undefined) {
-        (newValue as any).isPaused = this.params.isPaused;
-        (newValue as any).paused = this.params.isPaused;
+        newValue.isPaused = this.params.isPaused;
+        newValue.paused = this.params.isPaused;
       }
       if (this.params.isStarted !== undefined) {
-        (newValue as any).isStarted = this.params.isStarted;
-        (newValue as any).started = this.params.isStarted;
+        newValue.isStarted = this.params.isStarted;
+        newValue.started = this.params.isStarted;
       }
 
       timeLoc.update([{ ...timeLoc.metrics[0], value: newValue }]);

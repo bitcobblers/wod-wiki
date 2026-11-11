@@ -5,7 +5,8 @@
  * Commonly used to test effort blocks at various completion stages.
  */
 
-import { IScriptRuntime } from '../../../src/runtime/contracts/IScriptRuntime';
+import { IScriptRuntime } from '@bitcobblers/wod-wiki-lang';
+import type { MemoryTag } from '@bitcobblers/wod-wiki-lang';
 import {
   ITestSetupAction,
   TestSetupActionJSON,
@@ -63,27 +64,28 @@ export class SetEffortStateAction implements ITestSetupAction {
     }
 
     for (const memoryType of memoryTypes) {
-      const loc = block.getMemoryByTag(memoryType as any)[0];
+      const loc = block.getMemoryByTag(memoryType as unknown as MemoryTag)[0];
 
       if (loc?.metrics[0]) {
         const currentValue = loc.metrics[0].value;
-        let newValue: any;
+        let newValue: Record<string, unknown> | number;
 
         // Handle different memory shapes
         if (typeof currentValue === 'object' && currentValue !== null) {
-          newValue = { ...currentValue };
+          const obj: Record<string, unknown> = { ...(currentValue as Record<string, unknown>) };
           if (this.params.currentReps !== undefined) {
-            newValue.currentReps = this.params.currentReps;
-            newValue.reps = this.params.currentReps;
+            obj.currentReps = this.params.currentReps;
+            obj.reps = this.params.currentReps;
           }
           if (this.params.targetReps !== undefined) {
-            newValue.targetReps = this.params.targetReps;
-            newValue.target = this.params.targetReps;
+            obj.targetReps = this.params.targetReps;
+            obj.target = this.params.targetReps;
           }
           if (this.params.isComplete !== undefined) {
-            newValue.isComplete = this.params.isComplete;
-            newValue.complete = this.params.isComplete;
+            obj.isComplete = this.params.isComplete;
+            obj.complete = this.params.isComplete;
           }
+          newValue = obj;
         } else if (typeof currentValue === 'number') {
           // Simple number value (like metric:reps)
           newValue = this.params.currentReps ?? currentValue;

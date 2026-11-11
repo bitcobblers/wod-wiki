@@ -4,7 +4,7 @@
  * Tests metric parsing for weight formats, distance variants, rep schemes,
  * group markers, forced timers, and metric origins.
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { parse } from '../helpers/parser-test-utils';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 

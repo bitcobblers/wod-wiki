@@ -1,12 +1,12 @@
-import { JitCompiler } from '../../../src/runtime/compiler';
-import { IRuntimeBlockStrategy } from '../../../src/runtime/contracts';
+import { JitCompiler } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeBlockStrategy } from '@bitcobblers/wod-wiki-lang';
 
-import { ScriptRuntime } from '../../../src/runtime/ScriptRuntime';
-import { createParser } from '../../../src/parser/parserInstance';
-import { RuntimeStack } from '../../../src/runtime/RuntimeStack';
-import { EventBus } from '../../../src/runtime/events';
-import { createMockClock, type MockClock } from '../../../src/runtime/RuntimeClock';
-import { WhiteboardScript } from '../../../src/parser/WhiteboardScript';
+import { ScriptRuntime } from '@bitcobblers/wod-wiki-lang';
+import { createParser } from '@bitcobblers/wod-wiki-lang';
+import { RuntimeStack } from '@bitcobblers/wod-wiki-lang';
+import { EventBus } from '@bitcobblers/wod-wiki-lang';
+import { createMockClock, type MockClock } from '@bitcobblers/wod-wiki-lang';
+import { WhiteboardScript } from '@bitcobblers/wod-wiki-lang';
 import { ICodeStatement } from '@bitcobblers/wod-wiki-core';
 
 export interface RuntimeSnapshot {

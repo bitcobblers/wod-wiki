@@ -1,22 +1,22 @@
 import { BlockKey } from '@bitcobblers/wod-wiki-core';
-import { IRuntimeAction } from '../../../src/runtime/contracts/IRuntimeAction';
-import { IRuntimeBehavior } from '../../../src/runtime/contracts/IRuntimeBehavior';
-import { BlockLifecycleOptions, CompletionDecision, IRuntimeBlock } from '../../../src/runtime/contracts/IRuntimeBlock';
-import type { IRuntimeActionable } from '../../../src/runtime/contracts/primitives/IRuntimeActionable';
-import { IScriptRuntime } from '../../../src/runtime/contracts/IScriptRuntime';
-import { IBlockContext } from '../../../src/runtime/contracts/IBlockContext';
-import type { InterceptMode, TestableBlockConfig } from '../../../src/runtime/contracts/ITestableBlockConfig';
+import { IRuntimeAction } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeBehavior } from '@bitcobblers/wod-wiki-lang';
+import { BlockLifecycleOptions, CompletionDecision, IRuntimeBlock } from '@bitcobblers/wod-wiki-lang';
+import type { IRuntimeActionable } from '@bitcobblers/wod-wiki-lang';
+import { IScriptRuntime } from '@bitcobblers/wod-wiki-lang';
+import { IBlockContext } from '@bitcobblers/wod-wiki-lang';
+import type { InterceptMode, TestableBlockConfig } from '@bitcobblers/wod-wiki-lang';
 
 // Re-export so existing consumers of this module continue to work
-export type { InterceptMode, TestableBlockConfig } from '../../../src/runtime/contracts/ITestableBlockConfig';
+export type { InterceptMode, TestableBlockConfig } from '@bitcobblers/wod-wiki-lang';
 
 /**
  * Recorded method call for inspection
  */
 export interface MethodCall {
   method: keyof IRuntimeBlock;
-  args: any[];
-  returnValue?: any;
+  args: unknown[];
+  returnValue?: unknown;
   timestamp: number;
   duration: number;
   error?: Error;
@@ -30,7 +30,7 @@ export interface MemoryOperation {
   type: string;
   ownerId: string;
   refId?: string;
-  value?: any;
+  value?: unknown;
   timestamp: number;
 }
 
@@ -236,26 +236,26 @@ export class TestableBlock implements IRuntimeBlock {
   }
 
   getBehavior<B extends IRuntimeBehavior>(
-    behaviorType: new (...args: any[]) => B
+    behaviorType: new (...args: unknown[]) => B
   ): B | undefined {
     return this._wrapped.getBehavior(behaviorType);
   }
 
   // ========== Block-Owned Memory ==========
 
-  pushMemory(location: import('../../runtime/memory/MemoryLocation').IMemoryLocation): void {
+  pushMemory(location: import('@bitcobblers/wod-wiki-lang').IMemoryLocation): void {
     this._wrapped.pushMemory(location);
   }
 
-  getMemoryByTag(tag: import('../../runtime/memory/MemoryLocation').MemoryTag): import('../../runtime/memory/MemoryLocation').IMemoryLocation[] {
+  getMemoryByTag(tag: import('@bitcobblers/wod-wiki-lang').MemoryTag): import('@bitcobblers/wod-wiki-lang').IMemoryLocation[] {
     return this._wrapped.getMemoryByTag(tag);
   }
 
-  getAllMemory(): import('../../runtime/memory/MemoryLocation').IMemoryLocation[] {
+  getAllMemory(): import('@bitcobblers/wod-wiki-lang').IMemoryLocation[] {
     return this._wrapped.getAllMemory();
   }
 
-  getMetricMemoryByVisibility(visibility: import('../../runtime/memory/MetricVisibility').MetricVisibility): import('../../runtime/memory/MemoryLocation').IMemoryLocation[] {
+  getMetricMemoryByVisibility(visibility: import('@bitcobblers/wod-wiki-lang').MetricVisibility): import('@bitcobblers/wod-wiki-lang').IMemoryLocation[] {
     return this._wrapped.getMetricMemoryByVisibility(visibility);
   }
 

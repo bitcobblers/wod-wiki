@@ -10,6 +10,8 @@ import { resolve } from 'node:path';
 // are declared explicitly (string-form globs don't inherit these aliases in
 // Vitest 4); ui keeps its own config for jsdom + testing-library setup.
 const workspaceAliases = {
+  '@wod-wiki/lang-harness': resolve(import.meta.dirname, 'packages/lang/tests/harness'),
+  '@bitcobblers/wod-wiki-core/testing': resolve(import.meta.dirname, 'packages/core/src/testing.ts'),
   '@bitcobblers/wod-wiki-core': resolve(import.meta.dirname, 'packages/core/src'),
   '@bitcobblers/wod-wiki-storage': resolve(import.meta.dirname, 'packages/storage/src'),
   '@bitcobblers/wod-wiki-lang': resolve(import.meta.dirname, 'packages/lang/src'),
@@ -41,10 +43,21 @@ export default defineConfig({
       {
         test: {
           name: 'contract',
-          include: ['tests/contract/**/*.test.ts'],
+          include: [
+            'apps/playground/tests/contract/**/*.test.ts',
+            'apps/playground/tests/parser-compliance/*.parser.test.ts',
+            'apps/playground/tests/language-compilation/**/*.test.ts',
+          ],
+          globals: true,
           environment: 'node',
         },
-        resolve: { alias: workspaceAliases },
+        resolve: {
+          alias: {
+            ...workspaceAliases,
+            '@/testing': resolve(import.meta.dirname, 'apps/playground/tests/testing'),
+            '@': resolve(import.meta.dirname, 'apps/playground/src'),
+          },
+        },
       },
     ],
   },

@@ -1,21 +1,19 @@
-import { ScriptRuntime } from '../../../src/runtime/ScriptRuntime';
-import { FakeRpcTransport } from '../transport/FakeRpcTransport';
-import type { MockClock } from '../../../src/runtime/RuntimeClock';
-import type { StackSnapshot } from '../../../src/runtime/contracts/IRuntimeStack';
-import type { IRuntimeBlock } from '../../../src/runtime/contracts/IRuntimeBlock';
-import type { WhiteboardScript } from '../../../src/parser/WhiteboardScript';
+import { ScriptRuntime } from '@bitcobblers/wod-wiki-lang';
+import { RuntimeStack } from '@bitcobblers/wod-wiki-lang';
+import { EventBus } from '@bitcobblers/wod-wiki-lang';
+import { createMockClock } from '@bitcobblers/wod-wiki-lang';
+import type { MockClock } from '@bitcobblers/wod-wiki-lang';
+import { createParser } from '@bitcobblers/wod-wiki-lang';
+import type { WhiteboardScript } from '@bitcobblers/wod-wiki-lang';
+import { StartSessionAction } from '@bitcobblers/wod-wiki-lang';
+import { NextEvent } from '@bitcobblers/wod-wiki-lang';
+import type { StackSnapshot } from '@bitcobblers/wod-wiki-lang';
+import type { IRuntimeBlock } from '@bitcobblers/wod-wiki-lang';
+import type { RuntimeStackOptions } from '@bitcobblers/wod-wiki-lang';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-core';
-
-import { RuntimeStack } from '../../../src/runtime/RuntimeStack';
-import { EventBus } from '../../../src/runtime/events';
-import { createMockClock } from '../../../src/runtime/RuntimeClock';
-import { createParser } from '../../../src/parser/parserInstance';
-import { StartSessionAction } from '../../../src/runtime/actions/stack/StartSessionAction';
-import { NextEvent } from '../../../src/runtime/events/NextEvent';
-import { ChromecastRuntimeSubscription } from '../../../src/services/cast/rpc/ChromecastRuntimeSubscription';
-import { connectPair } from '../transport/FakeRpcTransport';
-import { createCompiler } from '../compiler'
-import { ScriptState } from '../script/ScriptState';
+import { FakeRpcTransport, connectPair } from '../transport/FakeRpcTransport';
+import { createCompiler } from '../compiler';
+import { ScriptState } from './ScriptState';
 
 export interface TestScriptConfig {
     /** Inject a pre-built ScriptRuntime. If omitted, the script starts blank. */
@@ -24,26 +22,40 @@ export interface TestScriptConfig {
     clock?: MockClock;
     /** The cast-side transport (paired with a browser-side fake). */
     castTransport?: FakeRpcTransport;
+    /** Runtime options — e.g. the run's sound configuration. */
+    options?: RuntimeStackOptions;
+    /**
+     * Observer for stack snapshots, handed the paired cast transport. Harnesses
+     * that mirror a cast subscription (e.g. the playground wrapper feeding
+     * ChromecastRuntimeSubscription) hook in here, keeping this module free of
+     * app-level service imports.
+     */
+    onStackSnapshot?: (snapshot: StackSnapshot, castTransport: FakeRpcTransport) => void;
 }
 
 export class TestScript {
     readonly runtime: ScriptRuntime;
     readonly cast: FakeRpcTransport;
     private readonly _clock: MockClock;
+    private readonly _onStackSnapshot: TestScriptConfig['onStackSnapshot'];
     private readonly _stackHistory: Array<{ type: 'push' | 'pop' | 'clear' | 'initial'; block?: IRuntimeBlock; depth: number; at: Date }> = [];
     private readonly _outputs: IOutputStatement[] = [];
-    private readonly _castSubscription: ChromecastRuntimeSubscription;
     private readonly _stackUnsub: () => void;
     private readonly _outputUnsub: () => void;
 
-    private constructor(runtime: ScriptRuntime, clock: MockClock, cast: FakeRpcTransport) {
+    private constructor(
+        runtime: ScriptRuntime,
+        clock: MockClock,
+        cast: FakeRpcTransport,
+        onStackSnapshot?: TestScriptConfig['onStackSnapshot'],
+    ) {
         this.runtime = runtime;
         this._clock = clock;
         this.cast = cast;
-        this._castSubscription = new ChromecastRuntimeSubscription(cast);
+        this._onStackSnapshot = onStackSnapshot;
         this._stackUnsub = runtime.subscribeToStack((snapshot) => {
             this._recordSnapshot(snapshot);
-            this._castSubscription.onStackSnapshot(snapshot);
+            this._onStackSnapshot?.(snapshot, cast);
         });
         this._outputUnsub = runtime.subscribeToOutput((output) => {
             this._outputs.push(output);
@@ -65,13 +77,13 @@ export class TestScript {
         const clock = config?.clock ?? createMockClock(new Date('2024-01-01T12:00:00Z'));
         const stack = new RuntimeStack();
         const eventBus = new EventBus();
-        const runtime = config?.runtime ?? new ScriptRuntime(script, compiler, { stack, clock, eventBus });
+        const runtime = config?.runtime ?? new ScriptRuntime(script, compiler, { stack, clock, eventBus }, config?.options);
         const castTransport = config?.castTransport ?? new FakeRpcTransport();
         if (!config?.castTransport) {
             const browserFake = new FakeRpcTransport();
             connectPair(browserFake, castTransport);
         }
-        const ts = new TestScript(runtime, clock, castTransport);
+        const ts = new TestScript(runtime, clock, castTransport, config?.onStackSnapshot);
         runtime.do(new StartSessionAction());
         await ts.flushObservers();
         return ts;
@@ -84,9 +96,8 @@ export class TestScript {
             const browserFake = new FakeRpcTransport();
             connectPair(browserFake, castTransport);
         }
-        return new TestScript(runtime, clock, castTransport);
+        return new TestScript(runtime, clock, castTransport, config?.onStackSnapshot);
     }
-
 
     /** Capture a frozen ScriptState snapshot of the current state. */
     async snapshot(): Promise<ScriptState> {
@@ -109,7 +120,6 @@ export class TestScript {
         await this.flushObservers();
         return this;
     }
-
 
     /** Advance the mock clock by ms. Does NOT auto-dispatch a tick event. */
     async advance(ms: number): Promise<this> {
@@ -165,7 +175,6 @@ export class TestScript {
     async dispose(): Promise<void> {
         this._stackUnsub();
         this._outputUnsub();
-        this._castSubscription.dispose();
         this.runtime.dispose();
         this.cast.dispose();
     }

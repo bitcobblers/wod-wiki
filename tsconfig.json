@@ -29,6 +29,7 @@
     ],
     "paths": {
       "@/*": ["./apps/playground/src/*"],
+      "@bitcobblers/wod-wiki-core/testing": ["./packages/core/src/testing.ts"],
       "@bitcobblers/wod-wiki-core": ["./packages/core/src/index.ts"],
       "@bitcobblers/wod-wiki-lang": ["./packages/lang/src/index.ts"],
       "@bitcobblers/wod-wiki-lang/react": ["./packages/lang/src/react.ts"],

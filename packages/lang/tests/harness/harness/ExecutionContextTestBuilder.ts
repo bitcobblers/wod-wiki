@@ -1,9 +1,9 @@
 import { ExecutionContextTestHarness, HarnessConfig } from '../harness/ExecutionContextTestHarness';
-import { IRuntimeBlock } from '../../../src/runtime/contracts/IRuntimeBlock';
-import { IRuntimeBlockStrategy } from '../../../src/runtime/contracts/IRuntimeBlockStrategy';
-import { IEventHandler } from '../../../src/runtime/contracts/events/IEventHandler';
+import { IRuntimeBlock } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeBlockStrategy } from '@bitcobblers/wod-wiki-lang';
+import { IEventHandler } from '@bitcobblers/wod-wiki-lang';
 import { ICodeStatement } from '@bitcobblers/wod-wiki-core';
-import { IScriptRuntime } from '../../../src/runtime/contracts/IScriptRuntime';
+import { IScriptRuntime } from '@bitcobblers/wod-wiki-lang';
 
 /**
  * Block matcher predicate function type.
