@@ -50,17 +50,16 @@ reference, before changing code.
 - Constants: `UPPER_SNAKE_CASE`
 - Utilities & non-component files: `camelCase`
 
-**Testing**: Use the test harness from `tests/harness/` (`BehaviorTestHarness`, `MockBlock`, `RuntimeTestBuilder`) instead of inline mocks. Co-locate test files with source using `.test.ts` or `.spec.ts` suffix.
+**Testing**: Load [`skills/wod-wiki-testing/SKILL.md`](../skills/wod-wiki-testing/SKILL.md) and [`skills/wod-wiki-testing/references/catalog.md`](../skills/wod-wiki-testing/references/catalog.md). Compose canonical domain fixtures from `@bitcobblers/wod-wiki-core/testing`, engine cross-domain flows from `DomainScenarioHarness` (`packages/engine/tests/harness/DomainScenarioHarness.ts`), Playground UI/hook tests from `@/testing/host` (`apps/playground/src/testing/host.tsx`), Storybook state/action tests from `apps/storybook/src/testing/`, and Playwright journeys from `PlaygroundTestActor` (`e2e/fixtures/playgroundActor.ts`).
 
 ### Architecture Awareness
 
-When generating code that touches these subsystems, understand their patterns:
+When generating code that touches these monorepo workspaces, understand their patterns:
 
-- **Parser** (`src/parser/`, `src/grammar/`): Lezer-based (CodeMirror's LR parser), not Chevrotain. Grammar (`src/grammar/whiteboardscript.grammar`) → CST → `syntax-parser.ts` (typed primitives + indentation tree) → `semantic-classifier.ts` (primitives → `IMetric`s) → dialect stack (`src/dialects/`, e.g. unit fusion). Changes to syntax require updating the grammar, the primitive mapping, and the classifier together.
-- **Runtime** (`src/runtime/`): Stack-based execution with JIT compilation (`src/runtime/compiler/JitCompiler.ts`). Compilation is lazy — blocks compile as they're pushed, not upfront. Blocks use constructor-based init and require consumer-managed `dispose()`.
-- **Metrics** (`src/core/models/Metric.ts`, `src/runtime/compiler/metrics/`): There is no `src/fragments/` directory — typed `IMetric` objects (RepMetric, EffortMetric, DurationMetric, etc.), each carrying an `origin`, replaced the old fragment system as the universal data currency from parsing through logged output.
-- **Editor** (`src/editor/`): CodeMirror 6 editor integration with custom language support.
-
+- **Core & Storage** (`packages/core/`, `packages/storage/`): Canonical domain records (`Note`, `BlockRevision`, `Session`, `EventRecord`, `ScopedPropertyOverride`, `Feed`), portability codecs, and `IStorage` adapters (`InMemoryStorage`, `SqlStorage`, `IndexedDBStorage`).
+- **Parser & WQL** (`packages/lang/`, `packages/wql/`): Lezer-based Whiteboard Script grammar (`packages/lang/src/grammar/whiteboardscript.grammar`) → syntax primitives → semantic classifier → dialect stack, plus the Lezer WQL query compiler and `QueryService` (`packages/wql/src/`).
+- **Engine** (`packages/engine/`): Headless root (`.`) and React subpath (`/react`) for the stack-based JIT runtime (`JitCompiler`, `RuntimeStack`), `Metric Shake-Out Queue`, `Session` recording, and `Feed` sync. Blocks require consumer-managed `dispose()`.
+- **Playground & Storybook** (`apps/playground/`, `apps/storybook/`): Vite + React Playground app (`@/*` -> `apps/playground/src/*`) and Storybook 10 workbench (`@bitcobblers/wod-wiki-ui` + Playground organisms).
 ### What NOT to Do
 - Do not introduce `npm`/`yarn` commands or lock files
 - Do not add custom CSS — use Tailwind utilities
@@ -75,12 +74,11 @@ Playwright e2e tests are **acceptance gates** — UI/layout/interaction changes 
 
 **Workflow when making UI changes:**
 1. Implement the feature or fix.
-2. **Write or update an e2e test** in `e2e/` (suffix: `*.e2e.ts`) that validates the change from the user's perspective.
-3. Reuse page objects from `e2e/pages/` and assertion helpers from `e2e/utils/`.
+2. **Write or update the two-level E2E journey**: author or update `e2e/specs/<domain>/<journey>.md` first, link `// spec: e2e/specs/<domain>/<journey>.md` at line 1 of `e2e/live-app/<journey>.e2e.ts`, and verify parity with `bun scripts/check-e2e-specs.ts`.
+3. Drive browser interactions through `PlaygroundTestActor` (`e2e/fixtures/playgroundActor.ts`) and `TEST_IDS` (`apps/playground/src/lib/testIds.ts`) rather than ad-hoc IndexedDB scripts or literal selectors.
 4. For layout changes, test both mobile (375×812) and desktop viewports.
-5. Run targeted e2e (day-to-day) or `bun run test:e2e` (milestones) and confirm it passes — see the targeted-vs-milestone policy in `docs/development/validation.md`.
+5. Run targeted preview E2E (`E2E_TARGET=preview` / `bun run test:e2e:preview`) for day-to-day UI gates or `bun run test:e2e` for milestones — see `docs/development/validation.md`.
 6. Use `page.screenshot()` to capture visual state for debugging.
-
 **When to write e2e tests:**
 - New UI components or pages
 - Layout changes (sticky positioning, responsive behavior, scroll behavior)
@@ -92,22 +90,11 @@ Playwright e2e tests are **acceptance gates** — UI/layout/interaction changes 
 - Internal logic changes fully covered by unit tests
 - Type-only changes
 
-### Integration Testing Skill
+### Unified Testing Skill
 
-For writing stories with `play()` functions, Playwright page objects, state validation, visual regression, or choosing the right test archetype, load the project integration testing skill:
+For choosing the right test tier (Domain Scenario vs Storybook State + `play()` vs Playground Host vs Two-Level Markdown + Playwright E2E) and copying exact builder/actor signatures without scanning test files, load:
 
-**File**: `docs/testing/storybook-playwright-integration.skill.md`
-
-This skill covers:
-- **5 test archetypes** (UNIT → STORY-SMOKE → STORY-INTERACT → ACCEPTANCE → LIVE-APP)
-- Decision tree for choosing the right archetype
-- Storybook 10 + `@storybook/addon-vitest` `play()` function patterns
-- Playwright 1.57 state validation with `extractRuntimeState` + `RuntimeAssertions`
-- Page Object Model templates
-- `TestIdContract` usage
-- Visual regression with `toHaveScreenshot`
-- Flakiness prevention rules
-
+**File**: `skills/wod-wiki-testing/SKILL.md` (mirrored at `.agents/skills/wod-wiki-testing/SKILL.md`, with copy-ready APIs in `skills/wod-wiki-testing/references/catalog.md`).
 ### Validation Checklist
 
 Follow `docs/development/validation.md` for the current checks, targeted preview
