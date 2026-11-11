@@ -22,7 +22,7 @@
  *    tour outro instead.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ComponentProps } from 'react'
 import { Link } from 'react-router-dom'
 import { Play } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -62,16 +62,41 @@ const HOME_DEMO_SOURCE = 'wods/examples/home/welcome-1.md'
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
+import type { NoteEditorProps } from '@/components/organisms/editor/NoteEditor'
+import type { TourJumpSectionFeedDeps } from './TourJumpSection'
+
+export interface HomeTourDeps {
+  /** Test seam: controlled run lifecycle (defaults to the real hook). */
+  usePlaygroundRun?: typeof usePlaygroundRun
+  useQuickStartAutoComplete?: typeof useQuickStartAutoComplete
+  useCompletionChallenge?: typeof useCompletionChallenge
+  useRunStartedChallenge?: typeof useRunStartedChallenge
+  useTourScrollQuests?: typeof useTourScrollQuests
+  toast?: (props: Parameters<typeof toast>[0]) => unknown
+}
+
 export interface HomeTourProps {
   wodFiles: Record<string, string>
   theme: string
   /** Quick-start quests from the home canvas markdown. */
   quests: Quest[]
+  /** Test seam: replaces the CodeMirror editor inside the live preview. */
+  editorSlot?: ComponentType<NoteEditorProps>
+  /** Test seam: replaces the fullscreen timer overlay. */
+  timerSlot?: ComponentType<ComponentProps<typeof FullscreenTimer>>
+  /** Test seam: hook/toast overrides (production defaults). */
+  deps?: HomeTourDeps
+  /** Test seam: forwarded to TourJumpSection's feed services. */
+  jumpFeedDeps?: Partial<TourJumpSectionFeedDeps>
 }
 
-// ── Inner (needs RingTargetsContext) ──────────────────────────────────────────
-
-function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
+function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, jumpFeedDeps }: HomeTourProps) {
+  const runHook = deps?.usePlaygroundRun ?? usePlaygroundRun
+  const qsAutoComplete = deps?.useQuickStartAutoComplete ?? useQuickStartAutoComplete
+  const completionChallenge = deps?.useCompletionChallenge ?? useCompletionChallenge
+  const runStartedChallenge = deps?.useRunStartedChallenge ?? useRunStartedChallenge
+  const tourScrollQuests = deps?.useTourScrollQuests ?? useTourScrollQuests
+  const toastFn = deps?.toast ?? toast
   const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const telemetry = useTelemetry()
   const track = telemetry?.track
@@ -103,7 +128,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
   const editedRecordedRef = useRef(false)
 
   // ── Playground run identity (usePlaygroundRun — fresh note per run) ──
-  const { run, start, finalize, end } = usePlaygroundRun()
+  const { run, start, finalize, end } = runHook()
   const runRef = useRef(run)
   runRef.current = run
   // Whether the current run's execution ever left idle (panel onRunStarted)
@@ -161,7 +186,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
       console.error('[HomeTour] failed to persist playground run note:', err)
       setFullscreenOpen(false)
       setActiveBlock(null)
-      toast({
+      toastFn({
         title: 'Could not start workout',
         description: 'The playground entry could not be saved.',
         variant: 'destructive',
@@ -185,7 +210,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
         unsavedRef.current = null
       } catch (err) {
         console.error('[HomeTour] retry save failed:', err)
-        toast({
+        toastFn({
           title: 'Session still not saved',
           description: 'The run is kept — try again.',
           variant: 'destructive',
@@ -312,19 +337,19 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
   }, [prefersReducedMotion, resetEditorToArrival])
 
   // ── Quest + challenge hooks ──
-  useQuickStartAutoComplete({
+  qsAutoComplete({
     pageRoute: '/',
     quests,
     initialSource: initialContent,
     currentSource: doc,
   })
-  useCompletionChallenge({ pageRoute: '/', quests, completedResults: recordedSession })
+  completionChallenge({ pageRoute: '/', quests, completedResults: recordedSession })
 
-  const markStageViewed = useTourScrollQuests('/', quests)
+  const markStageViewed = tourScrollQuests('/', quests)
   markStageViewedRef.current = markStageViewed
 
   // Chapter runs validate their own quest; explicit home runs validate this one.
-  useRunStartedChallenge({ pageRoute: '/', quests, running: demoRunning })
+  runStartedChallenge({ pageRoute: '/', quests, running: demoRunning })
 
   // Insights scroll quest: first time the session-analytics section enters
   // the viewport, qs-tour-analytics completes (no validation → scroll-only).
@@ -460,7 +485,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
           externalStopRef.current = false
           setExternalStop(false)
           pendingActionRef.current = null
-          toast({
+          toastFn({
             title: 'Session not saved',
             description: 'The run could not be recorded. Nothing was lost — your next action retries the save.',
             variant: 'destructive',
@@ -524,8 +549,9 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
   useSectionScrollSpy(spyIds)
 
   const fullscreenBlock = run?.block ?? activeBlock
+  const TimerOverlay = timerSlot ?? FullscreenTimer
   const fullscreen = fullscreenOpen && fullscreenBlock && (
-    <FullscreenTimer
+    <TimerOverlay
       key={timerSessionKey}
       block={fullscreenBlock}
       resultId={run?.resultId}
@@ -579,6 +605,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
           onDocChange={handleDocChange}
           onBlocksChange={handleBlocksChange}
           onRun={handleRun}
+          editorSlot={editorSlot}
         />
       </MacOSChrome>
     </ScrollGate>
@@ -633,7 +660,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
           {editorBlock}
         </section>
         <InsightsDashboardsSection session={recordedSession} onRun={handleRun} onBackToEditor={handleBackToEditor} />
-        <TourJumpSection />
+        <TourJumpSection feedDeps={jumpFeedDeps} />
         {offeringsBlock}
         <GuideIndexFooter variant="university" />
         <TourFooter />
@@ -671,7 +698,7 @@ function HomeTourInner({ wodFiles, theme, quests }: HomeTourProps) {
 
       {/* Library & Community Feeds — collections/packages land above the
           data-ownership sections. */}
-      <TourJumpSection />
+      <TourJumpSection feedDeps={jumpFeedDeps} />
 
       {offeringsBlock}
 

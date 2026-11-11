@@ -67,8 +67,13 @@ function buildRunBlock(entry: Entry, content: string): ScriptBlock {
   }
 }
 
+/** Optional dependency overrides — production journal adoption by default (test seam). */
+export interface StartEntryRunDeps {
+  createJournalNoteFromWorkout?: typeof createJournalNoteFromWorkout
+}
+
 /** Stage the pending runtime and navigate — the single Run seam for the feed. */
-export async function startEntryRun(entry: Entry, navigate: NavigateFunction): Promise<void> {
+export async function startEntryRun(entry: Entry, navigate: NavigateFunction, deps: StartEntryRunDeps = {}): Promise<void> {
   const content = await resolveWodScript(entry)
   const block = buildRunBlock(entry, content)
   const runtimeId = uuidv7()
@@ -90,7 +95,8 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction): P
   }
 
   // Catalog adoption (existing behavior): the run lands in today's journal.
-  const journalNote = await createJournalNoteFromWorkout({
+  const adopt = deps.createJournalNoteFromWorkout ?? createJournalNoteFromWorkout
+  const journalNote = await adopt({
     workoutName: entry.title,
     category: entry.sourceNotebook,
     sourceNoteId: entry.id,

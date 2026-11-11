@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, mock, vi } from 'bun:test';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { usePlaygroundContent, LOAD_TIMEOUT_MS } from './usePlaygroundContent';
 import type { NoteBlock } from '@/types/storage';
 
 interface SavedPage { id: string; content: string; sourceRevision: number; noteBlocks: Record<string, NoteBlock> }
@@ -7,31 +8,30 @@ const savedPages: SavedPage[] = [];
 const existingPages = new Map<string, SavedPage>();
 let getPageOverride: (() => Promise<SavedPage | undefined>) | null = null;
 let failure: Error | null = null;
-mock.module('../services/playgroundContent', () => ({
-  pageId: (category: string, name: string) => `${category}/${name}`,
-  playgroundContent: { getPage: async (id: string) => getPageOverride ? getPageOverride() : existingPages.get(id) },
-}));
-mock.module('@/services/persistence', () => ({ notePersistence: {
-  saveNote: async (input: { noteId: string; rawContent: string; blocks: Record<string, NoteBlock>; expectedSourceRevision: number }) => {
-    if (failure) throw failure;
-    const existing = existingPages.get(input.noteId);
-    if ((existing?.sourceRevision ?? 0) !== input.expectedSourceRevision) throw new Error('stale source');
-    const sourceRevision = input.expectedSourceRevision + 1;
-    const blocks = Object.fromEntries(Object.entries(input.blocks).map(([id, block]) => [id, { ...block, sourceRevision }]));
-    const page = { id: input.noteId, content: input.rawContent, sourceRevision, noteBlocks: blocks };
-    existingPages.set(page.id, page);
-    savedPages.push(page);
-    return { id: page.id, rawContent: page.content, blocks, sourceRevision };
-  },
-} }));
-const hookModule = import('./usePlaygroundContent');
+
+// Injected via the hook's deps seam (production defaults are the real
+// playgroundContent/notePersistence singletons). Fakes read module-scope
+// state, reset per test in afterEach.
+const fakePages = { getPage: async (id: string) => (getPageOverride ? getPageOverride() : existingPages.get(id)) };
+const fakePersistence = { saveNote: async (input: { noteId: string; rawContent: string; blocks: Record<string, NoteBlock>; expectedSourceRevision: number }) => {
+  if (failure) throw failure;
+  const existing = existingPages.get(input.noteId);
+  if ((existing?.sourceRevision ?? 0) !== input.expectedSourceRevision) throw new Error('stale source');
+  const sourceRevision = input.expectedSourceRevision + 1;
+  const blocks = Object.fromEntries(Object.entries(input.blocks).map(([id, block]) => [id, { ...block, sourceRevision }]));
+  const page = { id: input.noteId, content: input.rawContent, sourceRevision, noteBlocks: blocks };
+  existingPages.set(page.id, page);
+  savedPages.push(page);
+  return { id: page.id, rawContent: page.content, blocks, sourceRevision };
+} };
+const fakeDeps = { playgroundContent: fakePages, notePersistence: fakePersistence };
+
 afterEach(() => { vi.useRealTimers(); getPageOverride = null; failure = null; savedPages.length = 0; existingPages.clear(); });
 
 describe('usePlaygroundContent', () => {
   it('flushes matching source and identities on unmount', async () => {
     existingPages.set('journal/day', { id: 'journal/day', content: 'original', sourceRevision: 1, noteBlocks: {} });
-    const { usePlaygroundContent } = await hookModule;
-    const { result, unmount } = renderHook(() => usePlaygroundContent({ category: 'journal', name: 'day', mdContent: 'original' }));
+    const { result, unmount } = renderHook(() => usePlaygroundContent({ category: 'journal', name: 'day', mdContent: 'original' }, fakeDeps));
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.onChange('edited'));
     unmount();
@@ -41,9 +41,8 @@ describe('usePlaygroundContent', () => {
 
   it('preserves a draft but refuses saving fallback content after loading times out', async () => {
     getPageOverride = () => new Promise<SavedPage | undefined>(() => {});
-    const { usePlaygroundContent, LOAD_TIMEOUT_MS } = await hookModule;
     vi.useFakeTimers();
-    const { result } = renderHook(() => usePlaygroundContent({ category: 'girls', name: 'ghost', mdContent: 'bundled' }));
+    const { result } = renderHook(() => usePlaygroundContent({ category: 'girls', name: 'ghost', mdContent: 'bundled' }, fakeDeps));
     act(() => vi.advanceTimersByTime(LOAD_TIMEOUT_MS));
     expect(result.current.loading).toBe(false);
     expect(result.current.content).toBe('bundled');
@@ -56,14 +55,13 @@ describe('usePlaygroundContent', () => {
   });
 
   it('seeds missing content unless seedOnMount is false', async () => {
-    const { usePlaygroundContent } = await hookModule;
-    const seeded = renderHook(() => usePlaygroundContent({ category: 'journal', name: 'day', mdContent: 'bundled' }));
+    const seeded = renderHook(() => usePlaygroundContent({ category: 'journal', name: 'day', mdContent: 'bundled' }, fakeDeps));
     await waitFor(() => expect(seeded.result.current.loading).toBe(false));
     expect(savedPages).toHaveLength(1);
     expect(seeded.result.current.sourceRevision).toBe(1);
     seeded.unmount();
     savedPages.length = 0;
-    const { result } = renderHook(() => usePlaygroundContent({ category: 'feed', name: 'new', mdContent: 'bundled', seedOnMount: false }));
+    const { result } = renderHook(() => usePlaygroundContent({ category: 'feed', name: 'new', mdContent: 'bundled', seedOnMount: false }, fakeDeps));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(savedPages).toHaveLength(0);
     act(() => result.current.onChange('first edit'));
@@ -72,8 +70,7 @@ describe('usePlaygroundContent', () => {
   });
 
   it('keeps a rejected draft and retries without advancing the committed marker', async () => {
-    const { usePlaygroundContent } = await hookModule;
-    const { result } = renderHook(() => usePlaygroundContent({ category: 'journal', name: 'day', mdContent: 'original' }));
+    const { result } = renderHook(() => usePlaygroundContent({ category: 'journal', name: 'day', mdContent: 'original' }, fakeDeps));
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.onChange('draft'));
     failure = new Error('commit failed');
@@ -90,12 +87,11 @@ describe('usePlaygroundContent', () => {
   });
 
   it('does not replace a newer same-source occurrence map with an older saved map', async () => {
-    const { usePlaygroundContent } = await hookModule;
     const source = '```time\n10 Pushups\n```';
     const block = { id: 'first', kind: 'wod' as const, dialect: 'time' as const, version: 1,
       sourceRevision: 1, from: 0, to: source.length };
     existingPages.set('journal/day', { id: 'journal/day', content: source, sourceRevision: 1, noteBlocks: { first: block } });
-    const { result, unmount } = renderHook(() => usePlaygroundContent({ category: 'journal', name: 'day', mdContent: source }));
+    const { result, unmount } = renderHook(() => usePlaygroundContent({ category: 'journal', name: 'day', mdContent: source }, fakeDeps));
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.onIdentityChange({ rawContent: source, noteBlocks: { second: { ...block, id: 'second' } }, sourceRevision: 1 }));
     act(() => result.current.onSaved({ rawContent: source, blocks: { first: block }, sourceRevision: 2 }));

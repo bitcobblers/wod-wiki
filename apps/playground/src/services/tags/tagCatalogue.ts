@@ -237,3 +237,8 @@ export function subscribeTagIndex(listener: TagIndexListener): () => void {
     listeners.add(listener)
     return () => listeners.delete(listener)
 }
+
+export function resetTagIndexForTesting(): void {
+    cachedTagIndex = indexFrom(builtinExampleDefinitions())
+    loadPromise = null
+}

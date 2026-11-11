@@ -20,8 +20,17 @@ import { decodeZip } from '../services/decodeZip';
 import { parseJournalDate } from '../services/parseJournalDate';
 import { getTodayDateKey, isDateInPast } from '../services/dateUtils';
 import { notePath, ROUTE_PATTERNS } from '../lib/routes';
-import { journalNotes } from '../services/journalNotes';
+import { journalNotes, type CreateJournalNoteInput } from '../services/journalNotes';
 import { toast } from '@/hooks/use-toast';
+
+/** Optional dependency overrides — production singletons by default (test seam). */
+export interface UseJournalZipProcessorDeps {
+  decodeZip?: typeof decodeZip;
+  getTodayDateKey?: typeof getTodayDateKey;
+  isDateInPast?: typeof isDateInPast;
+  journalNotes?: { create: (input: CreateJournalNoteInput) => Promise<unknown> };
+  toast?: (props: Parameters<typeof toast>[0]) => unknown;
+}
 
 export interface JournalZipProcessorState {
   state:
@@ -39,7 +48,9 @@ export interface JournalZipProcessorState {
   onRetry?: () => void;
 }
 
-export function useJournalZipProcessor(): JournalZipProcessorState {
+export function useJournalZipProcessor(deps: UseJournalZipProcessorDeps = {}): JournalZipProcessorState {
+  const { decodeZip: decode = decodeZip, getTodayDateKey: today = getTodayDateKey,
+    isDateInPast: inPast = isDateInPast, journalNotes: notes = journalNotes, toast: showToast = toast } = deps;
   const navigate = useNavigate();
   const location = useLocation();
   const { date: dateParam } = useParams<{ date?: string }>();
@@ -71,7 +82,7 @@ export function useJournalZipProcessor(): JournalZipProcessorState {
         // Step 1: Decode the zip
         let content: string;
         try {
-          content = await decodeZip(zip);
+          content = await decode(zip);
         } catch (err) {
           console.error('Failed to decode zip:', err);
           setState({
@@ -82,7 +93,7 @@ export function useJournalZipProcessor(): JournalZipProcessorState {
               process();
             },
           });
-          toast({
+          showToast({
             title: 'Error',
             description: 'Failed to decode the journal entry. Please check the link.',
             variant: 'destructive',
@@ -101,7 +112,7 @@ export function useJournalZipProcessor(): JournalZipProcessorState {
               state: 'error',
               error: 'Invalid date format',
             });
-            toast({
+            showToast({
               title: 'Error',
               description: 'Invalid date format. Expected YYYY-MM-DD.',
               variant: 'destructive',
@@ -111,13 +122,13 @@ export function useJournalZipProcessor(): JournalZipProcessorState {
           }
           dateKey = parsed.dateKey;
         } else {
-          dateKey = getTodayDateKey();
+          dateKey = today();
         }
 
         if (cancelled) return;
 
         // Step 3: Check if date is in the past
-        if (isDateInPast(dateKey)) {
+        if (inPast(dateKey)) {
           // For past dates, prepare for backdate confirmation modal
           setState({
             state: 'pending-confirmation',
@@ -143,7 +154,7 @@ export function useJournalZipProcessor(): JournalZipProcessorState {
               process();
             },
           });
-          toast({
+          showToast({
             title: 'Error',
             description: 'An unexpected error occurred.',
             variant: 'destructive',
@@ -156,11 +167,11 @@ export function useJournalZipProcessor(): JournalZipProcessorState {
       if (cancelled) return;
       try {
         setState({ state: 'creating' });
-        const note = await journalNotes.create({
+        const note = (await notes.create({
           journalDate: dateKey,
           title: dateKey,
           rawContent: content,
-        });
+        })) as { id: string };
 
         if (!cancelled) {
           setState({ state: 'success', content, dateKey });
@@ -176,7 +187,7 @@ export function useJournalZipProcessor(): JournalZipProcessorState {
               createEntry(content, dateKey);
             },
           });
-          toast({
+          showToast({
             title: 'Error',
             description: 'Failed to create journal entry.',
             variant: 'destructive',
@@ -190,7 +201,7 @@ export function useJournalZipProcessor(): JournalZipProcessorState {
     return () => {
       cancelled = true;
     };
-  }, [zip, dateParam, navigate]);
+  }, [zip, dateParam, navigate, decode, today, inPast, notes, showToast]);
 
   return state;
 }

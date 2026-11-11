@@ -41,7 +41,7 @@ const COMPACT_BREAKPOINT = 500;
 const FULL_BREAKPOINT = 900;
 const SHORT_BREAKPOINT = 560;
 
-function deriveSize(width: number, height: number): PanelSizeInfo {
+export function derivePanelSize(width: number, height: number): PanelSizeInfo {
   const isCompact = width < COMPACT_BREAKPOINT;
   const isFull = width >= FULL_BREAKPOINT;
   const isWide = !isCompact;
@@ -51,9 +51,9 @@ function deriveSize(width: number, height: number): PanelSizeInfo {
 }
 
 /** Default (pre-measurement) — assumes wide and tall enough to avoid layout flash */
-const DEFAULT_SIZE: PanelSizeInfo = deriveSize(800, 600);
+const DEFAULT_SIZE: PanelSizeInfo = derivePanelSize(800, 600);
 
-const PanelSizeContext = createContext<PanelSizeInfo>(DEFAULT_SIZE);
+export const PanelSizeContext = createContext<PanelSizeInfo>(DEFAULT_SIZE);
 
 /**
  * Hook for panels to read their container size.
@@ -84,7 +84,7 @@ export const PanelSizeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const height = entry.contentRect.height;
     setSize(prev => {
       // Only update state if a mode boundary changed or size differs significantly
-      const next = deriveSize(width, height);
+      const next = derivePanelSize(width, height);
       if (prev.mode === next.mode && Math.abs(prev.width - width) < 2 && Math.abs(prev.height - height) < 2) {
         return prev; // No meaningful change
       }

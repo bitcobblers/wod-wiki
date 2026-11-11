@@ -18,19 +18,10 @@
  * zero-box charts) lives in e2e/live-app/property-responsive-defects.e2e.ts.
  */
 
-import { afterEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router'
-
-// Keep the boards pane lightweight: no seed corpus and no composer dialog —
-// the pane shells themselves are the chart hosts under test.
-mock.module('@/services/content/seedContent', () => ({
-  useSeedContent: () => null,
-}))
-mock.module('../views/dashboards/WidgetComposerDialog', () => ({
-  WidgetComposerDialog: () => null,
-}))
 
 import { InsightsDashboardsSection } from './HomeInsightsSections'
 
@@ -53,6 +44,10 @@ function renderSection() {
 }
 
 describe('home insights pane mounting', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
   afterEach(cleanup)
 
   it('mounts the boards pane once — a display:none duplicate initializes its charts at zero size', () => {

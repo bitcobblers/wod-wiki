@@ -1,27 +1,20 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
 import { render, act } from '@testing-library/react';
 import React from 'react';
 import { ScriptRuntime, createCompiler, EventBus, RuntimeStack, RuntimeClock, RegisterEventHandlerAction, SOUND_PLAY_EVENT } from '@bitcobblers/wod-wiki-engine';
+import { AudioProvider, useAudio, type AudioAdapter } from '@/contexts/AudioContext';
 
 const played: Array<{ name: string; volume?: number }> = [];
 
-mock.module('@/services/AudioService', () => ({
-    audioService: {
-        isEnabled: () => true,
-        setEnabled: () => { },
-        playSound: (name: string, volume = 1.0) => {
-            played.push({ name, volume });
-            return Promise.resolve();
-        },
+// Injected via the AudioProvider `audioAdapter` prop — no module mocking.
+const audioAdapter: AudioAdapter = {
+    isEnabled: () => true,
+    setEnabled: () => { },
+    playSound: (name: string, volume = 1.0) => {
+        played.push({ name, volume });
+        return Promise.resolve();
     },
-    UnknownSoundError: class UnknownSoundError extends Error { },
-}));
-
-mock.module('@/contexts/CastTransportContext', () => ({
-    useCastTransport: () => null,
-}));
-
-const { AudioProvider, useAudio } = await import('@/contexts/AudioContext');
+};
 
 /**
  * A component that plays a sound the way a runtime cue does.
@@ -35,7 +28,7 @@ describe('runtime sound bridge', () => {
     beforeEach(() => { played.length = 0; });
 
     it('plays a sound through the audio context', async () => {
-        render(<AudioProvider><SoundTrigger name="countdown-beep" /></AudioProvider>);
+        render(<AudioProvider audioAdapter={audioAdapter}><SoundTrigger name="countdown-beep" /></AudioProvider>);
         await act(async () => {
             (document.querySelector('[data-testid="play"]') as HTMLElement).click();
         });

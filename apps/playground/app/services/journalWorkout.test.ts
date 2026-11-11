@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { reconcileNoteBlocks, type Note } from '@bitcobblers/wod-wiki-core';
 import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
-import { setStorageForTesting, storageService } from '@/services/storage';
+import { resetStorageForTesting, setStorageForTesting, storageService } from '@/services/storage';
 import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
 import { createJournalNoteFromWorkout } from './journalWorkout';
 
@@ -10,6 +10,9 @@ describe('Journal workout cloning & read-only Session intake', () => {
     setStorageForTesting(new InMemoryStorage());
   });
 
+  afterEach(() => {
+    resetStorageForTesting();
+  });
   it('clones the full Markdown document and structured provenance when sourceNoteId exists in storage', async () => {
     const fullMd = [
       '---',

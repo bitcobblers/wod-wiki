@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+// React 19 only flushes updates inside act() when the test environment opts
+// in; the historical full-suite run got this from a sibling file's global.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 /**
  * #944 — write-on-completion: when NoteEditor's runtime completes a workout,
  * the note gains a ```query:table fence carrying `rows:{result:<id>}` directly
@@ -6,11 +9,14 @@ import { afterEach, describe, expect, it, mock } from 'bun:test';
  * is threaded to onCompleteWorkout so persistence records the result the
  * table references.
  *
- * FullscreenTimer is mocked at the seam MarkdownCanvasPage.test uses — the
- * CM6 document, sectionField, and the completion handler stay real.
+ * FullscreenTimer is stubbed via a namespace spy (`spyOn` on the module
+ * export) — the CM6 document, sectionField, and the completion handler stay
+ * real.
  */
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { ScriptBlock, Sessions } from '@/components/Editor/types';
+import type { Sessions } from '@/components/Editor/types';
+import * as FullscreenTimerModule from '@/components/organisms/review/FullscreenTimer';
+import type { FullscreenTimerProps } from '@/components/organisms/review/FullscreenTimer';
 import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
 import { StorageService } from '@/services/storage/StorageService';
 import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
@@ -30,17 +36,14 @@ const sampleResults: Sessions = {
 // which is how FullscreenTimer drives the same-id Retry save.
 let lastReport: { blockId: string; results: Sessions } | null = null;
 
-mock.module('@/components/organisms/review/FullscreenTimer', () => ({
-  FullscreenTimer: (props: {
-    block: ScriptBlock;
-    onCompleteWorkout: (blockId: string, results: Sessions) => void | Promise<unknown>;
-  }) => (
+function StubFullscreenTimer(props: FullscreenTimerProps) {
+  return (
     <>
       <button
         data-testid="complete-workout"
         onClick={() => {
           lastReport = { blockId: props.block.id, results: sampleResults };
-          void Promise.resolve(props.onCompleteWorkout(lastReport.blockId, lastReport.results)).catch(() => {});
+          void Promise.resolve(props.onCompleteWorkout!(lastReport.blockId, lastReport.results)).catch(() => {});
         }}
       >
         complete
@@ -48,21 +51,19 @@ mock.module('@/components/organisms/review/FullscreenTimer', () => ({
       <button
         data-testid="retry-workout"
         onClick={() => {
-          if (lastReport) void Promise.resolve(props.onCompleteWorkout(lastReport.blockId, lastReport.results)).catch(() => {});
+          if (lastReport) void Promise.resolve(props.onCompleteWorkout!(lastReport.blockId, lastReport.results)).catch(() => {});
         }}
       >
         retry
       </button>
     </>
-  ),
-}));
+  );
+}
 
-
-// Lives in the playground tree on purpose: `bun test ./src` shares one module
-// registry per process and sibling suites stub '@/services/analytics/query'
-// without runRows, which crashes the QueryBlockView this test mounts. The
-// playground suite runs each file in its own process (tests/run-isolated.ts),
-// so the real query module loads cleanly here.
+beforeEach(() => {
+  lastReport = null;
+  spyOn(FullscreenTimerModule, 'FullscreenTimer').mockImplementation(StubFullscreenTimer);
+});
 
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 
@@ -78,7 +79,7 @@ const zeroRect = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, h
 
 const DOC = 'Intro prose.\n\n```time\n5s\n```\n\nTrailing notes.';
 
-afterEach(() => { cleanup(); persistence = new IndexedDBNotePersistence(new StorageService(new InMemoryStorage())); });
+afterEach(() => { cleanup(); mock.restore(); persistence = new IndexedDBNotePersistence(new StorageService(new InMemoryStorage())); });
 
 function renderEditor(onChange: (value: string) => void, value = DOC) {
   const onCompleteWorkout = mock((_blockId: string, _results: Sessions | undefined, _resultId?: string): void => {});

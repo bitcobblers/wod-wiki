@@ -1,28 +1,12 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { cleanup, render, screen } from '@testing-library/react';
-import * as realEngine from '@bitcobblers/wod-wiki-engine/react';
+import { ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine/react';
+import { RuntimeTestBuilder } from '@/testing/harness/RuntimeTestBuilder';
+import { MetricTrackerCard } from './MetricTrackerCard';
 
-mock.module('@bitcobblers/wod-wiki-engine/react', () => ({
-  ...realEngine,
-  // Live Tier-2 snapshot: one entry per projection (Label + value pair).
-  useLiveAnalytics: () => ([
-    { outputType: 'analytics', metrics: [
-      { type: 'label', image: 'totalLoad', value: 'totalLoad' },
-      { type: 'metric', image: '1200 kg', value: 1200, unit: 'kg' },
-    ]},
-    { outputType: 'analytics', metrics: [
-      { type: 'label', image: 'calculated', value: 'calculated' },
-      { type: 'metric', image: '420 pts', value: 420, unit: 'pts' },
-    ]},
-    { outputType: 'analytics', metrics: [
-      { type: 'label', image: 'custom_metric', value: 'custom_metric' },
-      { type: 'metric', image: 'Zone 2 ', value: 'Zone 2', unit: '' },
-    ]},
-  ]),
-  useOutputStatements: () => ({ outputs: [] }),
-}));
-
-const { MetricTrackerCard } = await import('./MetricTrackerCard');
+// Idle runtime — the hook only needs a ScriptRuntimeProvider to exist; the
+// card's entries come from the DI seam, not from live analytics.
+const harness = new RuntimeTestBuilder().withScript('Helen\n3 Rounds\n400m Run').build();
 
 describe('MetricTrackerCard', () => {
   afterEach(() => {
@@ -30,7 +14,17 @@ describe('MetricTrackerCard', () => {
   });
 
   it('humanizes unknown session-total keys while keeping custom and calculated metrics visible', () => {
-    render(<MetricTrackerCard />);
+    render(
+      <ScriptRuntimeProvider runtime={harness.runtime}>
+        <MetricTrackerCard
+          entriesOverride={[
+            { label: 'totalLoad', value: 1200, unit: 'kg' },
+            { label: 'calculated', value: 420, unit: 'pts' },
+            { label: 'custom_metric', value: 'Zone 2', unit: '' },
+          ]}
+        />
+      </ScriptRuntimeProvider>,
+    );
 
     expect(screen.getByText('Total Load')).toBeDefined();
     expect(screen.getByText('Calculated')).toBeDefined();

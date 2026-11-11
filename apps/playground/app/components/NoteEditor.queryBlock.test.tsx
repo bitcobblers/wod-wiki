@@ -1,29 +1,22 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn, type Mock } from 'bun:test';
+// React 19 only flushes updates inside act() when the test environment opts
+// in; the historical full-suite run got this from a sibling file's global.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 /**
  * Executor wiring regression: the ```query:table blocks NoteEditor renders
  * (queryBlockPreview) must execute against the app's QueryService singleton.
  * The UI package is store-free — it only renders what the injected executor
  * returns — so without the wiring every query block spins "Loading rows…"
  * forever, including the table auto-inserted on workout completion (#944).
- * This locks the seam: runRows is called with the block's parsed query and
+ * This locks the seam: runFind is called with the block's parsed query and
  * the result renders; a late result save (onResultSaved notification) re-runs.
+ *
+ * The real queryService executes over the test host's InMemoryStorage; a spy
+ * records the executor calls.
  */
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
-
-const runFind = mock(async (parsed: { filters: { key: string; values: { value: string }[] }[] }) => ({
-  parsed,
-  runs: [],
-  notes: [],
-  blocks: [],
-}));
-
-mock.module('@/services/queryService', () => ({
-  queryService: {
-    runFind,
-    runQuery: async () => ({ parsed: {}, series: [] }),
-  },
-}));
-
+import { setupPlaygroundTestHost, type PlaygroundHostHandle } from '@/testing/host';
+import { queryService } from '@/services/queryService';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { notifyResultSaved } from '@/services/resultRecorder';
 
@@ -37,7 +30,19 @@ const zeroRect = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, h
 
 const DOC = 'Intro prose.\n\n```query:table\n:session{result:abc-123}\n```\n';
 
-afterEach(() => cleanup());
+let host: PlaygroundHostHandle;
+let runFind: Mock<typeof queryService.runFind>;
+
+beforeEach(async () => {
+  host = await setupPlaygroundTestHost();
+  runFind = spyOn(queryService, 'runFind');
+});
+
+afterEach(async () => {
+  cleanup();
+  mock.restore();
+  await host.cleanup();
+});
 
 describe('NoteEditor query block executor wiring', () => {
   it('executes rows blocks instead of spinning "Loading rows…" forever', async () => {

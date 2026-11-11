@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import type { Session } from '@/types/storage';
 
 /**
@@ -11,49 +11,11 @@ import type { Session } from '@/types/storage';
  * - Edge cases (empty inputs, malformed markdown, multiple blocks)
  * - Search query filtering
  *
- * Note: Functions that depend on IndexedDB, playgroundDB, or
- * import.meta.glob (like globalSearchSource, feedSource, journalHistorySource)
- * are tested through integration tests.
+ * Storage-touching seams (recent sessions, stored tags) are injected as
+ * optional deps; feed/journal history sources stay integration-tested.
  */
 
-// Mock IndexedDB and dependencies
-global.indexedDB = {
-  open: mock(() => ({
-    onsuccess: null,
-    onerror: null,
-    onblocked: null,
-    onupgradeneeded: null,
-    result: {
-      close: mock(),
-      transaction: mock(() => ({
-        objectStore: mock(() => ({
-          get: mock(),
-          put: mock(),
-          delete: mock(),
-          getAll: mock(),
-          index: mock(() => ({
-            getAll: mock(),
-            openCursor: mock(),
-          })),
-        })),
-      })),
-    },
-  })),
-} as any;
-
-import { storageService } from '@/services/storage';
-const mockGetRecentSessions = mock((): Promise<Session[]> => Promise.resolve([]));
-storageService.getRecentSessions = mockGetRecentSessions;
-
-mock.module('./playgroundContent', () => ({
-  pageId: (category: string, name: string) => `${category}/${name}`,
-  playgroundContent: {
-    getPagesByCategory: mock(() => Promise.resolve([])),
-  },
-}));
-
-// Import after mocks are set up
-const {
+import {
   extractScriptBlocks,
   scriptBlockSource,
   notebookItemsSource,
@@ -61,10 +23,12 @@ const {
   canvasRouteSource,
   constructSource,
   tagsPaletteSource,
-} = await import('./paletteDataSources');
-
-import type { ExtractedScriptBlock } from './paletteDataSources';
+} from './paletteDataSources';
 import type { ScriptNotebook } from '@/repositories/script-notebooks';
+
+// Injected recent-session reader for globalSearchSource.
+let recentSessions: Session[] = [];
+const getRecentSessions = async (limit: number): Promise<Session[]> => recentSessions.slice(0, limit);
 
 describe('extractScriptBlocks', () => {
   it('should extract single time block from markdown', () => {
@@ -379,11 +343,11 @@ describe('globalSearchSource', () => {
   });
 
   beforeEach(() => {
-    mockGetRecentSessions.mockResolvedValue([]);
+    recentSessions = [];
   });
 
   it('excludes playground results by default', async () => {
-    mockGetRecentSessions.mockResolvedValue([
+    recentSessions = [
       createResult({
         id: 'r-journal',
         noteId: 'journal/2024-01-15',
@@ -394,9 +358,9 @@ describe('globalSearchSource', () => {
         noteId: 'playground/abc-123',
         createdAt: new Date('2024-01-14T10:30:00').getTime(),
       }),
-    ]);
+    ];
 
-    const source = globalSearchSource([]);
+    const source = globalSearchSource([], undefined, false, { getRecentSessions });
     const results = await source.search('');
 
     expect(results.some(r => r.id === 'r-journal')).toBe(true);
@@ -404,46 +368,46 @@ describe('globalSearchSource', () => {
   });
 
   it('includes playground results when showPlaygrounds is true', async () => {
-    mockGetRecentSessions.mockResolvedValue([
+    recentSessions = [
       createResult({
         id: 'r-playground',
         noteId: 'playground/abc-123',
         createdAt: new Date('2024-01-14T10:30:00').getTime(),
       }),
-    ]);
+    ];
 
-    const source = globalSearchSource([], undefined, true);
+    const source = globalSearchSource([], undefined, true, { getRecentSessions });
     const results = await source.search('');
 
     expect(results.some(r => r.id === 'r-playground')).toBe(true);
   });
 
   it('treats legacy bare UUID noteIds as journal, not playground', async () => {
-    mockGetRecentSessions.mockResolvedValue([
+    recentSessions = [
       createResult({
         id: 'r-legacy',
         noteId: '00000000-0000-4000-8000-000000000001',
         createdAt: new Date('2024-01-15T10:30:00').getTime(),
       }),
-    ]);
+    ];
 
-    const source = globalSearchSource([]);
+    const source = globalSearchSource([], undefined, false, { getRecentSessions });
     const results = await source.search('');
 
     expect(results.some(r => r.id === 'r-legacy')).toBe(true);
   });
 
   it('respects the explicit origin field over noteId prefix', async () => {
-    mockGetRecentSessions.mockResolvedValue([
+    recentSessions = [
       createResult({
         id: 'r-journal-origin',
         noteId: 'playground/abc-123',
         origin: 'journal',
         createdAt: new Date('2024-01-15T10:30:00').getTime(),
       }),
-    ]);
+    ];
 
-    const source = globalSearchSource([]);
+    const source = globalSearchSource([], undefined, false, { getRecentSessions });
     const results = await source.search('');
 
     expect(results.some(r => r.id === 'r-journal-origin')).toBe(true);
@@ -522,40 +486,30 @@ describe('constructSource', () => {
 
 describe('tagsPaletteSource', () => {
   it('returns existing tags matching query and excludes already assigned tags', async () => {
-    const prevGetAllTags = storageService.getAllTags;
-    storageService.getAllTags = async () => [
-      { id: '1', label: 'benchmark', createdAt: 0 },
-      { id: '2', label: 'cardio', createdAt: 0 },
-      { id: '3', label: 'strength', createdAt: 0 },
-    ];
-
-    try {
-      const source = tagsPaletteSource(['benchmark']);
-      const results = await source.search('car');
-      const existingMatch = results.find((r) => r.id === 'tag:cardio');
-      expect(existingMatch).toBeDefined();
-      expect(existingMatch?.payload).toEqual({ tag: 'cardio' });
-      expect(results.some((r) => r.id === 'tag:benchmark')).toBe(false);
-    } finally {
-      storageService.getAllTags = prevGetAllTags;
-    }
+    const source = tagsPaletteSource(['benchmark'], {
+      getAllTags: async () => [
+        { id: '1', label: 'benchmark', createdAt: 0 },
+        { id: '2', label: 'cardio', createdAt: 0 },
+        { id: '3', label: 'strength', createdAt: 0 },
+      ],
+    });
+    const results = await source.search('car');
+    const existingMatch = results.find((r) => r.id === 'tag:cardio');
+    expect(existingMatch).toBeDefined();
+    expect(existingMatch?.payload).toEqual({ tag: 'cardio' });
+    expect(results.some((r) => r.id === 'tag:benchmark')).toBe(false);
   });
 
   it('offers to create new tag when query does not match existing tag', async () => {
-    const prevGetAllTags = storageService.getAllTags;
-    storageService.getAllTags = async () => [
-      { id: '1', label: 'benchmark', createdAt: 0 },
-    ];
-
-    try {
-      const source = tagsPaletteSource([]);
-      const results = await source.search('aerobic');
-      const newTagItem = results.find((r) => r.id === 'tag:new:aerobic');
-      expect(newTagItem).toBeDefined();
-      expect(newTagItem?.label).toBe('Add tag "aerobic"');
-      expect(newTagItem?.payload).toEqual({ tag: 'aerobic' });
-    } finally {
-      storageService.getAllTags = prevGetAllTags;
-    }
+    const source = tagsPaletteSource([], {
+      getAllTags: async () => [
+        { id: '1', label: 'benchmark', createdAt: 0 },
+      ],
+    });
+    const results = await source.search('aerobic');
+    const newTagItem = results.find((r) => r.id === 'tag:new:aerobic');
+    expect(newTagItem).toBeDefined();
+    expect(newTagItem?.label).toBe('Add tag "aerobic"');
+    expect(newTagItem?.payload).toEqual({ tag: 'aerobic' });
   });
 });

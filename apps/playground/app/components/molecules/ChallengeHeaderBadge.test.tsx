@@ -1,22 +1,23 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+// React 19 only flushes updates inside act() when the test environment opts
+// in; the historical full-suite run got this from a sibling file's global.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 import { cleanup, render, screen, fireEvent } from '@testing-library/react'
 
 import { ChallengeHeaderBadge } from './ChallengeHeaderBadge'
 import type { Quest } from '../../canvas/parseCanvasMarkdown'
 
-mock.module('../../hooks/usePageQuests', () => ({
-  usePageQuests: (_pageRoute: string, quests: Quest[]) => ({
-    quests: quests.map((q) => ({ ...q, isCompleted: q.id === 'done-quest' })),
-    stepsComplete: quests.filter((q) => q.id === 'done-quest').length,
-    totalSteps: quests.length,
-    isComplete: quests.every((q) => q.id === 'done-quest'),
-    markComplete: () => {},
-    toggleQuest: () => {},
-  }),
-}))
+// Every test uses the same page route; completion state is seeded into the
+// real localStorage ledger (`questProgress.ts`) that `usePageQuests` reads.
+const PAGE_ROUTE = '/guide/demo'
+
+beforeEach(() => {
+  localStorage.setItem('wodwiki.quests.v1', JSON.stringify({ [PAGE_ROUTE]: { 'done-quest': true } }))
+})
 
 afterEach(() => {
   cleanup()
+  localStorage.clear()
 })
 
 describe('ChallengeHeaderBadge', () => {

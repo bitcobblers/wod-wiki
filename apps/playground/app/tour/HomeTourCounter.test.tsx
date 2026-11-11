@@ -6,124 +6,79 @@
  * only the arrival quest is counted. The timer quest completes when a run
  * actually starts (run-started validation), and the analytics quest when
  * the session-insights section scrolls into view.
+ *
+ * The CodeMirror editor, the fullscreen overlay, and the run lifecycle are
+ * injected through HomeTour's test seams (`editorSlot`, `timerSlot`,
+ * `deps`) instead of module mocks. useRunStartedChallenge and
+ * useTourScrollQuests stay REAL — they are the units whose quest-marking
+ * this suite verifies.
  */
 
-import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
+import { useEffect, type ReactElement } from 'react'
+import { beforeEach, afterEach, describe, expect, it } from 'bun:test'
 import { render, screen, within, cleanup, act, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router'
 import type { Quest } from '../canvas/parseCanvasMarkdown'
 import type { ScriptBlock } from '@/components/Editor/types'
+import type { UsePlaygroundRunReturn } from '../hooks/usePlaygroundRun'
+import { useCompletionChallenge } from '../hooks/useCompletionChallenge'
+import { HomeTour } from './HomeTour'
 
 const STORAGE_KEY = 'wodwiki.quests.v1'
 
-mock.module('@/components/organisms/editor/NoteEditor', () => ({
-  NoteEditor: ({
-    value,
-    onChange,
-    onBlocksChange,
-    onStartWorkout,
-  }: {
-    value: string
-    onChange?: (value: string) => void
-    onBlocksChange?: (blocks: ScriptBlock[]) => void
-    onStartWorkout?: (block: ScriptBlock) => void
-  }) => {
-    const React = require('react')
-    React.useEffect(() => {
-      onBlocksChange?.([{ id: 'block-1', type: 'Timer' } as unknown as ScriptBlock])
-    }, [])
-    return (
-      <div>
-        <textarea
-          data-testid="note-editor"
-          value={value}
-          onChange={(e) => onChange?.(e.target.value)}
-        />
-        {onStartWorkout && (
-          <button onClick={() => onStartWorkout?.({ id: 'block-1' } as unknown as ScriptBlock)}>Run</button>
-        )}
-      </div>
-    )
-  },
-}))
+// ── Seams ───────────────────────────────────────────────────────────────────
 
-mock.module('@/components/organisms/editor/RuntimeTimerPanel', () => ({
-  RuntimeTimerPanel: () => <div data-testid="mock-timer-panel" />,
-}))
+function MockNoteEditor(props: {
+  value: string
+  onChange?: (value: string) => void
+  onBlocksChange?: (blocks: ScriptBlock[]) => void
+  onStartWorkout?: (block: ScriptBlock) => void
+}): ReactElement {
+  useEffect(() => {
+    props.onBlocksChange?.([{ id: 'block-1', type: 'Timer' } as unknown as ScriptBlock])
+  }, [])
+  return (
+    <div>
+      <textarea
+        data-testid="note-editor"
+        value={props.value}
+        onChange={(e) => props.onChange?.(e.target.value)}
+      />
+      {props.onStartWorkout && (
+        <button onClick={() => props.onStartWorkout?.({ id: 'block-1' } as unknown as ScriptBlock)}>Run</button>
+      )}
+    </div>
+  )
+}
 
-// FullscreenTimer's chrome needs the app's AudioProvider; the counter test
-// only verifies the run-started quest marking, not the overlay itself.
-mock.module('@/components/atoms/AudioToggle', () => ({
-  AudioToggle: () => null,
-}))
+function TimerStub(): ReactElement {
+  return <div data-testid="mock-timer-panel" />
+}
 
-mock.module('@/components/organisms/cast/CastButtonRpc', () => ({
-  CastButtonRpc: () => null,
-}))
-
-mock.module('../hooks/useCompletionChallenge', () => ({
-  useCompletionChallenge: () => {},
-}))
-
-mock.module('@/services/resultRecorder', () => ({
-  playgroundRecorder: { record: async () => {} },
-}))
-
-mock.module('../services/createPlaygroundPage', () => ({
-  ensurePlaygroundEntry: mock(async () => ({ noteId: 'playground-note-test', routeId: 'playground/test' })),
-  createPlaygroundPage: mock(async () => 'test-page'),
-  movePlaygroundToJournal: mock(async (noteId: string) => ({ id: noteId })),
-}))
-
-mock.module('../services/journalWorkout', () => ({
-  createJournalNoteFromWorkout: async () => ({ id: 'note-clone' }),
-}))
-
-mock.module('../services/journalNotes', () => ({
-  journalNotes: { create: async () => ({ id: 'note-new' }) },
-}))
-
-mock.module('@/services/telemetry', () => ({
-  telemetry: { record: () => {}, events: { subscribe: () => () => {} } },
-  HOME_EVENTS: {
-    demoOpened: 'home:demo_opened',
-    demoRun: 'home:demo_run',
-    feedsOpened: 'home:feeds_opened',
-    analyticsGuideOpened: 'home:analytics_guide_opened',
-    chapterHeroViewed: 'home:chapter_hero_viewed',
-    chapterExampleRun: 'home:chapter_example_run',
-    chapterGuideClicked: 'home:chapter_guide_clicked',
-    demoShared: 'home:demo_shared',
-    demoEdited: 'home:demo_edited',
-    libraryOpened: 'home:library_opened',
-    noteCreated: 'home:note_created',
-    lessonStarted: 'home:lesson_started',
-    cheatsheetOpened: 'home:cheatsheet_opened',
-    behaviorsOpened: 'home:behaviors_opened',
-    explorerOpened: 'home:explorer_opened',
-    dashboardViewed: 'home:dashboard_viewed',
-    effortsOpened: 'home:efforts_opened',
-    referenceOpened: 'home:reference_opened',
-  },
-  useTelemetry: () => () => undefined,
-}))
-
-// useRunStartedChallenge and useTourScrollQuests stay REAL — they are the
-// units whose quest-marking this suite verifies.
-
-mock.module('../hooks/usePlaygroundRun', () => ({
-  usePlaygroundRun: () => ({
-    run: { noteId: 'note-1', resultId: 'res-1', block: { id: 'block-1' } as unknown as ScriptBlock },
-    pendingResults: null,
+/** Fixed run identity — the run-started quest marking, not persistence, is under test. */
+function useFakePlaygroundRun(): UsePlaygroundRunReturn {
+  const run = { noteId: 'note-1', resultId: 'res-1', block: { id: 'block-1' } as unknown as ScriptBlock }
+  return {
+    run,
     recorded: false,
-    start: async () => ({ noteId: 'note-1' }),
+    pendingResults: null,
+    start: async () => run,
     finalize: async () => {},
+    reset: async () => {},
     end: async () => {},
-  }),
-}))
+  }
+}
 
-import { HomeTour } from './HomeTour'
+/** Real hook would fight the fixed run identity; the counter only reads quest marks. */
+const completionChallengeStub: typeof useCompletionChallenge = () => ({ questIds: [] })
+
+const homeTourDeps = {
+  usePlaygroundRun: useFakePlaygroundRun,
+  useCompletionChallenge: completionChallengeStub,
+}
+
+// ── Test data ───────────────────────────────────────────────────────────────
 
 const wodFiles: Record<string, string> = {
   'wods/examples/home/welcome-1.md': 'AMRAP 10\n  10 Pull-ups\n  15 Push-ups\n  20 Air Squats\n',
@@ -150,6 +105,9 @@ function renderHomeTour() {
           wodFiles={wodFiles}
           theme="light"
           quests={homeQuests}
+          editorSlot={MockNoteEditor}
+          timerSlot={TimerStub}
+          deps={homeTourDeps}
         />
       </NuqsAdapter>
     </MemoryRouter>,

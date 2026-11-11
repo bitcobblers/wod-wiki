@@ -237,12 +237,18 @@ export interface QueriableStreamViewProps {
    *  invalid drafts never reach the URL). Returns the unregister cleanup;
    *  the global ⌘/ palette consumes the getter while this view is mounted. */
   registerStreamDraft?: (getDraft: () => string | null) => () => void
+  /** Dependency overrides for tests (all default to production modules). */
+  deps?: {
+    /** Engine for README `[heading](:query)!` embeds (defaults to the shared engine). */
+    readmeQueryEngine?: typeof defaultStreamQueryEngine
+  }
 }
 
 export function QueriableStreamView({
   profile,
   actions,
   queryEngine,
+  deps,
   onAddToToday,
   registerStreamDraft,
 }: QueriableStreamViewProps) {
@@ -1358,6 +1364,7 @@ export function QueriableStreamView({
                 key={index}
                 query={segment.query}
                 heading={segment.heading}
+                queryEngine={deps?.readmeQueryEngine}
                 onAddToToday={handleAddToToday}
                 onRunStart={handleRunEntry}
               />

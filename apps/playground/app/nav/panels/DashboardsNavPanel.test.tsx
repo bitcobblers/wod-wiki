@@ -1,30 +1,23 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test';
-// Must precede the react-router-dom import: repairs the partial
-// react-router-dom mock that useJournalZipProcessor.test.ts leaks
-// process-wide (see tests/helpers/repair-react-router-dom.ts).
-import '../../../tests/helpers/repair-react-router-dom';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { NavigationDrawerProvider } from '../NavigationDrawerContext';
-
-mock.module('../../hooks/useDashboards', () => ({
-  useDashboardList: () => ({
-    items: [
-      { slug: 'pr-board', title: 'PR Board', editable: true },
-      { slug: 'strength-trends', title: 'Strength Trends', editable: false },
-    ],
-    loading: false,
-  }),
-}));
-
 import { DashboardsNavPanel } from './DashboardsNavPanel';
+import type { DashboardListItem } from '../../hooks/useDashboards';
+
+const ITEMS: DashboardListItem[] = [
+  { slug: 'pr-board', title: 'PR Board', editable: true },
+  { slug: 'strength-trends', title: 'Strength Trends', editable: false },
+];
 
 afterEach(cleanup);
+
+const LOCATION = { pathname: '/dashboards', search: '', hash: '', state: null, key: 'test' };
 
 function renderPanel(at: string) {
   return render(
     <MemoryRouter initialEntries={[at]} initialIndex={0}>
-      <DashboardsNavPanel />
+      <DashboardsNavPanel itemsOverride={ITEMS} currentPath="/dashboards" location={LOCATION} />
     </MemoryRouter>,
   );
 }
@@ -59,7 +52,7 @@ describe('DashboardsNavPanel', () => {
     render(
       <MemoryRouter initialEntries={['/dashboards']}>
         <NavigationDrawerProvider close={() => { closed += 1; }}>
-          <DashboardsNavPanel />
+          <DashboardsNavPanel itemsOverride={ITEMS} currentPath="/dashboards" location={LOCATION} />
         </NavigationDrawerProvider>
       </MemoryRouter>,
     );

@@ -10,9 +10,6 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test'
 const createFromWorkoutMock = mock(() =>
   Promise.resolve({ id: 'journal-note-1', journalDate: '2026-09-05', blocks: { 'journal-workout': { id: 'journal-workout', kind: 'wod', version: 1, sourceRevision: 1, from: 0, to: 30 } } } as never),
 )
-mock.module('../services/journalWorkout', () => ({
-  createJournalNoteFromWorkout: createFromWorkoutMock,
-}))
 
 import type { NavigateFunction } from 'react-router-dom'
 import { pendingRuntimes } from '../runtimeStore'
@@ -95,7 +92,7 @@ describe('startEntryRun — catalog adoption', () => {
     })
     const { navigate, calls } = makeNavigate()
 
-    await startEntryRun(entry, navigate)
+    await startEntryRun(entry, navigate, { createJournalNoteFromWorkout: createFromWorkoutMock })
 
     expect(createFromWorkoutMock).toHaveBeenCalledWith(
       expect.objectContaining({ workoutName: 'Grace', category: 'crossfit-girls' }),

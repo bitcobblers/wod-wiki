@@ -14,7 +14,7 @@ import { Plus } from 'lucide-react';
 import { parseQuery, serialize } from '@bitcobblers/wod-wiki-engine';
 import { cn } from '@/lib/utils';
 import type { NavPanelProps } from '../navTypes';
-import { useDashboardList } from '../../hooks/useDashboards';
+import { useDashboardList, type DashboardListItem } from '../../hooks/useDashboards';
 import { dashboardNotes } from '../../services/dashboardNotes';
 import { parseFrontmatter } from '@/lib/frontmatter';
 import { analyticsExplorerPath, dashboardsPath, dashboardViewPath } from '../../lib/routes';
@@ -30,11 +30,13 @@ function sameWql(a: string | null, b: string): boolean {
   const pb = parseQuery(b);
   return !pa.error && !pb.error && serialize(pa) === serialize(pb);
 }
-export function DashboardsNavPanel(_props: NavPanelProps) {
+export function DashboardsNavPanel({ itemsOverride, ..._props }: NavPanelProps & { itemsOverride?: DashboardListItem[] }) {
   const location = useLocation();
   const navigate = useNavigate();
   const closeDrawer = useCloseNavigationDrawer();
-  const { items, loading } = useDashboardList();
+  const { items: listItems, loading: listLoading } = useDashboardList();
+  const items = itemsOverride ?? listItems;
+  const loading = itemsOverride ? false : listLoading;
   const [creating, setCreating] = useState(false);
 
   const handleNew = async () => {

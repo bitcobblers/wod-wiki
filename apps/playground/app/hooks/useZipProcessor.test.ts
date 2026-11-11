@@ -3,80 +3,77 @@
  *
  *  - `?z=` (+ optional `by`) is the home-hero share contract: decode, persist
  *    to the home-shared localStorage store AND to the persisted home
- *    playground entry (intake `ensurePlaygroundEntry`), then land per the
+ *    playground entry (intake ensureEntry), then land per the
  *    startup-page setting — home (default) on `/`, journal on the loaded
  *    entry's /playground/<name> page.
- *  - `?zip=` stays the playground-page flow: import via the intake module's
- *    `createPlaygroundPage`, redirect to the new playground page.
+ *  - `?zip=` stays the playground-page flow: import via the intake's
+ *    createPage, redirect to the new playground page.
  *  - Neither flow auto-runs the workout; decode/storage failures surface a
  *    toast instead of failing silently.
  *  - Off `/load` the hook does nothing (journal routes etc. have their own
  *    processors).
+ *
+ * Runs inside the real provider tree (MemoryRouter + NuqsTestingAdapter via
+ * PlaygroundProviderTree) with injected deps — no mock.module. Navigation
+ * is asserted through the live router location.
  */
-
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { renderHook, waitFor } from '@testing-library/react'
+import { createElement } from 'react'
+import type { Location } from 'react-router-dom'
+import { PlaygroundProviderTree } from '@/testing/host'
+import { useZipProcessor } from './useZipProcessor'
+import type { PlaygroundIntake } from '../services/createPlaygroundPage'
 
-let mockNavigate = mock(() => {})
-let mockPathname = '/load'
-let params: Record<string, string | null> = {}
 const ensureEntryMock = mock(() => Promise.resolve({ noteId: 'uuid-home', routeId: 'playground/home' }))
 const createPageMock = mock(() => Promise.resolve('2026-09-05-10-00-00-000'))
-const toastMock = mock(() => {})
+const toastMock = mock((_args?: unknown) => {})
+const decodeMock = mock((z: string) => Promise.resolve(z === 'bad' ? null : `decoded:${z}`))
 
-mock.module('react-router-dom', () => ({
-  useNavigate: () => mockNavigate,
-  useLocation: () => ({ pathname: mockPathname, search: '', hash: '', state: null, key: 'test' }),
-}))
+const fakeIntake = {
+  createPage: createPageMock,
+  ensureEntry: ensureEntryMock,
+} satisfies Pick<PlaygroundIntake, 'createPage' | 'ensureEntry'>
 
-mock.module('nuqs', () => ({
-  useQueryState: (key: string) => [params[key] ?? null, mock(() => {})],
-}))
-
-mock.module('../services/decodeZip', () => ({
-  decodeZip: mock((z: string) => Promise.resolve(z === 'bad' ? null : `decoded:${z}`)),
-}))
-
-mock.module('../services/createPlaygroundPage', () => ({
-  createPlaygroundPage: createPageMock,
-  ensurePlaygroundEntry: ensureEntryMock,
-}))
-
-mock.module('@/hooks/use-toast', () => ({
-  toast: toastMock,
-}))
-
-mock.module('../lib/routes', () => ({
-  playgroundPath: (id: string) => `/playground/${id}`,
-  ROUTE_PATTERNS: { home: '/' },
-}))
-
-import { useZipProcessor } from './useZipProcessor'
+const stableDeps = { decodeZip: decodeMock, intake: fakeIntake, toast: toastMock }
 
 const SHARED_KEY = 'wodwiki.homeShared.v1'
 
+function renderZipHook({
+  route = '/load',
+  searchParams,
+}: { route?: string; searchParams?: Record<string, string> } = {}) {
+  const locations: Location[] = []
+  const rendered = renderHook(() => useZipProcessor(stableDeps), {
+    wrapper: ({ children }) =>
+      createElement(
+        PlaygroundProviderTree,
+        { route, searchParams, onLocationChange: (loc: Location) => locations.push(loc) },
+        children,
+      ),
+  })
+  return { ...rendered, locations, landed: () => locations.at(-1)?.pathname }
+}
+
+beforeEach(() => {
+  ensureEntryMock.mockClear()
+  createPageMock.mockClear()
+  toastMock.mockClear()
+  decodeMock.mockClear()
+  ensureEntryMock.mockImplementation(() => Promise.resolve({ noteId: 'uuid-home', routeId: 'playground/home' }))
+  createPageMock.mockImplementation(() => Promise.resolve('2026-09-05-10-00-00-000'))
+  decodeMock.mockImplementation((z: string) => Promise.resolve(z === 'bad' ? null : `decoded:${z}`))
+})
+
+afterEach(() => {
+  window.localStorage.clear()
+})
+
 describe('useZipProcessor', () => {
-  beforeEach(() => {
-    mockNavigate = mock(() => {})
-    mockPathname = '/load'
-    params = {}
-    ensureEntryMock.mockClear()
-    createPageMock.mockClear()
-    toastMock.mockClear()
-    ensureEntryMock.mockImplementation(() => Promise.resolve({ noteId: 'uuid-home', routeId: 'playground/home' }))
-    createPageMock.mockImplementation(() => Promise.resolve('2026-09-05-10-00-00-000'))
-  })
-
-  afterEach(() => {
-    window.localStorage.clear()
-  })
-
-
   it('keeps the playground-page flow for ?zip= — intake creates the entry; arrival never auto-runs', async () => {
-    params = { zip: 'abc' }
-    renderHook(() => useZipProcessor())
+    const { landed } = renderZipHook({ searchParams: { zip: 'abc' } })
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/playground/2026-09-05-10-00-00-000', { replace: true }))
+    await waitFor(() => expect(landed()).toBe('/playground/2026-09-05-10-00-00-000'))
     expect(createPageMock).toHaveBeenCalledWith('decoded:abc')
     expect(ensureEntryMock).not.toHaveBeenCalled()
     expect(window.localStorage.getItem(SHARED_KEY)).toBeNull()
@@ -84,39 +81,37 @@ describe('useZipProcessor', () => {
   })
 
   it('lands the ?z= home-hero share on home', async () => {
-    params = { z: 'abc' }
-    renderHook(() => useZipProcessor())
+    const { landed } = renderZipHook({ searchParams: { z: 'abc' } })
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }))
+    await waitFor(() => expect(landed()).toBe('/'))
     expect(ensureEntryMock).toHaveBeenCalledTimes(1)
-    expect(ensureEntryMock.mock.calls[0][1]).toEqual({ reuseKey: 'home', title: 'Home playground' })
+    expect(ensureEntryMock.mock.calls[0]![1]).toEqual({ reuseKey: 'home', title: 'Home playground' })
     expect(window.localStorage.getItem(SHARED_KEY)).toContain('decoded:abc')
     expect(toastMock).not.toHaveBeenCalled()
   })
+
   it('lands the ?z= share directly when visited on home route (/)', async () => {
-    mockPathname = '/'
-    params = { z: 'abc' }
-    renderHook(() => useZipProcessor())
+    const { landed } = renderZipHook({ route: '/', searchParams: { z: 'abc' } })
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }))
+    await waitFor(() => expect(landed()).toBe('/'))
     expect(ensureEntryMock).toHaveBeenCalledTimes(1)
     expect(window.localStorage.getItem(SHARED_KEY)).toContain('decoded:abc')
     expect(toastMock).not.toHaveBeenCalled()
   })
+
   it('ignores ?zip= on home route (/)', async () => {
-    mockPathname = '/'
-    params = { zip: 'abc' }
-    renderHook(() => useZipProcessor())
+    const { locations } = renderZipHook({ route: '/', searchParams: { zip: 'abc' } })
 
     await Promise.resolve()
-    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(locations).toHaveLength(1) // only the initial mount location — no redirect
+    expect(locations[0]!.pathname).toBe('/')
     expect(createPageMock).not.toHaveBeenCalled()
   })
-  it.each(['z', 'zip'])('rejects an undecodable %s share without persisting an entry', async (parameter) => {
-    params = { [parameter]: 'bad' }
-    renderHook(() => useZipProcessor())
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }))
+  it.each(['z', 'zip'])('rejects an undecodable %s share without persisting an entry', async (parameter) => {
+    const { landed } = renderZipHook({ searchParams: { [parameter]: 'bad' } })
+
+    await waitFor(() => expect(landed()).toBe('/'))
     expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }))
     expect(ensureEntryMock).not.toHaveBeenCalled()
     expect(createPageMock).not.toHaveBeenCalled()
@@ -126,33 +121,30 @@ describe('useZipProcessor', () => {
   it('preserves the existing home preview when saving an incoming share fails', async () => {
     const previous = JSON.stringify({ content: 'Keep this preview', by: 'Original sender' })
     window.localStorage.setItem(SHARED_KEY, previous)
-    params = { z: 'abc', by: 'New sender' }
     ensureEntryMock.mockImplementation(() => Promise.reject(new Error('Storage blocked')))
-    renderHook(() => useZipProcessor())
+    const { landed } = renderZipHook({ searchParams: { z: 'abc', by: 'New sender' } })
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }))
+    await waitFor(() => expect(landed()).toBe('/'))
     expect(window.localStorage.getItem(SHARED_KEY)).toBe(previous)
     expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }))
   })
 
   it('returns home rather than creating a blank entry when importing a workout fails', async () => {
-    params = { zip: 'abc' }
     createPageMock.mockImplementation(() => Promise.reject(new DOMException('Blocked', 'SecurityError')))
-    renderHook(() => useZipProcessor())
+    const { landed } = renderZipHook({ searchParams: { zip: 'abc' } })
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }))
+    await waitFor(() => expect(landed()).toBe('/'))
     expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }))
   })
 
   it('does nothing off the /load route', async () => {
-    mockPathname = '/load/journal'
-    params = { z: 'abc', zip: 'abc' }
-    renderHook(() => useZipProcessor())
+    const { locations } = renderZipHook({ route: '/load/journal', searchParams: { z: 'abc', zip: 'abc' } })
 
     // Flush the microtask queue so any (unexpected) decode would have run.
     await Promise.resolve()
     await Promise.resolve()
-    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(locations).toHaveLength(1)
+    expect(locations[0]!.pathname).toBe('/load/journal')
     expect(ensureEntryMock).not.toHaveBeenCalled()
     expect(createPageMock).not.toHaveBeenCalled()
     expect(window.localStorage.getItem(SHARED_KEY)).toBeNull()
