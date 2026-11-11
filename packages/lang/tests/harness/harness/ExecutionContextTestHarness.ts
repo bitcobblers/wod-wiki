@@ -1,18 +1,18 @@
-import { ScriptRuntime, ScriptRuntimeDependencies } from '../../../src/runtime/ScriptRuntime';
+import { ScriptRuntime, ScriptRuntimeDependencies } from '@bitcobblers/wod-wiki-lang';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import { MockJitCompiler } from '../harness/MockJitCompiler';
-import { createMockClock } from '../../../src/runtime/RuntimeClock';
-import { RuntimeStack } from '../../../src/runtime/RuntimeStack';
-import { EventBus } from '../../../src/runtime/events/EventBus';
-import { WhiteboardScript } from '../../../src/parser/WhiteboardScript';
-import { IRuntimeAction } from '../../../src/runtime/contracts/IRuntimeAction';
-import { IEvent } from '../../../src/runtime/contracts/events/IEvent';
-import { IRuntimeBlockStrategy } from '../../../src/runtime/contracts/IRuntimeBlockStrategy';
-import { IRuntimeClock } from '../../../src/runtime/contracts/IRuntimeClock';
-import { IRuntimeBlock } from '../../../src/runtime/contracts/IRuntimeBlock';
-import { IScriptRuntime } from '../../../src/runtime/contracts/IScriptRuntime';
+import { createMockClock } from '@bitcobblers/wod-wiki-lang';
+import { RuntimeStack } from '@bitcobblers/wod-wiki-lang';
+import { EventBus } from '@bitcobblers/wod-wiki-lang';
+import { WhiteboardScript } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeAction } from '@bitcobblers/wod-wiki-lang';
+import { IEvent } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeBlockStrategy } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeClock } from '@bitcobblers/wod-wiki-lang';
+import { IRuntimeBlock } from '@bitcobblers/wod-wiki-lang';
+import { IScriptRuntime } from '@bitcobblers/wod-wiki-lang';
 import { ICodeStatement } from '@bitcobblers/wod-wiki-core';
-import { StartWorkoutAction } from '../../../src/runtime/actions/stack/StartWorkoutAction';
+import { StartWorkoutAction } from '@bitcobblers/wod-wiki-lang';
 
 /**
  * Helper function to create a minimal mock statement for testing.
@@ -32,7 +32,7 @@ function createMockStatement(config: { id: number; source?: string }): ICodeStat
       endOffset: 0,
       length: 0,
       raw: config.source ?? `statement-${config.id}`
-    } as any,
+    } as unknown as ICodeStatement['meta'],
     metricMeta: new Map(),
   } as unknown as ICodeStatement;
 }
@@ -193,7 +193,7 @@ export class ExecutionContextTestHarness {
     const originalDo = this.runtime.do.bind(this.runtime);
     const self = this;
 
-    (this.runtime as any).do = function (action: IRuntimeAction): void {
+    (this.runtime as unknown as { do: (action: IRuntimeAction) => void }).do = function (action: IRuntimeAction): void {
       // Track turn boundaries - a new turn starts when we're not already executing
       if (!self._isExecutingTurn) {
         self._currentTurnId++;
@@ -222,7 +222,7 @@ export class ExecutionContextTestHarness {
 
     // We need better tracking - use a depth counter
     let executionDepth = 0;
-    (this.runtime as any).do = function (action: IRuntimeAction): void {
+    (this.runtime as unknown as { do: (action: IRuntimeAction) => void }).do = function (action: IRuntimeAction): void {
       const isNewTurn = executionDepth === 0;
 
       if (isNewTurn) {

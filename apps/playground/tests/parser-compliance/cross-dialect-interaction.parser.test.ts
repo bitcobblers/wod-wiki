@@ -6,7 +6,7 @@
  * Validates that multiple dialects can attach hints to the same statement and that
  * selective dialect stacks produce the expected partial output.
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { parse } from '../helpers/parser-test-utils';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import { UnitsDialect } from '@bitcobblers/wod-wiki-engine';

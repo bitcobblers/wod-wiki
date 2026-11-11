@@ -1,7 +1,7 @@
 /**
  * Smoke test: verify the parser-test-utils harness compiles and parses correctly.
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { parse, createParserContext } from '../helpers/parser-test-utils';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 

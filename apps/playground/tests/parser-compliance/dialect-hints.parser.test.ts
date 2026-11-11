@@ -4,7 +4,7 @@
  * Tests that dialect processing correctly attaches semantic hints
  * to parsed CodeStatements through the full dialect stack.
  */
-import { describe, it } from 'bun:test';
+import { describe, it } from 'vitest';
 import { parse } from '../helpers/parser-test-utils';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import { CardioDialect } from '@bitcobblers/wod-wiki-engine';

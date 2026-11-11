@@ -20,6 +20,7 @@ export function workspaceAliases(rootDir: string): Record<string, string> {
   return {
     '@': path.resolve(rootDir, 'apps/playground/src'),
     '@app': path.resolve(rootDir, 'apps/playground/app'),
+    '@bitcobblers/wod-wiki-core/testing': path.resolve(rootDir, 'packages/core/src/testing.ts'),
     '@bitcobblers/wod-wiki-core': path.resolve(rootDir, 'packages/core/src'),
     '@bitcobblers/wod-wiki-lang/react': path.resolve(rootDir, 'packages/lang/src/react.ts'),
     '@bitcobblers/wod-wiki-lang': path.resolve(rootDir, 'packages/lang/src'),

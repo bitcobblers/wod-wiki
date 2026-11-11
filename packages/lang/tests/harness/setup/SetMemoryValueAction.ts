@@ -5,7 +5,8 @@
  * Useful for setting up block state before testing lifecycle operations.
  */
 
-import { IScriptRuntime } from '../../../src/runtime/contracts/IScriptRuntime';
+import { IScriptRuntime } from '@bitcobblers/wod-wiki-lang';
+import type { MemoryTag } from '@bitcobblers/wod-wiki-lang';
 import {
   ITestSetupAction,
   TestSetupActionJSON,
@@ -47,7 +48,7 @@ export class SetMemoryValueAction implements ITestSetupAction {
       return;
     }
 
-    const loc = block.getMemoryByTag(this.params.memoryType as any)[0];
+    const loc = block.getMemoryByTag(this.params.memoryType as unknown as MemoryTag)[0];
     if (loc?.metrics[0]) {
       loc.update([{ ...loc.metrics[0], value: this.params.value }]);
     } else {

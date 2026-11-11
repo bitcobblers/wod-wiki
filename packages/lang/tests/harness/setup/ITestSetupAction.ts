@@ -10,7 +10,7 @@
  * - Are applied before the test operation runs
  */
 
-import { IScriptRuntime } from '../../../src/runtime/contracts/IScriptRuntime';
+import { IScriptRuntime } from '@bitcobblers/wod-wiki-lang';
 
 /**
  * Interface for test setup actions that modify runtime state

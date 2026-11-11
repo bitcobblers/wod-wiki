@@ -1,6 +1,6 @@
 // Test to verify statement IDs are stable structural identifiers (document-order
 // ordinals), while physical source location lives in `meta.line` / `line`.
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { MdTimerRuntime } from '@bitcobblers/wod-wiki-engine';
 
 describe('Statement ID Line Number Verification', () => {

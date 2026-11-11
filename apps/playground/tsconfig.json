@@ -14,6 +14,9 @@
     "paths": {
       "@/testing": ["./tests/testing/index.ts"],
       "@/testing/*": ["./tests/testing/*"],
+      "@wod-wiki/lang-harness": ["../../packages/lang/tests/harness/index.ts"],
+      "@wod-wiki/lang-harness/*": ["../../packages/lang/tests/harness/*"],
+      "@bitcobblers/wod-wiki-core/testing": ["../../packages/core/src/testing.ts"],
       "@/*": ["./src/*"]
     },
     "downlevelIteration": true,

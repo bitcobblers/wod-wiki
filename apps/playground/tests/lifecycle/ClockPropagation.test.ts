@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { SnapshotClock, createMockClock } from '@bitcobblers/wod-wiki-engine';
-import { BehaviorTestHarness, MockBlock } from '../harness';
+import { BehaviorTestHarness, MockBlock } from '@/testing/harness';
 import { IRuntimeBehavior } from '@bitcobblers/wod-wiki-engine';
 import { IBehaviorContext } from '@bitcobblers/wod-wiki-engine';
 import { IRuntimeAction } from '@bitcobblers/wod-wiki-engine';

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { MdTimerRuntime } from '@bitcobblers/wod-wiki-engine';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import { RoundsMetric } from '@bitcobblers/wod-wiki-engine';

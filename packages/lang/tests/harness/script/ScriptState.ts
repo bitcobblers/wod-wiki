@@ -1,5 +1,5 @@
-import type { IRuntimeBlock } from '../../../src/runtime/contracts/IRuntimeBlock';
-import type { RpcMessage } from '../../../src/services/cast/rpc/RpcMessages';
+import type { IRuntimeBlock } from '@bitcobblers/wod-wiki-lang';
+import type { RpcMessage } from '../transport/RpcMessages';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-core';
 
 export interface ScriptState {

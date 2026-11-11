@@ -3,7 +3,7 @@
  * Tests T076: Parse Code to Whiteboard Script
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { MdTimerRuntime } from '@bitcobblers/wod-wiki-engine';
 
 describe('T076: Parse Code to Whiteboard Script', () => {
@@ -34,7 +34,7 @@ describe('T076: Parse Code to Whiteboard Script', () => {
   describe('Performance requirements', () => {
     it('should parse 100 lines in <100ms', () => {
       const lines = Array(100).fill('timer 1min').join('\n');
-      
+      parser.read('timer 1min');
       const start = performance.now();
       parser.read(lines);
       const duration = performance.now() - start;

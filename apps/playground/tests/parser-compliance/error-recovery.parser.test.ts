@@ -5,7 +5,7 @@
  * Verifies the parser never throws on bad input and produces
  * either a valid partial tree or a populated errors array.
  */
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { parse } from '../helpers/parser-test-utils';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 

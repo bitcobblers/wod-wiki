@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { WhiteboardScript } from '@bitcobblers/wod-wiki-engine';
 import { ICodeStatement } from '@bitcobblers/wod-wiki-engine';
 import { CodeMetadata } from '@bitcobblers/wod-wiki-engine';

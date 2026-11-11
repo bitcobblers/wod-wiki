@@ -5,8 +5,8 @@ import type {
   EffortResolutionOptions,
   ResolvedEffort,
   EffortResolvedFrom,
-} from '../../../src/effort-registry/types';
-import { DEFAULT_RESOLVER_OPTIONS } from '../../../src/effort-registry/types';
+} from '@bitcobblers/wod-wiki-lang';
+import { DEFAULT_RESOLVER_OPTIONS } from '@bitcobblers/wod-wiki-lang';
 
 /**
  * Mock Effort Resolver — Deterministic Test Harness

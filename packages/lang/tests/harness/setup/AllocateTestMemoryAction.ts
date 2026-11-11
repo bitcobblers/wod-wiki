@@ -5,14 +5,13 @@
  * Useful for simulating parent block memory that children should inherit.
  */
 
-import { IScriptRuntime } from '../../../src/runtime/contracts/IScriptRuntime';
+import { IScriptRuntime } from '@bitcobblers/wod-wiki-lang';
 import {
   ITestSetupAction,
   TestSetupActionJSON,
   TestSetupActionFactory,
   TestSetupActionParamSchema
 } from '../setup/ITestSetupAction';
-import { langWarn } from '../../../src/logger';
 
 export interface AllocateTestMemoryParams {
   /** Memory type to allocate */
@@ -52,7 +51,7 @@ export class AllocateTestMemoryAction implements ITestSetupAction {
         this.params.visibility
       );
     } else {
-      langWarn(`AllocateTestMemoryAction: Block "${this.params.ownerId}" not found in stack.`)
+      console.warn(`AllocateTestMemoryAction: Block "${this.params.ownerId}" not found in stack.`)
     }
   }
 
