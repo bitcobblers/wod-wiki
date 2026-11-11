@@ -12,6 +12,7 @@ import { MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 import { useNavigate, useLocation } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 import { cn } from '@/lib/utils'
+import { TEST_IDS } from '@/lib/testIds'
 import type { ComponentType } from 'react'
 import { BUY_ME_A_COFFEE_URL, BuyMeACoffeeIcon } from '../components/atoms/BuyMeACoffee'
 
@@ -62,6 +63,7 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
         }}
         title="Wod Wiki home"
         aria-label="Wod Wiki home"
+        data-testid={TEST_IDS.NAV_L1_HOME}
         className="group relative mb-3 grid size-8 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/20 rotate-3"
       >
         <Dumbbell size={17} />
@@ -86,6 +88,7 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
               title={item.label}
               aria-label={item.label}
               aria-current={active ? 'page' : undefined}
+              data-testid={`nav-l1-${item.id}`}
               className={cn(
                 'group relative grid size-9 place-items-center rounded-lg transition-colors',
                 active
@@ -114,6 +117,7 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
         onClick={onSearch}
         title="Search (⌘/)"
         aria-label="Search"
+        data-testid={TEST_IDS.NAV_L1_SEARCH}
         className="group relative grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
       >
         <MagnifyingGlassIcon className="size-5" />

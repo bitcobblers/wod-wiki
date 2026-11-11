@@ -12,6 +12,7 @@ import { EditorDialog, WqlComposer } from '@bitcobblers/wod-wiki-ui'
 import { effortToDocument, tagRecordToDocument } from '@bitcobblers/wod-wiki-lang'
 import type { Tag } from '@bitcobblers/wod-wiki-core'
 import { Button } from '@/components/atoms/primitives/button'
+import { TEST_IDS } from '@/lib/testIds'
 import { storageService } from '@/services/storage'
 import { notebookService } from '@/services/NotebookService'
 import { commitReferenceNote } from '@/repositories/referenceNotes'
@@ -480,10 +481,10 @@ export function CreateJournalNoteDialog({
             Press Enter ↵ to create
           </span>
           <div className="ml-auto flex items-center gap-2">
-            <Button type="button" variant="outline" size="lg" onClick={() => onOpenChange(false)} disabled={creating}>
+            <Button type="button" variant="outline" size="lg" onClick={() => onOpenChange(false)} disabled={creating} data-testid={TEST_IDS.ENTRY_CREATE_CANCEL_BTN}>
               Cancel
             </Button>
-            <Button type="submit" form="create-journal-note-form" size="lg" disabled={submitDisabled}>
+            <Button type="submit" form="create-journal-note-form" size="lg" disabled={submitDisabled} data-testid={TEST_IDS.ENTRY_CREATE_SUBMIT_BTN}>
               {creating ? 'Creating…' : 'Create'}
             </Button>
           </div>
@@ -585,6 +586,7 @@ export function CreateJournalNoteDialog({
               id="journal-create-title"
               type="text"
               data-autofocus
+              data-testid={TEST_IDS.ENTRY_CREATE_TITLE_INPUT}
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder={fallbackTitle}
@@ -633,6 +635,7 @@ export function CreateJournalNoteDialog({
                   onChange={e => setDate(e.target.value)}
                   disabled={creating}
                   aria-invalid={dateInvalid || undefined}
+                  data-testid={TEST_IDS.ENTRY_CREATE_DATE_INPUT}
                   className={fieldClass}
                 />
                 {dateInvalid && <p className="text-xs text-destructive">Enter a valid date (YYYY-MM-DD).</p>}
