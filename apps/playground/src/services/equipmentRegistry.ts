@@ -55,3 +55,7 @@ export function getAppEquipmentRegistry(): CompositeEquipmentRegistry {
   }
   return appEquipmentRegistry;
 }
+
+export function resetAppEquipmentRegistryForTesting(): void {
+  appEquipmentRegistry = null;
+}

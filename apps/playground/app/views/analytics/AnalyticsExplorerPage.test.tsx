@@ -1,13 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-
-// Must precede the react-router-dom import: repairs the partial
-// react-router-dom mock that useJournalZipProcessor.test.ts leaks
-// process-wide (see tests/helpers/repair-react-router-dom.ts).
-import '../../../tests/helpers/repair-react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { parseQuery, isFindQuery, type FindQueryResult, type ParsedAggregateQuery, type ParsedFindQuery, type QueryResult } from '@bitcobblers/wod-wiki-engine';
+import { queryService } from '@/services/queryService';
+import * as sampleModule from '@/services/analytics/sample';
+import { dashboardNotes } from '../../services/dashboardNotes';
+import { journalNotes } from '../../services/journalNotes';
 
 function resultOf(raw: string): QueryResult {
   return {
@@ -53,26 +52,7 @@ let runQueryImpl = async (raw: string) => resultOf(raw);
 let runFindCalls: string[] = [];
 let runFindImpl = async (raw: string) => findResultOf(raw);
 
-mock.module('@/services/queryService', () => ({
-  queryService: {
-    runQuery: mock(async (raw: string, options?: unknown) => {
-      runQueryCalls.push({ raw, hasOptions: options !== undefined });
-      return runQueryImpl(raw);
-    }),
-    runFind: mock(async (parsed: { raw?: string }) => {
-      runFindCalls.push(parsed.raw ?? '');
-      return runFindImpl(parsed.raw ?? '');
-    }),
-  },
-}));
-
 let sampleDataPresent = false;
-
-mock.module('@/services/analytics/sample', () => ({
-  loadSampleData: mock(async () => { sampleDataPresent = true; return { facts: 120 }; }),
-  purgeSampleData: mock(async () => { sampleDataPresent = false; }),
-  hasSampleData: mock(async () => sampleDataPresent),
-}));
 
 // The save flow persists through these two services; tests observe the
 // writes (exact WQL, failure surface) instead of touching real storage.
@@ -88,31 +68,32 @@ let updateImpl = async (id: string, rawContent: string) => {
   return { id, rawContent };
 };
 
-mock.module('../../services/dashboardNotes', () => ({
-  dashboardNotes: {
-    createDashboard: mock(async (title?: string) => createDashboardImpl(title ?? 'New Dashboard')),
-    cloneDashboard: mock(async () => ({ id: 'clone' })),
-  },
-}));
-
-mock.module('../../services/journalNotes', () => ({
-  journalNotes: {
-    update: mock(async (id: string, rawContent: string) => updateImpl(id, rawContent)),
-    resolve: mock(async () => { throw new Error('not used in these tests'); }),
-    getById: mock(async () => { throw new Error('not used in these tests'); }),
-    create: mock(async () => { throw new Error('not used in these tests'); }),
-    listByDate: mock(async () => []),
-    moveToDate: mock(async () => { throw new Error('not used in these tests'); }),
-    delete: mock(async () => undefined),
-  },
-}));
-
 import { AnalyticsExplorerPage } from './AnalyticsExplorerPage';
 import { NavProvider } from '../../nav/NavContext';
 import { SecondaryNav } from '../../nav/SecondaryNav';
 import { NuqsAdapter } from 'nuqs/adapters/react-router';
 
 afterEach(cleanup);
+afterEach(() => mock.restore());
+
+// Spies over the production singletons — no module replacement, so sibling
+// test files in the same process keep their real imports.
+function installSpies(): void {
+  spyOn(queryService, 'runQuery').mockImplementation((async (raw: string, options?: unknown) => {
+    runQueryCalls.push({ raw, hasOptions: options !== undefined });
+    return runQueryImpl(raw);
+  }) as never);
+  spyOn(queryService, 'runFind').mockImplementation((async (parsed: { raw?: string }) => {
+    runFindCalls.push(parsed.raw ?? '');
+    return runFindImpl(parsed.raw ?? '');
+  }) as never);
+  spyOn(sampleModule, 'loadSampleData').mockImplementation((async () => { sampleDataPresent = true; return { facts: 120 }; }) as never);
+  spyOn(sampleModule, 'purgeSampleData').mockImplementation((async () => { sampleDataPresent = false; }) as never);
+  spyOn(sampleModule, 'hasSampleData').mockImplementation((async () => sampleDataPresent) as never);
+  spyOn(dashboardNotes, 'createDashboard').mockImplementation((async (title?: string) => createDashboardImpl(title ?? 'New Dashboard')) as never);
+  spyOn(dashboardNotes, 'cloneDashboard').mockImplementation((async () => ({ id: 'clone' })) as never);
+  spyOn(journalNotes, 'update').mockImplementation((async (note: { id: string }, rawContent: string) => updateImpl(note.id, rawContent)) as never);
+}
 
 let capturedNavigate: ReturnType<typeof useNavigate>;
 function NavProbe() {
@@ -149,6 +130,7 @@ async function composerEditor(dialog: HTMLElement): Promise<HTMLTextAreaElement 
 
 describe('AnalyticsExplorerPage', () => {
   beforeEach(() => {
+    installSpies();
     runQueryCalls = [];
     runFindCalls = [];
     runQueryImpl = async (raw: string) => resultOf(raw);

@@ -1,27 +1,34 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test'
+import { describe, it, expect, beforeEach } from 'bun:test'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import type { ReactElement } from 'react'
 
-// ── Mutable mock state for react-router-dom ───────────────────────────────
-let mockParams: Record<string, string> = {}
-let mockLocation: { pathname: string; search: string } = { pathname: '/', search: '' }
-let lastNavigateTo: string | null = null
-let lastNavigateReplace: boolean | undefined
-const navigateCalls: Array<{ to: string; options?: { replace?: boolean } }> = []
+// ── Real router harness — no react-router-dom mocks ───────────────────────
+let currentPathname = '/'
+let currentSearch = ''
 
-mock.module('react-router-dom', () => ({
-  useParams: () => mockParams,
-  useLocation: (): { pathname: string; search: string } => mockLocation,
-  useNavigate: () => (to: string, options?: { replace?: boolean }) => {
-    navigateCalls.push({ to, options })
-  },
-  Navigate: ({ to, replace }: { to: string | { pathname: string; search?: string }; replace?: boolean }) => {
-    lastNavigateTo = typeof to === 'string' ? to : `${to.pathname}${to.search ?? ''}`
-    lastNavigateReplace = replace
-    return <div data-testid="navigate" />
-  },
-}))
+function LocationProbe() {
+  const location = useLocation()
+  currentPathname = location.pathname
+  currentSearch = location.search
+  return <div data-testid="location" />
+}
 
-// ── Import pure functions first (no react-router-dom dependency) ──────────
+/** Render `element` inside a real MemoryRouter at `initialEntry`, matched against `routePath`. */
+function renderAt(initialEntry: string, element: ReactElement, routePath = '*') {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <LocationProbe />
+      <Routes>
+        <Route path={routePath} element={element} />
+        {/* Redirect targets land here — nothing to render, just settle the location */}
+        <Route path="*" element={null} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+// ── Pure functions and route components ────────────────────────────────────
 import {
   ROUTE_PATTERNS,
   playgroundPath,
@@ -55,20 +62,14 @@ import {
   analyticsExplorerPath,
 } from './routes'
 
-// ── Dynamic imports for components that consume react-router-dom mocks ────
-let redirectComponents: typeof import('./routeRedirects') | null = null
+// ── Route components (real router — static import is safe) ────────────────
+import { TrackerRedirect, SegmentsRedirect, PlanRedirect, ReviewRedirect } from './routeRedirects'
+import { NotFoundPage } from '../pages/NotFoundPage'
 
-beforeEach(async () => {
-  mockParams = {}
-  mockLocation = { pathname: '/', search: '' }
-  lastNavigateTo = null
-  lastNavigateReplace = undefined
-  navigateCalls.length = 0
+beforeEach(() => {
+  currentPathname = '/'
+  currentSearch = ''
   cleanup()
-
-  if (!redirectComponents) {
-    redirectComponents = await import('./routeRedirects')
-  }
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -76,8 +77,8 @@ beforeEach(async () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('retired legacy paths', () => {
-  it('no redirect matrix exists in the route module', () => {
-    const routesModule = require('./routes') as Record<string, unknown>
+  it('no redirect matrix exists in the route module', async () => {
+    const routesModule = (await import('./routes')) as Record<string, unknown>
     expect(routesModule.resolveRedirect).toBeUndefined()
     expect(routesModule.ROUTE_REDIRECTS).toBeUndefined()
   })
@@ -253,45 +254,37 @@ describe('route family helpers', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('TrackerRedirect', () => {
-  it('renders Navigate to /run/:runtimeId with replace', async () => {
-    mockParams = { runtimeId: 'abc-123' }
-    const { TrackerRedirect } = redirectComponents!
-    render(<TrackerRedirect />)
+  it('redirects /tracker/:runtimeId to /run/:runtimeId', () => {
+    renderAt('/tracker/abc-123', <TrackerRedirect />, '/tracker/:runtimeId')
 
-    expect(lastNavigateTo).toBe('/run/abc-123')
-    expect(lastNavigateReplace).toBe(true)
+    expect(currentPathname).toBe('/run/abc-123')
+    expect(currentSearch).toBe('')
   })
 })
 
 describe('SegmentsRedirect', () => {
-  it('renders Navigate to /sessions with the segments query pre-filled', async () => {
-    const { SegmentsRedirect } = redirectComponents!
-    render(<SegmentsRedirect />)
+  it('redirects to /sessions with the segments query pre-filled', () => {
+    renderAt('/results/segments', <SegmentsRedirect />, '/results/segments')
 
-    expect(lastNavigateTo).toBe(`/sessions?q=${encodeURIComponent(':segment{} last 8w')}`)
-    expect(lastNavigateReplace).toBe(true)
+    expect(currentPathname).toBe('/sessions')
+    expect(currentSearch).toBe(`?q=${encodeURIComponent(':segment{} last 8w')}`)
   })
 })
 
 describe('PlanRedirect', () => {
-  it('renders Navigate to /journal?mode=plan', async () => {
-    mockLocation = { pathname: '/plan', search: '' }
-    const { PlanRedirect } = redirectComponents!
-    render(<PlanRedirect />)
+  it('redirects /plan to /journal?mode=plan', () => {
+    renderAt('/plan', <PlanRedirect />, '/plan')
 
-    expect(lastNavigateTo).toBe('/journal?mode=plan')
-    expect(lastNavigateReplace).toBe(true)
+    expect(currentPathname).toBe('/journal')
+    expect(currentSearch).toBe('?mode=plan')
   })
 })
 
 describe('ReviewRedirect', () => {
-  it('renders Navigate to /results/:resultId when a result scope is present', async () => {
-    mockParams = { noteId: 'n1', sectionId: 's1', resultId: 'res-9' }
-    const { ReviewRedirect } = redirectComponents!
-    render(<ReviewRedirect />)
+  it('redirects to /results/:resultId when a result scope is present', () => {
+    renderAt('/note/n1/review/s1/res-9', <ReviewRedirect />, '/note/:noteId/review/:sectionId/:resultId')
 
-    expect(lastNavigateTo).toBe('/results/res-9')
-    expect(lastNavigateReplace).toBe(true)
+    expect(currentPathname).toBe('/results/res-9')
   })
 })
 
@@ -300,25 +293,21 @@ describe('ReviewRedirect', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('NotFoundPage', () => {
-  // Dynamic import: react-router-dom is mocked via mock.module above; a
-  // static import would bind the real module before the mock registers.
-  it('renders a not-found heading and a home affordance', async () => {
-    const { NotFoundPage } = await import('../pages/NotFoundPage')
-    render(<NotFoundPage />)
+  it('renders a not-found heading and a home affordance', () => {
+    renderAt('/nope', <NotFoundPage />)
 
     expect(screen.getByRole('heading', { name: /not found/i })).toBeDefined()
     expect(screen.getByRole('button', { name: /go home/i })).toBeDefined()
   })
 
-  it('navigates home when Go home button is clicked', async () => {
-    const { NotFoundPage } = await import('../pages/NotFoundPage')
-    render(<NotFoundPage />)
+  it('navigates home when Go home button is clicked', () => {
+    renderAt('/nope', <NotFoundPage />)
 
     const button = screen.getByRole('button', { name: /Go home/i })
     expect(button).toBeDefined()
 
     fireEvent.click(button)
-    expect(navigateCalls).toEqual([{ to: '/', options: undefined }])
+    expect(currentPathname).toBe('/')
   })
 })
 

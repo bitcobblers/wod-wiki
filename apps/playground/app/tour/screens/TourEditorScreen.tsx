@@ -1,7 +1,7 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Play, Copy, Check, ExternalLink } from 'lucide-react'
 import type { EditorView } from '@codemirror/view'
-import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
+import { NoteEditor, type NoteEditorProps } from '@/components/organisms/editor/NoteEditor'
 import type { ScriptBlock } from '@/components/Editor/types'
 import type { ScriptCommand } from '@/components/Editor/overlays/ScriptCommand'
 import { shareBlock, openBlockInPlaygroundNewTab } from '../../services/openInPlayground'
@@ -20,6 +20,8 @@ export interface TourEditorScreenProps {
    * 'editor.runButton'.
    */
   withRingTargets?: boolean
+  /** Test seam: replaces the CodeMirror editor (same props). */
+  editorSlot?: React.ComponentType<NoteEditorProps>
 }
 
 interface BlockBox {
@@ -36,6 +38,7 @@ export const TourEditorScreen: React.FC<TourEditorScreenProps> = ({
   onRun,
   theme,
   withRingTargets = false,
+  editorSlot,
 }) => {
   const wodBlockRef = useRingRef('editor.wodBlock')
   const runButtonRef = useRingRef('editor.runButton')
@@ -172,6 +175,7 @@ export const TourEditorScreen: React.FC<TourEditorScreenProps> = ({
   const handleStartWorkout = useCallback(() => {
     onRun()
   }, [onRun])
+  const Editor = editorSlot ?? NoteEditor
 
   const commands = useMemo<ScriptCommand[]>(() => [
     {
@@ -199,7 +203,7 @@ export const TourEditorScreen: React.FC<TourEditorScreenProps> = ({
   return (
     <div className="relative flex h-full flex-col bg-background text-left">
       <div ref={bodyRef} className="relative flex-1 min-h-0">
-        <NoteEditor
+        <Editor
           noteId="canvas:home"
           ariaLabel="Home workout editor"
           value={doc}

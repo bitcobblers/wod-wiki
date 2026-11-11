@@ -2,7 +2,7 @@
  * :block emits one Entry per occurrence in executor order.
  * :note maps whole Notes without broadening the executor's filters or page.
  */
-import { describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it } from 'bun:test'
 
 import type { FindQueryResult, ParsedRowsQuery, QueryResult, RowsQueryResult } from '@bitcobblers/wod-wiki-engine'
 import type { BlockIndexRow, Note } from '@/types/storage'
@@ -12,6 +12,8 @@ import type { EventRecord } from '@bitcobblers/wod-wiki-core'
 import { blockContentId } from '@bitcobblers/wod-wiki-core'
 import { InMemoryStorage, setStorageForTesting, resetStorageForTesting, storageService } from '@/services/storage'
 import { entryOpenHref } from './entryActions'
+import { searchEntries, StreamQueryEngine, type StreamQueryService } from './entrySearch'
+
 function makeBlock(i: number, createdAt = i): BlockIndexRow {
   const noteId = `feeds/feed-a/2026-01-1${i % 5}/note-${i % 5}`
   const rawContent = `\`\`\`time\n${i + 1} Thrusters\n\`\`\``
@@ -36,19 +38,14 @@ function makeBlock(i: number, createdAt = i): BlockIndexRow {
 let runFindImpl: (parsed: ParsedFindQuery) => Promise<FindQueryResult>
 let runFindEffortImpl: ((parsed: ParsedFindQuery) => Promise<FindQueryResult>) | undefined
 
-mock.module('@/services/queryService', () => ({
-  queryService: {
-    runFind: mock((parsed: ParsedFindQuery) => runFindImpl(parsed)),
-    runFindEffort: mock((parsed: ParsedFindQuery) => runFindEffortImpl ? runFindEffortImpl(parsed) : runFindImpl(parsed)),
-    runRows: mock((parsed: ParsedRowsQuery): Promise<RowsQueryResult> => Promise.resolve({ parsed, runs: [] })),
-  },
-  indexedDbBlockStore: { getAllBlocks: async () => [] },
-  indexedDbNoteStore: { getAllNotes: async () => [] },
-  ensurePageSources: async () => {},
-  refreshPageSources: async () => {},
-}))
-
-const { searchEntries, StreamQueryEngine } = await import('./entrySearch')
+// Injected query service (production default is the real queryService
+// singleton — the engine accepts a service, tests inject this fixture).
+const fakeQueryService: StreamQueryService = {
+  runFind: (parsed) => runFindImpl(parsed),
+  runFindEffort: (parsed) => (runFindEffortImpl ? runFindEffortImpl(parsed) : runFindImpl(parsed)),
+  runRows: (parsed: ParsedRowsQuery): Promise<RowsQueryResult> => Promise.resolve({ parsed, runs: [] }),
+}
+const engine = new StreamQueryEngine({ service: fakeQueryService })
 
 function blockResult(raw: string, blocks: BlockIndexRow[]): FindQueryResult {
   return {
@@ -64,7 +61,7 @@ describe('searchEntries — :block (#855, #861)', () => {
     const blocks = [makeBlock(0, 100), makeBlock(1, 200)]
     runFindImpl = async parsed => blockResult(parsed.raw, blocks)
 
-    const entries = await searchEntries(':block in all')
+    const entries = await searchEntries(':block in all', engine)
     expect(entries).toHaveLength(2)
     // Executor order is presentation order — no local re-sort.
     expect(entries[0]!.block?.blockId).toBe('seg-0')
@@ -80,7 +77,7 @@ describe('searchEntries — :block (#855, #861)', () => {
     const blocks = Array.from({ length: 500 }, (_, i) => makeBlock(i, i))
     runFindImpl = async parsed => blockResult(parsed.raw, blocks)
 
-    const entries = await searchEntries(':block in all')
+    const entries = await searchEntries(':block in all', engine)
     expect(entries).toHaveLength(500)
     expect(entries[0]!.block?.blockId).toBe('seg-0')
   })
@@ -95,7 +92,7 @@ describe('searchEntries — :note unchanged', () => {
       stages: { selected: 1, matched: 1 },
     })
 
-    const entries = await searchEntries(':note in all')
+    const entries = await searchEntries(':note in all', engine)
     expect(entries).toHaveLength(1)
     expect(entries[0]!.kind).toBe('note')
     expect(entries[0]!.block).toBeUndefined()
@@ -112,7 +109,7 @@ describe('StreamQueryEngine whole-Note text search', () => {
         blocks: [], stages: { selected: 4, matched: 1 } }
     }
     const stages: Array<{ selected: number; matched: number }> = []
-    const entries = await new StreamQueryEngine().query(':note{text:squat} | limit 1', count => stages.push(count))
+    const entries = await new StreamQueryEngine({ service: fakeQueryService }).query(':note{text:squat} | limit 1', count => stages.push(count))
     expect(calls).toHaveLength(1)
     expect(calls[0]!.target).toBe('note')
     expect(entries).toHaveLength(1)
@@ -132,7 +129,7 @@ describe('StreamQueryEngine whole-Note text search', () => {
     }
 
     const ast = parseQuery(':note{text:thruster} in all')
-    const entries = await searchEntries(ast)
+    const entries = await searchEntries(ast, engine)
     expect(calls.length).toBeGreaterThanOrEqual(1)
     expect(entries).toHaveLength(1)
     expect(entries[0]!.title).toBe('AST Note')
@@ -152,7 +149,7 @@ describe('StreamQueryEngine — note block info (feed previews)', () => {
       calls.push(parsed)
       return { parsed, notes: [note], blocks: [], stages: { selected: 1, matched: 1 } }
     }
-    const entries = await new StreamQueryEngine({ noteBlockInfo: true }).query(':note{source:playground}')
+    const entries = await new StreamQueryEngine({ service: fakeQueryService, noteBlockInfo: true }).query(':note{source:playground}')
     expect(calls).toHaveLength(1)
     expect(entries[0]!.excerpt?.[0]).toBe('Recovery observations.')
     expect(entries[0]!.wodBlock).toEqual({ blockId: 'w1', blockVersion: 1, blockContentId: blockContentId('21 Thrusters'), content: '21 Thrusters\n' })
@@ -170,7 +167,7 @@ describe('StreamQueryEngine — note block info (feed previews)', () => {
       }
     }
 
-    const engine = new StreamQueryEngine()
+    const engine = new StreamQueryEngine({ service: fakeQueryService })
     const entries = await engine.query(':note in all')
     expect(calls).toHaveLength(1)
     expect(entries[0]!.excerpt).toBeUndefined()
@@ -183,7 +180,7 @@ describe('StreamQueryEngine — note block info (feed previews)', () => {
       blocks: [], stages: { selected: 1, matched: 1 },
     })
 
-    const base = new StreamQueryEngine()
+    const base = new StreamQueryEngine({ service: fakeQueryService })
     const forked = base.withNoteBlockInfo()
     const entries = await forked.query(':note in all')
     expect(entries[0]!.excerpt).toEqual(['Grace'])
@@ -217,7 +214,7 @@ describe('StreamQueryEngine — effort plane (:effort)', () => {
       }
     }
 
-    const engine = new StreamQueryEngine()
+    const engine = new StreamQueryEngine({ service: fakeQueryService })
     const entries = await engine.query(':effort in all')
     expect(effortCalled).toBe(true)
     expect(entries).toHaveLength(1)
@@ -237,7 +234,7 @@ describe('StreamQueryEngine — effort plane (:effort)', () => {
     })
 
     const ast = parseQuery(':effort{discipline:strength} in all')
-    const entries = await searchEntries(ast)
+    const entries = await searchEntries(ast, engine)
     expect(entries).toHaveLength(1)
     expect(entries[0]!.kind).toBe('effort')
   })
@@ -265,7 +262,7 @@ describe('StreamQueryEngine — effort plane (:effort)', () => {
       stages: { selected: 2, matched: 2 },
     })
 
-    const engine = new StreamQueryEngine()
+    const engine = new StreamQueryEngine({ service: fakeQueryService })
     const entries = await engine.query(':effort in all')
     expect(entries).toHaveLength(2)
     // Note-backed projection → the definition note, classified as an effort.
@@ -320,7 +317,7 @@ describe('StreamQueryEngine — telemetry plane (rows:)', () => {
       stages: { selected: 1, matched: 1 },
     })
 
-    const entries = await searchEntries(':session{result:res-42}')
+    const entries = await searchEntries(':session{result:res-42}', engine)
     expect(entries).toHaveLength(1)
     expect(entries[0]!.kind).toBe('result')
     expect(entries[0]!.id).toBe('res-42')
@@ -339,7 +336,7 @@ describe('StreamQueryEngine — telemetry plane (rows:)', () => {
       stages: { selected: 1, matched: 1 },
     })
 
-    const entries = await searchEntries(':session{result:res-42, plane:segment}')
+    const entries = await searchEntries(':session{result:res-42, plane:segment}', engine)
     expect(entries).toHaveLength(2)
     expect(entries[0]!.kind).toBe('segment')
     expect(entries[0]!.id).toBe('res-42:0')
@@ -359,6 +356,7 @@ describe('StreamQueryEngine — telemetry plane (rows:)', () => {
     })
 
     const engine = new StreamQueryEngine({
+      service: fakeQueryService,
       noteTitleResolver: async noteId => (noteId === 'crossfit-girls/fran' ? 'Custom Fran Title' : undefined),
     })
 
@@ -378,6 +376,7 @@ describe('StreamQueryEngine — tag hydration (:note)', () => {
     })
 
     const engine = new StreamQueryEngine({
+      service: fakeQueryService,
       noteTagsResolver: async (noteId) => (noteId === 'note-1' ? ['benchmark', 'crossfit'] : []),
     })
 
@@ -389,17 +388,17 @@ describe('StreamQueryEngine — tag hydration (:note)', () => {
 
 describe('StreamQueryEngine — error and unsupported query handling', () => {
   it('returns empty array on parse error', async () => {
-    const entries = await searchEntries(':invalid query syntax {}}')
+    const entries = await searchEntries(':invalid query syntax {}}', engine)
     expect(entries).toEqual([])
   })
 
   it('returns empty array on aggregate query (not supported by stream intake)', async () => {
-    const entries = await searchEntries('sum:totalVolume{discipline:strength}')
+    const entries = await searchEntries('sum:totalVolume{discipline:strength}', engine)
     expect(entries).toEqual([])
   })
 
   it('returns empty array on empty query string', async () => {
-    const entries = await searchEntries('')
+    const entries = await searchEntries('', engine)
     expect(entries).toEqual([])
   })
 })
@@ -425,7 +424,7 @@ describe('StreamQueryEngine — tabular rows plane (:segment / :event, #1042)', 
   it('maps result.table rows to entries — executor order, ids preserved, no noteMap fallback', async () => {
     runFindImpl = async parsed => tableResult(parsed)
 
-    const entries = await searchEntries(':segment{result:res-42}')
+    const entries = await searchEntries(':segment{result:res-42}', engine)
     expect(entries).toHaveLength(2)
     expect(entries[0]!.kind).toBe('segment')
     expect(entries[0]!.id).toBe('row-1')
@@ -440,7 +439,7 @@ describe('StreamQueryEngine — tabular rows plane (:segment / :event, #1042)', 
     runFindImpl = async parsed => tableResult(parsed)
 
     let stages: { selected: number; matched: number } | undefined
-    await searchEntries(':segment{result:res-42}', undefined, next => { stages = next })
+    await searchEntries(':segment{result:res-42}', engine, next => { stages = next })
     expect(stages).toEqual({ selected: 9, matched: 2 })
   })
 })
@@ -507,8 +506,8 @@ describe('StreamQueryEngine — aggregate summaries', () => {
   it('maps saved Summary Metric series into visible stream entries', async () => {
     const engine = new StreamQueryEngine({
       service: {
-        runFind: mock(async parsed => ({ parsed, notes: [], blocks: [], stages: { selected: 0, matched: 0 } })),
-        runQuery: mock(async raw => ({
+        runFind: async parsed => ({ parsed, notes: [], blocks: [], stages: { selected: 0, matched: 0 } }),
+        runQuery: async raw => ({
           parsed: parseQuery(raw) as QueryResult['parsed'],
           series: [{
             key: '["result-1"]',
@@ -518,7 +517,7 @@ describe('StreamQueryEngine — aggregate summaries', () => {
           }],
           stages: { selected: 1, buckets: 1, aggregated: 1, groups: 1 },
           matched: [],
-        })),
+        }),
       },
     })
 

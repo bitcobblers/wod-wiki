@@ -2,7 +2,7 @@
  * ScrollSection.test.tsx — unit tests for the ScrollSection primitive component.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'bun:test'
 import { render, screen } from '@testing-library/react'
 import { ScrollSection } from './ScrollSection'
 
@@ -12,38 +12,37 @@ const mockDisconnect = vi.fn()
 
 let observerCallback: (entries: IntersectionObserverEntry[]) => void
 
-beforeEach(() => {
-  mockObserve.mockReset()
-  mockDisconnect.mockReset()
-
-  const ioMock = vi.fn().mockImplementation((cb) => {
-    observerCallback = cb
-    return {
-      observe: mockObserve,
-      unobserve: vi.fn(),
-      disconnect: mockDisconnect,
-    }
-  })
-
-  window.IntersectionObserver = ioMock as unknown as typeof IntersectionObserver
-  globalThis.IntersectionObserver = ioMock as unknown as typeof IntersectionObserver
-
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: vi.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
-  })
-})
-
 describe('ScrollSection', () => {
+  beforeEach(() => {
+    mockObserve.mockReset()
+    mockDisconnect.mockReset()
+
+    const ioMock = class MockIntersectionObserver {
+      constructor(cb: (entries: IntersectionObserverEntry[]) => void) {
+        observerCallback = cb
+      }
+      observe = mockObserve
+      unobserve = vi.fn()
+      disconnect = mockDisconnect
+    }
+
+    window.IntersectionObserver = ioMock as unknown as typeof IntersectionObserver
+    globalThis.IntersectionObserver = ioMock as unknown as typeof IntersectionObserver
+
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation((query) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    })
+  })
   it('renders stickyView, slides, and footer', () => {
     render(
       <ScrollSection

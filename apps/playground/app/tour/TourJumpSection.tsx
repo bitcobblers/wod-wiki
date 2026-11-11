@@ -88,7 +88,26 @@ function BoxFace(props: {
 }
 
 
-export function TourJumpSection() {
+/** Test seams — production defaults use the real feed subscription/sync services. */
+export interface TourJumpSectionFeedDeps {
+  isNotebookSubscribed: typeof isNotebookSubscribed
+  setNotebookSubscribed: typeof setNotebookSubscribed
+  setFeedSubscribed: typeof setFeedSubscribed
+  subscribeFeedSubscriptions: typeof subscribeFeedSubscriptions
+  syncFeedSource: typeof syncFeedSource
+  readFeedCoverage: typeof readFeedCoverage
+}
+
+export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSectionFeedDeps> } = {}) {
+  const deps = useMemo<TourJumpSectionFeedDeps>(() => ({
+    isNotebookSubscribed,
+    setNotebookSubscribed,
+    setFeedSubscribed,
+    subscribeFeedSubscriptions,
+    syncFeedSource,
+    readFeedCoverage,
+    ...feedDeps,
+  }), [feedDeps])
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<NotebookSort>('updated')
@@ -99,16 +118,16 @@ export function TourJumpSection() {
   const [subTick, setSubTick] = useState(0)
 
   useEffect(() => {
-    return subscribeFeedSubscriptions(() => setSubTick((t) => t + 1))
-  }, [])
+    return deps.subscribeFeedSubscriptions(() => setSubTick((t) => t + 1))
+  }, [deps])
 
   const anyBusy = importingFeedId !== null
   const files = useSeedContent()
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   // ponytail: feeds and their notebooks come from the registry; upgrade to dynamic remote manifest discovery when an index catalog is published.
   const catalog = useMemo(
-    () => buildFeedCatalog(listNotebooks(), files, listFeedSources(), (feedId, chunkId) => isNotebookSubscribed(feedId, chunkId)),
-    [files, subTick],
+    () => buildFeedCatalog(listNotebooks(), files, listFeedSources(), (feedId, chunkId) => deps.isNotebookSubscribed(feedId, chunkId)),
+    [files, subTick, deps],
   )
   const visible = useMemo(
     () => sortFeeds(filterFeeds(catalog, { text: search, feedId: selectedFeedId, subscribedOnly }), sort),
@@ -130,14 +149,14 @@ export function TourJumpSection() {
   useEffect(() => {
     let cancelled = false
     const check = () => {
-      readFeedCoverage()
+      deps.readFeedCoverage()
         .then(coverage => { if (!cancelled) setLibraryHasContent(coverage.libraryImported) })
         .catch(() => { /* storage unavailable — leave the card enabled */ })
     }
     check()
-    const unsubscribe = subscribeFeedSubscriptions(check)
+    const unsubscribe = deps.subscribeFeedSubscriptions(check)
     return () => { cancelled = true; unsubscribe() }
-  }, [anyBusy])
+  }, [anyBusy, deps])
 
   /** Import = subscribe the FEED: every notebook it publishes, one checkpoint. */
   const handleImport = useCallback(async (feedId: string) => {
@@ -147,7 +166,7 @@ export function TourJumpSection() {
       setStatuses(prev => ({ ...prev, [feedId]: status }))
     setStatus({ text: 'Checking the feed…', tone: 'muted' })
     try {
-      const outcome = await syncFeedSource(feedId, {
+      const outcome = await deps.syncFeedSource(feedId, {
         onProgress: (e) => setStatus({ text: feedProgressLabel(e), tone: 'muted' }),
       })
       if (outcome === 'imported' || outcome === 'current') {
@@ -175,14 +194,14 @@ export function TourJumpSection() {
     } finally {
       setImportingFeedId(null)
     }
-  }, [importingFeedId])
+  }, [importingFeedId, deps])
 
   const handleToggleNotebook = useCallback(async (feedId: string, chunkId: string, sub: boolean) => {
-    setNotebookSubscribed(feedId, chunkId, sub)
+    deps.setNotebookSubscribed(feedId, chunkId, sub)
     if (sub) {
-      void syncFeedSource(feedId, { force: false })
+      void deps.syncFeedSource(feedId, { force: false })
     }
-  }, [])
+  }, [deps])
 
   const handleNewNote = useCallback(async () => {
     const today = getTodayDateKey()

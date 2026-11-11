@@ -34,12 +34,15 @@ export function ReadmeQueryBlock({
   heading,
   onAddToToday,
   onRunStart,
+  queryEngine = defaultStreamQueryEngine,
 }: {
   query: string
   /** Embed link text — rendered as the block's heading; '' renders none. */
   heading: string
   onAddToToday?: (entry: Entry) => void
   onRunStart?: (entry: Entry) => void
+  /** Stream engine override (tests inject a stub; defaults to the shared engine). */
+  queryEngine?: typeof defaultStreamQueryEngine
 }) {
   const [entries, setEntries] = useState<Entry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -48,7 +51,7 @@ export function ReadmeQueryBlock({
     let cancelled = false
     setEntries(null)
     setError(null)
-    defaultStreamQueryEngine
+    queryEngine
       .query(query)
       .then(results => {
         if (!cancelled) setEntries([...results].sort(compareEntries))
@@ -59,7 +62,7 @@ export function ReadmeQueryBlock({
     return () => {
       cancelled = true
     }
-  }, [query])
+  }, [query, queryEngine])
 
   // `by {date}` renders date subheadings; other queries render a flat list.
   const dateGroups = useMemo(() => {

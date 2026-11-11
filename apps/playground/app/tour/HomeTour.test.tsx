@@ -8,135 +8,103 @@
  * tabs; the pane-header back-to-editor reset; the jump section exits; and
  * the note lifecycle contracts (fresh identity per Run, record-once
  * finalize, failed-start toast).
+ *
+ * Heavy dependencies (CodeMirror editor, fullscreen timer, run persistence,
+ * toast) are injected through HomeTour's test seams — `editorSlot`,
+ * `timerSlot`, `deps`, `jumpFeedDeps` — instead of module mocks.
  */
 
 import { beforeEach, afterEach, describe, expect, it, mock } from 'bun:test'
+import { useEffect } from 'react'
 import { render, screen, cleanup, fireEvent, act, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router'
 import type { Quest } from '../canvas/parseCanvasMarkdown'
 import type { ScriptBlock, Sessions, StoredOutputStatement } from '@/components/Editor/types'
+import type { ReactElement } from 'react'
 import { telemetry } from '@/services/telemetry'
+import { HomeTour, type HomeTourDeps } from './HomeTour'
+import { HomeView } from '../views/HomeView'
 
-// ── Heavy / browser-only dependencies ───────────────────────────────────────
+beforeEach(() => {
+  localStorage.clear()
+})
 
-mock.module('@/components/organisms/editor/NoteEditor', () => ({
-  NoteEditor: (props: {
-    value?: string
-    onChange?: (value: string) => void
-    onBlocksChange?: (blocks: ScriptBlock[]) => void
-    onStartWorkout?: (block: ScriptBlock) => void
-  }) => {
-    const React = require('react')
-    React.useEffect(() => {
-      // Inject a minimal block so the Run action has a compiled block to use.
-      props.onBlocksChange?.([{ id: 'block-1', type: 'Timer' } as unknown as ScriptBlock])
-    }, [])
-    return (
-      <div>
-        <textarea
-          data-testid="mock-note-editor"
-          value={props.value ?? ''}
-          onChange={(e) => props.onChange?.(e.target.value)}
-        />
-        {props.onStartWorkout && (
-          <button onClick={() => props.onStartWorkout?.({ id: 'block-1' } as unknown as ScriptBlock)}>Run</button>
-        )}
-        {/* Stand-ins for previewDecorations' styled fence lines, which the
-            card-2 block highlight measures (#884). */}
-        {(props.value ?? '').includes('```') && (
-          <>
-            <div className="cm-wod-fence-open" />
-            <div className="cm-wod-inner" />
-            <div className="cm-wod-fence-close" />
-          </>
-        )}
-      </div>
-    )
-  },
-}))
+// ── Editor seam: controlled textarea instead of CodeMirror ──────────────────
 
-mock.module('@/components/organisms/editor/RuntimeTimerPanel', () => ({
-  RuntimeTimerPanel: (props: {
-    autoStart?: boolean
-    onComplete?: (blockId: string, results: Sessions) => void
-    onRunStarted?: () => void
-    onClose?: () => void
-    externalStop?: boolean
-  }) => {
-    const control = globalThis as unknown as {
-      mockTimerPanelMounts?: number
-      fireTimerComplete?: (results: Sessions) => void
-      fireTimerClose?: () => void
-    }
-    const React = require('react')
-    React.useEffect(() => {
-      control.mockTimerPanelMounts = (control.mockTimerPanelMounts ?? 0) + 1
-      // Model the real panel: autoStart begins execution → idle→running.
-      if (props.autoStart) props.onRunStarted?.()
-    }, [])
-    // Model the real panel's host-driven stop: flipping externalStop halts
-    // the live execution and reports the partial once.
-    React.useEffect(() => {
-      if (props.externalStop) {
-        props.onComplete?.('block-1', {
-          startTime: 0,
-          endTime: 30_000,
-          duration: 30_000,
-          completed: false,
-          logs: [{ outputType: 'segment' }],
-        } as unknown as Sessions)
-      }
-    }, [props.externalStop])
-    control.fireTimerComplete = (results: Sessions) =>
-      props.onComplete?.('block-1', results)
-    control.fireTimerClose = () => props.onClose?.()
-    return (
-      <div
-        data-testid="mock-timer-panel"
-        data-external-stop={String(props.externalStop ?? false)}
+function MockNoteEditor(props: {
+  value?: string
+  onChange?: (value: string) => void
+  onBlocksChange?: (blocks: ScriptBlock[]) => void
+  onStartWorkout?: (block: ScriptBlock) => void
+}): ReactElement {
+  useEffect(() => {
+    // Inject a minimal block so the Run action has a compiled block to use.
+    props.onBlocksChange?.([{ id: 'block-1', type: 'Timer' } as unknown as ScriptBlock])
+  }, [])
+  return (
+    <div>
+      <textarea
+        data-testid="mock-note-editor"
+        value={props.value ?? ''}
+        onChange={(e) => props.onChange?.(e.target.value)}
       />
-    )
-  },
-}))
+      {props.onStartWorkout && (
+        <button onClick={() => props.onStartWorkout?.({ id: 'block-1' } as unknown as ScriptBlock)}>Run</button>
+      )}
+      {/* Stand-ins for previewDecorations' styled fence lines, which the
+          card-2 block highlight measures (#884). */}
+      {(props.value ?? '').includes('```') && (
+        <>
+          <div className="cm-wod-fence-open" />
+          <div className="cm-wod-inner" />
+          <div className="cm-wod-fence-close" />
+        </>
+      )}
+    </div>
+  )
+}
 
-mock.module('@/components/organisms/cast/CastButtonRpc', () => ({
-  CastButtonRpc: () => null,
-}))
+// ── Fullscreen timer seam: models the real panel's host contract ────────────
 
-mock.module('@/components/atoms/AudioToggle', () => ({
-  AudioToggle: () => null,
-}))
+function FullscreenStub(props: {
+  autoStart?: boolean
+  onCompleteWorkout?: (blockId: string, results: Sessions) => void
+  onRunStarted?: () => void
+  onClose?: () => void
+  externalStop?: boolean
+}): ReactElement {
+  const control = timerPanelControl()
+  useEffect(() => {
+    control.mockTimerPanelMounts = (control.mockTimerPanelMounts ?? 0) + 1
+    // Model the real panel: autoStart begins execution → idle→running.
+    if (props.autoStart) props.onRunStarted?.()
+  }, [])
+  // Model the real panel's host-driven stop: flipping externalStop halts
+  // the live execution and reports the partial once.
+  useEffect(() => {
+    if (props.externalStop) {
+      props.onCompleteWorkout?.('block-1', {
+        startTime: 0,
+        endTime: 30_000,
+        duration: 30_000,
+        completed: false,
+        logs: [{ outputType: 'segment' }],
+      } as unknown as Sessions)
+    }
+  }, [props.externalStop])
+  control.fireTimerComplete = (results: Sessions) =>
+    props.onCompleteWorkout?.('block-1', results)
+  control.fireTimerClose = () => props.onClose?.()
+  return (
+    <div
+      data-testid="mock-timer-panel"
+      data-external-stop={String(props.externalStop ?? false)}
+    />
+  )
+}
 
-mock.module('@/components/organisms/analytics', () => ({
-  ParsedQueryChips: () => null,
-}))
-
-mock.module('../hooks/useQuickStartAutoComplete', () => ({
-  useQuickStartAutoComplete: () => {},
-}))
-
-// The jump section's Library exit reads real IndexedDB coverage, which is
-// empty in tests and would disable the card — pin a populated library.
-import * as feedSyncModule from '@/services/feed/feedSync'
-mock.module('@/services/feed/feedSync', () => ({
-  ...feedSyncModule,
-  readFeedCoverage: async () => ({ coreImported: true, libraryImported: true }),
-}))
-
-mock.module('../hooks/useCompletionChallenge', () => ({
-  useCompletionChallenge: () => {},
-}))
-
-mock.module('../hooks/useRunStartedChallenge', () => ({
-  useRunStartedChallenge: () => {},
-}))
-
-mock.module('../hooks/useTourScrollQuests', () => ({
-  useTourScrollQuests: () => () => {},
-}))
-
-// ── usePlaygroundRun mock — the shared lifecycle contract ───────────────────
+// ── Run lifecycle seam: the shared lifecycle contract ───────────────────────
 
 type RunControl = {
   run: { noteId: string; resultId: string; block: ScriptBlock } | null
@@ -155,8 +123,16 @@ const runControl: RunControl = {
   recorded: false,
 }
 
-mock.module('../hooks/usePlaygroundRun', () => ({
-  usePlaygroundRun: () => ({
+function useFakePlaygroundRun(): {
+  get run(): RunControl['run']
+  get recorded(): boolean
+  pendingResults: null
+  start: (doc: string, block: ScriptBlock) => Promise<RunControl['run']>
+  finalize: (results: Sessions, completed: boolean) => Promise<void>
+  reset: () => Promise<void>
+  end: () => Promise<void>
+} {
+  return {
     get run() {
       return runControl.run
     },
@@ -165,6 +141,7 @@ mock.module('../hooks/usePlaygroundRun', () => ({
     },
     pendingResults: null,
     start: mock(async (doc: string, block: ScriptBlock) => {
+      void doc
       if (runControl.failStarts) throw new Error('storage blocked')
       runControl.starts += 1
       runControl.run = { noteId: `note-${runControl.starts}`, resultId: `res-${runControl.starts}`, block }
@@ -172,33 +149,32 @@ mock.module('../hooks/usePlaygroundRun', () => ({
       return runControl.run
     }),
     finalize: mock(async (results: Sessions, completed: boolean) => {
+      void results
       // Record-exactly-once, mirroring the real hook.
       if (runControl.recorded) return
       runControl.recorded = true
       runControl.finalizes.push({ results, completed })
     }),
+    reset: mock(async () => {}),
     end: mock(async () => {
       runControl.ends += 1
       runControl.run = null
     }),
-  }),
-}))
-
-mock.module('@/services/content/seedContent', () => ({
-  useSeedContent: () => null,
-}))
-
-mock.module('../../views/dashboards/WidgetComposerDialog', () => ({
-  WidgetComposerDialog: () => null,
-}))
+  }
+}
 
 const toastMock = mock((..._args: unknown[]) => {})
-mock.module('@/hooks/use-toast', () => ({
-  toast: toastMock,
-}))
 
-import { HomeTour } from './HomeTour'
-import { HomeView } from '../views/HomeView'
+const homeTourDeps: HomeTourDeps = {
+  usePlaygroundRun: useFakePlaygroundRun,
+  toast: toastMock,
+}
+
+// The jump section's Library exit reads real IndexedDB coverage, which is
+// empty in tests and would disable the card — pin a populated library.
+const jumpFeedDeps = {
+  readFeedCoverage: async () => ({ coreImported: true, libraryImported: true }),
+}
 
 // jsdom lacks ResizeObserver; Headless UI's combobox machine touches it when
 // the option list closes after a selection.
@@ -265,6 +241,10 @@ async function renderHomeTour() {
           wodFiles={wodFiles}
           theme="light"
           quests={homeQuests}
+          editorSlot={MockNoteEditor}
+          timerSlot={FullscreenStub}
+          deps={homeTourDeps}
+          jumpFeedDeps={jumpFeedDeps}
         />
       </NuqsAdapter>
     </MemoryRouter>,
@@ -311,6 +291,7 @@ describe('HomeTour', () => {
     runControl.ends = 0
     runControl.failStarts = false
     runControl.recorded = false
+    toastMock.mockClear()
     unsubscribe = telemetry.events.subscribe((event) => recorded.push(event))
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -330,6 +311,7 @@ describe('HomeTour', () => {
   afterEach(() => {
     unsubscribe()
     cleanup()
+    mock.restore()
     window.localStorage.clear()
   })
 
@@ -343,9 +325,10 @@ describe('HomeTour', () => {
   it('renders the baked arrival document when no seeded files exist', async () => {
     await renderHomeViewWithoutCorpus()
     expect(screen.queryByText(/Home canvas content not found/)).toBeNull()
-    expect(screen.getByTestId('mock-note-editor')).toHaveProperty(
-      'value',
-      expect.stringContaining('0:03 Count Down'),
+    // The real CodeMirror editor carries the baked welcome document.
+    await waitFor(
+      () => expect(document.querySelector('.cm-editor')?.textContent).toContain('0:03 Count Down'),
+      { timeout: 8000 },
     )
   })
 

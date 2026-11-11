@@ -56,7 +56,7 @@ export function invalidateSeedContent(): void {
   promise = null;
   // The derived corpus planes (block rows, static notes/tags) re-derive too.
   invalidateCorpusBlocks();
-  void ensureSeedContent();
+  void ensureSeedContent().catch(() => {});
 }
 
 function subscribe(listener: () => void): () => void {

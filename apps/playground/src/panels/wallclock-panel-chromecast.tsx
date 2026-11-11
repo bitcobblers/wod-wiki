@@ -28,7 +28,9 @@ export const ReceiverTimerPanel: React.FC<{
   getFocusProps?: (id: string) => FocusProps;
   /** Workout title for the top bar (receiver workbench state may not carry it) */
   workoutTitle?: string;
-}> = ({ snapshot, sendCommand, getFocusProps, workoutTitle }) => {
+  /** Clock command board slot; defaults to the shared ClockCommandBoard. */
+  CommandBoardSlot?: React.ComponentType<any>;
+}> = ({ snapshot, sendCommand, getFocusProps, workoutTitle, CommandBoardSlot = ClockCommandBoard }) => {
   const command = (cmd: ClockCommand): void => {
     if (!snapshot) return; // Disconnected / no active run: controls are dead.
     sendCommand(cmd);
@@ -64,7 +66,7 @@ export const ReceiverTimerPanel: React.FC<{
       )}
       {snapshot && (
         <div className="shrink-0 px-10 pb-4" data-clock-panel>
-          <ClockCommandBoard
+          <CommandBoardSlot
             snapshot={snapshot}
             dispatch={(cmd) => {
               // Sent is the strongest claim the receiver can make — the

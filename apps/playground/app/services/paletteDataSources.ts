@@ -4,6 +4,7 @@ export type { ConstructItem } from './constructSource';
 import type { PaletteDataSource, PaletteItem } from '@/components/organisms/command-palette/palette-types';
 import { storageService } from '@/services/storage';
 import { notePersistence } from '@/services/persistence';
+import type { Session, Tag } from '@/types/storage';
 import { normalizeNoteTitle } from '@/lib/noteTitle';
 import { playgroundContent } from './playgroundContent';
 import { formatDateMedium, formatDateShort } from '@/lib/dateFormat';
@@ -45,6 +46,11 @@ export function canvasRouteSource(canvasRoutes: CanvasRoute[]): PaletteDataSourc
   };
 }
 
+export interface GlobalSearchDeps {
+  /** Recent-session reader; defaults to the active storageService (tests inject). */
+  getRecentSessions?: (limit: number) => Promise<Session[]>
+}
+
 /**
  * Searches canvas pages, workout library items, and recent IndexedDB results.
  * Used for Ctrl+/ global search.
@@ -53,7 +59,10 @@ export function globalSearchSource(
   items: WorkoutItem[],
   canvasRoutes?: CanvasRoute[],
   showPlaygrounds = false,
+  deps: GlobalSearchDeps = {},
 ): PaletteDataSource {
+  const getRecentSessions = deps.getRecentSessions
+    ?? ((limit: number) => storageService.getRecentSessions(limit));
   return {
     id: 'global-search',
     label: 'Search',
@@ -88,7 +97,7 @@ export function globalSearchSource(
 
       // Recent IndexedDB sessions. IndexedDB failures propagate to the
       // palette shell, which already handles and reports search errors.
-      const recent = await storageService.getRecentSessions(50);
+      const recent = await getRecentSessions(50);
       const noteIds = [...new Set(recent.map(r => r.noteId))];
       const notes = noteIds.length > 0
         ? await notePersistence.listNotes({ ids: noteIds, projection: 'summary' }).catch(() => [])
@@ -344,14 +353,20 @@ export function journalHistorySource(excludeDateKey?: string): PaletteDataSource
 
 // ── Tags source ───────────────────────────────────────────────────────────
 
-export function tagsPaletteSource(existingTags: string[] = []): PaletteDataSource {
+export interface TagsPaletteDeps {
+  /** Stored-tag reader; defaults to the active storageService (tests inject). */
+  getAllTags?: () => Promise<Pick<Tag, 'id' | 'label' | 'createdAt'>[]>
+}
+
+export function tagsPaletteSource(existingTags: string[] = [], deps: TagsPaletteDeps = {}): PaletteDataSource {
+  const getAllTags = deps.getAllTags ?? ((): Promise<Pick<Tag, 'id' | 'label' | 'createdAt'>[]> => storageService.getAllTags());
   return {
     id: 'tags',
     label: 'Tags',
     search: async (query: string) => {
       let allTags: string[] = [];
       try {
-        const storedTags = await storageService.getAllTags();
+        const storedTags = await getAllTags();
         allTags = storedTags.map((t) => t.label);
       } catch {
         // storage unavailable

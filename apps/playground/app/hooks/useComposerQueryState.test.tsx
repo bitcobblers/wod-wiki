@@ -8,11 +8,6 @@
  * a fresh spell, and no-op edits never touch the URL.
  */
 
-// Must precede the react-router-dom import: repairs the partial
-// react-router-dom mock that useJournalZipProcessor.test.ts leaks
-// process-wide (see tests/helpers/repair-react-router-dom.ts).
-import '../../tests/helpers/repair-react-router-dom'
-
 import { afterEach, describe, expect, it } from 'bun:test'
 
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'

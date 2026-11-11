@@ -3,6 +3,9 @@ import type { ScriptBlock, Sessions } from '@/components/Editor/types'
 import { toast } from '@/hooks/use-toast'
 import type { RunButtonState } from '../components/molecules/SectionButtons'
 import { usePlaygroundRun, type PlaygroundRun } from './usePlaygroundRun'
+import { playgroundIntake, type PlaygroundIntake } from '../services/createPlaygroundPage'
+import { playgroundRecorder, type ResultRecorder } from '@/services/resultRecorder'
+import { notePersistence, type INotePersistence } from '@/services/persistence'
 
 export type FullscreenState =
   | { kind: 'timer'; block: ScriptBlock; results: Sessions | null }
@@ -13,6 +16,14 @@ export interface UseCanvasRuntimeOptions {
   title?: string
   getBlock: () => ScriptBlock | null
   getContent: () => string
+}
+
+/** Optional dependency overrides — production singletons by default (test seam). */
+export interface UseCanvasRuntimeDeps {
+  intake?: PlaygroundIntake
+  persistence?: INotePersistence
+  recorder?: ResultRecorder
+  toast?: (props: Parameters<typeof toast>[0]) => unknown
 }
 
 export interface UseCanvasRuntimeReturn {
@@ -43,12 +54,11 @@ export interface UseCanvasRuntimeReturn {
 }
 
 /** Owns persistence-before-run and record-once against the exact started entry (via usePlaygroundRun). */
-export function useCanvasRuntime({
-  title,
-  getBlock,
-  getContent,
-}: UseCanvasRuntimeOptions): UseCanvasRuntimeReturn {
-  const playground = usePlaygroundRun()
+export function useCanvasRuntime(
+  { title, getBlock, getContent }: UseCanvasRuntimeOptions,
+  { intake = playgroundIntake, persistence = notePersistence, recorder = playgroundRecorder, toast: showToast = toast }: UseCanvasRuntimeDeps = {},
+): UseCanvasRuntimeReturn {
+  const playground = usePlaygroundRun({ intake, persistence, recorder })
   const [fullscreen, setFullscreen] = useState<FullscreenState>(null)
   const [completedResults, setCompletedResults] = useState<Sessions | null>(null)
   const [resetRequested, setResetRequested] = useState(false)
@@ -70,7 +80,7 @@ export function useCanvasRuntime({
       await playground.end(partial?.results)
     } catch (error) {
       if (request === generation.current) {
-        toast({
+        showToast({
           title: 'Could not save workout results',
           description: error instanceof Error ? error.message : 'Your results are kept — try stopping again.',
           variant: 'destructive',
@@ -95,7 +105,7 @@ export function useCanvasRuntime({
       setFullscreen({ kind: 'timer', block: captured.block, results: null });
     } catch (error) {
       if (request === generation.current) {
-        toast({
+        showToast({
           title: 'Could not save playground workout',
           description: error instanceof Error ? error.message : 'The workout was not started. Please try again.',
           variant: 'destructive',
@@ -104,7 +114,7 @@ export function useCanvasRuntime({
     } finally {
       starting.current = false
     }
-  }, [playground, title, getBlock, getContent])
+  }, [playground, title, getBlock, getContent, showToast])
 
   const handleWorkoutComplete = useCallback(async (results: Sessions) => {
     const request = generation.current
@@ -113,7 +123,7 @@ export function useCanvasRuntime({
     } catch (error) {
       // Outputs stay pending on the run — a later completion retries the save.
       if (request === generation.current) {
-        toast({
+        showToast({
           title: 'Could not save workout results',
           description: error instanceof Error ? error.message : 'Your results are kept — try completing again.',
           variant: 'destructive',
@@ -136,7 +146,7 @@ export function useCanvasRuntime({
       try {
         await playground.reset(captured.doc, captured.meta)
       } catch (error) {
-        toast({
+        showToast({
           title: 'Could not save reset snapshot',
           description: error instanceof Error ? error.message : 'Your partial results are kept — try resetting again.',
           variant: 'destructive',
@@ -145,7 +155,7 @@ export function useCanvasRuntime({
         settle()
       }
     }
-  }, [playground, getContent, title])
+  }, [playground, getContent, title, showToast])
 
   const resetRun = useCallback(async (document?: string): Promise<boolean> => {
     const doc = document ?? getContent()
@@ -173,14 +183,14 @@ export function useCanvasRuntime({
       await playground.reset(doc, meta)
       return true
     } catch (error) {
-      toast({
+      showToast({
         title: 'Could not save workout results',
         description: error instanceof Error ? error.message : 'Your results are kept — try resetting again.',
         variant: 'destructive',
       })
       return false
     }
-  }, [playground, getContent, title, fullscreen])
+  }, [playground, getContent, title, fullscreen, showToast])
 
   const runState = useMemo<RunButtonState>(() => ({
     isReconnect: false,

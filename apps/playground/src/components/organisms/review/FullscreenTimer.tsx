@@ -72,6 +72,13 @@ export interface FullscreenTimerProps {
   parkOnUnmount?: boolean;
   /** Receives the runtime when it is parked on unmount. */
   onPark?: (runtime: IScriptRuntime) => void;
+  // Test/storybook seams — production defaults keep normal renders untouched.
+  /** Track-view runtime surface; defaults to the live RuntimeTimerPanel. */
+  RuntimePanelSlot?: React.ComponentType<any>;
+  /** Cast control in the dialog actions; defaults to the live CastButtonRpc. */
+  CastButtonSlot?: React.ComponentType;
+  /** Audio control in the dialog actions; defaults to the live AudioToggle. */
+  AudioToggleSlot?: React.ComponentType;
 }
 
 export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
@@ -89,6 +96,9 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   adoptRuntime,
   parkOnUnmount,
   onPark,
+  RuntimePanelSlot = RuntimeTimerPanel,
+  CastButtonSlot = CastButtonRpc,
+  AudioToggleSlot = AudioToggle,
 }) => {
   const [preparedBlock, setPreparedBlock] = useState<ScriptBlock | null>(prepareRun ? null : block);
   const [startError, setStartError] = useState<string | null>(null);
@@ -471,8 +481,8 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
       actions={
         <>
           {savedConfirmed && <span className="text-xs font-medium text-muted-foreground">Saved ✓</span>}
-          <CastButtonRpc />
-          <AudioToggle />
+          <CastButtonSlot />
+          <AudioToggleSlot />
         </>
       }
     >
@@ -528,8 +538,8 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
           >
             Stop
           </button>
-          <CastButtonRpc />
-          <AudioToggle />
+          <CastButtonSlot />
+          <AudioToggleSlot />
         </>
       }
     >
@@ -540,7 +550,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
           <button type="button" className="rounded border px-3 py-2 hover:bg-accent focus-visible:ring-2" onClick={() => void prepare()}>Retry starting workout</button>
         </div> : !preparedBlock ? <p role="status" aria-live="polite" className="p-4">Saving workout before starting…</p> : null}
         <div className="min-h-0 flex-1">
-          <RuntimeTimerPanel
+          <RuntimePanelSlot
             block={preparedBlock}
             noteContent={noteContent}
             view={view}

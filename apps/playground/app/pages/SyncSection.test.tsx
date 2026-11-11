@@ -1,38 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { Location } from 'react-router-dom';
 import { SyncSection } from './SyncSection';
+import {
+  PlaygroundProviderTree,
+  setupPlaygroundTestHost,
+  type PlaygroundHostHandle,
+} from '@/testing/host';
+import { resetFeedSubscriptionsForTest } from '@/services/feed/feedSubscriptions';
 import type { FeedStatus } from '@/services/feed/feedSync';
-
-let subscribedFeeds = new Set<string>();
-let subscribedNotebooks = new Set<string>();
-let syncedSources: string[] = [];
-const mockNavigate = mock();
-// Load boundary exception: static import binds before mock.module runs in bun:test; dynamic import captures unmocked router.
-const realRouter = await import('react-router-dom');
-mock.module('react-router-dom', () => ({
-  ...realRouter,
-  useNavigate: () => mockNavigate,
-}));
-mock.module('@/services/feed/feedSubscriptions', () => ({
-  getFeedSubscriptionMode: (id: string) => id === 'core' || subscribedFeeds.has(id) ? 'full' : subscribedNotebooks.size ? 'partial' : 'unsubscribed',
-  isFeedSubscribed: (id: string) => subscribedFeeds.has(id),
-  isNotebookSubscribed: (feedId: string, chunkId: string) =>
-    subscribedFeeds.has(feedId) || subscribedNotebooks.has(`${feedId}#${chunkId}`),
-  setFeedSubscribed: (id: string, val: boolean) => {
-    if (val) subscribedFeeds.add(id);
-    else subscribedFeeds.delete(id);
-    return true;
-  },
-  setNotebookSubscribed: (feedId: string, chunkId: string, val: boolean) => {
-    const key = `${feedId}#${chunkId}`;
-    if (val) subscribedNotebooks.add(key);
-    else subscribedNotebooks.delete(key);
-    return true;
-  },
-  isFeedAutoSync: () => false,
-  setFeedAutoSync: () => true,
-  subscribeFeedSubscriptions: (cb: () => void) => () => {},
-}));
 
 const mockStatus: FeedStatus = {
   sources: [
@@ -76,31 +52,41 @@ const mockStatus: FeedStatus = {
   ],
 };
 
-mock.module('@/services/feed/feedSync', () => ({
-  readFeedStatus: async () => mockStatus,
-  syncFeedSource: async (id: string) => {
-    syncedSources.push(id);
-    return 'imported';
-  },
-  runFeedSync: async () => 'imported',
-  subscribeFeedUpdates: () => () => {},
-  unsubscribeFeedSource: async () => ({ deleted: 0 }),
-  deleteFeedSource: async () => ({ deleted: 0 }),
-}));
+const openHosts: PlaygroundHostHandle[] = [];
+
+// SyncSection rides the real router through PlaygroundProviderTree; only the
+// network-touching feed seams are injected (readFeedStatus et al.).
+async function renderSync() {
+  const host = await setupPlaygroundTestHost();
+  openHosts.push(host);
+  let location: Location | null = null;
+  await act(async () => {
+    render(
+      <PlaygroundProviderTree route="/settings/sync" onLocationChange={(loc) => { location = loc; }}>
+        <SyncSection deps={{ readFeedStatus: async () => mockStatus }} />
+      </PlaygroundProviderTree>,
+    );
+  });
+  return { host, getLocation: () => location };
+}
+
+beforeEach(() => {
+  // feedSubscriptions caches its maps: drop both the persisted records and
+  // the in-memory cache so each test starts unsubscribed (core stays full).
+  localStorage.removeItem('wodwiki.seedSubscriptions');
+  localStorage.removeItem('wodwiki.seedAutoSync');
+  resetFeedSubscriptionsForTest();
+});
+
+afterEach(async () => {
+  cleanup();
+  resetFeedSubscriptionsForTest();
+  for (const host of openHosts.splice(0)) await host.cleanup();
+});
 
 describe('SyncSection notebook subscriptions and filtering', () => {
-  beforeEach(() => {
-    subscribedFeeds = new Set(['core']);
-    subscribedNotebooks = new Set();
-    syncedSources = [];
-  });
-
-  afterEach(() => {
-    cleanup();
-  });
-
   it('defaults to subscribed only and displays all notebooks when unchecked', async () => {
-    render(<SyncSection />);
+    await renderSync();
 
     await waitFor(() => {
       expect(screen.getByTestId('feed-source-core')).toBeTruthy();
@@ -121,7 +107,7 @@ describe('SyncSection notebook subscriptions and filtering', () => {
   });
 
   it('filters by feed selector', async () => {
-    render(<SyncSection />);
+    await renderSync();
 
     // Uncheck subscribed only so both sources are candidates
     fireEvent.click(screen.getByTestId('sync-subscribed-only-toggle'));
@@ -139,7 +125,7 @@ describe('SyncSection notebook subscriptions and filtering', () => {
   });
 
   it('renders subscription mode summary and link to Library browser', async () => {
-    render(<SyncSection />);
+    const { getLocation } = await renderSync();
 
     fireEvent.click(screen.getByTestId('sync-subscribed-only-toggle'));
 
@@ -150,11 +136,14 @@ describe('SyncSection notebook subscriptions and filtering', () => {
     expect(screen.getByTestId('feed-sub-mode-seed-crossfit').textContent).toContain('Unsubscribed');
 
     fireEvent.click(screen.getByTestId('browse-notebooks-link-seed-crossfit'));
-    expect(mockNavigate).toHaveBeenCalledWith('/notebooks?q=:notebook{feed:seed-crossfit,subscribed:true,false}');
+    await waitFor(() => {
+      expect(getLocation()?.pathname).toBe('/notebooks');
+      expect(getLocation()?.search).toBe('?q=:notebook{feed:seed-crossfit,subscribed:true,false}');
+    });
   });
 
   it('dismisses more actions menu on Escape and backdrop click', async () => {
-    render(<SyncSection />);
+    await renderSync();
     fireEvent.click(screen.getByTestId('sync-subscribed-only-toggle'));
     await waitFor(() => {
       expect(screen.getByTestId('feed-more-seed-crossfit')).toBeTruthy();

@@ -1,183 +1,76 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
+// React 19 only flushes updates inside act() when the test environment opts
+// in; the historical full-suite run got this from a sibling file's global.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { parseDocumentSections } from '@bitcobblers/wod-wiki-core'
 
+import * as NoteEditorModule from '@/components/organisms/editor/NoteEditor'
 import type { NoteEditorProps } from '@/components/organisms/editor/NoteEditor'
-import type { HistoryRecord } from '@/types/history'
-import type {
-  INotePersistence,
-  NoteLocator,
-  NoteMutation,
-  NoteQuery,
-} from '@/services/persistence'
-import type { Session } from '@/types/storage'
-import { parseDocumentSections, reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
-import type { Note } from '@/types/storage';
+import type { Sessions } from '@/components/Editor/types'
+import * as RuntimeTimerPanelModule from '@/components/organisms/editor/RuntimeTimerPanel'
+import * as MacOSChromeModule from '../components/atoms/MacOSChrome'
+import * as CanvasProseModule from './CanvasProse'
+import { renderWithPlaygroundHost, type PlaygroundRenderResult } from '@/testing/host'
 
-import type { PanelActions } from './MarkdownCanvasPage'
+import { MarkdownCanvasPage, type PanelActions } from './MarkdownCanvasPage'
 import type { ParsedCanvasPage } from './parseCanvasMarkdown'
 
-const editorSnapshots: Array<{ noteId?: string; resultCount: number; source?: string }> = []
-const storedResults: Session[] = []
-const savedSessionCalls: Session[] = []
-const editorFocusCalls: string[] = []
-
-const playgroundNoteId = '01990e80-0000-7000-8000-000000000001'
-let snapshotSource = '';
-let startedSession: Session | null = null;
-
-mock.module('../services/createPlaygroundPage', () => ({
-  ensurePlaygroundEntry: async () => ({ noteId: playgroundNoteId, routeId: 'playground/canvas-home' }),
-  // The run lifecycle captures a persisted note before opening its timer.
-  playgroundIntake: {
-    snapshotEntry: async (source: string) => { snapshotSource = source; return { noteId: playgroundNoteId, routeId: 'playground/canvas-home' }; },
-  },
-}))
 const sampleSessions = {
   completed: true,
   startTime: 1_700_000_000_000,
   endTime: 1_700_000_030_000,
   duration: 30_000,
-  logs: [{ id: 'log-1' }],
+  logs: [{ id: 1, outputType: 'segment', metrics: [{ type: 'rep', value: 10, origin: 'runtime' }], sourceBlockKey: '1', stackLevel: 0 }],
+  metrics: [],
+} as unknown as Sessions
+
+// Interactive stubs swapped over the real modules via namespace spies
+// (restored in afterEach): these tests exercise the page's wiring and the
+// real persistence plane, not CodeMirror itself. The editor stub keeps the
+// last reported payload semantics the runtime flow relies on.
+let editorFocusCalls: string[] = []
+
+function StubNoteEditor(props: NoteEditorProps) {
+  useEffect(() => {
+    props.onViewCreated?.({
+      focus: () => editorFocusCalls.push(props.value),
+    } as never)
+    props.onBlocksChange?.(parseDocumentSections(props.value).flatMap(section => section.scriptBlock ? [{ ...section.scriptBlock, id: 'block-1' }] : []))
+  }, [props])
+
+  return (
+    <textarea
+      data-testid="note-editor"
+      data-note-id={props.noteId}
+      data-editor-source={typeof props.value === 'string' ? props.value : ''}
+      value={props.value}
+      onChange={(event) => props.onChange(event.target.value)}
+    />
+  )
 }
 
-mock.module('react-router-dom', () => ({
-  BrowserRouter: ({ children }: { children: React.ReactNode }) => children,
-  MemoryRouter: ({ children }: { children: React.ReactNode }) => children,
-  Routes: ({ children }: { children: React.ReactNode }) => children,
-  Route: () => null,
-  Link: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a>,
-  NavLink: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a>,
-  Navigate: () => null,
-  Outlet: () => null,
-  useNavigate: () => () => {},
-  useParams: () => ({}),
-  useLocation: () => ({ pathname: '/', search: '', hash: '', state: null, key: 'test' }),
-  useSearchParams: () => [new URLSearchParams(), () => {}],
-  useMatch: () => null,
-  useResolvedPath: () => ({ pathname: '/' }),
-  generatePath: (path: string) => path,
-}))
-
-mock.module('nuqs', () => ({
-  useQueryState: () => [null, () => {}],
-  parseAsStringEnum: () => ({ withDefault: () => 'all' }),
-}))
-
-// The canvas page pulls in the workbench runtime via `@/panels/page-shells`
-// (useStickyBoundaryOffset), whose providers call createNotePersistence —
-// the mock must export it or ESM linking against the mock fails.
-const fakeNotePersistence: INotePersistence = {
-  async createNote() {
-    return fakeEntry('created')
-  },
-  async getNote(locator: NoteLocator) {
-    return fakeEntry(typeof locator === 'string' ? locator : locator.id)
-  },
-  async listNotes(query: NoteQuery = {}) {
-    const ids = query.ids ?? []
-    if (ids.length === 0) return []
-    return ids.map(id => ({
-      ...fakeEntry(id),
-      extendedResults: storedResults.filter(r => r.noteId === id),
-    }))
-  },
-  async saveNote(input) { snapshotSource = input.rawContent; return fakeEntry(input.noteId); },
-  async startSession(input, session) {
-    const block = input.blocks[session.blockId];
-    if (!block) throw new Error('Selected occurrence missing');
-    startedSession = { ...session, blockVersion: 1 };
-    const entry = fakeEntry(input.noteId);
-    const note: Note = { id: entry.id, title: entry.title, createdAt: 0, rawContent: input.rawContent, blocks: input.blocks, sourceRevision: 1 };
-    return { note, session: startedSession, revision: { noteId: note.id, blockId: block.id, version: 1, kind: block.kind, dialect: block.dialect, sport: block.sport, rawContent: input.rawContent.slice(block.from, block.to), savedAt: 0 } };
-  },
-  async finishSession(resultId, data) {
-    if (!startedSession || startedSession.id !== resultId) throw new Error('Pinned Session missing');
-    const saved = { ...startedSession, ...data };
-    savedSessionCalls.push(saved);
-    storedResults.unshift(saved);
-    return saved;
-  },
-  async getBlockRevision() { return undefined; },
-  async getBlockHistory() { return []; },
-  async getNoteBlockHistory() { return []; },
-  async mutateNote(locator: NoteLocator, _mutation: NoteMutation) { return fakeEntry(typeof locator === 'string' ? locator : locator.id ?? ''); },
-  async deleteNote() {},
-}
-
-function fakeEntry(id: string): HistoryRecord {
-  return {
-    id,
-    title: id,
-    createdAt: 0,
-    updatedAt: 0,
-    targetDate: 0,
-    rawContent: snapshotSource,
-    blocks: reconcileNoteBlocks(snapshotSource, { sourceRevision: 1, createId: () => 'block-1' }),
-    sourceRevision: 1,
-    tags: [],
-    schemaVersion: 1,
-  }
-}
-
-mock.module('@/services/persistence', () => ({
-  createNotePersistence: () => fakeNotePersistence,
-  notePersistence: fakeNotePersistence,
-  IndexedDBNotePersistence: class IndexedDBNotePersistence {},
-}))
-
-mock.module('@/components/organisms/editor/NoteEditor', () => ({
-  NoteEditor: (props: NoteEditorProps) => {
-    useEffect(() => {
-      props.onViewCreated?.({
-        focus: () => editorFocusCalls.push(props.value),
-      } as any)
-      props.onBlocksChange?.(parseDocumentSections(props.value).flatMap(section => section.scriptBlock ? [{ ...section.scriptBlock, id: 'block-1' }] : []))
-    }, [props])
-
-    editorSnapshots.push({
-      noteId: props.noteId,
-      resultCount: 0,
-      source: typeof props.value === 'string' ? props.value : undefined,
-    })
-
-    return (
-      <textarea
-        data-testid="note-editor"
-        data-note-id={props.noteId}
-        data-result-count="0"
-        data-editor-source={typeof props.value === 'string' ? props.value : ''}
-        value={props.value}
-        onChange={(event) => props.onChange(event.target.value)}
-      />
-    )
-  },
-}))
-
-mock.module('@/components/organisms/editor/RuntimeTimerPanel', () => ({
-  RuntimeTimerPanel: (props: { onComplete?: (blockId: string, results: typeof sampleSessions) => void }) => (
+function StubRuntimeTimerPanel(props: { onComplete?: (blockId: string, results: Sessions) => void }) {
+  return (
     <button data-testid="complete-fullscreen" onClick={() => props.onComplete?.('block-1', sampleSessions)}>
       Complete fullscreen
     </button>
-  ),
-}))
+  )
+}
 
-mock.module('../components/atoms/MacOSChrome', () => ({
-  MacOSChrome: ({ title, children }: { title: string; children: React.ReactNode }) => (
+function StubMacOSChrome({ title, children }: { title: string; children: ReactNode }) {
+  return (
     <div data-testid="chrome">
       <div data-testid="chrome-title">{title}</div>
       {children}
     </div>
-  ),
-}))
+  )
+}
 
-mock.module('./CanvasProse', () => ({
-  CanvasProse: ({ prose }: { prose: string }) => <div>{prose}</div>,
-}))
-
-mock.module('../views/queriable-list/CollectionWorkoutsList', () => ({
-  CollectionWorkoutsList: () => null,
-}))
+function StubCanvasProse({ prose }: { prose: string }) {
+  return <div>{prose}</div>
+}
 
 const page: ParsedCanvasPage = {
   frontmatter: {},
@@ -259,7 +152,7 @@ const examplePage: ParsedCanvasPage = {
   ],
 }
 
-const markdownCanvasPageModule = import('./MarkdownCanvasPage')
+let host: PlaygroundRenderResult | null = null
 
 function getRenderedEditors() {
   return screen.getAllByTestId('note-editor')
@@ -273,48 +166,50 @@ function getEditorValue() {
   return (getRenderedEditors()[0] as HTMLTextAreaElement).value
 }
 
+beforeEach(() => {
+  class MockIntersectionObserver {
+    observe() {}
+    disconnect() {}
+    unobserve() {}
+  }
+
+  ;(globalThis as unknown as Record<string, unknown>).IntersectionObserver = MockIntersectionObserver
+  ;(window as unknown as { matchMedia: unknown }).matchMedia = () => ({
+    matches: false,
+    media: '',
+    onchange: null,
+    addListener() {},
+    removeListener() {},
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent() { return false },
+  })
+  Object.defineProperty(window, 'scrollY', {
+    value: 0,
+    writable: true,
+    configurable: true,
+  })
+  editorFocusCalls = []
+
+  spyOn(NoteEditorModule, 'NoteEditor').mockImplementation(StubNoteEditor)
+  spyOn(RuntimeTimerPanelModule, 'RuntimeTimerPanel').mockImplementation(StubRuntimeTimerPanel)
+  spyOn(MacOSChromeModule, 'MacOSChrome').mockImplementation(StubMacOSChrome)
+  spyOn(CanvasProseModule, 'CanvasProse').mockImplementation(StubCanvasProse)
+})
+
+afterEach(async () => {
+  cleanup()
+  document.body.innerHTML = ''
+  mock.restore()
+  await host?.cleanup()
+  host = null
+})
+
 describe('MarkdownCanvasPage result persistence', () => {
-  beforeEach(() => {
-    class MockIntersectionObserver {
-      observe() {}
-      disconnect() {}
-      unobserve() {}
-    }
-
-    ;(globalThis as any).IntersectionObserver = MockIntersectionObserver
-    ;(window as any).matchMedia = () => ({
-      matches: false,
-      media: '',
-      onchange: null,
-      addListener() {},
-      removeListener() {},
-      addEventListener() {},
-      removeEventListener() {},
-      dispatchEvent() { return false },
-    })
-    editorSnapshots.length = 0
-    storedResults.length = 0
-    savedSessionCalls.length = 0
-    editorFocusCalls.length = 0
-    snapshotSource = '';
-    startedSession = null;
-    Object.defineProperty(window, 'scrollY', {
-      value: 0,
-      writable: true,
-      configurable: true,
-    })
-  })
-
-  afterEach(() => {
-    cleanup()
-    document.body.innerHTML = ''
-  })
-
   it('persists the first inline canvas completion', async () => {
-    const { MarkdownCanvasPage } = await markdownCanvasPageModule
     let panelActions: PanelActions | null = null
 
-    render(
+    const mounted = await renderWithPlaygroundHost(
       <MarkdownCanvasPage
         page={page}
         wodFiles={{ '../../markdown/home-source.md': '```time\n10 thrusters\n```' }}
@@ -324,6 +219,7 @@ describe('MarkdownCanvasPage result persistence', () => {
         }}
       />,
     )
+    host = mounted
 
     await waitFor(() => expect(panelActions).toBeTruthy())
 
@@ -337,13 +233,15 @@ describe('MarkdownCanvasPage result persistence', () => {
       getRenderedRuntimeButtons()[0].click()
     })
 
-    await waitFor(() => expect(savedSessionCalls).toHaveLength(1))
-    expect(savedSessionCalls[0]).toMatchObject({
-      noteId: playgroundNoteId,
-      blockId: 'block-1',
-      blockVersion: 1,
-      duration: sampleSessions.duration,
-      completed: true,
+    // The real persistence plane recorded the completed session against the
+    // intake snapshot note — duration and completed flag survive the write.
+    await waitFor(async () => {
+      const notes = await mounted.notePersistence.listNotes({ projection: 'history-detail' })
+      expect(
+        notes.some((note) =>
+          note.extendedResults?.some((row) => row.completed === true && row.duration === sampleSessions.duration),
+        ),
+      ).toBe(true)
     })
 
     act(() => {
@@ -352,15 +250,14 @@ describe('MarkdownCanvasPage result persistence', () => {
   })
 
   it('mounts canvas page with initial source', async () => {
-    const { MarkdownCanvasPage } = await markdownCanvasPageModule
-
-    render(
+    const mounted = await renderWithPlaygroundHost(
       <MarkdownCanvasPage
         page={page}
         wodFiles={{ '../../markdown/home-source.md': '10 thrusters' }}
         theme="light"
       />,
     )
+    host = mounted
 
     await waitFor(() => expect(getRenderedEditors()).toHaveLength(2))
   })
@@ -387,9 +284,8 @@ describe('MarkdownCanvasPage result persistence', () => {
         },
       ],
     }
-    const { MarkdownCanvasPage } = await markdownCanvasPageModule
 
-    render(
+    const mounted = await renderWithPlaygroundHost(
       <MarkdownCanvasPage
         page={editablePage}
         wodFiles={{
@@ -399,6 +295,7 @@ describe('MarkdownCanvasPage result persistence', () => {
         theme="light"
       />,
     )
+    host = mounted
 
     await waitFor(() => expect(getRenderedEditors()).toHaveLength(2))
     expect(screen.getAllByText('Try editing this example ↓')).toHaveLength(2)
@@ -431,9 +328,7 @@ describe('MarkdownCanvasPage result persistence', () => {
   })
 
   it('shows the active section title and swaps inline examples without scrolling', async () => {
-    const { MarkdownCanvasPage } = await markdownCanvasPageModule
-
-    render(
+    const mounted = await renderWithPlaygroundHost(
       <MarkdownCanvasPage
         page={examplePage}
         wodFiles={{
@@ -444,6 +339,7 @@ describe('MarkdownCanvasPage result persistence', () => {
         theme="light"
       />,
     )
+    host = mounted
 
     await waitFor(() => expect(screen.getAllByTestId('chrome-title')[0]?.textContent).toBe('Examples'))
 

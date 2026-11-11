@@ -1,14 +1,33 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, render, screen } from '@testing-library/react';
 import { memo } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { ResponsiveActions, ResponsiveActionsProvider, NavbarActions } from '../ResponsiveActions';
 
 let isMobile = true;
-mock.module('../../hooks/useIsMobile', () => ({
-  useIsMobile: () => isMobile,
-}));
+let originalMatchMedia: typeof window.matchMedia;
 
+function installMobileMatchMedia(): void {
+  window.matchMedia = ((query: string) => ({
+    matches: isMobile,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as typeof window.matchMedia;
+}
+
+beforeAll(() => {
+  originalMatchMedia = window.matchMedia;
+  installMobileMatchMedia();
+});
+
+afterAll(() => {
+  window.matchMedia = originalMatchMedia;
+});
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <MemoryRouter>
@@ -24,11 +43,13 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 describe('ResponsiveActions navbar slot', () => {
+  beforeEach(() => {
+    installMobileMatchMedia();
+  });
   afterEach(() => {
     cleanup();
     isMobile = true;
   });
-
   it('pins the navbar action beside the cast button on mobile instead of the dock', () => {
     render(
       <Shell>
@@ -101,6 +122,9 @@ describe('ResponsiveActions navbar slot', () => {
 });
 
 describe('ResponsiveActions dock trigger', () => {
+  beforeEach(() => {
+    installMobileMatchMedia();
+  });
   afterEach(() => {
     cleanup();
   });
@@ -137,6 +161,9 @@ describe('ResponsiveActions dock trigger', () => {
 });
 
 describe('ResponsiveActions mobile layout', () => {
+  beforeEach(() => {
+    installMobileMatchMedia();
+  });
   afterEach(() => {
     cleanup();
   });

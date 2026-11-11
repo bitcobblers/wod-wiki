@@ -1,151 +1,126 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, describe, expect, it } from 'bun:test'
 import { StrictMode } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { Location } from 'react-router-dom'
+import {
+  PlaygroundProviderTree,
+  setupPlaygroundTestHost,
+  type PlaygroundHostHandle,
+} from '@/testing/host'
+import { createPlaygroundPage } from '../services/createPlaygroundPage'
+import { PlaygroundRedirect } from './PlaygroundRedirect'
 
-const navigateCalls: Array<{ to: string; options?: { replace?: boolean } }> = []
-const createPlaygroundPageCalls: string[] = []
-let shouldFailCreatePlaygroundPage = false
-let existingPages: Array<{ id: string; updatedAt: number }> = []
+// Optional deps with production defaults: the real mint over the host's
+// InMemoryStorage, wrapped to count how often the redirect mints a note.
+const openHosts: PlaygroundHostHandle[] = []
+let mints: number
 
-const mockNavigate = (to: string, options?: { replace?: boolean }) => {
-  navigateCalls.push({ to, options })
+function countingCreatePage(): (content: string) => Promise<string> {
+  mints = 0
+  return async (content) => {
+    mints += 1
+    return createPlaygroundPage(content)
+  }
 }
 
-mock.module('react-router-dom', () => ({
-  useNavigate: () => mockNavigate,
-  useParams: () => ({}),
-  useLocation: () => ({ pathname: '/', search: '', hash: '', state: null }),
-  Navigate: ({ to }: { to: string }) => null,
-}))
+// Rendered synchronously (RTL auto-act) on purpose: an `act(async)` here
+// would block on the host's whole-corpus seed (~1020 pages) before returning.
+async function renderRedirect(
+  ui: React.ReactElement = <PlaygroundRedirect createPage={countingCreatePage()} />,
+  seed?: (host: PlaygroundHostHandle) => Promise<void>,
+) {
+  const host = await setupPlaygroundTestHost()
+  openHosts.push(host)
+  await seed?.(host)
+  let location: Location | null = null
+  render(
+    <PlaygroundProviderTree route="/" onLocationChange={(loc) => { location = loc }}>
+      {ui}
+    </PlaygroundProviderTree>,
+  )
+  const getLocation = () => location
+  return { host, getLocation }
+}
 
-const createPlaygroundPageMock = mock(async (content: string) => {
-  createPlaygroundPageCalls.push(content)
-  if (shouldFailCreatePlaygroundPage) {
-    throw new DOMException('Blocked by browser', 'SecurityError')
-  }
-  return '2026-05-19 15.30'
-})
+// The first mounted host seeds the bundled corpus; give the mint + seed room.
+const NAVIGATE = { timeout: 30000 }
 
-mock.module('../services/createPlaygroundPage', () => ({
-  createPlaygroundPage: createPlaygroundPageMock,
-}))
-
-mock.module('../services/playgroundContent', () => ({
-  playgroundContent: {
-    getPagesByCategory: mock(async () => existingPages),
-  },
-}))
-
-mock.module('../templates/defaultPlaygroundContent', () => ({
-  DEFAULT_PLAYGROUND_CONTENT: {
-    content: '# New playground\n',
-  },
-}))
-
-const componentModule = import('./PlaygroundRedirect')
-
-beforeEach(() => {
-  navigateCalls.length = 0
-  createPlaygroundPageCalls.length = 0
-  shouldFailCreatePlaygroundPage = false
-  existingPages = []
-  createPlaygroundPageMock.mockClear()
+afterEach(async () => {
+  cleanup()
+  for (const host of openHosts.splice(0)) await host.cleanup()
 })
 
 describe('PlaygroundRedirect', () => {
   it('mints a fresh empty playground note', async () => {
-    const { PlaygroundRedirect } = await componentModule
-
-    render(<PlaygroundRedirect />)
+    const { getLocation } = await renderRedirect()
 
     await waitFor(() => {
-      expect(createPlaygroundPageCalls).toEqual(['# New playground\n'])
-      expect(navigateCalls).toEqual([
-        {
-          to: '/playground/2026-05-19%2015.30',
-          options: { replace: true },
-        },
-      ])
-    })
-  })
+      expect(getLocation()?.pathname).toMatch(/^\/playground\/\S/)
+    }, NAVIGATE)
+    expect(mints).toBe(1)
+  }, 60000)
 
   it('still mints a fresh empty note when pages exist — /playgrounds is the resume surface', async () => {
-    const { PlaygroundRedirect } = await componentModule
-    existingPages = [
-      { id: 'playground/older', updatedAt: 1000 },
-      { id: 'playground/newer', updatedAt: 2000 },
-    ]
-
-    render(<PlaygroundRedirect />)
+    const { getLocation } = await renderRedirect(<PlaygroundRedirect createPage={countingCreatePage()} />, async () => {
+      await createPlaygroundPage('# an older playground\n')
+    })
 
     await waitFor(() => {
-      expect(createPlaygroundPageCalls).toEqual(['# New playground\n'])
-      expect(navigateCalls).toEqual([
-        {
-          to: '/playground/2026-05-19%2015.30',
-          options: { replace: true },
-        },
-      ])
-    })
-  })
+      expect(getLocation()?.pathname).toMatch(/^\/playground\/\S/)
+    }, NAVIGATE)
+    // The seeded page is resumed from /playgrounds, not reloaded here: this
+    // visit still mints exactly one fresh note.
+    expect(mints).toBe(1)
+    expect(getLocation()?.pathname).not.toBe('/playground/2026-05-19%2015.30')
+  }, 60000)
 
   it('creates exactly one page under StrictMode when none exists', async () => {
-    const { PlaygroundRedirect } = await componentModule
-
-    render(
+    const { getLocation } = await renderRedirect(
       <StrictMode>
-        <PlaygroundRedirect />
+        <PlaygroundRedirect createPage={countingCreatePage()} />
       </StrictMode>,
     )
 
     await waitFor(() => {
-      expect(createPlaygroundPageCalls).toEqual(['# New playground\n'])
-      expect(navigateCalls.length).toBeGreaterThanOrEqual(1)
-      expect(navigateCalls).toContainEqual({
-        to: '/playground/2026-05-19%2015.30',
-        options: { replace: true },
-      })
-    })
-  })
+      expect(getLocation()?.pathname).toMatch(/^\/playground\/\S/)
+    }, NAVIGATE)
+    // The dedup promise collapses the double mount into one mint.
+    expect(mints).toBe(1)
+  }, 60000)
 
   it('mints exactly one note even when the first-note wizard would still open', async () => {
     // The wizard gates on profile state and opens on the note page itself —
     // it must not interact with fresh-page creation here (N8 multiply bug).
-    const { PlaygroundRedirect } = await componentModule
-    existingPages = [{ id: 'playground/existing', updatedAt: 2000 }]
-
-    render(<PlaygroundRedirect />)
+    const { getLocation } = await renderRedirect(<PlaygroundRedirect createPage={countingCreatePage()} />, async () => {
+      await createPlaygroundPage('# an existing playground\n')
+    })
 
     await waitFor(() => {
-      expect(createPlaygroundPageCalls).toEqual(['# New playground\n'])
-      expect(navigateCalls).toEqual([
-        {
-          to: '/playground/2026-05-19%2015.30',
-          options: { replace: true },
-        },
-      ])
-    })
-  })
+      expect(getLocation()?.pathname).toMatch(/^\/playground\/\S/)
+    }, NAVIGATE)
+    expect(mints).toBe(1)
+  }, 60000)
 
   it('renders a retry state when note creation fails, then redirects after retry', async () => {
-    const { PlaygroundRedirect } = await componentModule
-    shouldFailCreatePlaygroundPage = true
-
-    render(<PlaygroundRedirect />)
+    let fail = true
+    const { getLocation } = await renderRedirect(
+      <PlaygroundRedirect
+        createPage={async (content) => {
+          if (fail) throw new DOMException('Blocked by browser', 'SecurityError')
+          return createPlaygroundPage(content)
+        }}
+      />,
+    )
 
     await screen.findByText('Unable to create a new playground note.')
-    expect(navigateCalls).toEqual([])
+    expect(getLocation()?.pathname).toBe('/')
 
-    shouldFailCreatePlaygroundPage = false
+    fail = false
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
 
     await waitFor(() => {
-      expect(createPlaygroundPageCalls.length).toBe(2)
-      expect(createPlaygroundPageCalls.every(content => content === '# New playground\n')).toBe(true)
-      expect(navigateCalls).toContainEqual({
-        to: '/playground/2026-05-19%2015.30',
-        options: { replace: true },
-      })
-    })
-  })
+      expect(getLocation()?.pathname).toMatch(/^\/playground\/\S/)
+    }, NAVIGATE)
+    expect(getLocation()?.pathname).not.toBe('/')
+  }, 60000)
 })

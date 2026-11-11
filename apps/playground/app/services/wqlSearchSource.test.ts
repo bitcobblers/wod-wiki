@@ -17,33 +17,11 @@
  *   8. withWqlText delegates with the extracted text, never raw WQL.
  *   9. searchPaletteQuery compiles to the unbounded global default.
  */
-import { describe, expect, it, mock, afterEach } from 'bun:test'
+import { describe, expect, it, afterEach } from 'bun:test'
 
-import { parseQuery, isFindQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
-import type { FindQueryResult } from '@bitcobblers/wod-wiki-engine'
-import type { BlockIndexRow, Note } from '@/types/storage'
+import { parseQuery, isFindQuery, serialize, type AnyParsedQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
+import type { PaletteDataSource } from '@/components/organisms/command-palette/palette-types'
 import type { Entry } from '../lib/entryMapper'
-
-// ── Service mock (spread real module so unlisted exports stay real) ─────────
-
-/** The parsed query shape the pipeline hands the executor. */
-type RunFindParsed = {
-  raw?: string
-  target?: string
-  filters?: Array<{ key: string; negate?: boolean; values: Array<{ value: string }> }>
-}
-
-let runFindCalls: Array<{ raw?: string; target?: string }>
-let runFindImpl: (parsed: RunFindParsed) => Promise<FindQueryResult>
-
-mock.module('@/services/queryService', () => ({
-  queryService: {
-    runFind: mock((parsed: RunFindParsed) => {
-      runFindCalls.push(parsed)
-      return runFindImpl(parsed)
-    }),
-  },
-}))
 
 import {
   wqlSearchSource,
@@ -56,38 +34,43 @@ import {
 } from './wqlSearchSource'
 import { writeRouteWqlConfig, clearRouteWqlConfig, PALETTE_ROUTE_ID } from '../lib/routeWqlConfig'
 
-const JOURNAL_NOTE: Note = {
-  id: 'journal/2026-07-30',
-  title: 'Heavy Fran',
-  createdAt: Date.parse('2026-07-30T10:00:00Z'),
-  type: 'note',
-  rawContent: 'Heavy training observations.', sourceRevision: 1, blocks: {},
-} as Note
+// ── Injected entry pipeline (no module mocks) ──────────────────────────────
 
-const STATIC_BLOCK: BlockIndexRow = {
-  id: 'girl-wods/fran:s1:1',
-  noteId: 'girl-wods/fran',
-  blockId: 's1',
-  blockVersion: 1,
-  sourceRevision: 1, from: 0, to: 35,
-  dataType: 'wod',
-  rawContent: '21-15-9 Thrusters and Pull-ups',
-  noteTitle: 'Fran',
-  createdAt: Date.parse('2026-01-01T00:00:00Z'),
-  isStatic: true,
-  sourceId: 'notebook:girl-wods',
+/** The wql strings the source forwarded to the search pipeline. */
+let searchInputs: string[]
+let searchImpl: (wql: string) => Promise<Entry[]>
+
+/** The source under test with the corpus-backed pipeline injected. */
+const source = () =>
+  wqlSearchSource({
+    searchEntries: async (query: string | AnyParsedQuery) => {
+      const wql = typeof query === 'string' ? query : serialize(query)
+      searchInputs.push(wql)
+      return searchImpl(wql)
+    },
+  })
+
+function setup(impl: (wql: string) => Promise<Entry[]>) {
+  searchInputs = []
+  searchImpl = impl
 }
 
-const emptyResult = (raw: string): FindQueryResult => ({
-  parsed: parseQuery(raw) as FindQueryResult['parsed'],
-  notes: [],
-  blocks: [],
-  stages: { selected: 0, matched: 0 },
-})
+const JOURNAL_ENTRY: Entry = {
+  id: 'journal/2026-07-30',
+  kind: 'note',
+  sourceNotebook: 'journal',
+  sourceNote: 'journal/2026-07-30',
+  title: 'Heavy Fran',
+  date: '2026-07-30',
+}
 
-function setup(impl: (parsed: RunFindParsed) => Promise<FindQueryResult>) {
-  runFindCalls = []
-  runFindImpl = impl
+const BLOCK_ENTRY: Entry = {
+  id: 'girl-wods/fran',
+  kind: 'note',
+  sourceNotebook: 'girl-wods',
+  sourceNote: 'girl-wods/fran',
+  title: 'Fran',
+  date: null,
 }
 
 describe('wqlSearchSource', () => {
@@ -96,20 +79,18 @@ describe('wqlSearchSource', () => {
   })
 
   it('returns no rows for invalid WQL and never executes', async () => {
-    setup(async parsed => emptyResult(parsed.raw ?? ''))
+    setup(async () => {
+      throw new Error('pipeline must not run for invalid drafts')
+    })
     // Multi-word text is a reachable composer state that fails the grammar.
-    const results = await wqlSearchSource().search(':note{text:hello world} in all')
+    const results = await source().search(':note{text:hello world} in all')
     expect(results).toEqual([])
-    expect(runFindCalls).toEqual([])
+    expect(searchInputs).toEqual([])
   })
 
   it('maps :note results to journal entry items', async () => {
-    setup(async parsed => {
-      const result = emptyResult(parsed.raw ?? '')
-      result.notes = [JOURNAL_NOTE]
-      return result
-    })
-    const results = await wqlSearchSource().search(':note in journal')
+    setup(async () => [JOURNAL_ENTRY])
+    const results = await source().search(':note in journal')
 
     expect(results).toHaveLength(1)
     const item = results[0]!
@@ -122,20 +103,16 @@ describe('wqlSearchSource', () => {
     expect(entry.sourceNote).toBe('journal/2026-07-30')
   })
 
-  it('keeps whole-Note text filtering in one executor request', async () => {
-    setup(async parsed => ({ ...emptyResult(parsed.raw ?? ''), notes: [JOURNAL_NOTE] }))
-    const results = await wqlSearchSource().search(':note{text:fran} in all')
-    expect(runFindCalls.map(c => c.raw)).toEqual([':note{text:fran} in all'])
+  it('keeps whole-Note text filtering in one pipeline request', async () => {
+    setup(async () => [JOURNAL_ENTRY])
+    const results = await source().search(':note{text:fran} in all')
+    expect(searchInputs).toEqual([':note{text:fran} in all'])
     expect(results.map(r => r.id)).toEqual(['entry:journal/2026-07-30'])
   })
 
-  it('maps :block hits to session entries via the synthesized note', async () => {
-    setup(async parsed => {
-      const result = emptyResult(parsed.raw ?? '')
-      result.blocks = [STATIC_BLOCK]
-      return result
-    })
-    const results = await wqlSearchSource().search(':block{type:wod} in notebooks')
+  it('maps :block hits to notebook entries', async () => {
+    setup(async () => [BLOCK_ENTRY])
+    const results = await source().search(':block{type:wod} in notebooks')
 
     expect(results).toHaveLength(1)
     const item = results[0]!
@@ -148,27 +125,27 @@ describe('wqlSearchSource', () => {
   })
 
   it('finds body matches for plain words inside the live scope', async () => {
-    setup(corpusExecutor([JOURNAL_ROW]))
-    const results = await wqlSearchSource().search('pushup', { scopeWql: ':note in journal' })
+    setup(corpusSearch([JOURNAL_ROW]))
+    const results = await source().search('pushup', { scopeWql: ':note in journal' })
 
     expect(results.map(r => r.id)).toEqual(['entry:journal/2026-07-30'])
     expect(results[0]!.label).toBe('Heavy Fran')
   })
 
   it('keeps prose words like in/last/where and never matches outside the live scope', async () => {
-    setup(corpusExecutor([JOURNAL_ROW]))
-    const prose = await wqlSearchSource().search('workout in the park last week', { scopeWql: ':note in journal' })
+    setup(corpusSearch([JOURNAL_ROW]))
+    const prose = await source().search('workout in the park last week', { scopeWql: ':note in journal' })
     expect(prose.map(r => r.id)).toEqual(['entry:journal/2026-07-30'])
 
     // The corpus is journal-only: a feeds scope fabricates nothing.
-    const other = await wqlSearchSource().search('pushup', { scopeWql: ':note in notebooks' })
+    const other = await source().search('pushup', { scopeWql: ':note in notebooks' })
     expect(other).toEqual([])
   })
 
   it('restores the scoped identities when the plain draft clears', async () => {
-    setup(corpusExecutor([JOURNAL_ROW]))
+    setup(corpusSearch([JOURNAL_ROW]))
     // A stale positive text that matches nothing must not survive a clear.
-    const results = await wqlSearchSource().search('', { scopeWql: ':note{source:journal,text:nonsense}' })
+    const results = await source().search('', { scopeWql: ':note{source:journal,text:nonsense}' })
 
     expect(results.map(r => r.id)).toEqual(['entry:journal/2026-07-30'])
   })
@@ -177,37 +154,44 @@ describe('wqlSearchSource', () => {
     // A block-target stored default: neither the seed scope (journal|
     // collection) nor a hardcoded ':note' head can produce this identity.
     await writeRouteWqlConfig(PALETTE_ROUTE_ID, { defaultWql: ':block{type:wod}' })
-    setup(corpusExecutor([JOURNAL_ROW, FEED_ROW]))
-    const results = await wqlSearchSource().search('ladder')
+    setup(corpusSearch([JOURNAL_ROW, FEED_ROW]))
+    const results = await source().search('ladder')
 
-    expect(results.map(r => r.id)).toEqual([`entry:${FEED_ROW.note.id}`])
+    expect(results.map(r => r.id)).toEqual([`entry:${FEED_ROW.entry.id}`])
   })
 
   it('accepts multiword and quoted drafts as one phrase inside the scope', async () => {
-    setup(corpusExecutor([JOURNAL_ROW]))
-    const multiword = await wqlSearchSource().search('pushup fran', { scopeWql: ':note in journal' })
+    setup(corpusSearch([JOURNAL_ROW]))
+    const multiword = await source().search('pushup fran', { scopeWql: ':note in journal' })
     expect(multiword.map(r => r.id)).toEqual(['entry:journal/2026-07-30'])
 
-    const quoted = await wqlSearchSource().search('"pushup fran"', { scopeWql: ':note in journal' })
+    const quoted = await source().search('"pushup fran"', { scopeWql: ':note in journal' })
     expect(quoted.map(r => r.id)).toEqual(['entry:journal/2026-07-30'])
   })
 })
 
-/** Fixture corpus row: a note plus the body text its blocks carry. */
+/** Fixture corpus row: a pipeline Entry plus the body text behind it. */
 interface CorpusRow {
-  note: Note
+  entry: Entry
   body: string
   source: string
 }
 
 const JOURNAL_ROW: CorpusRow = {
-  note: JOURNAL_NOTE,
+  entry: JOURNAL_ENTRY,
   body: 'remediated workout in the park last week where pushup fran showed up',
   source: 'journal',
 }
 
 const FEED_ROW: CorpusRow = {
-  note: { id: 'notebook/feed-a/2026-01-01/note-0', title: 'Feed note', createdAt: 1, type: 'note', sourceId: 'notebook:feed-a/2026-01-01/note-0', rawContent: 'pushup ladder', sourceRevision: 1, blocks: {} },
+  entry: {
+    id: 'notebook/feed-a/2026-01-01/note-0',
+    kind: 'note',
+    sourceNotebook: 'feed-a',
+    sourceNote: 'notebook/feed-a/2026-01-01/note-0',
+    title: 'Feed note',
+    date: null,
+  },
   body: 'pushup ladder',
   source: 'feeds',
 }
@@ -215,24 +199,22 @@ const FEED_ROW: CorpusRow = {
 /** Applies what the source sent — target, positive source scope, positive
  *  text terms — over the fixture corpus, so assertions see the identities
  *  real queries would return. */
-function corpusExecutor(corpus: CorpusRow[]) {
-  return async (parsed: RunFindParsed): Promise<FindQueryResult> => {
-    const filters = parsed.filters ?? []
+function corpusSearch(corpus: CorpusRow[]) {
+  return async (wql: string): Promise<Entry[]> => {
+    const parsed = parseQuery(wql)
+    if (parsed.error || !isFindQuery(parsed)) return []
+    const filters = parsed.filters
     const terms = filters
       .filter(f => f.key === 'text' && !f.negate)
       .flatMap(f => f.values.map(v => v.value))
     const sources = filters
       .filter(f => f.key === 'source' && !f.negate)
       .flatMap(f => f.values.map(v => v.value))
-    const result = emptyResult(parsed.raw ?? '')
     const hits = corpus.filter(row =>
       (sources.length === 0 || sources.includes(row.source))
-      && (terms.length === 0 || terms.every(t => row.note.title.includes(t) || row.body.includes(t))))
-    if (parsed.target === 'note') result.notes = hits.map(h => h.note)
-    if (parsed.target === 'block') {
-      result.blocks = hits.map(h => ({ ...STATIC_BLOCK, noteId: h.note.id, noteTitle: h.note.title, sourceId: undefined, rawContent: h.body }))
-    }
-    return result
+      && (terms.length === 0 || terms.every(t => row.entry.title.includes(t) || row.body.includes(t))))
+    if (parsed.target !== 'note' && parsed.target !== 'block') return []
+    return hits.map(h => h.entry)
   }
 }
 

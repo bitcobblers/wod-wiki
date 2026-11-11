@@ -7,6 +7,10 @@ import { getMetricColorClasses, getMetricIcon } from '@/views/runtime/metricColo
 
 interface MetricTrackerCardProps {
     className?: string;
+    /** Test/storybook seam: fixed entries instead of the live analytics
+     * snapshot. ponytail: DI exists only so renders work without a runtime
+     * driving analytics; upgrade path is dropping it when stories mount one. */
+    entriesOverride?: Array<{ label: string; value: unknown; unit?: string }>;
 }
 
 /** Time-like metric types whose numeric values represent milliseconds. */
@@ -109,24 +113,28 @@ export function formatTrackerValue(value: unknown, type: string, unit?: string):
  * applies the correct color theme and icon, and formats values appropriately
  * (e.g., milliseconds → MM:SS, integers → plain, decimals → 1 d.p.).
  */
-export const MetricTrackerCard: React.FC<MetricTrackerCardProps> = ({ className }) => {
+export const MetricTrackerCard: React.FC<MetricTrackerCardProps> = ({ className, entriesOverride }) => {
     // Session-totals are the ephemeral live Tier-2 snapshot (recomputed per
     // segment, never persisted). Each entry is one projection: a Label metric
     // (image=name) paired with its value metric.
     const liveAnalytics = useLiveAnalytics();
     const analyticsResults: Record<string, { value: unknown; unit?: string }> = {};
-    for (const output of liveAnalytics) {
-        const metrics = output.metrics;
-        for (let j = 0; j + 1 < metrics.length; j += 2) {
-            const labelMetric = metrics[j];
-            const valueMetric = metrics[j + 1];
-            if (labelMetric && valueMetric) {
-                const name = labelMetric.image ?? String(labelMetric.value);
-                analyticsResults[name] = { value: valueMetric.value, unit: valueMetric.unit };
+    if (!entriesOverride) {
+        for (const output of liveAnalytics) {
+            const metrics = output.metrics;
+            for (let j = 0; j + 1 < metrics.length; j += 2) {
+                const labelMetric = metrics[j];
+                const valueMetric = metrics[j + 1];
+                if (labelMetric && valueMetric) {
+                    const name = labelMetric.image ?? String(labelMetric.value);
+                    analyticsResults[name] = { value: valueMetric.value, unit: valueMetric.unit };
+                }
             }
         }
     }
-    const entries = Object.entries(analyticsResults);
+    const entries = entriesOverride
+        ? entriesOverride.map((entry) => [entry.label, { value: entry.value, unit: entry.unit }] as [string, { value: unknown; unit?: string }])
+        : Object.entries(analyticsResults);
     const hasData = entries.length > 0;
 
     // Reserved fixed-height band: renders identically when empty so its

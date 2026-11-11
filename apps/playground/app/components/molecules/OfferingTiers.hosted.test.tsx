@@ -1,20 +1,14 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn, type Mock } from 'bun:test'
+// React 19 only flushes updates inside act() when the test environment opts
+// in; the historical full-suite run got this from a sibling file's global.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import * as telemetryModule from '@/services/telemetry'
 import { OfferingTiers } from './OfferingTiers'
 
 // Capture funnel events without the IndexedDB persist or gtag forwarder.
-const recorded: Array<{ name: string; payload?: Record<string, unknown> }> = []
-mock.module('@/services/telemetry', () => ({
-  ...telemetryModule,
-  telemetry: {
-    ...telemetryModule.telemetry,
-    record: (name: string, payload?: Record<string, unknown>) => {
-      recorded.push({ name, payload })
-    },
-  },
-}))
+let record: Mock<typeof telemetryModule.telemetry.record>
 
 function renderHosted() {
   return render(
@@ -25,10 +19,12 @@ function renderHosted() {
 }
 
 beforeEach(() => {
-  recorded.length = 0
+  record = spyOn(telemetryModule.telemetry, 'record').mockImplementation(() => {})
   localStorage.clear()
   cleanup()
 })
+
+afterEach(() => mock.restore())
 
 describe('OfferingTiers hosted interest flow', () => {
   it('shows no survey on first load — the footer stays unmounted until interest', () => {
@@ -43,7 +39,7 @@ describe('OfferingTiers hosted interest flow', () => {
     fireEvent.click(screen.getByTestId('hosted-interest-managed-hosting'))
     fireEvent.click(screen.getByTestId('hosted-interest-coaches-portal'))
 
-    expect(recorded).toEqual([
+    expect(record.mock.calls.map(([name, payload]) => ({ name, payload }))).toEqual([
       { name: 'home:hosted_interest_clicked', payload: { feature: 'managed-hosting' } },
       { name: 'home:hosted_interest_clicked', payload: { feature: 'coaches-portal' } },
     ])
@@ -63,6 +59,6 @@ describe('OfferingTiers hosted interest flow', () => {
     fireEvent.click(button)
     expect(button.textContent).toBe('✓ Interested')
     expect((button as HTMLButtonElement).disabled).toBe(true)
-    expect(recorded.length).toBe(1)
+    expect(record.mock.calls.length).toBe(1)
   })
 })

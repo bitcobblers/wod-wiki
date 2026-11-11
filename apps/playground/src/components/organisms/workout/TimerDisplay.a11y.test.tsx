@@ -1,34 +1,19 @@
 import React from 'react';
-import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, render } from '@testing-library/react';
 import { TimerDisplay } from '../../../panels/wallclock-panel';
+import { PanelSizeContext, derivePanelSize } from '@/panels/panel-system/PanelSizeContext';
+import { AudioProvider, type AudioAdapter } from '@/contexts/AudioContext';
 
-// ── Mocks ───────────────────────────────────────────────────────────────────
+const noopAudio: AudioAdapter = {
+  isEnabled: () => false,
+  setEnabled: () => {},
+  playSound: async () => {},
+};
 
-const mockPanelSize = mock(() => ({ width: 800, isCompact: false, isWide: true, isFull: true, mode: 'full' as const }));
-
-mock.module('@/panels/panel-system/PanelSizeContext', () => ({
-  usePanelSize: mockPanelSize,
-}));
-
-mock.module('@/contexts/AudioContext', () => ({
-  useAudio: () => ({
-    playClick: () => {},
-    playTick: () => {},
-    playComplete: () => {},
-  }),
-}));
-
-mock.module('@bitcobblers/wod-wiki-engine/react', () => ({
-  useScriptRuntime: () => null,
-}));
-
-mock.module('@/stores/activeRunStore', () => ({
-  useActiveRunStore: (selector: ((state: unknown) => unknown) | undefined) => {
-    const state = { execution: { status: 'idle' } };
-    return selector ? selector(state) : state;
-  },
-}));
+// TimerDisplay without `enableDisplayStack` renders the presentational
+// TimerStackView fallback — real context providers, no runtime needed.
+const FULL_SIZE = derivePanelSize(800, 600);
 
 const baseProps = {
   elapsedMs: 0,
@@ -41,7 +26,13 @@ const baseProps = {
 };
 
 function renderTimerDisplay(props = {}) {
-  return render(<TimerDisplay {...baseProps} {...props} />);
+  return render(
+    <PanelSizeContext.Provider value={FULL_SIZE}>
+      <AudioProvider audioAdapter={noopAudio}>
+        <TimerDisplay {...baseProps} {...props} />
+      </AudioProvider>
+    </PanelSizeContext.Provider>,
+  );
 }
 
 // ── Suite ───────────────────────────────────────────────────────────────────
@@ -49,20 +40,13 @@ function renderTimerDisplay(props = {}) {
 describe('TimerDisplay — Keyboard Navigation', () => {
   afterEach(() => {
     cleanup();
-    mockPanelSize.mockClear?.();
-  });
-
-  afterAll(() => {
-    mock.restore();
   });
 
   beforeEach(() => {
-    // Reset mock to default and clear any DOM pollution from other test files
-    mockPanelSize.mockImplementation(() => ({ width: 800, isCompact: false, isWide: true, isFull: true, mode: 'full' as const }));
+    // Clear any DOM pollution from other test files
     document.body.innerHTML = '';
     (document.activeElement as HTMLElement | null)?.blur?.();
   });
-
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 2. Focus Management

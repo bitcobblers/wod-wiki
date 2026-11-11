@@ -1,50 +1,68 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
+import { ChromecastBackend, type ChromecastBackendDeps } from '../ChromecastBackend';
+import type { CastSdkState } from '../../ChromecastSdk';
+import type { ISignaling } from '../../rpc/WebRtcRpcTransport';
+import type { IRpcTransport } from '../../rpc/IRpcTransport';
 
-// ── Controllable ChromecastSdk fake ─────────────────────────────────────────
-type SdkState = 'not-loaded' | 'loading' | 'unavailable' | 'ready' | 'session-active';
+// ── Controllable ChromecastSdk fake (injected via `deps`) ───────────────────
 type Listener = (...args: unknown[]) => void;
 
 interface SessionStub {
-    sendMessage: (namespace: string, message: unknown) => Promise<void>;
+    addMessageListener: (namespace: string, listener: (ns: string, msg: string) => void) => void;
+    removeMessageListener: (namespace: string, listener: (ns: string, msg: string) => void) => void;
+    sendMessage: (namespace: string, message: unknown) => Promise<unknown>;
 }
 
 const sdk = {
-    state: 'not-loaded' as SdkState,
+    state: 'not-loaded' as CastSdkState,
     loadImpl: null as null | (() => Promise<void>),
     requestSessionImpl: null as null | (() => Promise<void>),
-    session: { sendMessage: async () => {} } as SessionStub | null,
+    session: {
+        addMessageListener: () => {},
+        removeMessageListener: () => {},
+        sendMessage: async () => {},
+    } as SessionStub | null,
     listeners: new Map<string, Set<Listener>>(),
     reset() {
         this.state = 'not-loaded';
         this.loadImpl = null;
         this.requestSessionImpl = null;
-        this.session = { sendMessage: async () => {} };
+        this.session = {
+            addMessageListener: () => {},
+            removeMessageListener: () => {},
+            sendMessage: async () => {},
+        };
         this.listeners.clear();
     },
     emit(event: string, ...args: unknown[]) {
         this.listeners.get(event)?.forEach((l) => l(...args));
     },
+    // ── ChromecastSdkLike surface ──
+    getState(): CastSdkState {
+        return this.state;
+    },
+    load(): Promise<void> {
+        return this.loadImpl ? this.loadImpl() : Promise.reject(new Error('load not stubbed'));
+    },
+    requestSession(): Promise<void> {
+        return this.requestSessionImpl
+            ? this.requestSessionImpl()
+            : Promise.reject(new Error('requestSession not stubbed'));
+    },
+    endSession() {},
+    getSession(): SessionStub | null {
+        return this.session;
+    },
+    on(event: string, listener: Listener) {
+        if (!this.listeners.has(event)) this.listeners.set(event, new Set());
+        this.listeners.get(event)!.add(listener);
+        return () => {
+            this.listeners.get(event)?.delete(listener);
+        };
+    },
 };
 
-mock.module('../../ChromecastSdk', () => ({
-    ChromecastSdk: {
-        getState: () => sdk.state,
-        load: () => (sdk.loadImpl ? sdk.loadImpl() : Promise.reject(new Error('load not stubbed'))),
-        requestSession: () =>
-            sdk.requestSessionImpl
-                ? sdk.requestSessionImpl()
-                : Promise.reject(new Error('requestSession not stubbed')),
-        getSession: () => sdk.session,
-        endSession: () => {},
-        on: (event: string, listener: Listener) => {
-            if (!sdk.listeners.has(event)) sdk.listeners.set(event, new Set());
-            sdk.listeners.get(event)!.add(listener);
-            return () => sdk.listeners.get(event)?.delete(listener);
-        },
-    },
-}));
-
-// ── Transport fake shared with the mocked class ─────────────────────────────
+// ── Transport fake handed to the backend via `createTransport` ──────────────
 class TransportStub {
     connectImpl: () => Promise<void> = async () => {};
     disposed = 0;
@@ -60,32 +78,20 @@ class TransportStub {
 }
 let transport = new TransportStub();
 
-mock.module('../../rpc/WebRtcRpcTransport', () => ({
-    WebRtcRpcTransport: class {
-        connect() {
-            return transport.connectImpl();
-        }
-        dispose() {
-            transport.disposed += 1;
-        }
-        onDisconnected() {
-            return () => {};
-        }
-    },
-}));
+// The signaling object is only ever handed to `createTransport`, which the
+// stub replaces — no behavior needed from it in these tests.
+const stubSignaling = {} as ISignaling;
 
-mock.module('../../CastSignaling', () => ({
-    SenderCastSignaling: class {},
-}));
-
-mock.module('../../config', () => ({
-    CAST_APP_ID: 'TESTAPP01',
-    hasCustomCastAppId: true,
-}));
-
-// Dynamic import is required: bun's mock.module must be registered before the
-// module under test loads, and a static import would hoist above the mocks.
-const { ChromecastBackend } = await import('../ChromecastBackend');
+function makeBackend(): ChromecastBackend {
+    const deps: ChromecastBackendDeps = {
+        sdk,
+        createSignaling: () => stubSignaling,
+        createTransport: () => transport as unknown as IRpcTransport,
+        appId: 'TESTAPP01',
+        hasCustomAppId: true,
+    };
+    return new ChromecastBackend(deps);
+}
 
 describe('ChromecastBackend failure recovery', () => {
     beforeEach(() => {
@@ -100,7 +106,7 @@ describe('ChromecastBackend failure recovery', () => {
         };
         sdk.requestSessionImpl = () => Promise.reject(new Error('Cast session request failed: session_error'));
 
-        const backend = new ChromecastBackend();
+        const backend = makeBackend();
         await expect(backend.startSession()).rejects.toThrow('session_error');
         expect(backend.state).toBe('ready');
 
@@ -123,7 +129,7 @@ describe('ChromecastBackend failure recovery', () => {
         };
         transport.connectImpl = () => Promise.reject(new Error('TIMEOUT after 15000ms'));
 
-        const backend = new ChromecastBackend();
+        const backend = makeBackend();
         await expect(backend.startSession()).rejects.toThrow('TIMEOUT');
         expect(transport.disposed).toBe(1);
         expect(backend.state).toBe('ready');
@@ -138,7 +144,7 @@ describe('ChromecastBackend failure recovery', () => {
         // Picker opened, launch never completes — startSession stays pending.
         sdk.requestSessionImpl = () => new Promise<void>(() => {});
 
-        const backend = new ChromecastBackend();
+        const backend = makeBackend();
         // startSession is intentionally left pending: the launch never
         // completes, which is the stuck-'connecting' scenario under test.
         const pending = backend.startSession();
@@ -164,7 +170,7 @@ describe('ChromecastBackend resumeSession (adopt surviving platform session)', (
         // touched the picker this would reject with 'requestSession not stubbed'.
         sdk.state = 'session-active';
         sdk.loadImpl = async () => {};
-        const backend = new ChromecastBackend();
+        const backend = makeBackend();
 
         await expect(backend.resumeSession()).resolves.toBeDefined();
         expect(backend.state).toBe('session-active');
@@ -174,7 +180,7 @@ describe('ChromecastBackend resumeSession (adopt surviving platform session)', (
     it('returns the existing transport on repeat adoption', async () => {
         sdk.state = 'session-active';
         sdk.loadImpl = async () => {};
-        const backend = new ChromecastBackend();
+        const backend = makeBackend();
 
         const first = await backend.resumeSession();
         const second = await backend.resumeSession();
@@ -186,7 +192,7 @@ describe('ChromecastBackend resumeSession (adopt surviving platform session)', (
         sdk.state = 'session-active';
         sdk.loadImpl = async () => {};
         sdk.session = null;
-        const backend = new ChromecastBackend();
+        const backend = makeBackend();
 
         await expect(backend.resumeSession()).rejects.toThrow('no Cast session to resume');
         backend.dispose();
@@ -196,7 +202,7 @@ describe('ChromecastBackend resumeSession (adopt surviving platform session)', (
         sdk.state = 'session-active';
         sdk.loadImpl = async () => {};
         transport.connectImpl = () => Promise.reject(new Error('TIMEOUT after 15000ms'));
-        const backend = new ChromecastBackend();
+        const backend = makeBackend();
 
         await expect(backend.resumeSession()).rejects.toThrow('TIMEOUT');
         expect(transport.disposed).toBe(1);

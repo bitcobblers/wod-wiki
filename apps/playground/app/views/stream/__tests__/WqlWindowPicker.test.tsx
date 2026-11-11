@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import '../../../../tests/helpers/repair-react-router-dom'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { WqlWindowPicker } from '../WqlWindowPicker'
 
