@@ -206,11 +206,12 @@ stories/                # Storybook stories
 - Update unit/dialect fusion in `src/dialects/` if the change involves combining a number with a unit word
 - Test with Parser stories in Storybook and `src/parser/*.test.ts`
 
-### Component Development
+### Component Development & Agent Action Parity
 - Use existing Tailwind CSS classes rather than custom CSS
 - Follow TypeScript interfaces for props
-- Create corresponding Storybook stories in `stories/` directory
+- Create corresponding Storybook stories in `apps/storybook/src/`
 - Export from appropriate index files if part of public API
+- **Agent Action Parity**: Load `skills/wod-agent-parity/SKILL.md` whenever adding new user-facing domain or Playground UI features so every user action has a matching structured tool across Browser WebMCP (`apps/playground/app/agent/`), `wod server` MCP (`packages/engine/src/agent/` + `packages/tools/src/mcp/`), and `wod --json` CLI (`packages/tools/src/cli/agentCommands.ts`). Run `bun run check:agent-parity` to verify zero drift.
 
 ## Validation Requirements
 

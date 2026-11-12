@@ -6,14 +6,16 @@
  * redirected to the review page.
  */
 
-import { useRef, useEffect, useCallback } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useRef, useEffect, useCallback, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { KNOWN_SECTION_WIDGETS, parseDocumentSections } from '@bitcobblers/wod-wiki-core'
+import { createParser } from '@bitcobblers/wod-wiki-engine'
 import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity'
 import { sessionDetailPath } from '../lib/routes'
 import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer'
 import { playgroundRecorder } from '@/services/resultRecorder'
-import { pendingRuntimes } from '../runtimeStore'
-import type { Sessions } from '@/components/Editor/types'
+import { pendingRuntimes, type PendingRuntime } from '../runtimeStore'
+import type { ScriptBlock, Sessions } from '@/components/Editor/types'
 import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
 import { storageService } from '@/services/storage';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
@@ -32,9 +34,70 @@ async function injectSessionQueryIntoNote(noteId: string, blockId: string, resul
 }
 export function WallClockPage() {
   const { runtimeId } = useParams<{ runtimeId: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const pendingRef = useRef(runtimeId ? pendingRuntimes.get(runtimeId) : undefined)
+  const pendingRef = useRef<PendingRuntime | undefined>(runtimeId ? pendingRuntimes.get(runtimeId) : undefined)
+  const coldNoteParam = searchParams.get('note')
+  const coldBlockParam = searchParams.get('block')
+  const [coldLoading, setColdLoading] = useState<boolean>(() => !pendingRef.current && Boolean(coldNoteParam))
+  const [coldBootPending, setColdBootPending] = useState<PendingRuntime | undefined>(undefined)
   const captureRef = useRef<CapturedRun | null>(null);
+
+  useEffect(() => {
+    if (pendingRef.current || !coldNoteParam || !runtimeId) {
+      setColdLoading(false)
+      return
+    }
+    let cancelled = false
+    setColdLoading(true)
+    storageService
+      .getNote(coldNoteParam)
+      .then((note) => {
+        if (cancelled) return
+        if (!note) {
+          setColdLoading(false)
+          return
+        }
+        const blocks = Object.values(note.blocks ?? {}).filter((b) => b.kind === 'wod')
+        const target = coldBlockParam ? blocks.find((b) => b.id === coldBlockParam) : blocks[0]
+        if (!target) {
+          setColdLoading(false)
+          return
+        }
+        const slice = note.rawContent.slice(target.from, target.to)
+        const sec = parseDocumentSections(slice, { registeredWidgets: KNOWN_SECTION_WIDGETS })[0]
+        const body = sec?.scriptBlock?.content ?? slice
+        const statements = createParser().read(body, target.sport).statements ?? []
+        const scriptBlock: ScriptBlock = {
+          id: target.id,
+          contentId: sec?.scriptBlock?.contentId,
+          dialect: target.dialect ?? 'time',
+          sport: target.sport,
+          startLine: 0,
+          endLine: Math.max(0, slice.split(/\r?\n/).length - 1),
+          content: body,
+          statements,
+          state: 'idle',
+          version: target.version,
+          createdAt: note.createdAt,
+          widgetIds: {},
+        }
+        const recovered: PendingRuntime = {
+          block: scriptBlock,
+          noteId: note.id,
+        }
+        pendingRef.current = recovered
+        setColdBootPending(recovered)
+        setColdLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) setColdLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [coldNoteParam, coldBlockParam, runtimeId])
+
   const prepareRun = useCallback(async () => {
     const pending = pendingRef.current;
     if (!pending || !runtimeId) throw new Error('The pending workout is unavailable.');
@@ -50,7 +113,7 @@ export function WallClockPage() {
     if (runtimeId) pendingRuntimes.delete(runtimeId)
   }, [runtimeId])
 
-  const pending = pendingRef.current
+  const pending = pendingRef.current ?? coldBootPending
   // The run reached natural completion — its review/queue dismissal routes to
   // the session detail (navigation is deferred until the overlay closes so
   // the post-run queue can run).
@@ -100,6 +163,14 @@ export function WallClockPage() {
     // in noteRefToPath, not an ad-hoc noteId.split('/') switch here.
     navigate(noteRefToPath(parseNoteId(pending.noteId)), { replace: true })
   }, [runtimeId, pending, navigate])
+
+  if (coldLoading) {
+    return (
+      <div role="status" className="flex-1 flex items-center justify-center text-muted-foreground">
+        Preparing workout timer…
+      </div>
+    )
+  }
 
   if (!pending) {
     return (

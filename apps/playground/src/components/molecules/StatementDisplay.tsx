@@ -61,8 +61,23 @@ export const StatementDisplay: React.FC<StatementDisplayProps> = ({
     className
   );
 
+  const handleKeyDown = onClick
+    ? (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }
+    : undefined;
+
   return (
-    <div className={containerClass} onClick={onClick}>
+    <div
+      className={containerClass}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
       <div className="flex-1 min-w-0">
         <MetricVisualizer
           metrics={statement.metrics.toArray()}
@@ -145,6 +160,15 @@ export const BlockDisplay: React.FC<BlockDisplayProps> = ({
     pending: 'bg-muted-foreground'
   }[status || 'pending'];
 
+  const handleBlockKeyDown = onClick
+    ? (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }
+    : undefined;
+
   return (
     <div
       className={cn(
@@ -157,6 +181,9 @@ export const BlockDisplay: React.FC<BlockDisplayProps> = ({
         className
       )}
       onClick={onClick}
+      onKeyDown={handleBlockKeyDown}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >

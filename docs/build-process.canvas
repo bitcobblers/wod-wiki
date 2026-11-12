@@ -1,0 +1,36 @@
+{
+	"nodes":[
+		{"id":"7c938acd2e5b88ea","type":"group","x":-553,"y":60,"width":1653,"height":385,"label":"Merge To Main"},
+		{"id":"f56a4e786669ea3b","type":"group","x":-580,"y":-360,"width":1350,"height":340,"label":"Merge Request"},
+		{"id":"571afe0cdfee3a85","type":"text","text":"Slug","x":-560,"y":-220,"width":250,"height":60},
+		{"id":"c12d0386aa6ef3bc","type":"text","text":"Build Deploy Playground -> s3 for branch","x":-188,"y":-219,"width":250,"height":60},
+		{"id":"10e986f194f090a3","type":"text","text":"Build Deploy Storybook -> s3 for branch","x":-188,"y":-100,"width":250,"height":60},
+		{"id":"dd62bed137903fc9","type":"text","text":"Build Verify ","x":-188,"y":-340,"width":250,"height":60},
+		{"id":"be42e219df1215c5","type":"text","text":"Report","x":500,"y":-340,"width":250,"height":60},
+		{"id":"6d1a0b92eecfb11c","type":"text","text":"Slug","x":-533,"y":245,"width":250,"height":60},
+		{"id":"363598fbd0c95b22","type":"text","text":"Build Deploy Playground -> s3 for branch","x":-161,"y":246,"width":250,"height":60},
+		{"id":"521cc00dfeb80862","type":"text","text":"Build Deploy Storybook -> s3 for branch","x":-161,"y":365,"width":250,"height":60},
+		{"id":"586c85988b01c9ea","type":"text","text":"E2E tests against deployed s3 branch  \n\n- playground {slug}.preview.wod.wiki\n- storybook  {slug}.story.wod.wiki","x":180,"y":294,"width":250,"height":131},
+		{"id":"92569f2535b7050b","type":"text","text":"Publish\n- npm  Package\n- publish to wod.wiki on github pages","x":527,"y":100,"width":213,"height":146},
+		{"id":"cb39ab57304111c5","x":820,"y":125,"width":250,"height":60,"type":"text","text":"Create Realease"},
+		{"id":"bda88b909d5db1a2","type":"text","text":"E2E tests against deployed s3 branch  \n\n- playground {slug}.preview.wod.wiki\n- storybook  {slug}.story.wod.wiki","x":140,"y":-240,"width":250,"height":190},
+		{"id":"989621a38b40540a","type":"text","text":"Build Verify ","x":-161,"y":150,"width":250,"height":60}
+	],
+	"edges":[
+		{"id":"81cf3aee3995a521","fromNode":"571afe0cdfee3a85","fromSide":"right","toNode":"c12d0386aa6ef3bc","toSide":"left"},
+		{"id":"88319a4b9bcefd1f","fromNode":"571afe0cdfee3a85","fromSide":"right","toNode":"10e986f194f090a3","toSide":"left"},
+		{"id":"bbc0fa3d280b5d47","fromNode":"571afe0cdfee3a85","fromSide":"right","toNode":"dd62bed137903fc9","toSide":"left"},
+		{"id":"71b3226361fa4944","fromNode":"c12d0386aa6ef3bc","fromSide":"right","toNode":"bda88b909d5db1a2","toSide":"left"},
+		{"id":"1201471b3759f83b","fromNode":"10e986f194f090a3","fromSide":"right","toNode":"bda88b909d5db1a2","toSide":"left"},
+		{"id":"5f5faaf6830f7668","fromNode":"dd62bed137903fc9","fromSide":"right","toNode":"be42e219df1215c5","toSide":"left"},
+		{"id":"9eca4089701a8c91","fromNode":"bda88b909d5db1a2","fromSide":"right","toNode":"be42e219df1215c5","toSide":"left"},
+		{"id":"53e946f1d4029e87","fromNode":"6d1a0b92eecfb11c","fromSide":"right","toNode":"363598fbd0c95b22","toSide":"left"},
+		{"id":"d0c0663d7cbb7062","fromNode":"6d1a0b92eecfb11c","fromSide":"right","toNode":"521cc00dfeb80862","toSide":"left"},
+		{"id":"68e0ea6f993f5f69","fromNode":"6d1a0b92eecfb11c","fromSide":"right","toNode":"989621a38b40540a","toSide":"left"},
+		{"id":"261261198636fd9c","fromNode":"363598fbd0c95b22","fromSide":"right","toNode":"586c85988b01c9ea","toSide":"left"},
+		{"id":"6877f7a3315fcba0","fromNode":"521cc00dfeb80862","fromSide":"right","toNode":"586c85988b01c9ea","toSide":"left"},
+		{"id":"7d7f943be243a334","fromNode":"989621a38b40540a","fromSide":"right","toNode":"92569f2535b7050b","toSide":"left"},
+		{"id":"0a8ad10eb49eaf02","fromNode":"586c85988b01c9ea","fromSide":"right","toNode":"92569f2535b7050b","toSide":"left"},
+		{"id":"f5fc4b104533ab4e","fromNode":"92569f2535b7050b","fromSide":"right","toNode":"cb39ab57304111c5","toSide":"left"}
+	]
+}

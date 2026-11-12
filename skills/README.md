@@ -7,6 +7,9 @@ skills/<name>/SKILL.md      # frontmatter: name, description (agentskills.io for
 ```
 
 - `wod-extraction` — the parsing skill: teaches an agent to read a workout description in any form and write Whiteboard Script (which metrics a workout implies, the collectible `?` placeholders, statement structure).
+- `wod-cli` — the CLI & MCP execution skill: teaches an agent to drive `wod --json`, `wod mcp`, and `/api/mcp` across notes, journal scheduling, notebooks, headless sessions, catalog/tags, feeds, and Tier 2 `--yes` confirmation gates.
+- `wod-wql` — the WQL query skill: teaches an agent to write, validate, and run WQL `find` and `aggregate` queries across all three surfaces.
+- `wod-agent-parity` — the repository feature-parity skill: enforces action parity across `@bitcobblers/wod-wiki-engine/agent`, Playground WebMCP (`@mcp-b/react-webmcp`), `wod server` `/api/mcp`, and `wod --json` whenever new UI or domain features are developed.
 - `wod-wiki-testing` — the 3-tier repo testing skill: routes agents across Tier 1 domain scenarios (`@bitcobblers/wod-wiki-core/testing` + `DomainScenarioHarness`), Tier 2 Storybook `parameters.domainState` + `storyActions` and Playground `@/testing/host`, and Tier 3 two-level Markdown specs (`e2e/specs/`) + Playwright `PlaygroundTestActor` (`e2e/fixtures/playgroundActor.ts`), mirrored into `.agents/skills/wod-wiki-testing/`.
 ## Install
 

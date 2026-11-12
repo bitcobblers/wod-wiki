@@ -20,10 +20,13 @@ const SKILLS = join(ROOT, 'skills')
 /** skill name -> path served by the playground/CLI server (public-dir relative). */
 const SERVED: Record<string, string> = {
   'wod-extraction': 'apps/playground/public/ai-skills/parse.md',
+  'wod-cli': 'apps/playground/public/ai-skills/cli.md',
+  'wod-wql': 'apps/playground/public/ai-skills/wql.md',
+  'wod-agent-parity': 'apps/playground/public/ai-skills/agent-parity.md',
 }
 
 /** Repo-native skills mirrored whole into `.agents/skills/<name>/` for local agent CLIs. */
-const AGENT_MIRRORED = ['wod-wiki-testing'] as const
+const AGENT_MIRRORED = ['wod-wiki-testing', 'wod-cli', 'wod-wql', 'wod-agent-parity'] as const
 
 const REPO_PATH_PREFIX = /^(?:packages|apps|e2e|docs|scripts)\/[A-Za-z0-9._/-]+$/
 

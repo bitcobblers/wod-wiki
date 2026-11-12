@@ -21,6 +21,7 @@ All commands run from the repo root with `bun`.
 | E2E Markdown <-> Playwright spec parity | `bun scripts/check-e2e-specs.ts` | Enforces 1:1 bidirectional links between `e2e/specs/<domain>/<journey>.md` and `e2e/live-app/<journey>.e2e.ts` |
 | Validation & CLI script unit tests | `bun run test:validation-scripts` | Tests `check-playground-types`, `check-e2e-specs`, `ticket-report`, and `migrate-seed-markdown` |
 | Skill sync & cited-path check | `bun run check:skills` | Verifies served/mirrored skill copies and repo paths cited in `skills/` |
+| Agent action parity & manifest check | `bun run check:agent-parity` | Verifies 1:1 parity across `DOMAIN_AGENT_TOOLS`, Playground WebMCP `uiTools`, CLI subcommands, risk-tier annotations, and static discovery files (`llms.txt`, `llms-full.txt`, `.well-known/agent-capabilities.json`) |
 | Full E2E / milestone acceptance | `bun run test:e2e` | Playwright journal config; heavyweight |
 | Targeted preview acceptance | `bun run test:e2e:preview` | Runs E2E against a production preview build; the UI-worker done gate |
 | Static Storybook build | `bun run build-storybook` | Never cancel; can take up to 60 minutes |

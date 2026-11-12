@@ -42,7 +42,9 @@ import {
   publishFeedFromStorage,
   type FeedTree,
 } from '@bitcobblers/wod-wiki-engine';
+import { exportAgentCapabilitiesManifest } from '@bitcobblers/wod-wiki-engine/agent';
 import { NodeFsFeedTree } from '../cli/nodeFeedTree';
+import { handleMcpHttpRequest } from '../mcp/httpHandler';
 const json = (value: unknown, status: number): Response =>
   new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
 
@@ -364,9 +366,19 @@ async function apiRoutes(
   method: string,
   sub: string,
   url: URL,
+  mcpOptions?: { readonly?: boolean; authToken?: string },
 ): Promise<Response> {
   if (sub === '/health') {
     return json({ ok: true, driver: db.dialect }, 200);
+  }
+  if (sub === '/mcp') {
+    return handleMcpHttpRequest(req, {
+      db,
+      feedTree,
+      baseUrl: url.origin,
+      readonly: mcpOptions?.readonly,
+      authToken: mcpOptions?.authToken,
+    });
   }
   if (sub === '/v1/feed/status' && method === 'GET') {
     const storage = new SqlStorage(db);
@@ -429,7 +441,13 @@ function distRootOf(playgroundDist: string | undefined): string | undefined {
 
 export function createHandler(
   db: Database | null,
-  options: { playgroundDist: string; feedDir?: string; feedTree?: FeedTree },
+  options: {
+    playgroundDist: string;
+    feedDir?: string;
+    feedTree?: FeedTree;
+    mcpReadonly?: boolean;
+    mcpToken?: string;
+  },
 ): (request: Request) => Promise<Response> {
   const distRoot = distRootOf(options.playgroundDist);
   const feedTree: FeedTree =
@@ -442,8 +460,21 @@ export function createHandler(
       const path = url.pathname;
       if (path === '/api' || path.startsWith('/api/')) {
         return db
-          ? await apiRoutes(db, feedTree, request, method, path.slice('/api'.length) || '/', url)
+          ? await apiRoutes(
+              db,
+              feedTree,
+              request,
+              request.method === 'OPTIONS' ? 'OPTIONS' : method,
+              path.slice('/api'.length) || '/',
+              url,
+              { readonly: options.mcpReadonly, authToken: options.mcpToken },
+            )
           : notFound();
+      }
+      if (db && path === '/.well-known/agent-capabilities.json' && method === 'GET') {
+        const res = await staticResponse(distRoot, method, path);
+        if (res.status === 200) return res;
+        return json(exportAgentCapabilitiesManifest(), 200);
       }
       if (db) {
         const feedAsset = isPublishedFeedAssetPath(path);

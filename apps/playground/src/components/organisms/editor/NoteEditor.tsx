@@ -34,6 +34,7 @@ import {
   historyKeymap,
   indentWithTab,
   insertNewlineAndIndent,
+  undo,
 } from "@codemirror/commands";
 import { indentOnInput } from "@codemirror/language";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
@@ -103,6 +104,7 @@ import type { ScriptBlock } from "@/components/Editor/types";
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store';
 import { Play, Plus, ExternalLink, Copy, Check } from "lucide-react";
 import { buildHomeShareUrl, buildPlaygroundUrl } from "@/components/atoms/WhiteboardPlaygroundButton";
+import { registerActiveEditorBridge } from "@/agent/surfaceBridges";
 
 export interface NoteEditorProps {
   /** Note ID for result lookup */
@@ -363,6 +365,73 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       handleRun(block, true);
     }
   }, [enableInlineRuntime, handleRun]);
+
+  useEffect(() => {
+    return registerActiveEditorBridge({
+      noteId,
+      readonly: Boolean(readonly),
+      sourceRevision,
+      getValue: () => viewRef.current?.state.doc.toString() ?? value,
+      getView: () => viewRef.current,
+      getBlocks: () => {
+        const view = viewRef.current;
+        if (!view) return [];
+        const sectionState: SectionState = view.state.field(sectionField);
+        return sectionState.sections
+          .filter((s) => s.type === "time" || s.type === "log")
+          .map((s) => sectionToScriptBlock(s, view.state))
+          .filter((b): b is ScriptBlock => b !== null);
+      },
+      applyEdit: async (nextDoc: string, commit = false) => {
+        if (readonly) {
+          throw new Error("Editor is in read-only mode. Clone this Note before editing.");
+        }
+        const view = viewRef.current;
+        if (!view) {
+          onChange(nextDoc);
+          if (commit) await (onSaveRequest ?? onCommitChange)?.();
+          return;
+        }
+        const currentLen = view.state.doc.length;
+        view.dispatch({
+          changes: { from: 0, to: currentLen, insert: nextDoc },
+        });
+        onChange(nextDoc);
+        if (commit) {
+          await (onSaveRequest ?? onCommitChange)?.();
+        }
+      },
+      undoEdit: () => {
+        const view = viewRef.current;
+        if (!view || readonly) return false;
+        const ok = undo(view);
+        if (ok) {
+          onChange(view.state.doc.toString());
+        }
+        return ok;
+      },
+      startLiveWorkout: async (blockId?: string, autoStart = true) => {
+        const view = viewRef.current;
+        if (!view) return { started: false, error: "Editor view is not mounted." };
+        const sectionState: SectionState = view.state.field(sectionField);
+        const blocks = sectionState.sections
+          .filter((s) => s.type === "time" || s.type === "log")
+          .map((s) => sectionToScriptBlock(s, view.state))
+          .filter((b): b is ScriptBlock => b !== null);
+        const target = blockId ? blocks.find((b) => b.id === blockId) : blocks[0];
+        if (!target) {
+          return {
+            started: false,
+            error: blockId
+              ? `Workout block '${blockId}' not found in editor.`
+              : "No runnable ```time workout block found in editor.",
+          };
+        }
+        await handleRun(target, autoStart);
+        return { started: true, blockId: target.id };
+      },
+    });
+  }, [noteId, readonly, sourceRevision, value, onChange, onSaveRequest, onCommitChange, handleRun]);
 
   // Keep the report until both the pinned completion and host save succeed.
   const lastReportRef = useRef<{

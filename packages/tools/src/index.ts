@@ -43,3 +43,11 @@ export {
   type CliServerMode,
   type CliServerOptions,
 } from './cli/server';
+export {
+  createWodMcpServer,
+  type CreateWodMcpServerOptions,
+} from './mcp/createWodMcpServer';
+export {
+  handleMcpHttpRequest,
+  type HandleMcpHttpOptions,
+} from './mcp/httpHandler';

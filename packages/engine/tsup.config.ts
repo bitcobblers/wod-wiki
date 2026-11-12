@@ -3,7 +3,11 @@ import { defineConfig } from 'tsup';
 const runtimeOnly = process.env.TSUP_RUNTIME_ONLY === '1';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/react.ts'],
+  entry: {
+    index: 'src/index.ts',
+    react: 'src/react.ts',
+    agent: 'src/agent/index.ts',
+  },
   format: runtimeOnly ? ['esm'] : ['esm', 'cjs'],
   dts: !runtimeOnly,
   sourcemap: !runtimeOnly,
@@ -22,5 +26,6 @@ export default defineConfig({
     '@bitcobblers/wod-wiki-storage',
     'react',
     'react-dom',
+    'zod',
   ],
 });
