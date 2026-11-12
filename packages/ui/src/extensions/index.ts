@@ -7,6 +7,7 @@ export {
 } from './editor-focus';
 export { lineIdsExtension } from './line-ids';
 export { linkOpen, navigationFacet, isNavigableUrl, type NavigationHook, urlAtPos } from './link-open';
+export { affiliateTagFacet, applyAmazonAffiliateTag, isAmazonRetailHost } from './affiliate-link';
 export { wodLinter, findWorkoutErrors, workoutLintSource } from './whiteboard-linter';
 export {
   wodAutocompletion,

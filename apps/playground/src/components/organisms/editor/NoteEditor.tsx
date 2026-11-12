@@ -42,7 +42,8 @@ import { acceptCompletion, completionKeymap, completionStatus, closeCompletion, 
 import { lintKeymap } from "@codemirror/lint";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 
-import { editorTheme, editorFocusTracker, navigationFacet } from '@bitcobblers/wod-wiki-ui/extensions';
+import { editorTheme, editorFocusTracker, navigationFacet, affiliateTagFacet } from '@bitcobblers/wod-wiki-ui/extensions';
+import { ASSOCIATE_TAG } from '@/lib/affiliateLink';
 import { smartIncrement } from '@bitcobblers/wod-wiki-ui/extensions';
 
 // Note editor extensions
@@ -696,6 +697,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       sectionGeometry,
 
       // Ctrl+Click & Link Pill navigation (SPA-friendly for internal paths)
+      affiliateTagFacet.of(ASSOCIATE_TAG),
       navigationFacet.of((url) => {
         if (/^(https?:|mailto:|tel:)/i.test(url)) {
           window.open(url, "_blank", "noopener,noreferrer");

@@ -20,6 +20,7 @@ import type { Extension } from "@codemirror/state";
 import { activeCursorSection, sectionField } from "./section-state";
 import { isEditorFocused, setEditorFocused } from "./editor-focus";
 import { isNavigableUrl, navigationFacet } from "./link-open";
+import { affiliateTagFacet, applyAmazonAffiliateTag } from "./affiliate-link";
 
 // Negative lookbehind `(?<!!)` ensures `![alt](url)` images are never matched as links.
 const MD_LINK_RE = /(?<!!)\[([^\]]*)\]\((https?:\/\/[^)\s]+|\/[^)\s]*|#[^)\s]+|wod:[^)\s]+)\)/g;
@@ -110,7 +111,8 @@ function openLinkEditPopover(
   openBtn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const targetUrl = urlInput.value.trim() || match.url;
+    const rawUrl = urlInput.value.trim() || match.url;
+    const targetUrl = applyAmazonAffiliateTag(rawUrl, view.state.facet(affiliateTagFacet));
     closeActiveLinkPopover();
     const navHook = view.state.facet(navigationFacet);
     if (!isExternalHttpUrl(targetUrl) && navHook) {
@@ -216,6 +218,7 @@ class LinkPillWidget extends WidgetType {
     readonly from: number,
     readonly to: number,
     readonly readOnly: boolean,
+    readonly affiliateTag: string | null,
   ) {
     super();
   }
@@ -226,7 +229,8 @@ class LinkPillWidget extends WidgetType {
       this.url === other.url &&
       this.from === other.from &&
       this.to === other.to &&
-      this.readOnly === other.readOnly
+      this.readOnly === other.readOnly &&
+      this.affiliateTag === other.affiliateTag
     );
   }
 
@@ -259,9 +263,13 @@ class LinkPillWidget extends WidgetType {
     }
     pill.appendChild(label);
 
+    const resolvedUrl = isExternal
+      ? applyAmazonAffiliateTag(this.url, this.affiliateTag)
+      : this.url;
+
     const open = document.createElement("a");
     open.className = "cm-link-pill-open";
-    open.href = this.url;
+    open.href = resolvedUrl;
     if (isExternal) {
       open.target = "_blank";
       open.rel = "noopener noreferrer";
@@ -273,11 +281,11 @@ class LinkPillWidget extends WidgetType {
         if (navHook) {
           e.preventDefault();
           e.stopPropagation();
-          navHook(this.url, view);
+          navHook(resolvedUrl, view);
         }
       });
     }
-    open.title = this.url;
+    open.title = resolvedUrl;
     open.appendChild(createLinkArrowIcon(isExternal));
     pill.appendChild(open);
 
@@ -452,6 +460,7 @@ function buildLinkDecos(state: EditorState): DecorationSet {
                 link.from,
                 link.to,
                 state.readOnly,
+                state.facet(affiliateTagFacet),
               ),
             }),
           );

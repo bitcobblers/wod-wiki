@@ -70,6 +70,7 @@ jobs:
           VITE_APP_VERSION: ${{ inputs.version }}
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://wod.wiki/api' }}
           VITE_CAST_APP_ID: ${{ vars.VITE_CAST_APP_ID }}
+          ASSOCIATE_TAG: ${{ vars.ASSOCIATE_TAG }}
 
       - name: Build Chrome 92 receiver
         run: bun x vite build --config apps/playground/vite.receiver.config.ts --outDir dist

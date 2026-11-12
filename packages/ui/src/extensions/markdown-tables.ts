@@ -5,6 +5,7 @@ import type { Extension } from "@codemirror/state";
 import { sectionField, type EditorSection } from "./section-state";
 import { isEditorFocused, setEditorFocused } from "./editor-focus";
 import { navigationFacet } from "./link-open";
+import { affiliateTagFacet, applyAmazonAffiliateTag } from "./affiliate-link";
 
 function isTableSeparator(line: string): boolean {
   return /^\|?[\s:]*-+[\s:]*(\|[\s:]*-+[\s:]*)*\|?$/.test(line.trim()) && line.includes("|");
@@ -75,11 +76,14 @@ function appendFormattedCellContent(
     } else if (match[2] !== undefined && match[3] !== undefined) {
       const label = match[2];
       const url = match[3];
+      const isExternal = /^https?:\/\//i.test(url);
+      const resolvedUrl = isExternal
+        ? applyAmazonAffiliateTag(url, view.state.facet(affiliateTagFacet))
+        : url;
       const a = document.createElement("a");
-      a.href = url;
+      a.href = resolvedUrl;
       a.textContent = label;
       a.className = "cm-table-cell-link underline underline-offset-2";
-      const isExternal = /^https?:\/\//i.test(url);
       if (isExternal) {
         a.target = "_blank";
         a.rel = "noopener noreferrer";

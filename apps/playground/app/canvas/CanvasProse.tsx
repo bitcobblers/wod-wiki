@@ -23,6 +23,7 @@ import { queryService } from '@/services/queryService'
 import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { entryOpenHref } from '../lib/entryActions'
 import { wqlStreamHref } from '../lib/wqlLink'
+import { withAffiliateTag } from '@/lib/affiliateLink'
 import { toEntry, blockToEntry } from '../lib/entryMapper'
 import type { Note } from '@/types/storage'
 import { QueryToDashboardDialog } from '../views/analytics/QueryToDashboardDialog'
@@ -190,9 +191,10 @@ const components: Components = {
     }
     const external = isExternalLink(h)
     const file = isFileLink(h)
+    const resolvedHref = external ? withAffiliateTag(h) : h
     return (
       <a
-        href={h}
+        href={resolvedHref}
         rel={external ? 'noopener noreferrer' : undefined}
         target={external || file ? '_blank' : undefined}
         className={cn(

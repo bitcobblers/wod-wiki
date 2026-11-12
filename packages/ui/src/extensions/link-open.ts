@@ -2,6 +2,7 @@ import { Facet } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import { EditorView, hoverTooltip, ViewPlugin, ViewUpdate } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
+import { affiliateTagFacet, applyAmazonAffiliateTag } from "./affiliate-link";
 
 export type NavigationHook = (url: string, view: EditorView) => void;
 
@@ -115,12 +116,13 @@ const ctrlClickPlugin = ViewPlugin.fromClass(
         e.preventDefault();
         e.stopPropagation();
 
+        const resolvedUrl = applyAmazonAffiliateTag(url, view.state.facet(affiliateTagFacet));
         const navHook = view.state.facet(navigationFacet);
         if (navHook) {
-          navHook(url, view);
+          navHook(resolvedUrl, view);
         } else if (typeof window !== "undefined") {
-          const isInternal = url.startsWith("/") || url.startsWith("#");
-          window.open(url, isInternal ? "_self" : "_blank", isInternal ? undefined : "noopener,noreferrer");
+          const isInternal = resolvedUrl.startsWith("/") || resolvedUrl.startsWith("#");
+          window.open(resolvedUrl, isInternal ? "_self" : "_blank", isInternal ? undefined : "noopener,noreferrer");
         }
       };
 

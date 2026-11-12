@@ -7,6 +7,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { withAffiliateTag } from '@/lib/affiliateLink';
 import type { LinkWidget } from '@/lib/frontmatter';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ export const LinkChip: React.FC<LinkChipProps> = ({ widget }) => {
 
   return (
     <a
-      href={widget.url || '#'}
+      href={widget.url ? withAffiliateTag(widget.url) : '#'}
       target="_blank"
       rel="noopener noreferrer"
       onClick={handleClick}

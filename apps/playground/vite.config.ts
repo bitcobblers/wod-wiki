@@ -117,6 +117,8 @@ export default defineConfig({
         // (tagged version on main/prod, X.Y.Z-pr.N on PR previews); local dev
         // and library builds fall back to package.json.
         __APP_VERSION__: JSON.stringify(process.env.VITE_APP_VERSION || pkg.version),
+        // Optional Amazon Associates tag stamped at build time from GitHub variable ASSOCIATE_TAG.
+        __ASSOCIATE_TAG__: JSON.stringify((process.env.ASSOCIATE_TAG || process.env.VITE_ASSOCIATE_TAG || '').trim()),
         // Seed version stamps (docs/prototypes/seed-data-unification.md §
         // Version check): read from the manifests the seed compiler just
         // wrote (generate runs before vite in both dev and build) — one
