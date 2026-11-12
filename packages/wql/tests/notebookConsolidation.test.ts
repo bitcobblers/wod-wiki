@@ -358,6 +358,16 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
       'user-nb',
     ].sort());
 
+    const fullIdWildcard = await service.runFind(parseQuery(':note{notebook:notebook/*}') as Parameters<typeof service.runFind>[0]);
+    expect(fullIdWildcard.parsed.error).toBeUndefined();
+    expect(fullIdWildcard.parsed.advisories).toBeUndefined();
+    expect(fullIdWildcard.notes.map((n) => n.id).sort()).toEqual([
+      uuid(1),
+      'fran-id',
+      'open-id',
+      'user-nb',
+    ].sort());
+
     const unplaced = await service.runFind(parseQuery(':note{!notebook:*}') as Parameters<typeof service.runFind>[0]);
     expect(unplaced.parsed.advisories).toBeUndefined();
     expect(unplaced.notes.map((n) => n.id).sort()).toEqual([uuid(2), 'root-readme'].sort());

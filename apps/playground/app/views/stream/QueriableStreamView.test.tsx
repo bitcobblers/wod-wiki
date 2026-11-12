@@ -31,6 +31,7 @@ import { journalNotes } from '../../services/journalNotes'
 import { resetFeedSubscriptionsForTest, setFeedSubscribed } from '@/services/feed/feedSubscriptions'
 import { NavContext, initialNavState, type StreamNavControls } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
+import { getActiveStreamBridge, getSurfaceBusy } from '@/agent/surfaceBridges'
 
 /** Test sleep — flush macrotasks inside act() scopes. */
 function delay(ms: number): Promise<void> {
@@ -1524,18 +1525,34 @@ describe('QueriableStreamView — query truth and retained state', () => {
 
   it('renders Searching… instead of 0 of 0 while a query is unsettled or in-flight without stages (WW-004)', async () => {
     const pending = Promise.withResolvers<Entry[]>()
-    const { engine } = stubEngine(() => pending.promise)
+    const { engine } = stubEngine((_q, onStages) => {
+      onStages?.({ selected: 0, matched: 0 })
+      return pending.promise
+    })
 
-    render(
+    const { rerender } = render(
       <MemoryRouter initialEntries={['/journal']}>
         <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
       </MemoryRouter>,
     )
 
-    // Pre-debounce initial mount: counts are unsettled, never 0 of 0 or (level).
+    // Pre-debounce initial mount: counts are unsettled and surfaceBusy stays true.
     expect(screen.getByTestId('stream-query-counts').textContent).toBe('Searching…')
     expect(screen.getByTestId('stream-query-status').textContent).not.toContain('0 of 0')
     expect(screen.getByTestId('stream-query-status').textContent).not.toContain('(level)')
+    expect(getSurfaceBusy()).toBe(true)
+    expect(getActiveStreamBridge()?.loading).toBe(true)
+
+    // Use a second engine without immediate stages to verify loading && !stages as well.
+    cleanup()
+    const pendingNoStages = Promise.withResolvers<Entry[]>()
+    const { engine: engineNoStages } = stubEngine(() => pendingNoStages.promise)
+    const view = render(
+      <MemoryRouter initialEntries={['/journal']}>
+        <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engineNoStages} />
+      </MemoryRouter>,
+    )
+    expect(getSurfaceBusy()).toBe(true)
 
     // Advance past STREAM_EXECUTE_DEBOUNCE_MS so loading === true && stages === undefined.
     await act(async () => {
@@ -1544,15 +1561,29 @@ describe('QueriableStreamView — query truth and retained state', () => {
     expect(screen.getByTestId('stream-query-counts').textContent).toBe('Searching…')
     expect(screen.getByTestId('stream-query-status').textContent).not.toContain('0 of 0')
     expect(screen.getByTestId('stream-query-status').textContent).not.toContain('(level)')
+    expect(getSurfaceBusy()).toBe(true)
+    expect(getActiveStreamBridge()?.loading).toBe(true)
 
-    // Once the query resolves (even empty), settled counts render accurately.
+    // Once the query resolves (even empty), settled counts render accurately and surfaceBusy clears.
     await act(async () => {
-      pending.resolve([])
+      pendingNoStages.resolve([])
     })
     await waitFor(() => {
       expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 of 0')
     })
     expect(screen.getByTestId('stream-query-status').textContent).toContain('by date (query)')
+    expect(getSurfaceBusy()).toBe(false)
+    expect(getActiveStreamBridge()?.loading).toBe(false)
+
+    // Prop-driven route swap back into an unsettled route re-arms Searching… and surfaceBusy immediately.
+    view.rerender(
+      <MemoryRouter initialEntries={['/notes']}>
+        <QueriableStreamView profile={NOTES_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+    expect(screen.getByTestId('stream-query-counts').textContent).toBe('Searching…')
+    expect(getSurfaceBusy()).toBe(true)
+    void rerender
   })
 
   it('omits raw (level) token from status strip across FEEDS, EFFORTS, and TAGS while preserving explicit sources (WW-004)', async () => {

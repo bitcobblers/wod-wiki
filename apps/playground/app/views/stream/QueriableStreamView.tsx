@@ -368,13 +368,15 @@ export function QueriableStreamView({
   const hasSettledRun = settledRoute === profile.route
   const [shelfOpen, setShelfOpen] = useState(true)
   const [loading, setLoading] = useState(false)
-  useEffect(() => setSurfaceBusy(loading), [loading])
+  const parsed = useMemo(() => parseQuery(query), [query])
+  const streamBusy = loading || (!hasSettledRun && !parsed.error)
+  useEffect(() => setSurfaceBusy(streamBusy), [streamBusy])
   useEffect(() => {
     return registerActiveStreamBridge({
       route: profile.route,
       defaultQuery: profile.defaultWql,
       query,
-      loading,
+      loading: streamBusy,
       layout,
       availableLayouts,
       groupBy: settings.groupBy,
@@ -386,7 +388,7 @@ export function QueriableStreamView({
       },
       setGroupBy,
     })
-  }, [profile.route, profile.defaultWql, query, loading, layout, availableLayouts, settings.groupBy, setQuery, setLayout, setGroupBy])
+  }, [profile.route, profile.defaultWql, query, streamBusy, layout, availableLayouts, settings.groupBy, setQuery, setLayout, setGroupBy])
   const [actionError, setActionError] = useState<string | null>(null)
   // Mobile: the query bar portals into the app navbar (no page header).
   const isMobile = useIsMobile()
@@ -465,8 +467,6 @@ export function QueriableStreamView({
       onSave={handleSaveEditedNotebook}
     />
   ) : null
-
-  const parsed = useMemo(() => parseQuery(query), [query])
 
   // Playground scope: the canonical filter source:playground (authored as
   // :playground{...}). In this scope the "Notebook Sessions" shelf would
@@ -1258,7 +1258,7 @@ export function QueriableStreamView({
           matched={entries.length}
           total={Math.max(stages?.selected ?? 0, entries.length)}
           loading={loading}
-          countsPending={!parsed.error && ((!hasSettledRun && !stages) || (loading && !stages))}
+          countsPending={!parsed.error && (!hasSettledRun || (loading && !stages))}
           applied={appliedFilters}
           ignored={ignoredFilters}
           advisories={parsed.error ? [] : parsed.advisories ?? []}

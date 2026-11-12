@@ -521,8 +521,8 @@ export function parseQuery(raw: string): AnyParsedQuery {
  * Returns the normalized query string and any deprecation advisories.
  */
 function normalizeNotebookFilterText(raw: string): string {
-  return raw.replace(/\bnotebook:notebook\/([a-zA-Z0-9_-]+)(\*?)/g, (_m, slug: string, star: string) =>
-    star ? `notebook:${slug}*` : `notebook:"notebook/${slug}"`,
+  return raw.replace(/\bnotebook:notebook\/([a-zA-Z0-9_-]*)(\*?)/g, (_m, slug: string, star: string) =>
+    star ? `notebook:${slug}*` : slug ? `notebook:"notebook/${slug}"` : 'notebook:notebook/',
   );
 }
 
