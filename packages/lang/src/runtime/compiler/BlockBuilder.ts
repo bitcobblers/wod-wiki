@@ -29,6 +29,7 @@ export interface TimerConfig {
     durationMs?: number;
     label?: string;
     role?: 'primary' | 'secondary' | 'hidden' | 'auto';
+    polarity?: 'work' | 'rest';
 }
 
 export interface TimerCompletionConfig {
@@ -263,6 +264,7 @@ export class BlockBuilder {
                 role: config.role,
                 mode,
                 required: config.required,
+                polarity: config.polarity,
                 restBlockFactory: config.injectRest ? (durationMs: number, label?: string) => {
                     const restBlock = new RestBlock(this.runtime, { durationMs, label });
                     return [new PushBlockAction(restBlock)];
@@ -271,7 +273,8 @@ export class BlockBuilder {
         } else {
             this.addBehavior(new CountupTimerBehavior({
                 label: config.label,
-                role: config.role
+                role: config.role,
+                polarity: config.polarity,
             }));
         }
         return this;

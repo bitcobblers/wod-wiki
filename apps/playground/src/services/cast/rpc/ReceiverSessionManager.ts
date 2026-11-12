@@ -1,241 +1,251 @@
 /**
- * ReceiverSessionManager — receiver-side session orchestration.
+ * ReceiverSessionManager — stateless receiver-side session orchestration.
  *
- * Owns the receiver half of the cast stack. Given a connected
- * `IRpcTransport`, it:
- *
- *   1. Builds a `ChromecastProxyRuntime` against the transport.
- *   2. Routes `rpc-audio` messages to the local `AudioService`
- *      (so the receiver plays the same cues as the sender).
- *   3. Subscribes to the runtime's workbench stream and exposes a
- *      single `onWorkbenchUpdate(handler)` stream for the React
- *      tree. Without this, every component that wants the workbench
- *      state would have to reach into the runtime's subscribe API.
- *   4. Surfaces transport disconnect through `onDisconnected(handler)`
- *      so the React tree can reset to the waiting screen.
- *
- * Two callers converge here:
- *   - `ReceiverApp` (chromecast path): receives a WebRTC offer over
- *     CAF, creates a `WebRtcRpcTransport`, hands it to
- *     `createReceiverSession`.
- *
- * `dispose()` tears down the runtime, audio listener, workbench
- * stream, and disconnect subscriptions. The transport itself is
- * left to its owner (the React tree or the CAF signaling).
+ * Replaces `ChromecastProxyRuntime` + `ProxyBlock` completely. Given a
+ * connected `IRpcTransport`, this module owns:
+ *   1. `rpc-audio` routing to the local `AudioService`
+ *   2. Clock offset handshake (`rpc-clock-sync-request` / `rpc-clock-sync-result`)
+ *   3. Workbench display state (`rpc-workbench-update` + `rpc-analytics-summary`),
+ *      preserving `previewData` title across `mode: 'active'` transitions
+ *   4. Projected Session frames (`rpc-session-frame`)
+ *   5. Authoritative clock snapshots (`rpc-clock-snapshot`)
+ *   6. Library catalog listings (`rpc-library-state`)
+ *   7. Outbound `rpc-event` dispatch back to the browser authority
  */
 
+import { wallClockNow, type INowProvider } from '@bitcobblers/wod-wiki-engine';
 import { audioService } from '@/services/AudioService';
-import { ChromecastProxyRuntime, type WorkbenchDisplayState } from './ChromecastProxyRuntime';
-import { isRpcClockSnapshot, isRpcLibraryState } from './RpcMessages';
 import type { ClockSnapshot } from '@/clock/clockCommands';
 import type { IRpcTransport, RpcUnsubscribe } from './IRpcTransport';
+import {
+  isRpcClockSnapshot,
+  isRpcLibraryState,
+  isRpcSessionFrame,
+  type RpcLibraryState,
+  type RpcMessage,
+  type RpcSessionFrame,
+  type WorkbenchDisplayState,
+} from './RpcMessages';
 
-/**
- * The handle a connected receiver session returns to its caller.
- *
- * Exposes:
- *   - `runtime` — the `ChromecastProxyRuntime` the React tree renders
- *     against.
- *   - `onDisconnected(handler)` — register a callback fired when the
- *     sender drops the transport. Returns the unsubscribe function so
- *     callers don't have to track the handler themselves.
- *   - `onWorkbenchUpdate(handler)` — register a callback fired on
- *     every workbench state push from the sender. The handler is
- *     called immediately with the current state, then on every
- *     update. Returns the unsubscribe function.
- *   - `dispose()` — tear down the session. Idempotent.
- */
 export interface ReceiverSessionHandle {
-    readonly runtime: ChromecastProxyRuntime;
-    onDisconnected(handler: () => void): () => void;
-    onWorkbenchUpdate(handler: (state: WorkbenchDisplayState) => void): () => void;
-    /**
-     * Subscribe to the sender's clock-authority snapshot. The handler fires
-     * immediately with the latest known snapshot (possibly `null`), then on
-     * every `rpc-clock-snapshot` push. `null` = no active run: commands are
-     * disabled and none may be replayed.
-     */
-    onClockSnapshot(handler: (snapshot: ClockSnapshot | null) => void): () => void;
-    /** Latest known clock snapshot, or `null` when none has arrived. */
-    getClockSnapshot(): ClockSnapshot | null;
-    /**
-     * Subscribe to the sender's library list (`rpc-library-state`). The
-     * handler fires immediately with the latest known list (possibly
-     * `null`), then on every push. `null` = nothing pushed yet.
-     */
-    onLibraryUpdate(handler: (library: RpcLibraryState | null) => void): () => void;
-    dispose(): void;
+  onDisconnected(handler: () => void): () => void;
+  onWorkbenchUpdate(handler: (state: WorkbenchDisplayState) => void): () => void;
+  getWorkbenchState(): WorkbenchDisplayState;
+  onSessionFrame(handler: (frame: RpcSessionFrame | null) => void): () => void;
+  getSessionFrame(): RpcSessionFrame | null;
+  onClockSnapshot(handler: (snapshot: ClockSnapshot | null) => void): () => void;
+  getClockSnapshot(): ClockSnapshot | null;
+  onLibraryUpdate(handler: (library: RpcLibraryState | null) => void): () => void;
+  sendEvent(name: string, data?: unknown): void;
+  getSenderNowMs(): number;
+  dispose(): void;
 }
 
-/**
- * Options for a single `createReceiverSession()` call.
- */
 export interface ReceiverSessionOptions {
-    /**
-     * Enable the audio service on connect. Defaults to `true` — the
-     * chromecast backend wants sound by default. Tests
-     * that don't want audio side-effects set this to `false`.
-     */
-    audio?: boolean;
-    /**
-     * Dispose the transport when the session sees it disconnect. The
-     * chromecast receiver path sets this: its transport is built per-offer
-     * and never reused, so a dead transport left undisposed keeps its
-     * signaling listener registered and would claim (and answer) the next
-     * offer meant for a fresh transport.
-     */
-    disposeTransportOnDisconnect?: boolean;
+  audio?: boolean;
+  disposeTransportOnDisconnect?: boolean;
 }
 
-/**
- * Dependencies the receiver session needs. Production wires up the
- * defaults; tests inject fakes. Kept narrow so the unit-test surface
- * is obvious.
- */
 export interface ReceiverSessionDeps {
-    createRuntime: (transport: IRpcTransport) => ChromecastProxyRuntime;
-    playAudio: (name: string, volume: number) => void;
-    setAudioEnabled: (enabled: boolean) => void;
+  now?: INowProvider;
+  playAudio: (name: string, volume: number) => void;
+  setAudioEnabled: (enabled: boolean) => void;
 }
 
 const defaultDeps: ReceiverSessionDeps = {
-    createRuntime: (transport) => new ChromecastProxyRuntime(transport),
-    playAudio: (name, volume) => audioService.playSound(name, volume),
-    setAudioEnabled: (enabled) => audioService.setEnabled(enabled),
+  now: wallClockNow,
+  playAudio: (name, volume) => audioService.playSound(name, volume),
+  setAudioEnabled: (enabled) => audioService.setEnabled(enabled),
 };
 
-/**
- * Create a receiver session bound to the supplied transport.
- *
- * Steps:
- *   1. Build a `ChromecastProxyRuntime` against the transport.
- *   2. Subscribe to `rpc-audio` messages and route them to the
- *      audio service. This is a one-line `onMessage` handler — a
- *      dedicated `EventProvider` would be overkill.
- *   3. Bridge the runtime's workbench subscription into a single
- *      observer stream on the handle.
- *   4. (Optionally) enable the audio service so the receiver has
- *      sound on by default.
- *
- * The returned handle lets the caller register disconnect and
- * workbench handlers, and dispose the session when the React tree
- * unmounts.
- *
- * The transport is NOT disposed by `dispose()`. The transport's
- * lifetime is managed by the caller (the chromecast signaling path
- * reuses the transport across offers).
- */
 export function createReceiverSession(
-    transport: IRpcTransport,
-    options: ReceiverSessionOptions = {},
-    deps: ReceiverSessionDeps = defaultDeps,
+  transport: IRpcTransport,
+  options: ReceiverSessionOptions = {},
+  deps: ReceiverSessionDeps = defaultDeps,
 ): ReceiverSessionHandle {
-    const audioEnabled = options.audio ?? true;
-    const runtime = deps.createRuntime(transport);
+  const nowProvider = deps.now ?? wallClockNow;
+  const audioEnabled = options.audio ?? true;
+  if (audioEnabled) {
+    deps.setAudioEnabled(true);
+  }
 
-    const audioUnsub = transport.onMessage((msg) => {
-        if (msg.type === 'rpc-audio') {
-            deps.playAudio(msg.name, msg.volume ?? 1);
-        }
-    });
+  let disposed = false;
+  let clockOffsetMs = 0;
+  let workbenchState: WorkbenchDisplayState = { mode: 'idle' };
+  let latestSessionFrame: RpcSessionFrame | null = null;
+  let latestClockSnapshot: ClockSnapshot | null = null;
+  let latestLibrary: RpcLibraryState | null = null;
 
-    // Workbench updates are pushed by the runtime's own subscription
-    // mechanism. We register exactly one listener against the
-    // runtime, then fan out to the handle's listeners. This keeps
-    // the runtime's listener set bounded regardless of how many
-    // components subscribe via the handle.
-    const workbenchListeners = new Set<(state: WorkbenchDisplayState) => void>();
-    runtime.subscribeToWorkbench((state) => {
-        for (const listener of workbenchListeners) listener(state);
-    });
+  const disconnectHandlers = new Set<() => void>();
+  const workbenchListeners = new Set<(state: WorkbenchDisplayState) => void>();
+  const sessionFrameListeners = new Set<(frame: RpcSessionFrame | null) => void>();
+  const clockSnapshotListeners = new Set<(snapshot: ClockSnapshot | null) => void>();
+  const libraryListeners = new Set<(library: RpcLibraryState | null) => void>();
 
-    if (audioEnabled) {
-        deps.setAudioEnabled(true);
+  const notifyWorkbench = () => {
+    for (const listener of workbenchListeners) listener(workbenchState);
+  };
+
+  const notifySessionFrame = () => {
+    for (const listener of sessionFrameListeners) listener(latestSessionFrame);
+  };
+
+  const messageUnsub: RpcUnsubscribe = transport.onMessage((msg: RpcMessage) => {
+    if (disposed) return;
+
+    if (msg.type === 'rpc-audio') {
+      deps.playAudio(msg.name, msg.volume ?? 1);
+      return;
     }
 
-    const disconnectHandlers = new Set<() => void>();
-    const transportDisconnectedUnsub: RpcUnsubscribe = transport.onDisconnected(() => {
-        if (options.disposeTransportOnDisconnect) {
-            // The transport is dead — don't leave an orphaned peer
-            // connection (and its signaling listener) around to claim the
-            // next offer meant for a fresh transport.
-            transport.dispose();
-        }
-        for (const handler of disconnectHandlers) handler();
-    });
+    if (msg.type === 'rpc-clock-sync-request') {
+      transport.send({
+        type: 'rpc-clock-sync-response',
+        requestTimestamp: msg.timestamp,
+        receiverTimestamp: nowProvider.nowMs(),
+      });
+      return;
+    }
 
-// ============================================================================
-// Clock snapshot stream (browser → receiver)
-// ============================================================================
-// The sender pushes `rpc-clock-snapshot` messages whenever the authoritative
-// clock controller publishes state (and once on connect). The session keeps
-// the latest snapshot so late React subscribers see current state immediately,
-// and fans new snapshots out to every subscriber. `null` snapshots are real
-// data ("no active run") — they must disable receiver commands.
+    if (msg.type === 'rpc-clock-sync-result') {
+      clockOffsetMs = msg.offsetMs;
+      return;
+    }
 
-    const clockSnapshotListeners = new Set<(snapshot: ClockSnapshot | null) => void>();
-    let latestClockSnapshot: ClockSnapshot | null = null;
-    const clockUnsub = transport.onMessage((msg) => {
-        if (!isRpcClockSnapshot(msg)) return;
-        latestClockSnapshot = msg.snapshot;
-        for (const listener of clockSnapshotListeners) listener(msg.snapshot);
-    });
+    if (msg.type === 'rpc-workbench-update') {
+      // Preserve previewData when transitioning into 'active' without a new
+      // previewData payload so workoutTitle never blanks out mid-workout.
+      const nextPreviewData =
+        msg.previewData !== undefined
+          ? msg.previewData
+          : msg.mode === 'active' || msg.mode === 'review'
+            ? workbenchState.previewData
+            : undefined;
+      workbenchState = {
+        mode: msg.mode,
+        ...(nextPreviewData ? { previewData: nextPreviewData } : {}),
+        ...(msg.reviewData ? { reviewData: msg.reviewData } : {}),
+      };
+      if (msg.mode === 'idle') {
+        latestSessionFrame = null;
+        notifySessionFrame();
+      }
+      notifyWorkbench();
+      return;
+    }
 
-    // Library catalog stream (browser → receiver): replay-safe, same shape as the clock
-    // stream — keep the latest push, replay it on subscribe so a UI mounting
-    // mid-session renders the listing immediately.
-    const libraryListeners = new Set<(library: RpcLibraryState | null) => void>();
-    let latestLibrary: RpcLibraryState | null = null;
-    const libraryUnsub = transport.onMessage((msg) => {
-        if (!isRpcLibraryState(msg)) return;
-        latestLibrary = msg;
-        for (const listener of libraryListeners) listener(msg);
-    });
+    if (msg.type === 'rpc-analytics-summary') {
+      workbenchState = {
+        ...workbenchState,
+        analyticsSummary: {
+          totalDurationMs: msg.totalDurationMs,
+          completedSegments: msg.completedSegments,
+          projections: msg.projections,
+        },
+      };
+      notifyWorkbench();
+      return;
+    }
 
-    let disposed = false;
-    return {
-        runtime,
-        onDisconnected(handler) {
-            if (disposed) return () => {};
-            disconnectHandlers.add(handler);
-            return () => disconnectHandlers.delete(handler);
-        },
-        onWorkbenchUpdate(handler) {
-            if (disposed) return () => {};
-            workbenchListeners.add(handler);
-            return () => workbenchListeners.delete(handler);
-        },
-        onClockSnapshot(handler) {
-            if (disposed) return () => {};
-            clockSnapshotListeners.add(handler);
-            // Immediate replay of the latest known snapshot so components
-            // mounting mid-run (mode switches, reconnects) render accurate
-            // state instead of a disabled flash.
-            handler(latestClockSnapshot);
-            return () => clockSnapshotListeners.delete(handler);
-        },
-        getClockSnapshot() {
-            return latestClockSnapshot;
-        },
-        onLibraryUpdate(handler) {
-            if (disposed) return () => {};
-            libraryListeners.add(handler);
-            // Replay the latest list so mid-session mounts render the
-            // listing instead of flashing the waiting screen.
-            handler(latestLibrary);
-            return () => libraryListeners.delete(handler);
-        },
-        dispose() {
-            if (disposed) return;
-            disposed = true;
-            audioUnsub();
-            clockUnsub();
-            libraryUnsub();
-            transportDisconnectedUnsub();
-            disconnectHandlers.clear();
-            workbenchListeners.clear();
-            clockSnapshotListeners.clear();
-            runtime.dispose();
-        },
-    };
+    if (isRpcSessionFrame(msg)) {
+      latestSessionFrame = msg;
+      notifySessionFrame();
+      return;
+    }
+
+    if (isRpcClockSnapshot(msg)) {
+      latestClockSnapshot = msg.snapshot;
+      for (const listener of clockSnapshotListeners) listener(msg.snapshot);
+      return;
+    }
+
+    if (isRpcLibraryState(msg)) {
+      latestLibrary = msg;
+      for (const listener of libraryListeners) listener(msg);
+      return;
+    }
+
+    if (msg.type === 'rpc-dispose') {
+      transport.dispose();
+      handle.dispose();
+    }
+  });
+
+  const transportDisconnectedUnsub: RpcUnsubscribe = transport.onDisconnected(() => {
+    if (options.disposeTransportOnDisconnect) {
+      transport.dispose();
+    }
+    latestSessionFrame = null;
+    latestClockSnapshot = null;
+    for (const handler of disconnectHandlers) handler();
+  });
+
+  const handle: ReceiverSessionHandle = {
+    onDisconnected(handler) {
+      if (disposed) return () => {};
+      disconnectHandlers.add(handler);
+      return () => disconnectHandlers.delete(handler);
+    },
+    onWorkbenchUpdate(handler) {
+      if (disposed) return () => {};
+      workbenchListeners.add(handler);
+      handler(workbenchState);
+      return () => workbenchListeners.delete(handler);
+    },
+    getWorkbenchState() {
+      return workbenchState;
+    },
+    onSessionFrame(handler) {
+      if (disposed) return () => {};
+      sessionFrameListeners.add(handler);
+      handler(latestSessionFrame);
+      return () => sessionFrameListeners.delete(handler);
+    },
+    getSessionFrame() {
+      return latestSessionFrame;
+    },
+    onClockSnapshot(handler) {
+      if (disposed) return () => {};
+      clockSnapshotListeners.add(handler);
+      handler(latestClockSnapshot);
+      return () => clockSnapshotListeners.delete(handler);
+    },
+    getClockSnapshot() {
+      return latestClockSnapshot;
+    },
+    onLibraryUpdate(handler) {
+      if (disposed) return () => {};
+      libraryListeners.add(handler);
+      handler(latestLibrary);
+      return () => libraryListeners.delete(handler);
+    },
+    sendEvent(name: string, data?: unknown) {
+      if (disposed || !transport.connected) return;
+      transport.send({
+        type: 'rpc-event',
+        name,
+        timestamp: nowProvider.nowMs(),
+        data,
+      });
+    },
+    getSenderNowMs() {
+      return nowProvider.nowMs() - clockOffsetMs;
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      messageUnsub();
+      transportDisconnectedUnsub();
+      disconnectHandlers.clear();
+      workbenchListeners.clear();
+      sessionFrameListeners.clear();
+      clockSnapshotListeners.clear();
+      libraryListeners.clear();
+      latestSessionFrame = null;
+      latestClockSnapshot = null;
+      latestLibrary = null;
+    },
+  };
+
+  return handle;
 }

@@ -1,6 +1,9 @@
 import { IOutputStatement, OutputStatement } from '@bitcobblers/wod-wiki-core';
 import { RuntimeLogger } from './RuntimeLogger';
 import { IAnalyticsEngine } from '../analytics/contracts/IAnalyticsEngine';
+import type { ProjectionResult } from '../analytics/ProjectionResult';
+import type { RoundState } from './memory/MemoryTypes';
+import { CurrentRoundMetric } from './compiler/metrics/CurrentRoundMetric';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
 import {  } from '@bitcobblers/wod-wiki-core';
@@ -86,6 +89,18 @@ export class OutputEmitter {
         this._clock = deps.clock;
         this._stack = deps.stack;
         this._script = deps.script;
+        if (this._analyticsEngine) {
+            this._bindEngineClock(this._analyticsEngine);
+        }
+    }
+
+    private _bindEngineClock(engine: IAnalyticsEngine): void {
+        if (!this._clock || !engine.setNowProvider) return;
+        const clock = this._clock;
+        engine.setNowProvider({
+            now: () => clock.currentDate,
+            nowMs: () => clock.currentDate.getTime(),
+        });
     }
 
     private _requireClock(): IRuntimeClock {
@@ -166,6 +181,7 @@ export class OutputEmitter {
     }
     setAnalyticsEngine(engine: IAnalyticsEngine): void {
         this._analyticsEngine = engine;
+        this._bindEngineClock(engine);
         // Route the live Tier-2 snapshot through emitLiveAnalytics — display-only,
         // never buffered. Finals are materialized by finalizeAnalytics() below.
         engine.setLiveOutputEmitter((outputs) => this.emitLiveAnalytics(outputs));
@@ -235,6 +251,12 @@ export class OutputEmitter {
     /** Ephemeral Tier-2 (running-total) snapshot for live display; never persisted. */
     getLiveAnalytics(): IOutputStatement[] {
         return [...this._liveAnalytics];
+    }
+
+    /** Typed live Summary Metric projections directly from AnalyticsEngine. */
+    getLiveProjections(): readonly ProjectionResult[] {
+        if (this._analyticsFinalized) return [];
+        return this._analyticsEngine?.getLiveProjections?.() ?? [];
     }
 
     dispose(): void {
@@ -384,6 +406,34 @@ export class OutputEmitter {
                 .add(...resultFragments.toArray());
 
             if (metrics.length === 0) continue;
+            // Stamp nearest enclosing parent round onto leaf segment outputs that lack one
+            // RuntimeStack.blocks is top-first, so index 0 is the nearest enclosing parent.
+            if (
+                !metrics.some((m) => m.type === MetricType.CurrentRound) &&
+                block.getMemoryByTag('children:status').length === 0 &&
+                block.blockType !== 'SessionRoot' &&
+                block.blockType !== 'Rounds'
+            ) {
+                const enclosingRoundBlock = (this._stack?.blocks ?? []).find(
+                    (ancestor) =>
+                        ancestor.blockType !== 'SessionRoot' &&
+                        ancestor.getMemoryByTag('round').length > 0,
+                );
+                const roundState = enclosingRoundBlock?.getMemoryByTag('round')[0]?.metrics[0] as
+                    | RoundState
+                    | undefined;
+                if (roundState && typeof roundState.current === 'number') {
+                    metrics.add(
+                        new CurrentRoundMetric(
+                            roundState.current,
+                            roundState.total,
+                            enclosingRoundBlock?.key.toString(),
+                            new Date(fallbackEndMs),
+                        ),
+                    );
+                }
+            }
+
 
             const fallbackStartMs = block.executionTiming?.startTime?.getTime() ?? fallbackEndMs;
             const timeSpan = new TimeSpan(fallbackStartMs, fallbackEndMs);

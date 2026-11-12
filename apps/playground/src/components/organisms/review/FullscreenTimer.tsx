@@ -26,6 +26,10 @@ import {
   type ClockSnapshot,
   useClockController,
 } from "@/clock/clockCommands";
+import {
+  requestUnifiedSessionStop,
+  resolveWorkoutRunIdentity,
+} from "@/app/editor/SessionRunHost";
 
 /** Stable empty override map — post-run queue items drop via local sets instead. */
 const NO_OVERRIDES = new Map();
@@ -120,6 +124,11 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   const [completedSegments, setCompletedSegments] = useState<Segment[] | null>(null);
   const [reviewEvents, setReviewEvents] = useState<EventRecord[] | null>(null);
   const { isDebugMode } = useDebugMode();
+  const workoutIdentity = useMemo(
+    () => resolveWorkoutRunIdentity(preparedBlock ?? block, noteContent),
+    [preparedBlock, block, noteContent],
+  );
+  const resolvedWorkoutTitle = workoutIdentity.workoutTitle;
   // Track runtime dialog load, review screen, and duration in GA4 & telemetry
   const mountTimeRef = useRef(Date.now());
   const prevTitleRef = useRef(typeof document !== 'undefined' ? document.title : 'Wod.Wiki');
@@ -127,7 +136,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   const lastPagePathRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const workoutLabel = block.label || block.id;
+    const workoutLabel = resolvedWorkoutTitle || block.label || block.id;
     const isReview = completedSegments !== null;
 
     const pageTitle = isReview
@@ -164,12 +173,12 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
         block_type: block.blockType,
       });
     }
-  }, [block.id, block.label, block.blockType, completedSegments]);
+  }, [block.id, block.label, block.blockType, resolvedWorkoutTitle, completedSegments]);
 
   useEffect(() => {
     const prevTitle = prevTitleRef.current;
     const mountTime = mountTimeRef.current;
-    const workoutLabel = block.label || block.id;
+    const workoutLabel = resolvedWorkoutTitle || block.label || block.id;
     return () => {
       const durationMs = Date.now() - mountTime;
       if (durationMs >= 1000) {
@@ -183,7 +192,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
         document.title = prevTitle;
       }
     };
-  }, [block.id, block.label]);
+  }, [block.id, block.label, resolvedWorkoutTitle]);
 
   // Exit/Stop on a live run must not discard outputs: flip the panel's halt
   // flag (RuntimeTimerPanel externalStop), which stops the execution and
@@ -194,8 +203,6 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   const finalizedRef = useRef(false);
   const exitRequestedRef = useRef(false);
   const [haltRequested, setHaltRequested] = useState(false);
-  // Live Stop/Exit requests confirmation — it never halts silently.
-  const [confirmStop, setConfirmStop] = useState(false);
   // Save in flight or failed holds the overlay; retry is the only way past.
   const savingRef = useRef(false);
   const failedRef = useRef(false);
@@ -366,18 +373,14 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
       onClose();
       return;
     }
-    // Live run: confirm first (Stop is never silent); confirming keeps the
-    // partial-results flow — halt, report, then close.
+    // Live or Next-captured run: route Stop confirmation through the single
+    // authoritative ClockCommandBoard stop-request dialog; fall back to direct
+    // halt only when no live clock controller is mounted yet.
     if (!haltRequested && !externalStop) {
-      setConfirmStop(true);
-      return;
+      if (requestUnifiedSessionStop()) {
+        return;
+      }
     }
-    exitRequestedRef.current = true;
-    setHaltRequested(true);
-  };
-
-  const confirmLiveStop = () => {
-    setConfirmStop(false);
     exitRequestedRef.current = true;
     setHaltRequested(true);
   };
@@ -527,7 +530,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
     /* ── Track view: active timer ── */
     <FocusedDialog
       onClose={handleClose}
-      title="Workout"
+      title={resolvedWorkoutTitle ?? "Workout"}
       closeLabel="Exit"
       actions={
         <>
@@ -567,38 +570,6 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
             onPark={onPark}
           />
         </div>
-        {confirmStop && (
-          <FocusedDialog
-            title="Stop workout?"
-            onClose={() => setConfirmStop(false)}
-            closeLabel="Keep going"
-            actions={undefined}
-          >
-            <div className="space-y-4 p-6">
-              <p className="text-sm text-muted-foreground">
-                The run stops now and your partial results are kept.
-              </p>
-              <div className="flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  data-testid="stop-cancel"
-                  onClick={() => setConfirmStop(false)}
-                  className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-                >
-                  Keep going
-                </button>
-                <button
-                  type="button"
-                  data-testid="stop-confirm"
-                  onClick={confirmLiveStop}
-                  className="rounded-lg bg-destructive px-4 py-2 text-sm font-bold text-destructive-foreground transition-colors hover:brightness-110"
-                >
-                  Stop — keep partial results
-                </button>
-              </div>
-            </div>
-          </FocusedDialog>
-        )}
       </div>
     </FocusedDialog>
   );

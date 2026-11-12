@@ -5,6 +5,7 @@ import { IOutputStatement, OutputStatement } from '@bitcobblers/wod-wiki-core';
 import { MetricType } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import { ProjectionResult } from './ProjectionResult';
+import { wallClockNow, type INowProvider } from '../runtime/INowProvider';
 
 export class AnalyticsEngine implements IAnalyticsEngine {
   private realtimeProcessors: IRealtimeProcessor[] = [];
@@ -12,12 +13,25 @@ export class AnalyticsEngine implements IAnalyticsEngine {
   private outputHistory: IOutputStatement[] = [];
   /** Emits a live 'analytics' snapshot per segment so the UI updates in real time. */
   private _onLiveOutput?: (outputs: IOutputStatement[]) => void;
+  private _liveProjections: ProjectionResult[] = [];
   /**
    * Signature of the last live projection emission. Used by finalize() to avoid
    * re-emitting the same projections at session end. Timestamps are ignored.
    */
   private _lastLiveProjectionSignature?: string;
+  private _now: INowProvider;
 
+  constructor(now: INowProvider = wallClockNow) {
+    this._now = now;
+  }
+
+  setNowProvider(now: INowProvider): void {
+    this._now = now;
+  }
+
+  getLiveProjections(): readonly ProjectionResult[] {
+    return [...this._liveProjections];
+  }
   /**
    * Wire a sink for live analytics outputs. The sink receives the FULL
    * projection snapshot (a replaceable, ephemeral set) each time projections
@@ -54,12 +68,10 @@ export class AnalyticsEngine implements IAnalyticsEngine {
     if (current.outputType === 'segment') {
       this.outputHistory.push(current);
       if (this._onLiveOutput) {
-        const now = Date.now();
         const projections = this._runSummaries();
+        this._liveProjections = projections;
+        const now = this._now.nowMs();
         const signature = this._projectionSignature(projections);
-        // Skip emission when the projections carry no new information — e.g.
-        // several blocks popping at completion each trigger run() with
-        // identical aggregates, producing byte-identical same-ms rows.
         if (signature !== this._lastLiveProjectionSignature) {
           this._lastLiveProjectionSignature = signature;
           const liveOutputs = this._buildProjectionOutputs(projections, now);
@@ -73,7 +85,8 @@ export class AnalyticsEngine implements IAnalyticsEngine {
 
   finalize(): IOutputStatement[] {
     const projections = this._runSummaries();
-    const outputs = this._buildProjectionOutputs(projections, Date.now());
+    this._liveProjections = [];
+    const outputs = this._buildProjectionOutputs(projections, this._now.nowMs());
     const signature = this._projectionSignature(projections);
     if (this._lastLiveProjectionSignature !== undefined && this._lastLiveProjectionSignature === signature) {
       return [];

@@ -41,6 +41,8 @@ export const TEST_IDS = {
   TIMER_SURFACE_GENERAL: 'timer-surface-general',
   /** Live metric prompt row (session-total bubbles) on Minimal/General */
   TIMER_METRIC_PROMPTS: 'timer-metric-prompts',
+  TIMER_STACK_DRAWER_TOGGLE: 'timer-stack-drawer-toggle',
+  TIMER_STACK_DRAWER: 'timer-stack-drawer',
   FOCUSED_DIALOG_CLOSE: 'focused-dialog-close',
 
   // ── Clock command board (shared browser/receiver) ─────────────────────────

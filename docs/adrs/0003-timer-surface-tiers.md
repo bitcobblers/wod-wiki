@@ -1,58 +1,60 @@
 # 3. Timer surface tiers
 
-Date: 2026-10-20
+Date: 2026-10-20 (updated 2026-11-11)
 Status: Accepted
-Decides: which timer surface renders on which host
+Decides: which timer surface and interaction policy render on each host
 Design source: `Kimi_Agent_WOD Timer UI Prototypes/app/index.html` (three-tier ladder)
 
 ## Context
 
-The playground had one timer surface (Detail: `TimerStackView` via `TimerDisplay`) on
-every host at every size, plus a Chromecast receiver surface and (since #1078) a mobile
-Minimal surface. The prototype defines a three-tier capability ladder — general = minimal
-+ context (chips, session clock, title), detail = general + time axis (audit, queue,
-header chrome) — and one shared core (`TimerCore`) underneath all tiers.
+The playground supports three timer tiers over one shared engine projection:
+Minimal (`<500px`), General (`500px-899px` and Chromecast receiver), and Detail
+(`>=900px` split audit + clock). Earlier iterations kept a parallel derivation in
+`StackIntegratedTimer` and coupled touch gestures, receiver icons, and stack
+inspection directly to pixel width.
 
 ## Decision
 
-1. **Tier = container size**, taken from the existing `PanelSizeMode` ladder — no new
-   breakpoints:
+1. **Tier = container size**, taken from `PanelSizeMode` — no extra breakpoints:
 
    | `PanelSizeMode` | Container width | Tier | Surface |
    |---|---|---|---|
    | `compact` | < 500px | Minimal | `MinimalTimerSurface` |
-   | `wide` | ≥ 500px | General | `GeneralTimerSurface` (full hero at any height¹) |
-   | `full` | ≥ 900px | Detail | `TimerDisplay` (StackIntegratedTimer + TimerStackView) |
-
-   ¹ *Amended 2026-10-20*: the `mode="strip"` short-host compression was removed.
-   One General view renders everywhere the tier renders — including the cast
-   receiver, which already overrode the ladder (decision 2). The strip's
-   single-row layout read as a "wide line" on TV-shaped hosts and duplicated
-   the surface for a rare host shape.
+   | `wide` | >= 500px | General | `GeneralTimerSurface` (full hero at any height) |
+   | `full` | >= 900px | Detail | `TimerDisplay` (`StackIntegratedTimer` + `TimerStackView`) |
 
    `TimerSurface` (`apps/playground/src/components/organisms/workout/TimerSurface.tsx`)
-   is the single picker; hosts mount it instead of choosing themselves.
+   is the single browser picker.
 
-2. **The cast receiver overrides the ladder**: `receiver-rpc.tsx` mounts
-   `GeneralTimerSurface` directly — the TV is General at any pixel size.
+2. **Interaction role is decoupled from pixel width (`timerViewPolicy.ts`)**:
+   - Interactive browser General (`500-899px`) retains touch swipe gestures (so
+     sideways `812x375` phones keep swipe-left Next and swipe-right Stop), omits
+     passive TV status icons, and exposes an on-demand slide-over `VisualStatePanel`
+     drawer (so `768px` portrait tablets can inspect the workout stack, round
+     splits, and static script outline).
+   - Compact phones actively casting (`pocket-remote`) also expose the stack drawer.
+   - The Chromecast receiver (`receiver-rpc.tsx`) renders stateless `RpcSessionFrame`
+     messages via `ReceiverTimerPanel` (`GeneralTimerSurface` + live Summary Metrics),
+     fading interactive controls via CSS opacity after 5 seconds of D-pad idle while
+     keeping focusable buttons mounted in the DOM.
 
-3. **Strict ladder for history/audit chrome**: `VisualStatePanel` (stack history, Up Next
-   card) renders only alongside Detail (`full`). Wide hosts show General alone.
+3. **Strict permanent rail only on Detail (`full`)**: `VisualStatePanel` mounts as a
+   permanent 1/3 split rail only at `>=900px`; below `900px` it stays tucked inside
+   the explicit slide-over drawer.
 
-4. **Live metric prompts** (session-total bubbles via `MetricTrackerCard`) render on
-   Minimal and General at every host height (the strip exception retired with the
-   amendment to decision 1). In-run *input* prompts stay Detail-only until an input
-   design exists.
+4. **Zero-waste live metric prompts**: `MetricTrackerCard` consumes typed
+   `LiveSessionTelemetry` Summary Metrics on Minimal, General (including Chromecast),
+   and Detail, collapsing cleanly to `0px` when no live summaries exist.
 
-5. **Detail keeps its own richer derivation** (`StackIntegratedTimer`); the shared
-   `useTimerSurfaceModel` deliberately re-derives the subset Minimal/General need.
-   Consolidate only if the two derivations drift.
+5. **Single unified runtime projection (`SessionClockProjection`)**: Minimal,
+   General, Detail, and `SessionCastProjector` all read `SessionClockProjection`,
+   sharing identical primary/secondary clock deduplication, Rest/Final-5s/Paused/Overrun
+   visual polarity, proactive required-timer lock state, round chips, welded
+   `Up next` captions, and a single active 60fps animation loop.
 
 ## Consequences
 
-- Wide browser hosts (editor timer pane, track view, `/run/:id` on tablets) lose the
-  stack view; that is intended — audit is a largest-screen capability.
-- Dead Detail-only paths in hosts that no longer show Detail are deleted at cutover,
-  not shimmed.
-- Adding a fourth tier or changing thresholds touches `PanelSizeContext` + `TimerSurface`
-  only.
+- `ChromecastProxyRuntime` and `ProxyBlock` are retired in favor of `SessionCastProjector`
+  and stateless `RpcSessionFrame` span interpolation.
+- Sideways phones (`812x375`) keep swipe gestures and `768px` tablets gain stack
+  inspection without altering the `500px` / `900px` container-width ladder.

@@ -91,7 +91,9 @@ export class RestBlock extends RuntimeBlock {
             durationMs: config.durationMs,
             label: restLabel,
             role: 'primary',
-            mode: 'complete-block'
+            mode: 'complete-block',
+            required: true,
+            polarity: 'rest',
         }));
 
         // =====================================================================

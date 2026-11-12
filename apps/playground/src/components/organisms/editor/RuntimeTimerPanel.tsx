@@ -27,18 +27,20 @@ import { PanelSizeProvider, usePanelSize } from "@/panels/panel-system/PanelSize
 import { ScriptRuntimeProvider, useRuntimeExecution, type UseRuntimeExecutionReturn, NextEvent, ScriptRuntime } from "@/hooks/useRuntimeTimer";
 import type { IScriptRuntime, StackSnapshot } from "@/hooks/useRuntimeTimer";
 import { useActiveRunStore } from "@/stores/activeRunStore";
-import {
-  getActiveCastTransport,
-  onCastTransportChange,
-  ChromecastRuntimeSubscription,
-  type IRpcTransport,
-} from "@/hooks/useCastSignaling";
+import { getActiveCastTransport } from "@/hooks/useCastSignaling";
+import { useSessionCastBridge } from "@/hooks/useSessionCastBridge";
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-engine';
 import { dispatchGutterHighlights } from '@bitcobblers/wod-wiki-ui/extensions';
 import { buildCompletedRuntimeProjection } from "@/app/cast/workbenchProjection";
 import { useUserOverrides } from '@/components/organisms/review/useUserOverrides';
-import { buildSessions, countSegmentOutputs, createRuntimeForBlock, prepareRuntimeBlock } from "@/app/editor/runtimeTimerModel";
+import {
+  buildSessions,
+  countSegmentOutputs,
+  createRuntimeForBlock,
+  prepareRuntimeBlock,
+  resolveWorkoutRunIdentity,
+} from "@/app/editor/runtimeTimerModel";
 import { sourceIdsToContentLines } from "@/components/organisms/editor/gutterHighlights";
 import { useCollectionMetrics, resolveValueSelection } from "@/hooks/useCollectionMetrics";
 import { CollectionWizard } from "@/components/organisms/review/CollectionWizard";
@@ -116,6 +118,8 @@ interface RuntimeTimerBodyProps {
   commandBoard?: React.ReactNode;
   /** Authoritative Next availability from the clock snapshot. */
   canNext?: boolean;
+  workoutTitle?: string;
+  workoutFormat?: string;
 }
 
 const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
@@ -127,6 +131,8 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
   handleNext,
   commandBoard,
   canNext,
+  workoutTitle,
+  workoutFormat,
 }) => {
   const { isCompact: isMobile, isFull } = usePanelSize();
 
@@ -147,6 +153,8 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
             isRunning={execution.status === "running"}
             isPaused={execution.status === "paused"}
             canNext={canNext}
+            workoutTitle={workoutTitle}
+            workoutFormat={workoutFormat}
           />
         </div>
 
@@ -191,21 +199,19 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
         <div className={`flex flex-col overflow-y-auto bg-background ${
           isMobile ? "order-1 min-h-[min(280px,100%)] flex-[3]" : "min-h-0 w-2/3"
         }`}>
-          <PanelSizeProvider>
-            <TimerDisplay
-              elapsedMs={execution.elapsedTime}
-              hasActiveBlock={true}
-              onStart={handleStart}
-              onPause={execution.pause}
-              onStop={handleStop}
-              onNext={handleNext}
-              isRunning={execution.status === "running"}
-              isPaused={execution.status === "paused"}
-              canNext={canNext}
-              compact={isMobile}
-              enableDisplayStack={true}
-            />
-          </PanelSizeProvider>
+          <TimerDisplay
+            elapsedMs={execution.elapsedTime}
+            hasActiveBlock={true}
+            onStart={handleStart}
+            onPause={execution.pause}
+            onStop={handleStop}
+            onNext={handleNext}
+            isRunning={execution.status === "running"}
+            isPaused={execution.status === "paused"}
+            canNext={canNext}
+            compact={isMobile}
+            enableDisplayStack={true}
+          />
         </div>
       </div>
 
@@ -251,6 +257,10 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
 }) => {
   const [runtimeBlock] = useState(() => prepareRuntimeBlock(block));
   const [preRunScript] = useState(() => ({ statements: runtimeBlock.statements }));
+  const workoutIdentity = React.useMemo(
+    () => resolveWorkoutRunIdentity(runtimeBlock, view?.state.doc.toString() ?? noteContent),
+    [runtimeBlock, view, noteContent],
+  );
   const [runtime, setRuntime] = useState<IScriptRuntime | null>(null);
   const [ready, setReady] = useState(false);
   const [outputCount, setOutputCount] = useState(0);
@@ -468,25 +478,11 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   // CastTransportContext — that provider wraps only the cast button, so it
   // cannot reach this panel (a sibling in the dialog). The registry updates on
   // cast connect/disconnect, re-running the mirror bridge below. (#704)
-  const [castTransport, setCastTransport] = useState<IRpcTransport | null>(() => getActiveCastTransport());
-  useEffect(() => onCastTransportChange(setCastTransport), []);
-
-  // Mirror this runtime's stack + output to a connected cast receiver. This
-  // runtime is created locally (on /run and in the editor fullscreen timer) —
-  // it is NOT the workbench runtime that CastSessionManager's subscription
-  // wraps — so without this bridge a connected receiver never sees block
-  // transitions or the countdown. (#704)
-  useEffect(() => {
-    if (!runtime || !castTransport) return;
-    const castSubscription = new ChromecastRuntimeSubscription(castTransport);
-    const unsubStack = runtime.subscribeToStack((snapshot) => castSubscription.onStackSnapshot(snapshot));
-    const unsubOutput = runtime.subscribeToOutput((output) => castSubscription.onOutput(output));
-    return () => {
-      unsubStack();
-      unsubOutput();
-      castSubscription.dispose();
-    };
-  }, [runtime, castTransport]);
+  const castTransport = useSessionCastBridge({
+    runtime,
+    identity: workoutIdentity,
+    executionStatus: execution.status === 'error' ? 'idle' : execution.status,
+  });
 
   // ── Cast workbench mode bridge ───────────────────────────────────────
   // While this inline runtime owns the receiver, flip it to the active clock
@@ -594,6 +590,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     runtime,
     executionStatus: execution.status === 'error' ? 'idle' : execution.status,
     enabled: ready && !showChoiceWizard && !nothingToRun && execution.status !== 'error',
+    hasCapturedWork: outputCount > 0 || hasFiredRunStartedRef.current,
     actions: {
       next: handleNext,
       start: handleStart,
@@ -672,6 +669,8 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
           handleNext={handleNext}
           commandBoard={clockSnapshot ? <ClockCommandBoard snapshot={clockSnapshot} dispatch={dispatchClock} /> : null}
           canNext={clockSnapshot?.canNext}
+          workoutTitle={workoutIdentity.workoutTitle}
+          workoutFormat={workoutIdentity.workoutFormat}
         />
       </ScriptRuntimeProvider>
     </PanelSizeProvider>

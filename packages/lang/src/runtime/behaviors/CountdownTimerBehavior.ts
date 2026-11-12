@@ -1,7 +1,7 @@
 import { IRuntimeBehavior } from '../contracts/IRuntimeBehavior';
 import { IBehaviorContext, Unsubscribe } from '../contracts/IBehaviorContext';
 import { IRuntimeAction } from '../contracts/IRuntimeAction';
-import { TimerState, ChildrenStatusState, RoundState } from '../memory/MemoryTypes';
+import { TimerState, TimerPolarity, ChildrenStatusState, RoundState } from '../memory/MemoryTypes';
 import { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
 import { ClearChildrenAction } from '../actions/stack/ClearChildrenAction';
 import { PopBlockAction } from '../actions/stack/PopBlockAction';
@@ -38,6 +38,8 @@ export interface CountdownTimerConfig {
      * `timer:skip-attempt` event instead of advancing the block.
      */
     required?: boolean;
+    /** Semantic Work vs Rest polarity stored in TimerState. */
+    polarity?: TimerPolarity;
 }
 
 /**
@@ -71,7 +73,9 @@ export class CountdownTimerBehavior implements IRuntimeBehavior {
             direction: 'down',
             durationMs: this.config.durationMs,
             label,
-            role
+            role,
+            required: Boolean(this.config.required),
+            polarity: this.config.polarity ?? 'work',
         })]);
 
         // Immediate expiry check (e.g. duration was already 0 when compiled)

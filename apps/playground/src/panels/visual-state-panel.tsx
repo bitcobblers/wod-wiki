@@ -1,7 +1,10 @@
 import React from 'react';
-import { useScriptRuntime } from '@bitcobblers/wod-wiki-engine/react';
+import {
+    useOutputStatements,
+    useScriptOutline,
+    useScriptRuntime,
+} from '@bitcobblers/wod-wiki-engine/react';
 import { RuntimeStackView, LookaheadView } from '@/components/atoms/VisualStateComponents';
-import { useOutputStatements } from '@bitcobblers/wod-wiki-engine/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/atoms/primitives/card';
 import { useDebugMode } from '@/contexts/DebugModeContext';
 import { usePanelSize } from '@/panels/panel-system/PanelSizeContext';
@@ -10,9 +13,9 @@ import { cn } from '@/lib/utils';
 export const VisualStatePanel: React.FC = () => {
     const runtime = useScriptRuntime();
     const { outputs } = useOutputStatements(runtime);
+    const outline = useScriptOutline(runtime);
     const { isDebugMode } = useDebugMode();
     const { isCompact } = usePanelSize();
-
     if (!runtime) return null;
 
     return (
@@ -26,6 +29,34 @@ export const VisualStatePanel: React.FC = () => {
             <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
                 <RuntimeStackView runtime={runtime} outputs={outputs} debug={isDebugMode} />
             </div>
+            {outline.length > 1 && (
+                <div className="shrink-0 rounded-lg border border-border/70 bg-card/60 p-2.5">
+                    <div className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Script Outline
+                    </div>
+                    <ul className="max-h-28 space-y-1 overflow-y-auto text-xs">
+                        {outline.map((node) => (
+                            <li
+                                key={node.statementId}
+                                style={{ paddingLeft: `${node.depth * 10}px` }}
+                                className={cn(
+                                    "flex items-center gap-1.5 truncate",
+                                    node.status === 'active'
+                                        ? "font-semibold text-primary"
+                                        : node.status === 'completed'
+                                            ? "text-muted-foreground line-through opacity-75"
+                                            : "text-muted-foreground",
+                                )}
+                            >
+                                <span className="font-mono text-[10px]">
+                                    {node.status === 'completed' ? '✓' : node.status === 'active' ? '●' : '·'}
+                                </span>
+                                <span className="truncate">{node.label}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
 
             {/* 3. Up Next */}
             <Card className="shrink-0 bg-muted/30 border-dashed">

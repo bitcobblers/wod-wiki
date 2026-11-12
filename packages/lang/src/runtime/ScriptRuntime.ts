@@ -251,6 +251,9 @@ export class ScriptRuntime implements IScriptRuntime {
     public getLiveAnalytics(): IOutputStatement[] {
         return this._output.getLiveAnalytics();
     }
+    public getLiveProjections() {
+        return this._output.getLiveProjections();
+    }
 
     /**
      * Add an output statement to the collection and notify subscribers.

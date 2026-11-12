@@ -53,6 +53,8 @@ export interface UseLiveClockAuthorityOptions {
   enabled?: boolean;
   /** Persist-in-flight flag surfaced on the snapshot (post-run hosts). */
   saving?: boolean;
+  /** True when Next-driven segments have been captured while clock remains idle. */
+  hasCapturedWork?: boolean;
 }
 
 export interface LiveClockAuthority {
@@ -66,6 +68,7 @@ export function useLiveClockAuthority({
   actions,
   enabled = true,
   saving = false,
+  hasCapturedWork = false,
 }: UseLiveClockAuthorityOptions): LiveClockAuthority {
   const runIdRef = useRef(createClockRunId());
   const [stackTick, setStackTick] = useState(0);
@@ -78,8 +81,8 @@ export function useLiveClockAuthority({
   const [entryState, setEntryState] = useState<ClockEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const latest = useRef({ runtime, executionStatus, actions });
-  latest.current = { runtime, executionStatus, actions };
+  const latest = useRef({ runtime, executionStatus, actions, hasCapturedWork });
+  latest.current = { runtime, executionStatus, actions, hasCapturedWork };
 
   useEffect(() => {
     if (!runtime) return undefined;
@@ -130,7 +133,7 @@ export function useLiveClockAuthority({
   const status = executionStatus;
   const phase: ClockPhase = status === 'idle' ? 'ready' : status === 'completed' ? 'review' : 'live';
   const canNext = status === 'running' || status === 'idle';
-  const canStop = status === 'running' || status === 'paused';
+  const canStop = status === 'running' || status === 'paused' || hasCapturedWork;
 
   const snapshot: ClockSnapshot | null = useMemo(() => {
     if (!enabled || !runtime) return null;
@@ -200,10 +203,13 @@ export function useLiveClockAuthority({
           setError(null);
           act.playback();
           return true;
-        case 'stop-request':
-          if (stopRequested || entryState !== null || (st !== 'running' && st !== 'paused')) return false;
+        case 'stop-request': {
+          const liveOrCaptured =
+            st === 'running' || st === 'paused' || latest.current.hasCapturedWork;
+          if (stopRequested || entryState !== null || !liveOrCaptured) return false;
           setStopRequested(true);
           return true;
+        }
         case 'stop-cancel':
           if (!stopRequested) return false;
           setStopRequested(false);

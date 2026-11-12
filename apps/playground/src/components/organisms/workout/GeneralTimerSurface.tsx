@@ -18,15 +18,23 @@
 import React from 'react';
 import { Cast, Timer, Volume2 } from 'lucide-react';
 import { formatTimeMMSS } from '@bitcobblers/wod-wiki-engine';
-import { TimerControls, TimerHero } from './TimerCore';
+import { TimerControls, TimerHero, useTimerSwipeGestures } from './TimerCore';
 import type { TimerSurfaceProps } from './MinimalTimerSurface';
 import { TEST_IDS } from '@/lib/testIds';
 
 export interface GeneralTimerSurfaceProps extends TimerSurfaceProps {
   /** Workout title shown in the top bar (hidden when unknown) */
   workoutTitle?: string;
+  /** Optional protocol format badge (e.g. "3 Rounds", "20:00 AMRAP") */
+  workoutFormat?: string;
   /** Optional live-metric prompt row rendered under the top bar */
   promptRow?: React.ReactNode;
+  /** Show passive Cast/Audio status icons (TV receiver only; off on browser hosts) */
+  showReceiverIndicators?: boolean;
+  /** Visual opacity fade for passive TV idle while keeping focusable buttons mounted */
+  controlsIdleHidden?: boolean;
+  /** Optional header action slot (e.g. Coach iPad Stack & Splits drawer toggle) */
+  headerActions?: React.ReactNode;
 }
 
 export const GeneralTimerSurface: React.FC<GeneralTimerSurfaceProps> = ({
@@ -36,12 +44,27 @@ export const GeneralTimerSurface: React.FC<GeneralTimerSurfaceProps> = ({
   onStop,
   onNext,
   workoutTitle,
+  workoutFormat,
   promptRow,
+  showReceiverIndicators = false,
+  controlsIdleHidden = false,
+  headerActions,
+  enableGestures = false,
   getFocusProps,
 }) => {
+  const swipe = useTimerSwipeGestures(
+    onNext,
+    onStop,
+    enableGestures,
+    model.isNextDisabled,
+  );
+
   return (
     <div
       className="@container flex h-full flex-col bg-background p-[3cqw_4cqw] text-foreground"
+      onTouchStart={swipe.onTouchStart}
+      onTouchMove={swipe.onTouchMove}
+      onTouchEnd={swipe.onTouchEnd}
       data-testid={TEST_IDS.TIMER_SURFACE_GENERAL}
     >
       {/* Top bar: session + title + receiver indicators */}
@@ -51,12 +74,20 @@ export const GeneralTimerSurface: React.FC<GeneralTimerSurfaceProps> = ({
           Session {formatTimeMMSS(model.sessionElapsedMs)}
         </span>
         {workoutTitle && (
-          <span className="text-[2cqw] font-semibold tracking-tight">{workoutTitle}</span>
+          <span className="truncate text-[2cqw] font-semibold tracking-tight">{workoutTitle}</span>
         )}
-        <span className="ml-auto flex items-center gap-[1.4cqw] text-muted-foreground">
-          <Cast className="h-[2.4cqw] w-[2.4cqw]" aria-hidden="true" />
-          <Volume2 className="h-[2.4cqw] w-[2.4cqw]" aria-hidden="true" />
-        </span>
+        {workoutFormat && (
+          <span className="rounded-full bg-muted px-[1cqw] py-[0.25cqw] font-mono text-[1.3cqw] text-muted-foreground">
+            {workoutFormat}
+          </span>
+        )}
+        {headerActions && <div className="ml-auto flex items-center gap-2">{headerActions}</div>}
+        {showReceiverIndicators && !headerActions && (
+          <span className="ml-auto flex items-center gap-[1.4cqw] text-muted-foreground">
+            <Cast className="h-[2.4cqw] w-[2.4cqw]" aria-hidden="true" />
+            <Volume2 className="h-[2.4cqw] w-[2.4cqw]" aria-hidden="true" />
+          </span>
+        )}
       </div>
 
       {promptRow && <div className="shrink-0">{promptRow}</div>}
@@ -70,7 +101,11 @@ export const GeneralTimerSurface: React.FC<GeneralTimerSurfaceProps> = ({
         getFocusProps={getFocusProps}
       />
 
-      <div className="shrink-0">
+      <div
+        className={`shrink-0 transition-opacity duration-300 ${
+          controlsIdleHidden ? 'pointer-events-none opacity-0' : 'opacity-100'
+        }`}
+      >
         <TimerControls
           model={model}
           onStart={onStart}

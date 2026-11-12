@@ -53,6 +53,18 @@ export class GenericTimerStrategy implements IRuntimeBlockStrategy {
         const isRequired = statements.some(s => hasHint(s, CONSUMED_HINTS.REQUIRED_TIMER));
         const injectRest = statements.some(s => hasHint(s, CONSUMED_HINTS.INJECT_REST));
         const isCountdown = !!(durationMs && direction === 'down');
+        const allMetrics = statements.flatMap(s => [...s.metrics]);
+        const hasRestKeyword = allMetrics.some(
+            m => (m.type === MetricType.Effort || m.type === MetricType.Action)
+                && typeof m.value === 'string'
+                && m.value.trim().toLowerCase() === 'rest',
+        );
+        const hasNonRestMovement = allMetrics.some(
+            m => m.type === MetricType.Effort
+                && typeof m.value === 'string'
+                && m.value.trim().toLowerCase() !== 'rest',
+        );
+        const polarity = hasRestKeyword && !hasNonRestMovement ? 'rest' : 'work';
 
         // Build the common chassis via the template composer; strategy-specific
         // behaviors (ExitBehavior, SoundCue, Labeling) are added below.
@@ -69,6 +81,7 @@ export class GenericTimerStrategy implements IRuntimeBlockStrategy {
                 mode: isCountdown ? 'complete-block' : 'complete-block',
                 injectRest,
                 required: isRequired,
+                polarity,
             },
             pickStatement: (stmts) => stmts.find(s =>
                 s.metrics.some(f => f.type === MetricType.Duration && f.origin !== 'runtime')

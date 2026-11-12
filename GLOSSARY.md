@@ -81,3 +81,11 @@ _Avoid_: Enrichment pass, post-compile hook
 **Skipped-Dependency Diagnostic**:
 A record emitted by the Metric Shake-Out Queue onto a logged statement when a Metric equation cannot evaluate because a required input Metric remains absent after execution.
 _Avoid_: Parse error, silent skip
+
+**Session Clock Projection**:
+The unified live runtime projection of primary, session, and deduplicated secondary clocks, semantic Work/Rest/Final-5s/Paused/Overrun visual polarity, required-timer lock state, immediate lookahead, and Effort rep targets for an active Session across Minimal, General, Detail, and Cast views.
+_Avoid_: Surface model fork, proxy block state
+
+**Live Session Telemetry**:
+The ephemeral in-run snapshot of typed Summary Metrics and round-over-round Effort split deltas derived from an active Session prior to finalization.
+_Avoid_: Positional label pair, regex metric guess

@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import type { WorkbenchDisplayState } from '@/services/cast/rpc/ChromecastProxyRuntime';
+import type { WorkbenchDisplayState } from '@/services/cast/rpc/RpcMessages';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 import {
     Clock,

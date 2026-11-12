@@ -6,6 +6,7 @@ import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import { formatDurationSmart } from '../../utils/formatTime';
 import { calculateDuration } from '../../utils/timeUtils';
 import { MemoryTag } from '../../runtime/memory/MemoryLocation';
+import { getRuntimeNowMs } from './runtimeNow';
 
 /**
  * React hook to subscribe to a specific memory type on a block.
@@ -153,18 +154,7 @@ export interface TimerDisplayValues {
 export function useTimerDisplay(block: IRuntimeBlock | undefined): TimerDisplayValues | null {
     const timer = useTimerState(block);
 
-    // Get the sender's clock time if available (Chromecast receiver), otherwise use local clock
-    // We check for the global window property set by the receiver during Chromecast sessions
-    const getNow = (): number => {
-        // `typeof window` (not bare `window`): safe under SSR/env teardown.
-        if (typeof window !== 'undefined') {
-            const receiverClock = (window as unknown as { __chromecast_senderClockTimeMs?: unknown }).__chromecast_senderClockTimeMs;
-            if (typeof receiverClock === 'function') return receiverClock();
-        }
-        return Date.now();
-    };
-
-    const [now, setNow] = useState(getNow());
+    const [now, setNow] = useState(() => getRuntimeNowMs());
 
     // Determine if timer is running (last span has no end time)
     const isRunning = useMemo(() => {
@@ -183,7 +173,7 @@ export function useTimerDisplay(block: IRuntimeBlock | undefined): TimerDisplayV
         const tick = () => {
             // rAF may vanish under env teardown; stop the loop instead of throwing unhandled.
             if (!running || typeof requestAnimationFrame !== 'function') return;
-            setNow(getNow());
+            setNow(getRuntimeNowMs());
             animationFrameId = requestAnimationFrame(tick);
         };
 

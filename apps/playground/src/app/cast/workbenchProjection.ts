@@ -2,6 +2,7 @@ import { formatTimeMMSS, type Segment } from '@bitcobblers/wod-wiki-engine';
 import type { DocumentItem } from '@/components/Editor/utils/documentStructure';
 import type { ScriptBlock } from '@/components/Editor/types';
 import type { RpcWorkbenchUpdate } from '@/services/cast/rpc/RpcMessages';
+import { findHeadingBeforeDocumentItem } from '@/app/editor/SessionRunHost';
 
 export function buildReviewProjection(
   analyticsSegments: Segment[],
@@ -70,12 +71,25 @@ export function buildPreviewProjection(
     return { type: 'rpc-workbench-update', mode: 'idle' };
   }
 
-  const titleSource = selectedBlock?.content ?? workoutItems[0]?.content ?? '';
-  const title = titleSource.split('\n')[0].trim().substring(0, 60) || 'Workout';
+  const primaryItem = selectedBlock
+    ? workoutItems.find((w) => w.scriptBlock?.id === selectedBlock.id) ?? workoutItems[0]
+    : workoutItems[0];
+  const fallbackLine = (selectedBlock?.content ?? primaryItem?.content ?? '')
+    .split('\n')[0]
+    ?.trim()
+    .substring(0, 60);
+  const title =
+    selectedBlock?.label?.trim() ||
+    findHeadingBeforeDocumentItem(documentItems, primaryItem?.id) ||
+    fallbackLine ||
+    'Workout';
 
   const blocks = workoutItems.slice(0, 8).map((item) => ({
     id: item.id,
-    title: (item.scriptBlock?.content ?? item.content).split('\n')[0].trim().substring(0, 50) || 'Workout',
+    title:
+      findHeadingBeforeDocumentItem(documentItems, item.id) ||
+      (item.scriptBlock?.content ?? item.content).split('\n')[0]?.trim().substring(0, 50) ||
+      'Workout',
     statementCount: item.scriptBlock?.statements?.length ?? 0,
   }));
 

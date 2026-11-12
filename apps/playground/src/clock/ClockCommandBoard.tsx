@@ -253,7 +253,7 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
             type="button"
             data-testid={TEST_IDS.CLOCK_REP_MINUS}
             aria-label="Remove one rep"
-            className="h-7 w-7 rounded-full border border-border text-sm hover:bg-accent"
+            className="h-11 w-11 min-h-11 min-w-11 rounded-full border border-border text-base font-semibold hover:bg-accent"
             {...focus(`board-reps-minus-${snapshot.selectedOccurrenceId ?? ''}`)}
             onClick={() =>
               dispatch({ kind: 'reps-adjust', occurrenceId: snapshot.selectedOccurrenceId ?? '', delta: -1 })
@@ -265,7 +265,7 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
             type="button"
             data-testid={TEST_IDS.CLOCK_REP_PLUS}
             aria-label="Add one rep"
-            className="h-7 w-7 rounded-full border border-border text-sm hover:bg-accent"
+            className="h-11 w-11 min-h-11 min-w-11 rounded-full border border-border text-base font-semibold hover:bg-accent"
             {...focus(`board-reps-plus-${snapshot.selectedOccurrenceId ?? ''}`)}
             onClick={() =>
               dispatch({ kind: 'reps-adjust', occurrenceId: snapshot.selectedOccurrenceId ?? '', delta: 1 })
@@ -406,7 +406,7 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
                 {...focus('board-stop-confirm')}
                 onClick={() => dispatch({ kind: 'stop-confirm' })}
               >
-                Stop
+                Stop — keep partial results
               </button>
             </div>
           </div>

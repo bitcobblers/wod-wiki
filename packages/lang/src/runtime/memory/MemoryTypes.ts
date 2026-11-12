@@ -6,6 +6,7 @@ import { TimeSpan } from '../models/TimeSpan';
  * Timer direction for count-down vs count-up.
  */
 export type TimerDirection = 'up' | 'down';
+export type TimerPolarity = 'work' | 'rest';
 
 /**
  * Timer state stored in block memory.
@@ -33,6 +34,12 @@ export interface TimerState {
 
     /** Timer role for UI prioritization */
     readonly role?: 'primary' | 'secondary' | 'auto' | 'hidden';
+
+    /** True when user Next cannot skip this countdown before expiry. */
+    readonly required?: boolean;
+
+    /** Semantic polarity for Work vs Rest visual and priority handling. */
+    readonly polarity?: TimerPolarity;
 }
 
 /**

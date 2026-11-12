@@ -18,6 +18,34 @@ export { usePrimaryTimer, useStackTimers, useStackFragmentSources, useStackDispl
 export { useRuntimeExecution } from '@bitcobblers/wod-wiki-engine/react';
 export type { UseRuntimeExecutionReturn } from '@bitcobblers/wod-wiki-engine/react';
 export { useOutputStatements, useLiveAnalytics } from '@bitcobblers/wod-wiki-engine/react';
+export {
+  useSessionClockProjection,
+  useLiveSessionTelemetry,
+  useScriptOutline,
+} from '@bitcobblers/wod-wiki-engine/react';
+export type { UseSessionClockProjectionOptions } from '@bitcobblers/wod-wiki-engine/react';
+export {
+  projectSessionClock,
+  interpolateSessionClockFrame,
+  resolveVisualPolarity,
+  projectLiveSessionTelemetry,
+  projectScriptOutline,
+  synthesizeWorkoutFormat,
+} from '@bitcobblers/wod-wiki-engine';
+export type {
+  SessionVisualPolarity,
+  SessionExecutionStatus,
+  SerializedTimerSpan,
+  ProjectedSecondaryTimer,
+  ProjectedRepTarget,
+  SessionClockFrame,
+  SessionClockProjectionOptions,
+  LiveSummaryMetric,
+  LiveRoundSplitRow,
+  LiveSessionTelemetryFrame,
+  ScriptOutlineStatus,
+  ScriptOutlineNode,
+} from '@bitcobblers/wod-wiki-engine';
 
 // ── Runtime context ───────────────────────────────────────────────────────
 export { useScriptRuntime, ScriptRuntimeProvider } from '@bitcobblers/wod-wiki-engine/react';

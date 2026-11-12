@@ -31,6 +31,14 @@ export function prepareRuntimeBlock(block: ScriptBlock): ScriptBlock & { stateme
   return prepared;
 }
 
+export {
+  extractMarkdownHeadingLine,
+  findHeadingBeforeDocumentItem,
+  requestUnifiedSessionStop,
+  resolveWorkoutRunIdentity,
+  type WorkoutRunIdentity,
+} from './SessionRunHost';
+
 /**
  * The note frontmatter's `metrics.*` / `summaries.*` rules as Property Rule
  * inputs for the analytics engine — empty when the note declares none.

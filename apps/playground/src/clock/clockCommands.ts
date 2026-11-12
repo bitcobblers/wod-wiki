@@ -662,7 +662,7 @@ function handleClockKeyDown(e: KeyboardEvent): void {
         consumed = handler({ kind: 'stop-cancel' });
       } else if (entry) {
         consumed = handler({ kind: 'entry-cancel' });
-      } else if (snapshot.status === 'running' || snapshot.status === 'paused') {
+      } else if (snapshot.canStop) {
         consumed = handler({ kind: 'stop-request' });
       } else if (snapshot.phase === 'review') {
         consumed = handler({ kind: 'dismiss' });

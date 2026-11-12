@@ -62,3 +62,11 @@ export function useScriptRuntime(): IScriptRuntime {
   return runtime;
 }
 
+/**
+ * Optional variant of `useScriptRuntime` returning `null` when mounted outside
+ * `ScriptRuntimeProvider` (e.g. stateless Cast receiver frames or fixture stories).
+ */
+export function useOptionalScriptRuntime(): IScriptRuntime | null {
+  return useContext(ScriptRuntimeContext) ?? null;
+}
+

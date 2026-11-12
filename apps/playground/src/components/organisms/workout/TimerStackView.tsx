@@ -1,12 +1,13 @@
 import React, { useMemo, useRef, useCallback, useLayoutEffect, useState } from 'react';
-import { Play, Pause, SkipForward, Square, Timer } from 'lucide-react';
+import { Play, Pause, SkipForward, Square, Timer, Layers } from 'lucide-react';
 import { ITimerDisplayEntry, IDisplayCardEntry } from '@/clock/types/DisplayTypes';
-import { formatTimeMMSS } from '@bitcobblers/wod-wiki-engine';
+import { formatTimeMMSS, type SessionVisualPolarity } from '@bitcobblers/wod-wiki-engine';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 import { useAudio } from '@/contexts/AudioContext';
 import type { AudioContextType } from '@/contexts/AudioContext';
 import { usePanelSize } from '@/panels/panel-system/PanelSizeContext';
 import { TEST_IDS } from '@/lib/testIds';
+import { resolvePolarityVisuals, TimerPolarityBadges } from './timerPolarityVisuals';
 
 export interface TimerStackViewProps {
     elapsedMs: number;
@@ -43,6 +44,14 @@ export interface TimerStackViewProps {
     skipFlash?: boolean;
     /** Unique key incremented on each skip attempt to restart the animation */
     skipFlashKey?: number;
+    /** Semantic state polarity shared with Minimal and General */
+    polarity?: SessionVisualPolarity;
+    /** Proactive read-side lock indicator for required countdowns */
+    isRequiredLockActive?: boolean;
+    /** Round position chip label (matching General) */
+    roundLabel?: string;
+    /** One-line lookahead welded above Next (matching Minimal & General) */
+    upNext?: string | null;
 }
 
 const formatTime = formatTimeMMSS;
@@ -129,7 +138,12 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
     enableGestures = true,
     skipFlash = false,
     skipFlashKey = 0,
+    polarity,
+    isRequiredLockActive = false,
+    roundLabel,
+    upNext,
 }) => {
+    const polarityVisuals = resolvePolarityVisuals(polarity);
     const { width: panelWidth, height: panelHeight, isShort: panelIsShort } = usePanelSize();
 
     let audio: AudioContextType | null = null;
@@ -290,6 +304,12 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                     100% { opacity: 0; transform: translateY(-8px); }
                 }
                 .animate-skip-flash {
+                    animation: skip-flash-fade 3s ease-out forwards;
+                }
+                @media (prefers-reduced-motion: reduce) {
+                    .animate-skip-flash {
+                        animation: none;
+                    }
                 }
             `}</style>
 
@@ -301,7 +321,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                     as bands sprawling across the hero. Reserved label/chips
                     band heights keep the layout-stability contract (FitArea
                     scales content; segment swaps never move the clock). */}
-                <div className={`flex flex-col items-center justify-center relative w-full ${dense ? 'h-full' : 'min-h-0 gap-2.5'}`}>
+                <div className={`flex flex-col items-center justify-center relative w-full px-3 py-1 ${polarityVisuals.containerTintClassName} ${dense ? 'h-full' : 'min-h-0 gap-2.5'}`}>
                     {/* Skip-attempt flash message — appears above the timer */}
                     {skipFlash && (
                         <div
@@ -313,6 +333,10 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                             Timer can&#39;t be skipped!
                         </div>
                     )}
+                    <TimerPolarityBadges
+                        polarityVisuals={polarityVisuals}
+                        isRequiredLockActive={isRequiredLockActive}
+                    />
 
                     {/* Labels above timer — reserved fixed-height band. The band
                         renders identically in every state; FitArea scales the
@@ -357,7 +381,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                         >
                             <FitArea>
                                 <span
-                                    className="block font-mono font-bold tracking-tighter text-foreground tabular-nums leading-none"
+                                    className={`block font-mono font-bold tracking-tighter tabular-nums leading-none ${polarityVisuals.digitClassName}`}
                                     style={{ fontSize: `${primaryTimerFontSizePx}px` }}
                                     role="timer"
                                     aria-live="polite"
@@ -372,6 +396,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                     {/* Secondary Timers — smaller context clocks for parent
                         intervals. Reserved fixed-height band renders identically
                         when empty, so chips appearing never shifts the clock. */}
+                    {(secondaryTimerData.length > 0 || Boolean(roundLabel)) && (
                     <div className={`flex w-full items-center justify-center overflow-hidden ${dense ? 'mt-1 h-6 min-h-0 shrink' : 'h-8 shrink-0'}`}>
                         <div className={`flex items-center justify-center gap-2 ${dense ? 'flex-wrap' : 'gap-4'}`}>
                             {secondaryTimerData.map((st, index) => (
@@ -391,8 +416,18 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                                     </span>
                                 </div>
                             ))}
+                            {roundLabel && (
+                                <div
+                                    className={`flex items-center gap-2 rounded-lg border bg-muted/40 text-muted-foreground ${dense ? 'px-2.5 py-1.5 text-xs' : 'px-4 py-2 text-sm'}`}
+                                    aria-label={roundLabel}
+                                >
+                                    <Layers className={`shrink-0 text-metric-rounds ${dense ? 'w-3 h-3' : 'w-4 h-4'}`} />
+                                    <span className="font-medium">{roundLabel}</span>
+                                </div>
+                            )}
                         </div>
                     </div>
+                    )}
                 </div>
             </div>
 
@@ -452,13 +487,21 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                 ) : (
                     /* Desktop: circular button with icon above a small NEXT
                         label (prototype .dt-now-ctrl .btn-next). */
-                    <div className="flex flex-col items-center gap-2">
+                    <div className="flex flex-col items-center gap-1.5">
+                        {upNext && !dense && (
+                            <p
+                                data-testid={TEST_IDS.TIMER_UP_NEXT_CAPTION}
+                                className="max-w-[200px] truncate text-xs text-muted-foreground"
+                            >
+                                Up next: <b className="font-semibold text-foreground">{upNext}</b>
+                            </p>
+                        )}
                         <button
                             onClick={handleNext}
                             disabled={isNextDisabled}
                             aria-disabled={isNextDisabled ? 'true' : undefined}
                             {...(getFocusProps ? getFocusProps('btn-next') : {})}
-                            className={`tv-focusable flex flex-col items-center justify-center gap-1 rounded-full transition-all shadow-xl ${dense ? 'w-12 h-12' : 'w-20 h-20'} ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary-container text-on-primary-container hover:bg-primary hover:text-primary-foreground active:scale-90'}`}
+                            className={`tv-focusable flex flex-col items-center justify-center gap-1 rounded-full transition-all shadow-xl ${dense ? 'w-12 h-12' : 'w-20 h-20'} ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary text-primary-foreground hover:opacity-95 active:scale-90'}`}
                             title="Next Block"
                             data-testid={TEST_IDS.TIMER_NEXT_BLOCK}
                         >

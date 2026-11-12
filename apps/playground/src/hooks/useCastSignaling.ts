@@ -19,6 +19,10 @@ export {
 // ── RPC session manager and runtime subscription ────────────────────────────
 export { CastSessionManager, sharedCastSessionManager } from '@/services/cast/rpc/CastSessionManager';
 export { ChromecastRuntimeSubscription } from '@/services/cast/rpc/ChromecastRuntimeSubscription';
+export {
+  attachSessionCastProjector,
+  type SessionCastProjectorOptions,
+} from '@/services/cast/rpc/SessionCastProjector';
 
 // ── Cast boundary validators (payload gates components dispatch through) ───
 export { parseClockCommandPayload, parseOpenNotebookPayload } from '@/services/cast/rpc/RpcMessages';
