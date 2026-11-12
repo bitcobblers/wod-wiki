@@ -98,7 +98,7 @@ function reviveSessionDates(data: Sessions): Sessions {
   });
   return {
     ...data,
-    ...(Array.isArray(data.logs) ? { logs: data.logs.map((l) => reviveOutput(l as unknown as Record<string, unknown>)) as Sessions['logs'] } : {}),
+    ...(Array.isArray(data.logs) ? { logs: data.logs.map((l) => reviveOutput(l as unknown as Record<string, unknown>)) as unknown as Sessions['logs'] } : {}),
   };
 }
 
