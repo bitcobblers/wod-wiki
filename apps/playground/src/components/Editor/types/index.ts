@@ -172,6 +172,11 @@ export interface ScriptBlock {
   /** Collected workout data (after completion) */
   results?: Sessions;
 
+  /** Optional human-readable workout title resolved from explicit block metadata */
+  label?: string;
+  /** Optional structural block classification */
+  blockType?: string;
+
   /** Block version */
   version: number;
 

@@ -113,7 +113,7 @@ export function usePrimaryTimer(): StackTimerEntry | undefined {
 
         // Rest blocks always become the pinned timer when pushed.
         // Their countdown should override any parent's pinned timer.
-        if (leaf.block.blockType === 'Rest') return leaf;
+        if (leaf.block.blockType === 'Rest' || leaf.timer.polarity === 'rest') return leaf;
 
         // Find the lowest (root-closest / LAST in array) pinned timer.
         // Parent blocks (AMRAP, EMOM) pin their countdown so it stays visible

@@ -22,6 +22,7 @@ import type { AudioContextType } from '@/contexts/AudioContext';
 import { TEST_IDS } from '@/lib/testIds';
 import { FitArea } from '@/components/organisms/workout/TimerStackView';
 import type { TimerSurfaceModel } from './useTimerSurfaceModel';
+import { resolvePolarityVisuals, TimerPolarityBadges } from './timerPolarityVisuals';
 
 const formatTime = formatTimeMMSS;
 
@@ -100,6 +101,7 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
   const handleClockClick = isPaused ? handleStart : isRunning ? handlePause : handleStart;
 
   const isTv = size === 'tv';
+  const polarityVisuals = resolvePolarityVisuals(model.polarity);
 
   return (
     <div className="relative flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden text-center">
@@ -123,9 +125,13 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
           one unit in the middle of the hero, not as bands spanning it. The
           label band reserves two sub-lines of height (FitArea shrinks longer
           content) so segment swaps never move the clock. */}
-      <div className={`flex min-h-0 w-full flex-col items-center justify-center ${isTv ? 'gap-[1.2cqw]' : 'gap-2.5'}`}>
+      <div className={`flex min-h-0 w-full flex-col items-center justify-center px-2 py-1 ${polarityVisuals.containerTintClassName} ${isTv ? 'gap-[1.2cqw]' : 'gap-2'}`}>
+      <TimerPolarityBadges
+        polarityVisuals={polarityVisuals}
+        isRequiredLockActive={model.isRequiredLockActive}
+      />
       {/* Label band — reserved height, FitArea scales content */}
-      <div className={`flex w-full items-center justify-center overflow-hidden ${isTv ? 'h-[8.6cqw]' : 'h-[76px]'}`}>
+      <div className={`flex w-full items-center justify-center overflow-hidden ${isTv ? 'h-[8.6cqw]' : 'h-[72px]'}`}>
         <FitArea>
           <h2 className={`font-semibold tracking-tight text-foreground ${isTv ? 'text-[3.4cqw]' : 'text-xl'}`}>
             {model.mainLabel}
@@ -151,7 +157,7 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
       >
         <FitArea>
           <span
-            className={`block font-mono font-bold leading-none tracking-tighter text-foreground tabular-nums ${isTv ? 'text-[13cqw]' : 'text-[21cqw]'}`}
+            className={`block font-mono font-bold leading-none tracking-tighter tabular-nums ${polarityVisuals.digitClassName} ${isTv ? 'text-[13cqw]' : 'text-[21cqw]'}`}
             role="timer"
             aria-live="polite"
             aria-atomic="true"
@@ -161,9 +167,9 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
         </FitArea>
       </button>
 
-      {/* Secondary chips band — fixed height even when empty */}
-      <div className={`flex w-full items-center justify-center overflow-hidden ${isTv ? 'h-[4.4cqw]' : 'h-8'}`}>
-        {showChips && (
+      {/* Secondary chips band — collapses on Minimal when showChips is false */}
+      {showChips && (
+        <div className={`flex w-full items-center justify-center overflow-hidden ${isTv ? 'h-[4.4cqw]' : 'h-8'}`}>
           <div className={`flex items-center justify-center ${isTv ? 'gap-[1cqw]' : 'gap-2'}`}>
             {model.secondaryTimers.map(st => (
               <div
@@ -188,8 +194,8 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
               </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
       </div>
     </div>
   );

@@ -1,5 +1,9 @@
 import { IMetric } from '@bitcobblers/wod-wiki-engine';
 import { MemoryTag } from '@bitcobblers/wod-wiki-engine';
+import type {
+    LiveSessionTelemetryFrame,
+    SessionClockFrame,
+} from '@bitcobblers/wod-wiki-engine';
 import type { ClockSnapshot, ClockCommand } from '@/clock/clockCommands';
 import { isClockCommand } from '@/clock/clockCommands';
 
@@ -175,6 +179,37 @@ export interface RpcWorkbenchUpdate {
         /** Key-value summary rows (e.g. "Total Time" → "12:34") */
         rows: Array<{ label: string; value: string }>;
     };
+}
+
+export interface WorkbenchDisplayState {
+    mode: 'idle' | 'preview' | 'active' | 'review';
+    previewData?: RpcWorkbenchUpdate['previewData'];
+    reviewData?: RpcWorkbenchUpdate['reviewData'];
+    analyticsSummary?: {
+        totalDurationMs: number;
+        completedSegments: number;
+        projections: Array<{ name: string; value: number; unit: string; metricType?: string }>;
+    };
+}
+
+export interface RpcSessionFrame {
+    type: 'rpc-session-frame';
+    frame: SessionClockFrame;
+    telemetry: LiveSessionTelemetryFrame;
+    workoutTitle?: string;
+    workoutFormat?: string;
+}
+
+export function isRpcSessionFrame(message: RpcMessage): message is RpcSessionFrame {
+    if (typeof message !== 'object' || message === null) return false;
+    if (message.type !== 'rpc-session-frame') return false;
+    const candidate = message as unknown as Record<string, unknown>;
+    return (
+        typeof candidate.frame === 'object' &&
+        candidate.frame !== null &&
+        typeof candidate.telemetry === 'object' &&
+        candidate.telemetry !== null
+    );
 }
 /**
  * Clock synchronization request sent by browser on connection.
@@ -380,4 +415,5 @@ export type RpcMessage =
     | RpcAnalyticsSummary
     | RpcAudio
     | RpcClockSnapshot
-    | RpcLibraryState;
+    | RpcLibraryState
+    | RpcSessionFrame;

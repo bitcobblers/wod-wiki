@@ -3,7 +3,7 @@ import { IOutputStatement } from '@bitcobblers/wod-wiki-engine';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import { cn } from '@/lib/utils';
 import { Clock, CheckCircle2, ListTree, Timer, Table2 } from 'lucide-react';
-import { useTimerElapsed, useRoundDisplay, useScriptRuntime, useNextPreview } from '@/hooks/useRuntimeTimer';
+import { useTimerElapsed, useRoundDisplay, useScriptRuntime, useNextPreview, useLiveSessionTelemetry } from '@/hooks/useRuntimeTimer';
 import type { IScriptRuntime, IRuntimeBlock, MetricVisibility } from '@/hooks/useRuntimeTimer';
 import { formatTimeMMSS, MetricContainer } from '@bitcobblers/wod-wiki-engine';
 import { MetricSourceRow } from '@/components/molecules/MetricSourceRow';
@@ -323,6 +323,7 @@ export const RuntimeStackView: React.FC<{
     debug?: boolean;
 }> = ({ runtime, outputs, debug = false }) => {
     const blocks = runtime.stack.blocks; // Stack is usually Leaf -> Root. We want Root (Top) -> Leaf (Bottom).
+    const telemetry = useLiveSessionTelemetry(runtime);
 
     if (blocks.length === 0) {
         return (
@@ -347,13 +348,35 @@ export const RuntimeStackView: React.FC<{
             return `${m}:${s.toString().padStart(2, '0')}`;
         };
 
+        const recentSplits = blockIndex > 0 ? telemetry.splits.slice(-4) : [];
         return (
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground py-1 pl-2.5 border-l-2 border-border/85 ml-3 my-0.5">
-                <CheckCircle2 className="h-3 w-3 shrink-0" />
-                <span className="font-semibold text-foreground">{levelOutputs.length} completed</span>
-                <span className="w-px h-2.5 bg-border/70" />
-                <Clock className="h-3 w-3 shrink-0" />
-                <span className="font-mono font-semibold tabular-nums text-metric-time">{formatDuration(totalDuration)}</span>
+            <div className="flex flex-col gap-1 py-1 pl-2.5 border-l-2 border-border/85 ml-3 my-0.5">
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <CheckCircle2 className="h-3 w-3 shrink-0" />
+                    <span className="font-semibold text-foreground">{levelOutputs.length} completed</span>
+                    <span className="w-px h-2.5 bg-border/70" />
+                    <Clock className="h-3 w-3 shrink-0" />
+                    <span className="font-mono font-semibold tabular-nums text-metric-time">{formatDuration(totalDuration)}</span>
+                </div>
+                {recentSplits.length > 0 && (
+                    <div className="flex flex-col gap-0.5">
+                        {recentSplits.map((sp) => (
+                            <div key={sp.id} className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground pr-1">
+                                <span className="truncate">
+                                    {sp.round !== undefined ? `R${sp.round} · ` : ''}{sp.label}
+                                </span>
+                                <span className="flex items-center gap-1 font-mono tabular-nums shrink-0">
+                                    <span className="text-foreground font-medium">{formatDuration(sp.elapsedMs)}</span>
+                                    {sp.deltaLabel && (
+                                        <span className="rounded bg-amber-500/15 px-1 py-0.2 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                                            {sp.deltaLabel}
+                                        </span>
+                                    )}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         );
     };

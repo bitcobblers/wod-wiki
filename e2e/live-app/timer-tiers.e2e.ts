@@ -30,12 +30,15 @@ test.describe('Timer surface tiers — /run/:runtimeId', () => {
     await expect(page.getByTestId(TEST_IDS.TIMER_SURFACE_MINIMAL)).toBeHidden();
     await expect(page.getByTestId(TEST_IDS.TIMER_PLAY_PAUSE).first()).toBeVisible({ timeout: 15_000 });
 
-    // Tablet landscape (768×900): wide → General.
+    // Tablet (768×900): wide → General + slide-over Stack & Splits drawer.
     await page.setViewportSize({ width: 768, height: 900 });
     await expect(page.getByTestId(TEST_IDS.TIMER_SURFACE_GENERAL)).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId(TEST_IDS.TIMER_PLAY_PAUSE).first()).toBeVisible();
     await expect(page.getByTestId(TEST_IDS.TIMER_SURFACE_MINIMAL)).toBeHidden();
-
+    await page.getByTestId(TEST_IDS.TIMER_STACK_DRAWER_TOGGLE).click();
+    await expect(page.getByTestId(TEST_IDS.TIMER_STACK_DRAWER)).toBeVisible();
+    await page.getByRole('button', { name: 'Close stack drawer' }).click();
+    await expect(page.getByTestId(TEST_IDS.TIMER_STACK_DRAWER)).toBeHidden();
     // Phone (375×812): compact → Minimal.
     await page.setViewportSize({ width: 375, height: 812 });
     await expect(page.getByTestId(TEST_IDS.TIMER_SURFACE_MINIMAL)).toBeVisible({ timeout: 10_000 });

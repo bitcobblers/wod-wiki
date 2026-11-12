@@ -103,6 +103,7 @@ export function compose(builder: BlockBuilder, template: BlockTemplate): string 
             completionConfig,
             injectRest: t.injectRest,
             required: t.required,
+            polarity: t.polarity,
             ...(template.countdownTimerConfig ?? {}),
         });
     }

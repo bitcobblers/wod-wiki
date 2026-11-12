@@ -7,6 +7,7 @@ import type { IOutputStatement } from '@bitcobblers/wod-wiki-core';
 import type { IRuntimeAction } from './IRuntimeAction';
 import type { IEvent } from './events/IEvent';
 import type { IAnalyticsEngine } from '../../analytics/contracts/IAnalyticsEngine';
+import type { ProjectionResult } from '../../analytics/ProjectionResult';
 import type { RuntimeStackOptions } from './IRuntimeOptions';
 import type { IRuntimeActionable } from './primitives/IRuntimeActionable';
 import type { BlockLifecycleOptions } from './primitives/IBlockLifecycle';
@@ -117,6 +118,8 @@ export interface IScriptRuntime extends IRuntimeActionable {
      * call it defensively (`runtime.getLiveAnalytics?.()`).
      */
     getLiveAnalytics?(): IOutputStatement[];
+    /** Typed live Summary Metric projections from the attached AnalyticsEngine. */
+    getLiveProjections?(): readonly ProjectionResult[];
     /**
      * Add an output statement to the collection and notify subscribers.
      * Used by BehaviorContext to emit outputs at any lifecycle point.

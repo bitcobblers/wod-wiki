@@ -27,6 +27,7 @@ import type { IRuntimeContext } from '../contracts/IRuntimeContext';
 import type { IBlockContext } from '../contracts/IBlockContext';
 import type { BlockKey } from '@bitcobblers/wod-wiki-core';
 import type { CountdownMode, CountdownTimerConfig } from '../behaviors/CountdownTimerBehavior';
+import type { TimerPolarity } from '../memory/MemoryTypes';
 import type { RepeaterConfig } from './BlockBuilder';
 
 export interface TimerAspectConfig {
@@ -41,6 +42,8 @@ export interface TimerAspectConfig {
     injectRest?: boolean;
     /** Required timers cannot be skipped by user `next`. */
     required?: boolean;
+    /** Semantic Work vs Rest polarity stored in TimerState. */
+    polarity?: TimerPolarity;
 }
 
 export interface RepeaterAspectConfig extends RepeaterConfig {

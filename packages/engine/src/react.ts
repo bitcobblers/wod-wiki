@@ -12,6 +12,7 @@
 
 export {
   useScriptRuntime,
+  useOptionalScriptRuntime,
   useTimerElapsed,
   useTimerDisplay,
   useRoundDisplay,
@@ -30,6 +31,10 @@ export {
   useActiveControls,
   useStackFragmentSources,
   useStackDisplayRows,
+  useSessionClockProjection,
+  type UseSessionClockProjectionOptions,
+  useLiveSessionTelemetry,
+  useScriptOutline,
   ScriptRuntimeProvider,
   type ScriptRuntimeProviderProps,
   BlockTimerDisplay,

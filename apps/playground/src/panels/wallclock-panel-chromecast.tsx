@@ -1,77 +1,199 @@
 /**
- * wallclock-panel-chromecast.tsx — Chromecast receiver timer panel.
+ * wallclock-panel-chromecast.tsx — Stateless Chromecast receiver timer panel.
  *
- * Renders the General (Tier 2) timer surface — the receiver default per the
- * timer-surfaces design — plus the shared clock command board (reps, value
- * entry, stop confirmation) mounted with explicit `snapshot`/`sendCommand`
- * props. The receiver owns no state and performs no success mutation: every
- * control dispatches a `ClockCommand` to the browser authority and the next
- * authoritative snapshot renders the result.
+ * Renders the General (Tier 2) timer view directly from a transported
+ * `RpcSessionFrame` (interpolated locally at 60fps from serialized spans) plus
+ * live Summary Metric bubbles (`MetricTrackerCard`) and the shared
+ * `ClockCommandBoard`.
  *
- * Availability and paused state come from the snapshot (`canNext`, `status`),
- * never from local guesses, so paused Next is visibly disabled on the TV
- * exactly like it is on the browser.
+ * Passive Spectator TV fade uses CSS opacity (`opacity-0 pointer-events-none`)
+ * rather than conditional unmounting so `useSpatialNavigation` focus targets
+ * (`btn-next`, `btn-pause`, `btn-stop`) always remain mounted in the DOM.
  */
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  interpolateSessionClockFrame,
+  type SessionClockFrame,
+} from '@bitcobblers/wod-wiki-engine';
+import { useOptionalScriptRuntime } from '@bitcobblers/wod-wiki-engine/react';
 import { GeneralTimerSurface } from '@/components/organisms/workout/GeneralTimerSurface';
-import { useTimerSurfaceModel } from '@/components/organisms/workout/useTimerSurfaceModel';
-import { ClockCommandBoard } from '@/clock/ClockCommandBoard';
+import { MetricTrackerCard } from '@/components/organisms/track/MetricTrackerCard';
+import {
+  useTimerSurfaceModel,
+  type TimerSurfaceModel,
+} from '@/components/organisms/workout/useTimerSurfaceModel';
+import { ClockCommandBoard, type ClockCommandBoardProps } from '@/clock/ClockCommandBoard';
 import type { ClockCommand, ClockSnapshot } from '@/clock/clockCommands';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
+import type { RpcSessionFrame } from '@/services/cast/rpc/RpcMessages';
 
-export const ReceiverTimerPanel: React.FC<{
-  /** Transported authoritative snapshot; `null` disables every control. */
-  snapshot: ClockSnapshot | null;
-  /** Send one command to the browser authority (runId attached upstream). */
-  sendCommand: (command: ClockCommand) => void;
-  getFocusProps?: (id: string) => FocusProps;
-  /** Workout title for the top bar (receiver workbench state may not carry it) */
-  workoutTitle?: string;
+export interface ReceiverTimerPanelProps {
+  /** Transported authoritative command snapshot; `null` disables every control. */
+  readonly snapshot: ClockSnapshot | null;
+  /** Transported projected Session frame (clock spans + typed Summary Metrics). */
+  readonly sessionFrame?: RpcSessionFrame | null;
+  /** Sender clock source adjusted by measured RTT offset. */
+  readonly getSenderNowMs?: () => number;
+  /** Visual idle fade for Spectator TV clarity; keeps D-pad DOM targets mounted. */
+  readonly controlsIdleHidden?: boolean;
+  /** Send one command to the browser authority. */
+  readonly sendCommand: (command: ClockCommand) => void;
+  readonly getFocusProps?: (id: string) => FocusProps;
+  /** Fallback workout title when not carried on `sessionFrame`. */
+  readonly workoutTitle?: string;
   /** Clock command board slot; defaults to the shared ClockCommandBoard. */
-  CommandBoardSlot?: React.ComponentType<any>;
-}> = ({ snapshot, sendCommand, getFocusProps, workoutTitle, CommandBoardSlot = ClockCommandBoard }) => {
+  readonly CommandBoardSlot?: React.ComponentType<ClockCommandBoardProps>;
+}
+
+function frameToSurfaceModel(
+  frame: SessionClockFrame,
+  isPaused: boolean,
+  canNext: boolean,
+): TimerSurfaceModel {
+  return {
+    mainLabel: frame.mainLabel,
+    subLabels: frame.subLabels,
+    displayMs: frame.displayMs,
+    sessionElapsedMs: frame.sessionElapsedMs,
+    roundCurrent: frame.roundCurrent,
+    roundTotal: frame.roundTotal,
+    roundLabel: frame.roundLabel,
+    secondaryTimers: frame.secondaryTimers.map((st) => ({
+      id: st.id,
+      label: st.label,
+      displayMs: st.displayMs,
+    })),
+    upNext: frame.upNext,
+    isRunning: frame.isRunning,
+    isPaused,
+    isNextDisabled: isPaused || !canNext,
+    skipFlash: frame.skipFlash,
+    skipFlashKey: frame.skipFlashKey,
+    polarity: frame.polarity,
+    isRequiredLockActive: frame.isRequiredLockActive,
+  };
+}
+
+export const ReceiverTimerPanel: React.FC<ReceiverTimerPanelProps> = ({
+  snapshot,
+  sessionFrame,
+  getSenderNowMs,
+  controlsIdleHidden = false,
+  sendCommand,
+  getFocusProps,
+  workoutTitle,
+  CommandBoardSlot = ClockCommandBoard,
+}) => {
+  const contextRuntime = useOptionalScriptRuntime();
+  const resolveNow = useMemo(
+    () => getSenderNowMs ?? (() => Date.now()),
+    [getSenderNowMs],
+  );
+  const [nowMs, setNowMs] = useState<number>(() => resolveNow());
+
   const command = (cmd: ClockCommand): void => {
-    if (!snapshot) return; // Disconnected / no active run: controls are dead.
+    if (!snapshot) return;
     sendCommand(cmd);
   };
 
+  const isPaused = !snapshot || snapshot.status === 'paused';
+  const canNext = snapshot?.canNext ?? false;
+
   const handlers = {
-    onStart: () => command(snapshot?.phase === 'ready' ? { kind: 'ready-start' } : { kind: 'playback' }),
+    onStart: () =>
+      command(snapshot?.phase === 'ready' ? { kind: 'ready-start' } : { kind: 'playback' }),
     onPause: () => command({ kind: 'playback' }),
     onStop: () => command({ kind: 'stop-request' }),
     onNext: () => command({ kind: 'next' }),
-    isPaused: !snapshot || snapshot.status === 'paused',
-    // Availability is the authority's, mirrored verbatim.
-    canNext: snapshot?.canNext ?? false,
+    isPaused,
+    canNext,
   };
 
-  const model = useTimerSurfaceModel(handlers);
+  // Fallback hook runs only when a unit test mounts ReceiverTimerPanel inside
+  // ScriptRuntimeProvider without supplying a transported sessionFrame.
+  const fallbackRuntimeModel = useTimerSurfaceModel(handlers, {
+    active: !sessionFrame && Boolean(contextRuntime),
+  });
+
+  const isFrameTicking = Boolean(
+    sessionFrame && sessionFrame.frame.isRunning && !isPaused,
+  );
+
+  useEffect(() => {
+    if (!isFrameTicking || typeof requestAnimationFrame !== 'function') return undefined;
+    let frameId = 0;
+    let mounted = true;
+    const tick = () => {
+      if (!mounted) return;
+      setNowMs(resolveNow());
+      frameId = requestAnimationFrame(tick);
+    };
+    frameId = requestAnimationFrame(tick);
+    return () => {
+      mounted = false;
+      cancelAnimationFrame(frameId);
+    };
+  }, [isFrameTicking, resolveNow]);
+
+  const model: TimerSurfaceModel = useMemo(() => {
+    if (!sessionFrame) return fallbackRuntimeModel;
+    const interpolated = isFrameTicking
+      ? interpolateSessionClockFrame(sessionFrame.frame, nowMs)
+      : sessionFrame.frame;
+    return frameToSurfaceModel(interpolated, isPaused, canNext);
+  }, [sessionFrame, fallbackRuntimeModel, isFrameTicking, nowMs, isPaused, canNext]);
+
+  const effectiveTitle = sessionFrame?.workoutTitle ?? workoutTitle;
+  const effectiveFormat = sessionFrame?.workoutFormat;
+  const summaries = sessionFrame?.telemetry.summaries;
+
+  const promptRow =
+    summaries && summaries.length > 0 ? (
+      <div className="shrink-0 border-b border-border px-4 py-1.5">
+        <MetricTrackerCard summariesOverride={summaries} />
+      </div>
+    ) : undefined;
+
+  const fadeBoard =
+    controlsIdleHidden &&
+    snapshot !== null &&
+    snapshot.entry === null &&
+    !snapshot.stopRequested;
 
   return (
-    <div className="flex-1 flex flex-col justify-center">
+    <div className="flex flex-1 flex-col justify-center">
       <GeneralTimerSurface
         model={model}
-        {...handlers}
-        workoutTitle={workoutTitle}
+        onStart={handlers.onStart}
+        onPause={handlers.onPause}
+        onStop={handlers.onStop}
+        onNext={handlers.onNext}
+        workoutTitle={effectiveTitle}
+        workoutFormat={effectiveFormat}
+        promptRow={promptRow}
+        showReceiverIndicators={true}
+        controlsIdleHidden={fadeBoard}
         getFocusProps={getFocusProps}
       />
       {!snapshot && (
         <div
           data-testid="receiver-controls-disabled"
-          className="shrink-0 pb-4 text-center text-sm font-mono uppercase tracking-widest text-muted-foreground"
+          className="shrink-0 pb-4 text-center font-mono text-sm uppercase tracking-widest text-muted-foreground"
         >
           No active clock — controls disabled
         </div>
       )}
       {snapshot && (
-        <div className="shrink-0 px-10 pb-4" data-clock-panel>
+        <div
+          className={`shrink-0 px-10 pb-4 transition-opacity duration-300 ${
+            fadeBoard ? 'pointer-events-none opacity-0' : 'opacity-100'
+          }`}
+          data-clock-panel
+        >
           <CommandBoardSlot
             snapshot={snapshot}
             dispatch={(cmd) => {
-              // Sent is the strongest claim the receiver can make — the
-              // browser authority owns acceptance and the next snapshot
-              // tells the truth (busy ack via snapshot.saving/error).
               command(cmd);
               return true;
             }}

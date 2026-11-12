@@ -7,6 +7,12 @@ import { notePersistence } from '@/services/persistence';
 import type { EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor';
 import { useEditorSave } from './useEditorSave';
 
+const pendingNoteSaves = new Map<string, Promise<unknown>>();
+
+export function waitForPendingNoteSave(noteId: string): Promise<void> {
+  const active = pendingNoteSaves.get(noteId);
+  return active ? active.then(() => undefined, () => undefined) : Promise.resolve();
+}
 export interface UseNoteDraftOptions {
   noteId: string;
   initialContent: string;
@@ -75,13 +81,19 @@ export function useNoteDraft({
     const headingMatch = snapshot.rawContent.match(/^#\s+(.+)$/m);
     const derivedTitle = headingMatch ? headingMatch[1].trim() : metadata?.title;
     const effectiveMetadata = { ...metadata, ...(derivedTitle ? { title: derivedTitle } : {}) };
-    const updated = await notePersistence.saveNote({
+    const savePromise = notePersistence.saveNote({
       noteId,
       rawContent: snapshot.rawContent,
       blocks: snapshot.blocks,
       expectedSourceRevision: committedRevisionRef.current,
       metadata: effectiveMetadata,
       noteType,
+    });
+    pendingNoteSaves.set(noteId, savePromise);
+    const updated = await savePromise.finally(() => {
+      if (pendingNoteSaves.get(noteId) === savePromise) {
+        pendingNoteSaves.delete(noteId);
+      }
     });
     const snapshotSaved: EditorIdentitySnapshot = {
       rawContent: updated.rawContent,

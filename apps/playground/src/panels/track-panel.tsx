@@ -18,6 +18,8 @@ import { useCollectionMetrics, resolveValueSelection } from '@/hooks/useCollecti
 import { CollectionWizard } from '@/components/organisms/review/CollectionWizard';
 import { useLiveClockAuthority } from '@/clock/useLiveClockAuthority';
 import { ClockCommandBoard } from '@/clock/ClockCommandBoard';
+import { resolveWorkoutRunIdentity } from '@/app/editor/SessionRunHost';
+import { useSessionCastBridge } from '@/hooks/useSessionCastBridge';
 
 export interface TrackPanelProps {
   runtime: IScriptRuntime | null;
@@ -114,6 +116,10 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
     execution.status === 'idle' && !wizardDismissed &&
     (collectionItems.length > 0 || wizardEngagedRef.current);
 
+  const workoutIdentity = React.useMemo(
+    () => (selectedBlock ? resolveWorkoutRunIdentity(selectedBlock, content) : {}),
+    [selectedBlock, content],
+  );
   const clock = useLiveClockAuthority({
     runtime,
     executionStatus: execution.status,
@@ -127,6 +133,12 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
       },
       stop: onStop,
     },
+  });
+  useSessionCastBridge({
+    runtime,
+    identity: workoutIdentity,
+    executionStatus: execution.status,
+    canNext: clock.snapshot?.canNext,
   });
 
   const clockBoard = clock.snapshot ? (
@@ -190,6 +202,8 @@ export const TimerScreen: React.FC<TrackPanelProps> = ({
               isRunning={execution.status === 'running'}
               isPaused={execution.status === 'paused'}
               canNext={clock.snapshot?.canNext}
+              workoutTitle={workoutIdentity.workoutTitle}
+              workoutFormat={workoutIdentity.workoutFormat}
               enableGestures
               onBlockHover={onBlockHover}
               onBlockClick={onBlockClick}

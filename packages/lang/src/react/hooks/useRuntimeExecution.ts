@@ -69,8 +69,12 @@ export const useRuntimeExecution = (
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    if (startTimeRef.current !== null) {
+      const now = runtime?.nowProvider?.nowMs() ?? wallClockNow.nowMs();
+      setElapsedTime(now - startTimeRef.current);
+    }
     setStatus('idle');
-  }, []);
+  }, [runtime]);
 
   /**
    * Executes a single runtime step
@@ -105,6 +109,10 @@ export const useRuntimeExecution = (
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
+        }
+        if (startTimeRef.current !== null) {
+          const now = runtime?.nowProvider?.nowMs() ?? wallClockNow.nowMs();
+          setElapsedTime(now - startTimeRef.current);
         }
         setStatus('completed');
       }
@@ -166,12 +174,17 @@ export const useRuntimeExecution = (
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    if (startTimeRef.current !== null) {
+      const now = runtime?.nowProvider?.nowMs() ?? wallClockNow.nowMs();
+      setElapsedTime(now - startTimeRef.current);
+    }
 
     // Emit timer:pause event to update timer memory spans
     if (runtime) {
+      const pauseDate = runtime.nowProvider?.now() ?? wallClockNow.now();
       runtime.handle({
         name: 'timer:pause',
-        timestamp: new Date(),
+        timestamp: pauseDate,
         data: {}
       });
     }

@@ -7,3 +7,6 @@ export * from './useStackDisplay';
 export * from './useStackSnapshot';
 export * from './useTimerElapsed';
 export * from './runtimeNow';
+export * from './useSessionClockProjection';
+export * from './useLiveSessionTelemetry';
+export * from './useScriptOutline';

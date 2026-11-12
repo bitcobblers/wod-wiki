@@ -28,6 +28,9 @@ export * from './services/runtimeServices';
 export * from './actions';
 export * from './adapters/RuntimeAdapter';
 export * from './subscriptions';
+export * from './projection/SessionClockProjection';
+export * from './projection/LiveSessionTelemetry';
+export * from './projection/ScriptOutlineProjection';
 export type { MemoryEntry, ExecutionSnapshot, ExecutionStatus } from './types/executionSnapshot';
 
 // Behaviors are public API — app-level runtime tooling and tests construct

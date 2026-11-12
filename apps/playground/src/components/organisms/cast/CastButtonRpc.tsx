@@ -256,6 +256,7 @@ export const CastButtonRpc: React.FC = () => {
         return subscribeClock(push);
     }, [sessionHandle]);
 
+
     // Best-effort: tell the receiver we're going away when the tab
     // closes. The transport-level disconnect handler on the receiver
     // is the source of truth — this is the polite signal that gets the

@@ -6,7 +6,7 @@ import { CalendarCard } from '@/components/atoms/CalendarCard'
 import { JournalPageShell } from '@/panels/page-shells'
 import { NoteEditor, type EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor'
 import { BlockHistory, revertBlock } from '@/components/organisms/editor/BlockHistory'
-import { useNoteDraft } from '../hooks/useNoteDraft'
+import { useNoteDraft, waitForPendingNoteSave } from '../hooks/useNoteDraft'
 import { useNoteL1Zone } from '../nav/NavContext'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { storageService } from '@/services/storage'
@@ -93,8 +93,9 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     setEntry(null)
     setMissing(false)
     // saveError handled in draft
-    contentProvider
-      .getRecord(noteId)
+    // Await any in-flight draft flush for this noteId (e.g. Ctrl+S / unmount right before Back).
+    waitForPendingNoteSave(noteId)
+      .then(() => contentProvider.getRecord(noteId))
       .then((loaded) => {
         if (cancelled) return
         if (!loaded) {

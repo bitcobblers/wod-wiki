@@ -6,10 +6,13 @@ export type {
     RpcEvent,
     RpcDispose,
     RpcWorkbenchUpdate,
+    RpcSessionFrame,
+    WorkbenchDisplayState,
     SerializedBlock,
     SerializedTimer,
     SerializedTimeSpan,
 } from './RpcMessages';
+export { isRpcSessionFrame } from './RpcMessages';
 export {
     serializeBlock,
     serializeStackSnapshot,
@@ -19,8 +22,10 @@ export { WebRtcRpcTransport } from './WebRtcRpcTransport';
 export type { ISignaling } from './WebRtcRpcTransport';
 export { ChromecastRuntimeSubscription } from './ChromecastRuntimeSubscription';
 export { ChromecastEventProvider } from './ChromecastEventProvider';
-export { ChromecastProxyRuntime } from './ChromecastProxyRuntime';
-export { ProxyBlock } from './ProxyBlock';
+export {
+    attachSessionCastProjector,
+    type SessionCastProjectorOptions,
+} from './SessionCastProjector';
 export { ClockSyncService, type ClockSyncOptions, type ClockSyncResult } from './ClockSync';
 export {
     CastSessionManager,

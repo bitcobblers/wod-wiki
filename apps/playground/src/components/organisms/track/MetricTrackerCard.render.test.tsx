@@ -33,4 +33,32 @@ describe('MetricTrackerCard', () => {
     expect(screen.getByText('420')).toBeDefined();
     expect(screen.getByText('Zone 2')).toBeDefined();
   });
+
+  it('collapses cleanly to null (0px) when no live summaries exist', () => {
+    const { container } = render(
+      <ScriptRuntimeProvider runtime={harness.runtime}>
+        <MetricTrackerCard />
+      </ScriptRuntimeProvider>,
+    );
+
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('renders typed LiveSummaryMetric entries directly via summariesOverride', () => {
+    render(
+      <ScriptRuntimeProvider runtime={harness.runtime}>
+        <MetricTrackerCard
+          summariesOverride={[
+            { key: 'totalVolume', label: 'Total Volume', value: 1840, unit: 'kg', metricType: 'resistance' },
+            { key: 'totalReps', label: 'Total Reps', value: 63, unit: 'reps', metricType: 'rep' },
+          ]}
+        />
+      </ScriptRuntimeProvider>,
+    );
+
+    expect(screen.getByText('Total Volume')).toBeDefined();
+    expect(screen.getByText('1840')).toBeDefined();
+    expect(screen.getByText('Total Reps')).toBeDefined();
+    expect(screen.getByText('63')).toBeDefined();
+  });
 });

@@ -1,26 +1,28 @@
 /**
- * TimerSurface — the tier picker (ADR 0003, docs/adrs/0003-timer-surface-tiers.md).
+ * TimerSurface — tier picker + interaction-role adapter (ADR 0003).
  *
- * Container size decides the tier — no new breakpoints:
- *   compact (<500px) → MinimalTimerSurface
- *   wide    (≥500px) → GeneralTimerSurface (full hero at any height)
- *   full    (≥900px) → TimerDisplay (Detail: StackIntegratedTimer + TimerStackView)
- *
- * VisualStatePanel gating is host-layout logic and stays with the hosts: it
- * belongs only beside Detail (full). The cast receiver bypasses this picker
- * entirely — receiver-rpc mounts GeneralTimerSurface directly.
- *
- * The model hook runs on every tier; on Detail its subscriptions are redundant
- * but cheap, and unconditional use keeps hook order trivial.
+ * Container size decides geometry (`compact` <500px -> Minimal, `wide` >=500px ->
+ * General, `full` >=900px -> Detail), while `deriveTimerViewPolicy` pairs size
+ * with interaction role so sideways phones keep swipe gestures, 768px portrait
+ * tablets and pocket cast remotes gain a slide-over Stack & Splits drawer, and
+ * Detail runs zero redundant 60fps hooks here.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
+import { ListTree, X } from 'lucide-react';
+import { useOptionalScriptRuntime } from '@bitcobblers/wod-wiki-engine/react';
 import { usePanelSize } from '@/panels/panel-system/PanelSizeContext';
 import { TimerDisplay } from '@/panels/wallclock-panel';
+import { VisualStatePanel } from '@/panels/visual-state-panel';
 import { MetricTrackerCard } from '@/components/organisms/track/MetricTrackerCard';
 import { MinimalTimerSurface } from './MinimalTimerSurface';
 import { GeneralTimerSurface } from './GeneralTimerSurface';
-import { useTimerSurfaceModel, type TimerSurfaceHandlers, type TimerSurfaceModel } from './useTimerSurfaceModel';
+import { deriveTimerViewPolicy } from './timerViewPolicy';
+import {
+  useTimerSurfaceModel,
+  type TimerSurfaceHandlers,
+  type TimerSurfaceModel,
+} from './useTimerSurfaceModel';
 import { TEST_IDS } from '@/lib/testIds';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 
@@ -33,34 +35,46 @@ export interface TimerSurfaceProps extends TimerSurfaceHandlers {
   /** Detail-tier stack interactions forwarded to TimerDisplay */
   onBlockHover?: (blockKey: string | null) => void;
   onBlockClick?: (blockKey: string) => void;
-  /** Stack-driven display features (requires RuntimeLifecycleProvider) */
+  /** Stack-driven display features (requires ScriptRuntimeProvider) */
   enableDisplayStack?: boolean;
-  /** Swipe gestures (Minimal, track view only) */
+  /** Swipe gestures (Minimal and touch-capable General) */
   enableGestures?: boolean;
   /** Workout title for the General top bar */
   workoutTitle?: string;
+  /** Protocol format badge for the General top bar */
+  workoutFormat?: string;
   getFocusProps?: (id: string) => FocusProps;
   // Test/storybook seams — production defaults keep normal renders untouched.
-  /** Pre-built model; overrides the live derivation when provided. */
   modelOverride?: TimerSurfaceModel;
-  /** Detail-tier surface; defaults to the live TimerDisplay. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DetailSurface?: React.ComponentType<any>;
-  /** Prompt-row content; defaults to the live MetricTrackerCard. */
   MetricPrompts?: React.ComponentType;
-  /** Force the prompt row on/off; default shows it on Minimal/General only. */
   showMetricPrompts?: boolean;
 }
 
 export const TimerSurface: React.FC<TimerSurfaceProps> = (props) => {
-  const { isCompact, isFull } = usePanelSize();
-  const liveModel = useTimerSurfaceModel({
-    onStart: props.onStart,
-    onPause: props.onPause,
-    onStop: props.onStop,
-    onNext: props.onNext,
-    isPaused: !!props.isPaused,
-    canNext: props.canNext,
+  const { mode: sizeMode, isCompact, isFull } = usePanelSize();
+  const contextRuntime = useOptionalScriptRuntime();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const policy = deriveTimerViewPolicy({
+    sizeMode,
+    isReceiver: false,
+    enableGestures: props.enableGestures,
   });
+
+  // Suspend the 60fps projection loop when Detail renders or when a static modelOverride is passed.
+  const liveModel = useTimerSurfaceModel(
+    {
+      onStart: props.onStart,
+      onPause: props.onPause,
+      onStop: props.onStop,
+      onNext: props.onNext,
+      isPaused: !!props.isPaused,
+      canNext: props.canNext,
+    },
+    { active: !isFull && !props.modelOverride },
+  );
   const model = props.modelOverride ?? liveModel;
   const Detail = props.DetailSurface ?? TimerDisplay;
   const Prompts = props.MetricPrompts ?? MetricTrackerCard;
@@ -86,17 +100,60 @@ export const TimerSurface: React.FC<TimerSurfaceProps> = (props) => {
     );
   }
 
-  // Live metric bubbles ride Minimal and General. ponytail: live metric
-  // bubbles only — in-run metric INPUT stays Detail-only until an input
-  // design exists (ADR 0003 §4); upgrade path is a slot prop per surface.
+  // `empty:hidden` collapses border + padding to 0px when MetricTrackerCard returns null.
   const promptRow = showPrompts ? (
     <div
       data-testid={TEST_IDS.TIMER_METRIC_PROMPTS}
-      className="shrink-0 overflow-y-auto border-b border-border px-4 py-1.5"
+      className="shrink-0 overflow-y-auto border-b border-border px-4 py-1.5 empty:hidden"
     >
       <Prompts />
     </div>
   ) : null;
+
+  const showDrawerButton = policy.allowStackDrawer && contextRuntime !== null;
+  const drawerToggleButton = showDrawerButton ? (
+    <button
+      type="button"
+      data-testid={TEST_IDS.TIMER_STACK_DRAWER_TOGGLE}
+      onClick={() => setDrawerOpen((v) => !v)}
+      className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-accent"
+    >
+      <ListTree className="h-3.5 w-3.5 text-primary" />
+      <span>Stack</span>
+    </button>
+  ) : null;
+
+  const stackDrawer =
+    drawerOpen && showDrawerButton ? (
+      <>
+        <div
+          aria-hidden="true"
+          onClick={() => setDrawerOpen(false)}
+          className="absolute inset-0 z-20 bg-black/30"
+        />
+        <div
+          data-testid={TEST_IDS.TIMER_STACK_DRAWER}
+          role="dialog"
+          aria-label="Workout stack and splits"
+          className="absolute inset-y-0 right-0 z-30 flex w-80 max-w-full flex-col border-l border-border bg-background shadow-2xl"
+        >
+          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+            <span className="text-sm font-semibold text-foreground">Stack &amp; Splits</span>
+            <button
+              type="button"
+              aria-label="Close stack drawer"
+              onClick={() => setDrawerOpen(false)}
+              className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <VisualStatePanel />
+          </div>
+        </div>
+      </>
+    ) : null;
 
   if (isCompact) {
     return (
@@ -107,22 +164,29 @@ export const TimerSurface: React.FC<TimerSurfaceProps> = (props) => {
         onStop={props.onStop}
         onNext={props.onNext}
         getFocusProps={props.getFocusProps}
-        enableGestures={props.enableGestures}
+        enableGestures={policy.allowSwipeGestures}
         promptRow={promptRow}
       />
     );
   }
 
   return (
-    <GeneralTimerSurface
-      model={model}
-      onStart={props.onStart}
-      onPause={props.onPause}
-      onStop={props.onStop}
-      onNext={props.onNext}
-      getFocusProps={props.getFocusProps}
-      workoutTitle={props.workoutTitle}
-      promptRow={promptRow}
-    />
+    <div className="relative h-full w-full overflow-hidden">
+      <GeneralTimerSurface
+        model={model}
+        onStart={props.onStart}
+        onPause={props.onPause}
+        onStop={props.onStop}
+        onNext={props.onNext}
+        getFocusProps={props.getFocusProps}
+        workoutTitle={props.workoutTitle}
+        workoutFormat={props.workoutFormat}
+        promptRow={promptRow}
+        showReceiverIndicators={policy.showReceiverIndicators}
+        enableGestures={policy.allowSwipeGestures}
+        headerActions={drawerToggleButton}
+      />
+      {stackDrawer}
+    </div>
   );
 };

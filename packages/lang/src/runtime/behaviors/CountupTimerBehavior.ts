@@ -2,7 +2,7 @@ import { IRuntimeBehavior } from '../contracts/IRuntimeBehavior';
 import { IBehaviorContext, Unsubscribe } from '../contracts/IBehaviorContext';
 import { IRuntimeAction } from '../contracts/IRuntimeAction';
 import { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
-import { TimerState } from '../memory/MemoryTypes';
+import { TimerState, TimerPolarity } from '../memory/MemoryTypes';
 import { startSpan, closeCurrentSpan, openSpan, mutateTimerSpans } from '../time/TimerSpans';
 
 export interface CountupTimerConfig {
@@ -10,6 +10,7 @@ export interface CountupTimerConfig {
     label?: string;
     /** Timer role for display priority */
     role?: 'primary' | 'secondary' | 'hidden' | 'auto';
+    polarity?: TimerPolarity;
 }
 
 /**
@@ -44,7 +45,9 @@ export class CountupTimerBehavior implements IRuntimeBehavior {
             direction: 'up',
             durationMs: undefined,
             label,
-            role
+            role,
+            required: false,
+            polarity: this.config.polarity ?? 'work',
         })]);
 
         // Pause — close current span
