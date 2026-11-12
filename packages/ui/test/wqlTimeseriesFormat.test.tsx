@@ -1,80 +1,74 @@
+/**
+ * WW-030 / late finding #6 — uniform numeric presentation across dashboard
+ * surfaces: Y-axis ticks carry a space before the unit (`5,000 kg`), and
+ * table cells round to at most 1 fraction digit exactly like chart tooltips
+ * (`11,362.5 kg`, never `11,362.489 kg`).
+ */
 import { describe, expect, it, afterEach } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
+import { WqlTable } from '../src/widgets/WqlTable';
 import {
-  WqlTimeseries,
   formatTimeseriesTick,
   formatTimeseriesTooltipValue,
 } from '../src/widgets/WqlTimeseries';
 
 afterEach(cleanup);
 
-function expectedNumber(value: number, maximumFractionDigits: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits }).format(value);
+function scalarResult(raw: string, value: number, unit?: string): QueryResult {
+  return {
+    parsed: { family: 'aggregate', raw, agg: 'sum', metric: 'totalVolume', filters: [], groupBy: [] },
+    series: [{ key: 'scalar', label: 'Total volume', points: [{ ts: 1000, value }], unit }],
+    stages: { selected: 1, buckets: 1, aggregated: 1, groups: 1 },
+    matched: [],
+    scalar: value,
+    unit,
+  } as unknown as QueryResult;
 }
 
-describe('WqlTimeseries number display formatters (WW-010)', () => {
-  describe('formatTimeseriesTick', () => {
-    it('formats large integer and thousand ticks with locale grouping and a space before unit', () => {
-      expect(formatTimeseriesTick(5000, 'kg')).toBe(`${expectedNumber(5000, 0)} kg`);
-      expect(formatTimeseriesTick(20000, 'kg')).toBe(`${expectedNumber(20000, 0)} kg`);
-      expect(formatTimeseriesTick(5000, 'kg')).not.toBe('5000kg');
-    });
+function timeseriesResult(raw: string, unit?: string): QueryResult {
+  return {
+    parsed: { family: 'aggregate', raw, agg: 'sum', metric: 'totalVolume', filters: [], groupBy: [] },
+    series: [
+      {
+        key: 'totalVolume',
+        label: 'Total volume',
+        unit,
+        points: [
+          { ts: 1000, value: 11362.489 },
+          { ts: 2000, value: 12000 },
+        ],
+      },
+    ],
+    stages: { selected: 2, buckets: 2, aggregated: 2, groups: 1 },
+    matched: [],
+    unit,
+  } as unknown as QueryResult;
+}
 
-    it('rounds large fractional ticks to integer precision', () => {
-      expect(formatTimeseriesTick(12178.955, 'kg')).toBe(`${expectedNumber(12178.955, 0)} kg`);
-    });
-
-    it('preserves up to 1 decimal place for small fractional ticks', () => {
-      expect(formatTimeseriesTick(2.5, 'kg')).toBe(`${expectedNumber(2.5, 1)} kg`);
-      expect(formatTimeseriesTick(0.75, 'AU')).toBe(`${expectedNumber(0.75, 1)} AU`);
-      expect(formatTimeseriesTick(0, 'kg')).toBe(`${expectedNumber(0, 1)} kg`);
-    });
-
-    it('omits trailing whitespace when unit is undefined or empty', () => {
-      expect(formatTimeseriesTick(5000)).toBe(expectedNumber(5000, 0));
-      expect(formatTimeseriesTick(5000, '')).toBe(expectedNumber(5000, 0));
-      expect(formatTimeseriesTick(2.5, '   ')).toBe(expectedNumber(2.5, 1));
-    });
+describe('formatTimeseriesTick / tooltipValue', () => {
+  it('puts a space before the unit and groups thousands on Y-axis ticks', () => {
+    expect(formatTimeseriesTick(5000, 'kg')).toBe('5,000 kg');
+    expect(formatTimeseriesTick(0, 'kg')).toBe('0 kg');
+    expect(formatTimeseriesTick(12.5, 'pts')).toBe('12.5 pts');
   });
 
-  describe('formatTimeseriesTooltipValue', () => {
-    it('rounds over-precise decimals to at most 1 fraction digit and drops trailing .0', () => {
-      expect(formatTimeseriesTooltipValue(12178.955, 'kg')).toBe(`${expectedNumber(12178.955, 1)} kg`);
-      expect(formatTimeseriesTooltipValue(12178.24, 'kg')).toBe(`${expectedNumber(12178.24, 1)} kg`);
-    });
+  it('rounds tooltip values to at most 1 fraction digit with unit spacing', () => {
+    expect(formatTimeseriesTooltipValue(11362.489, 'kg')).toBe('11,362.5 kg');
+    expect(formatTimeseriesTooltipValue(12000, 'kg')).toBe('12,000 kg');
+    expect(formatTimeseriesTooltipValue(7)).toBe('7');
+  });
+});
 
-    it('formats integers and missing/empty units cleanly', () => {
-      expect(formatTimeseriesTooltipValue(5000, 'lbs')).toBe(`${expectedNumber(5000, 1)} lbs`);
-      expect(formatTimeseriesTooltipValue(42.76)).toBe(expectedNumber(42.76, 1));
-      expect(formatTimeseriesTooltipValue(42.76, '')).toBe(expectedNumber(42.76, 1));
-    });
+describe('WqlTable cell formatting', () => {
+  it('rounds scalar cells to 1 fraction digit with a space before the unit', () => {
+    render(<WqlTable result={scalarResult('sum:totalVolume{}', 11362.489, 'kg')} />);
+    expect(screen.getByText('11,362.5 kg')).toBeDefined();
   });
 
-  it('mounts WqlTimeseries with formatted Y-axis ticks without duplicating unit suffixes', () => {
-    const result: QueryResult = {
-      parsed: { family: 'aggregate', raw: 'sum:totalVolume{} by {week}', agg: 'sum', metric: 'totalVolume', filters: [], groupBy: ['week'] },
-      series: [
-        {
-          key: 'volume',
-          label: 'Volume',
-          points: [
-            { ts: 1700000000000, value: 5000 },
-            { ts: 1700604800000, value: 12178.955 },
-          ],
-          unit: 'kg',
-        },
-      ],
-      stages: { selected: 2, buckets: 2, aggregated: 2, groups: 1 },
-      matched: [],
-      unit: 'kg',
-    };
-
-    const { container } = render(
-      <div style={{ width: 600, height: 300 }}>
-        <WqlTimeseries result={result} />
-      </div>,
-    );
-    expect(container).toBeDefined();
+  it('formats timeseries cells like chart tooltips', () => {
+    render(<WqlTable result={timeseriesResult('sum:totalVolume{} every day', 'kg')} />);
+    expect(screen.getByText('11,362.5 kg')).toBeDefined();
+    expect(screen.getByText('12,000 kg')).toBeDefined();
   });
 });

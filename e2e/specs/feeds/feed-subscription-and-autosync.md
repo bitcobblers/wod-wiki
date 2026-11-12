@@ -1,7 +1,7 @@
 ---
 domain: feeds
 specFile: e2e/live-app/feed-subscription-and-autosync.e2e.ts
-routes: [/subscribe, /notebooks, /settings/sync]
+routes: [/subscribe, /feeds, /feed/:slug, /load, /load/journal, /notebooks, /settings/sync]
 personas: [Athlete]
 viewports: [desktop, mobile-375]
 priority: P0-gate
@@ -37,3 +37,13 @@ Given a registered Feed ('Manage Library', v42) and a user-authored Note ('My ow
 2. Athlete opens the Feed overflow menu, clicks Unsubscribe, and then clicks Delete.
 - expect: Step 1 auto-updates to `v43` when Auto-sync is on, pauses at 'Update available' until manual Sync updates to `v44` when Auto-sync is off.
 - expect: Step 2 Unsubscribe purges imported Seed rows while keeping the source entry, Delete removes the source entry completely, and 'My own note' remains intact throughout with a clean browser console.
+
+### Scenario 4: Bare /subscribe, /feed/:slug CTA, curated HYROX copy stability, subscription survival, and /load import UI
+
+Given an Athlete inspecting Feed catalog deep links and portable bundle routes:
+
+1. Athlete opens bare `/subscribe` and `/load` + `/load/journal` without query parameters.
+2. Athlete opens `/feed/sport-hyrox`, subscribes to HYROX, navigates across `/feeds` and `/journal`, and inspects the HYROX card heading, description, and `wodwiki.seedSubscriptions`.
+- expect: Step 1 keeps `/subscribe`, `/load`, and `/load/journal` mounted with intake/portable-import UIs rather than bouncing away before ready.
+- expect: Step 2 keeps curated title `'HYROX'` and curated description `'HYROX race preparation and simulation workouts.'` on `/feeds` and retains `sport-hyrox: true` in `wodwiki.seedSubscriptions` across SPA and full-page navigation.
+- expect: the browser console stays clean.

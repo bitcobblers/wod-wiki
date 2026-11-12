@@ -42,3 +42,10 @@ Given an athlete who has just created the notebook 'Coastal Runs 2099' (it ships
 2. Athlete queries '/notebooks' with ':notebook{!notebook:coastal-runs-2099}'.
 - expect: the narrowed plane drops the 'Coastal Runs 2099' note while other notebooks' notes remain.
 - expect: the browser console stays clean.
+
+### Scenario 4: Sidebar Recent list reflects recently visited notebooks
+
+Given an athlete who creates and opens a custom notebook on `/notebooks`:
+1. Athlete creates 'QA Kettlebell Cycle 2099', opens '/notebook/qa-kettlebell-cycle-2099', and returns to '/notebooks'.
+- expect: the sidebar 'Recent' list (`conditions-nav-recent`) promotes 'QA Kettlebell Cycle 2099' to its top entries rather than displaying only a static built-in list.
+- expect: after deleting 'qa-kettlebell-cycle-2099', the browser console stays clean.

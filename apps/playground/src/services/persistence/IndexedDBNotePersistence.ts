@@ -71,9 +71,19 @@ function limitResults(results: Session[], limit?: number): Session[] {
   return limit == null ? results : results.slice(0, limit);
 }
 
+/** Local noon of a civil date — the same representative instant the WQL
+ *  calendar (zonedNoon) uses for placement-dated entries. */
+function localNoon(iso: string): number {
+  return new Date(`${iso}T12:00:00`).getTime();
+}
+
 function entryFromDomainRow(row: DomainDetail): HistoryRecord {
   const placements = resolvePlacements(row.links, row.pages);
   const projection = projectPlacements(placements);
+  // The journal page IS the date of record for an undated note (WW-024):
+  // its civil date anchors targetDate so date windows admit it.
+  const placedTs = placements.find((p) => p.date !== undefined)?.date;
+  const placedDate = placedTs !== undefined ? localNoon(placedTs) : NaN;
   return {
     id: row.note.id,
     title: row.note.title,
@@ -83,7 +93,7 @@ function entryFromDomainRow(row: DomainDetail): HistoryRecord {
     placements,
     createdAt: row.note.createdAt,
     updatedAt: row.note.createdAt,
-    targetDate: row.note.date ?? row.note.createdAt,
+    targetDate: row.note.date ?? (Number.isFinite(placedDate) ? placedDate : row.note.createdAt),
     rawContent: row.note.rawContent,
     blocks: row.note.blocks,
     sourceRevision: row.note.sourceRevision,
@@ -107,7 +117,7 @@ function entryDateWindow(query?: HistoryQuery): { start: number; end: number } |
   return undefined;
 }
 
-type SelectiveRecordQuery = HistoryQuery & Pick<NoteQuery, 'journalDate' | 'kind' | 'search'>;
+interface SelectiveRecordQuery extends HistoryQuery, Pick<NoteQuery, 'journalDate' | 'kind' | 'search'> {}
 
 /**
  * Unified IndexedDB-backed note persistence & content provider.
@@ -535,10 +545,30 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
     }
 
     if (window) {
+      const placedNoteIds = new Set<string>();
+      const allPages = await this.storage.getAllPages();
+      const inWindowPages = allPages.filter((p) => {
+        if (!p.date) return false;
+        const ts = localNoon(p.date);
+        return Number.isFinite(ts) && ts >= window.start && ts <= window.end;
+      });
+      if (inWindowPages.length > 0) {
+        const linkGroups = await Promise.all(
+          inWindowPages.map((p) => this.storage.getPageNotes(p.id)),
+        );
+        for (const group of linkGroups) {
+          for (const link of group) placedNoteIds.add(link.noteId);
+        }
+      }
+
       if (candidateIds === null) {
         const ranged = await this.storage.getNotesByDateRange(window.start, window.end);
-        loadedNotes = new Map(ranged.map((n) => [n.id, n]));
-        intersect(ranged.map((n) => n.id));
+        const unionIds = new Set<string>(ranged.map((n) => n.id));
+        for (const id of placedNoteIds) unionIds.add(id);
+        if (placedNoteIds.size === 0) {
+          loadedNotes = new Map(ranged.map((n) => [n.id, n]));
+        }
+        intersect([...unionIds]);
         if (candidateIds!.size === 0) return [];
       } else {
         const currentIds: string[] = [...(candidateIds as Set<string>)];
@@ -551,7 +581,9 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           const note = loadedNotes.get(id);
           if (!note) continue;
           const targetDate = note.date ?? note.createdAt;
-          if (targetDate >= window.start && targetDate <= window.end) inWindow.push(id);
+          if ((targetDate >= window.start && targetDate <= window.end) || placedNoteIds.has(id)) {
+            inWindow.push(id);
+          }
         }
         intersect(inWindow);
         if (candidateIds!.size === 0) return [];

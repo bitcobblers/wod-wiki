@@ -19,7 +19,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/atoms/primitives/dialog';
 import { queryService } from '@/services/queryService';
 import {
   useAnalyticsUnitPreference,
@@ -61,7 +62,7 @@ import {
   updateWidget,
 } from '@bitcobblers/wod-wiki-wql';
 import { useDashboardSource } from '../../hooks/useDashboards';
-import { analyticsExplorerPath } from '../../lib/routes';
+import { analyticsExplorerPath, dashboardsPath } from '../../lib/routes';
 import { useNav } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
 import { ResponsiveActions } from '../../nav/ResponsiveActions';
@@ -163,6 +164,15 @@ export function DashboardViewPage() {
   // Declared early so the L3 actions below can close over them.
   const [editMode, setEditMode] = useState(false);
   const [composer, setComposer] = useState<ComposerState | null>(null);
+  // WW (late finding #7): user-created dashboards had no delete affordance.
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const handleDeleteDashboard = useCallback(async () => {
+    if (!source?.editable || !source.noteId) return;
+    await dashboardNotes.deleteDashboard(source.noteId);
+    notifyDashboardsChanged();
+    setConfirmDeleteOpen(false);
+    navigate(dashboardsPath());
+  }, [source, navigate]);
   const handleClone = useCallback(async () => {
     if (!source || source.editable) return;
     await dashboardNotes.cloneDashboard(source.slug, source.rawContent, source.title);
@@ -199,6 +209,7 @@ export function DashboardViewPage() {
                 setComposer({ mode: 'add', expectedRaw: source.rawContent });
               },
             },
+            { id: 'helpful-delete-dashboard', label: 'Delete dashboard', onRun: () => setConfirmDeleteOpen(true) },
           ]
         : [
             { id: 'helpful-edit', label: editMode ? 'Done' : 'Edit', onRun: () => setEditMode(v => !v) },
@@ -494,14 +505,24 @@ export function DashboardViewPage() {
         )}
 
         {editable && editMode && (
-          <button
-            type="button"
-            data-testid="add-widget"
-            onClick={() => setComposer({ mode: 'add', expectedRaw: source.rawContent })}
-            className="mb-4 flex items-center gap-1.5 rounded-lg border border-dashed border-primary/50 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/5 transition-colors"
-          >
-            <Plus size={13} /> Add widget
-          </button>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              data-testid="add-widget"
+              onClick={() => setComposer({ mode: 'add', expectedRaw: source.rawContent })}
+              className="flex items-center gap-1.5 rounded-lg border border-dashed border-primary/50 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/5 transition-colors"
+            >
+              <Plus size={13} /> Add widget
+            </button>
+            <button
+              type="button"
+              data-testid="delete-dashboard-button"
+              onClick={() => setConfirmDeleteOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-destructive/40 px-4 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 size={13} /> Delete dashboard
+            </button>
+          </div>
         )}
 
         {hasFacts === false ? (
@@ -550,6 +571,36 @@ export function DashboardViewPage() {
 
         </div>
       </div>
+      <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete dashboard</DialogTitle>
+            <DialogDescription>
+              Delete &quot;{document?.title || source.title}&quot; from your vault? Widgets and
+              tokens are removed with the note — prebuilt dashboards and your workout notes are
+              never touched.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              data-testid="cancel-delete-dashboard"
+              onClick={() => setConfirmDeleteOpen(false)}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              data-testid="confirm-delete-dashboard"
+              onClick={() => void handleDeleteDashboard()}
+              className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+            >
+              Delete dashboard
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <WidgetComposerDialog
         open={composer !== null}
         onClose={() => setComposer(null)}

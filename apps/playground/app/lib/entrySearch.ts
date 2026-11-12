@@ -175,12 +175,20 @@ export class StreamQueryEngine {
    *  (block-derived notes) and junction tags from the SAME bundle. A bundle
    *  hit with an empty tag set is final — no-tag is a valid state, never
    *  re-fetched per note; ids absent from the notes store stay untagged
-   *  and untitled (fail-closed). */
-  private async hydrateEntries(entries: Entry[], withNoteFields: boolean): Promise<void> {
+   *  and untitled (fail-closed).
+   *  `preResolvedPlacements` carries the run's own runFind placements
+   *  (QueryService.containersAndPlacements already read the same junction);
+   *  entries covered there skip the second getDetailBatches round-trip
+   *  unless `withNoteFields` still needs the bundle for tags/titles. */
+  private async hydrateEntries(
+    entries: Entry[],
+    withNoteFields: boolean,
+    preResolvedPlacements?: FindQueryResult['placements'],
+  ): Promise<void> {
     const bundleIds = new Set<string>();
     for (const entry of entries) {
       if (entry.kind === 'feed' || entry.kind === 'notebook' || entry.isRemotePreview) continue;
-      if (entry.sourceNotebook === 'journal') bundleIds.add(entry.id);
+      if (entry.sourceNotebook === 'journal' && !preResolvedPlacements?.[entry.id]) bundleIds.add(entry.id);
       if (withNoteFields && (!entry.title || !entry.tags || entry.tags.length === 0)) {
         bundleIds.add(entry.id);
       }
@@ -190,9 +198,10 @@ export class StreamQueryEngine {
     for (const entry of entries) {
       if (entry.sourceNotebook !== 'journal') continue;
       const bundle = bundles.get(entry.id);
+      const preResolved = preResolvedPlacements?.[entry.id];
       // Every page the note sits on; the single-page fields below are the
       // deterministic primary projections of that list.
-      const placements = resolvePlacements(bundle?.links ?? [], bundle?.pages ?? []);
+      const placements = preResolved ?? resolvePlacements(bundle?.links ?? [], bundle?.pages ?? []);
       entry.placements = placements;
       const projection = projectPlacements(placements);
       entry.pageId ??= projection.pageId;
@@ -278,7 +287,7 @@ export class StreamQueryEngine {
       const entries = primaryResult.notes.map(toEntry);
       if (this.noteTagsResolver) {
         // Session tag resolver keeps precedence; only page links batch here.
-        await this.hydrateEntries(entries, false);
+        await this.hydrateEntries(entries, false, primaryResult.placements);
         await Promise.all(
           entries.map(async (entry) => {
             if (!entry.tags || entry.tags.length === 0) {
@@ -288,7 +297,7 @@ export class StreamQueryEngine {
           }),
         );
       } else {
-        await this.hydrateEntries(entries, true);
+        await this.hydrateEntries(entries, true, primaryResult.placements);
       }
       emitStages(onStages, primaryResult.stages, entries);
 

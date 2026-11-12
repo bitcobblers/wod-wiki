@@ -58,9 +58,14 @@ const llmsTxt = `# WOD Wiki
 > Local-first workout authoring, live timer execution, and WQL analytics powered by the Whiteboard Language.
 
 WOD Wiki exposes identical structured capabilities across three agent surfaces:
-1. **Browser WebMCP (\`navigator.modelContext\`)**: 22 portable domain tools + 7 live React UI/Clock tools registered dynamically via \`@mcp-b/react-webmcp\`.
-2. **HTTP & Stdio MCP Server (\`/api/mcp\` and \`wod mcp\`)**: Official \`@modelcontextprotocol/sdk\` server exposing all 22 domain tools, \`wod://*\` resources, and guided prompts.
+1. **Browser WebMCP (\`navigator.modelContext\`)**: ${manifest.domainTools.length} portable domain tools + ${(manifest.uiTools ?? []).length} live React UI/Clock tools registered dynamically via \`@mcp-b/react-webmcp\`.
+2. **HTTP & Stdio MCP Server (\`/api/mcp\` and \`wod mcp\`)**: Official \`@modelcontextprotocol/sdk\` server exposing all ${manifest.domainTools.length} domain tools, \`wod://*\` resources, and guided prompts.
 3. **Local CLI (\`wod --json\`)**: Non-interactive CLI with JSON envelopes, noun-verb parity, and exit code \`4\` confirmation gates for Tier 2 destructive mutations.
+
+## WebMCP Invocation Pattern
+- \`const tools = await navigator.modelContext.getTools();\` then \`await navigator.modelContext.executeTool(tool, { ...input });\`
+- The single-envelope shape is also accepted: \`await navigator.modelContext.executeTool({ name: 'ui_navigate', arguments: { path: '/journal' } });\`
+- Both forms deliver arguments verbatim to the registered handler (\`(name, input)\` calls resolve the live descriptor from \`getTools()\`).
 
 ## Deterministic Browser Readiness Signals
 - \`document.body.dataset.appHydrated === "true"\` — React shell and storage bootstrap finished.
@@ -68,7 +73,7 @@ WOD Wiki exposes identical structured capabilities across three agent surfaces:
 - \`<script id="agent-view-state" type="application/json">\` — Unbatched route, stream, editor, and live clock snapshot.
 
 ## Key Discovery Documents
-- [Complete Agent & Language Reference](/llms-full.txt): Full Whiteboard Language guide, WQL capabilities, all 22 domain tools, and 7 WebMCP UI tools.
+- [Complete Agent & Language Reference](/llms-full.txt): Full Whiteboard Language guide, WQL capabilities, all ${manifest.domainTools.length} domain tools, and ${(manifest.uiTools ?? []).length} WebMCP UI tools.
 - [Machine-Readable Capabilities Manifest](/.well-known/agent-capabilities.json): JSON Schema tool definitions, risk tiers, CLI equivalents, MCP resources, and prompts.
 - [Whiteboard Extraction Skill](/ai-skills/parse.md): Authoring & workout extraction guide.
 
@@ -113,6 +118,14 @@ ${WHITEBOARD_SCRIPT_REFERENCE_MARKDOWN.trim()}
 \`\`\`json
 ${JSON.stringify(wqlRef, null, 2)}
 \`\`\`
+
+---
+
+## WebMCP Invocation Pattern (\`navigator.modelContext\`)
+
+- \`const tools = await navigator.modelContext.getTools();\` then \`await navigator.modelContext.executeTool(tool, { ...input });\`
+- The single-envelope shape is also accepted: \`await navigator.modelContext.executeTool({ name: 'ui_navigate', arguments: { path: '/journal' } });\`
+- Both forms deliver arguments verbatim to the registered handler (\`(name, input)\` calls resolve the live descriptor from \`getTools()\`).
 
 ---
 

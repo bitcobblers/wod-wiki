@@ -35,6 +35,9 @@ export interface DashboardNotes {
   /** Clone a prebuilt seed into the vault as an editable dashboard note,
    *  stamping its slug so it stays route-addressable at /dashboard/:slug. */
   cloneDashboard(slug: string, seedRawContent: string, title?: string): Promise<HistoryRecord>;
+  /** Delete a user-owned (vault) dashboard note by id and notify dashboard
+   *  listeners; prebuilt seeds are code-owned and never routable through this. */
+  deleteDashboard(noteId: string): Promise<void>;
 }
 
 export function createDashboardNotes({ persistence, journal }: DashboardNotesDependencies): DashboardNotes {
@@ -136,6 +139,11 @@ export function createDashboardNotes({ persistence, journal }: DashboardNotesDep
       });
       notifyDashboardsChanged();
       return created;
+    },
+
+    async deleteDashboard(noteId) {
+      await journal.delete(noteId);
+      notifyDashboardsChanged();
     },
   };
 }

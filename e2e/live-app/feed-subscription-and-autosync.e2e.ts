@@ -195,4 +195,80 @@ test.describe('FED-01 — Feed Subscription & Auto-Sync Lifecycle', () => {
 
     app.assertCleanConsole();
   });
+
+  test('bare /subscribe, /feed/:slug CTA, curated HYROX copy, subscription persistence, and /load UIs stay mounted', async ({
+    app,
+  }) => {
+    const { page } = app;
+    await page.setViewportSize({ width: 1280, height: 850 });
+
+    // Mock HYROX manifest carrying CLI boilerplate description to test WW-015 curated copy preservation
+    const hyroxBase = 'https://bitcobblers.github.io/wod-wiki-sport-hyrox/';
+    await page.context().route(`${hyroxBase}manifest.json`, (route) =>
+      route.fulfill({
+        json: {
+          schema: 9,
+          version: 1,
+          builtAt: '2026-11-01T00:00:00.000Z',
+          name: 'wod-wiki-sport-hyrox',
+          description:
+            'wod-wiki-sport-hyrox — a Wod.Wiki community seed source: grouped notebooks validated and compiled into versioned seed artifacts by the wod CLI from @bitcobblers/wod-wiki-tools.',
+          chunks: [],
+        },
+      }),
+    );
+
+    // WW-013: bare /subscribe stays on /subscribe with intake UI
+    await page.goto('/subscribe');
+    await expect(page).toHaveURL(/\/subscribe$/);
+    await expect(page.getByTestId('feed-subscription-intake')).toBeVisible();
+
+    // WW-031: /load and /load/journal stay mounted with portable import / validation UI
+    await page.goto('/load');
+    await expect(page).toHaveURL(/\/load$/);
+    await expect(page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready');
+
+    await page.goto('/load/journal');
+    await expect(page).toHaveURL(/\/load\/journal$/);
+    await expect(page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready');
+
+    // WW-014 + WW-015 + WW-021: Subscribe from /feed/sport-hyrox, verify curated copy & persistence across nav
+    await app.goto('/feed/sport-hyrox');
+    const subBtn = page.getByTestId('feed-detail-subscribe-button').or(page.getByRole('button', { name: /^Subscribe$/i }));
+    await expect(subBtn.first()).toBeVisible();
+    await subBtn.first().click();
+
+    await expect
+      .poll(async () => {
+        return page.evaluate(() => {
+          const raw = localStorage.getItem('wodwiki.seedSubscriptions');
+          return raw ? Boolean((JSON.parse(raw) as Record<string, boolean>)['sport-hyrox']) : false;
+        });
+      })
+      .toBe(true);
+
+    // Navigate to /feeds -> verify curated HYROX heading & description preserved (no repo-slug boilerplate flip)
+    await app.goto('/feeds');
+    await expect(page.getByRole('heading', { name: 'HYROX', exact: true })).toBeVisible();
+    await expect(page.getByText('HYROX race preparation and simulation workouts.')).toBeVisible();
+    await expect(page.getByText(/a Wod\.Wiki community seed source/i)).toHaveCount(0);
+
+    // Navigate to /journal and verify subscription survives
+    await app.goto('/journal');
+    const stillSubscribed = await page.evaluate(() => {
+      const raw = localStorage.getItem('wodwiki.seedSubscriptions');
+      return raw ? Boolean((JSON.parse(raw) as Record<string, boolean>)['sport-hyrox']) : false;
+    });
+    expect(stillSubscribed).toBe(true);
+
+    // Cleanup subscription
+    await page.evaluate(() => {
+      const raw = localStorage.getItem('wodwiki.seedSubscriptions');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, boolean>;
+      delete parsed['sport-hyrox'];
+      localStorage.setItem('wodwiki.seedSubscriptions', JSON.stringify(parsed));
+    });
+    app.assertCleanConsole();
+  });
 });

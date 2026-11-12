@@ -4,6 +4,7 @@ import { act, render, screen, fireEvent, cleanup, waitFor } from '@testing-libra
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { createParser } from '@bitcobblers/wod-wiki-engine';
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
+import type { Session } from '@/types/storage';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import {
   clearHaltedRun,
@@ -15,7 +16,14 @@ import {
   HaltedRunNotice,
   RuntimeTimerPanel,
 } from '@/components/organisms/editor/RuntimeTimerPanel';
+import {
+  createResultRecorder,
+  flushPendingUnloadResults,
+  stagePendingUnloadResult,
+} from '@/hooks/useWorkbenchServices';
 import { WallClockPage } from '../../../../app/pages/WallClockPage';
+
+const PENDING_HALTED_KEY = 'wodwiki:pending-halted-sessions:v1';
 
 function makeBlock(content: string): ScriptBlock {
   return {
@@ -35,6 +43,7 @@ function makeBlock(content: string): ScriptBlock {
 describe('WW-012: halted-run reload persistence and dismissible notice', () => {
   beforeEach(() => {
     window.sessionStorage.clear();
+    localStorage.removeItem(PENDING_HALTED_KEY);
     clearHaltedRun();
     useActiveRunStore.getState().setRuntime(null);
     useActiveRunStore.getState().setActiveSessionMeta(null, null);
@@ -43,6 +52,7 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
   afterEach(() => {
     cleanup();
     window.sessionStorage.clear();
+    localStorage.removeItem(PENDING_HALTED_KEY);
     clearHaltedRun();
   });
 
@@ -267,5 +277,66 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
       />,
     );
     expect(getHaltedRun()).toBeNull();
+  });
+
+  it('stages the partial session synchronously on beforeunload and flushPendingUnloadResults commits it', async () => {
+    localStorage.removeItem(PENDING_HALTED_KEY);
+    useActiveRunStore.getState().setActiveSessionMeta('sess-stage-1', 'note-stage-1');
+
+    render(
+      <RuntimeTimerPanel
+        block={makeBlock('20:00 AMRAP\n  5 Pullups\n  10 Pushups')}
+        resultId="sess-stage-1"
+        noteId="note-stage-1"
+        autoStart={true}
+        onClose={() => {}}
+        onComplete={() => {}}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(useActiveRunStore.getState().execution.status).toBe('running');
+    });
+
+    act(() => {
+      window.dispatchEvent(new window.Event('beforeunload'));
+    });
+
+    // Synchronous staging: the partial result is in localStorage on the same
+    // tick the event fires — no await in between.
+    const stagedRaw = localStorage.getItem(PENDING_HALTED_KEY);
+    expect(stagedRaw).not.toBeNull();
+    const staged = JSON.parse(stagedRaw!) as Record<string, { resultId: string; data: Sessions }>;
+    expect(staged['sess-stage-1']?.resultId).toBe('sess-stage-1');
+    expect(staged['sess-stage-1']?.data.completed).toBe(false);
+
+    // After the reload: flushing commits the partial session into storage.
+    const finished: Array<{ id: string; completed: boolean }> = [];
+    const recorder = createResultRecorder({
+      finishSession: async (id, data) => {
+        finished.push({ id, completed: data.completed });
+        return { id } as Session;
+      },
+    });
+    await flushPendingUnloadResults(recorder);
+    expect(finished).toEqual([{ id: 'sess-stage-1', completed: false }]);
+    expect(localStorage.getItem(PENDING_HALTED_KEY)).toBeNull();
+  });
+
+  it('clears the staged unload entry when a matching record() write succeeds', async () => {
+    localStorage.removeItem(PENDING_HALTED_KEY);
+    const partial: Sessions = { startTime: 1, endTime: 61_000, duration: 60_000, completed: false };
+    stagePendingUnloadResult({ resultId: 'sess-manual-1', noteId: 'note-1', blockId: 'b1', data: partial, createdAt: 61_000 });
+
+    const writerFinishes: string[] = [];
+    const recorder = createResultRecorder({
+      finishSession: async (id) => {
+        writerFinishes.push(id);
+        return { id } as Session;
+      },
+    });
+    await recorder.record({ resultId: 'sess-manual-1', noteId: 'note-1', blockId: 'b1', data: partial, createdAt: 61_000 });
+    expect(writerFinishes).toEqual(['sess-manual-1']);
+    expect(localStorage.getItem(PENDING_HALTED_KEY)).toBeNull();
   });
 });

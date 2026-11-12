@@ -290,29 +290,25 @@ describe('ReviewRedirect', () => {
 })
 
 describe('SubscribePage (WW-013)', () => {
-  it('redirects bare /subscribe to /feeds where Subscribe actions live', () => {
+  it('keeps bare /subscribe mounted and renders Subscribe to a Feed intake UI', () => {
     renderAt('/subscribe', <SubscribePage />, '/subscribe')
 
-    expect(currentPathname).toBe('/feeds')
-    expect(currentSearch).toBe('')
+    expect(currentPathname).toBe('/subscribe')
+    expect(screen.getByTestId('feed-subscription-intake')).toBeDefined()
+    expect(screen.getByRole('heading', { name: /Subscribe to a Feed/i })).toBeDefined()
   })
 
-  it('preserves ?feed= and ?q= parameters when redirecting /subscribe to /feeds', () => {
+  it('renders registered feed consent card on /subscribe?feed=sport-hyrox without bouncing', () => {
     renderAt('/subscribe?feed=sport-hyrox', <SubscribePage />, '/subscribe')
-    expect(currentPathname).toBe('/feeds')
-    expect(currentSearch).toBe('?feed=sport-hyrox')
-
-    cleanup()
-    renderAt('/subscribe?q=%3Afeed%7Bsubscribed%3Afalse%7D', <SubscribePage />, '/subscribe')
-    expect(currentPathname).toBe('/feeds')
-    expect(currentSearch).toBe('?q=%3Afeed%7Bsubscribed%3Afalse%7D')
+    expect(currentPathname).toBe('/subscribe')
+    expect(screen.getByTestId('registered-feed-intake-card')).toBeDefined()
   })
 
-  it('preserves ?source=<url> intake redirection to /notebooks?feed=<url> for unknown peer feeds', () => {
-    renderAt('/subscribe?source=https%3A%2F%2Fpeer.example%2Ffeed%2F', <SubscribePage />, '/subscribe')
+  it('keeps /subscribe?source=<url> mounted with FeedIntakeBanner for unknown peer feeds', () => {
+    renderAt('/subscribe?source=not-a-url', <SubscribePage />, '/subscribe')
 
-    expect(currentPathname).toBe('/notebooks')
-    expect(currentSearch).toBe('?feed=https%3A%2F%2Fpeer.example%2Ffeed%2F')
+    expect(currentPathname).toBe('/subscribe')
+    expect(screen.getByTestId('unknown-feed-intake-banner')).toBeDefined()
   })
 })
 

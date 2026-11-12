@@ -1,7 +1,7 @@
 ---
 domain: journal
 specFile: e2e/live-app/daily-note-authoring-and-persistence.e2e.ts
-routes: [/journal, /day/:date]
+routes: [/journal, /day/:date, /plan]
 personas: [Athlete]
 viewports: [desktop]
 priority: P0-gate
@@ -41,4 +41,13 @@ Given an athlete whose journal holds a note seeded for 2099-07-03:
 2. Athlete hard-reloads '/day/2099-07-03' (full page navigation).
 - expect: the persisted IndexedDB content for the day contains 'Score: 6 rounds + 4'.
 - expect: the reloaded day editor shows the authored line.
+- expect: the browser console stays clean.
+
+### Scenario 4: Same-line typing without newline survives immediate hard navigation and /plan window resolves dated entries
+
+Given an athlete whose journal holds a note seeded for today's date:
+1. Athlete opens today's journal day editor, appends ' — Mobility finisher' on the same line without pressing Enter, and immediately navigates to '/plan' via full page load (`page.goto('/plan')`).
+2. Athlete inspects the rewritten `/journal?mode=plan` window and reopens today's day editor.
+- expect: '/plan' resolves today's dated entry inside the default 2-week planning window without a contradictory `0 of 0` status strip.
+- expect: the reopened day editor retains ' — Mobility finisher' persisted via unload staging.
 - expect: the browser console stays clean.

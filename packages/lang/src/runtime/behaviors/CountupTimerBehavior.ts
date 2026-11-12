@@ -2,8 +2,9 @@ import { IRuntimeBehavior } from '../contracts/IRuntimeBehavior';
 import { IBehaviorContext, Unsubscribe } from '../contracts/IBehaviorContext';
 import { IRuntimeAction } from '../contracts/IRuntimeAction';
 import { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
+import { TimeSpan } from '../models/TimeSpan';
 import { TimerState, TimerPolarity } from '../memory/MemoryTypes';
-import { startSpan, closeCurrentSpan, openSpan, mutateTimerSpans } from '../time/TimerSpans';
+import { startSpan, closeCurrentSpan, openSpan, mutateTimerSpans, type SpanList } from '../time/TimerSpans';
 
 export interface CountupTimerConfig {
     /** Human-readable label shown in the display layer */
@@ -11,6 +12,13 @@ export interface CountupTimerConfig {
     /** Timer role for display priority */
     role?: 'primary' | 'secondary' | 'hidden' | 'auto';
     polarity?: TimerPolarity;
+    /**
+     * Reset the initial open mount span to `now` on the first onNext.
+     * SessionRootBlock enables this so the session clock starts at the
+     * moment the WaitingToStart gate pops, not at session mount — the
+     * athlete's idle wait at the gate is not workout time.
+     */
+    resetOnFirstNext?: boolean;
 }
 
 /**
@@ -34,6 +42,7 @@ export class CountupTimerBehavior implements IRuntimeBehavior {
 
     private subscriptions: Unsubscribe[] = [];
     private isPaused = false;
+    private firstNextSeen = false;
 
     onMount(ctx: IBehaviorContext): IRuntimeAction[] {
         const now = ctx.clock.currentDate.getTime();
@@ -71,7 +80,16 @@ export class CountupTimerBehavior implements IRuntimeBehavior {
         return [];
     }
 
-    onNext(_ctx: IBehaviorContext): IRuntimeAction[] {
+    onNext(ctx: IBehaviorContext): IRuntimeAction[] {
+        if (this.config.resetOnFirstNext && !this.firstNextSeen) {
+            this.firstNextSeen = true;
+            // First onNext of the owning block (the WaitingToStart gate pop
+            // for SessionRootBlock): restart the untouched initial mount span
+            // so elapsed time starts now, excluding the idle gate wait.
+            mutateTimerSpans(ctx, (spans: SpanList, nowMs: number): TimeSpan[] =>
+                spans.length === 1 && spans[0].ended === undefined ? [new TimeSpan(nowMs)] : [...spans],
+            );
+        }
         return [];
     }
 

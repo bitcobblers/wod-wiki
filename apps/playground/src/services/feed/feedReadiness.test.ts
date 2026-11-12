@@ -219,4 +219,82 @@ describe('feedReadiness', () => {
     expect(getFeedReadiness()).toBe('ready');
     expect(isBootImportPending()).toBe(false);
   });
+
+  it('startFeedBootstrap sets bootImportPending synchronously before any checkpoint probe settles (WW-019)', async () => {
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    const storage = new InMemoryFeedStorage();
+    const coreSrc = fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas');
+    const sources: FeedSourceSpec[] = [
+      { source: coreSrc, id: 'core', label: 'Core', url: 'https://feed.test/core/', embeddedVersion: 1 },
+    ];
+    const done = startFeedBootstrap({ sources, storage, isEnabled: () => true });
+    // Synchronous window: the bootstrap's async checkpoint probes have not
+    // settled yet, but the boot-import signal must already be up.
+    expect(isBootImportPending()).toBe(true);
+    await done;
+    expect(isBootImportPending()).toBe(false);
+  });
+
+  it('startFeedBootstrap leaves bootImportPending false when the import flag is disabled (WW-019)', async () => {
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    const storage = new InMemoryFeedStorage();
+    const coreSrc = fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas');
+    const sources: FeedSourceSpec[] = [
+      { source: coreSrc, id: 'core', label: 'Core', url: 'https://feed.test/core/', embeddedVersion: 1 },
+    ];
+    const done = startFeedBootstrap({ sources, storage, isEnabled: () => false });
+    expect(isBootImportPending()).toBe(false);
+    await done;
+    expect(isBootImportPending()).toBe(false);
+  });
+
+  it('startFeedBootstrap holds bootImportPending until a newly subscribed feed first-imports on a warm boot (WW-019)', async () => {
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    const storage = new InMemoryFeedStorage();
+    await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('core')), seedVersion: 1, builtAt: new Date(1).toISOString() });
+    const coreSrc = fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas');
+    const sampleSrc = fixture(
+      [compileSeedRow('markdown/notebooks/samples/s1.md', '# Sample 1')],
+      1,
+      'notebook.samples',
+    );
+    const heldSample = Promise.withResolvers<SeedChunkPayload>();
+    const sampleRequested = Promise.withResolvers<void>();
+    const heldSampleSource: IFeedSource = {
+      fetchManifest: () => sampleSrc.fetchManifest(),
+      fetchChunk: (path) => {
+        if (path === 'chunks/notebook.samples.json') {
+          sampleRequested.resolve();
+          return heldSample.promise;
+        }
+        return sampleSrc.fetchChunk(path);
+      },
+    };
+    setFeedSubscribed('samples-movement', true);
+    setFeedAutoSync('samples-movement', true);
+    const sources: FeedSourceSpec[] = [
+      { source: coreSrc, id: 'core', label: 'Core', url: 'https://feed.test/core/', embeddedVersion: 1 },
+      { source: heldSampleSource, id: 'samples-movement', label: 'Samples', url: 'https://feed.test/samples/', embeddedVersion: 1, autoImport: false },
+    ];
+
+    const samplePayload = await sampleSrc.fetchChunk('chunks/notebook.samples.json');
+    const done = startFeedBootstrap({ sources, storage, isEnabled: () => true });
+    try {
+      await sampleRequested.promise;
+
+      // Core checkpoint exists (returning visitor) but the newly subscribed
+      // auto-sync feed never imported — bootImportPending MUST stay true.
+      expect(getFeedReadiness()).toBe('ready');
+      expect(isBootImportPending()).toBe(true);
+    } finally {
+      heldSample.resolve(samplePayload);
+      await done;
+    }
+
+    expect(getFeedReadiness()).toBe('ready');
+    expect(isBootImportPending()).toBe(false);
+  });
 });

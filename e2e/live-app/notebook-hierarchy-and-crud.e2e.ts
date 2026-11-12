@@ -55,4 +55,22 @@ test.describe('Notebook hierarchy and CRUD — /notebooks', () => {
     await app.notebooks.delete('coastal-runs-2099');
     app.assertCleanConsole();
   });
+
+  test('sidebar Recent section reflects visited notebooks (WW-033)', async ({ app }) => {
+    const nbName = 'QA Kettlebell Cycle 2099';
+    const nbSlug = 'qa-kettlebell-cycle-2099';
+    await app.page.setViewportSize({ width: 1280, height: 850 });
+
+    await app.notebooks.openLibrary();
+    await app.notebooks.create(nbName);
+    await expect(app.page).toHaveURL(new RegExp(`/notebook/${nbSlug}`));
+
+    await app.notebooks.openLibrary();
+    const recent = app.page.getByTestId('conditions-nav-recent');
+    await expect(recent).toBeVisible();
+    await expect(recent).toContainText(nbName);
+
+    await app.notebooks.delete(nbSlug);
+    app.assertCleanConsole();
+  });
 });

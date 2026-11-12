@@ -174,6 +174,24 @@ function resolveFeedDisplayLabel(src: FeedSource, manifest?: SeedManifest): stri
   return curated;
 }
 
+/** The generic copy `wod build` stamps into every manifest — never user-facing copy. */
+const CLI_BOILERPLATE_MARKER = 'a Wod.Wiki community seed source';
+
+/**
+ * Curated copy wins over CLI-generated manifest copy (WW-015): a built-in
+ * source's hand-written description must survive manifest caching, whose
+ * `description` is the `wod build` boilerplate. Non-generic curated copy is
+ * preferred; otherwise a non-generic manifest description; otherwise
+ * whichever exists.
+ */
+export function resolveFeedDisplayDescription(src: FeedSource, manifest?: SeedManifest): string | undefined {
+  const curated = src.description?.trim() || undefined;
+  if (curated && !curated.includes(CLI_BOILERPLATE_MARKER)) return curated;
+  const fromManifest = manifest?.description?.trim() || undefined;
+  if (fromManifest && !fromManifest.includes(CLI_BOILERPLATE_MARKER)) return fromManifest;
+  return curated ?? fromManifest;
+}
+
 async function readAllMetaMaps(): Promise<{
   catalogs: Map<string, SeedManifest>;
   checkpoints: Map<string, SeedMetaRecord>;
@@ -413,7 +431,7 @@ export const playgroundFeedCatalogStore: FeedCatalogQueryStore = {
         label: resolveFeedDisplayLabel(src, manifest),
         url: src.id === 'core' ? toAbsoluteFeedUrl(CORE_FEED_URL) : src.url,
         repositoryUrl: manifest?.repositoryUrl ?? src.repositoryUrl,
-        description: manifest?.description ?? src.description,
+        description: resolveFeedDisplayDescription(src, manifest),
         tier: src.id === 'core' ? 'core' : (src.tier ?? 'imported'),
         subscribed: sub,
         installed,

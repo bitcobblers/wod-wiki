@@ -35,7 +35,7 @@ import type { Notebook } from '@/types/notebook'
 import { notebookService } from '@/hooks/useBrowserServices'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
 import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, serialize, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
-import { wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
+import { suggestWqlSyntaxHint, wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
 import type { WqlExecutor } from '@bitcobblers/wod-wiki-ui'
 import { toggleGroupDimension } from '../../nav/panels/conditionsFacets'
 import { createPortal } from 'react-dom'
@@ -63,7 +63,7 @@ import { publishStreamResults } from './streamResults'
 import { useNav } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
-import { cloneRemotePreviewNoteToNotebook } from '@/services/feed/feedCatalog'
+import { cloneRemotePreviewNoteToNotebook, playgroundFeedCatalogStore } from '@/services/feed/feedCatalog'
 import { toggleNotebookSubscription, unsubscribeFeedSource } from '@/services/feed/feedSync'
 import { setFeedSubscribed } from '@/services/feed/feedSubscriptions'
 import { setNotebookPublic } from '@bitcobblers/wod-wiki-engine'
@@ -75,7 +75,7 @@ import { ROUTE_PATTERNS } from '../../lib/routes'
 import { MobileNewEntryCombo, routeSupportsCreation } from '../../pages/shared/NewEntryCombo'
 import { useComposerQueryState } from '../../hooks/useComposerQueryState'
 import { useViewSettings, LAYOUT_MODES, type LayoutMode } from '../../lib/viewSettingsStorage'
-import { useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
+import { LIBRARY_BATCH_SIZE, useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
 import { todayKey } from '@/lib/dateFormat'
 import { withoutWindow, withGroupBy } from '../../lib/wqlEdits'
 import { LibraryRow } from '../library/LibraryRow'
@@ -112,10 +112,20 @@ function BatchingSentinel({
   return (
     <div
       ref={batch.sentinelRef}
-      className="px-6 py-4 text-center text-xs text-muted-foreground/60"
+      className="px-6 py-4 text-center"
       data-testid={testId}
     >
-      Loading more — {batch.total - batch.visible.length} remaining…
+      {/* WW-023: idle sentinel is an interactive control, never "Loading" —
+          the run may have fully settled; scrolling still auto-grows via the
+          observer on this same div. */}
+      <button
+        type="button"
+        className="text-xs text-muted-foreground/60 hover:text-foreground hover:underline underline-offset-2"
+        data-testid={`${testId}-button`}
+        onClick={() => batch.growTo(batch.visible.length + LIBRARY_BATCH_SIZE)}
+      >
+        Show more ({(batch.total - batch.visible.length).toLocaleString()} remaining)
+      </button>
     </div>
   )
 }
@@ -123,6 +133,13 @@ function BatchingSentinel({
 /** Host-owned execution debounce for stream queries — the composer resolves
  *  drafts synchronously; only the run coalesces (existing 150ms behavior). */
 const STREAM_EXECUTE_DEBOUNCE_MS = 150
+
+/** `/notebook/:slug` — the single-notebook landing route (WW-032). */
+const NOTEBOOK_PATH_RE = /^\/notebook\/([^/]+)\/?$/
+
+/** Reserved slugs that always resolve, even before any notebook record is
+ *  registered or the landing note exists (seed corpus may not have landed). */
+const BUILTIN_NOTEBOOK_SLUGS = ['journal', 'playground', 'defaults', 'custom', 'guides', 'efforts', 'equipment', 'dashboards']
 
 /** Inline notice sync label — same phase vocabulary as the Settings sync surface. */
 function feedSyncLabel(event: FeedSyncProgress): string {
@@ -171,6 +188,7 @@ function userAuthoredFilters(
  *  scans. */
 function StreamQueryStatus({
   error,
+  syntaxHint,
   target,
   matched,
   total,
@@ -181,9 +199,10 @@ function StreamQueryStatus({
   advisories,
   groupDims,
   groupingSource,
-  showGroupingSource,
 }: {
   error: string | null
+  /** WW-034 — parse-failure guidance rendered under the invalid-query line. */
+  syntaxHint: string | null
   target: string | null
   matched: number
   total: number
@@ -194,7 +213,6 @@ function StreamQueryStatus({
   advisories: readonly string[]
   groupDims: string[]
   groupingSource: string
-  showGroupingSource: boolean
 }) {
   return (
     <div
@@ -219,20 +237,21 @@ function StreamQueryStatus({
         {applied} applied{ignored > 0 ? `, ${ignored} ignored` : ''}
       </span>
       <span aria-hidden="true">·</span>
-      <span>
+      {/* WW-004/#5: the internal precedence enum never renders — it rides the
+          data attribute for tests and diagnostics only. */}
+      <span data-grouping-source={groupingSource}>
         by {groupDims.join(', ')}
-        {showGroupingSource && (
-          <>
-            {' '}
-            <span className="text-muted-foreground/60">({groupingSource})</span>
-          </>
-        )}
       </span>
       {advisories.map(advisory => (
         <p key={advisory} className="w-full break-words text-amber-700 dark:text-amber-400">
           {advisory}
         </p>
       ))}
+      {error && syntaxHint && (
+        <p className="w-full break-words text-muted-foreground" data-testid="stream-query-syntax-hint">
+          {syntaxHint}
+        </p>
+      )}
     </div>
   )
 }
@@ -911,6 +930,40 @@ export function QueriableStreamView({
       : profile.groupByOptions?.length
         ? 'favorite'
         : 'level'
+
+  // WW-032: a settled, EMPTY /notebook/:slug stream may mean the slug does
+  // not exist at all. One lightweight async existence probe (built-in slugs,
+  // registered notebooks, feed-catalog notebooks, or a stored landing note)
+  // decides between the generic empty state and the explicit not-found one.
+  const notebookSlugParam = useMemo(() => {
+    const match = NOTEBOOK_PATH_RE.exec(location.pathname)
+    if (!match?.[1]) return null
+    try {
+      return decodeURIComponent(match[1])
+    } catch {
+      return match[1]
+    }
+  }, [location.pathname])
+  const [notebookNotFound, setNotebookNotFound] = useState(false)
+  useEffect(() => {
+    if (!notebookSlugParam || entries.length > 0 || !hasSettledRun) {
+      setNotebookNotFound(false)
+      return
+    }
+    let cancelled = false
+    const landing = storage.readonly('notes').get(`notebook/${notebookSlugParam}`).catch(() => undefined)
+    void Promise.all([
+      BUILTIN_NOTEBOOK_SLUGS.includes(notebookSlugParam),
+      notebookService.getAllNotebooks().then((nbs) => nbs.some((nb) => nb.slug === notebookSlugParam)).catch(() => false),
+      playgroundFeedCatalogStore.getAllNotebooks().then((rows) => rows.some((row) => row.slug === notebookSlugParam)).catch(() => false),
+      landing.then(Boolean),
+    ]).then(([builtin, registered, catalog, hasLanding]) => {
+      if (!cancelled) setNotebookNotFound(!builtin && !registered && !catalog && !hasLanding)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [notebookSlugParam, entries.length, hasSettledRun])
   // Filter truth vs the target's own vocabulary: the executor IGNORES
   // unsupported keys (advisory) — the strip says applied vs ignored instead
   // of implying every requested filter ran.
@@ -1129,33 +1182,54 @@ export function QueriableStreamView({
   }, [parsed, query, setQuery, execute, defaultImpliedFilters, libraryNotImported, openLibraryManager])
 
   // Shared empty state for the grouped layouts (Cards / Feed) — same query,
-  // same remedies, whichever mode is active.
+  // same remedies, whichever mode is active. An unknown /notebook/:slug gets
+  // the explicit not-found state instead (WW-032).
   const streamEmptyState = (
     <div
       className="px-6 py-16 text-center text-muted-foreground flex flex-col items-center justify-center gap-3"
       data-testid="stream-empty-state"
     >
-      <p className="text-sm font-medium">
-        {libraryNotImported
-          ? `No ${profile.title.toLowerCase()} are imported yet.`
-          : profile.emptyMessage ?? (parsed.window
-            ? 'No entries found within the selected time window.'
-            : 'No entries match your search.')}
-      </p>
-      {emptyStateRemedies.length > 0 && (
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
-          {emptyStateRemedies.map(r => (
-            <Button
-              key={r.id}
-              variant="outline"
-              size="sm"
-              onClick={r.apply}
-              className="text-xs"
-            >
-              {r.label}
-            </Button>
-          ))}
+      {notebookNotFound && notebookSlugParam ? (
+        <div className="flex flex-col items-center gap-3" data-testid="notebook-not-found">
+          <p className="text-sm font-medium">
+            Notebook “{notebookSlugParam}” not found.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-xs"
+            onClick={() => navigate('/notebooks')}
+            data-testid="notebook-not-found-back"
+          >
+            Back to Notebooks
+          </Button>
         </div>
+      ) : (
+        <>
+          <p className="text-sm font-medium">
+            {libraryNotImported
+              ? `No ${profile.title.toLowerCase()} are imported yet.`
+              : profile.emptyMessage ?? (parsed.window
+                ? 'No entries found within the selected time window.'
+                : 'No entries match your search.')}
+          </p>
+          {emptyStateRemedies.length > 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
+              {emptyStateRemedies.map(r => (
+                <Button
+                  key={r.id}
+                  variant="outline"
+                  size="sm"
+                  onClick={r.apply}
+                  className="text-xs"
+                >
+                  {r.label}
+                </Button>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -1217,7 +1291,7 @@ export function QueriableStreamView({
         className="max-lg:hidden"
         actions={
           <ResponsiveActions
-            primary={routeSupportsCreation(profile.route) ? <MobileNewEntryCombo /> : undefined}
+            primary={routeSupportsCreation(profile.route) && !notebookNotFound ? <MobileNewEntryCombo /> : undefined}
             label="Stream actions"
           >
             {profile.dashboardEnabled && (
@@ -1254,6 +1328,7 @@ export function QueriableStreamView({
       <div className="px-4 pt-2 sm:px-6 lg:px-8" data-testid="stream-query-status-row">
         <StreamQueryStatus
           error={queryError}
+          syntaxHint={queryError ? suggestWqlSyntaxHint(query, profile.target) : null}
           target={parsed.error ? null : isFindQuery(parsed) ? parsed.target : parsed.family}
           matched={entries.length}
           total={Math.max(stages?.selected ?? 0, entries.length)}
@@ -1264,7 +1339,6 @@ export function QueriableStreamView({
           advisories={parsed.error ? [] : parsed.advisories ?? []}
           groupDims={groupDims}
           groupingSource={groupingSource}
-          showGroupingSource={hasSettledRun && groupingSource !== 'level'}
         />
       </div>
 

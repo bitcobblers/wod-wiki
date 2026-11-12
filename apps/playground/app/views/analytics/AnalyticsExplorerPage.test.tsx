@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { parseQuery, isFindQuery, type FindQueryResult, type ParsedAggregateQuery, type ParsedFindQuery, type QueryResult } from '@bitcobblers/wod-wiki-engine';
 import { queryService } from '@/services/queryService';
 import * as sampleModule from '@/services/analytics/sample';
 import { dashboardNotes } from '../../services/dashboardNotes';
 import { journalNotes } from '../../services/journalNotes';
+import { storageService } from '@/services/storage';
 
 function resultOf(raw: string): QueryResult {
   return {
@@ -284,6 +285,15 @@ describe('AnalyticsExplorerPage', () => {
   });
 
   it('shows the records behind a calculation as a Library-style list', async () => {
+    // The chart renders data (WW-029: the records disclosure only shows
+    // alongside a non-empty calculation).
+    runQueryImpl = async (raw: string) => ({
+      ...resultOf(raw),
+      series: [{ key: 'totalVolume', label: 'Total volume', points: [{ ts: Date.now(), value: 42 }], unit: 'kg' }],
+      stages: { selected: 1, buckets: 1, aggregated: 1, groups: 1 },
+      scalar: 42,
+      matched: [{ timestamp: Date.now(), value: 42, metricKey: 'totalVolume' } as unknown as QueryResult['matched'][number]],
+    });
     runFindImpl = async (raw: string) => ({
       ...findResultOf(raw),
       notes: raw.includes('tags:pr') ? [FEED_NOTE] : [],
@@ -308,6 +318,38 @@ describe('AnalyticsExplorerPage', () => {
       }
     });
     await waitFor(() => expect(screen.getByTestId('library-row-note').textContent).toContain('StrongLifts 5×5'));
+  });
+
+  it('hides the records disclosure when the calculation is empty — no "50 records" beside an empty chart (WW-029)', async () => {
+    // The calculation has no data in range…
+    runQueryImpl = async (raw: string) => resultOf(raw);
+    // …but the records query still matches one unscoped note. The fetch is
+    // deferred (all pending callers resolve together — re-runs cancel the
+    // first fetch) so the assertion below observes the settled state, not
+    // the pre-fetch render.
+    const pendingResolvers: Array<() => void> = [];
+    runFindImpl = async (raw: string) => {
+      const { promise, resolve } = Promise.withResolvers<void>();
+      pendingResolvers.push(resolve);
+      await promise;
+      return {
+        ...findResultOf(raw),
+        notes: raw.includes('tags:pr') ? [FEED_NOTE] : [],
+        stages: { selected: 1, matched: 1 },
+      };
+    };
+    renderPage('sum:totalVolume{tags:pr} by {week}');
+
+    await waitFor(() => expect(pageRuns()).toContain('sum:totalVolume{tags:pr} by {week}'));
+    await waitFor(() => expect(screen.getByTestId('sample-data-load-button')).toBeTruthy());
+    await waitFor(() => expect(pendingResolvers.length).toBeGreaterThan(0));
+    // Records resolve behind the closed disclosure…
+    await act(async () => { pendingResolvers.splice(0).forEach((resolve) => resolve()); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+    // …yet an empty calculation must not advertise a record count beside
+    // "no data" — the whole disclosure stays hidden (WW-029).
+    expect(screen.queryByTestId('records-toggle')).toBeNull();
+    expect(screen.queryByTestId('records-wql')).toBeNull();
   });
 
   it('publishes range and units into L3 analyticsControls; examples are not duplicated on the page', async () => {

@@ -110,6 +110,9 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
   const isEditable = item?.registrySource === 'user';
   const committedNote = useRef<{ id: string; revision: number } | null>(null);
   const loadedSlug = useRef<string | undefined>(undefined);
+  // WW-035: slugs we already re-hydrated the registry for — one storage-backed
+  // refresh per slug miss, never a refresh loop.
+  const refreshedForSlug = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isReady) {
@@ -142,8 +145,18 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
 
     async function load() {
       try {
-        const direct = resolveDirect(slug!);
-        const resolved = direct ?? resolveByAlias(slug!);
+        let direct = resolveDirect(slug!);
+        let resolved = direct ?? resolveByAlias(slug!);
+        if (!resolved && slugChanged && refreshedForSlug.current !== slug) {
+          // WW-035: the registry hydrated before an out-of-band write (create
+          // dialog, agent action) landed in storage — re-hydrate once from
+          // storage before declaring the slug missing.
+          refreshedForSlug.current = slug;
+          await refresh();
+          if (cancelled) return;
+          direct = resolveDirect(slug!);
+          resolved = direct ?? resolveByAlias(slug!);
+        }
         if (!resolved) {
           if (slugChanged && !cancelled) {
             setNotFound(true);
@@ -180,7 +193,7 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
     return () => {
       cancelled = true;
     };
-  }, [kind, slug, isReady, revision, resolveDirect, resolveByAlias, toDocument]);
+  }, [kind, slug, isReady, revision, resolveDirect, resolveByAlias, toDocument, refresh]);
 
   const handleSave = useCallback(
     async (value: string): Promise<T | null> => {

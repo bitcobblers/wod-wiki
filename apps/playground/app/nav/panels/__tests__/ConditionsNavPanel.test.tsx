@@ -318,6 +318,48 @@ describe('ConditionsNavPanel', () => {
     expect(screen.getAllByTestId('conditions-nav-recent-link')).toHaveLength(ENTRIES.length)
   })
 
+  it('promotes a visited notebook to the top of Recent (WW-033)', () => {
+    // The athlete opened /notebook/qa-kettlebell-cycle, then returned to the
+    // notebooks surface: the LRU records the visit and the matching run entry
+    // rises to #1 ahead of the run's own order.
+    renderPanel('/notebook/qa-kettlebell-cycle')
+    expect(localStorage.getItem('wodwiki.recentVisitedHrefs:v1')).toContain('/notebook/qa-kettlebell-cycle')
+    cleanup()
+
+    const visited = entry({ id: 'n1', sourceId: 'notebook:qa-kettlebell-cycle', sourceNotebook: 'qa-kettlebell-cycle', sourceNote: undefined, noteType: 'note', title: 'QA Kettlebell Cycle' })
+    const other = entry({ id: 'n2', sourceId: 'notebook:defaults', sourceNotebook: 'defaults', sourceNote: undefined, noteType: 'note', title: 'Defaults' })
+    renderPanel()
+    publish({ pathname: '/feeds', query: DEFAULT_Q, entries: [other, visited] })
+
+    const links = screen.getAllByTestId('conditions-nav-recent-link') as HTMLAnchorElement[]
+    expect(links[0]!.getAttribute('href')).toBe('/notebook/qa-kettlebell-cycle')
+    expect(links[1]!.getAttribute('href')).toBe(entryOpenHref(other))
+  })
+
+  it('ranks multiple visited entries most-recently-visited first and keeps unvisited run order after them', () => {
+    // Visits: alpha (oldest), gamma (newest) — beta never visited.
+    renderPanel('/notebook/alpha')
+    renderPanel('/notebook/gamma')
+    cleanup()
+
+    const mkEntry = (slug: string, id: string) =>
+      entry({ id, sourceId: `notebook:${slug}`, sourceNotebook: slug, sourceNote: undefined, noteType: 'note', title: slug })
+    renderPanel()
+    publish({
+      pathname: '/feeds',
+      query: DEFAULT_Q,
+      // Run order: beta, alpha, gamma.
+      entries: [mkEntry('beta', 'b1'), mkEntry('alpha', 'a1'), mkEntry('gamma', 'g1')],
+    })
+
+    const links = screen.getAllByTestId('conditions-nav-recent-link') as HTMLAnchorElement[]
+    expect(links.map((l) => l.getAttribute('href'))).toEqual([
+      '/notebook/gamma',
+      '/notebook/alpha',
+      entryOpenHref(mkEntry('beta', 'b1')),
+    ])
+  })
+
   it('renders no where-filters in L2 even with matching published results', () => {
     renderPanel()
     publish({ pathname: '/feeds', query: DEFAULT_Q, entries: ENTRIES })

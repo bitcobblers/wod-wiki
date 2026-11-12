@@ -65,7 +65,7 @@ async function seedBundledThruster(): Promise<void> {
   });
 }
 
-function EffortProbe(props: { slug: string; expose: (result: UseEffortContentResult) => void }) {
+function EffortProbe(props: { slug: string | undefined; expose: (result: UseEffortContentResult) => void }) {
   props.expose(useEffortContent(props.slug));
   return null;
 }
@@ -126,5 +126,67 @@ describe('useEffortContent — editing a bundled effort clones it', () => {
     expect(updated!.rawContent).toContain('met: 10');
     expect(await storageService.getNote('effort/thruster-custom-custom')).toBeUndefined();
     expect(await storageService.getEffort('thruster-custom-custom')).toBeUndefined();
+  });
+});
+
+describe('useEffortContent — an effort written after hydration resolves without a reload (WW-035)', () => {
+  const QA_DOC = [
+    '---',
+    'id: effort-user-qa-turkish-get-up',
+    'slug: qa-turkish-get-up',
+    'label: QA Turkish Get Up',
+    'aliases: []',
+    'baseAttributes:',
+    '  met: 5',
+    'registrySource: user',
+    '---',
+    '',
+    '# QA Turkish Get Up',
+  ].join('\n');
+
+  it('one-shot refreshes the stale registry when the slug misses after hydration', async () => {
+    let latest: UseEffortContentResult | undefined;
+    const probe = (slug?: string) =>
+      createElement(
+        EffortRegistryProvider,
+        null,
+        createElement(EffortProbe, { slug, expose: (result: UseEffortContentResult) => { latest = result; } }),
+      );
+
+    // Hydrate the registry BEFORE the definition exists — the page opens on
+    // a bare /effort route while the create dialog is still writing.
+    const view = render(probe(undefined));
+    await waitFor(() => expect(latest!.effort).toBeNull(), { timeout: 5000 });
+
+    // The dialog write lands in storage only — commitReferenceNote does not
+    // refresh this page's already-hydrated in-memory registry.
+    await storageService.saveEffort({
+      id: 'effort-user-qa-turkish-get-up',
+      slug: 'qa-turkish-get-up',
+      label: 'QA Turkish Get Up',
+      aliases: [],
+      baseAttributes: { met: 5 },
+      registrySource: 'user',
+      ownerNoteId: 'effort/qa-turkish-get-up',
+    });
+    await storageService.saveNoteSource({
+      noteId: 'effort/qa-turkish-get-up',
+      rawContent: QA_DOC,
+      expectedSourceRevision: 0,
+      metadata: { title: 'QA Turkish Get Up', sourceId: 'efforts' },
+      createdAt: Date.now(),
+    });
+
+    // The athlete lands on /effort/qa-turkish-get-up — the slug arrives after
+    // hydration, against the stale registry.
+    await act(async () => {
+      view.rerender(probe('qa-turkish-get-up'));
+    });
+
+    // No reload: the hook re-hydrates once from storage and resolves.
+    await waitFor(() => expect(latest!.effort?.slug).toBe('qa-turkish-get-up'), { timeout: 5000 });
+    expect(latest!.notFound).toBe(false);
+    expect(latest!.isEditable).toBe(true);
+    expect(latest!.document).toContain('met: 5');
   });
 });

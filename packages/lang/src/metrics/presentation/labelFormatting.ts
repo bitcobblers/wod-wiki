@@ -102,10 +102,36 @@ const COLUMN_LABEL_MAP: Partial<Record<string, string>> = {
   'met-score':     'MET Score',
   tis:             'TIS',
   sound:           'Sound',
+  // Derived / analytics columns (keys are lowercased in computeColumnLabel).
+  'calc.metminutes':       'MET Minutes',
+  metminutes:              'MET Minutes',
+  metminutesestimated:     'MET Minutes Est.',
+  sessionload:             'Session Load',
+  totalvolume:             'Total Volume',
+  totalreps:               'Total Reps',
+  totaldistance:           'Total Distance',
+  'calc.acwr':             'ACWR',
+  'calc.monotony':         'Monotony',
+  'calc.strain':           'Strain',
+  'calc.readiness':        'Readiness',
+  'calc.hrv':              'HRV',
+  'calc.sleep':            'Sleep',
+  'calc.soreness':         'Soreness',
+};
+
+/** Acronyms uppercased verbatim during metric-key humanization. */
+const METRIC_KEY_ACRONYMS: Readonly<Record<string, string>> = {
+  met: 'MET',
+  hrv: 'HRV',
+  rpe: 'RPE',
+  tis: 'TIS',
+  acwr: 'ACWR',
+  vo2max: 'VO2max',
 };
 
 export function humanizeMetricKey(value: string): string {
   const spaced = value
+    .replace(/^calc\./i, '')
     .replace(/[_-]+/g, ' ')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
@@ -116,6 +142,8 @@ export function humanizeMetricKey(value: string): string {
   return spaced
     .split(/\s+/)
     .map((word) => {
+      const acronym = METRIC_KEY_ACRONYMS[word.toLowerCase()];
+      if (acronym) return acronym;
       if (word === word.toUpperCase()) return word;
       if (/^[A-Z]{2,}$/.test(word)) return word;
       return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();

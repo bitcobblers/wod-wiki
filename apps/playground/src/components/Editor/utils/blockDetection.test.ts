@@ -79,24 +79,27 @@ describe('detectScriptBlocks', () => {
     expect(blocks[0].content).toBe('');
   });
 
-  it('should not treat ```whiteboard as a workout block', () => {
+  it('treats ```whiteboard as a time dialect workout block alias', () => {
     const content = '```whiteboard\n20:00 AMRAP\n  + 5 Pullups\n```';
 
     const blocks = detectScriptBlocks(content);
-    expect(blocks).toHaveLength(0);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].dialect).toBe('time');
   });
 
-  it('should not match whiteboard fence case-insensitively', () => {
+  it('matches whiteboard fence case-insensitively', () => {
     const content = '```WhiteBoard\n10:00 Run\n```';
 
     const blocks = detectScriptBlocks(content);
-    expect(blocks).toHaveLength(0);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].dialect).toBe('time');
   });
 
-  it('should not detect legacy ```wod or ```plan tags as workout blocks', () => {
-    const legacyWod = detectScriptBlocks('```wod\n10:00 Run\n```');
+  it('detects ```wod as a time dialect workout block while keeping ```plan non-actionable', () => {
+    const wodBlocks = detectScriptBlocks('```wod\n10:00 Run\n```');
     const plan = detectScriptBlocks('```plan\nWeek 1\n```');
-    expect(legacyWod).toHaveLength(0);
+    expect(wodBlocks).toHaveLength(1);
+    expect(wodBlocks[0].dialect).toBe('time');
     expect(plan).toHaveLength(0);
   });
 

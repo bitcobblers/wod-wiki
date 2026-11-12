@@ -403,10 +403,11 @@ export function sourceMatches(
   const sourceId = item.sourceId;
   if (kind === 'all') return !sourceId || WQL_SOURCE_VALUES.some((k) => sourceMatches(item, k));
   if (kind === 'journal') {
-    // One decision: a row journals exactly when the resolver's fallback
-    // places it in notebook/journal — explicit notebookId, notebook: tags,
-    // corpus paths, and sourceId identities all outrank the fallback.
-    return notebookOfItem(item) === 'notebook/journal';
+    // Membership, not the primary projection: a note promoted into a user
+    // notebook keeps its base `notebook/journal` container, so `:journal`
+    // matches exactly what `:notebook{notebook:journal}` matches —
+    // `notebooksOfItem`, not `notebookOfItem`.
+    return notebooksOfItem(item).includes('notebook/journal');
   }
   const shape = sourceShape(kind);
   if (shape) {
@@ -495,6 +496,11 @@ interface CompiledContentRead {
   selection: WqlDomainPredicate[];
   filters: WqlDomainPredicate[];
   residual: boolean;
+  /** True when the parse-authored sourceScope stayed residual (journal/all —
+   *  the wire's source predicate cannot decide them). The wire's
+   *  selectedCount then baselines nothing: the caller counts the complete,
+   *  unpaged candidates after the JS selection stages instead. */
+  scopeResidual: boolean;
 }
 
 /** Compile a plane's content filters for the domain candidate read — only
@@ -506,6 +512,7 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
   const selection: WqlDomainPredicate[] = [];
   const compiled: WqlDomainPredicate[] = [];
   let residual = false;
+  let scopeResidual = false;
   for (const filter of filters) {
     const literal = !filter.negate && filter.values.every((v) => !v.wildcard);
     const values = literal ? filter.values.map((v) => v.value) : [];
@@ -542,7 +549,15 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
     residual = true;
   }
   if (plane === 'note' && sourceScope?.length) {
-    selection.push({ field: 'source', values: sourceScope });
+    if (sourceScope.every((v) => DOMAIN_SOURCE_KINDS[v] === true)) {
+      selection.push({ field: 'source', values: sourceScope });
+    } else {
+      // `journal`/`all` need the resolver's shape exclusions — the wire's
+      // source predicate would select nothing. Stay residual so the JS
+      // stage (applyNoteSelectionStages → sourceMatches) owns the scope.
+      residual = true;
+      scopeResidual = true;
+    }
   }
   // The note plane is inclusive — no defaultNotes clause, no source fence
   // (generic :note surfaces every row). The block plane keeps its
@@ -550,7 +565,7 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
   if (plane === 'block') {
     selection.push({ field: 'sourceFence' });
   }
-  return { selection, filters: compiled, residual };
+  return { selection, filters: compiled, residual, scopeResidual };
 }
 
 /** :note pre-count selection stages — authored source clauses and the
@@ -599,6 +614,27 @@ function domainPaging(
 function runContext(options: { context?: ExecutionContext; anchorNow?: number }): ExecutionContext {
   if (options.context) return options.context;
   return captureContext(options.anchorNow);
+}
+
+/** The container projection and the full placement set per note id —
+ *  `runFind`'s relation payload keyed by note id. */
+interface NoteRelations {
+  containers: Record<string, NoteContainer>;
+  placements: Record<string, NotePlacement[]>;
+}
+
+/** The note's effective window timestamp: the authored `date` wins; an
+ *  undated note takes its journal-page placement's civil date (local noon
+ *  in the run's timezone — the placement IS its date of record); createdAt
+ *  stays the last fallback. */
+function noteEffectiveTimestamp(
+  note: Note,
+  placements: readonly NotePlacement[] | undefined,
+  timeZone: string,
+): number {
+  if (note.date !== undefined) return note.date;
+  const placed = placements?.find((p) => p.date !== undefined)?.date;
+  return placed !== undefined ? zonedNoon(placed, timeZone) : note.createdAt;
 }
 
 /** Time-window predicate for a row (C1 + ticket 12): the query's own window
@@ -1662,7 +1698,12 @@ export class QueryService {
     const selectedFromDomain = domainNotes ? domainNotes.selectedCount : undefined;
     const notesPaged = !!domainNotes && paging.paged;
     notes = applyNoteSelectionStages(notes, parsed);
-    const selectedCount = selectedFromDomain ?? notes.length;
+    // When the source scope stayed residual (journal/all), the wire's
+    // selectedCount baselines the pre-scope population — the JS selection
+    // stages over the complete, unpaged candidates are the truthful count.
+    const selectedCount = selectedFromDomain !== undefined && !read.scopeResidual
+      ? selectedFromDomain
+      : notes.length;
     const ctx = runContext(options);
     // Tag filters — intersect note IDs across OR'd values within a key.
     // Handles general 'tags' plus dynamic typed tags (domain, format, equipment, quality, intent)
@@ -1801,8 +1842,18 @@ export class QueryService {
     }
     // Time window (ticket 12 precedence): an explicit query window wins; the
     // host `range` option supplies the default when the query has none.
+    // Relations resolve BEFORE the cut when a window is active: an undated
+    // note's journal-page placement supplies its effective timestamp, so the
+    // cut needs placements for candidates that would otherwise fall outside
+    // on createdAt alone. The maps are pruned to survivors below.
+    const wantsRelations = !options.skipContainers && notes.length > 0 && Boolean(this.pageStore || this.relationStore);
+    let relations: NoteRelations | undefined;
+    if ((parsed.window || options.range) && wantsRelations) {
+      relations = await this.containersAndPlacements(notes);
+    }
     if (parsed.window || options.range) {
-      notes = notes.filter(n => effectiveTimeWindow(n.date ?? n.createdAt, parsed.window, options.range, ctx));
+      notes = notes.filter(n =>
+        effectiveTimeWindow(noteEffectiveTimestamp(n, relations?.placements[n.id], ctx.timeZone), parsed.window, options.range, ctx));
     }
 
     // Cross-store join (direction 1): keep notes owning a wod block whose
@@ -1831,9 +1882,18 @@ export class QueryService {
       notes = pipes.limit !== undefined ? notes.slice(offset, offset + pipes.limit) : notes.slice(offset);
     }
 
-    const relations = !options.skipContainers && notes.length && (this.pageStore || this.relationStore)
-      ? await this.containersAndPlacements(notes)
-      : undefined;
+    if (!relations && !options.skipContainers && notes.length && (this.pageStore || this.relationStore)) {
+      relations = await this.containersAndPlacements(notes);
+    }
+    if (relations) {
+      // Relations were computed over the pre-window candidates when a window
+      // ran — prune both maps to the surviving notes.
+      const surviving = new Set(notes.map((n) => n.id));
+      relations = {
+        containers: Object.fromEntries(Object.entries(relations.containers).filter(([id]) => surviving.has(id))),
+        placements: Object.fromEntries(Object.entries(relations.placements).filter(([id]) => surviving.has(id))),
+      };
+    }
     return {
       parsed,
       notes,
@@ -1853,10 +1913,7 @@ export class QueryService {
    *  The same read resolves EVERY page the note is placed on: the junction
    *  is many-to-many, so the container is a projection of that set, not the
    *  set itself. */
-  private async containersAndPlacements(notes: Note[]): Promise<{
-    containers: Record<string, NoteContainer>;
-    placements: Record<string, NotePlacement[]>;
-  }> {
+  private async containersAndPlacements(notes: Note[]): Promise<NoteRelations> {
     const containers: Record<string, NoteContainer> = {};
     const placements: Record<string, NotePlacement[]> = {};
     const bundles = this.relationStore

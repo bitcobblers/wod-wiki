@@ -586,7 +586,10 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
                       appears in one stable spot once the run settles (in the
                       empty state, or here when data is on screen). */}
                   {!loading && !resultEmpty && inspectPipelineButton}
-                  {recordsWql && records !== undefined && (
+                  {/* WW-029: an empty calculation must not advertise an
+                      unscoped record count beside "no data" — the records
+                      disclosure only means something when data rendered. */}
+                  {!resultEmpty && recordsWql && records !== undefined && (
                     <button
                       type="button"
                       data-testid="records-toggle"

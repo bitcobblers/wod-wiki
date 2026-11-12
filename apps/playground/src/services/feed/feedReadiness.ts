@@ -18,9 +18,9 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { SEED_BROADCAST_CHANNEL, seedMetaKey } from '@/types/seed';
 import { subscribeSyncActivity } from '@/services/syncActivity';
 import { markBootMilestone } from '@/services/bootDiagnostics';
-import { adoptFeedProvenance, adoptLegacyFeedCheckpoints, adoptNotebookVocabulary, defaultFeedSources, readFeedCoverage, runBootFeedSync, SEED_CLAIM_TTL_MS, subscribeFeedUpdates, type FeedSyncDeps, type FeedSyncOutcome, type FeedSyncProgress } from './feedSync';
+import { adoptFeedProvenance, adoptLegacyFeedCheckpoints, adoptNotebookVocabulary, defaultFeedSources, isFeedImportEnabled, readFeedCoverage, runBootFeedSync, SEED_CLAIM_TTL_MS, subscribeFeedUpdates, type FeedSyncDeps, type FeedSyncOutcome, type FeedSyncProgress } from './feedSync';
 import { mainThreadFeedImportStorage } from './feedStorageDefault';
-import { isFeedSubscribed, migrateFeedSubscriptions } from './feedSubscriptions';
+import { isFeedAutoSync, isFeedSubscribed, migrateFeedSubscriptions } from './feedSubscriptions';
 import { ensurePlaygroundDefaultSubscriptions } from './playgroundFeedBootstrap';
 export type FeedReadiness = 'preparing' | 'ready' | 'error';
 
@@ -219,10 +219,32 @@ let bootstrapPromise: Promise<void> | null = null;
  */
 export function startFeedBootstrap(deps: FeedSyncDeps = {}): Promise<void> {
   markBootMilestone('feedStart');
+  // WW-019: hold the boot-import signal from the synchronous entry — the
+  // checkpoint probes below are async IndexedDB reads, and the gate only
+  // flips once they settle, which left early cold-boot imports invisible
+  // to data-agent-status.
+  if ((deps.isEnabled ?? isFeedImportEnabled)()) setBootImportPending(true);
   bootstrapPromise ??= runFeedBootstrap(deps).finally(() => {
     markBootMilestone('feedSettled');
   });
   return bootstrapPromise;
+}
+
+/** True when a subscribed auto-sync feed still lacks its first checkpoint. */
+async function hasUnimportedAutoSyncFeed(
+  sources: NonNullable<FeedSyncDeps['sources']>,
+  storage: NonNullable<FeedSyncDeps['storage']>,
+): Promise<boolean> {
+  for (const s of sources) {
+    if (s.id === 'core' || !isFeedSubscribed(s.id) || !isFeedAutoSync(s.id)) continue;
+    try {
+      const meta = await storage.getSeedMeta(seedMetaKey(s.id));
+      if (!meta || meta.seedVersion <= 0) return true;
+    } catch {
+      return true; // unreadable checkpoint — let the sync pass resurface the error
+    }
+  }
+  return false;
 }
 
 async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
@@ -256,6 +278,12 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
   if (fresh) {
     freshBootImporting = true;
     markFeedSyncStarted();
+  } else if (await hasUnimportedAutoSyncFeed(all, storage)) {
+    // Interrupted first visit: core landed but a subscribed auto-sync feed
+    // never imported. Keep the boot-import signal up across the background
+    // pass without re-gating the already-committed UI shell (WW-019).
+    freshBootImporting = true;
+    markFeedSyncSettled('current');
   } else {
     markFeedSyncSettled('current');
   }
@@ -301,8 +329,17 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
   // Returning visitor: the vault is queryable offline from the committed
   // core — feeds keep refreshing in the background; their outcomes only
   // reach sync activity, never the gate (no late 'error' flip, no retry).
-  await runBootFeedSync({ ...deps, sources: all, onProgress })
-    .catch((err) => console.error('[feedSync] background boot sync failed', err));
+  try {
+    await runBootFeedSync({ ...deps, sources: all, onProgress })
+      .catch((err) => console.error('[feedSync] background boot sync failed', err));
+  } finally {
+    // Release the WW-019 hold (see the gate decision above) once the pass
+    // settles; a no-op when no hold was taken.
+    if (freshBootImporting) {
+      freshBootImporting = false;
+      setBootImportPending(false);
+    }
+  }
 }
 
 /**

@@ -93,7 +93,10 @@ export class SessionRootBlock extends RuntimeBlock {
         // ====================================================================
         behaviors.push(new CountupTimerBehavior({
             label: sessionLabel,
-            role: 'auto'
+            role: 'auto',
+            // The session clock starts when the WaitingToStart gate pops —
+            // not at mount — so idle wait time never counts as workout time.
+            resetOnFirstNext: true,
         }));
 
         // =====================================================================

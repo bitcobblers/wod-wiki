@@ -182,4 +182,25 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
             expect(stored!.rawContent).toContain('```query');
         }, { timeout: 5000 });
     });
+
+    it('keeps 375px viewports overflow-free — no fixed-width form floors (WW-037)', async () => {
+        renderTags();
+
+        // The page shell clamps itself: full-width, capped content, horizontal
+        // overflow hidden inside the scroll container.
+        const shell = await waitFor(() =>
+            document.querySelector('main .space-y-8, body .space-y-8'),
+        ) as HTMLElement;
+        expect(shell.className).toContain('w-full');
+        expect(shell.className).toContain('min-w-0');
+        expect(shell.className).toContain('overflow-x-hidden');
+        expect(shell.className).toContain('px-4');
+        expect(shell.classList.contains('p-6')).toBe(false);
+
+        // The New tag form no longer carries the 200px Name floor or the
+        // fixed 160px Kind column — both collapse to full width on mobile.
+        const newTagSection = shell.querySelector('#tags-new')!;
+        expect(newTagSection.querySelector('.min-w-\\[200px\\]')).toBeNull();
+        expect(newTagSection.querySelector('.w-40')).toBeNull();
+    });
 });

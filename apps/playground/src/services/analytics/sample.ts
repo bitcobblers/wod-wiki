@@ -32,6 +32,7 @@ const SAMPLE_TAG = 'sample';
 
 const DAY = 86_400_000;
 const WEEK = 7 * DAY;
+const LB_TO_KG = 0.453592;
 
 interface SampleMovement {
   effortSlug: string;
@@ -280,7 +281,9 @@ function buildSessionLogs(session: SampleSession): StoredOutputStatement[] {
   push('Total reps', totalReps, 'reps', 'totalReps', { intensityTier: sessionIntensity });
   push('Time in motion', round1(totalTis), 's', 'tis', { intensityTier: sessionIntensity });
   if (totalVolume > 0) {
-    push('Total volume', round1(totalVolume), 'lb', 'totalVolume', { intensityTier: sessionIntensity });
+    // Canonical mass unit is kg (WW-030): stored lb values made the catalog
+    // disagree with chart units.
+    push('Total volume', round1(totalVolume * LB_TO_KG), 'kg', 'totalVolume', { intensityTier: sessionIntensity });
   }
   if (totalDistance > 0) {
     const distanceDiscipline = session.movements.find((m) => m.distanceMeters && m.distanceMeters > 0)?.discipline;
@@ -296,10 +299,37 @@ function buildSessionLogs(session: SampleSession): StoredOutputStatement[] {
     push('Total reps', m.reps, 'reps', 'totalReps', tags);
     push('Time in motion', m.tisSeconds, 's', 'tis', tags);
     if (movementVolume > 0) {
-      push('Total volume', round1(movementVolume), 'lb', 'totalVolume', tags);
+      push('Total volume', round1(movementVolume * LB_TO_KG), 'kg', 'totalVolume', tags);
     }
     push('Session load', round1(movementVolume / 100 + m.reps + m.tisSeconds / 10), 'AU', 'sessionLoad', tags);
   }
+
+  // Wellness-derived daily rollups (WW-028): the Recovery & Readiness
+  // dashboard queries calc.readiness/hrv/sleep/soreness/monotony/acwr, which
+  // no workout output produces. Values are deterministic per sample day (all
+  // sessions of a week share one timestamp → identical rollups) so charts
+  // render rich, plausible trends without Math.random drift between
+  // export/import round-trips. Units match the calc seeds' outputs ('pts'
+  // carries ms/h magnitudes) so the duration system-default policy never
+  // rescales them.
+  const dayPhase = (salt: number): number => {
+    const x = Math.sin((session.timestamp / DAY) * (12.9898 + salt) + salt * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  const soreness = 2 + Math.round(dayPhase(1) * 4); // rating 2–6
+  const sleepHours = round1(6.8 + dayPhase(2) * 1.6); // h 6.8–8.4
+  const hrvMs = Math.round(52 + dayPhase(3) * 22); // ms 52–74
+  // Composite readiness: soreness-inverted 40% / sleep 30% / HRV 30% —
+  // the same algebra the calc engine's readiness seed publishes.
+  const readiness = round1(((10 - soreness) / 10) * 40 + (sleepHours / 8) * 30 + (hrvMs / 90) * 30);
+  const monotony = round1(1.1 + dayPhase(4) * 0.7); // ratio 1.1–1.8
+  const acwr = round1(0.85 + dayPhase(5) * 0.4); // ratio 0.85–1.25
+  push('Readiness', readiness, 'pts', 'calc.readiness', { intensityTier: sessionIntensity });
+  push('HRV', hrvMs, 'pts', 'calc.hrv', { intensityTier: sessionIntensity });
+  push('Sleep', sleepHours, 'pts', 'calc.sleep', { intensityTier: sessionIntensity });
+  push('Soreness', soreness, 'rating', 'calc.soreness', { intensityTier: sessionIntensity });
+  push('Monotony', monotony, 'ratio', 'calc.monotony', { intensityTier: sessionIntensity });
+  push('ACWR', acwr, 'ratio', 'calc.acwr', { intensityTier: sessionIntensity });
 
   return logs;
 }

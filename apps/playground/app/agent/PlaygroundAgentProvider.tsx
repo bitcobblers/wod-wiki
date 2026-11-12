@@ -23,7 +23,7 @@ import {
   sharedCastSessionManager,
 } from '@/hooks/useCastSignaling';
 import { invalidateSeedContent } from '@/services/content/seedContent';
-import { useFeedReadiness } from '@/services/feed/feedReadiness';
+import { useFeedImportPending, useFeedReadiness } from '@/services/feed/feedReadiness';
 import { refreshPageSources } from '@/services/queryService';
 import { storageService } from '@/services/storage';
 import { useNav } from '../nav/NavContext';
@@ -41,6 +41,139 @@ import {
   uiNavigateSchema,
   uiPreferencesSchema,
 } from './uiToolSpecs';
+
+// ── WW-025: executeTool call-shape normalization ───────────────────────────
+
+const WRAPPED_EXECUTE_TOOL = Symbol('wodWrappedExecuteTool');
+
+/** Structural view of the WebMCP ModelContext pieces the wrapper touches. */
+interface ExecuteToolHost {
+  getTools?: () => Promise<unknown[]>;
+  listTools?: () => Promise<unknown[]>;
+  executeTool(...args: unknown[]): Promise<string>;
+}
+
+type ExecuteToolFn = ExecuteToolHost['executeTool'];
+
+type WrappedExecuteTool = ExecuteToolFn & { [WRAPPED_EXECUTE_TOOL]?: boolean };
+
+type GetToolsFn = () => Promise<unknown[]>;
+
+/** The pieces of a live `RegisteredTool` the wrapper needs to recognize one. */
+interface RegisteredToolLike {
+  name: string;
+  origin: string;
+  window: unknown;
+}
+
+function isRegisteredToolLike(value: unknown): value is RegisteredToolLike {
+  if (typeof value !== 'object' || value === null) return false;
+  return (
+    'name' in value && typeof value.name === 'string' &&
+    'origin' in value && typeof value.origin === 'string' &&
+    'window' in value && typeof value.window === 'object'
+  );
+}
+
+/** Single-envelope call shape: `{ name, arguments | input | params | args }`. */
+interface ToolCallEnvelope {
+  name?: unknown;
+  arguments?: unknown;
+  input?: unknown;
+  params?: unknown;
+  args?: unknown;
+}
+
+function isToolCallEnvelope(value: unknown): value is ToolCallEnvelope {
+  return typeof value === 'object' && value !== null && 'name' in value;
+}
+
+function unwrapEnvelopeInput(envelope: ToolCallEnvelope): object {
+  const raw = envelope.arguments ?? envelope.input ?? envelope.params ?? envelope.args;
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw) as object;
+    } catch {
+      return {};
+    }
+  }
+  return (raw ?? {}) as object;
+}
+
+function normalizeToolInput(toolName: unknown, input: object | undefined): object {
+  const base = (input ?? {}) as Record<string, unknown>;
+  if (toolName === 'ui_navigate' && typeof base.path !== 'string' && typeof base.href === 'string') {
+    let path = base.href.trim();
+    if (/^https?:\/\//i.test(path)) {
+      try {
+        const parsed = new URL(path);
+        path = `${parsed.pathname}${parsed.search}${parsed.hash}` || '/';
+      } catch {
+        // Keep raw string if URL parse fails
+      }
+    }
+    return { ...base, path };
+  }
+  return base;
+}
+
+async function resolveDescriptor(getTools: GetToolsFn, name: unknown, fallback: unknown): Promise<unknown> {
+  if (typeof name === 'string') {
+    const tools = await getTools();
+    const match = tools.find((t) => isRegisteredToolLike(t) && t.name === name);
+    if (match) return match;
+  }
+  if (isRegisteredToolLike(fallback)) return fallback;
+  throw new Error(
+    typeof name === 'string'
+      ? `executeTool: no registered tool named "${name}"`
+      : 'executeTool: expected a registered tool descriptor or a { name, arguments } envelope',
+  );
+}
+
+/**
+ * WW-025: the WebMCP `executeTool` signature is `(RegisteredTool, input?)`,
+ * but agents routinely call `executeTool('ui_preferences', {...})` or the
+ * MCP single envelope `executeTool({ name, arguments })`; the polyfill
+ * defaults the missing input to `{}`, silently dropping every argument.
+ * Installs a shape-normalizing `executeTool` on `mc` idempotently
+ * (StrictMode-safe) so all three call shapes deliver the intended
+ * arguments to the tool handler.
+ */
+export function installModelContextExecuteToolAdapter(mc: unknown): void {
+  if (typeof mc !== 'object' || mc === null) return;
+  const host = mc as ExecuteToolHost;
+  const original = host.executeTool;
+  if (typeof original !== 'function' || (original as WrappedExecuteTool)[WRAPPED_EXECUTE_TOOL]) return;
+  const getTools = async (): Promise<unknown[]> => {
+    if (typeof host.getTools === 'function') return host.getTools();
+    if (typeof host.listTools === 'function') return host.listTools();
+    return [];
+  };
+  const wrapped: ExecuteToolFn = async (...args: unknown[]): Promise<string> => {
+    const [firstArg, secondArg] = args;
+    if (args.length >= 2 && isRegisteredToolLike(firstArg)) {
+      return original.call(
+        host,
+        firstArg,
+        normalizeToolInput(firstArg.name, secondArg as object | undefined),
+        args[2],
+      );
+    }
+    if (typeof firstArg === 'string') {
+      const descriptor = await resolveDescriptor(getTools, firstArg, undefined);
+      return original.call(host, descriptor, normalizeToolInput(firstArg, (secondArg ?? {}) as object), args[2]);
+    }
+    if (isToolCallEnvelope(firstArg)) {
+      const input = normalizeToolInput(firstArg.name, unwrapEnvelopeInput(firstArg));
+      const descriptor = await resolveDescriptor(getTools, firstArg.name, firstArg);
+      return original.call(host, descriptor, input);
+    }
+    return original.apply(host, args);
+  };
+  (wrapped as WrappedExecuteTool)[WRAPPED_EXECUTE_TOOL] = true;
+  Object.defineProperty(host, 'executeTool', { configurable: true, writable: true, value: wrapped });
+}
 
 const DomainWebMcpToolRegistration: React.FC<{ spec: AnyAgentToolSpec }> = ({ spec }) => {
   useEffect(() => {
@@ -111,6 +244,7 @@ export const PlaygroundAgentProvider: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const feedReadiness = useFeedReadiness();
+  const importPending = useFeedImportPending();
   const surfaceBusy = useSurfaceBusy();
   const activeStream = useActiveStreamBridge();
   const activeExplorer = useActiveExplorerBridge();
@@ -140,6 +274,13 @@ export const PlaygroundAgentProvider: React.FC = () => {
           // Ignore non-configurable navigator realms
         }
       }
+      // WW-025: normalize executeTool call shapes on both contexts (the
+      // mirrored navigator getter resolves to the same object, so at most
+      // one install per backing object; the install is StrictMode-idempotent).
+      const docMc = docWithMc.modelContext;
+      const navMc = navWithMc.modelContext;
+      installModelContextExecuteToolAdapter(docMc);
+      if (navMc !== docMc) installModelContextExecuteToolAdapter(navMc);
     }
   }, []);
 
@@ -202,8 +343,9 @@ export const PlaygroundAgentProvider: React.FC = () => {
           : null;
       const out = {
         hydrated: document.body.dataset.appHydrated === 'true',
-        status: surfaceBusy || feedReadiness === 'preparing' ? 'loading' : 'ready',
+        status: surfaceBusy || feedReadiness === 'preparing' || importPending ? 'loading' : 'ready',
         feedReadiness,
+        importPending,
         route: {
           pathname: location.pathname,
           search: location.search,

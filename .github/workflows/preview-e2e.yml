@@ -216,6 +216,10 @@ jobs:
         if: steps.download_blobs.outcome == 'success'
         run: bun x playwright merge-reports --config playwright.merge.config.ts ./all-blob-reports
 
+      - name: Post-process Playwright HTML report (specs & annotations)
+        if: steps.merge_reports.outcome == 'success'
+        run: bun run report:postprocess
+
       - name: Collect Playground E2E stats
         id: preview_stats
         if: always()

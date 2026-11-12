@@ -504,9 +504,13 @@ export function projectSessionClock(
   // Hero clock value
   const activeDirection: TimerDirection = active?.timer.direction ?? 'up';
   const activeDurationMs = active?.timer.durationMs;
-  const activeSpans = active ? serializeSpans(active.timer.spans) : [];
+  // WaitingToStart gate: the workout has not started yet — the hero and
+  // session clocks stay at 00:00 even though SessionRoot's mount span is
+  // already open behind the gate (never tick 00:07 before the athlete starts).
+  const isWaitingToStart = blocks[0]?.blockType === 'WaitingToStart';
+  const activeSpans = active && !isWaitingToStart ? serializeSpans(active.timer.spans) : [];
   let displayMs = 0;
-  if (active) {
+  if (active && !isWaitingToStart) {
     const elapsed = calculateDuration(active.timer.spans, nowMs);
     displayMs =
       activeDirection === 'down' && activeDurationMs !== undefined
@@ -525,8 +529,8 @@ export function projectSessionClock(
       (best, cur) => (cur.elapsed > (best?.elapsed ?? -1) ? cur : best),
       withElapsed[withElapsed.length - 1],
     );
-  const sessionElapsedMs = sessionHolder?.elapsed ?? 0;
-  const sessionSpans = sessionHolder ? serializeSpans(sessionHolder.entry.timer.spans) : [];
+  const sessionElapsedMs = isWaitingToStart ? 0 : sessionHolder?.elapsed ?? 0;
+  const sessionSpans = sessionHolder && !isWaitingToStart ? serializeSpans(sessionHolder.entry.timer.spans) : [];
 
   // Deduplicated secondary timers: exclude active hero clock, session clock, and hidden role.
   const activeKey = active?.block.key.toString();

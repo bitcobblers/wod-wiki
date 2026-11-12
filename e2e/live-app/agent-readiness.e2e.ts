@@ -13,7 +13,9 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
     // Static Layer 4 discovery documents
     const llmsRes = await page.request.get('/llms.txt');
     expect(llmsRes.status()).toBe(200);
-    expect(await llmsRes.text()).toContain('navigator.modelContext');
+    const llmsBody = await llmsRes.text();
+    expect(llmsBody).toContain('navigator.modelContext');
+    expect(llmsBody).toContain('22 portable domain tools + 9 live React UI/Clock tools');
 
     const capRes = await page.request.get('/.well-known/agent-capabilities.json');
     expect(capRes.status()).toBe(200);
@@ -52,10 +54,12 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
 
     // Verify ui_preferences reads and toggles theme cleanly
     const prefsOut = await page.evaluate(async () => {
-      const mc = document.modelContext as unknown as {
-        getTools(): Promise<Array<{ name: string }>>;
-        executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
-      };
+      const mc = (document as unknown as {
+        modelContext: {
+          getTools(): Promise<Array<{ name: string }>>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContext;
       const tools = await mc.getTools();
       const prefs = tools.find((t) => t.name === 'ui_preferences');
       if (!prefs) throw new Error('ui_preferences missing');
@@ -64,12 +68,45 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
     expect(prefsOut).toContain('dark');
     await expect(page.locator('html')).toHaveClass(/dark/);
 
+    // WW-025: single-envelope navigator.modelContext.executeTool({ name, arguments }) also delivers arguments
+    const singleEnvelopeOut = await page.evaluate(async () => {
+      const mc = (navigator as unknown as {
+        modelContext: {
+          listTools(): Array<{ name: string; description?: string }>;
+          executeTool(envelope: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContext;
+      const prefs = mc.listTools().find((t) => t.name === 'ui_preferences');
+      if (!prefs) throw new Error('ui_preferences missing on navigator.modelContext');
+      return mc.executeTool({
+        name: 'ui_preferences',
+        description: prefs.description ?? '',
+        origin: window.location.origin,
+        window,
+        arguments: { action: 'set', theme: 'light' },
+      });
+    });
+    expect(singleEnvelopeOut).toContain('light');
+    await expect(page.locator('html')).toHaveClass(/(^|\s)light(\s|$)/);
+
+    // Switch back to dark via name+args convenience form
+    await page.evaluate(async () => {
+      const mc = (navigator as unknown as {
+        modelContext: {
+          executeTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContext;
+      return mc.executeTool('ui_preferences', { action: 'set', theme: 'dark' });
+    });
+    await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
     // Create a workout Note via WebMCP domain tool
     const created = await page.evaluate(async () => {
-      const mc = document.modelContext as unknown as {
-        getTools(): Promise<Array<{ name: string }>>;
-        executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
-      };
+      const mc = (document as unknown as {
+        modelContext: {
+          getTools(): Promise<Array<{ name: string }>>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContext;
       const tools = await mc.getTools();
       const upsert = tools.find((t) => t.name === 'wod_note_upsert');
       if (!upsert) throw new Error('wod_note_upsert missing');
@@ -87,10 +124,12 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
 
     // Navigate to /note/:noteId via ui_navigate WebMCP UI tool
     await page.evaluate(async (targetPath) => {
-      const mc = document.modelContext as unknown as {
-        getTools(): Promise<Array<{ name: string }>>;
-        executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
-      };
+      const mc = (document as unknown as {
+        modelContext: {
+          getTools(): Promise<Array<{ name: string }>>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContext;
       const tools = await mc.getTools();
       const nav = tools.find((t) => t.name === 'ui_navigate');
       if (!nav) throw new Error('ui_navigate missing');
@@ -113,10 +152,12 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
 
     // Launch live workout clock via ui_start_live_workout
     await page.evaluate(async () => {
-      const mc = document.modelContext as unknown as {
-        getTools(): Promise<Array<{ name: string }>>;
-        executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
-      };
+      const mc = (document as unknown as {
+        modelContext: {
+          getTools(): Promise<Array<{ name: string }>>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContext;
       const tools = await mc.getTools();
       const startLive = tools.find((t) => t.name === 'ui_start_live_workout');
       if (!startLive) throw new Error('ui_start_live_workout missing');
@@ -136,10 +177,12 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       .toContain('ui_clock_control');
 
     const clockStatusRaw = await page.evaluate(async () => {
-      const mc = document.modelContext as unknown as {
-        getTools(): Promise<Array<{ name: string }>>;
-        executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
-      };
+      const mc = (document as unknown as {
+        modelContext: {
+          getTools(): Promise<Array<{ name: string }>>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContext;
       const tools = await mc.getTools();
       const clockTool = tools.find((t) => t.name === 'ui_clock_control');
       if (!clockTool) throw new Error('ui_clock_control missing');
@@ -158,10 +201,12 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
 
     // Create disposable note
     const noteId = await page.evaluate(async () => {
-      const mc = document.modelContext as unknown as {
-        getTools(): Promise<Array<{ name: string }>>;
-        executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
-      };
+      const mc = (document as unknown as {
+        modelContext: {
+          getTools(): Promise<Array<{ name: string }>>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContext;
       const tools = await mc.getTools();
       const upsert = tools.find((t) => t.name === 'wod_note_upsert')!;
       const raw = await mc.executeTool(upsert, {
@@ -179,10 +224,12 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
 
     // 1. Trigger wod_note_delete WITHOUT confirmId -> must open AgentConfirmHost modal
     const deniedPromise = page.evaluate(async (id) => {
-      const mc = document.modelContext as unknown as {
-        getTools(): Promise<Array<{ name: string }>>;
-        executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
-      };
+      const mc = (document as unknown as {
+        modelContext: {
+          getTools(): Promise<Array<{ name: string }>>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContext;
       const tools = await mc.getTools();
       const del = tools.find((t) => t.name === 'wod_note_delete')!;
       try {
@@ -206,10 +253,12 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
 
     // 2. Trigger wod_note_delete again and click Approve Action
     const approvedPromise = page.evaluate(async (id) => {
-      const mc = document.modelContext as unknown as {
-        getTools(): Promise<Array<{ name: string }>>;
-        executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
-      };
+      const mc = (document as unknown as {
+        modelContext: {
+          getTools(): Promise<Array<{ name: string }>>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContext;
       const tools = await mc.getTools();
       const del = tools.find((t) => t.name === 'wod_note_delete')!;
       return mc.executeTool(del, { noteId: id });
@@ -233,6 +282,12 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
 
     const mainAria = await page.locator('main').first().ariaSnapshot();
     expect(mainAria).toBeTruthy();
+
+    // WW-026: Unknown route preserves <main data-agent-status="ready"> and <nav> landmarks
+    await page.goto('/does-not-exist-qa');
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await expect(page.locator('main')).toHaveAttribute('data-agent-status', 'ready');
+    expect(await page.locator('nav').count()).toBeGreaterThan(0);
     app.assertCleanConsole();
   });
 });

@@ -11,8 +11,14 @@ import {
 import { resetFeedSubscriptionsForTest } from './feedSubscriptions';
 import {
   playgroundFeedCatalogStore,
+  resolveFeedDisplayDescription,
   saveFeedCatalogManifest,
 } from './feedCatalog';
+import { feedSourceById } from './feedSources';
+
+const HYROX_CURATED_DESCRIPTION = 'HYROX race preparation and simulation workouts.';
+const CLI_BOILERPLATE_DESCRIPTION =
+  'wod-wiki-sport-hyrox — a Wod.Wiki community seed source: grouped notebooks validated and compiled into versioned seed artifacts by the wod CLI from @bitcobblers/wod-wiki-tools.';
 
 describe('feedCatalog display label precedence (WW-015)', () => {
   let host: PlaygroundHostHandle | null = null;
@@ -112,5 +118,46 @@ describe('feedCatalog display label precedence (WW-015)', () => {
     const feeds = await playgroundFeedCatalogStore.getAllFeeds();
     expect(feeds.find((row) => row.id === unnamedCustom.id)?.label).toBe('Kettlebell Archive');
     expect(feeds.find((row) => row.id === namedCustom.id)?.label).toBe('Coach Jane');
+  });
+
+  it('preserves curated HYROX label and description when a cached manifest ships CLI boilerplate copy (WW-015)', async () => {
+    const cachedManifest: SeedManifest = {
+      schema: 9,
+      version: 1731400000001,
+      builtAt: '2026-11-12T07:00:00.000Z',
+      name: 'wod-wiki-sport-hyrox',
+      description: CLI_BOILERPLATE_DESCRIPTION,
+      chunks: [],
+    };
+
+    await saveFeedCatalogManifest('sport-hyrox', cachedManifest);
+
+    const feeds = await playgroundFeedCatalogStore.getAllFeeds();
+    const hyrox = feeds.find((row) => row.id === 'sport-hyrox');
+    expect(hyrox?.label).toBe('HYROX');
+    expect(hyrox?.description).toBe(HYROX_CURATED_DESCRIPTION);
+    expect(hyrox?.description).not.toContain('a Wod.Wiki community seed source');
+  });
+
+  it('resolveFeedDisplayDescription prefers curated copy over CLI boilerplate and falls back to the manifest', () => {
+    const sportHyrox = feedSourceById('sport-hyrox');
+    expect(sportHyrox).toBeDefined();
+
+    // Curated copy beats generic CLI boilerplate from the manifest.
+    expect(resolveFeedDisplayDescription(sportHyrox!, { description: CLI_BOILERPLATE_DESCRIPTION } as SeedManifest)).toBe(
+      HYROX_CURATED_DESCRIPTION,
+    );
+    // A non-generic manifest description still loses to curated copy.
+    expect(resolveFeedDisplayDescription(sportHyrox!, { description: 'Published HYROX workouts' } as SeedManifest)).toBe(
+      HYROX_CURATED_DESCRIPTION,
+    );
+
+    // A custom source without curated copy takes the manifest description.
+    const custom = { id: 'custom-x', url: 'https://feeds.example.org/x/', label: 'X' } as Parameters<typeof resolveFeedDisplayDescription>[0];
+    expect(resolveFeedDisplayDescription(custom, { description: '  Archived kettlebell library  ' } as SeedManifest)).toBe(
+      'Archived kettlebell library',
+    );
+    // No curated copy, no manifest copy → undefined.
+    expect(resolveFeedDisplayDescription(custom)).toBeUndefined();
   });
 });

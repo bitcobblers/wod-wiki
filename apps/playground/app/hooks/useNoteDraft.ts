@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { NoteBlock } from '@/types/storage';
 import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import { revertBlock } from '@/components/organisms/editor/BlockHistory';
@@ -7,11 +7,30 @@ import { notePersistence } from '@/services/persistence';
 import type { EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor';
 import { useEditorSave } from './useEditorSave';
 
-const pendingNoteSaves = new Map<string, Promise<unknown>>();
+import {
+  clearStagedNoteSave,
+  pendingNoteSaves,
+  readStagedNoteSaves,
+  replayStagedNoteSaves,
+  stageNoteSave,
+  waitForAllPendingNoteSaves,
+  waitForPendingNoteSave,
+  type StagedNoteSave,
+} from '@/services/persistence/pendingNoteSaves';
 
-export function waitForPendingNoteSave(noteId: string): Promise<void> {
-  const active = pendingNoteSaves.get(noteId);
-  return active ? active.then(() => undefined, () => undefined) : Promise.resolve();
+export {
+  replayStagedNoteSaves,
+  waitForAllPendingNoteSaves,
+  waitForPendingNoteSave,
+  type StagedNoteSave,
+};
+
+/** Title derivation shared by live saves and staged replays: a leading H1
+ *  wins over the loaded metadata title. */
+function derivedTitle(rawContent: string, metadata?: { title?: string }): { title?: string } | undefined {
+  const headingMatch = rawContent.match(/^#\s+(.+)$/m);
+  const title = headingMatch ? headingMatch[1].trim() : metadata?.title;
+  return title ? { title } : undefined;
 }
 export interface UseNoteDraftOptions {
   noteId: string;
@@ -59,6 +78,9 @@ export function useNoteDraft({
     blocks: committed.blocks,
     sourceRevision: committed.sourceRevision,
   });
+  const savedSnapshotRef = useRef<EditorIdentitySnapshot | null>(null);
+  const metadataRef = useRef(metadata);
+  metadataRef.current = metadata;
   const loadedNoteIdRef = useRef<string | null>(null);
 
   // When a note finishes loading, install its source and blocks once
@@ -66,11 +88,13 @@ export function useNoteDraft({
     loadedNoteIdRef.current = noteId;
     committedRevisionRef.current = initialRevision;
     draftRef.current = { rawContent: initialContent, blocks: initialBlocks, sourceRevision: initialRevision };
+    savedSnapshotRef.current = draftRef.current;
     setCommitted({ blocks: initialBlocks, sourceRevision: initialRevision });
   }
 
   const accept = useCallback((saved: EditorIdentitySnapshot) => {
     committedRevisionRef.current = saved.sourceRevision;
+    savedSnapshotRef.current = saved;
     const draft = draftRef.current;
     const sameDraft = draft.rawContent === saved.rawContent && areBlocksEqual(draft.blocks, saved.blocks);
     setCommitted(prev => ({ blocks: sameDraft ? saved.blocks : prev.blocks, sourceRevision: saved.sourceRevision }));
@@ -78,9 +102,7 @@ export function useNoteDraft({
   }, [onSavedRecord]);
 
   const save = useCallback(async (snapshot: EditorIdentitySnapshot) => {
-    const headingMatch = snapshot.rawContent.match(/^#\s+(.+)$/m);
-    const derivedTitle = headingMatch ? headingMatch[1].trim() : metadata?.title;
-    const effectiveMetadata = { ...metadata, ...(derivedTitle ? { title: derivedTitle } : {}) };
+    const effectiveMetadata = { ...metadata, ...derivedTitle(snapshot.rawContent, metadata) };
     const savePromise = notePersistence.saveNote({
       noteId,
       rawContent: snapshot.rawContent,
@@ -95,6 +117,9 @@ export function useNoteDraft({
         pendingNoteSaves.delete(noteId);
       }
     });
+    // This exact snapshot is durable now — drop the staged pagehide copy of it.
+    const staged = readStagedNoteSaves()[noteId];
+    if (staged && staged.rawContent === snapshot.rawContent) clearStagedNoteSave(noteId);
     const snapshotSaved: EditorIdentitySnapshot = {
       rawContent: updated.rawContent,
       blocks: updated.blocks ?? {},
@@ -110,11 +135,46 @@ export function useNoteDraft({
     onError: err => setActionError(`Save failed. ${err instanceof Error ? err.message : String(err)} Your draft is kept. Retry saving.`),
   });
 
+  const stageDirtyDraft = useCallback((draft: EditorIdentitySnapshot) => {
+    const title = derivedTitle(draft.rawContent, metadataRef.current);
+    stageNoteSave({
+      noteId,
+      rawContent: draft.rawContent,
+      blocks: draft.blocks,
+      expectedSourceRevision: committedRevisionRef.current,
+      ...(title ? { metadata: title } : {}),
+      noteType,
+      stagedAt: Date.now(),
+    });
+  }, [noteId, noteType]);
+
+  // Hard unload race: the async IndexedDB save dies with the document, so the
+  // dirty draft is parked in localStorage synchronously and replayed on the
+  // next page load (waitForPendingNoteSave / IndexedDBContentProvider reads).
+  useEffect(() => {
+    const onUnload = () => {
+      const draft = draftRef.current;
+      const saved = savedSnapshotRef.current;
+      if (!draft) return;
+      if (saved && saved.rawContent === draft.rawContent && areBlocksEqual(saved.blocks, draft.blocks)) return;
+      stageDirtyDraft(draft);
+    };
+    window.addEventListener('pagehide', onUnload);
+    window.addEventListener('beforeunload', onUnload);
+    return () => {
+      window.removeEventListener('pagehide', onUnload);
+      window.removeEventListener('beforeunload', onUnload);
+    };
+  }, [stageDirtyDraft]);
+
   const onIdentityChange = useCallback((snapshot: EditorIdentitySnapshot) => {
     const changed = draftRef.current.rawContent !== snapshot.rawContent || !areBlocksEqual(draftRef.current.blocks, snapshot.blocks);
     draftRef.current = snapshot;
-    if (changed) saves.onChange(snapshot);
-  }, [saves.onChange]);
+    if (changed) {
+      saves.onChange(snapshot);
+      stageDirtyDraft(snapshot);
+    }
+  }, [saves.onChange, stageDirtyDraft]);
 
   const onSourceMutate = useCallback((nextContent: string) => {
     setRestoredContent(null);

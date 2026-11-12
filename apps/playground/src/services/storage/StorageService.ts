@@ -295,31 +295,42 @@ export class StorageService implements NotePersistenceStorage {
       ['notes', 'note_tags', 'tags', 'page_notes', 'page'],
       'readonly',
       async (tx) => {
-        for (const noteId of noteIds) {
-          const note = await tx.readonly('notes').get(noteId);
-
-
-          const links = await tx.readonly('page_notes').getAllFromIndex('by-note', noteId);
-          const tagsStore = tx.readonly('tags');
-          const tags: Tag[] = [];
-          for (const link of await tx.readonly('note_tags').getAllFromIndex('by-note', noteId)) {
-            const tag = await tagsStore.get(link.tagId);
-            if (tag) tags.push(tag);
-          }
-          const pagesStore = tx.readonly('page');
-          const pages: Page[] = [];
-          for (const link of links) {
-            const page = await pagesStore.get(link.pageId);
-            if (page) pages.push(page);
-          }
-
+        // Same bulk pattern as the seed importer (engine/seed/runtime): 5
+        // batched requests in ONE transaction instead of ~5 sequential
+        // round-trips per note (1,639 notes were a 6-13s stall on /notes).
+        const uniqueIds = [...new Set(noteIds)];
+        const [notes, pageLinkGroups, tagLinkGroups] = await Promise.all([
+          tx.readonly('notes').getMany(uniqueIds),
+          tx.readonly('page_notes').getAllFromIndexMany('by-note', uniqueIds),
+          tx.readonly('note_tags').getAllFromIndexMany('by-note', uniqueIds),
+        ]);
+        const tagIds = new Set<string>();
+        const pageIds = new Set<string>();
+        for (const group of tagLinkGroups) for (const link of group) tagIds.add(link.tagId);
+        for (const group of pageLinkGroups) for (const link of group) pageIds.add(link.pageId);
+        const [tagRows, pageRows] = await Promise.all([
+          tx.readonly('tags').getMany([...tagIds]),
+          tx.readonly('page').getMany([...pageIds]),
+        ]);
+        const tagById = new Map([...tagIds].map((id, i) => [id, tagRows[i]]));
+        const pageById = new Map([...pageIds].map((id, i) => [id, pageRows[i]]));
+        for (const [i, noteId] of uniqueIds.entries()) {
+          const note = notes[i];
+          // Absent ids stay absent — same fail-closed contract as the
+          // remote detail plan.
           if (!note) continue;
-
+          const links = pageLinkGroups[i]!;
           out.set(noteId, {
             note,
-            tags,
+            tags: tagLinkGroups[i]!.flatMap((link) => {
+              const tag = tagById.get(link.tagId);
+              return tag ? [tag] : [];
+            }),
             links,
-            pages,
+            pages: links.flatMap((link) => {
+              const page = pageById.get(link.pageId);
+              return page ? [page] : [];
+            }),
           });
         }
         return out;

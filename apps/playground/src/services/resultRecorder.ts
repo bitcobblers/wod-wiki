@@ -41,6 +41,7 @@ export function createResultRecorder(writer: ResultWriter): ResultRecorder {
   return {
     async record({ resultId, data, createdAt }) {
       const result = await writer.finishSession(resultId, data, createdAt);
+      clearPendingUnloadResult(resultId);
       notifyResultSaved(result);
       return result;
     },
@@ -48,3 +49,93 @@ export function createResultRecorder(writer: ResultWriter): ResultRecorder {
 }
 
 export const playgroundRecorder = createResultRecorder(notePersistence);
+
+// ── Hard-unload durability (WW-012) ─────────────────────────────────────
+// A real browser reload kills the async IndexedDB completion write mid-flight
+// (document teardown), leaving the sessions store empty. Halting runs park
+// their partial result here SYNCHRONOUSLY before the async write starts; the
+// next page load flushes it into IndexedDB.
+
+export interface PendingUnloadResult {
+  resultId: string;
+  noteId?: string;
+  blockId?: string;
+  data: Sessions;
+  createdAt: number;
+  origin?: ResultOrigin;
+}
+
+const PENDING_UNLOAD_KEY = 'wodwiki:pending-halted-sessions:v1';
+
+function readPendingUnloadResults(): Record<string, PendingUnloadResult> {
+  try {
+    const raw = localStorage.getItem(PENDING_UNLOAD_KEY);
+    const value: unknown = raw ? JSON.parse(raw) : {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const parsed: Record<string, PendingUnloadResult> = {};
+    for (const [resultId, entry] of Object.entries(value)) {
+      const candidate = entry as Partial<PendingUnloadResult>;
+      if (candidate && typeof candidate.resultId === 'string' && candidate.data && typeof candidate.createdAt === 'number') {
+        parsed[resultId] = { ...candidate, resultId } as PendingUnloadResult;
+      }
+    }
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function writePendingUnloadResults(map: Record<string, PendingUnloadResult>): void {
+  try {
+    if (Object.keys(map).length === 0) localStorage.removeItem(PENDING_UNLOAD_KEY);
+    else localStorage.setItem(PENDING_UNLOAD_KEY, JSON.stringify(map));
+  } catch {
+    // Storage unavailable (private mode): staging is best-effort.
+  }
+}
+
+export function stagePendingUnloadResult(input: PendingUnloadResult): void {
+  const map = readPendingUnloadResults();
+  map[input.resultId] = input;
+  writePendingUnloadResults(map);
+}
+
+export function clearPendingUnloadResult(sessionId: string): void {
+  const map = readPendingUnloadResults();
+  if (!(sessionId in map)) return;
+  delete map[sessionId];
+  writePendingUnloadResults(map);
+}
+
+let flushUnloadPromise: Promise<void> | null = null;
+
+/** Commit every staged unload result into IndexedDB. Deduped single-flight;
+ *  entries are dropped even when the write fails so they cannot poison
+ *  later flushes. */
+export function flushPendingUnloadResults(recorder: ResultRecorder = playgroundRecorder): Promise<void> {
+  flushUnloadPromise ??= (async () => {
+    const pending = readPendingUnloadResults();
+    for (const entry of Object.values(pending)) {
+      try {
+        await recorder.record({
+          resultId: entry.resultId,
+          noteId: entry.noteId ?? '',
+          blockId: entry.blockId ?? '',
+          data: entry.data,
+          createdAt: entry.createdAt,
+          ...(entry.origin ? { origin: entry.origin } : {}),
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes('Session not found')) {
+          appError('resultRecorder', 'pending unload flush failed:', err);
+        }
+      }
+      clearPendingUnloadResult(entry.resultId);
+    }
+  })().finally(() => { flushUnloadPromise = null; });
+  return flushUnloadPromise;
+}
+
+// On load, commit anything a killed page left staged before routes read.
+if (typeof window !== 'undefined') void flushPendingUnloadResults();

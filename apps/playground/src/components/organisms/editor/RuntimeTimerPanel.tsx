@@ -28,6 +28,7 @@ import { PanelSizeProvider, usePanelSize } from "@/panels/panel-system/PanelSize
 import { ScriptRuntimeProvider, useRuntimeExecution, type UseRuntimeExecutionReturn, NextEvent, ScriptRuntime } from "@/hooks/useRuntimeTimer";
 import type { IScriptRuntime, StackSnapshot } from "@/hooks/useRuntimeTimer";
 import { clearHaltedRun, getHaltedRun, recordHaltedRun, useActiveRunStore } from "@/stores/activeRunStore";
+import { stagePendingUnloadResult } from "@/hooks/useWorkbenchServices";
 import { sessionDetailPath } from "@/lib/routes";
 import { getActiveCastTransport } from "@/hooks/useCastSignaling";
 import { useSessionCastBridge } from "@/hooks/useSessionCastBridge";
@@ -645,6 +646,27 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
       outputCount > 0 ||
       hasFiredRunStartedRef.current) &&
     execution.status !== 'completed';
+  // Synchronous partial-session staging for hard reloads (WW-012): the async
+  // IndexedDB write started by stopAndReport is killed by document teardown,
+  // so the partial result is parked in localStorage FIRST and flushed into
+  // IndexedDB on the next page load (flushPendingUnloadResults).
+  const stagePartialUnload = useCallback(() => {
+    if (!runtime) return;
+    runtime.finalizeAnalytics();
+    const results = buildSessions(runtime.getOutputStatements(), {
+      startTime: execution.startTime ?? undefined,
+      elapsedTime: execution.elapsedTime,
+      completed: false,
+      now: runtime.nowProvider,
+    });
+    stagePendingUnloadResult({
+      resultId: resolvedSessionId || block.id,
+      ...(resolvedNoteId ? { noteId: resolvedNoteId } : {}),
+      blockId: block.id,
+      data: results,
+      createdAt: Date.now(),
+    });
+  }, [runtime, execution.elapsedTime, execution.startTime, block.id, resolvedSessionId, resolvedNoteId]);
   const unloadStateRef = useRef({
     isLive: isLiveRun,
     sessionId: resolvedSessionId,
@@ -652,6 +674,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     workoutTitle: workoutIdentity.workoutTitle,
     elapsedMs: execution.elapsedTime,
     stopAndReport,
+    stagePartialUnload,
   });
   unloadStateRef.current = {
     isLive: isLiveRun,
@@ -660,6 +683,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     workoutTitle: workoutIdentity.workoutTitle,
     elapsedMs: execution.elapsedTime,
     stopAndReport,
+    stagePartialUnload,
   };
 
   useEffect(() => {
@@ -678,6 +702,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
         timestamp: Date.now(),
         elapsedMs: current.elapsedMs,
       });
+      current.stagePartialUnload();
       current.stopAndReport();
     };
     window.addEventListener('beforeunload', handleUnload);

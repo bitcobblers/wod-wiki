@@ -32,6 +32,13 @@ export {
   supportsDirectoryPicker,
 } from '@/services/ExportImportService';
 
+// ── Unload session durability ─────────────────────────────────────────────
+export {
+  createResultRecorder,
+  flushPendingUnloadResults,
+  stagePendingUnloadResult,
+} from '@/services/resultRecorder';
+
 // ── React hook ────────────────────────────────────────────────────────────
 
 import { getAnalyticsFromLogs } from '@bitcobblers/wod-wiki-engine';

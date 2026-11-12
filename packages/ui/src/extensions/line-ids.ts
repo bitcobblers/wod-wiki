@@ -40,7 +40,7 @@ export const lineIdsExtension = ViewPlugin.fromClass(
             if (!label) label = timestamp;
           }
           id = label.toLowerCase().replace(/[^\w]+/g, "-");
-        } else if (/^```(time|log)/.test(trimmed)) {
+        } else if (/^```(time|wod|whiteboard|log)/i.test(trimmed)) {
           id = `workout-line-${i}`;
         }
 

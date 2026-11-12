@@ -8,7 +8,8 @@
  * 4. If date param provided → validates via parseJournalDate()
  * 5. If date is today or future → creates journal entry and redirects to /day/:dateKey
  * 6. If date is past → sets pending-confirmation state (caller shows backdate modal)
- * 7. If zip is missing or invalid → redirects to /journal with error toast
+ * 7. If zip is missing → recoverable 'missing-zip' state (caller shows the
+ *    upload fallback) — no silent bounce away from /load/journal (WW-031)
  *
  * Loading state while decoding and error state with retry option are also handled.
  */
@@ -38,7 +39,8 @@ export interface JournalZipProcessorState {
     | 'pending-confirmation'
     | 'creating'
     | 'success'
-    | 'error';
+    | 'error'
+    | 'missing-zip';
   content?: string;
   dateKey?: string;
   error?: string;
@@ -68,8 +70,9 @@ export function useJournalZipProcessor(deps: UseJournalZipProcessorDeps = {}): J
     }
 
     if (!zip) {
-      // No zip parameter on initial mount — redirect to journal
-      navigate(ROUTE_PATTERNS.journal, { replace: true });
+      // No zip parameter — a recoverable state: the page surfaces a file
+      // upload fallback instead of silently bouncing to /journal (WW-031).
+      setState({ state: 'missing-zip' });
       return;
     }
 
@@ -174,8 +177,8 @@ export function useJournalZipProcessor(deps: UseJournalZipProcessorDeps = {}): J
         })) as { id: string };
 
         if (!cancelled) {
-          setState({ state: 'success', content, dateKey });
           navigate(notePath(note.id), { replace: true });
+          setState({ state: 'success', content, dateKey });
         }
       } catch (err) {
         console.error('Failed to create journal entry:', err);

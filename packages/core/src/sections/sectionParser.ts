@@ -17,10 +17,18 @@ const KNOWN_QUERY_WIDGET_TYPES: Readonly<Record<string, true>> = {
   'zone-distribution': true,
 };
 
+const TIME_DIALECT_FENCE_ALIASES: Readonly<Record<string, 'time' | 'log'>> = {
+  time: 'time',
+  wod: 'time',
+  whiteboard: 'time',
+  log: 'log',
+};
+
 export function matchDialectFence(trimmedLine: string): { dialect: 'time' | 'log'; sport?: string } | null {
-  const match = trimmedLine.match(/^`{3,}(time|log)(?::([\w-]+))?\s*$/i);
+  const match = trimmedLine.match(/^`{3,}(time|wod|whiteboard|log)(?::([\w-]+))?\s*$/i);
   if (!match) return null;
-  return { dialect: match[1].toLowerCase() === 'time' ? 'time' : 'log', ...(match[2] ? { sport: match[2] } : {}) };
+  const dialect = TIME_DIALECT_FENCE_ALIASES[match[1].toLowerCase()];
+  return { dialect, ...(match[2] ? { sport: match[2] } : {}) };
 }
 
 export interface SectionRecognitionOptions {

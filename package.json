@@ -70,6 +70,7 @@
     "test:e2e": "bun run test:playground",
     "test:e2e:preview": "bun run build:app && E2E_TARGET=preview bun x playwright test --config playwright.journal.config.ts",
     "test:e2e:storybook": "bun x playwright test --config playwright.storybook.config.ts",
+    "report:postprocess": "bun scripts/postprocess-playwright-report.ts",
     "generate:seed": "bun scripts/sync-seed.ts",
     "migrate:seeds": "bun scripts/migrate-seed-markdown.ts",
     "sync:skills": "bun scripts/sync-skills.ts",

@@ -156,4 +156,82 @@ test.describe('RUN-01 — Wall Clock & FastClock Execution Protocols', () => {
 
     app.assertCleanConsole();
   });
+
+  test('recognizes wod + time fences, holds Ready-to-Start clock at 00:00, formats MET Minutes, and persists partial session across mid-run reload', async ({
+    app,
+  }) => {
+    const { page } = app;
+    const noteId = `qa-runtime-round2-${Date.now()}`;
+    await app.seed.note(
+      noteId,
+      [
+        '# QA Runtime Round 2',
+        '',
+        '```time',
+        '20:00 AMRAP',
+        '  10 Burpees',
+        '  15 Kettlebell Swings 24kg',
+        '```',
+        '',
+        '```wod',
+        '3 Rounds',
+        '  12 Wall Balls 20lb',
+        '```',
+      ].join('\n'),
+      { title: 'QA Runtime Round 2' },
+    );
+
+    await app.goto(`/note/${noteId}`);
+
+    // Runtime finding #6: both ```time and ```wod fences register as runnable workout blocks
+    await expect
+      .poll(async () => {
+        return page.evaluate(() => {
+          const el = document.getElementById('agent-view-state');
+          if (!el?.textContent) return 0;
+          const parsed = JSON.parse(el.textContent) as {
+            editor?: { workoutBlockIds?: string[] } | null;
+          };
+          return parsed.editor?.workoutBlockIds?.length ?? 0;
+        });
+      })
+      .toBe(2);
+
+    // Launch first workout block into timer overlay
+    await page.getByRole('button', { name: /^Run$/i }).first().click();
+    await expect(page.getByRole('heading', { name: 'Ready to Start' })).toBeVisible({ timeout: 10_000 });
+
+    // Runtime finding #5: elapsed clock stays 00:00 while gated on Ready to Start
+    await page.waitForTimeout(1500);
+    await expect(page.getByRole('heading', { name: 'Ready to Start' })).toBeVisible();
+    await expect(page.locator('[data-clock-panel]')).toContainText('00:00');
+
+    // Advance twice so at least 1 segment is completed & captured
+    const nextBtn = page.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK).first();
+    await nextBtn.click();
+    await page.waitForTimeout(400);
+    await nextBtn.click();
+
+    // Runtime finding #7: mobile 375x812 aggregate bubble never renders 'Calc.met Minutes'
+    await page.setViewportSize({ width: 375, height: 812 });
+    const panelText = await page.locator('[data-clock-panel]').innerText();
+    expect(panelText).not.toContain('Calc.met Minutes');
+    expect(panelText.toUpperCase()).not.toContain('CALC.MET MINUTES');
+
+    // WW-012 + WW-020: full browser reload mid-run preserves note, shows halted-run-notice, and saves partial session
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready', {
+      timeout: 15_000,
+    });
+
+    const notice = page.getByTestId('halted-run-notice');
+    await expect(notice).toBeVisible({ timeout: 10_000 });
+    const resultsHref = await notice.getByRole('link', { name: /partial results/i }).getAttribute('href');
+    expect(resultsHref).toMatch(/^\/results\/.+/);
+
+    await app.goto(resultsHref!);
+    await expect(page.getByText('Session not found.')).toHaveCount(0);
+    app.assertCleanConsole();
+  });
 });

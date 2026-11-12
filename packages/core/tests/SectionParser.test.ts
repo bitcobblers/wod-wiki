@@ -7,6 +7,23 @@ import {
 const workout = '```time\n5:00 Run\n```';
 
 describe('core actionable source and occurrence identity', () => {
+  it('recognizes ```wod and ```whiteboard fences as time-dialect actionable blocks', () => {
+    const source = '```wod\n5:00 Run\n```\n\n```whiteboard:crossfit\n7:00 Row\n```\n\n```WOD:speed\n4:00 Ski\n```\n\n```log:running\n4 mile\n```\n';
+    const scripted = parseDocumentSections(source).filter(section => section.scriptBlock);
+    expect(scripted.map(section => [section.type, section.sport])).toEqual([
+      ['time', undefined],
+      ['time', 'crossfit'],
+      ['time', 'speed'],
+      ['log', 'running'],
+    ]);
+    expect(scripted.map(section => section.scriptBlock!.content)).toEqual(['5:00 Run\n', '7:00 Row\n', '4:00 Ski\n', '4 mile\n']);
+
+    // ```wod registers a runnable workout block (workoutBlockIds lineage).
+    const blocks = Object.values(reconcileNoteBlocks('```wod\n5:00 Run\n```', { sourceRevision: 1 }));
+    expect(blocks.map(block => block.kind)).toEqual(['wod']);
+    expect(buildRawContent(parseDocumentSections(source))).toBe(source);
+  });
+
   it('keeps presentation sections transient and recognizes sparse actionables', () => {
     const source = '# Title\n\n' + workout + '\n\n```query:table\n:block{}\n```\n\n```widget:attention\ntext\n```\n\n[Video](https://youtu.be/abc)';
     const sections = parseDocumentSections(source);

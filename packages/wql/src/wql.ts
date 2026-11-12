@@ -920,6 +920,28 @@ function cannotParseFind(text: string): string {
   return `Cannot parse "${text}". Expected :source{key:value, !key:value}; filters are optional. Optional suffixes include by {dimension}, last <n>d or last <n>w, from YYYY-MM-DD [to YYYY-MM-DD], where <aggregator>:<metric>{filters} <operator> <number>, and | order by <column> | limit <n>. Support depends on the target.`;
 }
 
+/** WW-034 — a concise, target-aware syntax hint for a failed parse, rendered
+ *  under the stream's "Invalid query" line. The target comes from the input's
+ *  own colon head (`:effort name~kettlebell` → effort) when it parses as a
+ *  find head, else `defaultTarget`, else the note plane. Bare plain text gets
+ *  the one-clause `text:` search form; anything else gets the general shape
+ *  plus the target's supported filter keys. */
+export function suggestWqlSyntaxHint(rawInput: string, defaultTarget?: string): string {
+  const text = rawInput.trim();
+  const head = /^:([a-z0-9_-]+)/i.exec(text)?.[1];
+  let target = defaultTarget ?? 'note';
+  if (head) {
+    const probe = parseQuery(`:${head}{}`);
+    if (!probe.error && isFindQuery(probe)) target = probe.target;
+  }
+  const keys = wqlFilterKeys(target, 'find').slice(0, 6).join(', ');
+  if (text.length > 0 && !/[:{]/.test(text)) {
+    const token = text.split(/\s+/)[0]!;
+    return `Try :${target}{text:${token}} to search text, or :${target}{${keys}}.`;
+  }
+  return `Syntax: :${target}{key:value} — supported keys: ${keys}. Example: :${target}{text:kettlebell}`;
+}
+
 function parseFindQuery(raw: string, opts?: { colon?: boolean }): ParsedFindQuery {
   const normalizedRaw = normalizeNotebookFilterText(raw);
   const { text: rawNoPipes, pipes } = extractPipes(normalizedRaw);

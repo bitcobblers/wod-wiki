@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BeakerIcon,
@@ -16,11 +16,14 @@ import { TEST_IDS } from '@/lib/testIds'
 import { storageService } from '@/services/storage'
 import { notebookService } from '@/services/NotebookService'
 import { commitReferenceNote } from '@/repositories/referenceNotes'
+import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry'
+import { getAppEquipmentRegistry, hydrateAppEquipmentRegistry } from '@/services/equipmentRegistry'
 import { getScriptNotebooks, type ScriptNotebook } from '@/repositories/script-notebooks'
 import type { HistoryRecord } from '@/types/history'
 import type { Notebook } from '@/types/notebook'
-
 import { formatDateHeader } from '@/lib/dateFormat'
+import { useOptionalEffortRegistry } from '../../../contexts/EffortRegistryContext'
+import { useOptionalEquipmentRegistry } from '../../../contexts/EquipmentRegistryContext'
 import {
   effortPath,
   equipmentPath,
@@ -114,6 +117,20 @@ export function CreateJournalNoteDialog({
   onCreated,
 }: CreateJournalNoteDialogProps) {
   const navigate = useNavigate()
+  // WW-035: the new effort/equipment note lands in storage via
+  // commitReferenceNote, but the destination /effort/:slug page reads the
+  // in-memory registry — re-hydrate it before navigating so the fresh
+  // definition resolves immediately instead of flashing not-found.
+  const effortRegistry = useOptionalEffortRegistry()
+  const equipmentRegistry = useOptionalEquipmentRegistry()
+  const refreshEffortRegistry = useCallback(
+    () => (effortRegistry ? effortRegistry.refresh() : hydrateAppEffortRegistry(getAppEffortRegistry())),
+    [effortRegistry],
+  )
+  const refreshEquipmentRegistry = useCallback(
+    () => (equipmentRegistry ? equipmentRegistry.refresh() : hydrateAppEquipmentRegistry(getAppEquipmentRegistry())),
+    [equipmentRegistry],
+  )
   const [kind, setKind] = useState<ComposerKind>(() => toComposerKind(defaultKind))
   const [date, setDate] = useState(() => getTodayDateKey())
   const [title, setTitle] = useState('')
@@ -363,6 +380,7 @@ export function CreateJournalNoteDialog({
           title: label,
           expectedSourceRevision: 0,
         })
+        await refreshEffortRegistry()
         onOpenChange(false)
         navigate(effortPath(slug))
         return
@@ -384,6 +402,7 @@ export function CreateJournalNoteDialog({
           title: label,
           expectedSourceRevision: 0,
         })
+        await refreshEquipmentRegistry()
         onOpenChange(false)
         navigate(equipmentPath(slug))
         return

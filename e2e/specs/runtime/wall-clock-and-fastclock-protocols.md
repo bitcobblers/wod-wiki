@@ -1,7 +1,7 @@
 ---
 domain: runtime
 specFile: e2e/live-app/wall-clock-and-fastclock-protocols.e2e.ts
-routes: [/playground/:noteId, /run/:runtimeId, /day/:date, /notebook/:slug/:item]
+routes: [/playground/:noteId, /run/:runtimeId, /day/:date, /note/:noteId, /results/:sessionId, /notebook/:slug/:item]
 personas: [Athlete]
 viewports: [desktop]
 priority: P0-gate
@@ -37,3 +37,13 @@ Given an Athlete running a workout on `/day/:date` and opening edge runtime stat
 2. Athlete clicks Run on an empty `time` fence on `/day/2099-12-31`, and opens an unregistered `/run/:runtimeId` URL directly.
 - expect: Step 1 keeps the active workout alive (`Stop Session` still mounted) across Back/Forward route transitions.
 - expect: Step 2 renders 'Nothing to run' for an empty block instead of hanging, renders 'Runtime not found. Please start the workout from the editor.' on cold `/run/:runtimeId` load, and keeps the browser console clean.
+
+### Scenario 4: Fenced wod/time block parity, Ready-to-Start zero-clock gate, MET Minutes label, and mid-run reload partial persistence
+
+Given an Athlete authoring a workout Note with both `time` and `wod` fenced blocks:
+
+1. Athlete opens `/note/:noteId` containing a `time` block and a `wod` block, launches the workout timer, and inspects the `Ready to Start` gate for 2 seconds before advancing.
+2. Athlete advances into the workout, inspects the live mobile (`375x812`) aggregate bubbles, then triggers a full browser reload mid-run (`page.reload()`).
+- expect: Step 1 recognizes both `time` and `wod` fenced blocks in `#agent-view-state` (`workoutBlockIds` length 2) and holds the hero clock at `00:00` while gated on `Ready to Start`.
+- expect: Step 2 formats `calc.metMinutes` as `MET Minutes` (never `Calc.met Minutes`), surfaces `halted-run-notice` after reload, and resolves the partial Session at `/results/:sessionId`.
+- expect: the browser console stays clean.

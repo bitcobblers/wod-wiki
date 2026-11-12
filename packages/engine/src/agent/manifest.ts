@@ -124,7 +124,7 @@ export interface AgentCapabilitiesManifest {
 
 export const WHITEBOARD_SCRIPT_REFERENCE_MARKDOWN = `# Whiteboard Language Reference
 
-Fence tags: \`\`\`time (optional sport suffix e.g. \`\`\`time:cardio, \`\`\`time:crossfit, \`\`\`time:climb) or \`\`\`log.
+Fence tags: \`\`\`time (alias \`\`\`wod or \`\`\`whiteboard; optional sport suffix e.g. \`\`\`time:cardio, \`\`\`wod:crossfit, \`\`\`whiteboard:climb) or \`\`\`log.
 
 ## Core Tokens & Metrics
 - **Timestamps / Durations**: \`20:00\` (20 min countdown), \`:30\` (30 sec), \`1:05:00\` (1 hr 5 min).

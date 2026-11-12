@@ -4,7 +4,7 @@
 
 # Whiteboard Language Reference
 
-Fence tags: ```time (optional sport suffix e.g. ```time:cardio, ```time:crossfit, ```time:climb) or ```log.
+Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. ```time:cardio, ```wod:crossfit, ```whiteboard:climb) or ```log.
 
 ## Core Tokens & Metrics
 - **Timestamps / Durations**: `20:00` (20 min countdown), `:30` (30 sec), `1:05:00` (1 hr 5 min).
@@ -254,6 +254,14 @@ Fence tags: ```time (optional sport suffix e.g. ```time:cardio, ```time:crossfit
   ]
 }
 ```
+
+---
+
+## WebMCP Invocation Pattern (`navigator.modelContext`)
+
+- `const tools = await navigator.modelContext.getTools();` then `await navigator.modelContext.executeTool(tool, { ...input });`
+- The single-envelope shape is also accepted: `await navigator.modelContext.executeTool({ name: 'ui_navigate', arguments: { path: '/journal' } });`
+- Both forms deliver arguments verbatim to the registered handler (`(name, input)` calls resolve the live descriptor from `getTools()`).
 
 ---
 

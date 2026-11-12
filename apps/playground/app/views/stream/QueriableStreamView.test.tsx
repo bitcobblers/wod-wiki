@@ -871,7 +871,7 @@ describe('QueriableStreamView component', () => {
       capturedControls?.onToggleGroupDim('tag')
     })
     await waitFor(() => {
-      expect(screen.getByTestId('stream-query-status').textContent).toContain('by tag (query)')
+      expect(screen.getByTestId('stream-query-status').textContent).toContain('by tag')
     })
   })
 
@@ -1375,8 +1375,12 @@ describe('QueriableStreamView — query truth and retained state', () => {
     expect(status).toContain(':note')
     expect(status).toContain('1 applied')
     // The journal default groups by date in the query itself — a copied URL
-    // reproduces the same list, grouping included (ticket 11).
-    expect(status).toContain('by date (query)')
+    // reproduces the same list, grouping included (ticket 11). The raw enum
+    // source never leaks into the text (WW-004/#5); it rides the data
+    // attribute for diagnostics instead.
+    expect(status).toContain('by date')
+    expect(status).not.toContain('(query)')
+    expect(screen.getByTestId('stream-query-status').querySelector('[data-grouping-source]')?.getAttribute('data-grouping-source')).toBe('query')
     expect(screen.queryByText('Invalid query — showing previous results')).toBeNull()
   })
 
@@ -1427,7 +1431,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     await waitFor(() => {
       expect(screen.getByText('Workout 1')).toBeDefined()
     })
-    expect(screen.getByTestId('stream-query-status').textContent).toContain('by tag (query)')
+    expect(screen.getByTestId('stream-query-status').textContent).toContain('by tag')
 
     // A valid intermediate draft re-parses immediately but its run never
     // commits — the displayed grouping must stay the committed run's.
@@ -1435,7 +1439,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
       target: { value: ':note' },
     })
 
-    expect(screen.getByTestId('stream-query-status').textContent).toContain('by tag (query)')
+    expect(screen.getByTestId('stream-query-status').textContent).toContain('by tag')
     expect(screen.queryByTestId('date-group-2026-09-04')).toBeNull()
   })
 
@@ -1452,7 +1456,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId('stream-query-status').textContent).toContain('by domain (query)')
+      expect(screen.getByTestId('stream-query-status').textContent).toContain('by domain')
     })
     // Entries carry no domain typed tags → one Unassigned property group;
     // no fallback badge, no silent tag-bucket switch.
@@ -1571,7 +1575,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     await waitFor(() => {
       expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 of 0')
     })
-    expect(screen.getByTestId('stream-query-status').textContent).toContain('by date (query)')
+    expect(screen.getByTestId('stream-query-status').textContent).toContain('by date')
     expect(getSurfaceBusy()).toBe(false)
     expect(getActiveStreamBridge()?.loading).toBe(false)
 
@@ -1586,7 +1590,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     void rerender
   })
 
-  it('omits raw (level) token from status strip across FEEDS, EFFORTS, and TAGS while preserving explicit sources (WW-004)', async () => {
+  it('omits raw enum tokens from the status strip; grouping source rides data-grouping-source (WW-004/#5)', async () => {
     for (const [route, profile, expectedDim] of [
       ['/feeds', FEEDS_STREAM_PROFILE, 'by date'],
       ['/efforts', EFFORTS_STREAM_PROFILE, 'by discipline'],
@@ -1622,7 +1626,9 @@ describe('QueriableStreamView — query truth and retained state', () => {
       </MemoryRouter>,
     )
     await waitFor(() => {
-      expect(screen.getByTestId('stream-query-status').textContent).toContain('by met (view)')
+      const status = screen.getByTestId('stream-query-status')
+      expect(status.textContent).toContain('by met')
+      expect(status.querySelector('[data-grouping-source]')?.getAttribute('data-grouping-source')).toBe('view')
     })
 
     cleanup()
@@ -1637,7 +1643,9 @@ describe('QueriableStreamView — query truth and retained state', () => {
       </MemoryRouter>,
     )
     await waitFor(() => {
-      expect(screen.getByTestId('stream-query-status').textContent).toContain('by date (favorite)')
+      const status = screen.getByTestId('stream-query-status')
+      expect(status.textContent).toContain('by date')
+      expect(status.querySelector('[data-grouping-source]')?.getAttribute('data-grouping-source')).toBe('favorite')
     })
   })
 
@@ -1736,5 +1744,136 @@ describe('QueriableStreamView — query truth and retained state', () => {
       expect(unsubscribeSpy).toHaveBeenCalledTimes(1)
     })
     expect(unsubscribeSpy).toHaveBeenCalledWith('sport-hyrox')
+  })
+
+  it('offers Show more instead of idle Loading copy in the batching sentinel, and grows on click (WW-023/#4)', async () => {
+    // jsdom has no IntersectionObserver — a passive stub keeps the sentinel
+    // effect inert so the test drives growth through the button itself.
+    class StubIO { observe(): void {} unobserve(): void {} disconnect(): void {} }
+    const scope = globalThis as unknown as { IntersectionObserver?: unknown }
+    const previousIO = scope.IntersectionObserver
+    scope.IntersectionObserver = StubIO
+    try {
+      const manyEntries: Entry[] = Array.from({ length: 220 }, (_, i) => ({
+        id: `note-${i}`,
+        kind: 'note',
+        sourceNotebook: 'journal',
+        sourceNote: `n-${i}`,
+        title: `Entry ${i}`,
+        date: '2026-09-04',
+      }))
+      const { engine } = stubEngine(() => manyEntries)
+
+      render(
+        <MemoryRouter initialEntries={['/journal']}>
+          <QueriableStreamView profile={{ ...JOURNAL_STREAM_PROFILE, defaultLayout: 'cards' }} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+
+      const sentinel = await waitFor(() => screen.getByTestId('stream-load-more'), { timeout: 3000 })
+      // The run has settled (query stub resolves immediately): the sentinel
+      // must never claim to be "Loading".
+      expect(sentinel.textContent).toContain('Show more')
+      expect(sentinel.textContent).toContain('20 remaining')
+      expect(sentinel.textContent?.toLowerCase()).not.toContain('loading')
+      expect(screen.getAllByTestId('library-row-note')).toHaveLength(200)
+
+      await act(async () => {
+        fireEvent.click(within(sentinel).getByRole('button'))
+      })
+      await waitFor(() => {
+        expect(screen.getAllByTestId('library-row-note')).toHaveLength(220)
+      })
+      // Fully materialized — the sentinel (and the button) go away.
+      expect(screen.queryByTestId('stream-load-more')).toBeNull()
+    } finally {
+      scope.IntersectionObserver = previousIO
+    }
+  })
+
+  it('renders a target-aware WQL syntax hint under the invalid-query strip (WW-034)', async () => {
+    const { engine } = stubEngine(() => DATED_NOTE_ENTRIES)
+
+    render(
+      <MemoryRouter initialEntries={['/journal']}>
+        <QueriableStreamView profile={{ ...JOURNAL_STREAM_PROFILE, defaultLayout: 'cards' }} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(screen.getByText('Workout 1')).toBeDefined()
+    })
+
+    // The invalid draft rides the registered stream bridge's setQuery — the
+    // same composer state seam, without coupling to CodeMirror internals.
+    act(() => {
+      getActiveStreamBridge()?.setQuery(':note{oops')
+    })
+
+    const hint = await waitFor(() => screen.getByTestId('stream-query-syntax-hint'))
+    expect(screen.getByText('Invalid query — showing previous results')).toBeDefined()
+    expect(hint.textContent).toContain(':note{key:value}')
+    expect(hint.textContent).toContain('supported keys:')
+    expect(hint.textContent).toContain('text')
+    // Target-aware: the note plane's own keys, not a generic string.
+    expect(hint.textContent).toContain(':note{text:')
+
+    // A valid draft clears the hint — previous results stay visible.
+    act(() => {
+      getActiveStreamBridge()?.setQuery(':note{text:workout}')
+    })
+    await waitFor(() => {
+      expect(screen.queryByTestId('stream-query-syntax-hint')).toBeNull()
+    })
+    expect(screen.getByText('Workout 1')).toBeDefined()
+  })
+
+  it('renders an explicit not-found state for an unknown /notebook/:slug (WW-032)', async () => {
+    setStorageForTesting(new InMemoryStorage())
+    try {
+      const { engine } = stubEngine(() => [])
+      render(
+        <MemoryRouter initialEntries={['/notebook/does-not-exist-qa']}>
+          <LocationProbe />
+          <QueriableStreamView profile={createNotebookProfile('does-not-exist-qa')} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+
+      const notFound = await waitFor(() => screen.getByTestId('notebook-not-found'))
+      expect(notFound.textContent).toContain('does-not-exist-qa')
+      expect(notFound.textContent).toContain('not found')
+      // The generic empty state and its remedies are replaced.
+      expect(notFound.textContent).not.toContain('match your search')
+      expect(screen.queryByRole('button', { name: 'Edit query' })).toBeNull()
+
+      // Recovery navigates back to the notebook gallery.
+      fireEvent.click(within(notFound).getByRole('button', { name: 'Back to Notebooks' }))
+      await waitFor(() => {
+        expect(screen.getByTestId('location-probe').getAttribute('data-path')).toBe('/notebooks')
+      })
+    } finally {
+      resetStorageForTesting()
+    }
+  })
+
+  it('built-in notebook slugs never trip the not-found state (WW-032)', async () => {
+    setStorageForTesting(new InMemoryStorage())
+    try {
+      const { engine } = stubEngine(() => [])
+      render(
+        <MemoryRouter initialEntries={['/notebook/journal']}>
+          <QueriableStreamView profile={createNotebookProfile('journal')} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+      await waitFor(() => {
+        expect(screen.getByTestId('stream-empty-state')).toBeDefined()
+      })
+      // The async existence check settles "found" — no not-found swap.
+      await act(async () => {
+        await delay(200)
+      })
+      expect(screen.queryByTestId('notebook-not-found')).toBeNull()
+    } finally {
+      resetStorageForTesting()
+    }
   })
 })

@@ -379,7 +379,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
   );
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-8">
+    <div className="w-full max-w-4xl min-w-0 mx-auto px-4 py-6 sm:p-6 space-y-8 overflow-x-hidden">
       {tagContextNav}
       <section className="space-y-2">
         <div className="flex items-start justify-between gap-3">
@@ -416,7 +416,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
             }}
             className="flex flex-wrap items-end gap-3"
           >
-            <div className="flex-1 min-w-[200px]">
+            <div className="w-full sm:flex-1 min-w-0">
               <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
               <input
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs outline-none focus:border-primary"
@@ -425,7 +425,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
                 onChange={event => setNewLabel(event.target.value)}
               />
             </div>
-            <div className="w-40">
+            <div className="w-full sm:w-40 min-w-0">
               <label className="block text-xs font-medium text-muted-foreground mb-1">Kind</label>
               <select
                 className="w-full h-9 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
@@ -507,7 +507,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
               {selected.createdAt > 0 ? `Created ${new Date(selected.createdAt).toLocaleDateString()}` : 'Built-in'}
             </p>
             <div className="flex flex-wrap items-end gap-3">
-              <div className="flex-1 min-w-[200px]">
+              <div className="w-full sm:flex-1 min-w-0">
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
                 <input
                   className="w-full h-9 rounded-md border border-input bg-background px-3 font-mono text-xs outline-none focus:border-primary"
@@ -515,7 +515,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
                   onChange={event => setLabel(event.target.value)}
                 />
               </div>
-              <div className="w-40">
+              <div className="w-full sm:w-40 min-w-0">
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Kind</label>
                 <select
                   className="w-full h-9 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
@@ -657,7 +657,7 @@ function ContributionRow({
   onRemove,
 }: ContributionRowProps) {
   const inputClass =
-    'h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary';
+    'h-8 max-w-full rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary';
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -665,21 +665,21 @@ function ContributionRow({
         <>
           <input
             aria-label="Metric type"
-            className={`${inputClass} w-32 font-mono`}
+            className={`${inputClass} w-24 sm:w-32 font-mono`}
             placeholder="type"
             value={contribution.type}
             onChange={event => onChange({ ...contribution, type: event.target.value })}
           />
           <input
             aria-label="Metric value"
-            className={`${inputClass} w-32`}
+            className={`${inputClass} w-20 sm:w-32`}
             placeholder="value"
             value={String(contribution.value)}
             onChange={event => onChange({ ...contribution, value: event.target.value })}
           />
           <input
             aria-label="Metric unit"
-            className={`${inputClass} w-24`}
+            className={`${inputClass} w-16 sm:w-24`}
             placeholder="unit"
             value={contribution.unit ?? ''}
             onChange={event =>
@@ -696,7 +696,7 @@ function ContributionRow({
         <>
           <select
             aria-label="Applied tag"
-            className={`${inputClass} w-48 font-mono`}
+            className={`${inputClass} w-full sm:w-48 font-mono`}
             value={contribution.slug}
             onChange={event => onChange({ ...contribution, slug: event.target.value })}
           >
@@ -714,7 +714,7 @@ function ContributionRow({
         <>
           <select
             aria-label="Function"
-            className={`${inputClass} w-56 font-mono`}
+            className={`${inputClass} w-full sm:w-56 font-mono`}
             value={contribution.name}
             onChange={event => onChange({ ...contribution, name: event.target.value })}
           >

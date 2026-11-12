@@ -38,6 +38,8 @@ import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effor
 import { storageService } from '@/services/storage';
 import { playgroundFeedCatalogStore } from '@/services/feed/feedCatalog';
 import { isNotebookSubscribed } from '@/services/feed/feedSubscriptions';
+import { waitForAllPendingNoteSaves } from '@/services/persistence/pendingNoteSaves';
+import { flushPendingUnloadResults } from '@/services/resultRecorder';
 /** Unified event store over IndexedDB — the `events` object store (V16).
  *
  *  Wrapped in `coalescingEventStore`: dashboard widgets sharing one resolved
@@ -267,25 +269,29 @@ export function subscribePageSourcesReady(listener: () => void): () => void {
  * population guaranteed before any query executes — Explorer, dashboards,
  * canvas and note surfaces all go through this one seam.
  */
+async function flushPendingDurabilityQueues(): Promise<void> {
+  await Promise.all([waitForAllPendingNoteSaves(), flushPendingUnloadResults()]);
+}
+
 class PlaygroundQueryService extends QueryService {
   override async runQuery(raw: string, options?: Parameters<QueryService['runQuery']>[1]) {
-    await ensurePageSources();
+    await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
     return super.runQuery(raw, options);
   }
   override async runPipeline(queryText: string, options?: Parameters<QueryService['runPipeline']>[1]) {
-    await ensurePageSources();
+    await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
     return super.runPipeline(queryText, options);
   }
   override async runFind(parsed: Parameters<QueryService['runFind']>[0], options?: Parameters<QueryService['runFind']>[1]) {
-    await ensurePageSources();
+    await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
     return super.runFind(parsed, options);
   }
   override async runRows(parsed: Parameters<QueryService['runRows']>[0], options?: Parameters<QueryService['runRows']>[1]) {
-    await ensurePageSources();
+    await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
     return super.runRows(parsed, options);
   }
   override async run(parsed: Parameters<QueryService['run']>[0], options?: Parameters<QueryService['run']>[1]) {
-    await ensurePageSources();
+    await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
     return super.run(parsed, options);
   }
 }

@@ -3,6 +3,7 @@ import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { useChartShape } from './useChartShape';
 import { WqlEmptyState } from './WqlEmptyState';
 import { formatTimestamp } from './chartData';
+import { formatTimeseriesTooltipValue } from './WqlTimeseries';
 
 export interface WqlTableProps {
   result: QueryResult;
@@ -10,10 +11,6 @@ export interface WqlTableProps {
 }
 
 const MAX_ROWS = 12;
-
-function formatValue(v: number, unit?: string): string {
-  return `${v.toLocaleString()}${unit ? ` ${unit}` : ''}`;
-}
 
 export function WqlTable({ result, unit: unitProp }: WqlTableProps) {
   const shape = useChartShape(result);
@@ -23,14 +20,14 @@ export function WqlTable({ result, unit: unitProp }: WqlTableProps) {
     if (shape.kind === 'scalar') {
       return {
         head: ['Metric', 'Value'],
-        body: [[result.series[0]?.label ?? 'scalar', formatValue(shape.value, unit)]],
+        body: [[result.series[0]?.label ?? 'scalar', formatTimeseriesTooltipValue(shape.value, unit)]],
         more: 0,
       };
     }
     if (shape.kind === 'bars') {
       const all = result.series.map((s) => [
         s.label,
-        formatValue(s.points[0]?.value ?? 0, unit),
+        formatTimeseriesTooltipValue(s.points[0]?.value ?? 0, unit),
       ]);
       return {
         head: ['Series', 'Value'],
@@ -53,7 +50,7 @@ export function WqlTable({ result, unit: unitProp }: WqlTableProps) {
         formatTimestamp(ts),
         ...result.series.map((s) => {
           const v = seriesMap.get(s.label)?.get(ts);
-          return v !== undefined ? formatValue(v, unit) : '—';
+          return v !== undefined ? formatTimeseriesTooltipValue(v, unit) : '—';
         }),
       ]);
       return { head, body, more: Math.max(0, timestamps.length - MAX_ROWS) };

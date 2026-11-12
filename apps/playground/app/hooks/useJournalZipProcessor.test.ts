@@ -62,12 +62,16 @@ describe('useJournalZipProcessor', () => {
     decodeMock.mockClear();
   });
 
-  it('redirects to /journal when no zip parameter is provided', async () => {
-    const { landed } = renderAt('/load/journal');
+  it('stays mounted in a recoverable missing-zip state instead of bouncing (WW-031)', async () => {
+    const { result, landed } = renderAt('/load/journal');
 
     await waitFor(() => {
-      expect(landed()).toBe('/journal');
+      expect(result.current.state).toBe('missing-zip');
     });
+
+    // No navigation happened — the page surfaces the upload fallback itself.
+    expect(landed()).toBe('/load/journal');
+    expect(toastMock).not.toHaveBeenCalled();
   });
 
   it('loads with loading state initially', () => {

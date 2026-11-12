@@ -458,3 +458,82 @@ describe('getDetailBatches — remote/local bundle chooser', () => {
     await expect(new StorageService(failing).getDetailBatches(['x'])).rejects.toThrow('local path');
   });
 });
+
+describe('getDetailBatches — batched local transaction reads (WW-036)', () => {
+  /** Counting proxy over one transaction's readonly stores: per-store method
+   *  tallies prove the read shape (getMany/getAllFromIndexMany, not O(N) get). */
+  function countingStorage(memory: IStorage): {
+    storage: IStorage;
+    counts: Map<string, number>;
+  } {
+    const counts = new Map<string, number>();
+    const tally = (key: string): void => {
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    };
+    const countingStore = <T>(store: unknown): T => new Proxy(store as { get: unknown; [k: string]: unknown }, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop);
+        return typeof value === 'function' && (prop === 'get' || prop === 'getMany' || prop === 'getAllFromIndex' || prop === 'getAllFromIndexMany')
+          ? ((...args: unknown[]) => {
+              tally(String(prop));
+              return (value as (...a: unknown[]) => unknown).apply(target, args);
+            })
+          : value;
+      },
+    }) as T;
+    return {
+      counts,
+      storage: {
+        ...memory,
+        transaction: (stores, mode, fn) => memory.transaction(stores, mode, (tx) =>
+          fn({ readonly: (name) => countingStore(tx.readonly(name)), readwrite: (name) => tx.readwrite(name) })),
+      },
+    };
+  }
+
+  it('assembles exact {note, tags, links, pages} bundles for 500+ notes in 5 batched requests', async () => {
+    const memory = new InMemoryStorage();
+    const { storage, counts } = countingStorage(memory);
+    const service = new StorageService(storage);
+
+    const ids = Array.from({ length: 520 }, (_, i) => `note-${i}`);
+    for (const [i, id] of ids.entries()) {
+      await memory.readwrite('notes').put(makeNote({ id, title: `Note ${i}`, createdAt: T0 + i }));
+      await memory.readwrite('tags').put({ id: `tag-${i % 7}`, label: `tag-${i % 7}`, createdAt: T0 });
+      await memory.readwrite('note_tags').put({ id: `nt-${i}`, noteId: id, tagId: `tag-${i % 7}` });
+      await memory.readwrite('page').put({ id: `page-${i % 3}`, date: '2026-02-0' + ((i % 3) + 1), createdAt: T0 });
+      await memory.readwrite('page_notes').put({ id: `pn-${i}`, pageId: `page-${i % 3}`, noteId: id, position: i, createdAt: T0 });
+    }
+
+    // Duplicate + missing ids exercise dedupe and fail-closed absence.
+    const out = await service.getDetailBatches([ids[0]!, ...ids, ids[0]!, 'missing']);
+    expect(out.size).toBe(520);
+
+    const first = out.get('note-0')!;
+    expect(first.note.id).toBe('note-0');
+    expect(first.tags.map((t) => t.label)).toEqual(['tag-0']);
+    expect(first.links.map((l) => l.id)).toEqual(['pn-0']);
+    expect(first.pages.map((p) => p.id)).toEqual(['page-0']);
+    const last = out.get('note-519')!;
+    expect(last.tags.map((t) => t.label)).toEqual(['tag-1']); // 519 % 7
+    expect(last.pages.map((p) => p.id)).toEqual(['page-0']); // 519 % 3
+    expect(out.get('note-3')!.pages[0]!.date).toBe('2026-02-01');
+    // Absent note ids never produce bundles — same fail-closed contract as
+    // the remote path.
+    expect(out.has('missing')).toBe(false);
+
+    // 5 batched requests total (notes/tags/page getMany + page_notes/
+    // note_tags getAllFromIndexMany) in one transaction — no per-note
+    // `get` round-trips.
+    expect(counts.get('get')).toBeUndefined();
+    expect(counts.get('getMany')).toBe(3);
+    expect(counts.get('getAllFromIndexMany')).toBe(2);
+  });
+
+  it('returns an empty map for empty input without opening a transaction', async () => {
+    const memory = new InMemoryStorage();
+    const { storage, counts } = countingStorage(memory);
+    expect((await new StorageService(storage).getDetailBatches([])).size).toBe(0);
+    expect(counts.size).toBe(0);
+  });
+});

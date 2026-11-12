@@ -62,6 +62,8 @@ sum:tis{}
 // a concurrent writer (another tab, another surface).
 let storedRaw = DASH_RAW;
 let updateCalls: string[] = [];
+// dashboardNotes.deleteDashboard spy ledger (late finding #7).
+let deleteDashboardCalls: string[] = [];
 
 function resultOf(raw: string): QueryResult {
   return {
@@ -117,6 +119,10 @@ function installSpies(): void {
   spyOn(journalNotes, 'listByDate').mockImplementation((async () => []) as never);
   spyOn(dashboardNotes, 'createDashboard').mockImplementation((async () => { throw new Error('not used'); }) as never);
   spyOn(dashboardNotes, 'cloneDashboard').mockImplementation((async () => { throw new Error('not used'); }) as never);
+  deleteDashboardCalls = [];
+  spyOn(dashboardNotes, 'deleteDashboard').mockImplementation((async (noteId: string) => {
+    deleteDashboardCalls.push(noteId);
+  }) as never);
   spyOn(queryService, 'runQuery').mockImplementation((async (raw: string) => resultOf(raw)) as never);
   spyOn(queryService, 'runFind').mockImplementation((async () => ({})) as never);
   spyOn(queryService, 'runRows').mockImplementation((async () => ({})) as never);
@@ -153,10 +159,47 @@ function renderPage(slug = 'stale-board') {
     <MemoryRouter initialEntries={[`/dashboard/${slug}`]} initialIndex={0}>
       <Routes>
         <Route path="/dashboard/:slug" element={<DashboardViewPage />} />
+        <Route path="/dashboards" element={<div data-testid="dashboards-landing" />} />
       </Routes>
     </MemoryRouter>,
   );
 }
+
+describe('DashboardViewPage delete dashboard (late finding #7)', () => {
+  it('deletes a user-owned vault dashboard after confirmation and lands on /dashboards', async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('Volume')).toBeDefined());
+    fireEvent.click(screen.getByTestId('dashboard-edit-toggle'));
+
+    // Visible Delete affordance in the Edit-mode toolbar…
+    fireEvent.click(screen.getByTestId('delete-dashboard-button'));
+    // …guarded by a confirmation dialog; Cancel closes it without deleting.
+    fireEvent.click(screen.getByTestId('cancel-delete-dashboard'));
+    expect(screen.queryByTestId('confirm-delete-dashboard')).toBeNull();
+    expect(deleteDashboardCalls).toHaveLength(0);
+
+    // Confirming deletes the note, notifies listeners, and navigates away.
+    fireEvent.click(screen.getByTestId('delete-dashboard-button'));
+    fireEvent.click(screen.getByTestId('confirm-delete-dashboard'));
+    await waitFor(() => expect(deleteDashboardCalls).toEqual(['n1']));
+    await waitFor(() => expect(screen.getByTestId('dashboards-landing')).toBeTruthy());
+  });
+
+  it('offers no delete affordance on read-only prebuilt dashboards', async () => {
+    const sourceModule = await import('../../hooks/useDashboards');
+    spyOn(sourceModule, 'useDashboardSource').mockImplementation(((slug: string | undefined, refreshKey?: number) => {
+      const base = fakeUseDashboardSource(slug, refreshKey);
+      return { ...base, source: base.source ? { ...base.source, editable: false } : null };
+    }) as never);
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('Volume')).toBeDefined());
+    expect(screen.queryByTestId('delete-dashboard-button')).toBeNull();
+    expect(screen.getByTestId('clone-dashboard')).toBeTruthy();
+  });
+});
 
 describe('DashboardViewPage stale-refresh transition', () => {
   it('keeps the composer draft and refusal banner mounted across the refresh a failed Apply triggers', async () => {
@@ -281,10 +324,11 @@ describe('DashboardViewPage L3 3-slot contract', () => {
     // Slot 1 (Modifiers): Range + Units via AnalyticsControlsNav.
     expect(capturedAnalytics).toEqual({ showRange: true, showUnits: true });
 
-    // Slot 3 ("Actions"): Edit, Add widget (editable vault board), Copy link.
+    // Slot 3 ("Actions"): Edit, Add widget (editable vault board), Delete dashboard, Copy link.
     expect(capturedActions.map(a => a.id)).toEqual([
       'helpful-edit',
       'helpful-add-widget',
+      'helpful-delete-dashboard',
       'helpful-copy-link',
     ]);
 

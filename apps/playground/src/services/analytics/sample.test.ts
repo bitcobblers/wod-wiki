@@ -77,6 +77,72 @@ describe('sample analytics dataset', () => {
     expect(disciplines).toContain('running');
   });
 
+  it('emits wellness calc rollups so Recovery & Readiness renders out of the box (WW-028)', async () => {
+    const query = queryService(service);
+    // Stored unit per canonical key — what the Available Fields catalog and
+    // widget labels read. Values live in the unit's natural magnitude (hrv
+    // ms, sleep h); 'pts' matches the calc seeds' output units, which keeps
+    // the duration-dimension system-default policy (s) from mangling them.
+    const expectations: Array<[string, string, number, number]> = [
+      ['calc.readiness', 'pts', 40, 100],
+      ['calc.hrv', 'pts', 40, 90],
+      ['calc.sleep', 'pts', 5, 10],
+      ['calc.soreness', 'rating', 1, 7],
+      ['calc.monotony', 'ratio', 1, 2],
+      ['calc.acwr', 'ratio', 0.5, 1.6],
+    ];
+    const events = await service.scanAll();
+    for (const [key, unit] of expectations) {
+      const stored = events.filter((event) =>
+        event.metrics.some((m) => 'metadata' in m && (m.metadata as Record<string, unknown> | undefined)?.canonicalKey === key && typeof m.value === 'number'),
+      );
+      expect(stored.length, key).toBeGreaterThan(0);
+      for (const event of stored) {
+        for (const m of event.metrics) {
+          if ('metadata' in m && (m.metadata as Record<string, unknown> | undefined)?.canonicalKey === key && typeof m.value === 'number') {
+            expect(m.unit, key).toBe(unit);
+          }
+        }
+      }
+    }
+    // The dashboard's headline query and the daily trend series both have data.
+    const readinessToday = await query.runQuery('last:calc.readiness{}');
+    expect(readinessToday.scalar).toBeGreaterThanOrEqual(40);
+    expect(readinessToday.stages.selected).toBeGreaterThan(0);
+    for (const [key, , min, max] of expectations) {
+      const daily = await query.runQuery(`avg:${key}{} by {day}`);
+      expect(daily.series.length, key).toBeGreaterThan(0);
+      const value = daily.series[0]!.points[0]!.value as number;
+      expect(value, key).toBeGreaterThanOrEqual(min);
+      expect(value, key).toBeLessThanOrEqual(max);
+    }
+  });
+
+  it('reports totalVolume in kilograms, matching the calc engine canonical unit (WW-030)', async () => {
+    // The stored unit (what the Available Fields catalog reads), not the
+    // display-converted chart unit.
+    const events = await service.scanAll();
+    const volumeFacts = events.filter((event) =>
+      event.metrics.some((m) => typeof m.value === 'number' && 'metadata' in m && (m.metadata as Record<string, unknown> | undefined)?.canonicalKey === 'totalVolume'),
+    );
+    expect(volumeFacts.length).toBeGreaterThan(0);
+    const values: Array<{ value: number; unit: string }> = [];
+    for (const event of volumeFacts) {
+      for (const m of event.metrics) {
+        if (typeof m.value === 'number' && 'metadata' in m && (m.metadata as Record<string, unknown> | undefined)?.canonicalKey === 'totalVolume') {
+          expect(m.unit).toBe('kg');
+          values.push({ value: m.value, unit: m.unit ?? '' });
+        }
+      }
+    }
+    expect(values.every((v) => v.value > 0)).toBe(true);
+
+    const query = queryService(service);
+    const volume = await query.runQuery('sum:totalVolume{}');
+    expect(volume.scalar).toBeGreaterThan(0);
+    expect(volume.unit).toBe('kg');
+  });
+
   it('is idempotent: a second load does not add more facts', async () => {
     const first = await loadSampleData();
     const second = await loadSampleData();

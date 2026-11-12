@@ -347,10 +347,18 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
         if (!prior || prior.isStatic === true) blocks.push(projection);
       }
       const resolvedSessions = new Map<string, Session>();
+      const userRecordedSessions = new Set<string>();
       for (const compiled of row.telemetry?.sessions ?? []) {
         if (compiledById.get(compiled.blockId)?.dataType !== 'wod') throw new Error('Orphan seed session pin');
         const prior = existingTelemetrySessions.get(compiled.id);
         if (prior && prior.noteId !== id) throw new Error(`Seed session ${compiled.id} belongs to another note`);
+        // A session the user recorded (journal/playground/user) is never
+        // overwritten by feed telemetry — skip it and its events so a
+        // re-import can never destroy user workout history.
+        if (prior?.origin) {
+          userRecordedSessions.add(compiled.id);
+          continue;
+        }
         const blockId = prior?.blockId ?? remap.get(compiled.blockId);
         if (!blockId) throw new Error('Orphan seed session pin');
         const block = map[blockId];
@@ -366,6 +374,7 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
         resolvedSessions.set(session.id, session);
       }
       for (const compiled of row.telemetry?.events ?? []) {
+        if (userRecordedSessions.has(compiled.resultId)) continue;
         const session = resolvedSessions.get(compiled.resultId);
         if (!session) throw new Error('Orphan seed event result');
         events.push({

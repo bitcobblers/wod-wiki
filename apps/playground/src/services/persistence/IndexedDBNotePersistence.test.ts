@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import { IndexedDBNotePersistence } from './IndexedDBNotePersistence';
 import { IndexedDBContentProvider } from '../content/IndexedDBContentProvider';
 import { StorageService } from '../storage/StorageService';
@@ -151,5 +152,40 @@ describe('Note persistence projections', () => {
     expect(dashboards.map((e) => e.id)).toEqual(['dash-custom']);
     expect(getAllNotesCalls).toBe(0);
     expect(hydratedBatches).toEqual([['dash-custom']]);
+  });
+
+  it('window getRecords keeps undated notes dated by their journal page placement (WW-024 Bug C)', async () => {
+    const memory = new InMemoryStorage();
+    const service = new StorageService(memory);
+    const persistence = new IndexedDBNotePersistence(service);
+
+    const now = Date.now();
+    const day = 86_400_000;
+    const isoOf = (ms: number): string => {
+      const d = new Date(ms);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    // Undated notes created 300 days ago; only their journal-page placement
+    // carries the date of record. persistence.saveNote pins the block
+    // revisions the storage layer validates; the raw save then strips the
+    // date (placement-dated) and backdates createdAt.
+    const blocks = reconcileNoteBlocks(SOURCE, { sourceRevision: 1 });
+    for (const [id, title] of [['placed-today', 'Placed Today'], ['placed-old', 'Placed Old'], ['dated', 'Dated']] as const) {
+      await persistence.saveNote({ noteId: id, rawContent: SOURCE, blocks, expectedSourceRevision: 0, metadata: { title } });
+      const note = await service.getNote(id);
+      await service.saveNote({ ...note!, date: id === 'dated' ? now - day : undefined, createdAt: now - 300 * day });
+    }
+
+    await memory.readwrite('page').put({ id: 'page-today', date: isoOf(now), createdAt: now });
+    await memory.readwrite('page').put({ id: 'page-old', date: isoOf(now - 30 * day), createdAt: now });
+    await memory.readwrite('page_notes').put({ id: 'pn-1', pageId: 'page-today', noteId: 'placed-today', position: 1, createdAt: now });
+    await memory.readwrite('page_notes').put({ id: 'pn-2', pageId: 'page-old', noteId: 'placed-old', position: 1, createdAt: now });
+
+    const records = await persistence.getRecords({ dateRange: { start: now - 2 * day, end: now + day } });
+    const ids = records.map((r) => r.id);
+    expect(ids).toContain('placed-today');
+    expect(ids).toContain('dated');
+    expect(ids).not.toContain('placed-old');
   });
 });

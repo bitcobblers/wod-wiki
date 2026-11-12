@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, afterEach, vi } from 'bun:test';
 import { act, renderHook } from '@testing-library/react';
 import { useEditorSave } from './useEditorSave';
 
 describe('useEditorSave', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('does not mark a rejected draft saved and permits retry', async () => {
     let rejected = true;
     const committed: string[] = [];
@@ -87,6 +91,58 @@ describe('useEditorSave', () => {
     });
 
     expect(committed).toEqual(['line-1', 'line-4-final']);
+    unmount();
+  });
+
+  it('autosaves a focused single-line draft after the idle window without line change or blur', async () => {
+    vi.useFakeTimers();
+    const committed: string[] = [];
+    const { result, unmount } = renderHook(() => useEditorSave<string>({
+      onSave: async value => { committed.push(value); },
+      idleMs: 350,
+    }));
+    act(() => result.current.onChange('typed on one line'));
+    expect(committed).toEqual([]);
+    act(() => { vi.advanceTimersByTime(349); });
+    expect(committed).toEqual([]);
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(committed).toEqual(['typed on one line']);
+    unmount();
+  });
+
+  it('coalesces rapid keystrokes into one idle autosave of the latest draft', () => {
+    vi.useFakeTimers();
+    const committed: string[] = [];
+    const { result, unmount } = renderHook(() => useEditorSave<string>({
+      onSave: async value => { committed.push(value); },
+      idleMs: 350,
+    }));
+    act(() => {
+      result.current.onChange('v1');
+      vi.advanceTimersByTime(300);
+      result.current.onChange('v2');
+      vi.advanceTimersByTime(300);
+      result.current.onChange('v3 final');
+    });
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(committed).toEqual(['v3 final']);
+    unmount();
+  });
+
+  it('idleMs 0 disables the idle autosave while line changes still flush', async () => {
+    vi.useFakeTimers();
+    const committed: string[] = [];
+    const { result, unmount } = renderHook(() => useEditorSave<string>({
+      onSave: async value => { committed.push(value); },
+      idleMs: 0,
+    }));
+    act(() => result.current.onChange('held draft'));
+    act(() => { vi.advanceTimersByTime(60_000); });
+    expect(committed).toEqual([]);
+    act(() => result.current.onLineChange(1, 0));
+    act(() => result.current.onLineChange(2, 0));
+    await act(async () => { await Promise.resolve(); });
+    expect(committed).toEqual(['held draft']);
     unmount();
   });
 });

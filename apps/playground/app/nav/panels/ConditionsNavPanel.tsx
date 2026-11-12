@@ -17,7 +17,7 @@
  * landing row) stay plain routes.
  */
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 import { BookmarkPlus, Check, ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-react'
@@ -64,6 +64,41 @@ const urlQuery = (loc: Location): string => new URLSearchParams(loc.search).get(
 /** Deterministic cap on the L2 Recent links — the committed run's head rows. */
 export const RECENT_RESULTS_LIMIT = 8
 
+// WW-033: lightweight LRU of deep-link visits (`/notebook/:slug`,
+// `/note/:id`, `/effort/:slug`, `/equipment/:slug`, `/dashboard/:slug`,
+// `/feed/:slug`) — Recent promotes the entries the athlete actually opened,
+// falling back to the run's order for the rest.
+const RECENT_VISITS_KEY = 'wodwiki.recentVisitedHrefs:v1'
+const RECENT_VISITS_CAP = 20
+const VISITED_HREF_PATTERNS = [
+  /^\/notebook\//,
+  /^\/note\//,
+  /^\/effort\//,
+  /^\/equipment\//,
+  /^\/dashboard\//,
+  /^\/feed\//,
+]
+
+export function recordRecentVisit(pathname: string): void {
+  if (!VISITED_HREF_PATTERNS.some((pattern) => pattern.test(pathname))) return
+  try {
+    const previous = readRecentVisits()
+    const next = [pathname, ...previous.filter((href) => href !== pathname)].slice(0, RECENT_VISITS_CAP)
+    localStorage.setItem(RECENT_VISITS_KEY, JSON.stringify(next))
+  } catch {
+    // Storage unavailable/corrupt — visit tracking stays best-effort.
+  }
+}
+
+function readRecentVisits(): string[] {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(RECENT_VISITS_KEY) ?? '[]')
+    return Array.isArray(raw) ? raw.filter((href): href is string => typeof href === 'string') : []
+  } catch {
+    return []
+  }
+}
+
 interface InlineEditorDraft {
   mode: 'create' | 'edit'
   targetId?: string
@@ -97,10 +132,27 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
     // are discovery, they hide until a matching run commits. No query
     // execution — the panel subscribes to the view's published snapshot.
     const published = useStreamResults()
-    const recentEntries =
+    const candidateRecentEntries =
       published && published.pathname === location.pathname && published.query === effectiveQuery
-        ? published.entries.slice(0, RECENT_RESULTS_LIMIT)
+        ? published.entries
         : []
+    // WW-033: sort the full committed entry list by the athlete's visit LRU
+    // BEFORE slicing to RECENT_RESULTS_LIMIT so a visited notebook beyond
+    // index 7 (after the 8 built-in notebooks) rises to the front of Recent.
+    const visitedRank = new Map(readRecentVisits().map((href, index) => [href, index]))
+    const recentEntries = [...candidateRecentEntries]
+      .sort((a, b) => {
+        const rankA = visitedRank.get(entryOpenHref(a))
+        const rankB = visitedRank.get(entryOpenHref(b))
+        if (rankA !== undefined && rankB !== undefined) return rankA - rankB
+        if (rankA !== undefined) return -1
+        if (rankB !== undefined) return 1
+        return 0
+      })
+      .slice(0, RECENT_RESULTS_LIMIT)
+    useEffect(() => {
+      recordRecentVisit(location.pathname)
+    }, [location.pathname])
 
     // Saved shortcuts (routeWqlShortcuts): the built-in library-group links
     // (landing, Feeds route action) plus the user's saved full-WQL links

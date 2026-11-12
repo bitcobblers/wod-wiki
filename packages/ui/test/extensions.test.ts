@@ -146,6 +146,41 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     container.remove();
   });
 
+  it('treats ```wod and ```whiteboard fences as time sections with TIMER preview header', () => {
+    const doc = '# Workout\n\n```wod\n5:00 Run\n```\n\n```whiteboard:crossfit\n7:00 Row\n```\n';
+    const state = EditorState.create({
+      doc,
+      extensions: [sectionField, previewDecorations],
+    });
+
+    const sections = state.field(sectionField).sections;
+    const wodSections = sections.filter((s) => s.type === 'time');
+    expect(wodSections).toHaveLength(2);
+    expect(wodSections[0].sport).toBeUndefined();
+    expect(wodSections[1].sport).toBe('crossfit');
+
+    // ```wod registers the same actionable workout block a ```time fence does.
+    const blocks = Object.values(reconcileNoteBlocks('```wod\n5:00 Run\n```', { sourceRevision: 1 }));
+    expect(blocks.map((b) => b.kind)).toEqual(['wod']);
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({ state, parent: container });
+
+    const badges = container.querySelectorAll('.cm-wod-dialect-time');
+    expect(badges).toHaveLength(2);
+    expect(badges[0].textContent).toBe('TIMER');
+    expect(container.querySelectorAll('.cm-wod-fence-open')).toHaveLength(2);
+
+    // ```wod bodies highlight as Whiteboard Script, not plain markdown.
+    expect(resolveCodeLanguage('wod')).toBe(whiteboardScriptLanguage);
+    expect(resolveCodeLanguage('whiteboard')).toBe(whiteboardScriptLanguage);
+    expect(resolveCodeLanguage('wod:crossfit')).toBe(whiteboardScriptLanguage);
+
+    view.destroy();
+    container.remove();
+  });
+
   it('isolates per-editor custom completion sources through real editor state', async () => {
     const forEditorA = customCompletionSources.of(() => ({ from: 0, options: [{ label: 'editor-a' }] }));
     const forEditorB = customCompletionSources.of(() => ({ from: 0, options: [{ label: 'editor-b' }] }));

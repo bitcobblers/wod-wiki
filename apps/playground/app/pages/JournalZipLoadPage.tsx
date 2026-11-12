@@ -21,7 +21,13 @@ import { Button } from '@/components/atoms/primitives/button';
 import { useJournalZipProcessor } from '../hooks/useJournalZipProcessor';
 import { JournalImportToolbar } from '../components/organisms/journal/JournalImportToolbar';
 import { BackdateConfirmModal } from '../components/organisms/journal/BackdateConfirmModal';
+import { ROUTE_PATTERNS } from '../lib/routes';
+import { toast } from '@/hooks/use-toast';
+import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
+import { importFromZip } from '@/services/ExportImportService';
 import type { Components } from 'react-markdown';
+
+const portableContentProvider = new IndexedDBContentProvider();
 
 // ── Markdown rendering components ─────────────────────────────────────────────
 
@@ -177,11 +183,16 @@ export function JournalZipLoadPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <main
+      data-agent-status={state === 'loading' ? 'loading' : 'ready'}
+      aria-busy={state === 'loading'}
+      className="flex flex-col flex-1 min-h-0 bg-background"
+    >
       {/* Header with toolbar */}
       <div className="border-b border-border/50 bg-muted/30 px-6 py-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={handleCancel}
             className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
             title="Go back"
@@ -205,18 +216,20 @@ export function JournalZipLoadPage() {
           >
             Retry
           </Button>
-        ) : state === 'pending-confirmation' || state === 'creating' ? null : (
+        ) : state === 'pending-confirmation' || state === 'creating' || state === 'missing-zip' ? null : (
           <JournalImportToolbar
             selectedDate={selectedDateForImport}
             onImportToday={handleImportToday}
             onDateSelect={handleDateSelect}
-            isLoading={state === 'creating'}
+            isLoading={false}
           />
         )}
       </div>
 
       {/* Main content */}
       <div className="flex-1 overflow-auto px-6 py-6">
+        {state === 'missing-zip' && <MissingZipFallback />}
+
         {state === 'loading' && (
           <div className="flex flex-col items-center justify-center min-h-96 gap-4">
             <div className="animate-spin">⏳</div>
@@ -289,6 +302,68 @@ export function JournalZipLoadPage() {
           isLoading={state === 'creating'}
         />
       )}
+    </main>
+  );
+}
+
+/** WW-031: /load/journal without `?zip=` used to bounce to /journal before
+ *  ready. A recoverable upload fallback keeps the route mounted instead. */
+function MissingZipFallback() {
+  const navigate = useNavigate();
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file || importing) return;
+    setImporting(true);
+    setError(null);
+    try {
+      const res = await importFromZip(file, portableContentProvider);
+      toast({
+        title: `Imported ${res.imported} note(s)`,
+        description: res.errors.length > 0 ? res.errors.slice(0, 2).join('; ') : 'Open the entry from your journal.',
+      });
+      navigate(ROUTE_PATTERNS.journal);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'That file is not a valid portable bundle (.zip).');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 max-w-md min-w-0 mx-auto text-center">
+      <h2 className="text-lg font-semibold text-foreground">This import link is missing its bundle</h2>
+      <p className="text-sm text-muted-foreground">
+        The journal import link carries a compressed bundle in its{' '}
+        <code className="font-mono">?zip=</code> parameter. Re-open the original link, or import a
+        portable bundle file directly — entries land in your journal.
+      </p>
+      <input
+        type="file"
+        accept=".zip,.md,.markdown,.jsonl,.csv"
+        data-testid="journal-zip-upload"
+        aria-label="Journal bundle file"
+        disabled={importing}
+        className="text-xs text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-foreground hover:file:opacity-90 max-w-full"
+        onChange={(event) => {
+          void handleFile(event.target.files?.[0]);
+          event.target.value = '';
+        }}
+      />
+      {error && (
+        <div
+          role="alert"
+          data-testid="journal-zip-error"
+          className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+        >
+          <AlertCircle className="size-4 mt-0.5 shrink-0" aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      )}
+      <Button type="button" variant="outline" onClick={() => navigate(ROUTE_PATTERNS.journal)}>
+        Back to Journal
+      </Button>
     </div>
   );
 }

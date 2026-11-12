@@ -45,6 +45,15 @@ function readAll(): Record<string, boolean> {
   return cache;
 }
 
+/**
+ * The cached map merged with a fresh `localStorage` read. Mutators use this
+ * so an explicit verdict another writer persisted behind the stale cache
+ * (other tab, sync, migration) is never lost or downgraded.
+ */
+function mergedWithFreshStorage(): Record<string, boolean> {
+  return { ...readAll(), ...readMap(STORAGE_KEY) };
+}
+
 function writeMap(key: string, next: Record<string, boolean>): boolean {
   let persisted = true;
   try {
@@ -100,7 +109,7 @@ export function setFeedSubscribed(id: string, subscribed: boolean): boolean {
   if (id === 'core') return true;
   const all: Record<string, boolean> = {};
   const prefix = `${id}#`;
-  for (const [key, value] of Object.entries(readAll())) {
+  for (const [key, value] of Object.entries(mergedWithFreshStorage())) {
     if (key.startsWith(prefix)) continue;
     if (NOTEBOOKS.some((notebook) => notebook.feedId === id && notebook.id === key)) continue;
     all[key] = value;
@@ -129,7 +138,7 @@ export function setNotebookSubscribed(
   knownChunkIds?: readonly string[],
 ): boolean {
   if (feedId === 'core') return true;
-  const all = { ...readAll() };
+  const all = { ...mergedWithFreshStorage() };
   const specificKey = `${feedId}#${notebookId}`;
   const prefix = `${feedId}#`;
 
@@ -218,7 +227,7 @@ export async function migrateFeedSubscriptions(
   sources: ReadonlyArray<{ id: string }>,
   storage: FeedImportStorage = mainThreadFeedImportStorage(),
 ): Promise<string[]> {
-  const all = { ...readAll() };
+  const all = { ...mergedWithFreshStorage() };
   const migrated: string[] = [];
   let renamedLegacyKeys = false;
   // Pre-rename builds keyed per-notebook verdicts by the old chunk-id
@@ -283,4 +292,16 @@ export async function migrateFeedSubscriptions(
 export function resetFeedSubscriptionsForTest(): void {
   cache = null;
   autoSyncCache = null;
+}
+
+// Cross-tab / external writers go through the `storage` event: drop both
+// caches so the next read sees the persisted verdicts, and let subscribers
+// (React state) re-render from the new truth.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event: StorageEvent) => {
+    if (event.key !== null && event.key !== STORAGE_KEY && event.key !== AUTO_SYNC_KEY) return;
+    cache = null;
+    autoSyncCache = null;
+    for (const listener of listeners) listener();
+  });
 }

@@ -14,6 +14,7 @@ import { EquipmentRegistryProvider } from './contexts/EquipmentRegistryContext'
 import { Toaster } from '@/components/atoms/primitives/toaster'
 import { NavProvider, useNav } from './nav/NavContext'
 import { buildAppNavTree } from './nav/appNavTree'
+import { recordRecentVisit } from './nav/panels/ConditionsNavPanel'
 import { useCanvasRoutes } from './canvas/canvasRoutes'
 import { AppContent } from './AppContent'
 import { ROUTE_PATTERNS } from './lib/routes'
@@ -62,6 +63,7 @@ function ScrollToTop() {
   const { scrollToSection } = useNav()
 
   useEffect(() => {
+    recordRecentVisit(pathname)
     if (hash) {
       const targetId = hash.slice(1)
       scrollToSection(targetId)

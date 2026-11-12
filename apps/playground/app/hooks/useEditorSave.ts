@@ -4,6 +4,8 @@ export interface UseEditorSaveOptions<T = string> {
   onSave: (snapshot: T) => void | Promise<void>;
   getSnapshotKey?: (snapshot: T) => string;
   onError?: (error: unknown) => void;
+  /** Idle autosave debounce (ms) after a dirty onChange. 0 disables. Default 350. */
+  idleMs?: number;
 }
 
 export interface UseEditorSaveResult<T = string> {
@@ -14,47 +16,58 @@ export interface UseEditorSaveResult<T = string> {
   error: unknown;
 }
 
-// ponytail: saves are coalesced — no idle timer. Drafts persist on line change,
-// blur, pagehide/visibility, explicit flush (Ctrl+S), and unmount. While a save
-// is in flight, subsequent flushes coalesce into a single follow-up save of the
-// latest draft rather than replaying every intermediate line snapshot.
+const DEFAULT_IDLE_MS = 350;
+
 export function useEditorSave<T = string>({
   onSave,
   getSnapshotKey,
   onError,
+  idleMs,
 }: UseEditorSaveOptions<T>): UseEditorSaveResult<T> {
   const draft = useRef<{ value: T; key: string } | null>(null);
   const savedKey = useRef<string | null>(null);
   const activeLine = useRef<number | null>(null);
   const runningRef = useRef<Promise<void> | null>(null);
   const queuedRef = useRef<Promise<void> | null>(null);
-  const callbacks = useRef({ onSave, getSnapshotKey, onError });
-  callbacks.current = { onSave, getSnapshotKey, onError };
+  const idleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callbacks = useRef({ onSave, getSnapshotKey, onError, idleMs });
+  callbacks.current = { onSave, getSnapshotKey, onError, idleMs };
   const [error, setError] = useState<unknown>(null);
+
+  const clearIdle = useCallback(() => {
+    if (idleRef.current !== null) {
+      clearTimeout(idleRef.current);
+      idleRef.current = null;
+    }
+  }, []);
 
   const runImmediate = useCallback((snapshot: { value: T; key: string }): Promise<void> => {
     if (snapshot.key === savedKey.current) return Promise.resolve();
-    const execution = Promise.resolve()
-      .then(async () => {
+    let execution!: Promise<void>;
+    execution = (async () => {
+      try {
+        // Enter onSave synchronously (no microtask hop): useNoteDraft registers
+        // pendingNoteSaves inside onSave, and an SPA-unmount flush() must have
+        // that registration on the same tick it returns.
         await callbacks.current.onSave(snapshot.value);
         savedKey.current = snapshot.key;
         setError(null);
-      })
-      .catch((failure: unknown) => {
+      } catch (failure: unknown) {
         setError(failure);
         callbacks.current.onError?.(failure);
         throw failure;
-      })
-      .finally(() => {
+      } finally {
         if (runningRef.current === execution) {
           runningRef.current = null;
         }
-      });
+      }
+    })();
     runningRef.current = execution;
     return execution;
   }, []);
 
   const flush = useCallback((): Promise<void> => {
+    clearIdle();
     if (!draft.current) {
       return queuedRef.current ?? runningRef.current ?? Promise.resolve();
     }
@@ -75,14 +88,22 @@ export function useEditorSave<T = string>({
       });
     queuedRef.current = drain;
     return drain;
-  }, [runImmediate]);
+  }, [runImmediate, clearIdle]);
 
   const onChange = useCallback((value: T) => {
     const key =
       callbacks.current.getSnapshotKey?.(value) ??
       (typeof value === 'string' ? value : JSON.stringify(value));
     draft.current = { value, key };
-  }, []);
+    clearIdle();
+    const ms = callbacks.current.idleMs ?? DEFAULT_IDLE_MS;
+    if (ms > 0 && key !== savedKey.current) {
+      idleRef.current = setTimeout(() => {
+        idleRef.current = null;
+        void flush().catch(() => {});
+      }, ms);
+    }
+  }, [clearIdle, flush]);
 
   const onLineChange = useCallback(
     (line: number, _column: number) => {
@@ -109,9 +130,10 @@ export function useEditorSave<T = string>({
     return () => {
       window.removeEventListener('pagehide', pagehide);
       document.removeEventListener('visibilitychange', visibility);
+      clearIdle();
       void flush().catch(() => {});
     };
-  }, [flush]);
+  }, [flush, clearIdle]);
 
   return { onChange, onLineChange, onBlur, flush, error };
 }

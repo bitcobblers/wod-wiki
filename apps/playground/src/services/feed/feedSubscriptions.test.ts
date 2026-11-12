@@ -3,15 +3,17 @@ import {
   getFeedSubscriptionMode,
   getSubscribedNotebooks,
   isNotebookSubscribed,
+  migrateFeedSubscriptions,
   resetFeedSubscriptionsForTest,
   setFeedSubscribed,
   setNotebookSubscribed,
+  subscribeFeedSubscriptions,
 } from './feedSubscriptions';
 import { syncNotebook, toggleNotebookSubscription } from './feedSync';
 import { InMemoryFeedStorage } from './FeedImportStorage';
 import { InMemoryFeedSource } from './InMemoryFeedSource';
 import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
-import { seedMetaKey, SEED_SCHEMA } from '@/types/seed';
+import { emptySeedMeta, seedMetaKey, SEED_SCHEMA } from '@/types/seed';
 
 describe('feedSubscriptions (Slice 2)', () => {
   beforeEach(() => {
@@ -163,5 +165,80 @@ describe('feedSubscriptions (Slice 2)', () => {
     // Checkpoint deleted because no chunks remain!
     expect(await storage.getSeedMeta(seedMetaKey('wod-crossfit'))).toBeUndefined();
     expect(getFeedSubscriptionMode('wod-crossfit')).toBe('unsubscribed');
+  });
+
+  it('setFeedSubscribed keeps an explicit subscription written to localStorage by another writer while the cache was stale', () => {
+    // Populate the cache with an empty map, then have another writer (other
+    // tab / sync) persist an explicit subscription behind the cache's back.
+    resetFeedSubscriptionsForTest();
+    getFeedSubscriptionMode('sport-hyrox');
+    localStorage.setItem('wodwiki.seedSubscriptions', JSON.stringify({ 'sport-hyrox': true }));
+
+    setFeedSubscribed('sport-crossfit', true);
+
+    // The stale-cache write must not shrink the explicit hyrox verdict.
+    resetFeedSubscriptionsForTest();
+    expect(getFeedSubscriptionMode('sport-hyrox')).toBe('full');
+    expect(getFeedSubscriptionMode('sport-crossfit')).toBe('full');
+  });
+
+  it('migrateFeedSubscriptions preserves an explicit subscription missing from the stale cache', async () => {
+    resetFeedSubscriptionsForTest();
+    getFeedSubscriptionMode('sport-hyrox');
+    localStorage.setItem('wodwiki.seedSubscriptions', JSON.stringify({ 'sport-hyrox': true }));
+
+    const storage = new InMemoryFeedStorage();
+    await storage.storageInstance.transaction(['meta'], 'readwrite', async (tx) => {
+      await tx.readwrite('meta').put({
+        ...emptySeedMeta(seedMetaKey('sport-crossfit')),
+        key: seedMetaKey('sport-crossfit'),
+        seedVersion: 1,
+        builtAt: new Date(1).toISOString(),
+        importedAt: 1,
+        tier: 'imported',
+        chunks: { 'notebook.crossfit-girls': { sha256: 'a'.repeat(64) } },
+      });
+    });
+    const migrated = await migrateFeedSubscriptions([{ id: 'sport-crossfit' }], storage);
+
+    expect(migrated).toContain('sport-crossfit');
+    resetFeedSubscriptionsForTest();
+    expect(getFeedSubscriptionMode('sport-hyrox')).toBe('full');
+    expect(getFeedSubscriptionMode('sport-crossfit')).toBe('full');
+    // Repeated reads keep the explicit verdict — it never shrinks.
+    expect(getFeedSubscriptionMode('sport-hyrox')).toBe('full');
+  });
+
+  it('migrateFeedSubscriptions never downgrades an existing canonical true via a legacy record', async () => {
+    localStorage.setItem('wodwiki.seedSubscriptions', JSON.stringify({
+      'sport-hyrox': true,
+      'seed-hyrox': false,
+    }));
+    resetFeedSubscriptionsForTest();
+
+    const migrated = await migrateFeedSubscriptions([{ id: 'sport-hyrox' }], new InMemoryFeedStorage());
+
+    expect(migrated).toEqual([]);
+    resetFeedSubscriptionsForTest();
+    expect(getFeedSubscriptionMode('sport-hyrox')).toBe('full');
+    expect(JSON.parse(localStorage.getItem('wodwiki.seedSubscriptions')!)['sport-hyrox']).toBe(true);
+    expect(localStorage.getItem('wodwiki.seedSubscriptions')!).not.toContain('seed-hyrox');
+  });
+
+  it('invalidates the cache and notifies listeners when a storage event changes the keys', () => {
+    const notified: number[] = [];
+    const unsubscribe = subscribeFeedSubscriptions(() => notified.push(notified.length + 1));
+
+    // Another tab writes an explicit subscription; the same-tab cache is stale.
+    localStorage.setItem('wodwiki.seedSubscriptions', JSON.stringify({ 'sport-hyrox': true }));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'wodwiki.seedSubscriptions' }));
+
+    expect(notified).toEqual([1]);
+    // Cache was invalidated: the external value is visible without a reset.
+    expect(getFeedSubscriptionMode('sport-hyrox')).toBe('full');
+
+    unsubscribe();
+    window.dispatchEvent(new StorageEvent('storage', { key: 'wodwiki.seedSubscriptions' }));
+    expect(notified).toEqual([1]);
   });
 });
