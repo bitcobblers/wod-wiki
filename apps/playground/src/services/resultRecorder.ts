@@ -73,6 +73,15 @@ function reviveSessionDates(data: Sessions): Sessions {
   const reviveOutput = (o: Record<string, unknown>) => ({
     ...o,
     ...(o.timestamp !== undefined ? { timestamp: reviveDate(o.timestamp) } : {}),
+    ...(Array.isArray(o.metrics)
+      ? {
+          metrics: (o.metrics as Array<Record<string, unknown>>).map((m) =>
+            m && typeof m === 'object' && m.timestamp !== undefined
+              ? { ...m, timestamp: reviveDate(m.timestamp) }
+              : m,
+          ),
+        }
+      : {}),
     ...(o.timeSpan && typeof o.timeSpan === 'object'
       ? {
           timeSpan: {

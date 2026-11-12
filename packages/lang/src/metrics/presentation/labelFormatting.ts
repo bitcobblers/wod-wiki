@@ -61,7 +61,10 @@ export function buildTooltip(metric: IMetric): string {
   if (metric.value !== undefined) parts.push(`Value: ${metric.value}`);
   if (metric.origin) parts.push(`Origin: ${metric.origin}`);
   if (metric.sourceBlockKey) parts.push(`Block: ${metric.sourceBlockKey}`);
-  if (metric.timestamp) parts.push(`Time: ${metric.timestamp.toISOString()}`);
+  if (metric.timestamp) {
+    const ts = metric.timestamp instanceof Date ? metric.timestamp : new Date(metric.timestamp);
+    if (!Number.isNaN(ts.getTime())) parts.push(`Time: ${ts.toISOString()}`);
+  }
   return parts.join('\n');
 }
 
