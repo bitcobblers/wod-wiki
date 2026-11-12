@@ -25,6 +25,13 @@ interface EquipmentRegistryContextValue {
 const EquipmentRegistryContext = createContext<EquipmentRegistryContextValue | null>(null);
 
 export function EquipmentRegistryProvider({ children }: { children: React.ReactNode }) {
+  const mountedRef = React.useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const [{ isReady, error, revision }, setStatus] = useState<Pick<EquipmentRegistryContextValue, 'isReady' | 'error' | 'revision'>>({
     isReady: false,
     error: null,
@@ -37,8 +44,10 @@ export function EquipmentRegistryProvider({ children }: { children: React.ReactN
       // Always re-read — hydration replaces the bundled tier and reloads the
       // user tier (see EffortRegistryContext).
       await hydrateAppEquipmentRegistry(registry);
+      if (!mountedRef.current || typeof window === 'undefined') return;
       setStatus((s) => ({ isReady: true, error: null, revision: s.revision + 1 }));
     } catch (err) {
+      if (!mountedRef.current || typeof window === 'undefined') return;
       setStatus((s) => ({ ...s, isReady: false, error: err instanceof Error ? err : new Error(String(err)) }));
     }
   }, [registry]);

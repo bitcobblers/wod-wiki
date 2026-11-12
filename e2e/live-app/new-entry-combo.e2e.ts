@@ -136,7 +136,7 @@ test.describe('Contextual new entry actions', () => {
 
   test('exposes New Note creation on mobile inside a custom notebook', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto('/notebook/combo-notes');
+    await page.goto('/notebook/custom');
     await waitForFeedReady(page);
     await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeVisible();
   });

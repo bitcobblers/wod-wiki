@@ -67,6 +67,32 @@ export interface PendingUnloadResult {
 
 const PENDING_UNLOAD_KEY = 'wodwiki:pending-halted-sessions:v1';
 
+function reviveSessionDates(data: Sessions): Sessions {
+  const reviveDate = (v: unknown): Date =>
+    v instanceof Date ? v : typeof v === 'string' || typeof v === 'number' ? new Date(v) : new Date();
+  const reviveOutput = (o: Record<string, unknown>) => ({
+    ...o,
+    ...(o.timestamp !== undefined ? { timestamp: reviveDate(o.timestamp) } : {}),
+    ...(o.timeSpan && typeof o.timeSpan === 'object'
+      ? {
+          timeSpan: {
+            ...(o.timeSpan as Record<string, unknown>),
+            ...((o.timeSpan as Record<string, unknown>).startTime !== undefined
+              ? { startTime: reviveDate((o.timeSpan as Record<string, unknown>).startTime) }
+              : {}),
+            ...((o.timeSpan as Record<string, unknown>).endTime !== undefined
+              ? { endTime: reviveDate((o.timeSpan as Record<string, unknown>).endTime) }
+              : {}),
+          },
+        }
+      : {}),
+  });
+  return {
+    ...data,
+    ...(Array.isArray(data.logs) ? { logs: data.logs.map((l) => reviveOutput(l as unknown as Record<string, unknown>)) as Sessions['logs'] } : {}),
+  };
+}
+
 function readPendingUnloadResults(): Record<string, PendingUnloadResult> {
   try {
     const raw = localStorage.getItem(PENDING_UNLOAD_KEY);
@@ -76,7 +102,11 @@ function readPendingUnloadResults(): Record<string, PendingUnloadResult> {
     for (const [resultId, entry] of Object.entries(value)) {
       const candidate = entry as Partial<PendingUnloadResult>;
       if (candidate && typeof candidate.resultId === 'string' && candidate.data && typeof candidate.createdAt === 'number') {
-        parsed[resultId] = { ...candidate, resultId } as PendingUnloadResult;
+        parsed[resultId] = {
+          ...candidate,
+          resultId,
+          data: reviveSessionDates(candidate.data),
+        } as PendingUnloadResult;
       }
     }
     return parsed;

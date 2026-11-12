@@ -24,6 +24,13 @@ interface EffortRegistryContextValue {
 const EffortRegistryContext = createContext<EffortRegistryContextValue | null>(null);
 
 export function EffortRegistryProvider({ children }: { children: React.ReactNode }) {
+  const mountedRef = React.useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const [{ isReady, error, revision }, setStatus] = useState<Pick<EffortRegistryContextValue, 'isReady' | 'error' | 'revision'>>({
     isReady: false, error: null, revision: 0,
   });
@@ -35,12 +42,13 @@ export function EffortRegistryProvider({ children }: { children: React.ReactNode
       // user tier, so post-save refreshes and feed broadcasts see new and
       // removed rows alike (a one-shot init would cache stale rows forever).
       await hydrateAppEffortRegistry(registry);
+      if (!mountedRef.current || typeof window === 'undefined') return;
       setStatus(s => ({ isReady: true, error: null, revision: s.revision + 1 }));
     } catch (err) {
+      if (!mountedRef.current || typeof window === 'undefined') return;
       setStatus(s => ({ ...s, isReady: false, error: err instanceof Error ? err : new Error(String(err)) }));
     }
   }, [registry]);
-
   const refresh = useCallback(async () => {
     await init();
   }, [init]);
