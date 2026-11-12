@@ -46,6 +46,11 @@ function seedManifestVersions(): Record<string, number> {
 }
 
 export default defineConfig({
+  // Disable Vite's automatic publicDir copying during build — Storybook manages
+  // static assets (including public/seed) via staticDirs in .storybook/main.ts.
+  // When both Vite and Storybook's copyAllStaticFilesRelativeToMain concurrently
+  // copy public/ into storybook-static, Node's fs.cp throws EEXIST on mkdir.
+  publicDir: false,
   build: {
     chunkSizeWarningLimit: 2000,
   },
