@@ -17,11 +17,13 @@ import { InMemoryStorage, setStorageForTesting, resetStorageForTesting, storageS
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
 import {
   NOTEBOOKS_STREAM_PROFILE,
+  NOTES_STREAM_PROFILE,
   EFFORTS_STREAM_PROFILE,
   FEEDS_STREAM_PROFILE,
   JOURNAL_STREAM_PROFILE,
   PLAYGROUNDS_STREAM_PROFILE,
   SESSIONS_STREAM_PROFILE,
+  TAGS_STREAM_PROFILE,
   createResultDetailProfile,
   createNotebookProfile,
 } from './streamProfile'
@@ -1496,5 +1498,212 @@ describe('QueriableStreamView — query truth and retained state', () => {
     await waitFor(() => {
       expect(screen.getByTestId('stream-dated-content')).toBeDefined()
     })
+  })
+
+  it('renders NOTES_STREAM_PROFILE default :note{notebook:*} with zero advisories (WW-003)', async () => {
+    const { engine } = stubEngine((_q, onStages) => {
+      onStages?.({ selected: 2, matched: 2 })
+      return DATED_NOTE_ENTRIES
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/notes']}>
+        <QueriableStreamView profile={NOTES_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('2 of 2')
+    })
+    const status = screen.getByTestId('stream-query-status').textContent ?? ''
+    expect(status).toContain(':note')
+    expect(status).toContain('1 applied')
+    expect(status).not.toContain('wildcard')
+    expect(status).not.toContain('ignored')
+  })
+
+  it('renders Searching… instead of 0 of 0 while a query is unsettled or in-flight without stages (WW-004)', async () => {
+    const pending = Promise.withResolvers<Entry[]>()
+    const { engine } = stubEngine(() => pending.promise)
+
+    render(
+      <MemoryRouter initialEntries={['/journal']}>
+        <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    // Pre-debounce initial mount: counts are unsettled, never 0 of 0 or (level).
+    expect(screen.getByTestId('stream-query-counts').textContent).toBe('Searching…')
+    expect(screen.getByTestId('stream-query-status').textContent).not.toContain('0 of 0')
+    expect(screen.getByTestId('stream-query-status').textContent).not.toContain('(level)')
+
+    // Advance past STREAM_EXECUTE_DEBOUNCE_MS so loading === true && stages === undefined.
+    await act(async () => {
+      await delay(200)
+    })
+    expect(screen.getByTestId('stream-query-counts').textContent).toBe('Searching…')
+    expect(screen.getByTestId('stream-query-status').textContent).not.toContain('0 of 0')
+    expect(screen.getByTestId('stream-query-status').textContent).not.toContain('(level)')
+
+    // Once the query resolves (even empty), settled counts render accurately.
+    await act(async () => {
+      pending.resolve([])
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 of 0')
+    })
+    expect(screen.getByTestId('stream-query-status').textContent).toContain('by date (query)')
+  })
+
+  it('omits raw (level) token from status strip across FEEDS, EFFORTS, and TAGS while preserving explicit sources (WW-004)', async () => {
+    for (const [route, profile, expectedDim] of [
+      ['/feeds', FEEDS_STREAM_PROFILE, 'by date'],
+      ['/efforts', EFFORTS_STREAM_PROFILE, 'by discipline'],
+      ['/tags', TAGS_STREAM_PROFILE, 'by date'],
+    ] as const) {
+      cleanup()
+      const { engine } = stubEngine(() => [])
+      render(
+        <MemoryRouter initialEntries={[route]}>
+          <QueriableStreamView profile={profile} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+      await waitFor(() => {
+        expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 of 0')
+      })
+      const statusText = screen.getByTestId('stream-query-status').textContent ?? ''
+      expect(statusText).toContain(expectedDim)
+      expect(statusText).not.toContain('(level)')
+    }
+
+    // Explicit view and favorite grouping sources remain visible.
+    cleanup()
+    writeViewSettings('/efforts', {
+      level: 'effort',
+      layout: 'cards',
+      visibleFields: ['label'],
+      groupBy: 'met',
+    })
+    const { engine: viewEngine } = stubEngine(() => [])
+    render(
+      <MemoryRouter initialEntries={['/efforts']}>
+        <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={viewEngine} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('stream-query-status').textContent).toContain('by met (view)')
+    })
+
+    cleanup()
+    window.localStorage.clear()
+    const { engine: favEngine } = stubEngine(() => [])
+    render(
+      <MemoryRouter initialEntries={['/tags']}>
+        <QueriableStreamView
+          profile={{ ...TAGS_STREAM_PROFILE, groupByOptions: ['date'] }}
+          queryEngine={favEngine}
+        />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('stream-query-status').textContent).toContain('by date (favorite)')
+    })
+  })
+
+  it('suppresses route-wql-empty-options while loading or when results exist, and shows it when settled empty (WW-018)', async () => {
+    const tagEntries: Entry[] = [
+      {
+        id: 'tag:general/heavy',
+        kind: 'tag',
+        sourceNotebook: 'tags',
+        sourceNote: 'heavy',
+        title: 'heavy',
+        date: null,
+      },
+    ]
+    const pending = Promise.withResolvers<Entry[]>()
+    const { engine: populatedEngine } = stubEngine(() => pending.promise)
+
+    render(
+      <MemoryRouter initialEntries={['/tags']}>
+        <QueriableStreamView profile={TAGS_STREAM_PROFILE} queryEngine={populatedEngine} />
+      </MemoryRouter>,
+    )
+
+    // Hidden while unsettled / loading.
+    expect(screen.queryByTestId('route-wql-empty-options')).toBeNull()
+    await act(async () => {
+      await delay(200)
+    })
+    expect(screen.queryByTestId('route-wql-empty-options')).toBeNull()
+
+    // Hidden once populated results commit.
+    await act(async () => {
+      pending.resolve(tagEntries)
+    })
+    await waitFor(() => {
+      expect(screen.getByText('heavy')).toBeDefined()
+    })
+    expect(screen.queryByTestId('route-wql-empty-options')).toBeNull()
+
+    // Present when settled with 0 entries on an empty-scopeOptions route.
+    cleanup()
+    const { engine: emptyEngine } = stubEngine(() => [])
+    render(
+      <MemoryRouter initialEntries={['/tags']}>
+        <QueriableStreamView profile={TAGS_STREAM_PROFILE} queryEngine={emptyEngine} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 of 0')
+    })
+    expect(screen.getByTestId('route-wql-empty-options')).toBeDefined()
+  })
+
+  it('gates feed card Unsubscribe behind window.confirm on /feeds (WW-016)', async () => {
+    const unsubscribeSpy = spyOn(feedSyncModule, 'unsubscribeFeedSource').mockImplementation(
+      (async () => ({ deleted: 5 })) as never,
+    )
+    const confirmSpy = spyOn(window, 'confirm').mockImplementation(() => false)
+
+    const feedEntries: Entry[] = [
+      {
+        id: 'feed:sport-hyrox',
+        kind: 'feed',
+        feedId: 'sport-hyrox',
+        sourceNotebook: 'feeds',
+        sourceNote: 'sport-hyrox',
+        title: 'HYROX Workouts',
+        date: null,
+        subscribed: true,
+      },
+    ]
+    const { engine } = stubEngine(() => feedEntries)
+
+    render(
+      <MemoryRouter initialEntries={['/feeds']}>
+        <QueriableStreamView profile={FEEDS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    const unsubBtn = await waitFor(() => screen.getByTestId('row-unsubscribe-sport-hyrox'))
+
+    // Declined confirmation -> unsubscribeFeedSource is not called.
+    await act(async () => {
+      fireEvent.click(unsubBtn)
+    })
+    expect(confirmSpy).toHaveBeenCalledTimes(1)
+    expect(confirmSpy.mock.calls[0]?.[0]).toContain('HYROX Workouts')
+    expect(unsubscribeSpy).not.toHaveBeenCalled()
+
+    // Accepted confirmation -> unsubscribeFeedSource runs with feedId.
+    confirmSpy.mockImplementation(() => true)
+    await act(async () => {
+      fireEvent.click(unsubBtn)
+    })
+    await waitFor(() => {
+      expect(unsubscribeSpy).toHaveBeenCalledTimes(1)
+    })
+    expect(unsubscribeSpy).toHaveBeenCalledWith('sport-hyrox')
   })
 })

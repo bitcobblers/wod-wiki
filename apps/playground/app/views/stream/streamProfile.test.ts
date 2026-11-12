@@ -11,6 +11,9 @@ import {
   TAGS_STREAM_PROFILE,
   SESSIONS_STREAM_PROFILE,
   PLAYGROUNDS_STREAM_PROFILE,
+  createNotebookProfile,
+  createResultDetailProfile,
+  createSessionDateProfile,
   getStreamProfile,
   resolveStreamProfile,
   isStreamRoute,
@@ -18,7 +21,7 @@ import {
 } from './streamProfile'
 
 describe('streamProfile', () => {
-  it('every stream default WQL parses — requested defaults are executable', () => {
+  it('every stream default WQL parses with zero advisories — requested defaults are executable (WW-003)', () => {
     for (const profile of [
       JOURNAL_STREAM_PROFILE,
       NOTEBOOKS_STREAM_PROFILE,
@@ -30,9 +33,13 @@ describe('streamProfile', () => {
       TAGS_STREAM_PROFILE,
       SESSIONS_STREAM_PROFILE,
       PLAYGROUNDS_STREAM_PROFILE,
+      createNotebookProfile('dan-john'),
+      createSessionDateProfile('2026-09-17'),
+      createResultDetailProfile('res-42'),
     ]) {
       const parsed = parseQuery(profile.defaultWql)
-      expect(parsed.error).toBeUndefined()
+      expect(parsed.error, profile.route).toBeUndefined()
+      expect(parsed.advisories, profile.route).toBeUndefined()
     }
   })
 
@@ -221,5 +228,33 @@ describe('NOTEBOOKS_STREAM_PROFILE default query (ticket 08)', () => {
     // never synthetic notebook/container rows.
     expect(result.notes.map((n) => n.id).sort()).toEqual(['crossfit-girls/fran', 'journal/2026-10-26', 'pg-1'])
     expect(result.notes.every((n) => !n.id.startsWith('notebook/'))).toBe(true)
+  })
+})
+
+describe('NOTES_STREAM_PROFILE default query (WW-003)', () => {
+  it('defaults to :note{notebook:*} with zero advisories and matches notes belonging to any notebook', async () => {
+    const { QueryService } = await import('@bitcobblers/wod-wiki-engine')
+    const parsed = parseQuery(NOTES_STREAM_PROFILE.defaultWql)
+    expect(parsed.error).toBeUndefined()
+    expect(parsed.advisories).toBeUndefined()
+
+    const notes = [
+      { id: '01950000-0000-7000-8000-000000000001', title: 'Morning', seedOrigin: 'user', sourceId: 'journal', createdAt: 1, rawContent: '', sourceRevision: 1, blocks: {} },
+      { id: 'crossfit-girls/fran', title: 'Fran', seedOrigin: 'seed', sourceId: 'notebook:crossfit-girls/fran', createdAt: 2, rawContent: '', sourceRevision: 1, blocks: {} },
+      { id: 'user-nb-1', title: 'Custom WOD', seedOrigin: 'user', notebookId: 'notebook/open-prep', createdAt: 3, rawContent: '', sourceRevision: 1, blocks: {} },
+      { id: 'root-readme', title: 'Root', seedOrigin: 'seed', sourceId: 'notebook:_root', sourcePath: 'markdown/notebooks/README.md', createdAt: 4, rawContent: '', sourceRevision: 1, blocks: {} },
+    ]
+    const service = new QueryService({
+      eventStore: { getEventsByTimeRange: async () => [], getEventsByResult: async () => [] },
+      noteStore: { getAllNotes: async () => notes, getNoteIdsForTag: async () => new Set() },
+      blockStore: { getAllBlocks: async () => [] },
+    } as never)
+    const result = await service.runFind(parsed as never)
+    expect(result.parsed.advisories).toBeUndefined()
+    expect(result.notes.map((n) => n.id).sort()).toEqual([
+      '01950000-0000-7000-8000-000000000001',
+      'crossfit-girls/fran',
+      'user-nb-1',
+    ])
   })
 })

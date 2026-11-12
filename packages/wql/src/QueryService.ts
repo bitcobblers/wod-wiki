@@ -439,15 +439,30 @@ function applySourceFilter<T extends { sourceId?: string; type?: string }>(items
   return items;
 }
 
+function matchesNotebookFilterValue(nb: NotebookId, v: TagFilter['values'][number]): boolean {
+  if (v.wildcard) {
+    if (!v.value) return true;
+    const prefix = notebookSlugFromId(v.value);
+    return notebookSlugFromId(nb).startsWith(prefix);
+  }
+  return nb === toNotebookId(v.value);
+}
+
+function matchesFeedFilterValue(fid: string, v: TagFilter['values'][number]): boolean {
+  if (v.wildcard) {
+    return v.value ? fid.startsWith(v.value) : fid !== 'local';
+  }
+  return fid === v.value;
+}
+
 /** Apply the `notebook:` filter key to a list of Note or BlockIndexRow items. */
 function applyNotebookFilter<T extends NotebookResolvableItem>(items: T[], filters: TagFilter[]): T[] {
   for (const filter of filters) {
     if (filter.key !== 'notebook') continue;
-    const wanted = new Set(filter.values.map(v => toNotebookId(v.value)));
     items = items.filter(item => {
       const memberships = notebooksOfItem(item);
       if (memberships.length === 0) return filter.negate;
-      const hit = memberships.some(nb => wanted.has(nb));
+      const hit = memberships.some(nb => filter.values.some(v => matchesNotebookFilterValue(nb, v)));
       return filter.negate ? !hit : hit;
     });
   }
@@ -1745,11 +1760,9 @@ export class QueryService {
     // feed: filter
     for (const filter of parsed.filters) {
       if (filter.key === 'feed') {
-        const wanted = new Set(filter.values.map(v => v.value));
-        const hasWildcard = filter.values.some(v => v.wildcard);
         notes = notes.filter(n => {
           const fid = feedIdOfItem(n);
-          const hit = hasWildcard ? fid !== 'local' : wanted.has(fid);
+          const hit = filter.values.some(v => matchesFeedFilterValue(fid, v));
           return filter.negate ? !hit : hit;
         });
       }
@@ -1969,11 +1982,9 @@ export class QueryService {
     // feed: filter
     for (const filter of parsed.filters) {
       if (filter.key === 'feed') {
-        const wanted = new Set(filter.values.map(v => v.value));
-        const hasWildcard = filter.values.some(v => v.wildcard);
         blocks = blocks.filter(b => {
           const fid = feedIdOfItem(b);
-          const hit = hasWildcard ? fid !== 'local' : wanted.has(fid);
+          const hit = filter.values.some(v => matchesFeedFilterValue(fid, v));
           return filter.negate ? !hit : hit;
         });
       }
@@ -2953,10 +2964,8 @@ export class QueryService {
 
     for (const filter of parsed.filters) {
       if (filter.key === 'feed') {
-        const wanted = new Set(filter.values.map((v) => v.value));
-        const hasWildcard = filter.values.some((v) => v.wildcard);
         matched = matched.filter((f) => {
-          const hit = hasWildcard ? f.id !== 'local' : wanted.has(f.id);
+          const hit = filter.values.some((v) => matchesFeedFilterValue(f.id, v));
           return filter.negate ? !hit : hit;
         });
       } else if (filter.key === 'subscribed') {
@@ -3035,16 +3044,20 @@ export class QueryService {
 
     for (const filter of parsed.filters) {
       if (filter.key === 'feed') {
-        const wanted = new Set(filter.values.map((v) => v.value));
-        const hasWildcard = filter.values.some((v) => v.wildcard);
         matched = matched.filter((nb) => {
-          const hit = hasWildcard ? nb.feedId !== 'local' : wanted.has(nb.feedId);
+          const hit = filter.values.some((v) => matchesFeedFilterValue(nb.feedId, v));
           return filter.negate ? !hit : hit;
         });
       } else if (filter.key === 'notebook') {
-        const wanted = new Set(filter.values.map((v) => notebookSlugFromId(v.value)));
         matched = matched.filter((nb) => {
-          const hit = wanted.has(nb.slug) || wanted.has(nb.id) || wanted.has(notebookSlugFromId(nb.chunkId));
+          const candidates = [nb.slug, notebookSlugFromId(nb.id), notebookSlugFromId(nb.chunkId)];
+          const hit = filter.values.some((v) => {
+            const wantedSlug = notebookSlugFromId(v.value);
+            if (v.wildcard) {
+              return !wantedSlug ? true : candidates.some((c) => c.startsWith(wantedSlug));
+            }
+            return candidates.includes(wantedSlug) || nb.id === v.value;
+          });
           return filter.negate ? !hit : hit;
         });
       } else if (filter.key === 'text') {

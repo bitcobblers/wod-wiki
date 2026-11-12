@@ -90,6 +90,16 @@ describe('Route-aware stream profile resolution', () => {
 
     expect(resolveStreamProfile('/notes')).toBe(NOTES_STREAM_PROFILE)
     expect(resolveStreamProfile('/notes').defaultWql).toBe(':note{notebook:*}')
+    const notesDefault = parseQuery(resolveStreamProfile('/notes').defaultWql)
+    expect(notesDefault.error).toBeUndefined()
+    expect(notesDefault.advisories).toBeUndefined()
+    expect(isFindQuery(notesDefault)).toBe(true)
+    if (isFindQuery(notesDefault)) {
+      expect(notesDefault.target).toBe('note')
+      expect(notesDefault.filters).toEqual([
+        { key: 'notebook', negate: false, values: [{ value: '', wildcard: true }] },
+      ])
+    }
 
     expect(resolveStreamProfile('/efforts')).toBe(EFFORTS_STREAM_PROFILE)
     expect(resolveStreamProfile('/efforts').defaultWql).toBe(':effort')

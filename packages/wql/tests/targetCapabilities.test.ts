@@ -60,6 +60,26 @@ describe('find target capability advisories', () => {
     // Any configured tag type names a property dimension — no vocabulary check.
     expect(parseQuery(':note{source:journal} by {gym}').advisories).toBeUndefined();
   });
+
+  it('notebook and feed wildcards emit zero advisories on supported targets while unsupported wildcards still warn', () => {
+    for (const q of [
+      ':note{notebook:*}',
+      ':note{notebook:crossfit*}',
+      ':notebook{notebook:*}',
+      ':block{notebook:*}',
+      ':notebook{feed:*,subscribed:false}',
+      ':note{feed:*}',
+      ':feed{feed:*}',
+    ]) {
+      const parsed = parseQuery(q);
+      expect(parsed.error, q).toBeUndefined();
+      expect(parsed.advisories, q).toBeUndefined();
+    }
+
+    const unsupported = parseQuery(':note{text:fran*}');
+    expect(unsupported.error).toBeUndefined();
+    expect(unsupported.advisories?.join(' ') ?? '').toContain('wildcards');
+  });
 });
 
 describe('consumer regression: unsupported filters change nothing but the advisories', () => {

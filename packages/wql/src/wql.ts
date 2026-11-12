@@ -521,7 +521,9 @@ export function parseQuery(raw: string): AnyParsedQuery {
  * Returns the normalized query string and any deprecation advisories.
  */
 function normalizeNotebookFilterText(raw: string): string {
-  return raw.replace(/\bnotebook:notebook\/([a-zA-Z0-9_-]+)/g, 'notebook:"notebook/$1"');
+  return raw.replace(/\bnotebook:notebook\/([a-zA-Z0-9_-]+)(\*?)/g, (_m, slug: string, star: string) =>
+    star ? `notebook:${slug}*` : `notebook:"notebook/${slug}"`,
+  );
 }
 
 export function normalizeWql(raw: string): { query: string; advisories: string[] } {
@@ -1242,8 +1244,13 @@ export function findTargetAdvisories(query: ParsedFindQuery): string[] {
     if (filter.negate && negationIgnored) {
       advisories.push(`:${target} does not support '!${filter.key}:' negation; this clause is not applied as a negated filter.`);
     }
-    const wildcardSupported = target === 'effort' ? ['effort', 'text'].includes(filter.key)
-      : (target === 'segment' || target === 'event') && !scope;
+    const wildcardSupported =
+      target === 'effort'
+        ? ['effort', 'text'].includes(filter.key)
+        : (target === 'segment' || target === 'event')
+          ? !scope
+          : (filter.key === 'notebook' && supportsWqlFilterKey(target, 'find', 'notebook'))
+            || (filter.key === 'feed' && supportsWqlFilterKey(target, 'find', 'feed'));
     if (filter.values.some(value => value.wildcard) && !wildcardSupported) {
       advisories.push(`:${target} does not support '${filter.key}:…*' wildcards; values are matched without wildcard expansion.`);
     }

@@ -175,22 +175,26 @@ function StreamQueryStatus({
   matched,
   total,
   loading,
+  countsPending,
   applied,
   ignored,
   advisories,
   groupDims,
   groupingSource,
+  showGroupingSource,
 }: {
   error: string | null
   target: string | null
   matched: number
   total: number
   loading: boolean
+  countsPending: boolean
   applied: number
   ignored: number
   advisories: readonly string[]
   groupDims: string[]
   groupingSource: string
+  showGroupingSource: boolean
 }) {
   return (
     <div
@@ -204,8 +208,11 @@ function StreamQueryStatus({
         <span className="font-mono">:{target}</span>
       ) : null}
       <span aria-hidden="true">·</span>
-      <span data-testid="stream-query-counts" className={loading ? 'motion-safe:animate-pulse' : undefined}>
-        {matched} of {total}
+      <span
+        data-testid="stream-query-counts"
+        className={loading || countsPending ? 'motion-safe:animate-pulse' : undefined}
+      >
+        {countsPending ? 'Searching…' : `${matched} of ${total}`}
       </span>
       <span aria-hidden="true">·</span>
       <span data-testid="stream-query-filters">
@@ -213,8 +220,13 @@ function StreamQueryStatus({
       </span>
       <span aria-hidden="true">·</span>
       <span>
-        by {groupDims.join(', ')}{' '}
-        <span className="text-muted-foreground/60">({groupingSource})</span>
+        by {groupDims.join(', ')}
+        {showGroupingSource && (
+          <>
+            {' '}
+            <span className="text-muted-foreground/60">({groupingSource})</span>
+          </>
+        )}
       </span>
       {advisories.map(advisory => (
         <p key={advisory} className="w-full break-words text-amber-700 dark:text-amber-400">
@@ -352,6 +364,8 @@ export function QueriableStreamView({
   // The committed run's query-leg `by {}` dims — stored together with the
   // results they grouped; null when that run carried no query grouping.
   const [queryRunDims, setQueryRunDims] = useState<string[] | null>(null)
+  const [settledRoute, setSettledRoute] = useState<string | null>(null)
+  const hasSettledRun = settledRoute === profile.route
   const [shelfOpen, setShelfOpen] = useState(true)
   const [loading, setLoading] = useState(false)
   useEffect(() => setSurfaceBusy(loading), [loading])
@@ -662,6 +676,14 @@ export function QueriableStreamView({
           setFeedSubscribed(entry.feedId, true)
           await syncFeedSource(entry.feedId)
         } else {
+          const label = entry.title || feedSourceById(entry.feedId)?.label || entry.feedId
+          if (
+            !window.confirm(
+              `Unsubscribe from "${label}"? Imported content for this feed's content is removed from your library; the source stays listed so you can subscribe again. Your own notes are never touched.`,
+            )
+          ) {
+            return
+          }
           await unsubscribeFeedSource(entry.feedId)
         }
       } else if (entry.kind === 'notebook' && entry.feedId && entry.seedChunkId) {
@@ -843,6 +865,7 @@ export function QueriableStreamView({
             // draft edits (each valid intermediate re-parses) must never
             // regroup the still-displayed previous results.
             setQueryRunDims(parseGroupingDimensions(query, parsed))
+            setSettledRoute(profile.route)
             // One full execution per query change — nav facet panels read
             // this snapshot instead of re-running the query.
             publishStreamResults({ pathname: location.pathname, query, entries: results })
@@ -851,6 +874,7 @@ export function QueriableStreamView({
         .catch(() => {
           if (!cancelled) {
             setEntries([])
+            setSettledRoute(profile.route)
             publishStreamResults({ pathname: location.pathname, query, entries: [] })
           }
         })
@@ -862,7 +886,7 @@ export function QueriableStreamView({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [query, activeEngine, parsed, location.pathname, feedReadiness, savedTick])
+  }, [query, activeEngine, parsed, location.pathname, profile.route, feedReadiness, savedTick])
 
   // Grouping: the committed run's query `by {}` dimensions win; otherwise
   // the view setting, then the surface's Group-By favorite, then the level
@@ -1234,18 +1258,22 @@ export function QueriableStreamView({
           matched={entries.length}
           total={Math.max(stages?.selected ?? 0, entries.length)}
           loading={loading}
+          countsPending={!parsed.error && ((!hasSettledRun && !stages) || (loading && !stages))}
           applied={appliedFilters}
           ignored={ignoredFilters}
           advisories={parsed.error ? [] : parsed.advisories ?? []}
           groupDims={groupDims}
           groupingSource={groupingSource}
+          showGroupingSource={hasSettledRun && groupingSource !== 'level'}
         />
       </div>
 
       {/* ponytail: the nudge is a passive hint — upgrade to an inline source
           picker when the "Empty-option nudge UX" ticket lands. An empty
-          scopeOptions list is a deliberate Route WQL Config state. */}
-      {profile.scopeOptions.length === 0 && (
+          scopeOptions list is a deliberate Route WQL Config state, shown only
+          when a settled query returns zero entries so populated planes
+          (/tags, /efforts, /sessions, /pages) never show a dead-end warning. */}
+      {profile.scopeOptions.length === 0 && hasSettledRun && !loading && entries.length === 0 && (
         <p
           data-testid="route-wql-empty-options"
           className="px-4 pt-3 text-xs text-muted-foreground sm:px-6 lg:px-8"

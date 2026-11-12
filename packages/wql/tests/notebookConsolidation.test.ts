@@ -13,6 +13,7 @@ import {
   DEFAULT_NOTEBOOK_SLUGS,
 } from '../src/index';
 import type { Note, BlockIndexRow } from '@bitcobblers/wod-wiki-core';
+import { actionableFixture } from './harness/actionable';
 
 const makeNote = (overrides: Partial<Note> & { id: string }): Note => ({
   title: overrides.id,
@@ -291,6 +292,101 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
     expect(dashboards.notes.map((n) => n.id)).toEqual(['dash-1']);
     const journal = await service.runFind(parseQuery(':note{notebook:journal}') as Parameters<typeof service.runFind>[0]);
     expect(journal.notes.map((n) => n.id)).toEqual([uuid(1)]);
+  });
+
+  it('supports notebook:* presence wildcard, prefix wildcards, and negation across note, block, and notebook container planes (WW-003)', async () => {
+    const franFixture = actionableFixture(
+      { id: 'fran-id', title: 'Fran', createdAt: 1000, sourceId: 'notebook:crossfit-girls/fran', seedOrigin: 'seed' },
+      [{ id: 'b1', body: '21-15-9', blockContentId: 'hash-1' }],
+    );
+    const rootFixture = actionableFixture(
+      { id: 'root-readme', title: 'Notebooks Root', createdAt: 1000, sourceId: 'notebook:_root', sourcePath: 'markdown/notebooks/README.md', seedOrigin: 'seed' },
+      [{ id: 'b1', body: '10 Push-ups', blockContentId: 'hash-2' }],
+    );
+    const notes: Note[] = [
+      makeNote({ id: uuid(1), title: 'Morning Log', seedOrigin: 'user' }),
+      franFixture.note,
+      makeNote({ id: 'open-id', title: '24.1', sourceId: 'notebook:crossfit-open/24-1', seedOrigin: 'seed' }),
+      makeNote({ id: 'user-nb', title: 'Peaking Squat', notebookId: 'notebook/open-prep', seedOrigin: 'user' }),
+      rootFixture.note,
+      makeNote({ id: uuid(2), title: 'Unplaced Feed Note', feedOrigin: 'feed', feedSourceId: 'core' }),
+    ];
+    const blocks: BlockIndexRow[] = [...franFixture.blocks, ...rootFixture.blocks];
+
+    const service = new QueryService({
+      noteStore: {
+        getAllNotes: async () => notes,
+        getNoteIdsForTag: async () => new Set<string>(),
+        getNoteTagLabels: async () => [],
+      },
+      blockStore: { getAllBlocks: async () => blocks },
+      feedCatalogStore: {
+        getAllFeeds: async () => [],
+        getAllNotebooks: async () => [
+          {
+            id: 'notebook/crossfit-girls',
+            slug: 'crossfit-girls',
+            label: 'CrossFit Girls',
+            feedId: 'sport-crossfit',
+            feedLabel: 'CrossFit',
+            chunkId: 'notebook.crossfit-girls',
+            origin: 'feed',
+            subscribed: true,
+            noteCount: 1,
+          },
+          {
+            id: 'notebook/open-prep',
+            slug: 'open-prep',
+            label: 'Open Prep',
+            feedId: 'local',
+            feedLabel: 'Local',
+            chunkId: 'notebook.open-prep',
+            origin: 'user',
+            subscribed: true,
+            noteCount: 1,
+          },
+        ],
+      },
+    });
+
+    const allPlaced = await service.runFind(parseQuery(':note{notebook:*}') as Parameters<typeof service.runFind>[0]);
+    expect(allPlaced.parsed.advisories).toBeUndefined();
+    expect(allPlaced.notes.map((n) => n.id).sort()).toEqual([
+      uuid(1),
+      'fran-id',
+      'open-id',
+      'user-nb',
+    ].sort());
+
+    const unplaced = await service.runFind(parseQuery(':note{!notebook:*}') as Parameters<typeof service.runFind>[0]);
+    expect(unplaced.parsed.advisories).toBeUndefined();
+    expect(unplaced.notes.map((n) => n.id).sort()).toEqual([uuid(2), 'root-readme'].sort());
+
+    const prefix = await service.runFind(parseQuery(':note{notebook:crossfit*}') as Parameters<typeof service.runFind>[0]);
+    expect(prefix.parsed.advisories).toBeUndefined();
+    expect(prefix.notes.map((n) => n.id).sort()).toEqual(['fran-id', 'open-id']);
+
+    const fullIdPrefix = await service.runFind(parseQuery(':note{notebook:notebook/crossfit*}') as Parameters<typeof service.runFind>[0]);
+    expect(fullIdPrefix.parsed.error).toBeUndefined();
+    expect(fullIdPrefix.parsed.advisories).toBeUndefined();
+    expect(fullIdPrefix.notes.map((n) => n.id).sort()).toEqual(['fran-id', 'open-id']);
+
+    const placedBlocks = await service.runFind(parseQuery(':block{notebook:*}') as Parameters<typeof service.runFind>[0]);
+    expect(placedBlocks.parsed.advisories).toBeUndefined();
+    expect(placedBlocks.blocks.map((b) => b.id)).toEqual(['fran-id:b1']);
+
+    const allContainers = await service.runFind(parseQuery(':notebook{notebook:*}') as Parameters<typeof service.runFind>[0], {
+      notebookPlane: 'containers',
+    });
+    expect(allContainers.notes.map((n) => n.id).sort()).toEqual([
+      'feed-notebook/sport-crossfit/crossfit-girls',
+      'notebook/open-prep',
+    ]);
+
+    const prefixContainers = await service.runFind(parseQuery(':notebook{notebook:crossfit*}') as Parameters<typeof service.runFind>[0], {
+      notebookPlane: 'containers',
+    });
+    expect(prefixContainers.notes.map((n) => n.id)).toEqual(['feed-notebook/sport-crossfit/crossfit-girls']);
   });
 });
 
