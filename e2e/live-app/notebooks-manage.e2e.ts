@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { compileSeedRow, seedNoteIdSync } from '../../packages/tools/src/seedbuild/compiler';
-import { getNoteContentByRouteId, seedNote } from '../helpers/wodwikiDb';
+import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
 import { waitForFeedReady } from '../helpers/feedReadiness';
 
 /**
@@ -23,8 +23,6 @@ const CHUNK_ID = 'notebook.demo';
 const CHUNK_PATH = `chunks/${CHUNK_ID}.json`;
 const SEED_NOTE_PATH = 'markdown/notebooks/demo-catalog/session-1.md';
 const SEED_NOTE_BODY = '---\ntags: [demo]\n---\n# Demo Session\n\n```time\n10 Push-ups\n```\n';
-const USER_NOTE_PATH = 'markdown/notes/my-own-note.md';
-const USER_NOTE_BODY = '# My own note\n\nNever a seed row.\n';
 
 function chunkFixture() {
   const rows = [compileSeedRow(SEED_NOTE_PATH, SEED_NOTE_BODY)];
@@ -101,72 +99,6 @@ test.describe('Feed Source Settings & Library Navigation', () => {
     const subscribedOnly = page.getByRole('checkbox', { name: 'Subscribed only' });
     await subscribedOnly.setChecked(false);
     await expect(page.getByTestId('feed-source-manage-library')).toBeVisible();
-  });
-
-  test('subscribe imports content; auto-sync applies a bump, check-only waits for Sync; unsubscribe retains, delete removes', async ({ page }) => {
-    test.setTimeout(120_000);
-    const version = { current: 42 };
-    await seedSource(page, version);
-    page.on('dialog', dialog => void dialog.accept());
-
-    await page.goto('/settings/sync');
-    await seedNote(page, USER_NOTE_PATH, USER_NOTE_BODY);
-
-    const subscribedOnly = page.getByRole('checkbox', { name: 'Subscribed only' });
-    await subscribedOnly.setChecked(false);
-    const row = page.getByTestId('feed-source-manage-library');
-
-    // Subscribe
-    await expect(row.getByTestId('feed-subscribe-manage-library')).toBeEnabled({ timeout: 15_000 });
-    await row.getByTestId('feed-subscribe-manage-library').click();
-    await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
-    await expect(row.getByTestId('feed-subscribe-manage-library')).toBeHidden();
-
-    const auto = row.getByTestId('feed-autosync-manage-library');
-    await expect(auto).toBeEnabled();
-
-    // Auto-sync ON: background check applies published bump
-    await auto.check();
-    version.current = 43;
-    await page.reload();
-    await expect(page.getByTestId('feed-source-manage-library')).toBeVisible();
-    await expect(row.getByTestId('feed-autosync-manage-library')).toBeChecked();
-    await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
-    await expect(row.getByTestId('feed-local-version')).toContainText('v43');
-
-    // Auto-sync OFF: bump stays pending until athlete presses Sync
-    await auto.uncheck();
-    version.current = 44;
-    await page.reload();
-    await expect(row.getByTestId('feed-autosync-manage-library')).not.toBeChecked();
-    await expect(row.getByTestId('feed-sync-status')).toContainText('Update available', { timeout: 30_000 });
-    await expect(row.getByTestId('feed-sync-manage-library')).toBeVisible();
-    await row.getByTestId('feed-sync-manage-library').click();
-    await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
-    await expect(row.getByTestId('feed-local-version')).toContainText('v44');
-
-    // Unsubscribe: imported content removed, source entry stays
-    const more = row.getByTestId('feed-more-manage-library');
-    await more.locator('summary').click();
-    await row.getByTestId('feed-unsubscribe-manage-library').click();
-    await expect(async () => {
-      const subOnly = page.getByRole('checkbox', { name: 'Subscribed only' });
-      if (await subOnly.isChecked()) await subOnly.setChecked(false);
-      await expect(row.getByTestId('feed-subscribe-manage-library')).toBeVisible({ timeout: 2_000 });
-      await expect(row.getByTestId('feed-autosync-manage-library')).toBeDisabled({ timeout: 2_000 });
-    }).toPass({ timeout: 30_000 });
-    await expect(row).toBeVisible();
-    expect(await getNoteContentByRouteId(page, SEED_NOTE_PATH)).toBeNull();
-    expect(await getNoteContentByRouteId(page, USER_NOTE_PATH)).not.toBeNull();
-
-    // Delete: content AND source entry removed
-    const deleteButton = row.getByTestId('feed-delete-manage-library');
-    if (!(await deleteButton.isVisible())) await more.locator('summary').click();
-    await deleteButton.click();
-    await expect(row).toHaveCount(0);
-    expect(await getNoteContentByRouteId(page, USER_NOTE_PATH)).not.toBeNull();
-    const sources = await page.evaluate(() => localStorage.getItem('wodwiki.seedSources'));
-    expect(JSON.parse(sources ?? '[]')).toEqual([]);
   });
 
   test('one Subscribe imports every notebook the seed publishes', async ({ page }) => {

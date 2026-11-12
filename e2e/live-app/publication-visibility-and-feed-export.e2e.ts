@@ -36,6 +36,13 @@ for (const viewport of [
     await app.feeds.setSessionPublic(SESSION_PUBLIC, true);
     await app.feeds.expectPublicationVisibility('Published Note + Data');
 
+    if (viewport.width === 375) {
+      const noteOverflow = await app.page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      );
+      expect(noteOverflow, 'no horizontal overflow on /note/:noteId at 375px').toBe(false);
+    }
+
     const repo = await app.feeds.exportPortable('feed-repo-zip');
     expect(repo.sessionIds).toContain(SESSION_PUBLIC);
     expect(repo.sessionIds).not.toContain(SESSION_PRIVATE);
@@ -46,6 +53,13 @@ for (const viewport of [
     await expect(app.page).toHaveURL(/\/feeds/);
     await app.notebooks.openLibrary();
     await app.wql.expectStreamContains('Coach Program');
+
+    if (viewport.width === 375) {
+      const nbOverflow = await app.page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      );
+      expect(nbOverflow, 'no horizontal overflow on /notebooks at 375px').toBe(false);
+    }
 
     app.assertCleanConsole();
   });

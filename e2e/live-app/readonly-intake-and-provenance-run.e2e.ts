@@ -40,9 +40,9 @@ test.describe('RUN-02 — read-only Feed intake & provenance run', () => {
 
     // 1. Subscribe through the real consent surface; the intake imports the notebook.
     await app.goto(`/subscribe?source=${encodeURIComponent(PEER_BASE)}`);
-    const banner = page.getByTestId('unknown-feed-intake-banner');
+    const banner = page.getByTestId(TEST_IDS.UNKNOWN_FEED_INTAKE_BANNER);
     await expect(banner).toBeVisible();
-    await banner.getByTestId('feed-intake-subscribe').click();
+    await banner.getByTestId(TEST_IDS.FEED_INTAKE_SUBSCRIBE).click();
     await expect(page).toHaveURL(/\/notebooks\?q=(:|%3A)notebook\{feed(:|%3A)e2e-readonly-run-feed\}$/i);
     await app.feeds.waitForReady();
 

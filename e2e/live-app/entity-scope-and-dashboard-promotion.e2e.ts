@@ -61,10 +61,14 @@ test('session EventRecord table filters segments via the WQL query bar (?q= sync
   await expect(app.page).toHaveURL(new RegExp(`\\?q=${encodedQuery}`));
   await expect(table.locator('tbody')).toContainText('kettlebell-swing');
   await expect(table.locator('tbody')).not.toContainText('burpee');
-  // 3. Promote the filtered Entity Scope query into WidgetComposerDialog
-  await app.page.getByTestId('save-stream-query').click();
-  await expect(app.page.getByTestId('widget-composer-subset')).toHaveText(filteredQuery);
-  await expect(app.page.getByTestId('widget-composer-wql')).toHaveText(filteredQuery);
-  await expect(app.page.getByTestId('widget-composer-apply')).toBeEnabled();
+  // 3. Promote the filtered Entity Scope query into WidgetComposerDialog and inspect /dashboards?q=
+  await app.page.getByTestId(TEST_IDS.SAVE_STREAM_QUERY).click();
+  await expect(app.page.getByTestId(TEST_IDS.WIDGET_COMPOSER_SUBSET)).toHaveText(filteredQuery);
+  await expect(app.page.getByTestId(TEST_IDS.WIDGET_COMPOSER_WQL)).toHaveText(filteredQuery);
+  await expect(app.page.getByTestId(TEST_IDS.WIDGET_COMPOSER_APPLY)).toBeEnabled();
+  await app.page.keyboard.press('Escape');
+
+  await app.wql.openExplorer(filteredQuery);
+  await expect(app.page).toHaveURL(new RegExp(`/dashboards\\?q=${encodedQuery}`));
   app.assertCleanConsole();
 });

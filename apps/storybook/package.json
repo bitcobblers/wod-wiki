@@ -38,10 +38,10 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
-    "@storybook/addon-a11y": "^10.6.1",
-    "@storybook/addon-docs": "^10.6.1",
-    "@storybook/addon-vitest": "^10.6.1",
-    "@storybook/react-vite": "^10.6.1",
+    "@storybook/addon-a11y": "^10.6.7",
+    "@storybook/addon-docs": "^10.6.7",
+    "@storybook/addon-vitest": "^10.6.7",
+    "@storybook/react-vite": "^10.6.7",
     "@tailwindcss/postcss": "^4.3.2",
     "@types/node": "^25.9.5",
     "@types/react": "^19.0.0",
@@ -50,7 +50,7 @@
     "@vitest/browser": "^4.1.10",
     "@vitest/browser-playwright": "^4.1.10",
     "postcss": "^8.5.19",
-    "storybook": "^10.6.1",
+    "storybook": "^10.6.7",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
     "vite": "^8.1.4",

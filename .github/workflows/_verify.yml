@@ -125,6 +125,12 @@ jobs:
       - name: Run validation script tests
         run: bun run test:validation-scripts
 
+      - name: Check E2E Markdown <-> Playwright spec parity
+        run: bun scripts/check-e2e-specs.ts
+
+      - name: Check documentation links
+        run: bun run docs:check
+
       - name: Check playground types
         run: bun run check:playground-types
 

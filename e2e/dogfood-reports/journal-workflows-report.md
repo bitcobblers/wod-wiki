@@ -1,5 +1,7 @@
 # Journal Workflows Dogfood Test Report
 
+> **Historical Report (2026-05-12 — Superseded)**: The Vite, Tailwind v4 PostCSS, and Playwright worker blockers recorded below were resolved, and retired routes (`/journal/:date`) were replaced by `/day/:date`, `/journal`, and `/note/:noteId`. Canonical live-app acceptance specifications now live in [`e2e/specs/README.md`](../specs/README.md) (see [`daily-note-authoring-and-persistence.md`](../specs/journal/daily-note-authoring-and-persistence.md) and [`agent-readiness.md`](../specs/journal/agent-readiness.md)).
+
 **Issue**: WOD-27 Dogfood: Basic Journal Workflows in wod-wiki
 **Date**: 2026-05-12
 **Method**: Code analysis, existing E2E test review, documentation review, attempted E2E test run

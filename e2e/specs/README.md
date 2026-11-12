@@ -4,10 +4,10 @@ This directory holds the canonical **Level-1 Markdown journey specifications** f
 
 ## Two-level contract
 
-1. **Level 1 — `e2e/specs/<domain>/<journey>.md`**: business-readable journey (YAML frontmatter + `### Scenario N` bodies).
-2. **Level 2 — `e2e/live-app/<journey>.e2e.ts`**: thin Playwright script whose line 1 is `// spec: e2e/specs/<domain>/<journey>.md`.
+1. **Level 1 — `e2e/specs/<domain>/<journey>.md`**: business-readable journey (YAML frontmatter + `# <ID> — <Title>` H1 + `### Scenario N` bodies).
+2. **Level 2 — `e2e/live-app/<journey>.e2e.ts`**: thin Playwright script whose line 1 is `// spec: e2e/specs/<domain>/<journey>.md` and whose scenarios assert zero uncaught page or console errors via `app.assertCleanConsole()`.
 
-`bun scripts/check-e2e-specs.ts` ([source](../../scripts/check-e2e-specs.ts)) is the bidirectional integrity gate: frontmatter completeness, scenario schema, specFile existence, and exact 1:1 crosswalk mapping in both directions.
+`bun scripts/check-e2e-specs.ts` ([source](../../scripts/check-e2e-specs.ts)) is the bidirectional integrity gate: frontmatter completeness & enum checks, H1 + scenario schema, `specFile` existence, and exact 1:1 crosswalk mapping in both directions.
 
 ## Frontmatter schema
 
@@ -17,44 +17,46 @@ domain: analytics        # one of: journal, notebooks, runtime, properties, anal
 specFile: e2e/live-app/<journey>.e2e.ts
 routes: [/results/:sessionId, /dashboards]
 personas: [Athlete]
-viewports: [desktop, mobile-375]   # desktop = 1280x900, mobile-375 = 375x812
+viewports: [desktop, mobile-375]   # desktop = 1280x900, mobile-375 = 375x812, cold-boot, dark
 priority: P0-gate        # P0-gate | P1-core | P1 | P2
 ---
 ```
 
 ## Scenario body schema
 
+- `# <ID> — <Title>` — top-level document heading (with optional architectural context paragraph).
 - `### Scenario N: <business title>` — one heading per scenario.
 - `Given <world setup using exact GLOSSARY.md nouns>:` — precondition line.
 - `1. <Persona> opens '<route>' and <action>.` — numbered user steps.
 - `- expect: <observable outcome>.` — outcome assertions as bullets.
 
-## Journey taxonomy (6 domains, 24 journeys)
+## Journey taxonomy (6 domains, 25 journeys — 11 authored, including all 9 P0-gates)
 
 | Domain | Journey | Slug | Priority |
 |---|---|---|---|
-| journal | JRN-01 | `cold-boot-and-home-tour` | P0-gate |
-| journal | JRN-02 | `daily-note-authoring-and-persistence` | P0-gate |
+| journal | JRN-01 | [cold-boot-and-home-tour](journal/cold-boot-and-home-tour.md) | P0-gate |
+| journal | JRN-02 | [daily-note-authoring-and-persistence](journal/daily-note-authoring-and-persistence.md) | P0-gate |
 | journal | JRN-03 | `contextual-entry-creation-wizard` | P1 |
 | journal | JRN-04 | `calendar-agenda-and-planner` | P1 |
 | journal | JRN-05 | `markdown-and-zip-journal-intake` | P1 |
-| notebooks | NBK-01 | `notebook-hierarchy-and-crud` | P0-gate |
-| notebooks | NBK-02 | `nm-promotion-and-note-provenance` | P0-gate |
+| journal | JRN-06 | [agent-readiness](journal/agent-readiness.md) | P0-gate |
+| notebooks | NBK-01 | [notebook-hierarchy-and-crud](notebooks/notebook-hierarchy-and-crud.md) | P0-gate |
+| notebooks | NBK-02 | [nm-promotion-and-note-provenance](notebooks/nm-promotion-and-note-provenance.md) | P0-gate |
 | notebooks | NBK-03 | `page-placements-and-shell-navigation` | P1 |
 | notebooks | NBK-04 | `playground-scratchpad-and-guides` | P2 |
-| runtime | RUN-01 | `wall-clock-and-fastclock-protocols` | P0-gate |
-| runtime | RUN-02 | `readonly-intake-and-provenance-run` | P0-gate |
+| runtime | RUN-01 | [wall-clock-and-fastclock-protocols](runtime/wall-clock-and-fastclock-protocols.md) | P0-gate |
+| runtime | RUN-02 | [readonly-intake-and-provenance-run](runtime/readonly-intake-and-provenance-run.md) | P0-gate |
 | runtime | RUN-03 | `timer-responsive-tiers-and-cast-receiver` | P1 |
 | runtime | RUN-04 | `session-actuals-persistence-and-retry` | P1 |
 | properties | PRP-01 | `efforts-catalog-and-alias-lifecycle` | P1 |
-| properties | PRP-02 | `equipment-catalog-and-backlinks` | P1 |
+| properties | PRP-02 | [equipment-catalog-and-backlinks](properties/equipment-catalog-and-backlinks.md) | P1-core |
 | properties | PRP-03 | `tag-categories-and-metric-stacking` | P1 |
 | properties | PRP-04 | `scoped-property-override-sheets` | P1 |
 | analytics | ANL-01 | `stream-wql-and-query-settings` | P1 |
 | analytics | ANL-02 | `analytics-explorer-and-pipeline` | P1 |
 | analytics | ANL-03 | `dashboard-multi-widget-authoring` | P1 |
 | analytics | ANL-04 | [entity-scope-and-dashboard-promotion](analytics/entity-scope-and-dashboard-promotion.md) | P1-core |
-| feeds | FED-01 | `feed-subscription-and-autosync` | P0-gate |
+| feeds | FED-01 | [feed-subscription-and-autosync](feeds/feed-subscription-and-autosync.md) | P0-gate |
 | feeds | FED-02 | `remote-notebook-preview-and-clone` | P1 |
 | feeds | FED-03 | [publication-visibility-and-feed-export](feeds/publication-visibility-and-feed-export.md) | P0-gate |
 | feeds | FED-04 | `portable-codecs-and-backup-restore` | P1 |

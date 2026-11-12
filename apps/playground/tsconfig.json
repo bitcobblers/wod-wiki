@@ -9,7 +9,6 @@
     "noEmit": true,
     "useDefineForClassFields": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
     "types": ["bun-types", "vite/client"],
     "paths": {
       "@/testing": ["./tests/testing/index.ts"],
@@ -19,8 +18,6 @@
       "@bitcobblers/wod-wiki-core/testing": ["../../packages/core/src/testing.ts"],
       "@/*": ["./src/*"]
     },
-    "downlevelIteration": true,
-
     "strict": false,
     "strictNullChecks": false,
     "noImplicitAny": false,

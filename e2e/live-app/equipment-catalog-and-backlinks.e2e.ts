@@ -8,6 +8,7 @@
  */
 
 import { test, expect } from '../fixtures/playgroundActor';
+import { USAGE_NOTE_TITLE } from '../helpers/seedEquipment';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
 
 const VIEWPORTS = [{ width: 1280, height: 900 }, { width: 375, height: 812 }];
@@ -73,5 +74,27 @@ test.describe('PRP-02 — Equipment catalog & backlinks', () => {
     await expect(reloaded.notebookEditor().locator('.cm-content > .cm-line')).toHaveText(editorLines);
     expect(await getNoteContentByRouteId(app.page, 'equipment/dumbbell'), 'bundled source untouched by the clone').toBe(authoredSource);
     await app.assertCleanConsole();
+  });
+
+  test('Equipment detail surfaces canonical backlinks to related Efforts and referencing workout Notes', async ({ app }) => {
+    await app.page.setViewportSize(VIEWPORTS[0]!);
+    await app.seed.bundledEquipment();
+
+    const equipment = await app.properties.openEquipment('dumbbell');
+    await equipment.waitForDetailLoaded();
+
+    const relatedEffort = equipment.contextLink('Dumbbell Snatch');
+    await expect(relatedEffort).toBeVisible();
+    await relatedEffort.click();
+    await expect(app.page).toHaveURL(/\/effort\/dumbbell-snatch$/);
+
+    await app.page.goBack();
+    await equipment.waitForDetailLoaded();
+    const usage = equipment.contextLink(USAGE_NOTE_TITLE);
+    await expect(usage).toBeVisible();
+    await usage.click();
+    await expect(app.page).toHaveURL(/\/notebook\/equipment-e2e-gym\/dumbbell-day$/);
+
+    app.assertCleanConsole();
   });
 });

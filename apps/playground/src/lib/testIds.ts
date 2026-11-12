@@ -146,6 +146,11 @@ export const TEST_IDS = {
   STREAM_VIEW: 'queriable-stream-view',
   STREAM_FEED_ITEM: 'stream-feed-item',
   STREAM_QUERY_BAR: 'stream-query-bar',
+  SAVE_STREAM_QUERY: 'save-stream-query',
+  REMOTE_NOTEBOOK_PREVIEW_BANNER: 'remote-notebook-preview-banner',
+  WIDGET_COMPOSER_SUBSET: 'widget-composer-subset',
+  WIDGET_COMPOSER_WQL: 'widget-composer-wql',
+  WIDGET_COMPOSER_APPLY: 'widget-composer-apply',
   PROPERTY_TABLE: 'property-table',
   LIBRARY_ROW_NOTEBOOK: 'library-row-notebook',
   NOTEBOOKS_CREATE_BUTTON: 'notebooks-create-button',
@@ -183,6 +188,9 @@ export const TEST_IDS = {
   TIMER_FULLSCREEN_OVERLAY: 'timer-fullscreen-overlay',
   TIMER_DETAIL_SURFACE: 'timer-detail-surface',
   SYNC_SUBSCRIBED_ONLY_TOGGLE: 'sync-subscribed-only-toggle',
+  UNKNOWN_FEED_INTAKE_BANNER: 'unknown-feed-intake-banner',
+  FEED_INTAKE_SUBSCRIBE: 'feed-intake-subscribe',
+  FEED_INTAKE_ONCE: 'feed-intake-once',
 
   // ── Agent Readiness & WebMCP ───────────────────────────────────────────────
   AGENT_CONFIRM_DIALOG: 'agent-confirm-dialog',

@@ -32,6 +32,7 @@ Given an athlete whose journal holds a note seeded for 2099-07-02:
 3. Athlete reopens '/day/2099-07-02'.
 - expect: the persisted IndexedDB content for the day contains 'Cooldown: mobility flow' — navigation never drops the final write.
 - expect: the reopened day editor shows the typed line.
+- expect: the browser console stays clean.
 
 ### Scenario 3: Authored content survives a full page reload
 

@@ -4,7 +4,6 @@ import {
   BUNDLED_EQUIPMENT_FIXTURES,
   customEquipmentDocument,
   seedBundledEquipment,
-  USAGE_NOTE_TITLE,
 } from '../helpers/seedEquipment';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
 import { waitForFeedReady } from '../helpers/feedReadiness';
@@ -208,34 +207,6 @@ test.describe('Equipment — /equipment L1 surfaces', () => {
     await equipment.waitForDetailLoaded();
     await expect(equipment.detailLabel()).toHaveText('Mobile Plate');
     await expect(equipment.notebookEditor().getByText('Edited on mobile after create.')).toBeVisible();
-
-    errors.expectClean();
-  });
-
-  test('links usage with real titles and related efforts from the canonical indices', async ({ page }) => {
-    const errors = attachErrorCapture(page);
-    await page.goto('/equipment/dumbbell', { waitUntil: 'domcontentloaded', timeout: 20_000 });
-    await waitForFeedReady(page);
-    await seedBundledEquipment(page);
-    await page.reload({ waitUntil: 'domcontentloaded' });
-
-    const equipment = new EquipmentPage(page);
-    await equipment.waitForDetailLoaded();
-
-    // Related efforts: definitions referencing this equipment, linked to the
-    // effort detail route.
-    const relatedEffort = equipment.contextLink('Dumbbell Snatch');
-    await expect(relatedEffort).toBeVisible();
-    await relatedEffort.click();
-    await expect(page).toHaveURL(/\/effort\/dumbbell-snatch$/);
-
-    // Usage: the consumer workout note by its real title.
-    await page.goBack();
-    await equipment.waitForDetailLoaded();
-    const usage = equipment.contextLink(USAGE_NOTE_TITLE);
-    await expect(usage).toBeVisible();
-    await usage.click();
-    await expect(page).toHaveURL(/\/notebook\/equipment-e2e-gym\/dumbbell-day$/);
 
     errors.expectClean();
   });

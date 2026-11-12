@@ -146,6 +146,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       return mc.executeTool(clockTool, { command: 'status' });
     });
     expect(clockStatusRaw).toContain('runId');
+    app.assertCleanConsole();
   });
 
   test('Scenario 2: Tier 2 confirmation modal gates destructive WebMCP tool calls and mobile URL layout sync', async ({
@@ -232,5 +233,6 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
 
     const mainAria = await page.locator('main').first().ariaSnapshot();
     expect(mainAria).toBeTruthy();
+    app.assertCleanConsole();
   });
 });

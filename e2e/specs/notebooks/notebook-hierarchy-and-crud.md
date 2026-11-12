@@ -29,8 +29,9 @@ Given an athlete on the Notebooks library:
 - expect: the app lands on the notebook's own '/notebook/...' route.
 2. Athlete returns to '/notebooks' and renames 'Alpine Club 2099' to 'Alpine Collective 2099'.
 - expect: the library shows the new name under the original slug — a rename never re-slugs.
-3. Athlete deletes 'Alpine Club 2099' and confirms.
+3. Athlete deletes the renamed notebook ('alpine-club-2099') and confirms.
 - expect: the library no longer lists 'Alpine Collective 2099'.
+- expect: the browser console stays clean.
 
 ### Scenario 3: The :notebook{} plane narrows by slug
 
