@@ -91,6 +91,7 @@ import { WidgetCompanion } from "@/components/organisms/editor/WidgetCompanion";
 import type { WidgetRegistry } from "@/components/Editor/widgets/types";
 import type { ScriptCommand } from "@/components/Editor/overlays/ScriptCommand";
 import { FullscreenTimer } from "@/components/organisms/review/FullscreenTimer";
+import { HaltedRunNotice } from "@/components/organisms/editor/RuntimeTimerPanel";
 import { InlineCommandBar } from "@/components/organisms/editor/InlineCommandBar";
 import { EditorCastBridge } from "@/components/organisms/editor/EditorCastBridge";
 import { MetricInlinePanel } from "@/components/organisms/editor/MetricInlinePanel";
@@ -1148,10 +1149,12 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       : "";
 
   return (
-    <div
-      ref={editorRef}
-      className={`cm-note-editor relative w-full min-w-0 ${mobileDeckPadding} ${className}`}
-    >
+    <>
+      {noteId && !fullscreenTimerBlock ? <HaltedRunNotice noteId={noteId} /> : null}
+      <div
+        ref={editorRef}
+        className={`cm-note-editor relative w-full min-w-0 ${mobileDeckPadding} ${className}`}
+      >
       {enableOverlay && (
         <OverlayTrack
           view={viewInstance ?? viewRef.current}
@@ -1196,25 +1199,27 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           }}
         />
       )}
-      {fullscreenTimerBlock && viewRef.current && (
-        <FullscreenTimer
-          block={fullscreenTimerBlock}
-          view={viewInstance ?? viewRef.current}
-          onClose={handleTimerClose}
-          onCompleteWorkout={handleCompleteWorkout}
-          resultId={fullscreenResultId ?? undefined}
-          autoStart={autoStartFullscreen}
+        {fullscreenTimerBlock && viewRef.current && (
+          <FullscreenTimer
+            block={fullscreenTimerBlock}
+            view={viewInstance ?? viewRef.current}
+            onClose={handleTimerClose}
+            onCompleteWorkout={handleCompleteWorkout}
+            resultId={fullscreenResultId ?? undefined}
+            noteId={noteId}
+            autoStart={autoStartFullscreen}
+          />
+        )}
+
+        <EditorCastBridge
+          sections={sections}
+          isRuntimeActive={fullscreenTimerBlock !== null}
+          editorState={(viewInstance ?? viewRef.current)?.state ?? null}
+          onSelectBlock={handleCastSelectBlock}
         />
-      )}
 
-      <EditorCastBridge
-        sections={sections}
-        isRuntimeActive={fullscreenTimerBlock !== null}
-        editorState={(viewInstance ?? viewRef.current)?.state ?? null}
-        onSelectBlock={handleCastSelectBlock}
-      />
-
-    </div>
+      </div>
+    </>
   );
 };
 

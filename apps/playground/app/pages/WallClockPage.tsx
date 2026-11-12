@@ -13,6 +13,7 @@ import { createParser } from '@bitcobblers/wod-wiki-engine'
 import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity'
 import { sessionDetailPath } from '../lib/routes'
 import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer'
+import { HaltedRunNotice } from '@/components/organisms/editor/RuntimeTimerPanel'
 import { playgroundRecorder } from '@/services/resultRecorder'
 import { pendingRuntimes, type PendingRuntime } from '../runtimeStore'
 import type { ScriptBlock, Sessions } from '@/components/Editor/types'
@@ -138,7 +139,9 @@ export function WallClockPage() {
         if (results.completed) {
           try {
             await injectSessionQueryIntoNote(pending.noteId, pending.block.id, runtimeId);
-          } catch {}
+          } catch {
+            // Best-effort post-run query injection
+          }
           // No eager navigation here: the overlay keeps control through the
           // post-run actuals queue + review; handleClose routes on dismissal.
         }
@@ -174,8 +177,11 @@ export function WallClockPage() {
 
   if (!pending) {
     return (
-      <div className="flex-1 flex items-center justify-center text-red-400">
-        Runtime not found. Please start the workout from the editor.
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 p-4">
+        <HaltedRunNotice />
+        <div className="text-red-400">
+          Runtime not found. Please start the workout from the editor.
+        </div>
       </div>
     )
   }
@@ -190,6 +196,7 @@ export function WallClockPage() {
       onClose={handleClose}
       onCompleteWorkout={handleComplete}
       resultId={runtimeId}
+      noteId={pending.noteId}
       autoStart
     />
   )

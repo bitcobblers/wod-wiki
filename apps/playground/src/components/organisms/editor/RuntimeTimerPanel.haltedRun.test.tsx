@@ -1,8 +1,10 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { act, render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { createParser } from '@bitcobblers/wod-wiki-engine';
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
+import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import {
   clearHaltedRun,
   getHaltedRun,
@@ -13,6 +15,7 @@ import {
   HaltedRunNotice,
   RuntimeTimerPanel,
 } from '@/components/organisms/editor/RuntimeTimerPanel';
+import { WallClockPage } from '../../../../app/pages/WallClockPage';
 
 function makeBlock(content: string): ScriptBlock {
   return {
@@ -156,6 +159,113 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
     fireEvent.click(dismissBtn);
 
     expect(screen.queryByTestId('halted-run-notice')).toBeNull();
+    expect(getHaltedRun()).toBeNull();
+  });
+
+  it('surfaces HaltedRunNotice inside NoteEditor for matching note routes without duplicating', () => {
+    recordHaltedRun({
+      sessionId: 'sess-note-route-7',
+      noteId: 'note-direct-7',
+      workoutTitle: 'Fran',
+      timestamp: Date.now(),
+      elapsedMs: 65_000,
+    });
+
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/note/note-other']}>
+        <NoteEditor
+          noteId="note-other"
+          value="# Other\n\n```time\n5:00\n```"
+          onChange={() => {}}
+          enablePreview={false}
+          enableLinting={false}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByTestId('halted-run-notice')).toBeNull();
+
+    rerender(
+      <MemoryRouter initialEntries={['/note/note-direct-7']}>
+        <NoteEditor
+          noteId="note-direct-7"
+          value="# Fran\n\n```time\n21-15-9\n  Thrusters\n  Pullups\n```"
+          onChange={() => {}}
+          enablePreview={false}
+          enableLinting={false}
+        />
+      </MemoryRouter>,
+    );
+    const notices = screen.getAllByTestId('halted-run-notice');
+    expect(notices).toHaveLength(1);
+    const link = screen.getByRole('link', { name: /partial results/i });
+    expect(link.getAttribute('href')).toBe('/results/sess-note-route-7');
+  });
+
+  it('surfaces HaltedRunNotice alongside fallback text when reloading /run/:runtimeId cold', () => {
+    recordHaltedRun({
+      sessionId: 'sess-wallclock-9',
+      runtimeId: 'sess-wallclock-9',
+      noteId: 'note-wc-9',
+      timestamp: Date.now(),
+      elapsedMs: 120_000,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/run/sess-wallclock-9']}>
+        <Routes>
+          <Route path="/run/:runtimeId" element={<WallClockPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('halted-run-notice')).toBeDefined();
+    expect(
+      screen.getByRole('link', { name: /partial results/i }).getAttribute('href'),
+    ).toBe('/results/sess-wallclock-9');
+    expect(
+      screen.getByText('Runtime not found. Please start the workout from the editor.'),
+    ).toBeDefined();
+  });
+
+  it('clears a stale haltedRun marker as soon as a new workout run transitions to live', async () => {
+    recordHaltedRun({
+      sessionId: 'sess-stale-old',
+      noteId: 'note-fresh-run',
+      timestamp: Date.now() - 10_000,
+      elapsedMs: 45_000,
+    });
+    expect(getHaltedRun('note-fresh-run')?.sessionId).toBe('sess-stale-old');
+
+    const { rerender } = render(
+      <RuntimeTimerPanel
+        block={makeBlock('20:00 AMRAP\n  5 Pullups')}
+        resultId="sess-fresh-2"
+        noteId="note-fresh-run"
+        autoStart={true}
+        externalStop={false}
+        onClose={() => {}}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(useActiveRunStore.getState().execution.status).toBe('running');
+    });
+
+    // Stale marker cleared immediately on live start
+    expect(getHaltedRun()).toBeNull();
+    expect(useActiveRunStore.getState().haltedRun).toBeNull();
+
+    // Stopping explicitly leaves haltedRun empty (never resurfaces stale marker)
+    rerender(
+      <RuntimeTimerPanel
+        block={makeBlock('20:00 AMRAP\n  5 Pullups')}
+        resultId="sess-fresh-2"
+        noteId="note-fresh-run"
+        autoStart={true}
+        externalStop={true}
+        onClose={() => {}}
+      />,
+    );
     expect(getHaltedRun()).toBeNull();
   });
 });

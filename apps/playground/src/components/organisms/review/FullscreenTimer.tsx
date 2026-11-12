@@ -53,6 +53,8 @@ export interface FullscreenTimerProps {
    * metric-correction API; without it no queue is shown.
    */
   resultId?: string;
+  /** Optional parent note identifier for reload halted-run scoping. */
+  noteId?: string;
   /** Whether the timer should start automatically on mount. */
   autoStart?: boolean;
   /** Called when the inner runtime is created — host can send gate-popping events (e.g. Next to clear WaitingToStart). */
@@ -94,6 +96,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   onClose,
   onCompleteWorkout,
   resultId,
+  noteId,
   autoStart,
   onRuntimeReady,
   onRunStarted,
@@ -557,6 +560,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
           <RuntimePanelSlot
             block={preparedBlock}
             resultId={resultId}
+            noteId={noteId}
             noteContent={noteContent}
             view={view}
             onClose={handleClose}

@@ -399,6 +399,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
           // 'running', so this is what stops a fast Exit/Stop discarding them.
           if (!hasFiredRunStartedRef.current) {
             hasFiredRunStartedRef.current = true;
+            clearHaltedRun();
             onRunStarted?.();
           }
           setOutputCount((n) => n + 1);
@@ -509,6 +510,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   useEffect(() => {
     if (execution.status === 'running' && !hasFiredRunStartedRef.current) {
       hasFiredRunStartedRef.current = true;
+      clearHaltedRun();
       onRunStarted?.();
     }
   }, [execution.status, onRunStarted]);

@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { NoteEditor, type NoteEditorProps } from '@/components/organisms/editor/NoteEditor';
-import { HaltedRunNotice } from '@/components/organisms/editor/RuntimeTimerPanel';
 import { BlockHistory } from '@/components/organisms/editor/BlockHistory';
 import type { HistoryRecord } from '@/types/history';
 import { useNoteDraft } from '../../hooks/useNoteDraft';
@@ -35,7 +34,6 @@ function SavedNoteEditorInstance({ entry, onChange, registerRun, ...props }: Sav
 
   return (
     <>
-      <HaltedRunNotice noteId={entry.id} />
       <NoteEditor
         {...props}
         noteId={entry.id}
