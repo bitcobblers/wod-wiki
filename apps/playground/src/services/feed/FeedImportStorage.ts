@@ -70,7 +70,7 @@ export class IndexedDBFeedImportStorage implements FeedImportStorage {
   }
   async removeSourceContent(meta: SeedMetaRecord): Promise<number> {
     return await this.storageInstance.transaction(
-      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'efforts', 'equipment', 'property_overrides', 'meta'],
+      ['notes', 'attachments', 'tags', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'efforts', 'equipment', 'property_overrides', 'meta'],
       'readwrite',
       async (tx) => {
         const targetIds = new Set<string>();
@@ -110,8 +110,10 @@ export class IndexedDBFeedImportStorage implements FeedImportStorage {
         const removedSourceId = meta.key.startsWith('seed:') ? meta.key.slice(5) : meta.key;
 
         const notes = tx.readwrite('notes');
+        const noteTags = tx.readwrite('note_tags');
         let deleted = 0;
         const removedPaths = new Set<string>();
+        const touchedTagIds = new Set<string>();
         for (const id of targetIds) {
           if (isClaimedByOther(id)) continue;
           const note = await notes.get(id);
@@ -121,8 +123,10 @@ export class IndexedDBFeedImportStorage implements FeedImportStorage {
           await notes.delete(id);
           const attachments = tx.readwrite('attachments');
           for (const attachment of await attachments.getAllFromIndex('by-note', id)) await attachments.delete(attachment.id);
-          const noteTags = tx.readwrite('note_tags');
-          for (const link of await noteTags.getAllFromIndex('by-note', id)) await noteTags.delete(link.id);
+          for (const link of await noteTags.getAllFromIndex('by-note', id)) {
+            touchedTagIds.add(link.tagId);
+            await noteTags.delete(link.id);
+          }
           const blockIndex = tx.readwrite('block_index');
           for (const row of await blockIndex.getAllFromIndex('by-note', id)) await blockIndex.delete(row.id);
           const blockEfforts = tx.readwrite('block_efforts');
@@ -132,6 +136,19 @@ export class IndexedDBFeedImportStorage implements FeedImportStorage {
           const pageNotes = tx.readwrite('page_notes');
           for (const link of await pageNotes.getAllFromIndex('by-note', id)) await pageNotes.delete(link.id);
           deleted++;
+        }
+        if (touchedTagIds.size > 0) {
+          const tagsStore = tx.readwrite('tags');
+          for (const tagId of touchedTagIds) {
+            const remainingLinks = await noteTags.countFromIndex('by-tag', tagId);
+            if (remainingLinks > 0) continue;
+            const tag = await tagsStore.get(tagId);
+            if (!tag) continue;
+            if (tag.contributions && tag.contributions.length > 0) continue;
+            const refNote = await notes.get(`t/${tag.type ?? 'tag'}/${tag.label}`);
+            if (refNote) continue;
+            await tagsStore.delete(tagId);
+          }
         }
         // Bundled definition projections owned by this source fall back to the
         // highest remaining tier when one declares the same slug, or die

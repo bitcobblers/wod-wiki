@@ -14,8 +14,9 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { notePersistence } from '@/services/persistence'
+import { storageService } from '@/services/storage'
 import { parseFrontmatter } from '@/lib/frontmatter'
-import { buildDashboardSeeds } from '../lib/dashboardSeeds'
+import { buildDashboardSeeds, type DashboardSeed } from '../lib/dashboardSeeds'
 import { subscribeDashboardsChanged } from '../services/dashboardEvents'
 import { useSeedContent } from '@/services/content/seedContent'
 
@@ -55,6 +56,18 @@ function dashboardsFromNotes(raws: { id: string; rawContent: string }[]): VaultD
     .filter((d): d is VaultDashboard => d !== null)
 }
 
+function seedsFromDashboardNotes(
+  raws: { seedOrigin?: string; sourcePath?: string; rawContent: string }[],
+): DashboardSeed[] {
+  const files: Record<string, string> = {}
+  for (const note of raws) {
+    if (note.seedOrigin === 'seed' && note.sourcePath?.startsWith('markdown/dashboards/')) {
+      files[note.sourcePath] = note.rawContent
+    }
+  }
+  return buildDashboardSeeds(files)
+}
+
 /** Resolve a single dashboard by slug — vault (editable) shadows prebuilt. */
 export function useDashboardSource(
   slug: string | undefined,
@@ -65,8 +78,13 @@ export function useDashboardSource(
 } {
   const files = useSeedContent()
   const seeds = useMemo(() => (files ? buildDashboardSeeds(files) : []), [files])
-  const [source, setSource] = useState<DashboardSource | null>(null)
-  const [loading, setLoading] = useState(true)
+  const prebuilt = useMemo<DashboardSource | null>(() => {
+    if (!slug) return null
+    const match = seeds.find((s) => s.slug === slug)
+    return match ? { slug: match.slug, title: match.title, rawContent: match.rawContent, editable: false } : null
+  }, [seeds, slug])
+  const [source, setSource] = useState<DashboardSource | null>(() => prebuilt)
+  const [loading, setLoading] = useState<boolean>(() => Boolean(slug) && prebuilt === null)
 
   useEffect(() => {
     if (!slug) {
@@ -75,22 +93,44 @@ export function useDashboardSource(
       return
     }
     let cancelled = false
-    setLoading(true)
-    notePersistence
-      .listNotes({ kind: 'dashboard' })
-      .then((notes) => {
+    setSource((prev) => (prev && prev.slug === slug ? prev : prebuilt))
+    setLoading((prevLoading) => {
+      if (refreshKey !== undefined && refreshKey > 0) return true
+      if (prebuilt) return false
+      return prevLoading || true
+    })
+    Promise.all([
+      notePersistence.listNotes({ kind: 'dashboard' }),
+      files ? Promise.resolve(null) : storageService.getNotesByType('dashboard'),
+    ])
+      .then(([notes, rawDashboardNotes]) => {
         if (cancelled) return
         // Slug and title still come from authored frontmatter.
         const vault = dashboardsFromNotes(notes).find((d) => d.slug === slug)
         if (vault) {
           setSource({ slug, title: vault.title, rawContent: vault.rawContent, editable: true, noteId: vault.noteId })
-        } else {
-          const seed = seeds.find((s) => s.slug === slug)
-          setSource(seed ? { slug: seed.slug, title: seed.title, rawContent: seed.rawContent, editable: false } : null)
+          return
         }
+        if (prebuilt) {
+          setSource(prebuilt)
+          return
+        }
+        if (rawDashboardNotes) {
+          const indexedSeed = seedsFromDashboardNotes(rawDashboardNotes).find((s) => s.slug === slug)
+          if (indexedSeed) {
+            setSource({
+              slug: indexedSeed.slug,
+              title: indexedSeed.title,
+              rawContent: indexedSeed.rawContent,
+              editable: false,
+            })
+            return
+          }
+        }
+        setSource(null)
       })
       .catch(() => {
-        if (!cancelled) setSource(null)
+        if (!cancelled) setSource(prebuilt)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -98,9 +138,7 @@ export function useDashboardSource(
     return () => {
       cancelled = true
     }
-    // refreshKey forces re-resolution after a clone or an edit write-back.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, refreshKey, seeds])
+  }, [slug, refreshKey, prebuilt, files])
 
   return { source, loading }
 }
@@ -122,15 +160,22 @@ export function useDashboardList(): { items: DashboardListItem[]; loading: boole
 
   useEffect(() => {
     let cancelled = false
-    notePersistence
-      .listNotes({ kind: 'dashboard' })
-      .then((notes) => {
+    Promise.all([
+      notePersistence.listNotes({ kind: 'dashboard' }),
+      files ? Promise.resolve(null) : storageService.getNotesByType('dashboard'),
+    ])
+      .then(([notes, rawDashboardNotes]) => {
         if (cancelled) return
         const vault = dashboardsFromNotes(notes)
         const vaultSlugs = new Set(vault.map((d) => d.slug))
+        const effectiveSeeds = files
+          ? seeds
+          : rawDashboardNotes
+            ? seedsFromDashboardNotes(rawDashboardNotes)
+            : seeds
         const merged: DashboardListItem[] = [
           ...vault.map((d) => ({ slug: d.slug, title: d.title, editable: true })),
-          ...seeds.filter((s) => !vaultSlugs.has(s.slug)).map((s) => ({
+          ...effectiveSeeds.filter((s) => !vaultSlugs.has(s.slug)).map((s) => ({
             slug: s.slug,
             title: s.title,
             editable: false,
@@ -147,7 +192,7 @@ export function useDashboardList(): { items: DashboardListItem[]; loading: boole
     return () => {
       cancelled = true
     }
-  }, [seeds, version])
+  }, [seeds, files, version])
 
   return { items, loading }
 }

@@ -3,6 +3,7 @@ import type {
   BlockIndexRow,
   EventRecord,
   Note,
+  NoteKind,
   BlockRevision,
   NoteBlock,
   BlockEffort,
@@ -196,6 +197,39 @@ export class StorageService implements NotePersistenceStorage {
 
   async getAllNotes(): Promise<Note[]> {
     return this.storage.readonly('notes').getAll();
+  }
+
+  /** Indexed lookup of notes carrying an explicit `Note.type` (`by-type` index). */
+  async getNotesByType(type: NoteKind): Promise<Note[]> {
+    return this.storage.readonly('notes').getAllFromIndex('by-type', type);
+  }
+
+  /** Indexed calendar-date -> note IDs lookup via `page.by-date` and `page_notes.by-page`. */
+  async getNoteIdsForJournalDate(date: string): Promise<string[]> {
+    const pages = await this.storage.readonly('page').getAllFromIndex('by-date', date);
+    if (pages.length === 0) return [];
+    const ids = new Set<string>();
+    const pageNotes = this.storage.readonly('page_notes');
+    for (const page of pages) {
+      for (const link of await pageNotes.getAllFromIndex('by-page', page.id)) {
+        ids.add(link.noteId);
+      }
+    }
+    return [...ids];
+  }
+
+  /** Indexed tag-label -> note IDs lookup via `tags.by-label` and `note_tags.by-tag`. */
+  async getNoteIdsForTag(label: string): Promise<string[]> {
+    const tags = await this.storage.readonly('tags').getAllFromIndex('by-label', label);
+    if (tags.length === 0) return [];
+    const ids = new Set<string>();
+    const noteTags = this.storage.readonly('note_tags');
+    for (const tag of tags) {
+      for (const link of await noteTags.getAllFromIndex('by-tag', tag.id)) {
+        ids.add(link.noteId);
+      }
+    }
+    return [...ids];
   }
 
   /**

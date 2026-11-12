@@ -107,6 +107,8 @@ function entryDateWindow(query?: HistoryQuery): { start: number; end: number } |
   return undefined;
 }
 
+type SelectiveRecordQuery = HistoryQuery & Pick<NoteQuery, 'journalDate' | 'kind' | 'search'>;
+
 /**
  * Unified IndexedDB-backed note persistence & content provider.
  *
@@ -494,17 +496,117 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
 
   // ── IContentProvider ───────────────────────────────────────────────────────
 
-  async getRecords(query?: HistoryQuery): Promise<HistoryRecord[]> {
+  private async selectLocalCandidateIds(
+    query: SelectiveRecordQuery | undefined,
+    window: { start: number; end: number } | undefined,
+  ): Promise<string[]> {
+    let candidateIds: Set<string> | null = null;
+    let loadedNotes: Map<string, Note> | null = null;
+
+    const intersect = (ids: Iterable<string>): void => {
+      if (candidateIds === null) {
+        candidateIds = new Set(ids);
+        return;
+      }
+      const next = new Set<string>();
+      for (const id of ids) {
+        if (candidateIds.has(id)) next.add(id);
+      }
+      candidateIds = next;
+    };
+
+    if (query?.journalDate) {
+      intersect(await this.storage.getNoteIdsForJournalDate(query.journalDate));
+      if (candidateIds!.size === 0) return [];
+    }
+
+    if (query?.tags && query.tags.length > 0) {
+      for (const tag of query.tags) {
+        intersect(await this.storage.getNoteIdsForTag(tag));
+        if (candidateIds!.size === 0) return [];
+      }
+    }
+
+    if (query?.kind && query.kind !== 'note' && candidateIds === null) {
+      const typedNotes = await this.storage.getNotesByType(query.kind);
+      loadedNotes = new Map(typedNotes.map((n) => [n.id, n]));
+      intersect(typedNotes.map((n) => n.id));
+      if (candidateIds!.size === 0) return [];
+    }
+
+    if (window) {
+      if (candidateIds === null) {
+        const ranged = await this.storage.getNotesByDateRange(window.start, window.end);
+        loadedNotes = new Map(ranged.map((n) => [n.id, n]));
+        intersect(ranged.map((n) => n.id));
+        if (candidateIds!.size === 0) return [];
+      } else {
+        const currentIds: string[] = [...(candidateIds as Set<string>)];
+        if (!loadedNotes) {
+          const fetched = await this.storage.getNotesByIds(currentIds);
+          loadedNotes = new Map(fetched.map((n) => [n.id, n]));
+        }
+        const inWindow: string[] = [];
+        for (const id of currentIds) {
+          const note = loadedNotes.get(id);
+          if (!note) continue;
+          const targetDate = note.date ?? note.createdAt;
+          if (targetDate >= window.start && targetDate <= window.end) inWindow.push(id);
+        }
+        intersect(inWindow);
+        if (candidateIds!.size === 0) return [];
+      }
+    }
+
+    if (candidateIds === null) {
+      const all = await this.storage.getAllNotes();
+      loadedNotes = new Map(all.map((n) => [n.id, n]));
+      intersect(all.map((n) => n.id));
+      if (candidateIds!.size === 0) return [];
+    }
+
+    const survivingIds: string[] = [...(candidateIds as Set<string>)];
+    const searchLower = query?.search?.toLowerCase();
+    if ((query?.kind || searchLower) && !loadedNotes) {
+      const fetched = await this.storage.getNotesByIds(survivingIds);
+      loadedNotes = new Map(fetched.map((n) => [n.id, n]));
+    }
+
+    if (loadedNotes && (query?.kind || searchLower)) {
+      const filtered: string[] = [];
+      for (const id of survivingIds) {
+        const note = loadedNotes.get(id);
+        if (!note) continue;
+        if (query?.kind && (note.type ?? 'note') !== query.kind) continue;
+        if (
+          searchLower &&
+          !note.title.toLowerCase().includes(searchLower) &&
+          !note.rawContent.toLowerCase().includes(searchLower)
+        ) {
+          continue;
+        }
+        filtered.push(id);
+      }
+      return filtered;
+    }
+
+    return survivingIds;
+  }
+
+  async getRecords(query?: SelectiveRecordQuery): Promise<HistoryRecord[]> {
     const window = entryDateWindow(query);
     const selection: DomainPredicate[] = [];
     if (window) selection.push({ field: 'date', start: window.start, end: window.end });
     for (const tag of query?.tags ?? []) selection.push({ field: 'tags', values: [tag] });
+    if (query?.kind && query.kind !== 'note') selection.push({ field: 'type', values: [query.kind] });
     const result = await this.storage.queryDomain(selection.length ? { plan: 'detail', selection } : { plan: 'detail' });
     let entries: HistoryRecord[];
-    if (result?.plan === 'detail') entries = result.rows.map(entryFromDomainRow);
-    else {
-      const candidates = window ? await this.storage.getNotesByDateRange(window.start, window.end) : await this.storage.getAllNotes();
-      const bundles = await this.storage.getDetailBatches(candidates.map(note => note.id));
+    if (result?.plan === 'detail') {
+      entries = result.rows.map(entryFromDomainRow);
+    } else {
+      const candidateIds = await this.selectLocalCandidateIds(query, window);
+      if (candidateIds.length === 0) return [];
+      const bundles = await this.storage.getDetailBatches(candidateIds);
       entries = [...bundles.values()].map(entryFromDomainRow);
     }
     entries = entries.filter(entry =>

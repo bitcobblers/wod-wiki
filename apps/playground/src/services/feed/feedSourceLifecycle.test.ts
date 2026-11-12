@@ -261,6 +261,39 @@ describe('exact-ownership removal', () => {
     await unsubscribeFeedSource('community', { storage });
     expect(await storage.storageInstance.readonly('equipment').get('dumbbell')).toBeTruthy();
   });
+
+  it('garbage-collects orphaned feed tags on unsubscribe while preserving shared core and standalone user tags (WW-016)', async () => {
+    const storage = new InMemoryFeedStorage();
+    const sources: FeedSourceSpec[] = [
+      spec(fixture([
+        row('markdown/notebooks/core-base/base.md', '---\ntags: [benchmark, metcon]\n---\n# Base Benchmark\n'),
+      ], 1, 'notebook.core-base'), 'core'),
+      spec(fixture([
+        row('markdown/notebooks/crossfit/murph.md', '---\ntags: [benchmark, hero]\n---\n# Murph\n'),
+        row('markdown/notebooks/crossfit/fran.md', '---\ntags: [girl]\n---\n# Fran\n'),
+      ], 1, 'notebook.crossfit'), 'sport-crossfit'),
+    ];
+
+    await syncFeedSource('core', { sources, storage, isEnabled: () => true });
+    // User creates a standalone tag with zero note_tags links — must survive feed unsubscribe.
+    await storage.storageInstance.readwrite('tags').put({
+      id: 'user-tag-1',
+      label: 'my-custom-tag',
+      createdAt: 100,
+    });
+
+    const baselineTags = await storage.storageInstance.readonly('tags').getAll();
+    expect(baselineTags.map((t) => t.label).sort()).toEqual(['benchmark', 'metcon', 'my-custom-tag']);
+
+    await syncFeedSource('sport-crossfit', { sources, storage, isEnabled: () => true });
+    const subscribedTags = await storage.storageInstance.readonly('tags').getAll();
+    expect(subscribedTags.map((t) => t.label).sort()).toEqual(['benchmark', 'girl', 'hero', 'metcon', 'my-custom-tag']);
+
+    await unsubscribeFeedSource('sport-crossfit', { storage });
+    const afterTags = await storage.storageInstance.readonly('tags').getAll();
+    expect(afterTags.length).toBe(baselineTags.length);
+    expect(afterTags.map((t) => t.label).sort()).toEqual(['benchmark', 'metcon', 'my-custom-tag']);
+  });
 });
 
 describe('delete source', () => {

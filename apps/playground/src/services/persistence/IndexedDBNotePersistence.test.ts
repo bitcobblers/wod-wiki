@@ -71,4 +71,85 @@ describe('Note persistence projections', () => {
       startTime: 1, endTime: 2, duration: 1, completed: true, createdAt: 2 })).rejects.toThrow();
     await expect(persistence.rederiveResultAnalytics('orphan')).rejects.toMatchObject({ code: 'RESULT_NOT_FOUND' });
   });
+
+  it('pushes journalDate and kind predicates to storage indexes without scanning or hydrating non-matching notes (WW-001)', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const persistence = new IndexedDBNotePersistence(service);
+
+    // Seed 40 unrelated corpus notes, 2 journal notes on different dates, and 1 dashboard note.
+    for (let i = 0; i < 40; i++) {
+      await persistence.createNote({
+        id: `corpus-${i}`,
+        title: `Corpus Workout ${i}`,
+        rawContent: SOURCE,
+        tags: i % 2 === 0 ? ['metcon'] : ['strength'],
+        targetDate: 1_000 + i,
+      });
+    }
+    await persistence.createNote({
+      id: 'journal-target',
+      title: 'Target Day Entry',
+      rawContent: SOURCE,
+      type: 'journal',
+      journalDate: '2026-04-17',
+      targetDate: 5_000,
+    });
+    await persistence.createNote({
+      id: 'journal-other',
+      title: 'Other Day Entry',
+      rawContent: SOURCE,
+      type: 'journal',
+      journalDate: '2026-04-18',
+      targetDate: 6_000,
+    });
+    await persistence.createNote({
+      id: 'dash-custom',
+      title: 'Custom Volume Dashboard',
+      rawContent: '---\ndashboard: true\n---\n# Volume\n',
+      type: 'dashboard',
+      slug: 'custom-volume',
+      targetDate: 7_000,
+    });
+
+    let getAllNotesCalls = 0;
+    const origGetAllNotes = service.getAllNotes.bind(service);
+    service.getAllNotes = async () => {
+      getAllNotesCalls++;
+      return origGetAllNotes();
+    };
+
+    const hydratedBatches: string[][] = [];
+    const origGetDetailBatches = service.getDetailBatches.bind(service);
+    service.getDetailBatches = async (noteIds) => {
+      hydratedBatches.push([...noteIds]);
+      return origGetDetailBatches(noteIds);
+    };
+
+    // 1. Empty journal date: zero full-vault scans and zero detail hydration calls.
+    const emptyDay = await persistence.listNotes({
+      journalDate: '2026-04-19',
+      kind: 'journal',
+      projection: 'summary',
+    });
+    expect(emptyDay).toEqual([]);
+    expect(getAllNotesCalls).toBe(0);
+    expect(hydratedBatches).toEqual([]);
+
+    // 2. Populated journal date: hydrates ONLY the matching date's journal note, never corpus or other days.
+    const targetDay = await persistence.listNotes({
+      journalDate: '2026-04-17',
+      kind: 'journal',
+      projection: 'summary',
+    });
+    expect(targetDay.map((e) => e.id)).toEqual(['journal-target']);
+    expect(getAllNotesCalls).toBe(0);
+    expect(hydratedBatches).toEqual([['journal-target']]);
+
+    // 3. Kind-filtered dashboard lookup: uses by-type index and hydrates ONLY the 1 dashboard note.
+    hydratedBatches.length = 0;
+    const dashboards = await persistence.listNotes({ kind: 'dashboard' });
+    expect(dashboards.map((e) => e.id)).toEqual(['dash-custom']);
+    expect(getAllNotesCalls).toBe(0);
+    expect(hydratedBatches).toEqual([['dash-custom']]);
+  });
 });

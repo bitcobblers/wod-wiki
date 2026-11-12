@@ -16,7 +16,8 @@ import { cn } from '@/lib/utils'
 import { TEST_IDS } from '@/lib/testIds'
 import { ResponsiveActionsProvider } from '../../app/nav/ResponsiveActions'
 import { useSurfaceBusy } from '@/agent/surfaceBridges'
-import { useFeedReadiness } from '@/services/feed/feedReadiness'
+import { feedProgressDetail, feedProgressLabel } from '@/services/feed/feedProgress'
+import { useFeedImportPending, useFeedReadiness, useFeedSyncProgress } from '@/services/feed/feedReadiness'
 
 function OpenMenuIcon() {
   return (
@@ -348,10 +349,16 @@ export function SidebarLayout({
     </L3DrawerStateProvider>
   )
 }
-function MainLandmark({ children }: React.PropsWithChildren) {
+export function MainLandmark({ children }: React.PropsWithChildren) {
+  const location = useLocation()
   const surfaceBusy = useSurfaceBusy()
   const feedReadiness = useFeedReadiness()
-  const isBusy = surfaceBusy || feedReadiness === 'preparing'
+  const importPending = useFeedImportPending()
+  const progress = useFeedSyncProgress()
+  const isBusy = surfaceBusy || feedReadiness === 'preparing' || importPending
+  const showImportPill = importPending && feedReadiness !== 'preparing' && location.pathname !== '/'
+  const detail = showImportPill ? feedProgressDetail(progress) : null
+
   return (
     <main
       aria-busy={isBusy}
@@ -359,6 +366,17 @@ function MainLandmark({ children }: React.PropsWithChildren) {
       className="flex flex-1 flex-col lg:min-w-0"
     >
       {children}
+      {showImportPill && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="boot-import-progress"
+          className="pointer-events-none fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-lg border border-border bg-card/95 px-3 py-1.5 text-xs text-foreground shadow-sm"
+        >
+          <span>{progress ? feedProgressLabel(progress) : 'Importing library…'}</span>
+          {detail && <span className="text-muted-foreground">{detail}</span>}
+        </div>
+      )}
     </main>
   )
 }

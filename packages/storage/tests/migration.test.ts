@@ -121,3 +121,50 @@ describe('SQL additive schema migration (v32 → v33)', () => {
     await migrated.close();
   });
 });
+
+describe('SQL additive index migration (v33 → v34, WW-001)', () => {
+  it('adds and backfills notes by-type index on an existing v33 database while preserving rows', async () => {
+    const db = libsqlDatabase(createClient({ url: ':memory:' }));
+    // Simulate an existing v33 notes table lacking i_by_type_0
+    await db.transaction(async (tx) => {
+      const init = new SqlStorage(db);
+      void init;
+      await tx.exec(`CREATE TABLE IF NOT EXISTS "${SCHEMA_TABLE}" ("key" TEXT PRIMARY KEY, "value" TEXT NOT NULL)`);
+    });
+    const initial = new SqlStorage(db);
+    await initial.readwrite('notes').put({ ...note, id: 'plain-1' });
+    await initial.readwrite('notes').put({
+      ...note,
+      id: 'dash-1',
+      title: 'Training Load Dashboard',
+      type: 'dashboard',
+    });
+    await initial.readwrite('notes').put({
+      ...note,
+      id: 'journal-1',
+      title: 'Morning Session',
+      type: 'journal',
+    });
+    // Rebuild the `notes` table in v33 shape (without i_by_type_0 / notes__by_type) and rewind schema guard to 33.
+    await db.transaction(async (tx) => {
+      await tx.exec(`DROP TRIGGER IF EXISTS "notes_revision_guard"`);
+      await tx.exec(`DROP INDEX IF EXISTS "notes__by_type"`);
+      await tx.exec(`CREATE TABLE "notes_v33" ("k0", "i_by_date_0", "i_by_created_0", "i_by_user_0", "data" TEXT NOT NULL, PRIMARY KEY ("k0"))`);
+      await tx.exec(`INSERT INTO "notes_v33" ("k0", "i_by_date_0", "i_by_created_0", "i_by_user_0", "data") SELECT "k0", "i_by_date_0", "i_by_created_0", "i_by_user_0", "data" FROM "notes"`);
+      await tx.exec(`DROP TABLE "notes"`);
+      await tx.exec(`ALTER TABLE "notes_v33" RENAME TO "notes"`);
+      await tx.exec(`CREATE INDEX IF NOT EXISTS "notes__by_date" ON "notes" ("i_by_date_0")`);
+      await tx.exec(`CREATE INDEX IF NOT EXISTS "notes__by_created" ON "notes" ("i_by_created_0")`);
+      await tx.exec(`CREATE INDEX IF NOT EXISTS "notes__by_user" ON "notes" ("i_by_user_0")`);
+      await tx.exec(`INSERT INTO "${SCHEMA_TABLE}" ("key", "value") VALUES ('schema', '{"version":33}') ON CONFLICT ("key") DO UPDATE SET "value" = excluded."value"`);
+    });
+
+    const migrated = new SqlStorage(db);
+    const dashboards = await migrated.readonly('notes').getAllFromIndex('by-type', 'dashboard');
+    expect(dashboards.map((n) => n.id)).toEqual(['dash-1']);
+    const journals = await migrated.readonly('notes').getAllFromIndex('by-type', 'journal');
+    expect(journals.map((n) => n.id)).toEqual(['journal-1']);
+    expect(await migrated.readonly('notes').get('plain-1')).toMatchObject({ id: 'plain-1', title: note.title });
+    await migrated.close();
+  });
+});

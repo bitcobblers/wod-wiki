@@ -1,16 +1,26 @@
 /** feedReadiness gate: opt-in activation, settle transitions, busy retry. */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { act, renderHook } from '@testing-library/react';
+import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
+import { emptySeedMeta, seedMetaKey } from '@/types/seed';
+import { InMemoryFeedStorage } from './FeedImportStorage';
+import { feedFixture as fixture } from './feedFixture';
+import { resetFeedSubscriptionsForTest, setFeedAutoSync, setFeedSubscribed } from './feedSubscriptions';
+import type { IFeedSource, SeedChunkPayload } from './IFeedSource';
 import {
   getFeedReadiness,
   getFeedSyncProgress,
+  isBootImportPending,
+  markFeedFirstPaint,
   markFeedSyncProgress,
   markFeedSyncSettled,
   markFeedSyncStarted,
   resetFeedReadinessForTest,
+  startFeedBootstrap,
+  useFeedImportPending,
   useFeedSyncProgress,
 } from './feedReadiness';
-import { SEED_CLAIM_TTL_MS, type FeedSyncProgress } from './feedSync';
+import { SEED_CLAIM_TTL_MS, type FeedSourceSpec, type FeedSyncProgress } from './feedSync';
 
 function snapshot(): string {
   return getFeedReadiness();
@@ -121,5 +131,92 @@ describe('feedReadiness', () => {
     // No pending timer may flip this later — settle explicitly.
     markFeedSyncSettled('imported');
     expect(snapshot()).toBe('ready');
+  });
+
+  it('markFeedFirstPaint ungates readiness while keeping bootImportPending true until settled (WW-019)', () => {
+    const { result } = renderHook(() => useFeedImportPending());
+    expect(isBootImportPending()).toBe(false);
+    expect(result.current).toBe(false);
+
+    act(() => markFeedSyncStarted());
+    expect(snapshot()).toBe('preparing');
+    expect(isBootImportPending()).toBe(true);
+    expect(result.current).toBe(true);
+
+    act(() => markFeedFirstPaint());
+    expect(snapshot()).toBe('ready');
+    expect(isBootImportPending()).toBe(true);
+    expect(result.current).toBe(true);
+
+    act(() => markFeedSyncSettled('imported'));
+    expect(snapshot()).toBe('ready');
+    expect(isBootImportPending()).toBe(false);
+    expect(result.current).toBe(false);
+  });
+
+  it('startFeedBootstrap holds bootImportPending across both core and default subscribed feeds on cold boot (WW-019)', async () => {
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    const storage = new InMemoryFeedStorage();
+    const coreSrc = fixture(
+      [compileSeedRow('markdown/canvas/a.md', '# A'), compileSeedRow('markdown/notebooks/x/b.md', '# B')],
+      1,
+      'canvas',
+    );
+    const sampleSrc = fixture(
+      [compileSeedRow('markdown/notebooks/samples/s1.md', '# Sample 1')],
+      1,
+      'notebook.samples',
+    );
+    const heldSample = Promise.withResolvers<SeedChunkPayload>();
+    const sampleRequested = Promise.withResolvers<void>();
+    const heldSampleSource: IFeedSource = {
+      fetchManifest: () => sampleSrc.fetchManifest(),
+      fetchChunk: (path) => {
+        if (path === 'chunks/notebook.samples.json') {
+          sampleRequested.resolve();
+          return heldSample.promise;
+        }
+        return sampleSrc.fetchChunk(path);
+      },
+    };
+    setFeedSubscribed('samples-movement', true);
+    setFeedAutoSync('samples-movement', true);
+    const sources: FeedSourceSpec[] = [
+      { source: coreSrc, id: 'core', label: 'Core', url: 'https://feed.test/core/', embeddedVersion: 1 },
+      { source: heldSampleSource, id: 'samples-movement', label: 'Samples', url: 'https://feed.test/samples/', embeddedVersion: 0, autoImport: false },
+    ];
+
+    const samplePayload = await sampleSrc.fetchChunk('chunks/notebook.samples.json');
+    const done = startFeedBootstrap({ sources, storage, isEnabled: () => true });
+    try {
+      await sampleRequested.promise;
+
+      // First-paint ungated the UI shell (`ready`), AND core finished, yet
+      // subscribed sample feed is still importing — bootImportPending MUST stay true!
+      expect(getFeedReadiness()).toBe('ready');
+      expect(isBootImportPending()).toBe(true);
+    } finally {
+      heldSample.resolve(samplePayload);
+      await done;
+    }
+
+    expect(getFeedReadiness()).toBe('ready');
+    expect(isBootImportPending()).toBe(false);
+  });
+
+  it('startFeedBootstrap keeps bootImportPending false for returning visitors (WW-019)', async () => {
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    const storage = new InMemoryFeedStorage();
+    await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('core')), seedVersion: 1, builtAt: new Date(1).toISOString() });
+    const coreSrc = fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas');
+    const sources: FeedSourceSpec[] = [
+      { source: coreSrc, id: 'core', label: 'Core', url: 'https://feed.test/core/', embeddedVersion: 1 },
+    ];
+
+    await startFeedBootstrap({ sources, storage, isEnabled: () => true });
+    expect(getFeedReadiness()).toBe('ready');
+    expect(isBootImportPending()).toBe(false);
   });
 });

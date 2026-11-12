@@ -575,6 +575,22 @@ function tableListSql(dialect: 'sqlite' | 'postgres'): string {
     : `SELECT "table_name" FROM "information_schema"."tables" WHERE "table_schema" = current_schema()`;
 }
 
+async function existingColumnSet(
+  conn: SqlConnection,
+  dialect: 'sqlite' | 'postgres',
+  tableName: string,
+): Promise<Set<string>> {
+  if (dialect === 'sqlite') {
+    const rows = await conn.query(`PRAGMA table_info("${tableName}")`);
+    return new Set(rows.map((r) => String(r.name)));
+  }
+  const rows = await conn.query(
+    `SELECT "column_name" FROM "information_schema"."columns" WHERE "table_schema" = current_schema() AND "table_name" = ?`,
+    [tableName],
+  );
+  return new Set(rows.map((r) => String(r.column_name)));
+}
+
 /** Create the current schema only. Existing incompatible versions fail closed. */
 async function ensureStoreTables(
   conn: SqlConnection,
@@ -583,10 +599,14 @@ async function ensureStoreTables(
 ): Promise<void> {
   const keys = keyCols(def);
   const cols: Array<[string, string]> = keys.map((k, i) => [k, colSql(dialect, pathType(def, def.keyPath[i]))]);
+  const indexedParts: Array<{ col: string; path: string; typeSql: string }> = [];
   for (const idx of def.indexes) {
     if (idx.multiEntry) continue;
     idx.keyPath.forEach((path, part) => {
-      cols.push([indexCol(idx.name, part), colSql(dialect, pathType(def, path))]);
+      const col = indexCol(idx.name, part);
+      const typeSql = colSql(dialect, pathType(def, path));
+      cols.push([col, typeSql]);
+      indexedParts.push({ col, path, typeSql });
     });
   }
   cols.push(['data', ' TEXT NOT NULL']);
@@ -594,6 +614,26 @@ async function ensureStoreTables(
   await conn.exec(
     `CREATE TABLE IF NOT EXISTS "${def.name}" (${colDefs.join(', ')}, PRIMARY KEY (${keys.map((k) => `"${k}"`).join(', ')}))`,
   );
+  if (indexedParts.length > 0) {
+    const existingCols = await existingColumnSet(conn, dialect, def.name);
+    const addedParts = indexedParts.filter((p) => !existingCols.has(p.col));
+    if (addedParts.length > 0) {
+      for (const part of addedParts) {
+        await conn.exec(`ALTER TABLE "${def.name}" ADD COLUMN "${part.col}"${part.typeSql}`);
+      }
+      const keySelect = keys.map((k) => `"${k}"`).join(', ');
+      const keyWhere = keys.map((k) => `"${k}" = ?`).join(' AND ');
+      const setClause = addedParts.map((p) => `"${p.col}" = ?`).join(', ');
+      const rows = await conn.query(`SELECT ${keySelect}, "data" FROM "${def.name}"`);
+      for (const row of rows) {
+        const decoded = decodeRowJson(String(row.data), binaryFieldOf(def));
+        const values = addedParts.map((p) => toSqlScalar(extractKeyPart(decoded, p.path)));
+        if (values.every((v) => v === null)) continue;
+        const keyValues: SqlValue[] = keys.map((k) => toSqlScalar(row[k]));
+        await conn.exec(`UPDATE "${def.name}" SET ${setClause} WHERE ${keyWhere}`, [...values, ...keyValues]);
+      }
+    }
+  }
   for (const idx of def.indexes) {
     if (idx.multiEntry) continue;
     const parts = idx.keyPath.map((_, part) => `"${indexCol(idx.name, part)}"`).join(', ');

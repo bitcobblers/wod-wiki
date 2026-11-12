@@ -31,6 +31,8 @@ type GateState = 'idle' | FeedReadiness;
 
 let state: GateState = 'idle';
 let progress: FeedSyncProgress | null = null;
+let bootImportPending = false;
+let freshBootImporting = false;
 const listeners = new Set<() => void>();
 let busyRetryTimer: RetryTimer | null = null;
 let busyChannel: BroadcastChannel | null = null;
@@ -53,12 +55,25 @@ function reflectOutcome(next: FeedSyncOutcome | null): void {
   else document.documentElement.dataset.feedOutcome = next;
 }
 
+function reflectImportPending(next: boolean): void {
+  if (typeof document === 'undefined') return;
+  if (!next) delete document.documentElement.dataset.feedImportPending;
+  else document.documentElement.dataset.feedImportPending = 'true';
+}
+
 reflectState(state); // 'idle' visible from module load: bootstrap-not-run vs never-settled
 
 function setState(next: GateState): void {
   if (state === next) return;
   state = next;
   reflectState(next);
+  notify();
+}
+
+function setBootImportPending(next: boolean): void {
+  if (bootImportPending === next) return;
+  bootImportPending = next;
+  reflectImportPending(next);
   notify();
 }
 
@@ -83,11 +98,26 @@ export function markFeedSyncProgress(next: FeedSyncProgress): void {
 export function markFeedSyncStarted(): void {
   clearBusyWatch();
   reflectOutcome(null);
-  if (progress !== null) {
-    progress = null;
-    notify();
+  const changedProgress = progress !== null;
+  const changedPending = !bootImportPending;
+  progress = null;
+  bootImportPending = true;
+  reflectImportPending(true);
+  if (state === 'preparing') {
+    if (changedProgress || changedPending) notify();
+    return;
   }
   setState('preparing');
+}
+
+/**
+ * Ungate first-paint route shells once the core canvas chunk commits while
+ * keeping `bootImportPending` true until the full boot corpus import settles.
+ */
+export function markFeedFirstPaint(): void {
+  if (state === 'preparing') {
+    setState('ready');
+  }
 }
 
 /** Called with the outcome of every boot feed sync attempt (including retries). */
@@ -95,12 +125,14 @@ export function markFeedSyncSettled(outcome: FeedSyncOutcome): void {
   reflectOutcome(outcome);
   switch (outcome) {
     case 'busy': {
-      if (state !== 'preparing') return;
+      if (state !== 'preparing' && !bootImportPending) return;
       if (typeof BroadcastChannel !== 'undefined' && !busyChannel) {
         busyChannel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);
         busyChannel.onmessage = (event) => {
           if ((event.data as { kind?: string } | null)?.kind === 'seed-imported') {
             clearBusyWatch();
+            freshBootImporting = false;
+            setBootImportPending(false);
             setState('ready');
           }
         };
@@ -112,10 +144,12 @@ export function markFeedSyncSettled(outcome: FeedSyncOutcome): void {
     }
     case 'error':
       clearBusyWatch();
+      if (!freshBootImporting) setBootImportPending(false);
       setState('error');
       break;
     default:
       clearBusyWatch();
+      if (!freshBootImporting) setBootImportPending(false);
       setState('ready');
       break;
   }
@@ -124,6 +158,11 @@ export function markFeedSyncSettled(outcome: FeedSyncOutcome): void {
 /** Non-reactive read of the gate ('idle' reports as 'ready' — ungated). */
 export function getFeedReadiness(): FeedReadiness {
   return state === 'idle' ? 'ready' : state;
+}
+
+/** Non-reactive read of whether background cold-boot corpus import is still running. */
+export function isBootImportPending(): boolean {
+  return bootImportPending;
 }
 
 /** Non-reactive read of the latest boot progress event. */
@@ -141,6 +180,11 @@ export function useFeedReadiness(): FeedReadiness {
   return useSyncExternalStore(subscribe, getFeedReadiness);
 }
 
+/** Reactive indicator of whether background cold-boot corpus import is still running. */
+export function useFeedImportPending(): boolean {
+  return useSyncExternalStore(subscribe, isBootImportPending);
+}
+
 /** Reactive boot-progress surface for the corpus gate. */
 export function useFeedSyncProgress(): FeedSyncProgress | null {
   return useSyncExternalStore(subscribe, getFeedSyncProgress);
@@ -151,9 +195,12 @@ export function resetFeedReadinessForTest(): void {
   clearBusyWatch();
   bootstrapPromise = null;
   progress = null;
+  freshBootImporting = false;
+  bootImportPending = false;
   state = 'idle';
   reflectState('idle');
   reflectOutcome(null);
+  reflectImportPending(false);
   notify();
 }
 
@@ -206,8 +253,12 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
     coreMeta = undefined; // Provider unreadable — the sync run itself surfaces it.
   }
   const fresh = !coreMeta || coreMeta.seedVersion <= 0;
-  if (fresh) markFeedSyncStarted();
-  else markFeedSyncSettled('current');
+  if (fresh) {
+    freshBootImporting = true;
+    markFeedSyncStarted();
+  } else {
+    markFeedSyncSettled('current');
+  }
   // Notes imported before the feed stamp existed carry only the seed-side
   // stamps: the checkpoints say which feed delivered them, so the repair
   // needs no republication. It runs AFTER the gate decision — the first
@@ -215,14 +266,35 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
   await adoptFeedProvenance(deps)
     .catch((err) => console.error('[feedSync] feed provenance repair failed', err));
   if (fresh) {
-    const outcome = await runBootFeedSync({ ...deps, sources: all, onProgress, onFirstPaint: () => markFeedSyncSettled('imported') });
-    markFeedSyncSettled(outcome);
-    // Every page load owes subscribed catalogs their update check — also
-    // when the local core checkpoint was reset but subscriptions survived
-    // (the fresh sync just re-created it). Nonblocking; never re-gates.
-    if (all.some((s) => s.id !== 'core' && isFeedSubscribed(s.id))) {
-      await runBootFeedSync({ ...deps, sources: all, onProgress })
-        .catch((err) => console.error('[feedSync] background boot sync failed', err));
+    try {
+      const outcome = await runBootFeedSync({
+        ...deps,
+        sources: all,
+        onProgress,
+        onFirstPaint: () => markFeedFirstPaint(),
+      });
+      if (outcome !== 'busy' && outcome !== 'error') {
+        markFeedFirstPaint();
+      }
+      // Every page load owes subscribed catalogs their update check — on a
+      // fresh browser ensurePlaygroundDefaultSubscriptions just enabled the
+      // default sample feeds, whose initial import is part of the boot corpus.
+      // Hold `bootImportPending` until that pass finishes without re-gating UI.
+      if (
+        outcome !== 'busy' &&
+        outcome !== 'error' &&
+        all.some((s) => s.id !== 'core' && isFeedSubscribed(s.id))
+      ) {
+        await runBootFeedSync({ ...deps, sources: all, onProgress })
+          .catch((err) => console.error('[feedSync] background boot sync failed', err));
+      }
+      freshBootImporting = false;
+      markFeedSyncSettled(outcome);
+    } finally {
+      if (freshBootImporting) {
+        freshBootImporting = false;
+        setBootImportPending(false);
+      }
     }
     return;
   }

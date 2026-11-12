@@ -26,7 +26,11 @@ import type { StoreName } from './contract';
 // deletion intent still reaches independently converted targets. Old
 // full-data targets are NOT migrated in place by
 // ordinary sync — the CLI converts them into fresh wod-wiki-v32 targets.
-export const DB_VERSION = 33;
+//
+// V34 adds the `by-type` index on `notes` so kind-filtered vault reads
+// (`dashboard`, `journal`, `playground`) resolve via O(k) index lookups
+// instead of full-corpus scans (WW-001).
+export const DB_VERSION = 34;
 
 /**
  * Typed field metadata — column type per extracted field path, shared with
@@ -113,6 +117,7 @@ export const STORE_DEFS: StoreDef[] = [
   { name: 'notes', keyPath: ['id'], indexes: [
     { name: 'by-date', keyPath: ['date'] },
     { name: 'by-created', keyPath: ['createdAt'] },
+    { name: 'by-type', keyPath: ['type'] },
     { name: 'by-user', keyPath: ['userId'] },
   ] },
   // 2. page

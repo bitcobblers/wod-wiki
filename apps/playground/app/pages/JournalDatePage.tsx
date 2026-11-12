@@ -26,6 +26,9 @@ import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCa
 import type { ParkedRun, PendingRuntime } from '../runtimeStore';
 import { sectionField } from '@bitcobblers/wod-wiki-ui/extensions';
 import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
+import { setSurfaceBusy } from '@/agent/surfaceBridges';
+import { feedProgressLabel } from '@/services/feed/feedProgress';
+import { useFeedSyncProgress } from '@/services/feed/feedReadiness';
 
 import { JournalPageShell } from '@/panels/page-shells';
 
@@ -168,8 +171,12 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     return playgroundRecorder.record({ blockId: captured.session.blockId, noteId: captured.session.noteId, resultId, data: results, createdAt: results.endTime });
   }, []);
 
+  const feedProgress = useFeedSyncProgress();
+  const [slowLoad, setSlowLoad] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
+    setNotes(null);
     journalNotes.listByDate(journalDate).then((entries) => {
       if (cancelled) return;
       setNotes(entries);
@@ -178,6 +185,17 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     });
     return () => { cancelled = true; };
   }, [journalDate]);
+
+  useEffect(() => setSurfaceBusy(notes === null), [notes]);
+
+  useEffect(() => {
+    if (notes !== null) {
+      setSlowLoad(false);
+      return;
+    }
+    const timer = setTimeout(() => setSlowLoad(true), 3_000);
+    return () => clearTimeout(timer);
+  }, [notes]);
 
   // ── Per-date navigation: journal stream back (state intact) + day stepping
   const isDateKey = /^\d{4}-\d{2}-\d{2}$/.test(journalDate);
@@ -300,7 +318,24 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     };
   }, [groupedL3, multiNoteFirst, handleNoteContentChange, setL3Items, setL3Actions]);
 
-  if (!notes) return <div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>;
+  if (!notes) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex-1 flex flex-col items-center justify-center gap-1.5 p-8 text-muted-foreground"
+      >
+        <span className="text-sm">Loading…</span>
+        {slowLoad && (
+          <span className="text-xs" data-testid="journal-slow-loading-hint">
+            {feedProgress
+              ? feedProgressLabel(feedProgress)
+              : 'Opening local journal index — large vaults may take a few seconds…'}
+          </span>
+        )}
+      </div>
+    );
+  }
 
   // Deep links: /day/:date?note=<uuid> opens the canonical single-note editor.
   if (selectedNoteId) {

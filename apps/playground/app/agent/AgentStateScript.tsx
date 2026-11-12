@@ -7,7 +7,7 @@ import {
   useSurfaceBusy,
 } from '@/agent/surfaceBridges';
 import { getClockSnapshot, subscribeClock } from '@/clock/clockCommands';
-import { useFeedReadiness } from '@/services/feed/feedReadiness';
+import { useFeedImportPending, useFeedReadiness } from '@/services/feed/feedReadiness';
 import { useStreamResults } from '../views/stream/streamResults';
 
 function safeJsonForScriptTag(value: unknown): string {
@@ -23,6 +23,7 @@ function safeJsonForScriptTag(value: unknown): string {
 export const AgentStateScript: React.FC = () => {
   const location = useLocation();
   const feedReadiness = useFeedReadiness();
+  const importPending = useFeedImportPending();
   const surfaceBusy = useSurfaceBusy();
   const streamBridge = useActiveStreamBridge();
   const explorerBridge = useActiveExplorerBridge();
@@ -30,7 +31,7 @@ export const AgentStateScript: React.FC = () => {
   const editorBridge = useActiveEditorBridge();
   const clockSnapshot = useSyncExternalStore(subscribeClock, getClockSnapshot, () => null);
 
-  const isBusy = surfaceBusy || feedReadiness === 'preparing';
+  const isBusy = surfaceBusy || feedReadiness === 'preparing' || importPending;
 
   const serialized = useMemo(() => {
     const matchedStream =
@@ -43,6 +44,7 @@ export const AgentStateScript: React.FC = () => {
       hydrated: true,
       status: isBusy ? 'loading' : 'ready',
       feedReadiness,
+      importPending,
       route: {
         pathname: location.pathname,
         search: location.search,
@@ -92,6 +94,7 @@ export const AgentStateScript: React.FC = () => {
   }, [
     isBusy,
     feedReadiness,
+    importPending,
     location.pathname,
     location.search,
     location.hash,

@@ -33,6 +33,9 @@ import { dashboardNotes } from '../../services/dashboardNotes';
 import { notifyDashboardsChanged } from '../../services/dashboardEvents';
 import { parseFrontmatter, serializeFrontmatter } from '@/lib/frontmatter';
 import { storageService } from '@/services/storage';
+import { setSurfaceBusy } from '@/agent/surfaceBridges';
+import { feedProgressLabel } from '@/services/feed/feedProgress';
+import { useFeedSyncProgress } from '@/services/feed/feedReadiness';
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import {
   StickyPageHeader,
@@ -362,9 +365,34 @@ export function DashboardViewPage() {
   // not on loading alone, or the whole page (composer draft included)
   // unmounts mid-refresh. A source from a different slug is never shown.
   const sourceReady = source != null && source.slug === slug;
+  const isInitialLoading = loading && !sourceReady;
+  const feedProgress = useFeedSyncProgress();
+  const [slowLoad, setSlowLoad] = useState(false);
 
-  if (loading && !sourceReady) {
-    return <div className="p-8 text-sm text-muted-foreground">Loading dashboard…</div>;
+  useEffect(() => setSurfaceBusy(isInitialLoading), [isInitialLoading]);
+
+  useEffect(() => {
+    if (!isInitialLoading) {
+      setSlowLoad(false);
+      return;
+    }
+    const timer = setTimeout(() => setSlowLoad(true), 3_000);
+    return () => clearTimeout(timer);
+  }, [isInitialLoading]);
+
+  if (isInitialLoading) {
+    return (
+      <div role="status" aria-live="polite" className="p-8 flex flex-col gap-1.5 text-sm text-muted-foreground">
+        <span>Loading dashboard…</span>
+        {slowLoad && (
+          <span className="text-xs" data-testid="dashboard-slow-loading-hint">
+            {feedProgress
+              ? feedProgressLabel(feedProgress)
+              : 'Resolving dashboard from local library — large vaults may take a few seconds…'}
+          </span>
+        )}
+      </div>
+    );
   }
   if (!sourceReady || !source) {
     return (
@@ -374,6 +402,7 @@ export function DashboardViewPage() {
           No dashboard named <code>{slug}</code>. It may have been removed.
         </p>
         <button
+          type="button"
           onClick={() => navigate('/dashboard')}
           className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:opacity-90"
         >
