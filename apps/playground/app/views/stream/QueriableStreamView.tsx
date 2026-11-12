@@ -97,6 +97,7 @@ import { CanvasProse } from '../../canvas/CanvasProse'
 import { seedNoteId } from '@/services/feed/FeedImporter'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { useSeedContent } from '@/services/content/seedContent'
+import { registerActiveStreamBridge, setSurfaceBusy } from '@/agent/surfaceBridges'
 
 const contentProvider = new IndexedDBContentProvider()
 
@@ -293,7 +294,7 @@ export function QueriableStreamView({
   useEffect(() => registerStreamDraft?.(() => query), [registerStreamDraft, query])
 
   // Per-route view settings (layout + field visibility)
-  const { settings, setLayout, toggleField, setGroupBy } = useViewSettings(
+  const { settings, setLayout: setPersistedLayout, toggleField, setGroupBy } = useViewSettings(
     profile.route,
     profile.level,
     profile.defaultLayout,
@@ -309,7 +310,28 @@ export function QueriableStreamView({
     () => (profile.calendarCapable ? LAYOUT_MODES : LAYOUT_MODES.filter(mode => mode !== 'agenda' && mode !== 'planner')),
     [profile.calendarCapable],
   )
-  const layout = availableLayouts.includes(settings.layout) ? settings.layout : 'cards'
+  const urlLayoutParam = useMemo(() => {
+    const raw = new URLSearchParams(location.search).get('layout')
+    return raw && availableLayouts.includes(raw as LayoutMode) ? (raw as LayoutMode) : null
+  }, [location.search, availableLayouts])
+  const layout = urlLayoutParam ?? (availableLayouts.includes(settings.layout) ? settings.layout : 'cards')
+  const setLayout = useCallback(
+    (nextLayout: LayoutMode) => {
+      setPersistedLayout(nextLayout)
+      const params = new URLSearchParams(location.search)
+      if (nextLayout === (profile.defaultLayout ?? 'cards')) {
+        params.delete('layout')
+      } else {
+        params.set('layout', nextLayout)
+      }
+      const nextSearch = params.toString()
+      navigate(
+        { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
+        { replace: true },
+      )
+    },
+    [setPersistedLayout, location.pathname, location.search, navigate, profile.defaultLayout],
+  )
 
   // This page's own query settings — the landing default, the Where-stored
   // and Group-By favorites and the saved shortcuts, edited where the query
@@ -332,6 +354,25 @@ export function QueriableStreamView({
   const [queryRunDims, setQueryRunDims] = useState<string[] | null>(null)
   const [shelfOpen, setShelfOpen] = useState(true)
   const [loading, setLoading] = useState(false)
+  useEffect(() => setSurfaceBusy(loading), [loading])
+  useEffect(() => {
+    return registerActiveStreamBridge({
+      route: profile.route,
+      defaultQuery: profile.defaultWql,
+      query,
+      loading,
+      layout,
+      availableLayouts,
+      groupBy: settings.groupBy,
+      setQuery,
+      setLayout: (nextLayout) => {
+        if (availableLayouts.includes(nextLayout as LayoutMode)) {
+          setLayout(nextLayout as LayoutMode)
+        }
+      },
+      setGroupBy,
+    })
+  }, [profile.route, profile.defaultWql, query, loading, layout, availableLayouts, settings.groupBy, setQuery, setLayout, setGroupBy])
   const [actionError, setActionError] = useState<string | null>(null)
   // Mobile: the query bar portals into the app navbar (no page header).
   const isMobile = useIsMobile()

@@ -5,9 +5,9 @@
   "type": "module",
   "description": "The wod.wiki web application — workout journal, canvas editor, review surfaces, and Chromecast receiver built on the Whiteboard Language packages.",
   "scripts": {
-    "dev": "bun ../../scripts/sync-seed.ts --app playground && VITE_STORAGE=indexed-db vite",
-    "build": "bun ../../scripts/sync-seed.ts --app playground && bun run build:vite && bun ../../scripts/generate-static-shells.ts",
-    "build:api": "bun ../../scripts/sync-seed.ts --app playground && bun run build:vite:api",
+    "dev": "bun ../../scripts/generate-agent-manifest.ts && bun ../../scripts/sync-seed.ts --app playground && VITE_STORAGE=indexed-db vite",
+    "build": "bun ../../scripts/generate-agent-manifest.ts && bun ../../scripts/sync-seed.ts --app playground && bun run build:vite && bun ../../scripts/generate-static-shells.ts",
+    "build:api": "bun ../../scripts/generate-agent-manifest.ts && bun ../../scripts/sync-seed.ts --app playground && bun run build:vite:api",
     "build:vite": "VITE_STORAGE=indexed-db vite build",
     "build:vite:api": "VITE_STORAGE=api VITE_API_URL=/api vite build --outDir dist-api",
     "preview": "vite preview",
@@ -32,6 +32,9 @@
     "@bitcobblers/wod-wiki-ui": "^0.11.0",
     "@bitcobblers/wod-wiki-wql": "^0.11.0",
     "@fontsource/inter": "^5.3.0",
-    "@fontsource/jetbrains-mono": "^5.3.0"
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@mcp-b/global": "^6.2.0",
+    "@mcp-b/react-webmcp": "^6.2.0",
+    "zod": "^4.6.7"
   }
 }

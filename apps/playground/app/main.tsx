@@ -1,3 +1,4 @@
+import '@mcp-b/global';
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
@@ -50,6 +51,17 @@ function BootGate() {
       cleanupSync?.();
     };
   }, [attempt]);
+
+  useEffect(() => {
+    if (!ready) {
+      delete document.body.dataset.appHydrated;
+      return;
+    }
+    document.body.dataset.appHydrated = 'true';
+    return () => {
+      delete document.body.dataset.appHydrated;
+    };
+  }, [ready]);
 
   if (failed) {
     return <BootRecovery error={failed} onRetry={() => { setFailed(null); setAttempt((n) => n + 1); }} />;

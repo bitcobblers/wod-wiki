@@ -15,6 +15,8 @@ import { useNav } from '../../app/nav/NavContext'
 import { cn } from '@/lib/utils'
 import { TEST_IDS } from '@/lib/testIds'
 import { ResponsiveActionsProvider } from '../../app/nav/ResponsiveActions'
+import { useSurfaceBusy } from '@/agent/surfaceBridges'
+import { useFeedReadiness } from '@/services/feed/feedReadiness'
 
 function OpenMenuIcon() {
   return (
@@ -313,7 +315,7 @@ export function SidebarLayout({
             )}
           </header>
 
-        <main className="flex flex-1 flex-col lg:min-w-0">
+        <MainLandmark>
           <div className="grow w-full max-lg:pb-48 lg:overflow-visible">
             {children}
           </div>
@@ -322,7 +324,7 @@ export function SidebarLayout({
               thumb dock stacks above it via --thumb-dock-lift. Collapses
               when unoccupied. */}
           <MobileQueryFooter />
-        </main>
+        </MainLandmark>
 
         </div>
 
@@ -346,6 +348,21 @@ export function SidebarLayout({
     </L3DrawerStateProvider>
   )
 }
+function MainLandmark({ children }: React.PropsWithChildren) {
+  const surfaceBusy = useSurfaceBusy()
+  const feedReadiness = useFeedReadiness()
+  const isBusy = surfaceBusy || feedReadiness === 'preparing'
+  return (
+    <main
+      aria-busy={isBusy}
+      data-agent-status={isBusy ? 'loading' : 'ready'}
+      className="flex flex-1 flex-col lg:min-w-0"
+    >
+      {children}
+    </main>
+  )
+}
+
 /**
  * MobileQueryFooter — the fixed bottom row of the mobile shell where pages
  * portal thumb-zone controls (stream routes: the WQL composer as a

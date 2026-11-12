@@ -181,6 +181,12 @@ export const TEST_IDS = {
   TIMER_FULLSCREEN_OVERLAY: 'timer-fullscreen-overlay',
   TIMER_DETAIL_SURFACE: 'timer-detail-surface',
   SYNC_SUBSCRIBED_ONLY_TOGGLE: 'sync-subscribed-only-toggle',
+
+  // ── Agent Readiness & WebMCP ───────────────────────────────────────────────
+  AGENT_CONFIRM_DIALOG: 'agent-confirm-dialog',
+  AGENT_CONFIRM_APPROVE: 'agent-confirm-approve',
+  AGENT_CONFIRM_CANCEL: 'agent-confirm-cancel',
+  WEBMCP_DEBUG_INSPECTOR: 'webmcp-debug-inspector',
 } as const;
 
 export type TestId = (typeof TEST_IDS)[keyof typeof TEST_IDS];

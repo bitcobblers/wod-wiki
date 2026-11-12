@@ -26,6 +26,7 @@ export default defineConfig({
       { find: '@bitcobblers/wod-wiki-storage/sql', replacement: resolve(rootDir, 'packages/storage/src/sql/index.ts') },
       { find: '@bitcobblers/wod-wiki-storage', replacement: resolve(rootDir, 'packages/storage/src/index.ts') },
       { find: '@bitcobblers/wod-wiki-wql', replacement: resolve(rootDir, 'packages/wql/src/index.ts') },
+      { find: '@bitcobblers/wod-wiki-engine/agent', replacement: resolve(rootDir, 'packages/engine/src/agent/index.ts') },
       { find: '@bitcobblers/wod-wiki-engine/react', replacement: resolve(rootDir, 'packages/engine/src/react.ts') },
       { find: '@bitcobblers/wod-wiki-engine', replacement: resolve(rootDir, 'packages/engine/src/index.ts') },
       { find: '@bitcobblers/wod-wiki-tools/server', replacement: resolve(rootDir, 'packages/tools/src/server/app.ts') },

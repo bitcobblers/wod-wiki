@@ -46,6 +46,9 @@ import { loadTagIndex } from '@/services/tags/tagCatalogue'
 import { startFieldCatalogBackfill } from './services/fieldCatalog'
 import { Button } from '@/components/atoms/primitives/button'
 import type { WorkoutItem } from './lib/workoutIndex'
+import { AgentConfirmHost } from './agent/AgentConfirmHost'
+import { AgentStateScript } from './agent/AgentStateScript'
+import { PlaygroundAgentProvider } from './agent/PlaygroundAgentProvider'
 
 export type { WorkoutItem }
 
@@ -158,6 +161,9 @@ export function App() {
               <Toaster />
               <NavProvider tree={navTree}>
                 <ScrollToTop />
+                <PlaygroundAgentProvider />
+                <AgentConfirmHost />
+                <AgentStateScript />
                 <Routes>
                   {/* Home is bundle-owned and renders before the corpus.
                       The wildcard gates only paths still waiting for the imported

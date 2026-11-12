@@ -63,6 +63,7 @@ import { ResponsiveActions } from '../../nav/ResponsiveActions';
 import { MobileNewEntryCombo } from '../../pages/shared/NewEntryCombo';
 import { SampleDataPrompt } from './SampleDataPrompt';
 import { cn } from '@/lib/utils';
+import { registerActiveExplorerBridge, setSurfaceBusy } from '@/agent/surfaceBridges';
 
 /** The /dashboards landing actually searches dashboards: `:dashboard{}` is
  *  the note-head alias injecting type:dashboard (engine side), so the
@@ -161,6 +162,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   const [records, setRecords] = useState<Entry[] | undefined>(undefined);
   const [efforts, setEfforts] = useState<IEffort[] | undefined>(undefined);
   const [loading, setLoading] = useState(false);
+  useEffect(() => setSurfaceBusy(loading), [loading]);
   const [dashOpen, setDashOpen] = useState(false);
   // The page's own query settings — the landing default and the scope
   // favorites, edited where the query lives.
@@ -320,6 +322,21 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
     ]);
     return () => setL3Actions?.([]);
   }, [saveReady, setL3Actions]);
+
+  useEffect(() => {
+    return registerActiveExplorerBridge({
+      draft,
+      submitted,
+      weeks: activeWeeks,
+      loading,
+      saveReady,
+      setDraft,
+      submit,
+      setWeeks,
+      openSaveDialog: () => setDashOpen(true),
+      openQuerySettings: () => setQuerySettingsOpen(true),
+    });
+  }, [draft, submitted, activeWeeks, loading, saveReady, setDraft, submit, setWeeks]);
 
   const findGroups = useMemo(
     () => (entries !== undefined && entries.length > 0 ? groupEntriesByDimension(entries, 'date') : []),

@@ -16,6 +16,7 @@ const workspaceAliases = {
   '@bitcobblers/wod-wiki-storage': resolve(import.meta.dirname, 'packages/storage/src'),
   '@bitcobblers/wod-wiki-lang': resolve(import.meta.dirname, 'packages/lang/src'),
   '@bitcobblers/wod-wiki-wql': resolve(import.meta.dirname, 'packages/wql/src'),
+  '@bitcobblers/wod-wiki-engine/agent': resolve(import.meta.dirname, 'packages/engine/src/agent/index.ts'),
   '@bitcobblers/wod-wiki-engine': resolve(import.meta.dirname, 'packages/engine/src'),
   '@bitcobblers/wod-wiki-tools': resolve(import.meta.dirname, 'packages/tools/src'),
   '@bitcobblers/wod-wiki-ui': resolve(import.meta.dirname, 'packages/ui/src'),

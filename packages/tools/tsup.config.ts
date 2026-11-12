@@ -24,10 +24,13 @@ export default defineConfig({
     '@bitcobblers/wod-wiki-storage/sql/node',
     '@bitcobblers/wod-wiki-storage/idb',
     '@bitcobblers/wod-wiki-engine',
+    '@bitcobblers/wod-wiki-engine/agent',
     '@libsql/client',
     '@libsql/client/web',
     'bun',
     'fake-indexeddb',
+    'zod',
+    /^@modelcontextprotocol\/sdk/,
   ],
   esbuildOptions(options, context) {
     if (context.format === 'esm') {

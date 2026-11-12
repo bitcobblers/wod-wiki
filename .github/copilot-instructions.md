@@ -42,7 +42,7 @@ reference, before changing code.
 
 **Imports**: Use `@/*` path alias for `src/` imports. Order: external libraries → internal modules → relative imports.
 
-**Components**: Functional React components with hooks. Style with Tailwind CSS classes — no custom CSS. Always define TypeScript interfaces for props.
+**Components & Agent Action Parity**: Functional React components with hooks. Style with Tailwind CSS classes — no custom CSS. Always define TypeScript interfaces for props. Every new user-facing capability MUST maintain User <-> Agent action parity across Playground WebMCP (`useWebMCP`), `wod server` (`/api/mcp`), and `wod --json` CLI — load [`skills/wod-agent-parity/SKILL.md`](../skills/wod-agent-parity/SKILL.md) and verify with `bun run check:agent-parity`.
 
 **Naming**:
 - Components & files: `PascalCase` (e.g., `WorkoutTimer.tsx`)

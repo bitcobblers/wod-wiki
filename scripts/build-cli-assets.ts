@@ -38,8 +38,9 @@ function runPlaygroundScript(script: string): Promise<void> {
   })
 }
 
-// Refresh skill copies and playground core seed once before running both Vite builds in parallel.
+// Refresh skill copies, agent discovery manifest, and playground core seed once before running both Vite builds in parallel.
 runSync(['scripts/sync-skills.ts'])
+runSync(['scripts/generate-agent-manifest.ts'])
 runSync(['scripts/sync-seed.ts', '--app', 'playground'])
 
 function copyFiltered(src: string, dest: string): void {

@@ -59,7 +59,7 @@
     "lint:packages": "bun run lint:package",
     "lint:playground": "eslint apps/playground/src --ext .ts,.tsx",
     "lint:storybook": "eslint apps/storybook/src --ext .ts,.tsx",
-    "test": "bun run test:packages && bun run test:validation-scripts && bun run test:playground:unit && bun run test:storybook && bun run test:seed",
+    "test": "bun run test:packages && bun run test:validation-scripts && bun run check:agent-parity && bun run test:playground:unit && bun run test:storybook && bun run test:seed",
     "test:package": "vitest run",
     "test:packages": "bun run test:package",
     "test:validation-scripts": "bun test scripts/check-playground-types.test.mjs scripts/ticket-report.test.mjs scripts/migrate-seed-markdown.test.ts scripts/check-e2e-specs.test.ts",
@@ -74,6 +74,8 @@
     "migrate:seeds": "bun scripts/migrate-seed-markdown.ts",
     "sync:skills": "bun scripts/sync-skills.ts",
     "check:skills": "bun scripts/sync-skills.ts --check",
+    "sync:agent-manifest": "bun scripts/generate-agent-manifest.ts",
+    "check:agent-parity": "bun scripts/check-agent-parity.ts",
     "test:seed": "bun scripts/sync-seed.ts",
     "docs:check": "node scripts/check-docs-links.cjs",
     "check:architecture-regressions": "node scripts/check-architecture-regressions.cjs",
@@ -89,8 +91,8 @@
   "dependencies": {
     "@bitcobblers/wod-wiki-core": "^0.11.0",
     "@bitcobblers/wod-wiki-engine": "^0.11.0",
-    "@bitcobblers/wod-wiki-tools": "^0.11.0",
     "@bitcobblers/wod-wiki-lang": "^0.11.0",
+    "@bitcobblers/wod-wiki-tools": "^0.11.0",
     "@bitcobblers/wod-wiki-ui": "^0.11.0",
     "@bitcobblers/wod-wiki-wql": "^0.11.0",
     "@codemirror/autocomplete": "^6.20.3",
@@ -129,6 +131,7 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0",
     "uuid": "^14.0.2",
+    "zod": "^4.6.7",
     "zustand": "^5.0.15"
   },
   "optionalDependencies": {

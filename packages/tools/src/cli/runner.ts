@@ -9,6 +9,7 @@
  *   1 - Runtime error (file missing, bad arguments, execution error)
  *   2 - Parse / Syntax error (invalid Whiteboard Script or malformed WQL)
  *   3 - Pack load error (failed to import or register --pack)
+ *   4 - Destructive confirmation required (missing --yes <targetId>)
  */
 
 function getFs() {
@@ -79,14 +80,75 @@ export function cliNoteSource(source: string, label: string, sport?: string): st
 }
 
 export interface CliParsedArgs {
-  subcommand?: 'parse' | 'run' | 'query' | 'download' | 'export' | 'import' | 'publish' | 'build' | 'seed' | 'reset' | 'init' | 'db' | 'server' | 'serve' | 'playground' | 'init-feed' | 'skills' | 'help' | 'version';
+  subcommand?:
+    | 'parse'
+    | 'run'
+    | 'query'
+    | 'download'
+    | 'export'
+    | 'import'
+    | 'publish'
+    | 'build'
+    | 'seed'
+    | 'reset'
+    | 'init'
+    | 'db'
+    | 'server'
+    | 'serve'
+    | 'playground'
+    | 'init-feed'
+    | 'skills'
+    | 'note'
+    | 'journal'
+    | 'notebook'
+    | 'session'
+    | 'catalog'
+    | 'tag'
+    | 'feed'
+    | 'mcp'
+    | 'tools'
+    | 'doctor'
+    | 'help'
+    | 'version';
   target?: string;
   /** Second positional: the id (download) or file (import) after the kind. */
   target2?: string;
+  /** Third positional for noun-verb commands (e.g. `wod note update <id> <file>`). */
+  target3?: string;
   corpus?: string;
   stdinLog?: boolean;
   stdinFacts?: boolean;
   format: OutputFormat;
+  /** Emit structured JSON envelope on stdout across noun-verb and legacy commands. */
+  json?: boolean;
+  /** Skip database persistence during `wod parse --no-save`. */
+  noSave?: boolean;
+  /** Restrict `wod server` / `wod mcp` to Tier 0 read-only tools. */
+  mcpReadonly?: boolean;
+  /** Validate WQL syntax/schema without executing against data (`wod query --validate-only`). */
+  validateOnly?: boolean;
+  /** Target a running `wod server` HTTP API instead of opening a local DB (`--server <url>`). */
+  serverUrl?: string;
+  /** Explicit Note / Block / Notebook / Date / Filter options for agent noun-verb commands. */
+  noteId?: string;
+  sourceNoteId?: string;
+  blockId?: string;
+  notebook?: string;
+  date?: string;
+  title?: string;
+  description?: string;
+  markdown?: string;
+  search?: string;
+  tag?: string;
+  tags: string[];
+  aliases: string[];
+  setPairs: string[];
+  slug?: string;
+  category?: string;
+  tagType?: string;
+  url?: string;
+  feedId?: string;
+  limit?: number;
   output?: string;
   packs: string[];
   sport?: string;
@@ -160,6 +222,22 @@ type CliValueFlagArgs = Pick<
   | 'host'
   | 'port'
   | 'dist'
+  | 'serverUrl'
+  | 'noteId'
+  | 'sourceNoteId'
+  | 'blockId'
+  | 'notebook'
+  | 'date'
+  | 'title'
+  | 'description'
+  | 'markdown'
+  | 'search'
+  | 'tag'
+  | 'slug'
+  | 'category'
+  | 'tagType'
+  | 'url'
+  | 'feedId'
 >;
 
 const VALUE_FLAGS: ReadonlyArray<readonly [flag: string, key: keyof CliValueFlagArgs]> = [
@@ -181,6 +259,22 @@ const VALUE_FLAGS: ReadonlyArray<readonly [flag: string, key: keyof CliValueFlag
   ['--host', 'host'],
   ['--port', 'port'],
   ['--dist', 'dist'],
+  ['--server', 'serverUrl'],
+  ['--note', 'noteId'],
+  ['--source-note', 'sourceNoteId'],
+  ['--block', 'blockId'],
+  ['--notebook', 'notebook'],
+  ['--date', 'date'],
+  ['--title', 'title'],
+  ['--description', 'description'],
+  ['--markdown', 'markdown'],
+  ['--search', 'search'],
+  ['--tag', 'tag'],
+  ['--slug', 'slug'],
+  ['--category', 'category'],
+  ['--type', 'tagType'],
+  ['--url', 'url'],
+  ['--feed-id', 'feedId'],
 ];
 
 function readValueFlag(args: string[], i: number, flag: string): { value: string; next: number } {
@@ -200,6 +294,9 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     format: 'json',
     packs: [],
     sources: [],
+    tags: [],
+    aliases: [],
+    setPairs: [],
   };
   const valueArgs: CliValueFlagArgs = result;
 
@@ -311,8 +408,80 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       const v = Number(arg.slice('--seed-version='.length));
       if (Number.isSafeInteger(v) && v >= 0) result.seedVersion = v;
       i++;
+    } else if (arg === '--json') {
+      result.json = true;
+      result.format = 'json';
+      i++;
+    } else if (arg === '--no-save') {
+      result.noSave = true;
+      i++;
+    } else if (arg === '--mcp-readonly' || arg === '--readonly') {
+      result.mcpReadonly = true;
+      i++;
+    } else if (arg === '--validate-only') {
+      result.validateOnly = true;
+      i++;
+    } else if (arg === '--limit') {
+      const v = Number(args[++i]);
+      if (Number.isSafeInteger(v) && v > 0) result.limit = v;
+      i++;
+    } else if (arg.startsWith('--limit=')) {
+      const v = Number(arg.slice('--limit='.length));
+      if (Number.isSafeInteger(v) && v > 0) result.limit = v;
+      i++;
+    } else if (arg === '--tags') {
+      const raw = args[++i] ?? '';
+      result.tags.push(...raw.split(',').map((t) => t.trim()).filter(Boolean));
+      i++;
+    } else if (arg.startsWith('--tags=')) {
+      result.tags.push(...arg.slice('--tags='.length).split(',').map((t) => t.trim()).filter(Boolean));
+      i++;
+    } else if (arg === '--alias') {
+      const raw = args[++i];
+      if (raw) result.aliases.push(raw);
+      i++;
+    } else if (arg.startsWith('--alias=')) {
+      result.aliases.push(arg.slice('--alias='.length));
+      i++;
+    } else if (arg === '--set') {
+      const raw = args[++i];
+      if (raw) result.setPairs.push(raw);
+      i++;
+    } else if (arg.startsWith('--set=')) {
+      result.setPairs.push(arg.slice('--set='.length));
+      i++;
     } else if (!result.subcommand) {
-      if (arg === 'parse' || arg === 'run' || arg === 'query' || arg === 'download' || arg === 'export' || arg === 'import' || arg === 'publish' || arg === 'build' || arg === 'seed' || arg === 'reset' || arg === 'init' || arg === 'db' || arg === 'server' || arg === 'serve' || arg === 'playground' || arg === 'init-feed' || arg === 'skills' || arg === 'help' || arg === 'version') {
+      if (
+        arg === 'parse' ||
+        arg === 'run' ||
+        arg === 'query' ||
+        arg === 'download' ||
+        arg === 'export' ||
+        arg === 'import' ||
+        arg === 'publish' ||
+        arg === 'build' ||
+        arg === 'seed' ||
+        arg === 'reset' ||
+        arg === 'init' ||
+        arg === 'db' ||
+        arg === 'server' ||
+        arg === 'serve' ||
+        arg === 'playground' ||
+        arg === 'init-feed' ||
+        arg === 'skills' ||
+        arg === 'note' ||
+        arg === 'journal' ||
+        arg === 'notebook' ||
+        arg === 'session' ||
+        arg === 'catalog' ||
+        arg === 'tag' ||
+        arg === 'feed' ||
+        arg === 'mcp' ||
+        arg === 'tools' ||
+        arg === 'doctor' ||
+        arg === 'help' ||
+        arg === 'version'
+      ) {
         result.subcommand = arg;
       } else {
         result.target = arg;
@@ -323,6 +492,9 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       i++;
     } else if (!result.target2) {
       result.target2 = arg;
+      i++;
+    } else if (!result.target3) {
+      result.target3 = arg;
       i++;
     } else {
       i++;
@@ -444,9 +616,22 @@ DB OPTIONS (for 'wod db'):
                       actions; credentials are never printed to stdout
 
   wod server [options]
-                      Serve the app (HTTP API + packaged frontend; alias: serve)
+                      Serve the app (HTTP API + /api/mcp + packaged frontend; alias: serve)
   wod playground [options]
-                      Serve the local playground (browser IndexedDB build)
+                      Serve the local playground (browser IndexedDB build + WebMCP)
+  wod mcp [--readonly] [--server <url>]
+                      Start the official MCP server over stdio for Claude/Cursor/Codex
+
+AGENT NOUN-VERB COMMANDS (all support --json and --server <url>):
+  wod note <list|get|create|update|clone|delete> [args]
+  wod journal <day|add> [date] [options]
+  wod notebook <list|save|delete> [slug] [options]
+  wod session <list|get|run|delete> [id] [options]
+  wod catalog <lookup|get|upsert> [effort|equipment|tag|tag-type] [name]
+  wod tag <list|upsert> [label] [--type <tagType>]
+  wod feed <list|status|subscribe|sync|unsubscribe|publish> [options]
+  wod tools <list|manifest> [--json]
+  wod doctor [--json]
 
 SUBCOMMANDS:
   parse <file | ->    Parse Whiteboard Script, create a note in the database
@@ -577,6 +762,7 @@ EXIT CODES:
   1 - General / Runtime error
   2 - Parse / Syntax error
   3 - Language Pack load error
+  4 - Destructive confirmation required (pass --yes <targetId>)
 `;
 }
 
@@ -752,24 +938,34 @@ export async function cliMain(
 
       const noteSource = cliNoteSource(source, parsed.target, parsed.sport);
       const ir = runParse(source, { sport: parsed.sport, sourceLabel: `cli:wod parse ${parsed.target}` });
-      const identity = extractNoteIdentity(source);
-      const tags = extractTypedTags(source);
-      const db = await openCliDb(cliDb());
-      try {
-        const persisted = await persistNote(db, {
-          source: noteSource,
-          sourceLabel: parsed.target,
-          noteId: identity?.noteId,
-          title: identity?.title,
-          tags,
-        });
-        writeOut(
-          `[wod parse] note ${persisted.noteId}${persisted.created ? '' : ' (updated)'}` +
-          ` — ${persisted.blocks} blocks, ${persisted.efforts} efforts` +
-          `${persisted.tags > 0 ? `, ${persisted.tags} tags` : ''} → ${db.path}`,
-        );
-      } finally {
-        await db.close();
+      if (!parsed.noSave) {
+        const identity = extractNoteIdentity(source);
+        const tags = extractTypedTags(source);
+        const db = await openCliDb(cliDb());
+        try {
+          const persisted = await persistNote(db, {
+            source: noteSource,
+            sourceLabel: parsed.target,
+            noteId: identity?.noteId,
+            title: identity?.title,
+            tags,
+          });
+          if (!parsed.json) {
+            writeOut(
+              `[wod parse] note ${persisted.noteId}${persisted.created ? '' : ' (updated)'}` +
+              ` — ${persisted.blocks} blocks, ${persisted.efforts} efforts` +
+              `${persisted.tags > 0 ? `, ${persisted.tags} tags` : ''} → ${db.path}`,
+            );
+          } else if (!parsed.output) {
+            deliverOutput(JSON.stringify({ ok: true, persisted, ir }, null, 2));
+          }
+        } finally {
+          await db.close();
+        }
+      } else if (parsed.json && !parsed.output) {
+        deliverOutput(formatParseOutput(ir, 'json', true));
+      } else if (!parsed.output) {
+        writeOut(`[wod parse] valid Whiteboard Script (--no-save)`);
       }
       if (parsed.output) {
         const pretty = Boolean(process.stdout.isTTY);
@@ -780,8 +976,18 @@ export async function cliMain(
     }
 
     if (parsed.subcommand === 'run') {
+      if (parsed.noteId && !parsed.target) {
+        const { runAgentNounVerbCommand } = await import('./agentCommands');
+        return runAgentNounVerbCommand({
+          parsed: { ...parsed, subcommand: 'session', target: 'run', target2: parsed.noteId },
+          resolveDbConfig: cliDb,
+          readStdin: getStdin,
+          writeOut,
+          writeErr,
+        });
+      }
       if (!parsed.target) {
-        writeErr('[wod run] Error: Missing input file or "-" for stdin');
+        writeErr('[wod run] Error: Missing input file, "-" for stdin, or --note <noteId>');
         return 1;
       }
 
@@ -840,6 +1046,18 @@ export async function cliMain(
       if (!parsed.target) {
         writeErr('[wod query] Error: Missing WQL query argument');
         return 1;
+      }
+      if (parsed.validateOnly) {
+        const { wodValidateWqlTool } = await import('@bitcobblers/wod-wiki-engine/agent');
+        const validation = await wodValidateWqlTool.execute({ query: parsed.target }, {
+          storage: undefined as never,
+        });
+        if (parsed.json || parsed.format === 'json') {
+          deliverOutput(JSON.stringify(validation, null, 2));
+        } else {
+          writeOut(validation.valid ? `[wod query] valid (${validation.family ?? 'wql'})` : `[wod query] invalid: ${validation.error}`);
+        }
+        return validation.valid ? 0 : 2;
       }
 
       const useDb = !parsed.corpus && !parsed.stdinLog && !parsed.stdinFacts;
@@ -1194,10 +1412,20 @@ export async function cliMain(
         );
         return 1;
       }
+      if (parsed.yes !== undefined && parsed.yes !== 'RESET') {
+        writeErr('[wod reset] Invalid --yes value (expected: --yes RESET)');
+        return 4;
+      }
       const target = config.path;
       if (nodeFs().existsSync(target)) {
         nodeFs().unlinkSync(target);
-        writeOut(`[wod reset] removed ${target}`);
+        if (parsed.json) {
+          writeOut(JSON.stringify({ ok: true, removed: true, path: target }, null, 2));
+        } else {
+          writeOut(`[wod reset] removed ${target}`);
+        }
+      } else if (parsed.json) {
+        writeOut(JSON.stringify({ ok: true, removed: false, path: target }, null, 2));
       } else {
         writeOut(`[wod reset] nothing to reset — ${target} does not exist`);
       }
@@ -1253,8 +1481,40 @@ export async function cliMain(
       if (parsed.host !== undefined) options.host = parsed.host;
       if (parsed.port !== undefined) options.port = parsed.port;
       if (parsed.dist !== undefined) options.dist = parsed.dist;
+      if (parsed.mcpReadonly === true) options.mcpReadonly = true;
       await runCliServer(mode, options, writeOut);
       return 0;
+    }
+
+    if (parsed.subcommand === 'mcp') {
+      const { runMcpStdio } = await import('./mcp');
+      return runMcpStdio({
+        database: parsed.serverUrl ? undefined : cliDb(),
+        serverUrl: parsed.serverUrl,
+        readonly: parsed.mcpReadonly === true || cliEnv().WOD_MCP_READONLY === '1',
+        writeErr,
+      });
+    }
+
+    if (
+      parsed.subcommand === 'note' ||
+      parsed.subcommand === 'journal' ||
+      parsed.subcommand === 'notebook' ||
+      parsed.subcommand === 'session' ||
+      parsed.subcommand === 'catalog' ||
+      parsed.subcommand === 'tag' ||
+      parsed.subcommand === 'feed' ||
+      parsed.subcommand === 'tools' ||
+      parsed.subcommand === 'doctor'
+    ) {
+      const { runAgentNounVerbCommand } = await import('./agentCommands');
+      return runAgentNounVerbCommand({
+        parsed,
+        resolveDbConfig: cliDb,
+        readStdin: getStdin,
+        writeOut,
+        writeErr,
+      });
     }
 
     writeErr(`[wod] Unknown subcommand "${parsed.subcommand}"`);

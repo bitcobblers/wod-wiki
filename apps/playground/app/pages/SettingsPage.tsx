@@ -27,6 +27,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
+import { clearWebMcpToolLogs, useWebMcpInspectorState } from '../agent/toolLogStore'
 import {
   Sun,
   Moon,
@@ -106,11 +107,11 @@ export function SettingsPage() {
       />
 
       {/* Page Content */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="max-w-4xl mx-auto space-y-8">
         {SETTINGS_SECTIONS.find(tab => tab.id === activeTab)?.content}
         </div>
-      </main>
+      </div>
     </div>
   )
 }
@@ -335,18 +336,18 @@ function AppearanceSection() {
                 </div>
 
                 <div className="font-semibold text-foreground text-sm">{option.label}</div>
-                <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  {option.description}
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </section>
+                  <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    {option.description}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </section>
 
-    </div>
-  )
-}
+      </div>
+    )
+  }
 
 // ── System Section ────────────────────────────────────────────────────────────
 
@@ -509,6 +510,8 @@ function SystemSection() {
             />
           </div>
         </div>
+
+        {isDebugMode && <WebMcpToolsDebugCard />}
       </section>
 
       {/* 3. Anonymous Telemetry */}
@@ -751,8 +754,11 @@ function TagsSettingsSection() {
         <div className="p-4 sm:p-5 rounded-xl border border-border bg-card shadow-xs space-y-4">
           <form onSubmit={handleAddType} className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[160px]">
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Type Name</label>
+              <label htmlFor="tag-type-name-input" className="block text-xs font-medium text-muted-foreground mb-1">Type Name</label>
               <input
+                id="tag-type-name-input"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? 'tag-type-form-error' : undefined}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs outline-none focus:border-primary font-mono"
                 placeholder="Type name (e.g. discipline)"
                 value={newTypeName}
@@ -760,8 +766,11 @@ function TagsSettingsSection() {
               />
             </div>
             <div className="flex-1 min-w-[160px]">
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Display Label</label>
+              <label htmlFor="tag-type-label-input" className="block text-xs font-medium text-muted-foreground mb-1">Display Label</label>
               <input
+                id="tag-type-label-input"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? 'tag-type-form-error' : undefined}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs outline-none focus:border-primary"
                 placeholder="Display label (e.g. Discipline)"
                 value={newTypeLabel}
@@ -769,8 +778,9 @@ function TagsSettingsSection() {
               />
             </div>
             <div className="w-24">
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Color</label>
+              <label htmlFor="tag-type-color-input" className="block text-xs font-medium text-muted-foreground mb-1">Color</label>
               <input
+                id="tag-type-color-input"
                 type="color"
                 className="w-full h-9 p-1 rounded-md border border-input bg-background cursor-pointer"
                 value={newTypeColor}
@@ -781,7 +791,11 @@ function TagsSettingsSection() {
               <Plus className="size-3.5 mr-1" /> Add Type
             </Button>
           </form>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && (
+            <p id="tag-type-form-error" role="alert" className="text-xs text-destructive">
+              {error}
+            </p>
+          )}
 
           <div className="border-t border-border pt-3">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Registered Types</h3>
@@ -821,6 +835,75 @@ function TagsSettingsSection() {
         </div>
       </section>
 
+    </div>
+  )
+}
+
+function WebMcpToolsDebugCard() {
+  const { tools, logs } = useWebMcpInspectorState()
+  return (
+    <div
+      data-testid="webmcp-debug-inspector"
+      className="rounded-xl border border-border bg-card p-4 space-y-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">
+            Registered WebMCP Tools ({tools.length})
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Live tools exposed on <code className="font-mono">navigator.modelContext</code> for browser AI agents
+          </p>
+        </div>
+        {logs.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => clearWebMcpToolLogs()}
+          >
+            Clear Log
+          </Button>
+        )}
+      </div>
+
+      <div className="max-h-56 overflow-y-auto divide-y divide-border/60 rounded-lg border border-border/60 bg-background/50">
+        {tools.map((tool) => (
+          <div key={tool.name} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+            <div className="min-w-0">
+              <div className="font-mono font-semibold text-foreground truncate">{tool.name}</div>
+              <div className="text-muted-foreground truncate">{tool.title}</div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                {tool.scope}
+              </span>
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                Tier {tool.tier}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {logs.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Recent Invocations
+          </div>
+          <div className="max-h-40 overflow-y-auto divide-y divide-border/50 rounded-lg border border-border/60 bg-background/50">
+            {logs.map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-[11px]">
+                <span className="font-mono font-medium text-foreground truncate">{item.toolName}</span>
+                <span className="font-mono text-muted-foreground truncate flex-1">{item.argsPreview}</span>
+                <span className={item.ok ? 'text-green-600 font-semibold' : 'text-destructive font-semibold'}>
+                  {item.ok ? `${item.durationMs}ms` : 'ERR'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

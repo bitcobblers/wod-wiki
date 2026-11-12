@@ -1,0 +1,1444 @@
+# WOD Wiki — Complete Agent, Language & Tool Reference
+
+> Tri-surface reference for Browser WebMCP (`navigator.modelContext`), HTTP/Stdio MCP (`/api/mcp` & `wod mcp`), and CLI (`wod --json`).
+
+# Whiteboard Language Reference
+
+Fence tags: ```time (optional sport suffix e.g. ```time:cardio, ```time:crossfit, ```time:climb) or ```log.
+
+## Core Tokens & Metrics
+- **Timestamps / Durations**: `20:00` (20 min countdown), `:30` (30 sec), `1:05:00` (1 hr 5 min).
+- **Timers & Rounds**: `(21-15-9)` rep scheme, `5 Rounds`, `EMOM 10:00`, `Tabata`, `AMRAP 12:00`.
+- **Reps & Resistance**: `21 Thrusters @95lb`, `5x5 Back Squat @80%`, `15 Kettlebell Swings @24kg`.
+- **Distance**: `400m Run`, `2km Row`, `50ft Handstand Walk`.
+- **Action Modifiers**: `[:Rest 1:00]`, `+Compose`.
+- **Grouping / Indentation**: Indent child movements by 2 spaces beneath timer or round headers.
+
+## Canonical Example
+```time
+# Fran
+(21-15-9)
+  Thrusters @95lb
+  Pull-ups
+```
+
+---
+
+## WQL (Workout Query Language) Reference
+
+```json
+{
+  "families": [
+    "find",
+    "aggregate"
+  ],
+  "aggregators": [
+    "sum",
+    "avg",
+    "min",
+    "max",
+    "count",
+    "last",
+    "delta"
+  ],
+  "metricFamilies": [
+    "reps",
+    "distance",
+    "resistance",
+    "elapsed",
+    "power",
+    "pace"
+  ],
+  "metricAggregates": [
+    "totalVolume",
+    "totalDistance",
+    "tis",
+    "sessionLoad"
+  ],
+  "typedTagKeys": [
+    "domain",
+    "format",
+    "equipment",
+    "quality",
+    "intent"
+  ],
+  "factTagKeys": [
+    "domain",
+    "format",
+    "equipment",
+    "quality",
+    "intent",
+    "effort",
+    "discipline",
+    "intensity",
+    "grade",
+    "note",
+    "page",
+    "origin",
+    "grain",
+    "metric",
+    "block",
+    "result",
+    "tags"
+  ],
+  "virtualDimensions": [
+    "day",
+    "week",
+    "session",
+    "round"
+  ],
+  "contentGroupingDimensions": [
+    "date",
+    "day",
+    "week",
+    "month",
+    "year",
+    "discipline",
+    "origin",
+    "source",
+    "notebook",
+    "kind",
+    "type",
+    "tag",
+    "feed"
+  ],
+  "comparisonOperators": [
+    ">",
+    ">=",
+    "<",
+    "<=",
+    "==",
+    "!="
+  ],
+  "filtersByFindTarget": {
+    "note": [
+      "text",
+      "notebook",
+      "tags",
+      "effort",
+      "domain",
+      "format",
+      "equipment",
+      "quality",
+      "intent",
+      "type",
+      "page",
+      "source",
+      "note",
+      "feed",
+      "subscribed"
+    ],
+    "block": [
+      "text",
+      "notebook",
+      "tags",
+      "effort",
+      "type",
+      "source",
+      "note",
+      "feed",
+      "subscribed"
+    ],
+    "effort": [
+      "effort",
+      "discipline",
+      "intensity",
+      "origin",
+      "text"
+    ],
+    "session": [
+      "result",
+      "block",
+      "note",
+      "plane",
+      "domain",
+      "format",
+      "equipment",
+      "quality",
+      "intent",
+      "effort",
+      "discipline",
+      "intensity",
+      "grade",
+      "page",
+      "origin",
+      "grain",
+      "tags"
+    ],
+    "segment": [
+      "domain",
+      "format",
+      "equipment",
+      "quality",
+      "intent",
+      "effort",
+      "discipline",
+      "intensity",
+      "grade",
+      "note",
+      "page",
+      "origin",
+      "grain",
+      "metric",
+      "block",
+      "result",
+      "tags"
+    ],
+    "event": [
+      "domain",
+      "format",
+      "equipment",
+      "quality",
+      "intent",
+      "effort",
+      "discipline",
+      "intensity",
+      "grade",
+      "note",
+      "page",
+      "origin",
+      "grain",
+      "metric",
+      "block",
+      "result",
+      "tags"
+    ],
+    "notebook": [
+      "text",
+      "notebook",
+      "tags",
+      "effort",
+      "domain",
+      "format",
+      "equipment",
+      "quality",
+      "intent",
+      "type",
+      "page",
+      "source",
+      "note",
+      "feed",
+      "subscribed"
+    ],
+    "page": [
+      "page",
+      "notebook",
+      "text",
+      "note"
+    ],
+    "tag": [
+      "tags",
+      "type",
+      "text",
+      "contributes"
+    ],
+    "equipment": [
+      "equipment",
+      "tags",
+      "text",
+      "notebook"
+    ],
+    "feed": [
+      "feed",
+      "tags",
+      "text",
+      "subscribed"
+    ]
+  },
+  "examples": [
+    ":note{tags:benchmark}",
+    ":note{notebook:journal time:7d}",
+    ":session{time:30d}",
+    ":sum{metric:reps effort:thrusters time:90d} by {week}",
+    ":effort{discipline:weightlifting}"
+  ]
+}
+```
+
+---
+
+## Portable Domain Tools (22 tools — WebMCP + MCP Server + CLI)
+
+### `wod_parse_script` (Tier 0 — script)
+- **Title**: Parse Whiteboard Script
+- **Description**: Validate Whiteboard Script syntax, inspect parsed statements, typed metrics, unresolved choices, and collectible `?` placeholders. Defaults to dry-run (`save: false`); pass `save: true` to persist as a Note.
+- **CLI Equivalent**: `wod parse - --no-save --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Whiteboard Script body OR full Markdown document containing ```time / ```wod blocks."
+    },
+    "sport": {
+      "description": "Optional sport fence dialect override (e.g. \"crossfit\", \"climbing\", \"running\").",
+      "type": "string"
+    },
+    "save": {
+      "description": "Default false (dry-run syntax & metric inspection). Set true to persist as a Note.",
+      "type": "boolean"
+    },
+    "noteId": {
+      "description": "Optional target Note ID when save=true.",
+      "type": "string"
+    },
+    "title": {
+      "description": "Optional Note title when save=true.",
+      "type": "string"
+    },
+    "notebookId": {
+      "description": "Optional user Notebook slug/ID when save=true.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_query_wql` (Tier 0 — wql)
+- **Title**: Execute WQL Query
+- **Description**: Run any WQL find (`:note`, `:session`, `:effort`, `:equipment`, `:tag`, `:feed`, `:block`), aggregate (`sum:volume`, `max:weight`, `count:sessions`), or pipeline query against the active WOD Wiki storage.
+- **CLI Equivalent**: `wod query '<wql>' --format json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "minLength": 1,
+      "description": "WQL query expression (e.g. \":note{notebook:journal}\", \":session last 30d\", \"sum:volume by {week}\")."
+    },
+    "preferredUnit": {
+      "description": "Optional display unit conversion preference (e.g. \"lb\", \"kg\", \"m\", \"mi\").",
+      "type": "string"
+    },
+    "limit": {
+      "description": "Maximum rows/items to return in the response payload (default 100).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_validate_wql` (Tier 0 — wql)
+- **Title**: Validate & Inspect WQL Query
+- **Description**: Parse a WQL string without executing it. Returns syntax validity, query family (find, aggregate, pipeline), normalized WQL string, and the allowed filter keys and `by {}` grouping dimensions for that plane.
+- **CLI Equivalent**: `wod query "<wql>" --format json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "WQL query string to validate and inspect (e.g. \":note{notebook:journal} last 7d\" or \"sum:volume by {effort}\")."
+    },
+    "targetHint": {
+      "description": "Optional target plane to list valid filter keys & grouping dimensions for (note, session, effort, equipment, tag, feed, block, event).",
+      "type": "string"
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_note_list` (Tier 0 — note)
+- **Title**: List Notes
+- **Description**: List workout and reference Notes with optional filtering by Notebook, search query, tag, and origin.
+- **CLI Equivalent**: `wod note list --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "notebookId": {
+      "description": "Filter by notebook ID or slug (e.g. \"journal\", \"custom\", \"guides\", \"notebook/strength\").",
+      "type": "string"
+    },
+    "search": {
+      "description": "Case-insensitive substring filter over title and Markdown content.",
+      "type": "string"
+    },
+    "tag": {
+      "description": "Filter to Notes carrying this tag label.",
+      "type": "string"
+    },
+    "includeSeed": {
+      "description": "Include read-only Seed/Feed notes (default true when notebookId is specified, false otherwise).",
+      "type": "boolean"
+    },
+    "limit": {
+      "description": "Max notes to return (default 50).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### `wod_note_get` (Tier 0 — note)
+- **Title**: Get Note Details
+- **Description**: Read a full Note by ID including authored Markdown, `sourceRevision`, parsed workout blocks, attached Session count, upstream provenance, and publication visibility.
+- **CLI Equivalent**: `wod note get <noteId> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "noteId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique Note ID (UUID or seed route ID)."
+    }
+  },
+  "required": [
+    "noteId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_note_upsert` (Tier 1 — note)
+- **Title**: Create or Update Note
+- **Description**: Create a new workout/reference Note or update an existing editable Note with full block-revision pinning, effort/equipment indexing, and optimistic concurrency (`expectedSourceRevision`).
+- **CLI Equivalent**: `wod note save <file|-> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "noteId": {
+      "description": "Existing Note ID to update, or omit to create a new Note.",
+      "type": "string"
+    },
+    "title": {
+      "description": "Note title (defaults to # H1 heading in content).",
+      "type": "string"
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Full Markdown document or Whiteboard Script body."
+    },
+    "sport": {
+      "description": "Optional sport fence tag when passing bare Whiteboard Script.",
+      "type": "string"
+    },
+    "expectedSourceRevision": {
+      "description": "Optimistic concurrency guard: pass the current sourceRevision from wod_note_get when updating.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "notebookId": {
+      "description": "Optional user Notebook ID/slug to link this Note into (always stays anchored in notebook/journal).",
+      "type": "string"
+    },
+    "journalDate": {
+      "description": "Optional YYYY-MM-DD or \"today\" to place the Note on that Journal calendar day.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "content"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_note_clone` (Tier 1 — note)
+- **Title**: Clone Note with Provenance
+- **Description**: Clone any Note (especially read-only Seed or Feed workouts) into a writable user Notebook or Journal day while recording structured upstream `NoteProvenance`.
+- **CLI Equivalent**: `wod note clone <sourceNoteId> --notebook <slug> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "sourceNoteId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Source Note ID (including read-only Seed/Feed Notes) to clone."
+    },
+    "targetNotebookId": {
+      "description": "Target writable user Notebook ID/slug (defaults to \"notebook/journal\").",
+      "type": "string"
+    },
+    "title": {
+      "description": "Optional title override for the cloned Note.",
+      "type": "string"
+    },
+    "journalDate": {
+      "description": "Optional YYYY-MM-DD or \"today\" to pin the clone onto a Journal day.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sourceNoteId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_note_delete` (Tier 2 — note)
+- **Title**: Delete Note
+- **Description**: Permanently delete a Note and detach its projections, tag links, and calendar placements (Tier 2 destructive — requires user confirmation or matching confirmId).
+- **CLI Equivalent**: `wod note delete <noteId> --yes <noteId> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "noteId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ID of the Note to delete."
+    },
+    "confirmId": {
+      "description": "For non-interactive MCP/CLI calls, repeat the exact noteId to confirm deletion.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "noteId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_journal_day` (Tier 0 — journal)
+- **Title**: Get Journal Day
+- **Description**: Fetch all scheduled/authored workout Notes and recorded Sessions for a specific Journal calendar day (`YYYY-MM-DD` or `today`).
+- **CLI Equivalent**: `wod journal [today|YYYY-MM-DD] --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "date": {
+      "description": "Calendar date in YYYY-MM-DD format, or \"today\" (defaults to \"today\").",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### `wod_journal_add` (Tier 1 — journal)
+- **Title**: Add Workout to Journal Day
+- **Description**: Create a new workout Note in `notebook/journal` and place it onto the specified calendar day (`YYYY-MM-DD` or `today`).
+- **CLI Equivalent**: `wod journal add <file|-> --date YYYY-MM-DD --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "date": {
+      "description": "Target Journal date in YYYY-MM-DD format or \"today\" (defaults to \"today\").",
+      "type": "string"
+    },
+    "title": {
+      "description": "Workout title (defaults to # H1 heading or date).",
+      "type": "string"
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Markdown workout note or bare Whiteboard Script to schedule onto the Journal day."
+    },
+    "sport": {
+      "description": "Optional sport fence tag when passing bare Whiteboard Script.",
+      "type": "string"
+    },
+    "notebookId": {
+      "description": "Optional additional user Notebook to promote this Journal Note into.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "content"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_notebook_list` (Tier 0 — notebook)
+- **Title**: List Notebooks
+- **Description**: List built-in, user-created, and feed-subscribed Notebooks along with member Note counts and publication status.
+- **CLI Equivalent**: `wod notebook list --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "origin": {
+      "description": "Filter notebooks by origin (default \"all\").",
+      "type": "string",
+      "enum": [
+        "all",
+        "default",
+        "user",
+        "feed"
+      ]
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### `wod_notebook_save` (Tier 1 — notebook)
+- **Title**: Create, Update, or Promote Notebook
+- **Description**: Create or update a user-owned Notebook, promote/detach a Note across Notebooks (`notebook/journal` permanence preserved), or toggle Notebook publication visibility.
+- **CLI Equivalent**: `wod notebook <create|update|promote> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "create",
+        "update",
+        "promote",
+        "detach",
+        "set-public"
+      ],
+      "description": "Operation to perform on a user Notebook."
+    },
+    "notebookId": {
+      "description": "Target Notebook slug or ID (required for update, promote, detach, set-public).",
+      "type": "string"
+    },
+    "name": {
+      "description": "Display name when creating or renaming a Notebook.",
+      "type": "string"
+    },
+    "description": {
+      "description": "Notebook description.",
+      "type": "string"
+    },
+    "icon": {
+      "description": "Notebook icon/emoji.",
+      "type": "string"
+    },
+    "noteId": {
+      "description": "Note ID to promote into or detach from the Notebook.",
+      "type": "string"
+    },
+    "sessionIds": {
+      "description": "Optional Session IDs on `noteId` to promote alongside the Note.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "public": {
+      "description": "Visibility flag when action=\"set-public\" or promoting sessions.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_notebook_delete` (Tier 2 — notebook)
+- **Title**: Delete User Notebook
+- **Description**: Delete a user-created Notebook landing note and detach member links while keeping all member Notes safely in `notebook/journal` (Tier 2 destructive).
+- **CLI Equivalent**: `wod notebook delete <slug> --yes <slug> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "notebookId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "User Notebook ID or slug to delete (member Notes stay safe in notebook/journal)."
+    },
+    "confirmId": {
+      "description": "For non-interactive MCP/CLI calls, repeat the exact notebookId or slug to confirm deletion.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "notebookId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_session_run_headless` (Tier 1 — session)
+- **Title**: Run Workout Session Headlessly
+- **Description**: Execute a workout block through the headless JIT compiler and runtime state machine, recording a pinned `Session` and derived `EventRecord`s in storage. Automatically clones read-only Seed/Feed Notes into `notebook/journal`.
+- **CLI Equivalent**: `wod run <file|--note id> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "noteId": {
+      "description": "Existing Note ID to execute (read-only Seed/Feed Notes are automatically cloned to notebook/journal).",
+      "type": "string"
+    },
+    "blockId": {
+      "description": "Optional workout block ID on `noteId` (defaults to first wod block).",
+      "type": "string"
+    },
+    "source": {
+      "description": "Inline Whiteboard Script or Markdown to persist & run when `noteId` is not supplied.",
+      "type": "string"
+    },
+    "title": {
+      "description": "Optional Note title when running inline `source`.",
+      "type": "string"
+    },
+    "sport": {
+      "description": "Optional sport dialect override.",
+      "type": "string"
+    },
+    "journalDate": {
+      "description": "Optional YYYY-MM-DD or \"today\" Journal calendar date.",
+      "type": "string"
+    },
+    "collectibles": {
+      "description": "Optional values for collectible `?` metrics (e.g. `{ \"lb\": 185, \"reps\": 12 }`).",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number"
+        ]
+      }
+    },
+    "stepAdvanceMs": {
+      "description": "Simulated clock advance per step in milliseconds (default 10000).",
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 3600000
+    },
+    "maxSteps": {
+      "description": "Safety cap on execution steps (default 500).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5000
+    },
+    "public": {
+      "description": "Mark the recorded Session public for Feed publication.",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### `wod_session_list` (Tier 0 — session)
+- **Title**: List Recorded Sessions
+- **Description**: List recorded workout Sessions ordered newest-first, optionally filtered by Note ID.
+- **CLI Equivalent**: `wod session list --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "noteId": {
+      "description": "Filter Sessions by owning Note ID.",
+      "type": "string"
+    },
+    "completedOnly": {
+      "description": "Filter to completed Sessions only.",
+      "type": "boolean"
+    },
+    "limit": {
+      "description": "Max Sessions to return (default 50).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### `wod_session_get` (Tier 0 — session)
+- **Title**: Get Session Telemetry
+- **Description**: Read a recorded workout Session along with its pinned `BlockRevision` and derived event/summary telemetry rows.
+- **CLI Equivalent**: `wod session get <sessionId> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "sessionId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Session ID to inspect."
+    }
+  },
+  "required": [
+    "sessionId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_session_delete` (Tier 2 — session)
+- **Title**: Delete Recorded Session
+- **Description**: Permanently delete a recorded workout Session and its telemetry events (Tier 2 destructive — requires confirmation).
+- **CLI Equivalent**: `wod session delete <sessionId> --yes <sessionId> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "sessionId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Session ID to delete."
+    },
+    "confirmId": {
+      "description": "For non-interactive MCP/CLI calls, repeat the exact sessionId to confirm deletion.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sessionId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_catalog_lookup` (Tier 0 — catalog)
+- **Title**: Lookup Efforts, Equipment & Tags
+- **Description**: Search or inspect the Effort movement registry, Equipment catalog, Tags, and Tag Categories with Notebook-scoped override precedence (`notebook/defaults` -> Feed/Notebook -> `notebook/custom`).
+- **CLI Equivalent**: `wod catalog <efforts|equipment|tags> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "effort",
+        "equipment",
+        "tag",
+        "tag-type"
+      ],
+      "description": "Catalog family to search or inspect."
+    },
+    "search": {
+      "description": "Case-insensitive slug, label, or alias filter.",
+      "type": "string"
+    },
+    "slug": {
+      "description": "Exact canonical slug/name to look up.",
+      "type": "string"
+    },
+    "notebookId": {
+      "description": "Optional Notebook scope for property inheritance resolution.",
+      "type": "string"
+    },
+    "limit": {
+      "description": "Max entries to return (default 50).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 250
+    }
+  },
+  "required": [
+    "kind"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_catalog_upsert` (Tier 1 — catalog)
+- **Title**: Save Effort, Equipment, or Tag Property Note
+- **Description**: Create or update a Scoped Property Override (`effort`, `equipment`, `tag`, or `tag-type`) in `notebook/custom` or a shared user Notebook.
+- **CLI Equivalent**: `wod catalog save <kind> <file|-> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "effort",
+        "equipment",
+        "tag",
+        "tag-type"
+      ],
+      "description": "Property definition family to create or override."
+    },
+    "slug": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Canonical kebab-case slug (e.g. \"kettlebell-swing\", \"barbell\")."
+    },
+    "label": {
+      "description": "Human-readable display label.",
+      "type": "string"
+    },
+    "targetNotebookId": {
+      "description": "Target Notebook scope: defaults to \"notebook/custom\" (personal runtime) or a writable user Notebook.",
+      "type": "string"
+    },
+    "markdown": {
+      "description": "Full Property Note Markdown with YAML frontmatter. If omitted, synthesized from structured fields below.",
+      "type": "string"
+    },
+    "met": {
+      "description": "MET metabolic equivalent (for kind=\"effort\", default 5.0).",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "aliases": {
+      "description": "Optional movement/equipment aliases.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "category": {
+      "description": "Tag category when kind=\"tag\" (e.g. \"equipment\", \"quality\", \"format\").",
+      "type": "string"
+    },
+    "color": {
+      "description": "Hex color when kind=\"tag-type\" (e.g. \"#10b981\").",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "slug"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_feed_manage` (Tier 1 — feed)
+- **Title**: Manage Feeds & Portability
+- **Description**: Inspect installed Seed/Feed sources (`list`), check unpublished public Notebook changes (`status`), compile and publish public Notebooks (`publish`), or import portable Markdown + JSONL/CSV files (`import-bundle`).
+- **CLI Equivalent**: `wod feed <list|status|publish> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "list",
+        "status",
+        "publish",
+        "import-bundle"
+      ],
+      "description": "Feed or portability operation to run."
+    },
+    "notebookSlug": {
+      "description": "Optional Notebook slug filter when publishing.",
+      "type": "string"
+    },
+    "name": {
+      "description": "Optional Feed display name when publishing.",
+      "type": "string"
+    },
+    "description": {
+      "description": "Optional Feed description when publishing.",
+      "type": "string"
+    },
+    "files": {
+      "description": "Portable `.md` / `.jsonl` / `.csv` files when action=\"import-bundle\".",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_export_bundle` (Tier 0 — feed)
+- **Title**: Export Portable Markdown & Telemetry Bundle
+- **Description**: Export user Notes and attached Session telemetry directly as structured `{ path, content }` strings (Markdown + JSONL/CSV) without triggering synthetic browser file downloads.
+- **CLI Equivalent**: `wod export note <id> -o -`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "noteIds": {
+      "description": "Optional Note IDs to export (defaults to all user-owned Notes).",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "telemetryFormat": {
+      "description": "Format for companion Session/Event telemetry files (default \"jsonl\").",
+      "type": "string",
+      "enum": [
+        "jsonl",
+        "csv",
+        "both"
+      ]
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### `wod_reset_storage` (Tier 2 — system)
+- **Title**: Wipe Storage Data
+- **Description**: Wipe user Notes, Sessions, Events, and Notebook data from the active storage backend (Tier 2 destructive — requires explicit user confirmation).
+- **CLI Equivalent**: `wod reset --yes WIPE_STORAGE --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "confirmToken": {
+      "description": "For non-interactive MCP/CLI calls, pass confirmToken=\"WIPE_STORAGE\" to confirm wiping user storage.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+---
+
+## Live Browser UI Tools (9 tools — Playground WebMCP only)
+
+### `ui_get_view_context` (Tier 0 — WebMCP UI)
+- **Title**: Get Active UI View Context
+- **Mount Scope**: always (Playground shell)
+- **Description**: Read the current browser route, hydration/loading state, unbatched stream results, active editor metadata, and live workout clock snapshot.
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "includeSampleEntries": {
+      "description": "Include up to 50 unbatched stream entries when on a stream route (default true).",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### `ui_navigate` (Tier 1 — WebMCP UI)
+- **Title**: Navigate Playground Route
+- **Mount Scope**: always (Playground shell)
+- **Description**: Navigate the React Router SPA to any WOD Wiki route (`/journal`, `/day/:date`, `/note/:id`, `/notebooks`, `/dashboards`, `/run/:id?note=:noteId`) and wait for UI commit.
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Internal app path (with optional ?query and #hash) to navigate to, e.g. \"/journal\", \"/day/2026-11-11\", \"/note/<id>\", \"/notebooks\", \"/dashboards\"."
+    },
+    "replace": {
+      "description": "Replace current history entry instead of pushing.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "path"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `ui_cast_control` (Tier 1 — WebMCP UI)
+- **Title**: Inspect or Disconnect Cast Session
+- **Mount Scope**: always (Playground shell)
+- **Description**: Check active Chromecast / receiver display session state or cleanly disconnect an active Cast session.
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "status",
+        "disconnect"
+      ],
+      "description": "Inspect active Chromecast/receiver session status or disconnect an active session."
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `ui_set_stream_query` (Tier 1 — WebMCP UI)
+- **Title**: Set Live Stream WQL Query or Layout
+- **Mount Scope**: mounted stream routes (/journal, /notes, /notebooks, /sessions, /efforts, /tags, /feeds)
+- **Description**: Update the live WQL query, layout (`cards`, `rows`, `feed`, `agenda`, `planner`), or grouping on the currently mounted stream view, or reset to the route default.
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "query": {
+      "description": "WQL query string to apply to the mounted stream view (e.g. \":note{tags:benchmark}\").",
+      "type": "string"
+    },
+    "layout": {
+      "description": "Switch stream layout mode and sync ?layout= in URL.",
+      "type": "string",
+      "enum": [
+        "cards",
+        "rows",
+        "feed",
+        "agenda",
+        "planner"
+      ]
+    },
+    "groupBy": {
+      "description": "Grouping dimension (e.g. \"date\", \"week\", \"notebook\") or null to clear.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resetToDefault": {
+      "description": "Undo custom stream filter and restore the route default WQL query.",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### `ui_editor_draft` (Tier 1 — WebMCP UI)
+- **Title**: Read, Edit, or Undo Live Note Editor Buffer
+- **Mount Scope**: mounted Note / Journal / Playground editor surfaces
+- **Description**: Inspect or edit the live CodeMirror 6 Note buffer (`read`, `replace`, `append`, `undo`) with full undo history and optional immediate persistence.
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "operation": {
+      "type": "string",
+      "enum": [
+        "read",
+        "replace",
+        "append",
+        "undo"
+      ],
+      "description": "Read live editor buffer, replace document content, append Markdown/workout block, or undo last edit."
+    },
+    "content": {
+      "description": "Markdown or Whiteboard Script content for replace / append operations.",
+      "type": "string"
+    },
+    "save": {
+      "description": "Flush and persist the draft to storage immediately after applying the edit (default false).",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "operation"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `ui_start_live_workout` (Tier 1 — WebMCP UI)
+- **Title**: Start Live Interactive Workout Timer
+- **Mount Scope**: mounted Note / Journal / Playground editor surfaces
+- **Description**: Launch the live interactive workout clock on screen from a workout block in the active Note editor so the human athlete and agent can co-drive the session.
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "blockId": {
+      "description": "Optional workout block ID in the active Note editor (defaults to first ```time block).",
+      "type": "string"
+    },
+    "autoStart": {
+      "description": "Automatically start the timer after mounting the workout clock (default true).",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### `ui_clock_control` (Tier 1 — WebMCP UI)
+- **Title**: Control Live Workout Clock
+- **Mount Scope**: mounted live workout timer (FullscreenTimer / RuntimeTimerPanel)
+- **Description**: Dispatch commands (`next`, `playback`, `ready-start`, `entry-save`, `reps-set`, `stop-request`, `stop-confirm`, `dismiss`, etc.) to the active on-screen workout clock and return the updated ClockSnapshot.
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "command": {
+      "type": "string",
+      "enum": [
+        "next",
+        "playback",
+        "stop-request",
+        "stop-confirm",
+        "stop-cancel",
+        "values-open",
+        "entry-cancel",
+        "entry-save",
+        "entry-skip",
+        "reps-adjust",
+        "reps-set",
+        "reps-select",
+        "choice-select",
+        "ready-start",
+        "dismiss",
+        "status"
+      ],
+      "description": "Live workout clock command to dispatch (or \"status\" to read current ClockSnapshot)."
+    },
+    "fieldId": {
+      "description": "Target fieldId for entry-save, entry-skip, or choice-select.",
+      "type": "string"
+    },
+    "value": {
+      "description": "Numeric value for entry-save or reps-set.",
+      "type": "number"
+    },
+    "occurrenceId": {
+      "description": "Rep occurrenceId for reps-adjust, reps-set, or reps-select.",
+      "type": "string"
+    },
+    "delta": {
+      "description": "+1 or -1 delta for reps-adjust.",
+      "anyOf": [
+        {
+          "type": "number",
+          "const": 1
+        },
+        {
+          "type": "number",
+          "const": -1
+        }
+      ]
+    },
+    "index": {
+      "description": "Zero-based alternative index for choice-select.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "command"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `ui_preferences` (Tier 1 — WebMCP UI)
+- **Title**: Get or Set Playground UI Preferences
+- **Mount Scope**: always (Playground shell)
+- **Description**: Read or update global Playground UI preferences (`theme`, `audioEnabled`, `debugMode`, `analyticsUnit`, and mobile navigation drawers).
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "get",
+        "set"
+      ],
+      "description": "Read current Playground UI preferences (\"get\") or update preferences (\"set\")."
+    },
+    "theme": {
+      "description": "Color theme preference (`light`, `dark`, or `system`).",
+      "type": "string",
+      "enum": [
+        "light",
+        "dark",
+        "system"
+      ]
+    },
+    "audioEnabled": {
+      "description": "Enable or mute workout timer audio cues.",
+      "type": "boolean"
+    },
+    "debugMode": {
+      "description": "Enable or disable global runtime debug mode.",
+      "type": "boolean"
+    },
+    "analyticsUnit": {
+      "description": "Preferred display unit for analytics charts (`kg` or `lb`).",
+      "type": "string",
+      "enum": [
+        "kg",
+        "lb"
+      ]
+    },
+    "leftDrawerOpen": {
+      "description": "Open or close the primary navigation drawer on mobile/tablet.",
+      "type": "boolean"
+    },
+    "rightDrawerOpen": {
+      "description": "Open or close the secondary L3 context drawer on mobile/tablet.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `ui_set_explorer_query` (Tier 1 — WebMCP UI)
+- **Title**: Set or Run Analytics Explorer WQL Query
+- **Mount Scope**: mounted Metric Explorer route (/dashboards)
+- **Description**: Set or execute an aggregate or find WQL query on the Metric Explorer (`/dashboards`), change the week window (`4`, `8`, `16`), or open the Save-to-Dashboard / Query Settings dialogs.
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "query": {
+      "description": "WQL aggregate or find query string to set on the Metric Explorer (`/dashboards`), e.g. \"sum:totalVolume{} by {week}\".",
+      "type": "string"
+    },
+    "submit": {
+      "description": "Execute/submit the query immediately (default true when `query` is provided).",
+      "type": "boolean"
+    },
+    "weeks": {
+      "description": "Analytics lookback range in weeks (`4`, `8`, or `16`).",
+      "anyOf": [
+        {
+          "type": "number",
+          "const": 4
+        },
+        {
+          "type": "number",
+          "const": 8
+        },
+        {
+          "type": "number",
+          "const": 16
+        }
+      ]
+    },
+    "openSaveDialog": {
+      "description": "Open the \"Save to dashboard\" dialog for the active query.",
+      "type": "boolean"
+    },
+    "openQuerySettings": {
+      "description": "Open the surface query settings dialog on `/dashboards`.",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+---
+
+## MCP Resources & Templates
+
+- `wod://schema/whiteboard-script` (text/markdown) — Compact syntax, metric token, and fence-tag guide for authoring Whiteboard Language workouts.
+- `wod://schema/wql` (application/json) — Machine-readable WQL targets, aggregators, filter keys, metric families, and examples.
+- `wod://notebooks` (application/json) — Current local and subscribed feed notebooks with member counts.
+- `wod://note/{noteId}` (application/json) — Full Markdown source, block map, tags, and recent sessions for a Note.
+- `wod://journal/{date}` (application/json) — Scheduled notes and logged sessions for YYYY-MM-DD or today.
+- `wod://session/{sessionId}` (application/json) — Session record and full segment/summary event ledger.
+
+## MCP Prompts
+
+- `encode-workout`: Convert unstructured workout text into valid ```wod Markdown and verify with wod_parse_script.
+- `analyze-training-load`: Inspect recent sessions, volume rollups, and movement balance over a date window.
+- `program-journal-day`: Review recent training history, avoid movement interference, and schedule a workout on a date.

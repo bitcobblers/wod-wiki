@@ -102,14 +102,18 @@ e2e/
 - Update unit/dialect fusion in `packages/lang/src/dialects/` when combining numbers with units
 - Validate with `bun run test:package` (`packages/lang` unit + `.md` fixture suites)
 
-### Component Development
+### Component Development & First-Class Agent Action Parity
 - Use existing Tailwind CSS classes rather than custom CSS
-- Follow TypeScript interfaces for props and wire interactive controls with `TEST_IDS` (`apps/playground/src/lib/testIds.ts`)
+- Follow TypeScript interfaces for props, ensure semantic accessible controls (`<button type="button">`, labeled inputs, keyboard handlers), and wire interactive controls with `TEST_IDS` (`apps/playground/src/lib/testIds.ts`)
 - Add or update deterministic Storybook `parameters.domainState` stories + `play()` scripts in `apps/storybook/src/`
+- **Agent & User Action Parity (REQUIRED for all new features)**: Load [`skills/wod-agent-parity/SKILL.md`](skills/wod-agent-parity/SKILL.md) whenever adding or modifying domain actions, routes, views, or interactive Playground UI:
+  1. **Domain capabilities**: Define portable `AgentToolSpec` entries in `packages/engine/src/agent/tools/` (`DOMAIN_AGENT_TOOLS` in `packages/engine/src/agent/manifest.ts`) so Browser WebMCP (`navigator.modelContext`), `wod server` (`/api/mcp`), and `wod mcp` (stdio) automatically inherit them, and wire the matching `--json` CLI subcommand in `packages/tools/src/cli/agentCommands.ts`.
+  2. **Playground UI-only actions**: Expose new interactive UI state (routes, filters/layouts, editor drafts, live clock controls, dialogs) via `useWebMCP()` in `apps/playground/app/agent/` (mounted dynamically via `apps/playground/src/agent/surfaceBridges.ts` so Storybook and `receiver-rpc.tsx` never import `@mcp-b/*`), await `waitForUiCommit()`, and register schemas in `apps/playground/app/agent/uiToolSpecs.ts`.
+  3. **Safety & readiness signals**: Gate Tier 2 destructive actions with `requireDestructiveConfirmation` (Radix `AgentConfirmHost` modal in browser, exit code `4` without `--yes <id>` in CLI), signal async route loading via `setSurfaceBusy(loading)` (`<main data-agent-status>`), keep `<AgentStateScript />` accurate, and regenerate static manifests + verify parity via `bun run sync:agent-manifest && bun run check:agent-parity`.
 
 ## Validation & Documentation
 
-- **Validation checklist & commands**: Follow [`docs/development/validation.md`](docs/development/validation.md) (`bun run test`, `bun run lint`, `bun run check:playground-types`, `bun run check:skills`, `bun scripts/check-e2e-specs.ts`, `bun run docs:check`, and targeted `bun run test:e2e:preview` for UI changes).
+- **Validation checklist & commands**: Follow [`docs/development/validation.md`](docs/development/validation.md) (`bun run test`, `bun run lint`, `bun run check:playground-types`, `bun run check:skills`, `bun run check:agent-parity`, `bun scripts/check-e2e-specs.ts`, `bun run docs:check`, and targeted `bun run test:e2e:preview` for UI changes).
 - **Documentation**: Save new Markdown docs under `docs/` or `markdown/` and keep links clean (`bun run docs:check`).
 ### Agent Skills (`skills/`)
 - Parsing/tooling skills for agents live in `skills/<name>/SKILL.md` — one source of truth (`skills/README.md` has the layout and install paths)

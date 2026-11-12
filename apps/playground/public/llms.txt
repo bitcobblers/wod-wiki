@@ -1,0 +1,67 @@
+# WOD Wiki
+
+> Local-first workout authoring, live timer execution, and WQL analytics powered by the Whiteboard Language.
+
+WOD Wiki exposes identical structured capabilities across three agent surfaces:
+1. **Browser WebMCP (`navigator.modelContext`)**: 22 portable domain tools + 7 live React UI/Clock tools registered dynamically via `@mcp-b/react-webmcp`.
+2. **HTTP & Stdio MCP Server (`/api/mcp` and `wod mcp`)**: Official `@modelcontextprotocol/sdk` server exposing all 22 domain tools, `wod://*` resources, and guided prompts.
+3. **Local CLI (`wod --json`)**: Non-interactive CLI with JSON envelopes, noun-verb parity, and exit code `4` confirmation gates for Tier 2 destructive mutations.
+
+## Deterministic Browser Readiness Signals
+- `document.body.dataset.appHydrated === "true"` — React shell and storage bootstrap finished.
+- `<main data-agent-status="ready" aria-busy="false">` — Active route data / WQL stream settled.
+- `<script id="agent-view-state" type="application/json">` — Unbatched route, stream, editor, and live clock snapshot.
+
+## Key Discovery Documents
+- [Complete Agent & Language Reference](/llms-full.txt): Full Whiteboard Language guide, WQL capabilities, all 22 domain tools, and 7 WebMCP UI tools.
+- [Machine-Readable Capabilities Manifest](/.well-known/agent-capabilities.json): JSON Schema tool definitions, risk tiers, CLI equivalents, MCP resources, and prompts.
+- [Whiteboard Extraction Skill](/ai-skills/parse.md): Authoring & workout extraction guide.
+
+## Canonical Application Routes
+- `/` (home)
+- `/playground` (playgroundRoot)
+- `/playground/:id` (playground)
+- `/note/:noteId` (note)
+- `/notes` (notes)
+- `/journal` (journal)
+- `/day/:date` (day)
+- `/plan` (plan)
+- `/ai-first` (aiFirst)
+- `/feeds` (feeds)
+- `/feed/:slug` (feed)
+- `/notebooks` (notebooks)
+- `/notebook/:slug` (notebook)
+- `/notebook/:slug/:target` (notebookTarget)
+- `/notebook/:slug/:itemDate/:item` (notebookItem)
+- `/subscribe` (subscribe)
+- `/pages` (pages)
+- `/page/:slug` (page)
+- `/tags` (tags)
+- `/t/:type` (tagCategory)
+- `/t/:type/:tag` (tag)
+- `/sessions` (sessions)
+- `/results/:sessionId` (sessionDetail)
+- `/session/:date` (sessionDate)
+- `/playgrounds` (playgrounds)
+- `/tracker/:runtimeId` (tracker)
+- `/run/:runtimeId` (run)
+- `/load` (load)
+- `/load/journal` (loadJournal)
+- `/load/journal/:date` (loadJournalDate)
+- `/efforts` (efforts)
+- `/effort/:slug` (effort)
+- `/equipment` (equipment)
+- `/equipment/:slug` (equipmentSlug)
+- `/dashboards` (dashboards)
+- `/dashboard/:slug` (dashboardView)
+- `/settings` (settings)
+- `/settings/appearance` (settingsAppearance)
+- `/settings/profile` (settingsProfile)
+- `/settings/storage` (settingsStorage)
+- `/settings/sync` (settingsSync)
+- `/settings/system` (settingsSystem)
+- `/settings/tags` (settingsTags)
+- `/settings/sound-profiles` (settingsSoundProfiles)
+- `/settings/data` (settingsData)
+- `/settings/database` (settingsDatabase)
+- `/settings/queries` (settingsQueries)

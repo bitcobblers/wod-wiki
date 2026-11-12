@@ -34,6 +34,8 @@ export interface CliServerOptions {
   port?: string;
   /** Explicit dist directory (flag or PLAYGROUND_DIST); must already exist. */
   dist?: string;
+  /** Restrict `/api/mcp` to Tier 0 read-only tools. */
+  mcpReadonly?: boolean;
   /** Merged CLI environment (process env + .env). */
   env: Record<string, string | undefined>;
 }
@@ -214,7 +216,12 @@ export async function runCliServer(
       mode === 'server' && options.database?.kind === 'sqlite'
         ? `${options.database.path}.feed`
         : undefined;
-    const handler = createHandler(db?.db ?? null, { playgroundDist: dist, feedDir });
+    const handler = createHandler(db?.db ?? null, {
+      playgroundDist: dist,
+      feedDir,
+      mcpReadonly: options.mcpReadonly === true || options.env.WOD_MCP_READONLY === '1',
+      mcpToken: options.env.WOD_MCP_TOKEN?.trim(),
+    });
     server = await startHttpServer(handler, host, port);
     if (mode === 'server') {
       writeOut(`wod server: http://${host}:${port} — ${dbLabel} · dist ${dist}`);

@@ -146,6 +146,8 @@ export default defineConfig({
             { find: '@bitcobblers/wod-wiki-core', replacement: resolve(import.meta.dirname, '../../packages/core/src') },
             { find: '@bitcobblers/wod-wiki-lang', replacement: resolve(import.meta.dirname, '../../packages/lang/src') },
             { find: '@bitcobblers/wod-wiki-wql', replacement: resolve(import.meta.dirname, '../../packages/wql/src') },
+            { find: '@bitcobblers/wod-wiki-engine/agent', replacement: resolve(import.meta.dirname, '../../packages/engine/src/agent/index.ts') },
+            { find: '@bitcobblers/wod-wiki-engine/react', replacement: resolve(import.meta.dirname, '../../packages/engine/src/react.ts') },
             { find: '@bitcobblers/wod-wiki-engine', replacement: resolve(import.meta.dirname, '../../packages/engine/src') },
             { find: '@bitcobblers/wod-wiki-ui', replacement: resolve(import.meta.dirname, '../../packages/ui/src') },
             { find: '@bitcobblers/wod-wiki-storage', replacement: resolve(import.meta.dirname, '../../packages/storage/src') },
