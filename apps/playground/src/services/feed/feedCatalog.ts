@@ -38,6 +38,7 @@ import {
   listFeedSources,
   notebooksOfFeed,
   toAbsoluteFeedUrl,
+  type FeedSource,
 } from './feedSources';
 import { isFeedSubscribed, isNotebookSubscribed } from './feedSubscriptions';
 import { getOutboundFeedStatus, type OutboundFeedStatus } from '@/services/ExportImportService';
@@ -80,7 +81,7 @@ export async function saveFeedCatalogManifest(feedId: string, manifest: SeedMani
     updatedAt: Date.now(),
   };
   try {
-    await whenStorageReady();
+    await whenStorageReady().catch(() => undefined);
     await storage.transaction(['meta'], 'readwrite', async (tx) => {
       await tx.readwrite('meta').put(rec);
     });
@@ -91,7 +92,7 @@ export async function saveFeedCatalogManifest(feedId: string, manifest: SeedMani
 
 export async function readFeedCatalogManifest(feedId: string): Promise<SeedManifest | undefined> {
   try {
-    await whenStorageReady();
+    await whenStorageReady().catch(() => undefined);
     const raw = await storage.readonly('meta').get(`${FEED_CATALOG_META_PREFIX}${feedId}`);
     return isCatalogMeta(raw) ? raw.manifest : undefined;
   } catch {
@@ -129,7 +130,7 @@ export async function cloneRemotePreviewNoteToNotebook(
   if (!entry) {
     throw new Error(`Remote record metadata not found for ${noteId}`);
   }
-  await whenStorageReady();
+  await whenStorageReady().catch(() => undefined);
   const tree = new HttpFeedTree(entry.feedUrl);
   return cloneRemoteRecord(storage, tree, {
     feedId: entry.feedId,
@@ -152,6 +153,27 @@ export async function probeAndCacheFeedManifest(
   }
 }
 
+function resolveFeedDisplayLabel(src: FeedSource, manifest?: SeedManifest): string {
+  const curated = src.label.trim();
+  if (!curated) return manifest?.name?.trim() || src.id;
+  if (src.tier === 'imported' && manifest?.name?.trim()) {
+    let defaultHostLabel = '';
+    try {
+      defaultHostLabel = new URL(src.url).hostname;
+    } catch {
+      defaultHostLabel = '';
+    }
+    if (
+      curated === 'Source' ||
+      curated === src.url ||
+      (defaultHostLabel && curated === defaultHostLabel)
+    ) {
+      return manifest.name.trim();
+    }
+  }
+  return curated;
+}
+
 async function readAllMetaMaps(): Promise<{
   catalogs: Map<string, SeedManifest>;
   checkpoints: Map<string, SeedMetaRecord>;
@@ -159,7 +181,7 @@ async function readAllMetaMaps(): Promise<{
   const catalogs = new Map<string, SeedManifest>();
   const checkpoints = new Map<string, SeedMetaRecord>();
   try {
-    await whenStorageReady();
+    await whenStorageReady().catch(() => undefined);
     const allMeta = await storage.readonly('meta').getAll();
     for (const row of allMeta) {
       if (isCatalogMeta(row)) {
@@ -221,6 +243,7 @@ async function listCatalogNotebooks(): Promise<FeedNotebookCatalogRow[]> {
   for (const src of listFeedSources()) {
     const manifest = catalogs.get(src.id);
     const cp = checkpoints.get(seedMetaKey(src.id));
+    const displayLabel = resolveFeedDisplayLabel(src, manifest);
 
     if (manifest?.notebooks && manifest.notebooks.length > 0) {
       for (const nbSummary of manifest.notebooks) {
@@ -233,7 +256,7 @@ async function listCatalogNotebooks(): Promise<FeedNotebookCatalogRow[]> {
         out.push({
           id: `${src.id}:${nbSummary.notebookId}`,
           feedId: src.id,
-          feedLabel: manifest.name || src.label,
+          feedLabel: displayLabel,
           feedUrl: src.url,
           chunkId: nbSummary.notebookId,
           slug,
@@ -263,7 +286,7 @@ async function listCatalogNotebooks(): Promise<FeedNotebookCatalogRow[]> {
         out.push({
           id: `${src.id}:${chunk.id}`,
           feedId: src.id,
-          feedLabel: manifest.name || src.label,
+          feedLabel: displayLabel,
           feedUrl: src.url,
           chunkId: chunk.id,
           slug,
@@ -290,7 +313,7 @@ async function listCatalogNotebooks(): Promise<FeedNotebookCatalogRow[]> {
         out.push({
           id: def.id,
           feedId: src.id,
-          feedLabel: src.label,
+          feedLabel: displayLabel,
           feedUrl: src.url,
           chunkId: def.chunkId,
           slug,
@@ -387,7 +410,7 @@ export const playgroundFeedCatalogStore: FeedCatalogQueryStore = {
 
       rows.push({
         id: src.id,
-        label: manifest?.name || src.label,
+        label: resolveFeedDisplayLabel(src, manifest),
         url: src.id === 'core' ? toAbsoluteFeedUrl(CORE_FEED_URL) : src.url,
         repositoryUrl: manifest?.repositoryUrl ?? src.repositoryUrl,
         description: manifest?.description ?? src.description,

@@ -20,6 +20,39 @@ export interface WqlTimeseriesProps {
   unit?: string;
 }
 
+function formatWithUnit(formattedNumber: string, unit?: string): string {
+  const cleanUnit = unit?.trim();
+  return cleanUnit ? `${formattedNumber} ${cleanUnit}` : formattedNumber;
+}
+
+/**
+ * Shared Y-axis tick display formatter: locale-grouped number (`0` decimals for
+ * large magnitudes, up to `1` decimal for small fractional ticks) + space before
+ * `unit` when present (e.g. `5,000 kg`).
+ */
+export function formatTimeseriesTick(value: number | string, unit?: string): string {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return formatWithUnit(String(value), unit);
+  }
+  const maximumFractionDigits = Math.abs(numeric) >= 100 ? 0 : 1;
+  const formatted = new Intl.NumberFormat(undefined, { maximumFractionDigits }).format(numeric);
+  return formatWithUnit(formatted, unit);
+}
+
+/**
+ * Shared Tooltip value display formatter: locale-grouped number rounded to at
+ * most 1 fraction digit (drops trailing `.0` automatically, e.g. `12,179 kg`).
+ */
+export function formatTimeseriesTooltipValue(value: number | string, unit?: string): string {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return formatWithUnit(String(value), unit);
+  }
+  const formatted = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(numeric);
+  return formatWithUnit(formatted, unit);
+}
+
 export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
   const shape = useChartShape(result);
   const data = useMemo(() => mergeSeries(result.series), [result]);
@@ -47,7 +80,7 @@ export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
           width={64}
           stroke="hsl(var(--muted-foreground))"
           tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-          unit={unit ? ` ${unit}` : ''}
+          tickFormatter={(v) => formatTimeseriesTick(v as number | string, unit)}
         />
         <Tooltip
           contentStyle={{
@@ -57,7 +90,7 @@ export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
             color: 'hsl(var(--popover-foreground))',
           }}
           labelFormatter={(v) => tooltipTimestamp(v as number)}
-          formatter={(v) => [`${Number(v).toLocaleString()} ${unit ?? ''}`.trim(), '']}
+          formatter={(v) => [formatTimeseriesTooltipValue(v as number | string, unit), '']}
         />
         {result.series.length > 1 && (
           <Legend wrapperStyle={{ fontSize: 11 }} />

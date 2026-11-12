@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
 import { v7 as uuidv7 } from 'uuid'
 import { Button } from '@/components/atoms/primitives/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/atoms/primitives/dialog'
 import { CalendarCard } from '@/components/atoms/CalendarCard'
 import { JournalPageShell } from '@/panels/page-shells'
 import { NoteEditor, type EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor'
@@ -12,7 +21,8 @@ import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentPro
 import { storageService } from '@/services/storage'
 import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { queryService, refreshPageSources } from '@/services/queryService'
-import { dayPath, notePath, pagePath, runPath } from '../lib/routes'
+import { dayPath, notePath, pagePath, ROUTE_PATTERNS, runPath } from '../lib/routes'
+import { journalNotes } from '../services/journalNotes'
 import { appendWidget, notebookOriginOfItem, resolveEntityScope } from '@bitcobblers/wod-wiki-wql'
 import { isNoteEditable, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core'
 import { resolveNotePropertyStack } from '@/app/editor/runtimeTimerModel'
@@ -61,7 +71,10 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const [missing, setMissing] = useState(false)
   const flushRef = useRef<() => Promise<void>>(async () => {});
   const isReadOnly = location.pathname.startsWith('/page/')
-    || (entry !== null && !isNoteEditable(entry, notebookOriginOfItem(entry)))
+    || (entry !== null && (
+      entry.seedOrigin === 'seed'
+      || !isNoteEditable(entry, notebookOriginOfItem(entry))
+    ))
   // saveError is managed by useNoteDraft
   const [placement, setPlacement] = useState<NotePlacementMode | null>(null)
   const [editingPageSlug, setEditingPageSlug] = useState(false)
@@ -69,6 +82,9 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const [savingPageSlug, setSavingPageSlug] = useState(false)
   const [copied, setCopied] = useState(false)
   const [widgetComposerOpen, setWidgetComposerOpen] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deletingNote, setDeletingNote] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [sourceEntry, setSourceEntry] = useState<HistoryRecord | null>(null)
   const handleCopyLink = useCallback(() => {
     // ponytail: navigator.clipboard only; fallback textarea omitted for modern browsers.
@@ -92,6 +108,8 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     let cancelled = false
     setEntry(null)
     setMissing(false)
+    setConfirmDeleteOpen(false)
+    setDeleteError(null)
     // saveError handled in draft
     // Await any in-flight draft flush for this noteId (e.g. Ctrl+S / unmount right before Back).
     waitForPendingNoteSave(noteId)
@@ -197,6 +215,25 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     [entry, draft.captureForRun, navigate],
   );
 
+  const handleConfirmDelete = useCallback(async () => {
+    if (!entry || isReadOnly || deletingNote) return
+    setDeletingNote(true)
+    setDeleteError(null)
+    const destination =
+      ownership.up?.to ??
+      (entry.journalDate ? dayPath(entry.journalDate) : ROUTE_PATTERNS.journal)
+    try {
+      await waitForPendingNoteSave(entry.id)
+      await journalNotes.delete(entry.id)
+      setConfirmDeleteOpen(false)
+      navigate(destination, { replace: true })
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete note.')
+    } finally {
+      setDeletingNote(false)
+    }
+  }, [deletingNote, entry, isReadOnly, navigate, ownership.up])
+
   const noteScope = useMemo(
     () => (entry ? resolveEntityScope({ noteId: entry.id, label: entry.title, rawContent: draft.content }) : null),
     [entry, draft.content],
@@ -251,6 +288,21 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
           { id: 'add-timer', label: 'Add timer', onRun: () => draft.onSourceMutate(appendTimerBlock(draft.content)) },
           { id: 'clone', label: 'Clone', onRun: () => setPlacement('clone') },
           { id: 'copy-link', label: copied ? 'Copied' : 'Copy link', onRun: handleCopyLink },
+          ...(!isReadOnly
+            ? [
+                {
+                  id: 'delete-note',
+                  label: 'Delete note',
+                  icon: Trash2,
+                  disabled: deletingNote,
+                  testId: 'l3-delete-note',
+                  onRun: () => {
+                    setDeleteError(null)
+                    setConfirmDeleteOpen(true)
+                  },
+                },
+              ]
+            : []),
         ]
       : [],
   });
@@ -545,6 +597,55 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
             draft.onSourceMutate(appendWidget(draft.content, spec))
           }}
         />
+        <Dialog
+          open={confirmDeleteOpen}
+          onOpenChange={(open) => {
+            if (!deletingNote) {
+              setConfirmDeleteOpen(open)
+              if (!open) setDeleteError(null)
+            }
+          }}
+        >
+          <DialogContent data-testid="note-delete-dialog">
+            <DialogHeader>
+              <DialogTitle>Delete note?</DialogTitle>
+              <DialogDescription>
+                Permanently delete &ldquo;{entry.title || 'Untitled note'}&rdquo;? This cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            {deleteError && (
+              <p role="alert" className="text-sm text-destructive">
+                {deleteError}
+              </p>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deletingNote}
+                onClick={() => {
+                  setConfirmDeleteOpen(false)
+                  setDeleteError(null)
+                }}
+                data-testid="note-delete-cancel"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deletingNote}
+                aria-busy={deletingNote}
+                onClick={() => {
+                  void handleConfirmDelete()
+                }}
+                data-testid="note-delete-confirm"
+              >
+                {deletingNote ? 'Deleting…' : 'Delete note'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </>
     )
   }

@@ -64,6 +64,11 @@ jobs:
           name: playground-dist
           path: ./dist/
 
+      - name: Verify hidden discovery files in Pages bundle
+        run: |
+          test -f ./dist/.well-known/agent-capabilities.json
+          test -f ./dist/.nojekyll
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 

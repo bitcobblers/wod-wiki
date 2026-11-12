@@ -7,17 +7,24 @@ export function SubscribePage() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const source = new URLSearchParams(location.search).get('source')
+    const params = new URLSearchParams(location.search)
+    const source = params.get('source')
     if (source) {
       navigate(`${ROUTE_PATTERNS.notebooks}?feed=${encodeURIComponent(source)}`, { replace: true })
-    } else {
-      navigate(ROUTE_PATTERNS.notebooks, { replace: true })
+      return
     }
+    const nextParams = new URLSearchParams()
+    const feed = params.get('feed')
+    const q = params.get('q')
+    if (feed) nextParams.set('feed', feed)
+    if (q) nextParams.set('q', q)
+    const search = nextParams.toString()
+    navigate(search ? `${ROUTE_PATTERNS.feeds}?${search}` : ROUTE_PATTERNS.feeds, { replace: true })
   }, [location.search, navigate])
 
   return (
     <div className="p-8 text-center text-xs text-muted-foreground" data-testid="feed-subscription-intake">
-      Redirecting to Library…
+      Redirecting to Feeds…
     </div>
   )
 }

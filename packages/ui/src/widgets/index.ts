@@ -1,6 +1,11 @@
 export { WidgetFrame, WidgetToolButton, WidgetEditButton, type WidgetFrameProps } from './WidgetFrame';
 export { QueryValue, type QueryValueProps } from './QueryValue';
-export { WqlTimeseries, type WqlTimeseriesProps } from './WqlTimeseries';
+export {
+  WqlTimeseries,
+  formatTimeseriesTick,
+  formatTimeseriesTooltipValue,
+  type WqlTimeseriesProps,
+} from './WqlTimeseries';
 export { WqlBars, type WqlBarsProps } from './WqlBars';
 export { WqlTable, type WqlTableProps } from './WqlTable';
 export { WidgetChart, WidgetProblemBadge, ProposedMetricBadge, type WidgetChartProps } from './WidgetChart';

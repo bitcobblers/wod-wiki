@@ -380,7 +380,9 @@ export async function hasSampleData(): Promise<boolean> {
   return events.some((event) => noteIds.includes(event.noteId));
 }
 
-export async function loadSampleData(): Promise<{ facts: number }> {
+let inflightLoadSampleData: Promise<{ facts: number }> | null = null;
+
+async function loadSampleDataImpl(): Promise<{ facts: number }> {
   if (await hasSampleData()) {
     const noteIds = await getSampleNoteIds();
     const events = await service.scanAll();
@@ -404,6 +406,14 @@ export async function loadSampleData(): Promise<{ facts: number }> {
   }
 
   return { facts: factsWritten };
+}
+
+export function loadSampleData(): Promise<{ facts: number }> {
+  if (inflightLoadSampleData) return inflightLoadSampleData;
+  inflightLoadSampleData = loadSampleDataImpl().finally(() => {
+    inflightLoadSampleData = null;
+  });
+  return inflightLoadSampleData;
 }
 
 export function exportSampleDataAsJsonl(now: number = Date.now()): string {

@@ -76,6 +76,7 @@ jobs:
           path: |
             packages/*/dist/
             packages/*/package.json
+          include-hidden-files: true
           retention-days: 1
 
       - name: Record packages status

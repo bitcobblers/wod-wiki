@@ -65,6 +65,7 @@ import {
 // ── Route components (real router — static import is safe) ────────────────
 import { TrackerRedirect, SegmentsRedirect, PlanRedirect, ReviewRedirect } from './routeRedirects'
 import { NotFoundPage } from '../pages/NotFoundPage'
+import { SubscribePage } from '../pages/SubscribePage'
 
 beforeEach(() => {
   currentPathname = '/'
@@ -285,6 +286,33 @@ describe('ReviewRedirect', () => {
     renderAt('/note/n1/review/s1/res-9', <ReviewRedirect />, '/note/:noteId/review/:sectionId/:resultId')
 
     expect(currentPathname).toBe('/results/res-9')
+  })
+})
+
+describe('SubscribePage (WW-013)', () => {
+  it('redirects bare /subscribe to /feeds where Subscribe actions live', () => {
+    renderAt('/subscribe', <SubscribePage />, '/subscribe')
+
+    expect(currentPathname).toBe('/feeds')
+    expect(currentSearch).toBe('')
+  })
+
+  it('preserves ?feed= and ?q= parameters when redirecting /subscribe to /feeds', () => {
+    renderAt('/subscribe?feed=sport-hyrox', <SubscribePage />, '/subscribe')
+    expect(currentPathname).toBe('/feeds')
+    expect(currentSearch).toBe('?feed=sport-hyrox')
+
+    cleanup()
+    renderAt('/subscribe?q=%3Afeed%7Bsubscribed%3Afalse%7D', <SubscribePage />, '/subscribe')
+    expect(currentPathname).toBe('/feeds')
+    expect(currentSearch).toBe('?q=%3Afeed%7Bsubscribed%3Afalse%7D')
+  })
+
+  it('preserves ?source=<url> intake redirection to /notebooks?feed=<url> for unknown peer feeds', () => {
+    renderAt('/subscribe?source=https%3A%2F%2Fpeer.example%2Ffeed%2F', <SubscribePage />, '/subscribe')
+
+    expect(currentPathname).toBe('/notebooks')
+    expect(currentSearch).toBe('?feed=https%3A%2F%2Fpeer.example%2Ffeed%2F')
   })
 })
 

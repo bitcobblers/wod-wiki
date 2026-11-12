@@ -55,6 +55,12 @@ export interface CalendarAgendaViewProps {
   onCreateOnDay?: (dateKey: string) => void
 }
 
+/** Singular/plural entry-count copy shared across agenda headers, day cells, and month meta. */
+export function formatEntryCount(count: number, qualifier?: string): string {
+  const noun = count === 1 ? 'entry' : 'entries'
+  return qualifier ? `${count} ${qualifier} ${noun}` : `${count} ${noun}`
+}
+
 /** The calendar-shaped day header: weekday over a big day number. */
 function AgendaDayHeader({
   day,
@@ -88,7 +94,7 @@ function AgendaDayHeader({
         </span>
       )}
       <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-        {day.entries.length} {day.entries.length === 1 ? 'entry' : 'entries'}
+        {formatEntryCount(day.entries.length)}
       </span>
       <button
         type="button"
@@ -125,14 +131,16 @@ function DensityRibbon({ days }: { days: CalendarDay[] }) {
         : level === 2
           ? 'bg-primary/50'
           : 'bg-primary'
+    const countLabel = formatEntryCount(entry?.entries.length ?? 0)
+    const dayLabel = `${day} ${shortMonthLabel(new Date(year, month, day))} — ${countLabel}`
     cells.push(
       <button
         key={day}
         type="button"
         onClick={() => document.getElementById(`calendar-day-${entry?.key}`)?.scrollIntoView({ block: 'start' })}
         disabled={!entry}
-        title={`${day} ${shortMonthLabel(new Date(year, month, day))} — ${entry?.entries.length ?? 0} entries`}
-        aria-label={`${day} ${shortMonthLabel(new Date(year, month, day))} — ${entry?.entries.length ?? 0} entries`}
+        title={dayLabel}
+        aria-label={dayLabel}
         className={`h-6 flex-1 rounded-sm ${shade} ${entry ? 'cursor-pointer' : 'cursor-default'}`}
       />,
     )
@@ -178,7 +186,7 @@ export function CalendarAgendaView({
     <div className="flex flex-1 flex-col bg-background" data-testid="calendar-agenda-view">
       <CalendarMonthBar
         nav={nav}
-        meta={`${inMonth.length} of ${dated} dated ${dated === 1 ? 'entry' : 'entries'} in ${nav.label}`}
+        meta={`${inMonth.length} of ${formatEntryCount(dated, 'dated')} in ${nav.label}`}
       />
       <DensityRibbon days={grid.flatMap(week => week.days)} />
 

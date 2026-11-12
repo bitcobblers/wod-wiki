@@ -1,55 +1,83 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { WqlEmptyState } from '@bitcobblers/wod-wiki-ui';
 import { hasSampleData, loadSampleData, purgeSampleData } from '@/services/analytics/sample';
 import type { QueryResult } from '@bitcobblers/wod-wiki-engine';
 
-interface SampleDataPromptProps {
+export interface SampleDataPromptDeps {
+  hasSampleData?: typeof hasSampleData;
+  loadSampleData?: typeof loadSampleData;
+  purgeSampleData?: typeof purgeSampleData;
+}
+
+export interface SampleDataPromptProps {
   result?: QueryResult;
   onChanged?: () => void | Promise<void>;
   /** 'inline' keeps the prompt inside a chart-sized area; 'card' renders a full-width empty-state card; 'banner' renders only the sample-data banner (or nothing if no sample data). */
   layout?: 'inline' | 'card' | 'banner';
   refreshKey?: number | string;
+  deps?: SampleDataPromptDeps;
 }
 
-export function SampleDataPrompt({ result, onChanged, layout = 'inline', refreshKey }: SampleDataPromptProps) {
+export function SampleDataPrompt({ result, onChanged, layout = 'inline', refreshKey, deps }: SampleDataPromptProps) {
+  const checkSampleData = deps?.hasSampleData ?? hasSampleData;
+  const runLoadSampleData = deps?.loadSampleData ?? loadSampleData;
+  const runPurgeSampleData = deps?.purgeSampleData ?? purgeSampleData;
   const [loaded, setLoaded] = useState<boolean | undefined>(undefined);
   const [dismissed, setDismissed] = useState(false);
+  const [pending, setPending] = useState(false);
 
   const refresh = useCallback(async () => {
-    setLoaded(await hasSampleData());
+    setLoaded(await checkSampleData());
     setDismissed(false);
-  }, []);
+  }, [checkSampleData]);
 
   useEffect(() => {
     void refresh();
   }, [refresh, refreshKey]);
 
   const handleLoad = async () => {
-    await loadSampleData();
-    await refresh();
-    onChanged?.();
+    if (pending) return;
+    setPending(true);
+    try {
+      await runLoadSampleData();
+      await refresh();
+      await onChanged?.();
+    } finally {
+      setPending(false);
+    }
   };
 
   const handlePurge = async () => {
-    await purgeSampleData();
-    await refresh();
-    onChanged?.();
+    if (pending) return;
+    setPending(true);
+    try {
+      await runPurgeSampleData();
+      await refresh();
+      await onChanged?.();
+    } finally {
+      setPending(false);
+    }
   };
 
   const banner = (
     <div className="flex items-center justify-center gap-3 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-foreground">
       <span>Sample data loaded</span>
       <button
-        onClick={handlePurge}
-        className="font-medium text-destructive hover:text-destructive/80 transition-colors"
+        type="button"
+        onClick={() => { void handlePurge(); }}
+        disabled={pending}
+        aria-busy={pending}
+        className="font-medium text-destructive hover:text-destructive/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Purge sample data
+        {pending ? 'Purging sample data…' : 'Purge sample data'}
       </button>
       <button
+        type="button"
         onClick={() => setDismissed(true)}
-        className="text-muted-foreground hover:text-foreground transition-colors"
+        disabled={pending}
+        className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
         aria-label="Dismiss"
       >
         <X size={14} />
@@ -68,10 +96,15 @@ export function SampleDataPrompt({ result, onChanged, layout = 'inline', refresh
       </p>
       <div className="flex items-center justify-center gap-3">
         <button
-          onClick={handleLoad}
-          className="text-xs font-medium rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:opacity-90 transition-opacity"
+          type="button"
+          onClick={() => { void handleLoad(); }}
+          disabled={pending}
+          aria-busy={pending}
+          data-testid="sample-data-load-button"
+          className="inline-flex items-center gap-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Preview with sample data
+          {pending && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+          <span>{pending ? 'Loading sample data…' : 'Preview with sample data'}</span>
         </button>
         <Link
           to="/collections"

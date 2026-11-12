@@ -96,6 +96,7 @@ jobs:
         with:
           name: playground-dist
           path: apps/playground/dist/
+          include-hidden-files: true
           retention-days: 1
 
       - name: Sync playground to S3
