@@ -35,6 +35,8 @@ export interface RoundsPrimitive extends BasePrimitive {
   kind: 'rounds';
   sequence?: number[];
   label?: string;
+  sequenceMeta?: SyntaxMeta;
+  labelMeta?: SyntaxMeta;
 }
 
 /**

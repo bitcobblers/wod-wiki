@@ -3,6 +3,12 @@ import { ICodeStatement } from '@bitcobblers/wod-wiki-core';
 import { MetricType } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import { hintsToContainer } from '../metrics/hints';
+import { UnitRegistry } from '../metrics/units';
+import { fuseUnits } from './units/fuseUnits';
+
+const CROSSFIT_UNITS = UnitRegistry.of([
+  { canonical: 'pood', dimension: 'mass', aliases: ['poods', 'pd'] },
+]);
 
 /**
  * CrossFit dialect for recognizing CrossFit-specific workout patterns.
@@ -16,6 +22,10 @@ import { hintsToContainer } from '../metrics/hints';
 export class CrossFitDialect implements IDialect {
   id = 'crossfit';
   name = 'CrossFit Dialect';
+
+  transform(statement: ICodeStatement): void {
+    fuseUnits(statement, CROSSFIT_UNITS);
+  }
 
   /**
    * Check if any Action or Effort metrics contains a keyword (case-insensitive)

@@ -133,8 +133,19 @@ export const SESSION_FIELDS: readonly FieldDefinition[] = [
     level: 'session',
     defaultVisible: true,
     align: 'right',
-    getValue: e => e.execution?.loadLbs,
-    formatValue: v => (typeof v === 'number' ? `${v.toLocaleString()} lbs` : ''),
+    getValue: e => {
+      if (e.execution?.loadLbs != null) {
+        return `${e.execution.loadLbs.toLocaleString()} ${e.execution.volumeUnit ?? 'lbs'}`
+      }
+      if (e.execution?.sessionLoadAu != null) {
+        const rounded = Number.isInteger(e.execution.sessionLoadAu)
+          ? e.execution.sessionLoadAu.toLocaleString()
+          : Number(e.execution.sessionLoadAu.toFixed(1)).toLocaleString()
+        return `${rounded} AU`
+      }
+      return undefined
+    },
+    formatValue: v => (v != null ? String(v) : ''),
   },
 ]
 
@@ -163,8 +174,11 @@ export const RESULT_FIELDS: readonly FieldDefinition[] = [
     level: 'result',
     defaultVisible: true,
     align: 'right',
-    getValue: e => e.execution?.loadLbs,
-    formatValue: v => (typeof v === 'number' ? `${v.toLocaleString()} lbs` : ''),
+    getValue: e =>
+      e.execution?.loadLbs != null
+        ? `${e.execution.loadLbs.toLocaleString()} ${e.execution.volumeUnit ?? 'lbs'}`
+        : undefined,
+    formatValue: v => (v != null ? String(v) : ''),
   },
   {
     id: 'tis',
@@ -220,8 +234,11 @@ export const SEGMENT_FIELDS: readonly FieldDefinition[] = [
     level: 'segment',
     defaultVisible: true,
     align: 'right',
-    getValue: e => e.execution?.loadLbs,
-    formatValue: v => (typeof v === 'number' ? `${v.toLocaleString()} lbs` : ''),
+    getValue: e =>
+      e.execution?.loadLbs != null
+        ? `${e.execution.loadLbs.toLocaleString()} ${e.execution.volumeUnit ?? 'lbs'}`
+        : undefined,
+    formatValue: v => (v != null ? String(v) : ''),
   },
   {
     id: 'pacingTier',

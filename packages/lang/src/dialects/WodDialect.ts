@@ -3,6 +3,12 @@ import { ICodeStatement } from '@bitcobblers/wod-wiki-core';
 import { MetricType } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import { hintsToContainer } from '../metrics/hints';
+import { UnitRegistry } from '../metrics/units';
+import { fuseUnits } from './units/fuseUnits';
+
+const WOD_UNITS = UnitRegistry.of([
+  { canonical: 'pood', dimension: 'mass', aliases: ['poods', 'pd'] },
+]);
 
 /**
  * WOD (Workout of the Day) dialect for recognizing general structured workout patterns.
@@ -25,6 +31,10 @@ import { hintsToContainer } from '../metrics/hints';
 export class WodDialect implements IDialect {
   id = 'wod';
   name = 'WOD Dialect';
+
+  transform(statement: ICodeStatement): void {
+    fuseUnits(statement, WOD_UNITS);
+  }
 
   /** Case-insensitive keyword check on Action/Effort metrics */
   private hasKeyword(metrics: MetricContainer, keyword: string): boolean {

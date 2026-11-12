@@ -745,3 +745,212 @@ describe('toEntry — notebook/{slug} identity and application-level editability
     }
   })
 })
+
+describe('WW-008: sessionLoad (AU) vs genuine resistance Volume', () => {
+  const timestamp = new Date('2026-08-15T10:00:00Z').getTime()
+
+  it('never renders "Volume: N lbs" for bodyweight/timed sessions carrying sessionLoad in AU, and renders "Load: N AU"', () => {
+    const bodyweightRun: RowsRun = {
+      resultId: 'res-bw-1',
+      noteId: 'cindy',
+      timestamp,
+      events: [
+        {
+          id: 'res-bw-1:0',
+          resultId: 'res-bw-1',
+          noteId: 'cindy',
+          timestamp,
+          outputType: 'segment',
+          effortSlug: 'pull-up',
+          timeSpan: { started: timestamp, ended: timestamp + 468_000 },
+          metrics: [{ type: 'rep', value: 50 }],
+        } as EventRecord,
+        {
+          id: 'res-bw-1:1',
+          resultId: 'res-bw-1',
+          noteId: 'cindy',
+          timestamp: timestamp + 468_000,
+          grain: 'event',
+          outputType: 'analytics',
+          metrics: [
+            { type: 'label', value: 'Session Load', image: 'Session Load' },
+            { type: 'load', value: 39, unit: 'AU', metadata: { canonicalKey: 'sessionLoad' } },
+          ],
+        } as EventRecord,
+        {
+          id: 'res-bw-1:summary:sessionLoad',
+          resultId: 'res-bw-1',
+          noteId: 'cindy',
+          timestamp: timestamp + 468_000,
+          grain: 'summary',
+          outputType: 'analytics',
+          metrics: [
+            { type: 'sessionLoad', value: 39, unit: 'AU', metadata: { canonicalKey: 'sessionLoad' } },
+          ],
+        } as unknown as EventRecord,
+      ],
+    }
+
+    const entry = rowsRunToEntry(bodyweightRun)
+    expect(entry.subtitle).not.toContain('Volume:')
+    expect(entry.subtitle).not.toContain('39 lbs')
+    expect(entry.subtitle).toContain('Load: 39 AU')
+    expect(entry.execution?.loadLbs).toBeUndefined()
+    expect(entry.execution?.sessionLoadAu).toBe(39)
+  })
+
+  it('formats genuine mass volume in its native unit alongside Load: N AU without mixing units', () => {
+    const kbRun: RowsRun = {
+      resultId: 'res-kb-1',
+      noteId: 'simple-sinister',
+      timestamp,
+      events: [
+        {
+          id: 'res-kb-1:0',
+          resultId: 'res-kb-1',
+          noteId: 'simple-sinister',
+          timestamp,
+          outputType: 'segment',
+          effortSlug: 'kettlebell-swing',
+          timeSpan: { started: timestamp, ended: timestamp + 300_000 },
+          metrics: [
+            { type: 'rep', value: 15 },
+            { type: 'resistance', value: { amount: 24, unit: 'kg' }, unit: 'kg' },
+          ],
+        } as EventRecord,
+        {
+          id: 'res-kb-1:summary:totalVolume',
+          resultId: 'res-kb-1',
+          noteId: 'simple-sinister',
+          timestamp: timestamp + 300_000,
+          grain: 'summary',
+          outputType: 'analytics',
+          summaryCoverage: { scope: 'workout' },
+          metrics: [
+            { type: 'totalVolume', value: 360, unit: 'kg', metadata: { canonicalKey: 'totalVolume' } },
+          ],
+        } as unknown as EventRecord,
+        {
+          id: 'res-kb-1:summary:sessionLoad',
+          resultId: 'res-kb-1',
+          noteId: 'simple-sinister',
+          timestamp: timestamp + 300_000,
+          grain: 'summary',
+          outputType: 'analytics',
+          summaryCoverage: { scope: 'workout' },
+          metrics: [
+            { type: 'sessionLoad', value: 25, unit: 'AU', metadata: { canonicalKey: 'sessionLoad' } },
+          ],
+        } as unknown as EventRecord,
+      ],
+    }
+
+    const entry = rowsRunToEntry(kbRun)
+    expect(entry.subtitle).toContain('Volume: 360 kg')
+    expect(entry.subtitle).toContain('Load: 25 AU')
+    expect(entry.execution?.loadLbs).toBe(360)
+    expect(entry.execution?.volumeUnit).toBe('kg')
+    expect(entry.execution?.sessionLoadAu).toBe(25)
+
+    const segEntry = unifiedEventToEntry(kbRun.events[0]!, { index: 0 })
+    expect(segEntry.subtitle).toContain('15 reps @ 24 kg')
+  })
+})
+
+describe('WW-009: structural segment titles vs real round numbers', () => {
+  const timestamp = new Date('2026-08-15T10:00:00Z').getTime()
+
+  it('labels structural open/session segments by role instead of array-index "Round N" and uses CurrentRoundMetric when present', () => {
+    const amrapRun: RowsRun = {
+      resultId: 'res-amrap',
+      noteId: 'amrap-20',
+      timestamp,
+      events: [
+        {
+          id: 'res-amrap:0',
+          resultId: 'res-amrap',
+          noteId: 'amrap-20',
+          timestamp,
+          outputType: 'segment',
+          sourceBlockKey: 'waiting-to-start',
+          stackLevel: 1,
+          timeSpan: { started: timestamp, ended: timestamp },
+          metrics: [{ type: 'label', value: 'Ready to Start', image: 'Ready to Start' }],
+        } as EventRecord,
+        {
+          id: 'res-amrap:1',
+          resultId: 'res-amrap',
+          noteId: 'amrap-20',
+          timestamp,
+          outputType: 'segment',
+          sourceBlockKey: 'waiting-to-start',
+          stackLevel: 1,
+          timeSpan: { started: timestamp, ended: timestamp },
+          metrics: [{ type: 'label', value: 'Ready to Start', image: 'Ready to Start' }],
+        } as EventRecord,
+        {
+          id: 'res-amrap:2',
+          resultId: 'res-amrap',
+          noteId: 'amrap-20',
+          timestamp,
+          outputType: 'segment',
+          effortSlug: 'amrap',
+          sourceBlockKey: 'amrap-block',
+          stackLevel: 1,
+          timeSpan: { started: timestamp, ended: timestamp + 1_200_000 },
+          metrics: [{ type: 'elapsed', value: 1_200_000 }],
+        } as EventRecord,
+        {
+          id: 'res-amrap:3',
+          resultId: 'res-amrap',
+          noteId: 'amrap-20',
+          timestamp: timestamp + 1_200_000,
+          outputType: 'segment',
+          sourceBlockKey: 'session-root',
+          stackLevel: 0,
+          timeSpan: { started: timestamp, ended: timestamp + 1_200_000 },
+          metrics: [{ type: 'label', value: 'Session', image: 'Session' }],
+        } as EventRecord,
+      ],
+    }
+
+    const entries = rowsQueryResultToEntries({
+      parsed: {
+        family: 'find',
+        raw: 'find:session{result:res-amrap, plane:segment}',
+        target: 'session',
+        filters: [{ key: 'plane', negate: false, values: [{ value: 'segment', wildcard: false }] }],
+      },
+      runs: [amrapRun],
+    } as any)
+
+    expect(entries.map((e) => e.title)).toEqual(['Start', 'Start', 'Amrap', 'Session'])
+    for (const entry of entries) {
+      expect(entry.title).not.toMatch(/^Round \d+$/)
+    }
+
+    const runSummary = rowsRunToEntry(amrapRun)
+    expect(runSummary.execution?.segmentCount).toBe(1)
+  })
+
+  it('uses CurrentRoundMetric value rather than filtered array index for unnamed round segments', () => {
+    const roundEvent: EventRecord = {
+      id: 'res-rounds:5',
+      resultId: 'res-rounds',
+      noteId: 'rounds-workout',
+      timestamp,
+      outputType: 'segment',
+      sourceBlockKey: 'loop-1',
+      stackLevel: 2,
+      timeSpan: { started: timestamp, ended: timestamp + 45_000 },
+      metrics: [
+        { type: 'current-round', value: 2, image: 'Round 2 of 3' },
+        { type: 'elapsed', value: 45_000 },
+      ],
+    } as EventRecord
+
+    // Even when passed index: 4 (e.g. after structural segments), uses CurrentRound = 2
+    const entry = unifiedEventToEntry(roundEvent, { index: 4 })
+    expect(entry.title).toBe('Round 2')
+  })
+})

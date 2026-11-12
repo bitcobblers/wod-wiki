@@ -1,6 +1,8 @@
+import React from 'react';
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { getOutputsForHistoryBlock } from '@/components/atoms/VisualStateComponents';
-import { OutputStatement, OutputStatementType } from '@bitcobblers/wod-wiki-engine';
+import { render, screen } from '@testing-library/react';
+import { getOutputsForHistoryBlock, HistorySummaryView } from '@/components/atoms/VisualStateComponents';
+import { MetricType, OutputStatement, OutputStatementType } from '@bitcobblers/wod-wiki-engine';
 import { TimeSpan } from '@bitcobblers/wod-wiki-engine';
 
 function makeOutput(type: OutputStatementType, stackLevel: number): OutputStatement {
@@ -93,5 +95,49 @@ describe('getOutputsForHistoryBlock', () => {
         const outputs: OutputStatement[] = [];
         const result = getOutputsForHistoryBlock(outputs, 0, 1);
         expect(result).toHaveLength(0);
+    });
+
+    it('WW-009: excludes zero-duration structural waiting-to-start and session-root markers from completed history', () => {
+        const waitingMount = new OutputStatement({
+            outputType: 'segment',
+            timeSpan: new TimeSpan(1000, 1000),
+            sourceBlockKey: 'waiting-to-start',
+            stackLevel: 1,
+            metrics: [{ type: MetricType.Label, value: 'Ready to Start', image: 'Ready to Start', origin: 'runtime' }],
+        });
+        const waitingPop = new OutputStatement({
+            outputType: 'segment',
+            timeSpan: new TimeSpan(1000, 1000),
+            sourceBlockKey: 'waiting-to-start',
+            stackLevel: 1,
+            metrics: [{ type: MetricType.Elapsed, value: 0, image: '0:00', origin: 'tracked' }],
+        });
+        const emptyMarker = new OutputStatement({
+            outputType: 'segment',
+            timeSpan: new TimeSpan(1000, 1000),
+            sourceBlockKey: 'container-open',
+            stackLevel: 1,
+            metrics: [],
+        });
+
+        expect(getOutputsForHistoryBlock([waitingMount, waitingPop, emptyMarker], 0, 2)).toHaveLength(0);
+
+        render(<HistorySummaryView outputs={[waitingMount, waitingPop, emptyMarker]} />);
+        expect(screen.getByText('0')).toBeTruthy();
+    });
+
+    it('WW-009: counts zero-duration segments that carry real effort or rep metrics', () => {
+        const quickSet = new OutputStatement({
+            outputType: 'segment',
+            timeSpan: new TimeSpan(1000, 1000),
+            sourceBlockKey: 'effort-1',
+            stackLevel: 2,
+            metrics: [
+                { type: MetricType.Effort, value: 'Pushups', image: 'Pushups', origin: 'parser' },
+                { type: MetricType.Rep, value: 10, image: '10', origin: 'parser' },
+            ],
+        });
+
+        expect(getOutputsForHistoryBlock([quickSet], 1, 2)).toHaveLength(1);
     });
 });

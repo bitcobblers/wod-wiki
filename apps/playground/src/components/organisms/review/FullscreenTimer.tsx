@@ -556,6 +556,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
         <div className="min-h-0 flex-1">
           <RuntimePanelSlot
             block={preparedBlock}
+            resultId={resultId}
             noteContent={noteContent}
             view={view}
             onClose={handleClose}

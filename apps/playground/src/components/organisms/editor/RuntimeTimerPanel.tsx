@@ -19,6 +19,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useInRouterContext } from "react-router-dom";
 import type { EditorView } from "@codemirror/view";
 import { TimerDisplay } from "@/panels/wallclock-panel";
 import { TimerSurface } from "@/components/organisms/workout/TimerSurface";
@@ -26,7 +27,8 @@ import { VisualStatePanel } from "@/panels/visual-state-panel";
 import { PanelSizeProvider, usePanelSize } from "@/panels/panel-system/PanelSizeContext";
 import { ScriptRuntimeProvider, useRuntimeExecution, type UseRuntimeExecutionReturn, NextEvent, ScriptRuntime } from "@/hooks/useRuntimeTimer";
 import type { IScriptRuntime, StackSnapshot } from "@/hooks/useRuntimeTimer";
-import { useActiveRunStore } from "@/stores/activeRunStore";
+import { clearHaltedRun, getHaltedRun, recordHaltedRun, useActiveRunStore } from "@/stores/activeRunStore";
+import { sessionDetailPath } from "@/lib/routes";
 import { getActiveCastTransport } from "@/hooks/useCastSignaling";
 import { useSessionCastBridge } from "@/hooks/useSessionCastBridge";
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
@@ -102,7 +104,70 @@ export interface RuntimeTimerPanelProps {
   parkOnUnmount?: boolean;
   /** Receives the runtime when it is parked on unmount. */
   onPark?: (runtime: IScriptRuntime) => void;
+  /** Optional session/result identifier for reload halted-run notice links. */
+  resultId?: string;
+  /** Optional parent note identifier for scoping halted-run notices. */
+  noteId?: string;
 }
+
+export interface HaltedRunNoticeProps {
+  noteId?: string | null;
+}
+
+export const HaltedRunNotice: React.FC<HaltedRunNoticeProps> = ({ noteId }) => {
+  const haltedRun = useActiveRunStore((state) => state.haltedRun);
+  const inRouter = useInRouterContext();
+
+  useEffect(() => {
+    const stored = getHaltedRun();
+    if (stored && !useActiveRunStore.getState().haltedRun) {
+      useActiveRunStore.getState().setHaltedRun(stored);
+    }
+  }, []);
+
+  const marker = haltedRun ?? getHaltedRun();
+  if (!marker) return null;
+  if (noteId && marker.noteId && marker.noteId !== noteId) return null;
+
+  const resultsHref = sessionDetailPath(marker.sessionId);
+
+  return (
+    <div
+      role="status"
+      data-testid="halted-run-notice"
+      className="mx-4 my-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span>Previous workout run was saved as partial results on reload.</span>
+        {inRouter ? (
+          <Link
+            to={resultsHref}
+            onClick={() => clearHaltedRun(marker.sessionId)}
+            className="font-semibold underline underline-offset-2 hover:text-primary"
+          >
+            View partial results
+          </Link>
+        ) : (
+          <a
+            href={resultsHref}
+            onClick={() => clearHaltedRun(marker.sessionId)}
+            className="font-semibold underline underline-offset-2 hover:text-primary"
+          >
+            View partial results
+          </a>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => clearHaltedRun(marker.sessionId)}
+        aria-label="Dismiss partial results notice"
+        className="rounded border border-border/70 px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        Dismiss
+      </button>
+    </div>
+  );
+};
 
 
 // ── Inner body component (needs PanelSizeContext) ───────────────────────
@@ -116,6 +181,8 @@ interface RuntimeTimerBodyProps {
   handleNext: () => void;
   /** Command board (reps counter, legend, entry, stop confirm) from the live authority. */
   commandBoard?: React.ReactNode;
+  /** Reload halted-run notice banner shown while idle. */
+  notice?: React.ReactNode;
   /** Authoritative Next availability from the clock snapshot. */
   canNext?: boolean;
   workoutTitle?: string;
@@ -130,6 +197,7 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
   handleStop,
   handleNext,
   commandBoard,
+  notice,
   canNext,
   workoutTitle,
   workoutFormat,
@@ -142,6 +210,7 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
   if (!isFull) {
     return (
       <div className="flex h-full flex-col overflow-hidden bg-background" data-clock-panel>
+        {notice}
         <div className="min-h-0 flex-1 overflow-hidden">
           <TimerSurface
             elapsedMs={execution.elapsedTime}
@@ -181,6 +250,7 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background" data-clock-panel>
+      {notice}
       {/* ── Detail tier (full): side-by-side audit + timer. Both columns
           get a proportional share (3:2 favoring the clock) with min-h-0 so
           neither can squeeze the other out of a bounded host: the visual
@@ -254,6 +324,8 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   adoptRuntime,
   parkOnUnmount,
   onPark,
+  resultId,
+  noteId,
 }) => {
   const [runtimeBlock] = useState(() => prepareRuntimeBlock(block));
   const [preRunScript] = useState(() => ({ statements: runtimeBlock.statements }));
@@ -269,6 +341,10 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   const [pendingStart, setPendingStart] = useState(false);
   // One-shot "run is live": first captured output or running transition.
   const hasFiredRunStartedRef = useRef(false);
+  // True once the run is stopped explicitly or completed naturally (not unload).
+  const explicitEndRef = useRef(false);
+  // Ensures onComplete is reported at most once per RuntimeTimerPanel mount.
+  const hasReportedCompletionRef = useRef(false);
   // True once the factory declined to build a runtime (empty / uncompilable
   // block) — drives the "Nothing to run" empty state instead of hanging on
   // "Initializing…". (#702)
@@ -453,12 +529,15 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   useEffect(() => {
     if (!externalStop || execution.status === 'completed') return;
     if (execution.status !== 'running' && execution.status !== 'paused' && !hasFiredRunStartedRef.current) return;
+    explicitEndRef.current = true;
+    useActiveRunStore.getState().setActiveSessionMeta(null, null);
     stopAndReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- execution identity is unstable each render; field deps avoid a setExecution loop
   }, [externalStop, execution.status, execution.stop]);
 
   const handleComplete = useCallback((completed: boolean) => {
-    if (!runtime) return;
+    if (!runtime || hasReportedCompletionRef.current) return;
+    hasReportedCompletionRef.current = true;
 
     // Finalize analytics to get summary outputs
     runtime.finalizeAnalytics();
@@ -519,7 +598,9 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   // Also send review mode to Chromecast BEFORE the panel unmounts (which would
   // otherwise lose the cast subscription).
   useEffect(() => {
-    if (execution.status === "completed" && !createdAt) {
+    if (execution.status === "completed" && !createdAt && !hasReportedCompletionRef.current) {
+      explicitEndRef.current = true;
+      useActiveRunStore.getState().setActiveSessionMeta(null, null);
       setCompletedAt(new Date());
       handleComplete(true);
 
@@ -548,9 +629,62 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   }, [runtime, execution, handleComplete]);
 
   const handleStop = useCallback(() => {
+    explicitEndRef.current = true;
+    useActiveRunStore.getState().setActiveSessionMeta(null, null);
     stopAndReport();
     onClose();
   }, [stopAndReport, onClose]);
+
+  const resolvedSessionId = resultId ?? useActiveRunStore.getState().activeSessionId;
+  const resolvedNoteId = noteId ?? useActiveRunStore.getState().activeNoteId;
+  const isLiveRun =
+    (execution.status === 'running' ||
+      execution.status === 'paused' ||
+      outputCount > 0 ||
+      hasFiredRunStartedRef.current) &&
+    execution.status !== 'completed';
+  const unloadStateRef = useRef({
+    isLive: isLiveRun,
+    sessionId: resolvedSessionId,
+    noteId: resolvedNoteId,
+    workoutTitle: workoutIdentity.workoutTitle,
+    elapsedMs: execution.elapsedTime,
+    stopAndReport,
+  });
+  unloadStateRef.current = {
+    isLive: isLiveRun,
+    sessionId: resolvedSessionId,
+    noteId: resolvedNoteId,
+    workoutTitle: workoutIdentity.workoutTitle,
+    elapsedMs: execution.elapsedTime,
+    stopAndReport,
+  };
+
+  useEffect(() => {
+    let handled = false;
+    const handleUnload = () => {
+      if (handled || explicitEndRef.current) return;
+      const current = unloadStateRef.current;
+      if (!current.isLive) return;
+      handled = true;
+      const sessionId = current.sessionId || block.id;
+      recordHaltedRun({
+        sessionId,
+        runtimeId: sessionId,
+        noteId: current.noteId ?? undefined,
+        workoutTitle: current.workoutTitle,
+        timestamp: Date.now(),
+        elapsedMs: current.elapsedMs,
+      });
+      current.stopAndReport();
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
+    };
+  }, [block.id]);
 
   const handleStart = useCallback(() => {
     execution.start();
@@ -668,6 +802,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
           handleStop={() => { dispatchClock({ kind: 'stop-request' }); }}
           handleNext={handleNext}
           commandBoard={clockSnapshot ? <ClockCommandBoard snapshot={clockSnapshot} dispatch={dispatchClock} /> : null}
+          notice={!isLiveRun ? <HaltedRunNotice noteId={noteId} /> : null}
           canNext={clockSnapshot?.canNext}
           workoutTitle={workoutIdentity.workoutTitle}
           workoutFormat={workoutIdentity.workoutFormat}

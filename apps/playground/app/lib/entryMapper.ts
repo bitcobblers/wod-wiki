@@ -11,7 +11,8 @@
 import type { BlockIndexRow, Note } from '@/types/storage'
 import type { IEffort, RowsRun, RowsQueryResult } from '@bitcobblers/wod-wiki-wql'
 import { isNoteEditable, notebookOfItem, notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
-import type { NotePlacement } from '@bitcobblers/wod-wiki-core'
+import type { EventRecord, NotePlacement, StoredOutputStatement } from '@bitcobblers/wod-wiki-core'
+import { UnitRegistry } from '@bitcobblers/wod-wiki-lang'
 import { formatDateKey } from '../services/dateUtils'
 import { parseNoteId } from '@/lib/noteIdentity'
 import { formatPlaygroundPageTitle } from '@/lib/playgroundDisplay'
@@ -42,6 +43,8 @@ export interface EntryExecutionData {
   elapsedMs?: number
   reps?: number
   loadLbs?: number
+  volumeUnit?: string
+  sessionLoadAu?: number
   distanceMeters?: number
   tis?: number
   segmentCount?: number
@@ -596,33 +599,150 @@ interface MetricLike {
   type?: string
   name?: string
   value?: unknown
+  unit?: string
+  image?: string
+  metadata?: Record<string, unknown>
+}
+
+const VOLUME_UNITS = UnitRegistry.standard().extend({
+  canonical: 'pood',
+  dimension: 'mass',
+  aliases: ['poods', 'pd'],
+})
+
+function normalizeMassDisplayUnit(rawUnit: string | undefined): string | null {
+  if (!rawUnit || !rawUnit.trim()) return null
+  const def = VOLUME_UNITS.get(rawUnit.trim())
+  if (!def || def.dimension !== 'mass' || def.canonical === 'bw') return null
+  return def.canonical === 'lb' ? 'lbs' : def.canonical
+}
+
+function extractMetricValueAndUnit(m: MetricLike): { val: number; rawUnit?: string } | null {
+  if (typeof m.value === 'number') {
+    if (!Number.isFinite(m.value)) return null
+    return { val: m.value, rawUnit: typeof m.unit === 'string' ? m.unit : undefined }
+  }
+  if (m.value && typeof m.value === 'object') {
+    const obj = m.value as { amount?: unknown; unit?: unknown }
+    const val = typeof obj.amount === 'number' ? obj.amount : Number(obj.amount)
+    if (!Number.isFinite(val)) return null
+    const rawUnit =
+      typeof obj.unit === 'string' && obj.unit
+        ? obj.unit
+        : typeof m.unit === 'string'
+          ? m.unit
+          : undefined
+    return { val, rawUnit }
+  }
+  const parsed = Number(m.value)
+  if (!Number.isFinite(parsed)) return null
+  return { val: parsed, rawUnit: typeof m.unit === 'string' ? m.unit : undefined }
 }
 
 function classifyMetric(m: MetricLike) {
   const type = (m.type ?? '').toLowerCase()
   const name = ('name' in m && typeof m.name === 'string' ? m.name : '').toLowerCase()
-  const val = typeof m.value === 'number' ? m.value : Number(m.value)
-  if (!Number.isFinite(val)) return null
+  const canonicalKey =
+    typeof m.metadata?.canonicalKey === 'string' ? m.metadata.canonicalKey.toLowerCase() : ''
 
-  if (type === 'rep' || name === 'reps' || name === 'rep') return { kind: 'rep' as const, val }
-  if (type === 'weight' || type === 'load' || name === 'load' || name === 'weight' || name === 'volume') return { kind: 'load' as const, val }
+  const extracted = extractMetricValueAndUnit(m)
+  if (!extracted) return null
+  const { val, rawUnit } = extracted
+  const trimmedUnit = rawUnit?.trim()
+
+  if (
+    trimmedUnit?.toUpperCase() === 'AU' ||
+    type === 'sessionload' ||
+    type === 'session-load' ||
+    name === 'sessionload' ||
+    canonicalKey === 'sessionload'
+  ) {
+    return { kind: 'sessionLoad' as const, val }
+  }
+
+  if (type === 'rep' || name === 'reps' || name === 'rep') {
+    return { kind: 'rep' as const, val }
+  }
+
+  if (
+    type === 'volume' ||
+    type === 'totalvolume' ||
+    name === 'volume' ||
+    name === 'totalvolume' ||
+    canonicalKey === 'totalvolume'
+  ) {
+    const massUnit = trimmedUnit ? normalizeMassDisplayUnit(trimmedUnit) : 'lbs'
+    if (massUnit) return { kind: 'volume' as const, val, unit: massUnit }
+    return null
+  }
+
+  if (
+    type === 'weight' ||
+    type === 'resistance' ||
+    type === 'load' ||
+    name === 'load' ||
+    name === 'weight' ||
+    name === 'resistance'
+  ) {
+    if (trimmedUnit) {
+      const massUnit = normalizeMassDisplayUnit(trimmedUnit)
+      if (massUnit) return { kind: 'load' as const, val, unit: massUnit }
+      return null
+    }
+    if (
+      type === 'weight' ||
+      type === 'resistance' ||
+      name === 'weight' ||
+      name === 'resistance'
+    ) {
+      return { kind: 'load' as const, val, unit: 'lbs' }
+    }
+    return null
+  }
+
   if (type === 'distance' || name === 'distance') return { kind: 'distance' as const, val }
   if (type === 'tis' || name === 'tis') return { kind: 'tis' as const, val }
   if (type === 'duration' || name === 'duration') return { kind: 'duration' as const, val }
   return null
 }
 
+function isStructuralSegmentEvent(event: EventRecord): boolean {
+  const blockKey = (event.sourceBlockKey ?? '').toLowerCase()
+  if (blockKey.startsWith('waiting-to-start') || blockKey.startsWith('session-root')) {
+    return true
+  }
+  return !event.effortSlug && event.stackLevel === 0
+}
+
+function isGroupedAnalyticsEvent(event: EventRecord, metric: MetricLike): boolean {
+  if (event.effortSlug) return true
+  const scope = event.summaryCoverage?.scope
+  if (scope === 'effort' || scope === 'partition') return true
+  const meta = metric.metadata
+  if (!meta) return false
+  return typeof meta.effortSlug === 'string' || (typeof meta.groupTags === 'object' && meta.groupTags !== null)
+}
+
+function formatMetricAmount(value: number): string {
+  return Number.isInteger(value)
+    ? value.toLocaleString()
+    : Number(value.toFixed(1)).toLocaleString()
+}
+
 function extractRunMetrics(run: RowsRun) {
   let minStart = Infinity
   let maxEnd = -Infinity
   let totalReps = 0
-  let totalLoad = 0
+  let segmentLoadTotal = 0
+  let segmentLoadUnit: string | undefined
+  let workoutVolume: { val: number; unit: string } | undefined
+  let sessionLoadAu: number | undefined
   let maxTis = 0
   let segmentCount = 0
   const effortSlugs = new Set<string>()
 
   for (const event of run.events) {
-    if (event.outputType === 'segment') {
+    if (event.outputType === 'segment' && !isStructuralSegmentEvent(event)) {
       segmentCount++
     }
     if (event.effortSlug) {
@@ -635,12 +755,25 @@ function extractRunMetrics(run: RowsRun) {
       }
     }
     if (Array.isArray(event.metrics)) {
-      for (const m of event.metrics) {
+      for (const m of event.metrics as MetricLike[]) {
         const classified = classifyMetric(m)
         if (!classified) continue
-        if (classified.kind === 'rep') totalReps += classified.val
-        else if (classified.kind === 'load') totalLoad += classified.val
-        else if (classified.kind === 'tis' && classified.val > maxTis) maxTis = classified.val
+        if (classified.kind === 'sessionLoad') {
+          if (classified.val > 0) sessionLoadAu = classified.val
+        } else if (classified.kind === 'tis') {
+          if (classified.val > maxTis) maxTis = classified.val
+        } else if (event.outputType === 'analytics') {
+          if (classified.kind === 'volume' && classified.val > 0 && !isGroupedAnalyticsEvent(event, m)) {
+            workoutVolume = { val: classified.val, unit: classified.unit }
+          }
+        } else {
+          if (classified.kind === 'rep') {
+            totalReps += classified.val
+          } else if ((classified.kind === 'load' || classified.kind === 'volume') && classified.val > 0) {
+            segmentLoadTotal += classified.val
+            segmentLoadUnit ??= classified.unit
+          }
+        }
       }
     }
   }
@@ -648,10 +781,16 @@ function extractRunMetrics(run: RowsRun) {
     ? maxEnd - minStart
     : undefined
 
+  const resolvedVolume =
+    workoutVolume ??
+    (segmentLoadTotal > 0 ? { val: segmentLoadTotal, unit: segmentLoadUnit ?? 'lbs' } : undefined)
+
   return {
     elapsedMs,
     reps: totalReps > 0 ? totalReps : undefined,
-    loadLbs: totalLoad > 0 ? totalLoad : undefined,
+    loadLbs: resolvedVolume?.val,
+    volumeUnit: resolvedVolume?.unit,
+    sessionLoadAu,
     tis: maxTis > 0 ? maxTis : undefined,
     segmentCount: segmentCount > 0 ? segmentCount : undefined,
     effortSlugs: Array.from(effortSlugs),
@@ -669,7 +808,10 @@ export function rowsRunToEntry(run: RowsRun, options?: { noteTitle?: string }): 
     subtitleParts.push(`TIS ${metrics.tis.toFixed(1)}`)
   }
   if (metrics.loadLbs != null) {
-    subtitleParts.push(`Volume: ${metrics.loadLbs.toLocaleString()} lbs`)
+    subtitleParts.push(`Volume: ${formatMetricAmount(metrics.loadLbs)} ${metrics.volumeUnit ?? 'lbs'}`)
+  }
+  if (metrics.sessionLoadAu != null) {
+    subtitleParts.push(`Load: ${formatMetricAmount(metrics.sessionLoadAu)} AU`)
   }
   if (metrics.reps != null) {
     subtitleParts.push(`${metrics.reps} reps`)
@@ -711,11 +853,53 @@ export function rowsRunToEntry(run: RowsRun, options?: { noteTitle?: string }): 
       elapsedMs: metrics.elapsedMs,
       reps: metrics.reps,
       loadLbs: metrics.loadLbs,
+      volumeUnit: metrics.volumeUnit,
+      sessionLoadAu: metrics.sessionLoadAu,
       tis: metrics.tis,
       segmentCount: metrics.segmentCount,
       events: run.events,
     },
   }
+}
+
+function resolveSegmentTitle(event: EventRecord, elapsedMs: number | undefined): string {
+  const blockKey = (event.sourceBlockKey ?? '').toLowerCase()
+  if (blockKey.startsWith('waiting-to-start')) return 'Start'
+  if (blockKey.startsWith('session-root') || event.stackLevel === 0) return 'Session'
+  if (blockKey.startsWith('rest')) return 'Rest'
+
+  if (Array.isArray(event.metrics)) {
+    for (const m of event.metrics as MetricLike[]) {
+      const mType = (m.type ?? '').toLowerCase()
+      if (mType === 'current-round') {
+        const img = typeof m.image === 'string' ? m.image.trim() : ''
+        if (/^completed\b/i.test(img)) {
+          return img
+        }
+        const roundVal = typeof m.value === 'number' ? m.value : Number(m.value)
+        if (Number.isFinite(roundVal) && roundVal > 0) {
+          return `Round ${roundVal}`
+        }
+      }
+    }
+
+    for (const m of event.metrics as MetricLike[]) {
+      const mType = (m.type ?? '').toLowerCase()
+      if (mType === 'effort' || mType === 'action' || mType === 'label') {
+        const rawText = typeof m.value === 'string' ? m.value.trim() : typeof m.image === 'string' ? m.image.trim() : ''
+        if (!rawText) continue
+        const lower = rawText.toLowerCase()
+        if (lower === 'ready to start') return 'Start'
+        if (lower === 'session' || lower === 'session completed') return 'Session'
+        if (lower !== 'completed' && lower !== 'statement') {
+          return rawText
+        }
+      }
+    }
+  }
+
+  if (elapsedMs === 0) return 'Start'
+  return 'Segment'
 }
 
 export function unifiedEventToEntry(
@@ -728,15 +912,20 @@ export function unifiedEventToEntry(
   }
   let reps: number | undefined
   let loadLbs: number | undefined
+  let volumeUnit: string | undefined
+  let sessionLoadAu: number | undefined
   let distanceMeters: number | undefined
   let tis: number | undefined
 
   if (Array.isArray(event.metrics)) {
-    for (const m of event.metrics) {
+    for (const m of event.metrics as MetricLike[]) {
       const classified = classifyMetric(m)
       if (!classified) continue
       if (classified.kind === 'rep') reps = classified.val
-      else if (classified.kind === 'load') loadLbs = classified.val
+      else if (classified.kind === 'load' || classified.kind === 'volume') {
+        loadLbs = classified.val
+        volumeUnit = classified.unit
+      } else if (classified.kind === 'sessionLoad') sessionLoadAu = classified.val
       else if (classified.kind === 'distance') distanceMeters = classified.val
       else if (classified.kind === 'tis') tis = classified.val
       else if (classified.kind === 'duration' && !elapsedMs) elapsedMs = classified.val
@@ -748,19 +937,23 @@ export function unifiedEventToEntry(
   const title = event.effortSlug
     ? formatEffortName(event.effortSlug)
     : event.outputType === 'segment'
-      ? `Round ${index + 1}`
+      ? resolveSegmentTitle(event, elapsedMs)
       : `${event.outputType.charAt(0).toUpperCase() + event.outputType.slice(1)} ${index + 1}`
 
   const subtitleParts: string[] = []
   if (elapsedMs != null) {
     subtitleParts.push(formatDuration(elapsedMs))
   }
+  const unitLabel = volumeUnit ?? 'lbs'
   if (reps != null && loadLbs != null) {
-    subtitleParts.push(`${reps} reps @ ${loadLbs} lbs`)
+    subtitleParts.push(`${reps} reps @ ${loadLbs} ${unitLabel}`)
   } else if (reps != null) {
     subtitleParts.push(`${reps} reps`)
   } else if (loadLbs != null) {
-    subtitleParts.push(`${loadLbs} lbs`)
+    subtitleParts.push(`${loadLbs} ${unitLabel}`)
+  }
+  if (sessionLoadAu != null && loadLbs == null) {
+    subtitleParts.push(`Load: ${formatMetricAmount(sessionLoadAu)} AU`)
   }
   if (distanceMeters != null) {
     subtitleParts.push(`${distanceMeters}m`)
@@ -790,6 +983,8 @@ export function unifiedEventToEntry(
       elapsedMs,
       reps,
       loadLbs,
+      volumeUnit,
+      sessionLoadAu,
       distanceMeters,
       tis,
       metrics: event.metrics,

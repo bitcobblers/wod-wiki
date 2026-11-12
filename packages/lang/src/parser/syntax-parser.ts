@@ -232,7 +232,9 @@ function mapFragmentToPrimitive(
 
     case terms.Rounds: {
       const sequence = node.getChild('Sequence');
-      const label = node.getChild('Identifier');
+      const identifiers = node.getChildren('Identifier');
+      const firstId = identifiers[0];
+      const lastId = identifiers[identifiers.length - 1];
 
       const primitive: RoundsPrimitive = {
         kind: 'rounds',
@@ -242,9 +244,17 @@ function mapFragmentToPrimitive(
           ? source
               .slice(sequence.from, sequence.to)
               .split('-')
-              .map((n) => parseInt(n.trim(), 10))
+              .map((n) => Number(n.trim()))
           : undefined,
-        label: label ? source.slice(label.from, label.to) : undefined,
+        label: identifiers.length > 0
+          ? identifiers.map((id) => source.slice(id.from, id.to)).join(' ')
+          : undefined,
+        sequenceMeta: sequence
+          ? createMeta(locator, sequence.from, sequence.to, source.slice(sequence.from, sequence.to))
+          : undefined,
+        labelMeta: firstId && lastId
+          ? createMeta(locator, firstId.from, lastId.to, source.slice(firstId.from, lastId.to))
+          : undefined,
       };
       return primitive;
     }

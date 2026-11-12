@@ -63,4 +63,17 @@ describe('ScriptOutlineProjection alongside lazy JIT compilation', () => {
     expect(second[2]?.status).toBe('active');
     expect(second[3]?.status).toBe('upcoming');
   });
+
+  it('WW-007: renders "15 Kettlebell Swings (24kg)" as a single outline line matching unparenthesized load', () => {
+    const withParens = boot('15 Kettlebell Swings (24kg)');
+    const withoutParens = boot('15 Kettlebell Swings 24kg');
+
+    const parensNodes = projectScriptOutline(withParens.runtime);
+    const plainNodes = projectScriptOutline(withoutParens.runtime);
+
+    expect(parensNodes).toHaveLength(1);
+    expect(parensNodes[0]?.depth).toBe(0);
+    expect(parensNodes[0]?.label).toBe(plainNodes[0]?.label);
+    expect(parensNodes[0]?.label).not.toContain('Rounds');
+  });
 });

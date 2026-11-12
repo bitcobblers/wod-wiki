@@ -5,6 +5,7 @@ import { storageService } from '@/services/storage';
 import { getTagIndex } from '@/services/tags/tagCatalogue';
 import type { BlockRevision, Note, ResultOrigin, Session } from '@/types/storage';
 import type { ScriptBlock } from '@/components/Editor/types';
+import { useActiveRunStore } from '@/stores/activeRunStore';
 
 export interface CapturedRun {
   note: Note;
@@ -42,6 +43,7 @@ export function blockFromRevision(
 
 export async function captureRun(input: SaveNoteInput, block: ScriptBlock, resultId: string, origin?: ResultOrigin, persistence: INotePersistence = notePersistence): Promise<CapturedRun> {
   const startedAt = Date.now();
+  useActiveRunStore.getState().setActiveSessionMeta(resultId, input.noteId);
   const captured = await persistence.startSession(input, {
     id: resultId,
     noteId: input.noteId,

@@ -13,7 +13,7 @@ import { TextMetric } from '../runtime/compiler/metrics/TextMetric';
 import { hintMetric } from '../metrics/hints';
 import type { ReferenceIndex, ReferenceResolutionDefaults, ResolvedReferences } from '../effort-registry/reference-resolution';
 import { UnitRegistry } from '../metrics/units';
-import { EMPTY_UNIT } from '../runtime/compiler/metrics/dimensionFactory';
+import { EMPTY_UNIT, metricForDimension } from '../runtime/compiler/metrics/dimensionFactory';
 import { SyntaxFacts, SyntaxMeta, SyntaxPrimitive, SyntaxStatement } from './syntax-facts';
 import type { PropertyPrimitive, TagRefPrimitive } from './syntax-facts';
 import {
@@ -62,6 +62,43 @@ export interface ParseReferences {
 export const STRUCTURAL_EFFORT_WORDS: ReadonlySet<string> = new Set(['rest', 'amrap', 'emom', 'tabata', 'for time']);
 
 const STANDARD_UNITS = UnitRegistry.standard();
+
+/** Sport-dialect mass unit tokens recognized outside the base standard unit set. */
+const DIALECT_UNIT_WORDS: ReadonlySet<string> = new Set(['pood', 'poods', 'pd']);
+
+/** Explicit count labels inside parentheses that denote rounds/sets rather than physical units. */
+const ROUNDS_LABEL_WORDS = /^(rounds?|rds?|sets?|laps?|cycles?|intervals?)$/i;
+
+/** Time unit suffixes inside parenthesized durations such as `(20s)` or `(2min)`. */
+const TIME_UNIT_SECONDS: Readonly<Record<string, number>> = {
+  s: 1,
+  sec: 1,
+  secs: 1,
+  second: 1,
+  seconds: 1,
+  min: 60,
+  mins: 60,
+  minute: 60,
+  minutes: 60,
+  hr: 3600,
+  hrs: 3600,
+  hour: 3600,
+  hours: 3600,
+};
+
+function formatSecondsAsTimer(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad2 = (n: number): string => String(n).padStart(2, '0');
+  if (hours > 0) {
+    return `${hours}:${pad2(minutes)}:${pad2(seconds)}`;
+  }
+  if (minutes > 0) {
+    return `${minutes}:${pad2(seconds)}`;
+  }
+  return `:${pad2(seconds)}`;
+}
 
 /** Property keys resolved against the reference catalog (effort/equipment). */
 export const REFERENCE_PAIR_KEYS: ReadonlySet<string> = new Set(['effort', 'equipment']);
@@ -251,7 +288,11 @@ function applyReferenceResolution(pairs: MetricPair[], fact: SyntaxStatement, re
     if (metric.type === MetricType.Effort) {
       const authored = metric instanceof EffortMetric ? metric.effort : String(metric.value ?? '');
       const normalized = authored.trim().toLowerCase();
-      if (STRUCTURAL_EFFORT_WORDS.has(normalized) || STANDARD_UNITS.has(normalized)) {
+      if (
+        STRUCTURAL_EFFORT_WORDS.has(normalized)
+        || STANDARD_UNITS.has(normalized)
+        || DIALECT_UNIT_WORDS.has(normalized)
+      ) {
         result.push(pair);
         continue;
       }
@@ -376,7 +417,27 @@ function classifyPrimitive(primitive: SyntaxPrimitive): MetricPair[] {
     case 'rounds': {
       if (primitive.sequence) {
         if (primitive.sequence.length === 1) {
-          return [{ metrics: new RoundsMetric(primitive.sequence[0]), meta: primitive.meta }];
+          const amount = primitive.sequence[0];
+          const trimmedLabel = primitive.label?.trim();
+          if (!trimmedLabel || ROUNDS_LABEL_WORDS.test(trimmedLabel)) {
+            return [{ metrics: new RoundsMetric(amount), meta: primitive.meta }];
+          }
+
+          const lowerLabel = trimmedLabel.toLowerCase();
+          const unitSeconds = TIME_UNIT_SECONDS[lowerLabel];
+          if (unitSeconds !== undefined) {
+            const totalSeconds = Math.max(0, Math.round(amount * unitSeconds));
+            return [{ metrics: new DurationMetric(formatSecondsAsTimer(totalSeconds)), meta: primitive.meta }];
+          }
+
+          if (/^(reps?)$/i.test(trimmedLabel)) {
+            return [{ metrics: new RepMetric(amount), meta: primitive.meta }];
+          }
+
+          return [
+            { metrics: new RepMetric(amount), meta: primitive.sequenceMeta ?? primitive.meta },
+            { metrics: new EffortMetric(trimmedLabel), meta: primitive.labelMeta ?? primitive.meta },
+          ];
         }
 
         return [
@@ -385,9 +446,27 @@ function classifyPrimitive(primitive: SyntaxPrimitive): MetricPair[] {
         ];
       }
 
-      return primitive.label
-        ? [{ metrics: new RoundsMetric(primitive.label), meta: primitive.meta }]
-        : [];
+      if (!primitive.label) {
+        return [];
+      }
+
+      const trimmedLabel = primitive.label.trim();
+      const lowerLabel = trimmedLabel.toLowerCase();
+      if (/^(reps?)$/i.test(trimmedLabel)) {
+        return [{ metrics: new RepMetric(undefined), meta: primitive.meta }];
+      }
+      const stdUnit = STANDARD_UNITS.get(lowerLabel);
+      if (stdUnit) {
+        return [{ metrics: metricForDimension(undefined, trimmedLabel, stdUnit.dimension), meta: primitive.meta }];
+      }
+      if (DIALECT_UNIT_WORDS.has(lowerLabel)) {
+        return [{ metrics: new ResistanceMetric(undefined, trimmedLabel), meta: primitive.meta }];
+      }
+      if (TIME_UNIT_SECONDS[lowerLabel] !== undefined) {
+        return [{ metrics: new DurationMetric(':?'), meta: primitive.meta }];
+      }
+
+      return [{ metrics: new RoundsMetric(primitive.label), meta: primitive.meta }];
     }
 
     case 'round_scheme': {

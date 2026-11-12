@@ -16,11 +16,34 @@ import { BlockDebugDialog } from '@/components/organisms/track/BlockDebugDialog'
 // History View
 // ============================================================================
 
+export function isCompletedWorkSegment(o: IOutputStatement): boolean {
+    if (o.outputType !== 'segment') return false;
+    const blockKey = (o.sourceBlockKey ?? '').toLowerCase();
+    if (blockKey.startsWith('waiting-to-start') || blockKey.startsWith('session-root')) {
+        return false;
+    }
+    const elapsedVal = o.getMetric(MetricType.Elapsed)?.value;
+    const spanDuration = o.timeSpan.ended !== undefined
+        ? o.timeSpan.ended - o.timeSpan.started
+        : 0;
+    const durationMs = typeof elapsedVal === 'number' && Number.isFinite(elapsedVal)
+        ? elapsedVal
+        : spanDuration;
+    if (durationMs > 0) return true;
+    return o.metrics.some(
+        m =>
+            m.type === MetricType.Effort ||
+            m.type === MetricType.Rep ||
+            m.type === MetricType.Distance ||
+            m.type === MetricType.Resistance,
+    );
+}
+
 export const HistorySummaryView: React.FC<{
     outputs: IOutputStatement[];
 }> = ({ outputs }) => {
-    // Filter for completed items (usually blocks/segments)
-    const completedItems = outputs.filter(o => o.outputType === 'segment');
+    // Filter for completed work segments, excluding zero-duration structural open/close markers
+    const completedItems = outputs.filter(isCompletedWorkSegment);
 
     const totalDurationMs = completedItems.reduce((acc, curr) => {
         return acc + ((curr.getMetric(MetricType.Elapsed)?.value as number) ?? 0);
@@ -308,7 +331,7 @@ export function getOutputsForHistoryBlock(
     totalVisible: number
 ): IOutputStatement[] {
     return outputs.filter(o => {
-        if (o.outputType !== 'segment') return false;
+        if (!isCompletedWorkSegment(o)) return false;
         // The output's parent was at depth stackLevel - 1. If that parent is
         // no longer on the stack, the closest visible ancestor is the deepest
         // block still visible (totalVisible - 1).
