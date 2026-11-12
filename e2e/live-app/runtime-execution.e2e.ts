@@ -152,10 +152,9 @@ test.describe('Runtime Execution Loop — /playground → /run/:runtimeId', () =
     // the assertion's intent is that the accelerated run completes quickly.
     const wallStart = Date.now();
 
-    // Blocks are advanced manually (Next) — the 6s countdown expires, then
-    // keep advancing through the effort block until the session completes
-    // and WallClockPage records the result and opens the inline
-    // "Workout Complete" review on /run (no route change; exit is explicit).
+    // Let the 6s countdown expire naturally into the effort block (~0.3s wall
+    // time at 20×), then advance the effort block to complete the session.
+    await expect(page.getByText(/burpees/i).first()).toBeVisible({ timeout: 10_000 });
     await advanceUntilReview(page);
 
     const sessions = await getSessions(page);

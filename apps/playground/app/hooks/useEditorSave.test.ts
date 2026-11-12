@@ -55,4 +55,38 @@ describe('useEditorSave', () => {
     expect(committed).toEqual(['draft v2']);
     unmount();
   });
+
+  it('coalesces rapid intermediate flushes while a save is in flight so only the latest draft persists next', async () => {
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    const committed: string[] = [];
+    const { result, unmount } = renderHook(() =>
+      useEditorSave<string>({
+        onSave: async (value) => {
+          if (value === 'line-1') await gate;
+          committed.push(value);
+        },
+      }),
+    );
+
+    let p1!: Promise<void>;
+    let p4!: Promise<void>;
+    act(() => {
+      result.current.onChange('line-1');
+      p1 = result.current.flush();
+      result.current.onChange('line-2');
+      void result.current.flush();
+      result.current.onChange('line-3');
+      void result.current.flush();
+      result.current.onChange('line-4-final');
+      p4 = result.current.flush();
+    });
+
+    await act(async () => {
+      release();
+      await Promise.all([p1, p4]);
+    });
+
+    expect(committed).toEqual(['line-1', 'line-4-final']);
+    unmount();
+  });
 });

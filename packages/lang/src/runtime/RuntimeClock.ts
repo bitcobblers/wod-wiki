@@ -1,5 +1,5 @@
 import { IRuntimeClock } from './contracts/IRuntimeClock';
-import {  } from '@bitcobblers/wod-wiki-core';
+import { wallClockNow, type INowProvider } from './INowProvider';
 import { TimeSpan } from './models/TimeSpan';
 
 
@@ -93,13 +93,14 @@ export class SnapshotClock implements IRuntimeClock {
 export class RuntimeClock implements IRuntimeClock {
     private _spans: TimeSpan[] = [];
 
+    constructor(private readonly _now: INowProvider = wallClockNow) {}
+
     /**
-     * Current wall-clock time as a Date.
+     * Current clock time as a Date (from injected `INowProvider`, defaulting to wall clock).
      */
     public get currentDate(): Date {
-        return new Date();
+        return this._now.now();
     }
-
     now(): Date {
         return this.currentDate;
     }
@@ -128,7 +129,8 @@ export class RuntimeClock implements IRuntimeClock {
      * Sums all completed spans plus the current running span (if any).
      */
     public get elapsed(): number {
-        return this._spans.reduce((total, span) => total + span.duration, 0);
+        const currentMs = this._now.nowMs();
+        return this._spans.reduce((total, span) => total + ((span.ended ?? currentMs) - span.started), 0);
     }
 
     /**
@@ -138,8 +140,7 @@ export class RuntimeClock implements IRuntimeClock {
      * If the clock is already running, returns the current span's start time.
      */
     public start(): Date {
-        const now = new Date();
-        // If already running, return the current span's start
+        const now = this._now.now();
         if (this.isRunning) {
             return this._spans[this._spans.length - 1].startDate;
         }
@@ -155,8 +156,7 @@ export class RuntimeClock implements IRuntimeClock {
      * If the clock is not running, returns the current time.
      */
     public stop(): Date {
-        const now = new Date();
-
+        const now = this._now.now();
         // If not running, just return current time
         if (!this.isRunning) {
             return now;
