@@ -24,7 +24,7 @@ test('session EventRecord table filters segments via the WQL query bar (?q= sync
             effortSlug: 'kettlebell-swing',
             metrics: [
               { type: 'effort', value: 'kettlebell-swing', origin: 'parser' },
-              { type: 'tis', value: 74, unit: 's', metadata: { canonicalKey: 'tis' } },
+              { type: 'tis', value: 74, unit: 's', ...{ metadata: { canonicalKey: 'tis' } } },
             ],
           },
         ],
@@ -39,7 +39,7 @@ test('session EventRecord table filters segments via the WQL query bar (?q= sync
             effortSlug: 'burpee',
             metrics: [
               { type: 'effort', value: 'burpee', origin: 'parser' },
-              { type: 'tis', value: 30, unit: 's', metadata: { canonicalKey: 'tis' } },
+              { type: 'tis', value: 30, unit: 's', ...{ metadata: { canonicalKey: 'tis' } } },
             ],
           },
         ],

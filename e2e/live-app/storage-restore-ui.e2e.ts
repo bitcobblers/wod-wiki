@@ -125,7 +125,7 @@ test.describe('Storage restore UI', () => {
     await page.getByTestId('restore-confirm-button').click();
 
     await expect(page.getByTestId('restore-error')).toContainText('already the active sync target');
-    const after = JSON.parse(await page.evaluate((key) => localStorage.getItem(key), SETTINGS_KEY));
+    const after = JSON.parse((await page.evaluate((key) => localStorage.getItem(key), SETTINGS_KEY)) ?? 'null');
     expect(after).toEqual(saved);
     const kept = await page.evaluate(async (dbName) => {
       const db = await new Promise<IDBDatabase>((resolve, reject) => {

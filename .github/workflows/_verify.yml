@@ -129,6 +129,12 @@ jobs:
       - name: Check E2E Markdown <-> Playwright spec parity
         run: bun scripts/check-e2e-specs.ts
 
+      - name: Lint E2E suite
+        run: bun run lint:e2e
+
+      - name: Typecheck E2E suite
+        run: bun run typecheck:e2e
+
       - name: Check documentation links
         run: bun run docs:check
 

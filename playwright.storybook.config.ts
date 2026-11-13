@@ -13,7 +13,7 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Run with: STORYBOOK_URL=<url> bun x playwright test --config playwright.storybook.config.ts
  */
-const baseURL = process.env.STORYBOOK_URL;
+const baseURL = process.env.STORYBOOK_URL || (!process.env.CI ? 'http://127.0.0.1:6006' : undefined);
 
 if (!baseURL) {
   console.error('STORYBOOK_URL must point at the deployed Storybook to test.');
@@ -75,15 +75,18 @@ export default defineConfig({
     {
       // Completion acceptance: real editor typeahead on the Screens note
       // stories — nested WQL/time fixtures, keyboard handling, dialog host.
-      // Same file runs desktop, 375×812 mobile, and dark-theme passes.
+      // Light desktop + 375×812 mobile run behavioral scenarios; dark runs
+      // the focused @dark-smoke contrast check.
       name: 'storybook-completion',
       testMatch: '**/storybook.completion.e2e.ts',
+      grepInvert: /@dark-smoke/,
       timeout: 60 * 1000,
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'storybook-completion-mobile-375',
       testMatch: '**/storybook.completion.e2e.ts',
+      grepInvert: /@dark-smoke/,
       timeout: 60 * 1000,
       use: {
         ...devices['Desktop Chrome'],
@@ -95,6 +98,7 @@ export default defineConfig({
     {
       name: 'storybook-completion-dark',
       testMatch: '**/storybook.completion.e2e.ts',
+      grep: /@dark-smoke/,
       timeout: 60 * 1000,
       use: { ...devices['Desktop Chrome'] },
     },

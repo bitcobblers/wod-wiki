@@ -22,7 +22,8 @@ test('library WQL activation expands the sticky header and traverses segments', 
   await expect(page.locator('.wql-active-segment')).toBeVisible();
   await expect.poll(async () => (await boundary.boundingBox())?.height ?? 0).toBeGreaterThan(initialHeight);
   if (await groupHeader.count() > 0) {
-    const expandedBottom = (await boundary.boundingBox())?.bottom ?? 0;
+    const expandedBox = await boundary.boundingBox();
+    const expandedBottom = expandedBox ? expandedBox.y + expandedBox.height : 0;
     await expect.poll(async () => {
       const topStyle = await groupHeader.evaluate(el => Number.parseFloat(getComputedStyle(el).top));
       return Math.abs(topStyle - expandedBottom) < 2;

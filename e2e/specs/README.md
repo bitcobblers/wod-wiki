@@ -30,7 +30,7 @@ priority: P0-gate        # P0-gate | P1-core | P1 | P2
 - `1. <Persona> opens '<route>' and <action>.` — numbered user steps.
 - `- expect: <observable outcome>.` — outcome assertions as bullets.
 
-## Journey taxonomy (6 domains, 25 journeys — 11 authored, including all 9 P0-gates)
+## Journey taxonomy (6 domains, 28 journeys — 13 authored, including all 9 P0-gates)
 
 | Domain | Journey | Slug | Priority |
 |---|---|---|---|
@@ -50,12 +50,14 @@ priority: P0-gate        # P0-gate | P1-core | P1 | P2
 | runtime | RUN-04 | `session-actuals-persistence-and-retry` | P1 |
 | properties | PRP-01 | `efforts-catalog-and-alias-lifecycle` | P1 |
 | properties | PRP-02 | [equipment-catalog-and-backlinks](properties/equipment-catalog-and-backlinks.md) | P1-core |
-| properties | PRP-03 | `tag-categories-and-metric-stacking` | P1 |
+| properties | PRP-03 | [effort-creation-and-tag-mobile-layout](properties/effort-creation-and-tag-mobile-layout.md) | P1-core |
 | properties | PRP-04 | `scoped-property-override-sheets` | P1 |
+| properties | PRP-05 | `tag-categories-and-metric-stacking` | P1 |
 | analytics | ANL-01 | `stream-wql-and-query-settings` | P1 |
 | analytics | ANL-02 | `analytics-explorer-and-pipeline` | P1 |
 | analytics | ANL-03 | `dashboard-multi-widget-authoring` | P1 |
 | analytics | ANL-04 | [entity-scope-and-dashboard-promotion](analytics/entity-scope-and-dashboard-promotion.md) | P1-core |
+| analytics | ANL-05 | [recovery-sample-and-dashboard-lifecycle](analytics/recovery-sample-and-dashboard-lifecycle.md) | P1-core |
 | feeds | FED-01 | [feed-subscription-and-autosync](feeds/feed-subscription-and-autosync.md) | P0-gate |
 | feeds | FED-02 | `remote-notebook-preview-and-clone` | P1 |
 | feeds | FED-03 | [publication-visibility-and-feed-export](feeds/publication-visibility-and-feed-export.md) | P0-gate |

@@ -122,6 +122,7 @@ const CommandPill: React.FC<{
       <Button
         variant={cmd.primary ? "default" : "secondary"}
         className={cn(
+          "pointer-events-auto scroll-mt-20",
           cmd.iconOnly
             ? "h-8 min-w-[34px] rounded-[5px] px-2 py-0.5 text-[11px] font-medium shadow-none"
             : "h-8 rounded-[5px] px-2.5 py-0.5 text-[11px] font-medium shadow-none gap-1.5",
@@ -133,7 +134,7 @@ const CommandPill: React.FC<{
         )}
         title={cmd.label}
         aria-label={cmd.label}
-        data-testid={cmd.id === "run" ? TEST_IDS.EDITOR_START_WORKOUT : undefined}
+        data-testid={cmd.id === "run" || cmd.id === "play" ? TEST_IDS.EDITOR_START_WORKOUT : undefined}
         onClick={(e) => {
           stopEvent(e);
           handleAction();
@@ -149,6 +150,7 @@ const CommandPill: React.FC<{
 
   return (
     <div
+      className="pointer-events-auto scroll-mt-20"
       onClick={stopEvent}
       onMouseDown={stopEvent}
       onPointerDown={stopEvent}
@@ -183,7 +185,7 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
     if (!plugin) return;
 
     setRects([...plugin.rects]);
-    const _unsubscribe = plugin.addListener((newRects: SectionRect[]) =>
+    return plugin.addListener((newRects: SectionRect[]) =>
       setRects([...newRects]),
     );
   }, [view]);
@@ -217,6 +219,10 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
   if (workoutRects.length === 0 || !view) return null;
   const { sections } = view.state.field(sectionField);
   const sectionMap = new Map(sections.map((s) => [s.id, s]));
+  const contentOffsetTop =
+    (view.dom?.offsetTop ?? 0) +
+    (view.scrollDOM?.offsetTop ?? 0) +
+    (view.contentDOM?.offsetTop ?? 0);
 
   return (
     <>
@@ -231,9 +237,9 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
         return (
           <div
             key={rect.sectionId}
-            className="absolute right-1.5 z-10 flex items-end gap-1 pb-0.5 pointer-events-auto"
+            className="absolute right-1.5 z-20 flex items-end gap-1 pb-0.5 pointer-events-none"
             style={{
-              top: rect.top - scrollTop,
+              top: contentOffsetTop + rect.top - scrollTop,
               height: rect.firstLineHeight,
             }}
           >

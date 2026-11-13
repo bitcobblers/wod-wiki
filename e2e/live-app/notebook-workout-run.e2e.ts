@@ -68,7 +68,7 @@ async function findNoteIdByTitle(page: Page, title: string): Promise<string | nu
         };
         tx.onerror = () => { db.close(); reject(tx.error); };
       };
-      req.onerror = () => reject(tx.error);
+      req.onerror = () => reject(req.error);
     });
   }, { dbName: WOD_DB, title });
 }
@@ -101,14 +101,13 @@ async function deleteNoteAndResults(page: Page, noteId: string | null): Promise<
   }, { dbName: WOD_DB, noteId });
 }
 
-/** Click the WOD block's Play command (DOM-click: overlay decorations can
- *  intercept pointer events, matching the wod-index spec pattern). */
+/** Click the WOD block's Play command using a genuine pointer click. */
 async function clickPlayOnBlock(page: Page, blockText: string) {
-  // Place the cursor inside the WOD block so its command bar renders.
+  // Place the cursor inside the WOD block so its inline focus chrome renders too.
   await page.locator('.cm-content').getByText(blockText).first().click();
-  const play = page.locator('button[aria-label="Play"]').first();
+  const play = page.getByTestId(TEST_IDS.EDITOR_START_WORKOUT).first();
   await expect(play).toBeVisible({ timeout: 10_000 });
-  await play.evaluate((el) => (el as HTMLElement).click());
+  await play.click();
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────

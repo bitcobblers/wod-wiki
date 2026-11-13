@@ -247,7 +247,7 @@ test('arrows move the active option and Escape dismisses without inserting', asy
 // ── Section isolation ────────────────────────────────────────────────────────
 
 test('frontmatter, prose, and fence bodies never leak foreign completions', async ({ page }) => {
-  const host = await openNoteEditor(page);
+  await openNoteEditor(page);
 
   // Prose: query and workout triggers stay inert.
   await openBodyLine(page, LINE.prose);
@@ -313,4 +313,95 @@ test('dialog host floats completion menus and Escape gates menu before dialog', 
   await expect(dialog).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
+});
+
+// ── Dark-theme visual contrast smoke (@dark-smoke) ───────────────────────────
+
+test('dark theme renders dark editor surface and readable completion tooltip contrast @dark-smoke', async ({
+  page,
+}) => {
+  await page.goto(`/iframe.html?id=${NOTE_STORY}&viewMode=story&globals=theme:dark`, {
+    waitUntil: 'domcontentloaded',
+  });
+  const host = page.getByTestId('note-editor-host');
+  await expect(host.locator('.cm-content')).toBeVisible({ timeout: 15_000 });
+
+  await openBodyLine(page, LINE.wqlBody, host);
+  await page.keyboard.type(':no');
+  await expect(menu(page)).toBeVisible();
+  await expect(firstOptionLabel(page)).toHaveText('note');
+
+  const darkMetrics = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) throw new Error('2d canvas context unavailable');
+
+    function resolveRgb(cssColor: string, backdropCss = '#2d333e'): [number, number, number] {
+      ctx!.clearRect(0, 0, 1, 1);
+      ctx!.fillStyle = backdropCss;
+      ctx!.fillRect(0, 0, 1, 1);
+      ctx!.fillStyle = cssColor;
+      ctx!.fillRect(0, 0, 1, 1);
+      const [r, g, b] = ctx!.getImageData(0, 0, 1, 1).data;
+      return [r ?? 0, g ?? 0, b ?? 0];
+    }
+
+    function relativeLuminance([r, g, b]: [number, number, number]): number {
+      const toLinear = (channel: number) => {
+        const s = channel / 255;
+        return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+    }
+
+    function contrastRatio(lumA: number, lumB: number): number {
+      const lighter = Math.max(lumA, lumB);
+      const darker = Math.min(lumA, lumB);
+      return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    const hostEl = document.querySelector<HTMLElement>('[data-testid="note-editor-host"]');
+    const editorEl = hostEl?.querySelector<HTMLElement>('.cm-editor');
+    const contentEl = hostEl?.querySelector<HTMLElement>('.cm-content');
+    const tooltipEl = document.querySelector<HTMLElement>('.cm-tooltip-autocomplete');
+    const selectedRowEl = tooltipEl?.querySelector<HTMLElement>('li[aria-selected="true"]');
+    const labelEl = selectedRowEl?.querySelector<HTMLElement>('.cm-completionLabel');
+
+    if (!hostEl || !editorEl || !contentEl || !tooltipEl || !selectedRowEl || !labelEl) {
+      throw new Error('Expected dark completion DOM nodes to be mounted');
+    }
+
+    const bodyBg = getComputedStyle(document.body).backgroundColor;
+    const hostLum = relativeLuminance(resolveRgb(getComputedStyle(hostEl).backgroundColor, bodyBg));
+    const editorLum = relativeLuminance(resolveRgb(getComputedStyle(editorEl).backgroundColor, bodyBg));
+    const contentTextLum = relativeLuminance(resolveRgb(getComputedStyle(contentEl).color, bodyBg));
+    const tooltipBgCss = getComputedStyle(tooltipEl).backgroundColor;
+    const tooltipLum = relativeLuminance(resolveRgb(tooltipBgCss, bodyBg));
+    const selectedRowLum = relativeLuminance(
+      resolveRgb(getComputedStyle(selectedRowEl).backgroundColor, tooltipBgCss),
+    );
+    const labelTextLum = relativeLuminance(resolveRgb(getComputedStyle(labelEl).color, tooltipBgCss));
+
+    return {
+      htmlDark: document.documentElement.classList.contains('dark'),
+      bgToken: getComputedStyle(document.documentElement).getPropertyValue('--background').trim(),
+      hostLum,
+      editorLum,
+      tooltipLum,
+      editorContrast: contrastRatio(contentTextLum, editorLum),
+      tooltipContrast: contrastRatio(labelTextLum, tooltipLum),
+      selectedRowContrast: contrastRatio(labelTextLum, selectedRowLum),
+    };
+  });
+
+  expect(darkMetrics.htmlDark, 'documentElement carries .dark class').toBe(true);
+  expect(darkMetrics.bgToken, 'Arctic Frost dark --background token active').toBe('222 16% 21%');
+  expect(darkMetrics.hostLum, 'note-editor-host surface is dark').toBeLessThan(0.15);
+  expect(darkMetrics.editorLum, '.cm-editor surface is dark').toBeLessThan(0.12);
+  expect(darkMetrics.tooltipLum, '.cm-tooltip-autocomplete surface is dark').toBeLessThan(0.15);
+  expect(darkMetrics.editorContrast, 'editor foreground/background meets WCAG AA').toBeGreaterThanOrEqual(4.5);
+  expect(darkMetrics.tooltipContrast, 'tooltip label/background meets WCAG AA').toBeGreaterThanOrEqual(4.5);
+  expect(darkMetrics.selectedRowContrast, 'selected option label/row meets WCAG AA').toBeGreaterThanOrEqual(4.5);
 });

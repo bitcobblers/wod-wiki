@@ -1,5 +1,6 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
+import { TEST_IDS } from '../contracts/TestIdContract';
 import type { EditorView } from '@codemirror/view';
 
 /**
@@ -7,7 +8,7 @@ import type { EditorView } from '@codemirror/view';
  *
  * Covers the common surface shared by every page that mounts NoteEditor
  * inside JournalPageShell:
- *   /journal/:id, /playground/:id, /workout/:cat/:name, /note/:cat/:name
+ *   /day/:date, /playground/:id, /notebook/:notebook/:item, /note/:id
  *
  * Subclasses provide route-specific goto(...) signatures and any extra
  * selectors/assertions.
@@ -22,7 +23,7 @@ export abstract class BaseNotePage {
   // ── Navigation ───────────────────────────────────────────────────────────
 
   /** Route-specific entry point — implemented by subclass. */
-  abstract goto(...args: any[]): Promise<void>;
+  abstract goto(...args: never[]): Promise<void>;
 
   /** Wait until the editor surface is present and React has settled. */
   async waitForLoad() {
@@ -52,7 +53,7 @@ export abstract class BaseNotePage {
    */
   async awaitBlocksParsed(): Promise<void> {
     await this.page
-      .locator('[data-testid="editor-start-workout"], [data-widget-section-id]')
+      .locator(`[data-testid="${TEST_IDS.EDITOR_START_WORKOUT}"], [data-widget-section-id]`)
       .first()
       .waitFor({ state: 'visible', timeout: 10_000 });
   }
@@ -76,11 +77,16 @@ export abstract class BaseNotePage {
   }
 
   /**
-   * Wait until a runtime flow reaches its terminal review route — the
-   * signal version of "let the runtime accumulate logs".
+   * Wait until a runtime flow reaches its terminal completion surface —
+   * either the canonical /results/:id route or the inline "Workout Complete"
+   * review dialog.
    */
   async awaitRuntimeIdle(): Promise<void> {
-    await this.page.waitForURL(/\/review\//, { timeout: 10_000 });
+    const reviewDialog = this.page.getByRole('dialog', { name: 'Workout Complete' });
+    await Promise.race([
+      this.page.waitForURL(/\/results\//, { timeout: 10_000 }),
+      reviewDialog.waitFor({ state: 'visible', timeout: 10_000 }),
+    ]);
   }
 
   // ── Editor ───────────────────────────────────────────────────────────────
@@ -169,12 +175,10 @@ export abstract class BaseNotePage {
 
   // ── Workout actions ──────────────────────────────────────────────────────
 
-  /** Click the "Run" button that appears inside the editor overlay. */
+  /** Click the "Run" / "Play" button that appears inside the editor command bar. */
   async startWorkoutFromEditor() {
-    const startBtn = this.page
-      .locator('[data-testid="editor-start-workout"]')
-      .first();
-    await startBtn.waitFor({ state: 'visible', timeout: 5_000 });
+    const startBtn = this.page.getByTestId(TEST_IDS.EDITOR_START_WORKOUT).first();
+    await expect(startBtn).toBeVisible({ timeout: 5_000 });
     await startBtn.click();
   }
 
@@ -182,7 +186,6 @@ export abstract class BaseNotePage {
   async openActionsMenu() {
     const trigger = this.page.getByRole('button', { name: /Page options/i }).first();
     await trigger.click();
-    await this.page.waitForTimeout(200);
   }
 
   // ── Assertions ───────────────────────────────────────────────────────────

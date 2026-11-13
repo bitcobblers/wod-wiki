@@ -25,7 +25,6 @@
  */
 
 import { test, expect, type Page } from '@playwright/test';
-import type { EditorView } from '@codemirror/view';
 import { seedJournalNote } from '../helpers/wodwikiDb';
 import { waitForFeedReady } from '../helpers/feedReadiness';
 
@@ -65,10 +64,24 @@ const lineStart = (idx: number) =>
 
 const LINE_HEIGHT = 22;
 
+interface CmBrowserView {
+  focus: () => void;
+  dispatch: (tr: {
+    changes?: { from: number; to: number; insert: string };
+    selection?: { anchor: number; head?: number };
+    scrollIntoView?: boolean;
+  }) => void;
+  state: {
+    doc: { length: number; toString: () => string };
+    selection: { main: { head: number; anchor: number } };
+  };
+  coordsAtPos: (pos: number) => { left: number; top: number } | null;
+}
+
 const viewHandle = (page: Page) =>
-  page.evaluateHandle((): EditorView => {
+  page.evaluateHandle((): CmBrowserView => {
     const host = document.querySelector('.cm-note-editor') as
-      | (HTMLElement & { __codemirrorView?: EditorView })
+      | (HTMLElement & { __codemirrorView?: CmBrowserView })
       | null;
     if (!host?.__codemirrorView) throw new Error('editor view not exposed');
     return host.__codemirrorView;
@@ -76,37 +89,31 @@ const viewHandle = (page: Page) =>
 
 /** Focus the editor, place the caret, and let CM settle measurement. */
 async function setCaret(page: Page, pos: number) {
-  await page.evaluate(
-    ([view, head]: [EditorView, number]) => {
-      view.focus();
-      view.dispatch({ selection: { anchor: head, head }, scrollIntoView: true });
-    },
-    [await viewHandle(page), pos] as [EditorView, number],
-  );
+  const handle = await viewHandle(page);
+  await handle.evaluate((view, head) => {
+    view.focus();
+    view.dispatch({ selection: { anchor: head, head }, scrollIntoView: true });
+  }, pos);
   await page.evaluate(() => {
     const { promise, resolve } = Promise.withResolvers<void>();
-    requestAnimationFrame(() => requestAnimationFrame(resolve));
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     return promise;
   });
 }
 
 async function getHead(page: Page): Promise<number> {
-  return page.evaluate(
-    (view: EditorView) => view.state.selection.main.head,
-    await viewHandle(page),
-  );
+  const handle = await viewHandle(page);
+  return handle.evaluate((view) => view.state.selection.main.head);
 }
 
 /** Viewport coords of the caret position. */
 async function coordsAt(page: Page, pos: number): Promise<{ x: number; y: number }> {
-  return page.evaluate(
-    ([view, pos]: [EditorView, number]) => {
-      const rect = view.coordsAtPos(pos);
-      if (!rect) throw new Error(`no coords for pos ${pos}`);
-      return { x: rect.left, y: rect.top };
-    },
-    [await viewHandle(page), pos] as [EditorView, number],
-  );
+  const handle = await viewHandle(page);
+  return handle.evaluate((view, targetPos) => {
+    const rect = view.coordsAtPos(targetPos);
+    if (!rect) throw new Error(`no coords for pos ${targetPos}`);
+    return { x: rect.left, y: rect.top };
+  }, pos);
 }
 
 test('note editor: opens focused and editable, arrows walk visual rows, Home no-op on empty line', async ({ page }) => {
@@ -176,10 +183,10 @@ test('note editor: opens focused and editable, arrows walk visual rows, Home no-
   // Shift+Up extends the selection by exactly one visual row.
   await setCaret(page, lineStart(12));
   await page.keyboard.press('Shift+ArrowUp');
-  const selection = await page.evaluate((view: EditorView) => {
+  const selection = await (await viewHandle(page)).evaluate((view) => {
     const sel = view.state.selection.main;
     return { head: sel.head, anchor: sel.anchor };
-  }, await viewHandle(page));
+  });
   expect(selection.head).toBe(lineStart(11));
   expect(selection.anchor).toBe(lineStart(12));
 
@@ -221,17 +228,16 @@ test('note editor: opens focused and editable, arrows walk visual rows, Home no-
     .locator('[data-frontmatter-row="property"]')
     .getByLabel('Property key: property', { exact: true })
     .fill('stale_draft');
-  await page.evaluate(
-    ({ view, content }: { view: EditorView; content: string }) => view.dispatch({
+  await (await viewHandle(page)).evaluate(
+    (view, content) => view.dispatch({
       changes: { from: 0, to: view.state.doc.length, insert: content },
       selection: { anchor: content.length },
     }),
-    { view: await viewHandle(page), content: CONTENT },
+    CONTENT,
   );
   await setCaret(page, CONTENT.length);
-  expect(await page.evaluate(
-    (view: EditorView) => view.state.doc.toString(),
-    await viewHandle(page),
+  expect(await (await viewHandle(page)).evaluate(
+    (view) => view.state.doc.toString(),
   )).toBe(CONTENT);
 
   expect(errors, 'no page errors during navigation').toHaveLength(0);

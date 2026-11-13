@@ -1,4 +1,5 @@
 {
   "cssTheme": "Iridium",
-  "accentColor": "#a7977b"
+  "accentColor": "#a7977b",
+  "showRibbon": true
 }

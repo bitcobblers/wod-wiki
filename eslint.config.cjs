@@ -117,4 +117,31 @@ module.exports = [
       ],
     },
   },
+  {
+    // Playwright E2E suite & configs: allow test runner console output and
+    // surface anti-patterns (fixed waitForTimeout sleeps, DOM evaluate clicks)
+    // as warnings on legacy specs while keeping zero-error lint enforcement.
+    files: ['e2e/**/*.ts', 'playwright*.config.ts'],
+    rules: {
+      'no-console': 'off',
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector: "CallExpression[callee.name='require']",
+          message: 'Use ES module import instead of require().',
+        },
+        {
+          selector: "CallExpression[callee.property.name='waitForTimeout']",
+          message:
+            'Avoid fixed waitForTimeout sleeps in Playwright specs; prefer web-first expect() assertions or expect.poll().',
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='evaluate'] CallExpression[callee.property.name='click']",
+          message:
+            'Avoid DOM element.click() inside evaluate(); use Playwright pointer .click() so hit-testing is verified.',
+        },
+      ],
+    },
+  },
 ];

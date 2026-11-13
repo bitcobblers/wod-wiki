@@ -25,10 +25,10 @@ async function openAndRun(page: Page, id: string, document: string): Promise<str
   await seedNote(page, `playground/${id}`, document, { type: 'playground', title: id });
   await page.goto(`/playground/${id}`, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.cm-content[contenteditable="true"]')).toBeVisible({ timeout: 15_000 });
-  const play = page.getByRole('button', { name: 'Play', exact: true }).first();
+  const play = page.getByTestId(TEST_IDS.EDITOR_START_WORKOUT).first();
   await expect(play).toBeVisible({ timeout: 15_000 });
-  await play.evaluate((element) => (element as HTMLElement).click());
-  await page.waitForURL(/\/(tracker|run)\//, { timeout: 15_000 });
+  await play.click();
+  await page.waitForURL(/\/run\//, { timeout: 15_000 });
   await expect(page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK).first()).toBeVisible({ timeout: 15_000 });
   return pageErrors;

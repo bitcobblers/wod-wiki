@@ -6,7 +6,10 @@ test.describe('ANL-05 — Recovery Sample Coverage, Precision & User Dashboard D
     app,
   }) => {
     const { page } = app;
-    await page.setViewportSize({ width: 1280, height: 850 });
+    const isMobile = (page.viewportSize()?.width ?? 1280) <= 480;
+    if (!isMobile) {
+      await page.setViewportSize({ width: 1280, height: 850 });
+    }
     await app.goto('/dashboards?q=sum%3AtotalVolume%7B%7D+by+%7Bweek%7D');
 
     // Load sample data if prompt is shown
@@ -20,7 +23,12 @@ test.describe('ANL-05 — Recovery Sample Coverage, Precision & User Dashboard D
 
     // WW-028: Recovery & Readiness renders real charts with sample data
     await app.goto('/dashboard/recovery-readiness');
-    await expect(page.getByRole('heading', { name: /Recovery & Readiness/i }).first()).toBeVisible();
+    if (isMobile) {
+      await expect(page.getByLabel('Breadcrumb')).toContainText('recovery-readiness');
+    } else {
+      await expect(page.getByRole('heading', { name: /Recovery & Readiness/i }).first()).toBeVisible();
+    }
+    await expect(page.getByRole('heading', { name: /Readiness today/i }).first()).toBeVisible();
     // Wait for widget queries to settle and confirm widgets no longer all show "No data for this range."
     await expect
       .poll(
@@ -34,6 +42,12 @@ test.describe('ANL-05 — Recovery Sample Coverage, Precision & User Dashboard D
 
     // Prebuilt dashboard must not expose Delete dashboard button
     await expect(page.getByTestId(TEST_IDS.DELETE_DASHBOARD_BUTTON)).toHaveCount(0);
+    if (isMobile) {
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, 'no horizontal overflow on /dashboard/recovery-readiness at 375px').toBeLessThanOrEqual(0);
+    }
 
     // WW-029: Empty-range query in explorer hides contradictory records-toggle
     await app.goto('/dashboards?q=sum%3AtotalVolume%7Beffort%3Anonexistent-effort-xyz%7D+by+%7Bweek%7D');
@@ -47,23 +61,33 @@ test.describe('ANL-05 — Recovery Sample Coverage, Precision & User Dashboard D
     app,
   }) => {
     const { page } = app;
-    await page.setViewportSize({ width: 1280, height: 850 });
+    const isMobile = (page.viewportSize()?.width ?? 1280) <= 480;
+    if (!isMobile) {
+      await page.setViewportSize({ width: 1280, height: 850 });
+    }
     await app.goto('/dashboards?q=sum%3AtotalVolume%7B%7D+by+%7Bweek%7D');
 
     // Save widget into a new user dashboard
-    await page.getByRole('button', { name: /^Save$/i }).first().click();
+    await page.getByTestId('save-query').click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
-    const titleInput = dialog.getByLabel(/Title/i).or(dialog.locator('input[type="text"]').first());
-    await titleInput.first().fill('QA Disposable Volume Widget');
-    await dialog.getByRole('button', { name: /Add to dashboard|Apply|Save/i }).last().click();
+    await dialog.getByLabel(/^Title$/i).fill('QA Disposable Volume Widget');
+    await dialog.getByTestId('widget-composer-apply').click();
 
     await expect(page).toHaveURL(/\/dashboard\//, { timeout: 15_000 });
 
     // Enter Edit mode and delete user-created dashboard (analytics finding #7)
-    const editBtn = page.getByRole('button', { name: /^Edit$/i }).first();
-    await expect(editBtn).toBeVisible({ timeout: 10_000 });
-    await editBtn.click();
+    if (isMobile) {
+      await page.getByRole('button', { name: 'Open page options' }).click();
+      const mobileEdit = page.locator('button:visible', { hasText: /^Edit$/ }).first();
+      await expect(mobileEdit).toBeVisible({ timeout: 10_000 });
+      await mobileEdit.click();
+      await page.keyboard.press('Escape');
+    } else {
+      const editBtn = page.getByTestId('dashboard-edit-toggle');
+      await expect(editBtn).toBeVisible({ timeout: 10_000 });
+      await editBtn.click();
+    }
     const deleteBtn = page.getByTestId(TEST_IDS.DELETE_DASHBOARD_BUTTON);
     await expect(deleteBtn).toBeVisible();
     await deleteBtn.click();

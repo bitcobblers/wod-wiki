@@ -18,27 +18,26 @@ test.describe('PRP-03 — Effort Creation, WQL Syntax Guidance & Mobile Tag Layo
 
     await app.wql.fillStreamQueryBar(':effort{oops');
     await expect(status).toContainText('Invalid query — showing previous results');
-    await expect(status).toContainText(':effort{text:...}');
+    await expect(status.getByTestId(TEST_IDS.STREAM_QUERY_SYNTAX_HINT)).toHaveText(
+      'Syntax: :effort{key:value} — supported keys: effort, discipline, intensity, origin, text. Example: :effort{text:kettlebell}',
+    );
 
     // Create new Effort via + Add dialog (WW-035)
-    await page.getByRole('button', { name: /\+ Add/i }).first().click();
+    await page.getByTestId(TEST_IDS.EFFORTS_CREATE_BTN).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
 
-    // Select Catalog / Effort tab or radio option
-    const catalogBtn = dialog.getByRole('button', { name: /Catalog/i });
-    if (await catalogBtn.count()) {
-      await catalogBtn.first().click();
-    }
-    const effortOption = dialog.getByRole('button', { name: /^Effort$/i }).or(dialog.getByText(/^Effort$/i));
-    if (await effortOption.count()) {
-      await effortOption.first().click();
-    }
+    // Verify Catalog section and select Effort option deterministically
+    await expect(dialog.getByText('Catalog', { exact: true })).toBeVisible();
+    const effortOption = dialog.getByTestId('new-entry-effort');
+    await expect(effortOption).toBeVisible();
+    await effortOption.click();
+    await expect(effortOption).toHaveAttribute('aria-pressed', 'true');
 
-    const titleInput = dialog.getByLabel(/Title|Name/i).or(dialog.locator('input[type="text"]').first());
+    const titleInput = dialog.getByTestId(TEST_IDS.ENTRY_CREATE_TITLE_INPUT);
     const uniqueName = `QA Turkish Get Up ${Date.now().toString().slice(-4)}`;
-    await titleInput.first().fill(uniqueName);
-    await dialog.getByRole('button', { name: /^Create$/i }).click();
+    await titleInput.fill(uniqueName);
+    await dialog.getByTestId(TEST_IDS.ENTRY_CREATE_SUBMIT_BTN).click();
 
     await expect(page).toHaveURL(/\/effort\/qa-turkish-get-up/);
     await expect(page.getByTestId(TEST_IDS.EFFORT_NOT_FOUND)).toHaveCount(0);

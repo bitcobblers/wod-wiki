@@ -116,6 +116,13 @@ jobs:
           PLAYWRIGHT_BLOB_REPORT: '1'
           E2E_APP_URL: ${{ env.TARGET_URL }}
 
+      - name: Run Playground smoke suite
+        if: matrix.shard == 1
+        run: bun run test:e2e:smoke
+        env:
+          CI: true
+          E2E_APP_URL: ${{ env.TARGET_URL }}
+
       - name: Upload shard blob report
         uses: actions/upload-artifact@v7
         if: always()

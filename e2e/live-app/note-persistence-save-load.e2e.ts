@@ -15,7 +15,7 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { JournalEntryPage } from '../pages/JournalEntryPage';
-import { seedJournalNote, seedCompletedSessions, clearResults, getResults, WOD_DB } from '../helpers/wodwikiDb';
+import { seedJournalNote, seedCompletedSessions, clearResults, getResults } from '../helpers/wodwikiDb';
 import { waitForFeedReady } from '../helpers/feedReadiness';
 import { clearSessions, getSessions } from '../utils/sessionsDb';
 import { TEST_IDS } from '../contracts/TestIdContract';
@@ -132,18 +132,13 @@ test.describe('Note Persistence — save / load / workout flow', () => {
     // Replace content with a WOD block
     await journal.replaceEditorContent(wodContent);
     // Blocks-parsed signal: the block's run control mounts (bounded auto-wait).
-    await expect(page.locator('[data-testid="editor-start-workout"]').first()).toBeVisible({ timeout: 10_000 });
+    const runControl = page.getByTestId(TEST_IDS.EDITOR_START_WORKOUT).first();
+    await expect(runControl).toBeVisible({ timeout: 10_000 });
 
     await page.screenshot({ path: testInfo.outputPath('persistence-02a-before-start.png') });
 
-    // Start the workout via the block's inline run control. The journal WOD
-    // block action is "Run" (data-testid=editor-start-workout, InlineCommandBar)
-    // — the old actions-menu "Workout → Run" dropdown is retired. DOM-click:
-    // the block overlay's decoration layers can intercept pointer events
-    // (see wod-index-play-button.e2e.ts).
-    const runControl = page.locator('[data-testid="editor-start-workout"]').first();
-    await expect(runControl).toBeVisible({ timeout: 10_000 });
-    await runControl.evaluate((el) => (el as HTMLElement).click());
+    // Start the workout via the block's inline run control (InlineCommandBar).
+    await runControl.click();
 
     // Runtime session contract: the inline tracker mounts with its accessible
     // Stop control (the old FullscreenTimer "Close" text button is retired).
@@ -259,19 +254,17 @@ test.describe('Note Persistence — save / load / workout flow', () => {
   const OVERLAY_WOD = '```time\n0:03 Count Down\n10 Pushups\n```';
 
   /**
-   * Open /notes/:id once (seeding the note), then start overlay runs against
-   * it. Later runs skip the seed so results stack in one note — the Run
-   * control is DOM-clicked, which bypasses the block overlay's pointer
-   * interception and hover gating alike.
+   * Open /note/:id once (seeding the note), then start overlay runs against
+   * it. Later runs skip the seed so results stack in one note.
    */
   async function startOverlayRun(page: Page, seed = true): Promise<void> {
     if (seed) {
       await seedJournalNote(page, NOTE_DATE, `# Overlay Run\n\n${OVERLAY_WOD}\n`);
       await page.goto(`/note/${encodeURIComponent(NOTE_ID)}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
     }
-    const runControl = page.locator('[data-testid="editor-start-workout"]').first();
-    await expect(runControl).toBeAttached({ timeout: 15_000 });
-    await runControl.evaluate((el) => (el as HTMLElement).click());
+    const runControl = page.getByTestId(TEST_IDS.EDITOR_START_WORKOUT).first();
+    await expect(runControl).toBeVisible({ timeout: 15_000 });
+    await runControl.click();
     // Track view mounts (Exit = FocusedDialog close control).
     await expect(page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first()).toBeVisible({ timeout: 8_000 });
     // Leave the SessionRoot gate — Next advances into the countdown.

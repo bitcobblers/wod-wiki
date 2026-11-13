@@ -386,6 +386,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                                     role="timer"
                                     aria-live="polite"
                                     aria-atomic="true"
+                                    data-testid={TEST_IDS.TIMER_DISPLAY}
                                 >
                                     {formatTime(displayTimeMs)}
                                 </span>

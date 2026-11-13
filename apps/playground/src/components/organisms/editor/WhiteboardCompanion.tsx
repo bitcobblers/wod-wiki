@@ -31,6 +31,7 @@ import { History, Activity } from "lucide-react";
 import { Button } from "@/components/atoms/primitives/button";
 import { ButtonGroup } from "@/components/molecules/ButtonGroup";
 import type { INavActivation } from "@/nav/navTypes";
+import { TEST_IDS } from "@/lib/testIds";
 
 // ── Singleton parser (created once per module) ───────────────────────
 const parser = new MdTimerRuntime();
@@ -250,11 +251,12 @@ const CommandPill: React.FC<{
       <Button
         variant={cmd.primary ? "default" : "secondary"}
         className={cn(
-          "h-11 w-11 rounded-full p-0 text-[10px] font-medium shadow-sm gap-0 sm:h-auto sm:min-h-[44px] sm:w-auto sm:gap-1 sm:rounded-sm sm:px-2 sm:py-0.5",
+          "scroll-mt-20 h-11 w-11 rounded-full p-0 text-[10px] font-medium shadow-sm gap-0 sm:h-auto sm:min-h-[44px] sm:w-auto sm:gap-1 sm:rounded-sm sm:px-2 sm:py-0.5",
           !cmd.primary && "border border-border/50",
         )}
         title={cmd.label}
         aria-label={cmd.label}
+        data-testid={cmd.id === "run" || cmd.id === "play" ? TEST_IDS.EDITOR_START_WORKOUT : undefined}
         onClick={(e) => { stopEvent(e); cmd.onClick(block); }}
         onMouseDown={stopEvent}
         onPointerDown={stopEvent}

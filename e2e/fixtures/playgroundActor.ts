@@ -61,6 +61,7 @@ export interface PlaygroundTestActor {
   readonly page: Page;
   goto(path: string): Promise<void>;
   assertCleanConsole(): void;
+  allowPageErrors(): void;
 
   readonly seed: {
     world(input: DomainWorldInput): Promise<SeedWorldResult>;
@@ -148,6 +149,7 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
   app: async ({ page }, use, testInfo) => {
     const pageErrors: string[] = [];
     const consoleErrors: string[] = [];
+    let pageErrorsAllowed = false;
 
     page.on('pageerror', (err) => pageErrors.push(err.message));
     page.on('console', (msg) => {
@@ -174,6 +176,10 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
       assertCleanConsole(): void {
         expect(pageErrors, `Uncaught page errors:\n${pageErrors.join('\n')}`).toEqual([]);
         expect(consoleErrors, `Console errors:\n${consoleErrors.join('\n')}`).toEqual([]);
+      },
+
+      allowPageErrors(): void {
+        pageErrorsAllowed = true;
       },
 
       seed: {
@@ -744,7 +750,12 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
       },
     };
 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(actor);
+
+    if (!pageErrorsAllowed) {
+      expect(pageErrors, `Uncaught page errors:\n${pageErrors.join('\n')}`).toEqual([]);
+    }
   },
 });
 

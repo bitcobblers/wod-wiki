@@ -3,10 +3,10 @@ import { seedNote } from '../helpers/wodwikiDb';
 import { TEST_IDS } from '../contracts/TestIdContract';
 
 /**
- * WallClockPage — Page Object for /tracker/:runtimeId
+ * WallClockPage — Page Object for /run/:runtimeId
  *
- * A full-screen overlay (FocusedDialog + RuntimeTimerPanel) that runs a
- * compiled ScriptBlock.  This is NOT a NoteEditor page, but it is part of the
+ * A full-screen overlay (FocusedDialog + FullscreenTimer) that runs a
+ * compiled ScriptBlock. This is NOT a NoteEditor page, but it is part of the
  * Note Template execution flow.
  */
 export class WallClockPage {
@@ -19,7 +19,7 @@ export class WallClockPage {
   // ── Navigation ───────────────────────────────────────────────────────────
 
   async goto(runtimeId: string) {
-    await this.page.goto(`/tracker/${runtimeId}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    await this.page.goto(`/run/${runtimeId}`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await this.waitForLoad();
   }
 
@@ -31,7 +31,11 @@ export class WallClockPage {
   // ── Overlay chrome ───────────────────────────────────────────────────────
 
   overlay(): Locator {
-    return this.page.locator('.fixed.inset-0.z-\[100\]').first();
+    return this.page
+      .locator(
+        `[data-testid="${TEST_IDS.TIMER_FULLSCREEN_OVERLAY}"], [role="dialog"]:has([data-testid="${TEST_IDS.FOCUSED_DIALOG_CLOSE}"])`,
+      )
+      .first();
   }
 
   closeButton(): Locator {
@@ -44,17 +48,17 @@ export class WallClockPage {
 
   // ── Timer controls ───────────────────────────────────────────────────────
 
-  /** Main timer circle — toggles play/pause. */
+  /** Primary play/pause control button. */
   timerCircle(): Locator {
-    return this.page.locator('button:has(.title-play), button:has(.title-pause)').first();
+    return this.page.locator(`[data-testid="${TEST_IDS.TIMER_PLAY_PAUSE}"]:visible`).first();
   }
 
   startButton(): Locator {
-    return this.page.locator('.title-play').first();
+    return playIconButton(this.page);
   }
 
   pauseButton(): Locator {
-    return this.page.locator('.title-pause').first();
+    return pauseIconButton(this.page);
   }
 
   stopButton(): Locator {
@@ -84,7 +88,7 @@ export class WallClockPage {
   // ── Timer display ────────────────────────────────────────────────────────
 
   timerDisplay(): Locator {
-    return this.page.locator('.font-mono.font-semibold.tracking-tighter').first();
+    return this.page.locator(`[data-testid="${TEST_IDS.TIMER_DISPLAY}"]:visible`).first();
   }
 
   async timerText(): Promise<string> {
@@ -115,7 +119,7 @@ export class WallClockPage {
 /** Main timer display, parsed to seconds. Throws on unparseable text. */
 export async function timerSeconds(page: Page): Promise<number> {
   const text = await page
-    .locator('.font-mono.tracking-tighter')
+    .locator(`[data-testid="${TEST_IDS.TIMER_DISPLAY}"]:visible`)
     .first()
     .innerText();
   const m = text.match(/(\d{1,3}):(\d{2})/);
@@ -142,18 +146,13 @@ export async function navigateToRunPage(page: Page, id: string, wodScript: strin
   await page.goto(`/playground/${id}`, { waitUntil: 'domcontentloaded', timeout: 15_000 });
   await expect(page.locator('.cm-content[contenteditable="true"]').first()).toBeAttached({ timeout: 10_000 });
 
-  // Blocks-parsed signal: the Play overlay button itself (bounded auto-wait,
-  // replaces the fixed 2s "let blocks parse" sleep).
-  const play = page.getByRole('button', { name: 'Play', exact: true }).first();
+  // Blocks-parsed signal: the Play/Start workout button on InlineCommandBar.
+  const play = page.getByTestId(TEST_IDS.EDITOR_START_WORKOUT).first();
   await expect(play).toBeVisible({ timeout: 10_000 });
-  // DOM click, not pointer click: the block overlay's decoration layers
-  // intermittently cover the button's center point, so pointer events land
-  // on the overlay instead of the button (force-click included). el.click()
-  // bypasses hit-testing and still fires the React handler.
-  await play.evaluate((el) => (el as HTMLElement).click());
+  await play.click();
 
-  // PlaygroundNotePage uses enableInlineRuntime={false} → tracker route.
-  await page.waitForURL(/\/(tracker|run)\//, { timeout: 10_000 });
+  // PlaygroundNotePage uses enableInlineRuntime={false} → /run/:runtimeId route.
+  await page.waitForURL(/\/run\//, { timeout: 10_000 });
   // The FocusedDialog close button is present whether the runtime is
   // initializing, ready, or running — the stable "overlay mounted" signal.
   await expect(page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first()).toBeVisible({ timeout: 8_000 });
@@ -183,17 +182,17 @@ export async function startWorkoutFromPlayground(page: Page, id: string, wodScri
 
 /** Advance Next until the review surface appears: the inline "Workout
  *  Complete" dialog on /run (the fullscreen review stays mounted on /run
- *  until it is explicitly exited) or a completion route (/sessions/:id,
- *  retired /review, or /results — or fail after maxClicks). */
+ *  until it is explicitly exited) or a canonical completion route
+ *  (/results/:id or /sessions — or fail after maxClicks). */
 export async function advanceUntilReview(page: Page, maxClicks = 8): Promise<void> {
   const reviewDialog = page.getByRole('dialog', { name: 'Workout Complete' });
   const atReview = async (): Promise<boolean> =>
-    /\/(dashboard|review|results|sessions?)/.test(page.url()) ||
+    /\/(results|sessions?)\b/.test(page.url()) ||
     (await reviewDialog.isVisible().catch(() => false));
   // Race both completion signals; whichever lands first resolves the wait.
   const waitReview = (timeout: number): Promise<void> =>
     Promise.race([
-      page.waitForURL(/\/(dashboard|review|results|sessions?)/, { timeout }).catch(() => {}),
+      page.waitForURL(/\/(results|sessions?)\b/, { timeout }).catch(() => {}),
       reviewDialog.waitFor({ state: 'visible', timeout }).catch(() => {}),
     ]);
   const closeOverlay = page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first();
@@ -215,7 +214,7 @@ export async function advanceUntilReview(page: Page, maxClicks = 8): Promise<voi
       await waitReview(8_000);
       break;
     }
-    await nextBtn.click().catch(() => {});
+    await nextBtn.click({ timeout: 1_500 }).catch(() => {});
     await waitReview(600);
   }
   if (!(await atReview())) {

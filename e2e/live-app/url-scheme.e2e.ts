@@ -207,8 +207,9 @@ test.describe('URL scheme — saved settings survive the rename', () => {
     await page.goto('/notebooks', { waitUntil: 'domcontentloaded', timeout: 20_000 });
     await waitForFeedReady(page);
     // The migrated default query narrows the stream to the girls notebook —
-    // visible in the composer's committed query chip.
-    await expect(page.getByTestId('stream-query-status')).toContainText(/crossfit-girls|notebook/, { timeout: 30_000 });
+    // visible in the composer's committed query chip and applied filter count.
+    await expect(page.getByTestId('stream-query-bar')).toContainText('crossfit-girls', { timeout: 30_000 });
+    await expect(page.getByTestId('stream-query-status')).toContainText('1 applied', { timeout: 30_000 });
   });
 });
 

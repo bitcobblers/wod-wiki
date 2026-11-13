@@ -18,16 +18,24 @@ class SectionGeometryPlugin {
   docVersion: number = 0;
   private listeners: Set<GeometryListener> = new Set();
   private pendingNotify: number | null = null;
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor(private view: EditorView) {
     this.measure();
+    if (typeof ResizeObserver !== "undefined" && this.view.contentDOM) {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.view.requestMeasure();
+        this.measure();
+      });
+      this.resizeObserver.observe(this.view.contentDOM);
+    }
   }
 
   update(update: ViewUpdate) {
     if (update.docChanged) {
       this.docVersion++;
     }
-    if (update.docChanged || update.geometryChanged) {
+    if (update.docChanged || update.geometryChanged || update.viewportChanged) {
       this.measure();
     }
   }
@@ -103,6 +111,8 @@ class SectionGeometryPlugin {
     if (this.pendingNotify !== null && typeof cancelAnimationFrame === 'function') {
       cancelAnimationFrame(this.pendingNotify);
     }
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.listeners.clear();
   }
 }

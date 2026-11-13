@@ -102,11 +102,15 @@ export default defineConfig({
       },
     },
     {
-      // Mobile gate (map #990): key routes at a 375px viewport, forced light
-      // theme + pre-seeded core IndexedDB from journal-setup.
+      // Mobile gate (map #990): key routes + verified mobile-ready Level-2
+      // journeys at a 375×812 viewport, forced light theme + pre-seeded core
+      // IndexedDB from journal-setup.
       name: 'journal-mobile-375',
       dependencies: ['journal-setup'],
-      testMatch: '**/gates/*.mobile.smoke.e2e.ts',
+      testMatch: [
+        '**/gates/*.mobile.smoke.e2e.ts',
+        '**/live-app/recovery-sample-and-dashboard-lifecycle.e2e.ts',
+      ],
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 375, height: 812 },

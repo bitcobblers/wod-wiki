@@ -161,6 +161,7 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
             role="timer"
             aria-live="polite"
             aria-atomic="true"
+            data-testid={TEST_IDS.TIMER_DISPLAY}
           >
             {formatTime(model.displayMs)}
           </span>

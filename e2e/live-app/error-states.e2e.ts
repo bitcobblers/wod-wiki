@@ -23,9 +23,6 @@ async function openNote(page: Page, id: string, content: string): Promise<void> 
   await seedNote(page, `playground/${id}`, content, { type: 'playground', title: id });
   await page.goto(`/playground/${id}`, { waitUntil: 'domcontentloaded', timeout: 15_000 });
   await expect(page.locator('.cm-content[contenteditable="true"]').first()).toBeAttached({ timeout: 10_000 });
-  // Deliberate timing window: the linter has no ready signal — its 500ms
-  // debounce must elapse before error-state assertions can observe squiggles.
-  await page.waitForTimeout(2_000);
 }
 
 test.describe('Error-Path Resilience', () => {
@@ -56,15 +53,29 @@ test.describe('Error-Path Resilience', () => {
 
   test('syntactically broken wod block surfaces a lint marker or disables Play', async ({ page }) => {
     // "(2" — an unclosed round directive — is genuinely invalid Whiteboard
-    // syntax: the Lezer parser emits an error node, which the wod-linter
-    // extension (@codemirror/lint) surfaces as a gutter marker.
+    // syntax: the Lezer parser emits an error node, which NoteEditor surfaces
+    // via gutterUnified (.cm-gutter-error) and @codemirror/lint
+    // (.cm-lintPoint-error / .cm-lintRange-error; zero-width point diagnostics
+    // paint their red caret via ::after rather than element box width).
     await openNote(page, 'error-bad-syntax', '# Bad\n\n```time\n(2\n  5 Burpees\n```\n');
 
-    const lintMarker = page.locator('.cm-lint-marker-error, .cm-lint-marker.cm-lint-marker-error');
-    const play = page.getByRole('button', { name: 'Play', exact: true });
+    const gutterError = page.locator('.cm-unified-gutter-marker.cm-gutter-error');
+    const lintDiagnostic = page.locator('.cm-lintPoint-error, .cm-lintRange-error');
 
-    // Either the linter surfaces the error, or the broken block yields no Play.
-    await expect(lintMarker.or(play)).toBeVisible({ timeout: 10_000 });
+    await expect(gutterError.first()).toBeAttached({ timeout: 10_000 });
+    await expect(lintDiagnostic.first()).toBeAttached({ timeout: 10_000 });
+    await expect
+      .poll(
+        () =>
+          lintDiagnostic.first().evaluate((el) => {
+            const rect = el.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) return true;
+            const after = window.getComputedStyle(el, '::after');
+            return parseFloat(after.borderBottomWidth) > 0 && after.content !== 'none';
+          }),
+        { timeout: 10_000 },
+      )
+      .toBe(true);
     expect(errors).toEqual([]);
   });
 
@@ -164,6 +175,7 @@ test.describe('Error-Path Resilience', () => {
     await page.getByRole('button', { name: /go home/i }).click();
     await page.waitForURL(({ pathname }) => pathname === '/', { timeout: 10_000 });
     await expect(page.locator('#root')).not.toBeEmpty();
+    expect(errors).toEqual([]);
     await context.close();
   });
 });

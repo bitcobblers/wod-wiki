@@ -480,11 +480,11 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
       ref={panelRef}
       className={cn(
         "cm-metric-inline-panel",
-        "absolute z-40 pointer-events-auto",
+        "absolute z-[15]",
         "inline-flex items-center gap-1 px-1.5 py-0.5 min-h-[22px]",
         pos.belowLine
-          ? "bg-card border border-border rounded-[6px]"
-          : "bg-transparent",
+          ? "pointer-events-auto bg-card border border-border rounded-[6px]"
+          : "pointer-events-none bg-transparent",
         "transition-opacity duration-100 max-w-full",
       )}
       style={{
