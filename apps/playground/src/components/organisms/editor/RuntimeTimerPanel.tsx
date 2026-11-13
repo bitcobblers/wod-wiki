@@ -500,7 +500,14 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   // wizard's Start button sets pendingStart after resolving the choices.
   useEffect(() => {
     if ((autoStart || pendingStart) && ready && execution.status === 'idle') {
-      if (runtime && runtime.stack.current?.blockType === 'WaitingToStart') {
+      const waiting = runtime?.stack.current?.blockType === 'WaitingToStart';
+      if (waiting) {
+        if (!pendingStart) {
+          // autoStart opens the session at the Ready-to-Start gate (idle/ready);
+          // only explicit Start/Next (or wizard pendingStart) pops WaitingToStart
+          // and begins running.
+          return;
+        }
         runtime.handle(new NextEvent(undefined, runtime.nowProvider));
       }
       if (!runtime || runtime.stack.count > 0) {

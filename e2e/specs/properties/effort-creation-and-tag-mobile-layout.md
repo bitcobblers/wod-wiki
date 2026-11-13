@@ -15,9 +15,9 @@ Newly created `Effort` definitions resolve immediately on `/effort/:slug` withou
 
 Given a hydrated Playground workspace on `/efforts`:
 
-1. Athlete opens `/efforts`, enters plain-text `kettlebell` into the WQL bar, and reads the query status strip.
+1. Athlete opens `/efforts`, enters plain-text `kettlebell` into the WQL bar, then enters malformed `:effort{oops`, and reads the query status strip.
 2. Athlete opens the New Entry dialog (`+ Add`), selects Catalog -> Effort, enters `QA Turkish Get Up`, and clicks Create.
-- expect: Step 1 keeps previous results visible while displaying `'Invalid query — showing previous results'` alongside an actionable `:effort{text:kettlebell}` syntax hint.
+- expect: Step 1 resolves plain-text `kettlebell` via `:effort{text:kettlebell}` fallback (18 results), and for malformed `:effort{oops` keeps previous results visible while displaying `'Invalid query — showing previous results'` alongside an actionable `:effort{text:...}` syntax hint.
 - expect: Step 2 navigates to `/effort/qa-turkish-get-up` and immediately renders the `'QA Turkish Get Up'` Effort detail page without `'not found'` or requiring a hard reload.
 - expect: the browser console stays clean.
 

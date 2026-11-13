@@ -13,8 +13,12 @@ test.describe('PRP-03 — Effort Creation, WQL Syntax Guidance & Mobile Tag Layo
     await app.wql.fillStreamQueryBar('kettlebell');
 
     const status = page.getByTestId('stream-query-status');
+    await expect(status).toContainText(':effort');
+    await expect(status).toContainText('18 of');
+
+    await app.wql.fillStreamQueryBar(':effort{oops');
     await expect(status).toContainText('Invalid query — showing previous results');
-    await expect(status).toContainText(':effort{text:kettlebell}');
+    await expect(status).toContainText(':effort{text:...}');
 
     // Create new Effort via + Add dialog (WW-035)
     await page.getByRole('button', { name: /\+ Add/i }).first().click();
