@@ -1,4 +1,4 @@
-import { applySeedChunk, backfillFeedProvenance, migrateNotebookVocabulary, seedPrecedenceRank, type SeedChunkResult, type SeedChunkWrite } from '@bitcobblers/wod-wiki-engine';
+import { applySeedChunk, applySeedChunks, backfillFeedProvenance, migrateNotebookVocabulary, seedPrecedenceRank, type SeedChunkResult, type SeedChunkWrite } from '@bitcobblers/wod-wiki-engine';
 import { parseEffortFile, parseEquipmentFile } from '@bitcobblers/wod-wiki-lang';
 import type { SeedMetaRecord } from '@/types/seed';
 import type { IStorage } from '@/services/storage/IStorage';
@@ -9,6 +9,7 @@ export interface FeedImportStorage {
   getSeedMeta(key: string): Promise<SeedMetaRecord | undefined>;
   putSeedMeta(meta: SeedMetaRecord, expected?: SeedMetaRecord | null): Promise<void>;
   applyChunk(write: SeedChunkWrite): Promise<SeedChunkResult>;
+  applyChunks?(writes: SeedChunkWrite[]): Promise<SeedChunkResult>;
   /**
    * Stamp feed provenance on notes imported before the feed stamp existed —
    * a deterministic, idempotent repair driven by the existing checkpoints.
@@ -61,6 +62,9 @@ export class IndexedDBFeedImportStorage implements FeedImportStorage {
   }
   applyChunk(write: SeedChunkWrite): Promise<SeedChunkResult> {
     return applySeedChunk(this.storageInstance, write);
+  }
+  applyChunks(writes: SeedChunkWrite[]): Promise<SeedChunkResult> {
+    return applySeedChunks(this.storageInstance, writes);
   }
   backfillFeedProvenance(): Promise<number> {
     return backfillFeedProvenance(this.storageInstance);
@@ -211,6 +215,26 @@ export class InMemoryFeedStorage extends IndexedDBFeedImportStorage {
   constructor() { super(new InMemoryStorage()); }
   async applyChunk(write: SeedChunkWrite): Promise<SeedChunkResult> {
     const result = await super.applyChunk(write);
+    this.applyCount++;
+    return result;
+  }
+  async applyChunks(writes: SeedChunkWrite[]): Promise<SeedChunkResult> {
+    if (this.applyChunk !== InMemoryFeedStorage.prototype.applyChunk) {
+      const total: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
+      for (const w of writes) {
+        const part = await this.applyChunk(w);
+        total.totalNotes += part.totalNotes;
+        total.totalEfforts += part.totalEfforts;
+        total.totalEquipment += part.totalEquipment;
+        total.totalBlocks += part.totalBlocks;
+        total.skippedUserOwned += part.skippedUserOwned;
+        total.deleted += part.deleted;
+        total.addedNotes += part.addedNotes;
+        total.updatedNotes += part.updatedNotes;
+      }
+      return total;
+    }
+    const result = await super.applyChunks(writes);
     this.applyCount++;
     return result;
   }

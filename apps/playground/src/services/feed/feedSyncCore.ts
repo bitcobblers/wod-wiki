@@ -134,17 +134,17 @@ export async function runSourceSyncCore(
       return result;
     }
     if (stored && stored.schema !== SEED_SCHEMA) throw new Error('Incompatible seed checkpoint; recreate storage');
+    const targetChunks = manifest.chunks.filter((c) => {
+      if (input.notebookIds !== undefined && input.notebookIds !== null) {
+        if (input.notebookIds.length === 0) return false;
+        if (!input.notebookIds.includes(c.id) && c.id !== EFFORTS_CHUNK_ID && c.id !== EQUIPMENT_CHUNK_ID) return false;
+      }
+      return true;
+    });
     // Background check-only: auto-sync off → never fetch chunks or write
     // import checkpoints. A detected update lands in the grouped snapshot
     // and waits for a manual Sync; installed content stays untouched.
     if (deps.background && !input.autoSyncOn) {
-      const targetChunks = manifest.chunks.filter((c) => {
-        if (input.notebookIds !== undefined && input.notebookIds !== null) {
-          if (input.notebookIds.length === 0) return false;
-          if (!input.notebookIds.includes(c.id) && c.id !== EFFORTS_CHUNK_ID && c.id !== EQUIPMENT_CHUNK_ID) return false;
-        }
-        return true;
-      });
       const hasPending = targetChunks.some((c) => {
         const nb = manifest.notebooks?.find((n) => n.notebookId === c.id);
         const chunkStored = stored?.chunks[c.id];
@@ -155,7 +155,10 @@ export async function runSourceSyncCore(
       result.outcome = hasPending ? 'update-pending' : 'current';
       return result;
     }
-    if (!deps.force && decision === 'current' && stored?.schema === SEED_SCHEMA && stored.builtAt === manifest.builtAt) {
+    const hasStoredChunks = Boolean(stored && Object.keys(stored.chunks).length > 0);
+    const allTargetChunksCurrent = !hasStoredChunks || targetChunks.every((c) => stored?.chunks[c.id]?.sha256 === c.sha256);
+    const hasVanishedChunks = hasStoredChunks && Object.keys(stored!.chunks).some((id) => !manifest.chunks.some((c) => c.id === id));
+    if (!deps.force && decision === 'current' && stored?.schema === SEED_SCHEMA && stored.builtAt === manifest.builtAt && allTargetChunksCurrent && !hasVanishedChunks) {
       result.outcome = 'current';
       return result;
     }
@@ -176,7 +179,7 @@ export async function runSourceSyncCore(
         onFirstPaintApplied: () => callbacks.onFirstPaint?.(),
         onProgress: callbacks.onProgress,
         notebookIds: input.notebookIds,
-        granularRecords: input.granularRecords,
+        granularRecords: !deps.force && Boolean(input.granularRecords && hasStoredChunks),
         manifest,
         stored: claimed,
       });

@@ -176,10 +176,23 @@ async function putChanged<T>(store: IReadWriteStore<T>, values: T[], keys: IDBVa
   if (changed.length) await store.putMany(changed);
 }
 
-export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): Promise<SeedChunkResult> {
+interface PreparedSeedChunkWrite {
+  write: SeedChunkWrite;
+  ids: string[];
+  pagesBySlug: Map<string, string>;
+  linkIds: Map<string, string>;
+  tagIds: Map<string, string>;
+}
+
+const SEED_TX_STORES: Parameters<IStorage['transaction']>[0] = [
+  'notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment',
+  'page', 'page_notes', 'tags', 'note_tags', 'efforts', 'equipment',
+  'property_overrides', 'meta', 'sessions', 'events',
+];
+
+async function prepareSeedChunkWrite(write: SeedChunkWrite): Promise<PreparedSeedChunkWrite> {
   assertSeedManifest(write.manifest);
   assertSeedRows(write.rows);
-  const result: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
   const ids = await Promise.all(write.rows.map((row) => seedNoteId(row.path)));
   const pagesBySlug = new Map<string, string>();
   const linkIds = new Map<string, string>();
@@ -194,7 +207,44 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
       if (!tagIds.has(label)) tagIds.set(label, await seedNoteId(`tag:${label}`));
     }
   }
-  return storage.transaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'page', 'page_notes', 'tags', 'note_tags', 'efforts', 'equipment', 'property_overrides', 'meta', 'sessions', 'events'], 'readwrite', async (tx) => {
+  return { write, ids, pagesBySlug, linkIds, tagIds };
+}
+
+/**
+ * Apply multiple seed chunk writes inside ONE atomic storage transaction so
+ * partial non-canvas chunk counts are never exposed mid-import.
+ */
+export async function applySeedChunks(storage: IStorage, writes: SeedChunkWrite[]): Promise<SeedChunkResult> {
+  const empty: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
+  if (!writes.length) return empty;
+  const prepared = await Promise.all(writes.map(prepareSeedChunkWrite));
+  return storage.transaction(SEED_TX_STORES, 'readwrite', async (tx) => {
+    const total: SeedChunkResult = { ...empty };
+    for (const item of prepared) {
+      const part = await applyPreparedSeedChunkInTx(tx, item);
+      total.totalNotes += part.totalNotes;
+      total.totalEfforts += part.totalEfforts;
+      total.totalEquipment += part.totalEquipment;
+      total.totalBlocks += part.totalBlocks;
+      total.skippedUserOwned += part.skippedUserOwned;
+      total.deleted += part.deleted;
+      total.addedNotes += part.addedNotes;
+      total.updatedNotes += part.updatedNotes;
+    }
+    return total;
+  });
+}
+
+export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): Promise<SeedChunkResult> {
+  return applySeedChunks(storage, [write]);
+}
+
+async function applyPreparedSeedChunkInTx(
+  tx: Parameters<Parameters<IStorage['transaction']>[2]>[0],
+  prepared: PreparedSeedChunkWrite,
+): Promise<SeedChunkResult> {
+  const { write, ids, pagesBySlug, linkIds, tagIds } = prepared;
+  const result: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
     const metaStore = tx.readwrite('meta');
     // Durable user deletion intent (StorageService.deleteNote tombstones):
     // seed rows the user deleted through the app are never re-created by
@@ -508,7 +558,6 @@ export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): 
     await putChanged(pageLinks, pageNotes, pageNotes.map((p) => p.id));
     await metaStore.put(write.meta);
     return result;
-  });
 }
 
 /** One checkpoint's claim on a note: the feed that delivered it, the chunk

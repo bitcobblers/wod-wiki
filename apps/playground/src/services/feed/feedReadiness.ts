@@ -313,7 +313,7 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
         outcome !== 'error' &&
         all.some((s) => s.id !== 'core' && isFeedSubscribed(s.id))
       ) {
-        await runBootFeedSync({ ...deps, sources: all, onProgress })
+        await runBootFeedSync({ ...deps, sources: all.filter((s) => s.id !== 'core'), onProgress })
           .catch((err) => console.error('[feedSync] background boot sync failed', err));
       }
       freshBootImporting = false;

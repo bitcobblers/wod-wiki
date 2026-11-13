@@ -1,4 +1,6 @@
-import { assertNotebookIndex, assertSeedManifest, assertSeedRows, assertSeedRow, seedNoteId, type SeedChunkResult, type SeedRow, type SeedManifest } from '@bitcobblers/wod-wiki-engine';
+import { assertNotebookIndex, assertSeedManifest, assertSeedRows, assertSeedRow, seedNoteId, type SeedChunkResult, type SeedChunkWrite, type SeedRow, type SeedManifest } from '@bitcobblers/wod-wiki-engine';
+type SeedManifestChunk = SeedManifest['chunks'][number];
+type SeedManifestNotebook = NonNullable<SeedManifest['notebooks']>[number];
 import { CANVAS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_SCHEMA, emptySeedMeta, seedMetaKey, type SeedMetaRecord } from '@/types/seed';
 import type { IFeedSource } from './IFeedSource';
 import type { FeedImportStorage } from './FeedImportStorage';
@@ -82,100 +84,158 @@ export class FeedImporter {
         ...(completedRecords !== undefined ? { completedRecords } : {}),
         ...(totalRecords !== undefined ? { totalRecords } : {}),
       });
-    for (let i = 0; i < plan.length;) {
-      // ponytail: four fetches bound cold-import memory; tune from actual import traces.
-      const batch = plan.slice(i, i + (plan[i]?.id === CANVAS_CHUNK_ID ? 1 : 4));
-      for (const chunk of batch) {
-        let rows: SeedRow[];
-        const notebook = manifest.notebooks?.find((n) => n.notebookId === chunk.id);
-        let records = chunk.records;
-        const isIncremental = Boolean(meta.chunks[chunk.id] && opts.granularRecords && (notebook?.indexPath || chunk.records));
-        const useGranular = isIncremental || Boolean(opts.granularRecords && chunk.records && chunk.records.length > 0);
-        if (useGranular) {
-          if (isIncremental && notebook?.indexPath) {
-            const fetchedIndex = assertNotebookIndex(await this.source.fetchChunk(notebook.indexPath));
-            records = fetchedIndex.records;
-          }
-          if (records && records.length > 0) {
-            const commits = (!opts.forceAll && this.storage.getNoteCommits)
-              ? await this.storage.getNoteCommits(records.map((r) => r.uuid))
-              : undefined;
-            const neededRecords = commits
-              ? records.filter((r) => commits.get(r.uuid) !== r.commit)
-              : records;
-            if (isIncremental && neededRecords.length > records.length / 2) {
-              // Fall back to bulk chunk fetch when >50% changed
-              report('fetching', chunk.id);
-              const fetched = await this.source.fetchChunk(chunk.path);
-              rows = assertSeedRows(fetched);
-              if (rows.length !== chunk.count) throw new Error('Seed chunk count mismatch');
-            } else {
-              const fetchedRows: SeedRow[] = [];
-              let recIdx = 0;
-              for (const rec of neededRecords) {
-                report('fetching', chunk.id, rec.uuid, recIdx, neededRecords.length);
-                const fetched = await this.source.fetchChunk(rec.recordPath);
-                const r = Array.isArray(fetched) ? assertSeedRows(fetched) : [assertSeedRow(fetched)];
-                fetchedRows.push(...r);
-                recIdx++;
-              }
-              rows = fetchedRows;
-            }
-          } else {
-            report('fetching', chunk.id);
-            const fetched = await this.source.fetchChunk(chunk.path);
-            rows = assertSeedRows(fetched);
-            if (rows.length !== chunk.count) throw new Error('Seed chunk count mismatch');
-          }
-        } else {
-          report('fetching', chunk.id);
-          const fetched = await this.source.fetchChunk(chunk.path);
-          rows = assertSeedRows(fetched);
-          if (rows.length !== chunk.count) throw new Error('Seed chunk count mismatch');
-        }
-        // Granular membership is the manifest's complete record list, not the
-        // fetched subset: unchanged siblings must stay declared so they are
-        // not treated as vanished.
-        const noteIds = records && records.length > 0
-          ? records.map((r) => r.uuid)
-          : await Promise.all(rows.map((r) => seedNoteId(r.path)));
-        const next: SeedMetaRecord = {
-          ...meta,
-          seedVersion: manifest.version,
-          builtAt: manifest.builtAt,
-          chunks: {
-            ...meta.chunks,
-            [chunk.id]: {
-              sha256: chunk.sha256,
-              version: notebook?.version,
-              builtAt: notebook?.builtAt ?? manifest.builtAt,
-              importedAt: this.now(),
-              noteIds,
-            },
-          },
+    const accumulate = (committed: SeedChunkResult) => {
+      result.totalNotes += committed.totalNotes;
+      result.totalEfforts += committed.totalEfforts;
+      result.totalEquipment += committed.totalEquipment;
+      result.totalBlocks += committed.totalBlocks;
+      result.skippedUserOwned += committed.skippedUserOwned;
+      result.deleted += committed.deleted;
+      result.addedNotes += committed.addedNotes;
+      result.updatedNotes += committed.updatedNotes;
+    };
+    const buildChunkMeta = (chunk: SeedManifestChunk, notebook: SeedManifestNotebook | undefined, noteIds: string[]): SeedMetaRecord => ({
+      ...meta,
+      seedVersion: manifest.version,
+      builtAt: manifest.builtAt,
+      chunks: {
+        ...meta.chunks,
+        [chunk.id]: {
+          sha256: chunk.sha256,
+          version: notebook?.version,
+          builtAt: notebook?.builtAt ?? manifest.builtAt,
           importedAt: this.now(),
-        };
-        report('applying', chunk.id);
-        const committed = await this.storage.applyChunk({ chunkId: chunk.id, rows, manifest, expectedMeta: expected, meta: next });
-        result.totalNotes += committed.totalNotes; result.totalEfforts += committed.totalEfforts; result.totalEquipment += committed.totalEquipment; result.totalBlocks += committed.totalBlocks; result.skippedUserOwned += committed.skippedUserOwned; result.deleted += committed.deleted; result.addedNotes += committed.addedNotes; result.updatedNotes += committed.updatedNotes;
-        result.appliedChunks++;
-        meta = next; expected = next;
-        report('committed', chunk.id);
-        if (chunk.id === CANVAS_CHUNK_ID) opts.onFirstPaintApplied?.();
-      }
-      i += batch.length;
+          noteIds,
+        },
+      },
+      importedAt: this.now(),
+    });
+    let startIdx = 0;
+    if (plan[0]?.id === CANVAS_CHUNK_ID) {
+      const canvasChunk = plan[0];
+      const notebook = manifest.notebooks?.find((n) => n.notebookId === canvasChunk.id);
+      const { rows, noteIds } = await this.fetchChunkData(canvasChunk, notebook, meta, opts, report);
+      const next = buildChunkMeta(canvasChunk, notebook, noteIds);
+      report('applying', canvasChunk.id);
+      const committed = await this.storage.applyChunk({ chunkId: canvasChunk.id, rows, manifest, expectedMeta: expected, meta: next });
+      accumulate(committed);
+      result.appliedChunks++;
+      meta = next;
+      expected = next;
+      report('committed', canvasChunk.id);
+      opts.onFirstPaintApplied?.();
+      startIdx = 1;
+    }
+    const fetchedRemaining: Array<{ chunk: SeedManifestChunk; notebook: SeedManifestNotebook | undefined; rows: SeedRow[]; noteIds: string[] }> = [];
+    for (let i = startIdx; i < plan.length; i += 4) {
+      // Bounded parallel fetches keep cold-import memory bounded while avoiding sequential HTTP stalls.
+      const batch = plan.slice(i, i + 4);
+      const batchResults = await Promise.all(batch.map(async (chunk) => {
+        const notebook = manifest.notebooks?.find((n) => n.notebookId === chunk.id);
+        const { rows, noteIds } = await this.fetchChunkData(chunk, notebook, meta, opts, report);
+        return { chunk, notebook, rows, noteIds };
+      }));
+      fetchedRemaining.push(...batchResults);
+    }
+    const writes: SeedChunkWrite[] = [];
+    for (const item of fetchedRemaining) {
+      const next = buildChunkMeta(item.chunk, item.notebook, item.noteIds);
+      writes.push({ chunkId: item.chunk.id, rows: item.rows, manifest, expectedMeta: expected, meta: next });
+      meta = next;
+      expected = next;
     }
     for (const chunkId of vanished) {
       const chunks = { ...meta.chunks };
       delete chunks[chunkId];
       const next = { ...meta, chunks, importedAt: this.now() };
-      const committed = await this.storage.applyChunk({ chunkId, rows: [], manifest, expectedMeta: expected, meta: next });
-      result.deleted += committed.deleted;
-      meta = next; expected = next;
+      writes.push({ chunkId, rows: [], manifest, expectedMeta: expected, meta: next });
+      meta = next;
+      expected = next;
     }
-    const next = { ...meta, schema: SEED_SCHEMA, seedVersion: manifest.version, builtAt: manifest.builtAt, importedAt: this.now() };
-    await this.storage.applyChunk({ chunkId: null, rows: [], manifest, expectedMeta: expected, meta: next });
+    const finalMeta = { ...meta, schema: SEED_SCHEMA, seedVersion: manifest.version, builtAt: manifest.builtAt, importedAt: this.now() };
+    writes.push({ chunkId: null, rows: [], manifest, expectedMeta: expected, meta: finalMeta });
+    if (writes.length > 0) {
+      if (fetchedRemaining.length > 0) report('applying', fetchedRemaining[0].chunk.id);
+      if (this.storage.applyChunks) {
+        const committed = await this.storage.applyChunks(writes);
+        accumulate(committed);
+        result.appliedChunks += fetchedRemaining.length;
+        for (const item of fetchedRemaining) report('committed', item.chunk.id);
+      } else {
+        for (const w of writes) {
+          const committed = await this.storage.applyChunk(w);
+          accumulate(committed);
+          if (w.chunkId && fetchedRemaining.some((item) => item.chunk.id === w.chunkId)) {
+            result.appliedChunks++;
+            report('committed', w.chunkId);
+          }
+        }
+      }
+    }
     report('finalizing', null);
     return result;
+  }
+
+  private async fetchChunkData(
+    chunk: SeedManifestChunk,
+    notebook: SeedManifestNotebook | undefined,
+    meta: SeedMetaRecord,
+    opts: FeedImportOptions,
+    report: (phase: FeedImportProgress['phase'], chunkId: string | null, recordId?: string | null, completedRecords?: number, totalRecords?: number) => void,
+  ): Promise<{ rows: SeedRow[]; noteIds: string[] }> {
+    let rows: SeedRow[];
+    let records = chunk.records;
+    const isIncremental = Boolean(meta.chunks[chunk.id] && opts.granularRecords && (notebook?.indexPath || chunk.records));
+    const useGranular = isIncremental || Boolean(opts.granularRecords && chunk.records && chunk.records.length > 0);
+    if (useGranular) {
+      if (notebook?.indexPath) {
+        const fetchedIndex = assertNotebookIndex(await this.source.fetchChunk(notebook.indexPath));
+        records = fetchedIndex.records;
+      }
+      if (records && records.length > 0) {
+        const commits = (!opts.forceAll && this.storage.getNoteCommits)
+          ? await this.storage.getNoteCommits(records.map((r) => r.uuid))
+          : undefined;
+        const neededRecords = commits
+          ? records.filter((r) => commits.get(r.uuid) !== r.commit)
+          : records;
+        if (isIncremental && neededRecords.length > records.length / 2) {
+          report('fetching', chunk.id);
+          const fetched = await this.source.fetchChunk(chunk.path);
+          rows = assertSeedRows(fetched);
+          if (rows.length !== chunk.count) throw new Error('Seed chunk count mismatch');
+        } else {
+          const fetchedRows: SeedRow[] = [];
+          const CONCURRENCY = 8;
+          for (let j = 0; j < neededRecords.length; j += CONCURRENCY) {
+            const slice = neededRecords.slice(j, j + CONCURRENCY);
+            report('fetching', chunk.id, slice[0]?.uuid, j, neededRecords.length);
+            const results = await Promise.all(slice.map(async (rec) => {
+              const fetched = await this.source.fetchChunk(rec.recordPath);
+              return Array.isArray(fetched) ? assertSeedRows(fetched) : [assertSeedRow(fetched)];
+            }));
+            for (const r of results) fetchedRows.push(...r);
+          }
+          rows = fetchedRows;
+        }
+      } else {
+        report('fetching', chunk.id);
+        const fetched = await this.source.fetchChunk(chunk.path);
+        rows = assertSeedRows(fetched);
+        if (rows.length !== chunk.count) throw new Error('Seed chunk count mismatch');
+      }
+    } else {
+      report('fetching', chunk.id);
+      const fetched = await this.source.fetchChunk(chunk.path);
+      rows = assertSeedRows(fetched);
+      if (rows.length !== chunk.count) throw new Error('Seed chunk count mismatch');
+    }
+    // Granular membership is the manifest's complete record list, not the
+    // fetched subset: unchanged siblings must stay declared so they are
+    // not treated as vanished.
+    const noteIds = records && records.length > 0
+      ? records.map((r) => r.uuid)
+      : await Promise.all(rows.map((r) => seedNoteId(r.path)));
+    return { rows, noteIds };
   }
 }
