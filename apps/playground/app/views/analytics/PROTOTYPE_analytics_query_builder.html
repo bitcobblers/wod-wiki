@@ -70,16 +70,24 @@
       border-color: #88c0d0;
       outline: none;
     }
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
+    .custom-scrollbar {
+      --scrollbar-thumb: #4c566a;
+      --scrollbar-track: #2e3440;
+      scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+      scrollbar-width: thin;
     }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: #2e3440;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #4c566a;
-      border-radius: 3px;
+    @supports not (scrollbar-color: auto) {
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: var(--scrollbar-track);
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: var(--scrollbar-thumb);
+        border-radius: 3px;
+      }
     }
   </style>
 </head>

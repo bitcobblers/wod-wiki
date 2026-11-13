@@ -169,6 +169,7 @@ function openLinkEditPopover(
 
   const handleKeyDown = (e: KeyboardEvent) => {
     e.stopPropagation();
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter") {
       e.preventDefault();
       applyChanges();

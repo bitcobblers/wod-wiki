@@ -136,6 +136,7 @@ export const ClockValueEntry: React.FC<ClockValueEntryProps> = ({
   // Single owner of Enter: the card commits and the global bubble never sees
   // it. Held-down Enter (e.repeat) is ignored — one commit per press.
   const handleEnter = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();

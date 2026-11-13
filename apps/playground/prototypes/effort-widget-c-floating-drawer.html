@@ -559,9 +559,15 @@
     .annotation-body { font-size: 11.5px; color: var(--fg2); line-height: 1.5; }
     .annotation-body strong { color: var(--fg); }
 
-    ::-webkit-scrollbar { width: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    * {
+      scrollbar-color: var(--border) transparent;
+      scrollbar-width: thin;
+    }
+    @supports not (scrollbar-color: auto) {
+      ::-webkit-scrollbar { width: 5px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    }
 
     /* Met slider dynamic fill */
     input[type=range].met-slider { --fill: 40%; }

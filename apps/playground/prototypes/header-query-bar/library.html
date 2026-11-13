@@ -570,6 +570,7 @@ function renderDialog() {
   const input = document.createElement('input');
   input.placeholder = 'Type search term and press Enter…';
   input.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter' && input.value.trim()) {
       state.clauses[dlgType].push({ kind: 'text', label: 'text', value: input.value.trim() });
       input.value = '';

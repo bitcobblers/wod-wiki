@@ -245,6 +245,7 @@ class MarkdownTableWidget extends WidgetType {
       input.addEventListener("click", (e) => e.stopPropagation());
       input.addEventListener("keydown", (e) => {
         e.stopPropagation();
+        if (e.isComposing || e.keyCode === 229) return;
         if (e.key === "Tab") {
           e.preventDefault();
           const dir = e.shiftKey ? -1 : 1;

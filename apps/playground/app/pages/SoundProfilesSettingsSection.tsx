@@ -182,6 +182,7 @@ export function SoundProfilesSettingsSection() {
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
                         onKeyDown={(e) => {
+                          if (e.nativeEvent.isComposing || e.keyCode === 229) return
                           if (e.key === 'Enter') void handleRename(profile)
                           else if (e.key === 'Escape') setRenamingId(null)
                         }}
@@ -348,6 +349,7 @@ function RuleRow({
           value={trigger}
           onChange={(e) => setTrigger(e.target.value)}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return
             if (e.key === 'Enter') commitTrigger()
           }}
           onBlur={commitTrigger}

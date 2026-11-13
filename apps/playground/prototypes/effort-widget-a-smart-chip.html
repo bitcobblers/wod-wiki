@@ -502,9 +502,15 @@
     .theme-toggle:hover { background: var(--muted); }
 
     /* Scrollbar */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    * {
+      scrollbar-color: var(--border) transparent;
+      scrollbar-width: thin;
+    }
+    @supports not (scrollbar-color: auto) {
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    }
   </style>
 </head>
 <body>

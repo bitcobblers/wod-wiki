@@ -671,9 +671,15 @@
     .state-tab:hover:not(.active) { background: var(--muted); }
 
     /* Scrollbar */
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    * {
+      scrollbar-color: var(--border) transparent;
+      scrollbar-width: thin;
+    }
+    @supports not (scrollbar-color: auto) {
+      ::-webkit-scrollbar { width: 5px; height: 5px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    }
 
     /* Utility */
     .hidden { display: none !important; }

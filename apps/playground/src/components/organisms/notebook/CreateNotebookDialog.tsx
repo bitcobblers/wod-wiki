@@ -72,6 +72,7 @@ export const CreateNotebookDialog: React.FC<CreateNotebookDialogProps> = ({
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.nativeEvent.isComposing || e.keyCode === 229) return;
         if (e.key === 'Enter' && !e.shiftKey && name.trim()) {
             e.preventDefault();
             void handleSubmit();

@@ -502,6 +502,7 @@ function createTagDraftRow(
 
   attachSuggestions(input, view, root, "value", key, [], commit);
   input.addEventListener("keydown", (e) => {
+    if (e.isComposing || e.keyCode === 229) return;
     // Escape discards the draft even when attachSuggestions already closed the
     // listbox and prevented default on the same event.
     if (e.key === "Escape") {
@@ -657,6 +658,7 @@ function createMetricDraftRow(
         customKeyInput.setAttribute("aria-label", "Metric key");
         customKeyInput.dataset.frontmatterField = "key";
         customKeyInput.addEventListener("keydown", (e) => {
+          if (e.isComposing || e.keyCode === 229) return;
           if (e.key === "Escape") {
             e.preventDefault();
             settle(false);
@@ -681,6 +683,7 @@ function createMetricDraftRow(
   attachFor();
   select.addEventListener("change", attachFor);
   input.addEventListener("keydown", (e) => {
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.defaultPrevented && e.key !== "Escape") return;
     if (e.key === "Escape") {
       e.preventDefault();
@@ -768,6 +771,7 @@ function createSummaryDraftRow(
   };
 
   keyInput.addEventListener("keydown", (e) => {
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Escape") {
       e.preventDefault();
       settle(false);
@@ -780,6 +784,7 @@ function createSummaryDraftRow(
     }
   });
   valInput.addEventListener("keydown", (e) => {
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Escape") {
       e.preventDefault();
       settle(false);
