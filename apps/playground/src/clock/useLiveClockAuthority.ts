@@ -130,8 +130,15 @@ export function useLiveClockAuthority({
 
   const entry: ClockEntry | null = entryState;
 
+  void stackTick;
+  const isWaitingToStart = runtime?.stack.current?.blockType === 'WaitingToStart';
   const status = executionStatus;
-  const phase: ClockPhase = status === 'idle' ? 'ready' : status === 'completed' ? 'review' : 'live';
+  const phase: ClockPhase =
+    status === 'completed'
+      ? 'review'
+      : status === 'idle' && (!runtime || isWaitingToStart)
+        ? 'ready'
+        : 'live';
   const canNext = status === 'running' || status === 'idle';
   const canStop = status === 'running' || status === 'paused' || hasCapturedWork;
 

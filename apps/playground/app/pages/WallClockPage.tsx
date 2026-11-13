@@ -8,6 +8,7 @@
 
 import { useRef, useEffect, useCallback, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { FileQuestion, Home } from 'lucide-react'
 import { KNOWN_SECTION_WIDGETS, parseDocumentSections } from '@bitcobblers/wod-wiki-core'
 import { createParser } from '@bitcobblers/wod-wiki-engine'
 import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity'
@@ -169,19 +170,75 @@ export function WallClockPage() {
 
   if (coldLoading) {
     return (
-      <div role="status" className="flex-1 flex items-center justify-center text-muted-foreground">
+      <main
+        data-agent-status="loading"
+        aria-busy={true}
+        role="status"
+        className="flex-1 flex items-center justify-center text-muted-foreground"
+      >
         Preparing workout timer…
-      </div>
+      </main>
     )
   }
 
   if (!pending) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 p-4">
-        <HaltedRunNotice />
-        <div className="text-red-400">
-          Runtime not found. Please start the workout from the editor.
-        </div>
+      <div className="h-full flex flex-col">
+        <nav
+          aria-label="Workout runner navigation"
+          className="flex items-center gap-5 px-6 py-3 border-b bg-background"
+        >
+          <span className="text-sm font-semibold tracking-tight">WOD Wiki</span>
+          <button
+            type="button"
+            data-testid="run-notfound-nav-home"
+            onClick={() => navigate('/')}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Home
+          </button>
+          <button
+            type="button"
+            data-testid="run-notfound-nav-journal"
+            onClick={() => navigate('/journal')}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Journal
+          </button>
+          <button
+            type="button"
+            data-testid="run-notfound-nav-notebooks"
+            onClick={() => navigate('/notebooks')}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Notebooks
+          </button>
+        </nav>
+        <main
+          data-agent-status="ready"
+          aria-busy={false}
+          className="flex-1 flex flex-col items-center justify-center gap-6 p-8 text-center"
+        >
+          <HaltedRunNotice />
+          <div className="flex items-center justify-center w-16 h-16 rounded-full bg-muted">
+            <FileQuestion className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold tracking-tight">Workout session not found</h1>
+            <p className="text-muted-foreground max-w-sm">
+              Runtime not found. Please start the workout from the editor.
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="run-notfound-go-home"
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Home className="w-4 h-4" />
+            Go home
+          </button>
+        </main>
       </div>
     )
   }
@@ -189,15 +246,17 @@ export function WallClockPage() {
   const noteContent = captureRef.current?.note.rawContent ?? pending.captured?.note.rawContent ?? pending.snapshot?.rawContent;
 
   return (
-    <FullscreenTimer
-      block={pending.block}
-      noteContent={noteContent}
-      prepareRun={prepareRun}
-      onClose={handleClose}
-      onCompleteWorkout={handleComplete}
-      resultId={runtimeId}
-      noteId={pending.noteId}
-      autoStart
-    />
+    <main data-agent-status="ready" aria-busy={false} className="contents">
+      <FullscreenTimer
+        block={pending.block}
+        noteContent={noteContent}
+        prepareRun={prepareRun}
+        onClose={handleClose}
+        onCompleteWorkout={handleComplete}
+        resultId={runtimeId}
+        noteId={pending.noteId}
+        autoStart
+      />
+    </main>
   )
 }

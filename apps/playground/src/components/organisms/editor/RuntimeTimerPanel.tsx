@@ -500,11 +500,16 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   // wizard's Start button sets pendingStart after resolving the choices.
   useEffect(() => {
     if ((autoStart || pendingStart) && ready && execution.status === 'idle') {
-      execution.start();
+      if (runtime && runtime.stack.current?.blockType === 'WaitingToStart') {
+        runtime.handle(new NextEvent(undefined, runtime.nowProvider));
+      }
+      if (!runtime || runtime.stack.count > 0) {
+        execution.start();
+      }
       setPendingStart(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- execution identity is unstable each render; field deps avoid a setExecution loop
-  }, [autoStart, pendingStart, ready, execution.status, execution.start]);
+  }, [autoStart, pendingStart, ready, execution.status, execution.start, runtime]);
 
   // Surface the first transition to running so tour quest gating can observe
   // an actual run signal rather than just stage visibility.
@@ -714,10 +719,15 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   }, [block.id]);
 
   const handleStart = useCallback(() => {
-    execution.start();
+    if (runtime && runtime.stack.current?.blockType === 'WaitingToStart') {
+      runtime.handle(new NextEvent(undefined, runtime.nowProvider));
+    }
+    if (!runtime || runtime.stack.count > 0) {
+      execution.start();
+    }
     // Auto-expand to full content area when the timer starts.
     if (!isExpanded) onToggleExpand?.();
-  }, [execution, isExpanded, onToggleExpand]);
+  }, [runtime, execution, isExpanded, onToggleExpand]);
 
   // ── Pre-run Choice Wizard ─────────────────────────────────────────────────
   // Scan the parsed block before RuntimeFactory can default unresolved choices.
@@ -740,9 +750,13 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   const handleNext = useCallback(() => {
     // Sender-side paused gate: paused Next is rejected before the runtime
     // (the runtime remains the final authority for required timers).
-    if (execution.status === 'paused') return;
-    runtime?.handle(new NextEvent(undefined, runtime!.nowProvider));
-  }, [runtime, execution.status]);
+    if (execution.status === 'paused' || !runtime) return;
+    const wasIdle = execution.status === 'idle';
+    runtime.handle(new NextEvent(undefined, runtime.nowProvider));
+    if (wasIdle && runtime.stack.count > 0) {
+      execution.start();
+    }
+  }, [runtime, execution]);
 
   // ── Live clock authority (priority 0) ── keyboard, touch and Cast commands
   // funnel through one gated handler; disabled while the wizard owns the

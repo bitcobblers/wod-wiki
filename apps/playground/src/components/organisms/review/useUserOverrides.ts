@@ -132,13 +132,19 @@ interface SerializedFragment {
 }
 
 function serializeFragment(f: IMetric): SerializedFragment {
+  const ts =
+    f.timestamp instanceof Date
+      ? f.timestamp
+      : f.timestamp !== undefined
+        ? new Date(f.timestamp as string | number)
+        : undefined;
   return {
     type: f.type as MetricType,
     value: f.value,
     image: f.image,
     origin: f.origin,
     sourceBlockKey: f.sourceBlockKey,
-    timestamp: f.timestamp?.toISOString(),
+    timestamp: ts && !Number.isNaN(ts.getTime()) ? ts.toISOString() : undefined,
   };
 }
 

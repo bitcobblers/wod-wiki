@@ -82,21 +82,22 @@ const PREVIEW_COLLAPSED_LINES = 8
 function FeedMetrics({ entry }: { entry: Entry }) {
   const ex = entry.execution
   if (!ex) return null
-  const chips: string[] = []
-  if (ex.elapsedMs != null) chips.push(formatDuration(ex.elapsedMs))
-  if (ex.reps != null) chips.push(`${ex.reps} reps`)
-  if (ex.loadLbs != null) chips.push(`${ex.loadLbs} lb`)
-  if (ex.distanceMeters != null) chips.push(`${(ex.distanceMeters / 1000).toFixed(2)} km`)
-  if (ex.tis != null) chips.push(`TIS ${ex.tis}`)
+  const chips: Array<{ label: string; title?: string }> = []
+  if (ex.elapsedMs != null) chips.push({ label: formatDuration(ex.elapsedMs) })
+  if (ex.reps != null) chips.push({ label: `${ex.reps} reps` })
+  if (ex.loadLbs != null) chips.push({ label: `${ex.loadLbs} lb` })
+  if (ex.distanceMeters != null) chips.push({ label: `${(ex.distanceMeters / 1000).toFixed(2)} km` })
+  if (ex.tis != null) chips.push({ label: `TIS Score ${ex.tis.toFixed(1)}`, title: 'Training Intensity Score' })
   if (chips.length === 0) return null
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5" data-testid="stream-feed-metrics">
       {chips.map(chip => (
         <span
-          key={chip}
+          key={chip.label}
+          title={chip.title}
           className="rounded-full bg-muted/70 border border-border/60 px-2 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground"
         >
-          {chip}
+          {chip.label}
         </span>
       ))}
     </div>

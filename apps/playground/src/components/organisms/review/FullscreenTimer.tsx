@@ -139,7 +139,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   const lastPagePathRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const workoutLabel = resolvedWorkoutTitle || block.label || block.id;
+    const workoutLabel = resolvedWorkoutTitle || block.label;
     const isReview = completedSegments !== null;
 
     const pageTitle = isReview

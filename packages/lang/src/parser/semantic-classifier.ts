@@ -708,6 +708,29 @@ function mergeFragments(pairs: MetricPair[]): MetricPair[] {
       }
     }
 
+    if (
+      current.metrics instanceof RepMetric &&
+      typeof current.metrics.reps === 'number' &&
+      next.metrics instanceof EffortMetric &&
+      ROUNDS_LABEL_WORDS.test(next.metrics.effort.trim())
+    ) {
+      const gap = next.meta.startOffset - current.meta.endOffset;
+      if (gap <= 1) {
+        const mergedMeta: SyntaxMeta = {
+          ...current.meta,
+          endOffset: next.meta.endOffset,
+          columnEnd: next.meta.columnEnd,
+          length: next.meta.endOffset - current.meta.startOffset,
+          raw: current.meta.raw + (gap === 1 ? ' ' : '') + next.meta.raw,
+        };
+        current = {
+          metrics: new RoundsMetric(current.metrics.reps),
+          meta: mergedMeta,
+        };
+        continue;
+      }
+    }
+
     if (current.metrics instanceof RepMetric && (next.metrics instanceof ResistanceMetric || next.metrics instanceof DistanceMetric)) {
       const gap = next.meta.startOffset - current.meta.endOffset;
       if (gap <= 1) {

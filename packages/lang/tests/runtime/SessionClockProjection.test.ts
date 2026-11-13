@@ -124,4 +124,16 @@ describe('SessionClockProjection at runtime seam', () => {
     expect(pausedFrame.isPaused).toBe(true);
     expect(pausedFrame.isNextDisabled).toBe(true);
   });
+
+  it('projects 5 Rounds for time with roundTotal=5 rather than Round 1 of 1', () => {
+    const { runtime, clock } = boot('5 Rounds for time:\n  5 Pullups\n  10 Pushups');
+    const frame = projectSessionClock(runtime, {
+      nowMs: clock.currentDate.getTime(),
+      executionStatus: 'running',
+    });
+    expect(frame.roundCurrent).toBe(1);
+    expect(frame.roundTotal).toBe(5);
+    expect(frame.roundLabel).toBe('Round 1 of 5');
+    expect(frame.mainLabel).toBe('Round 1 of 5');
+  });
 });

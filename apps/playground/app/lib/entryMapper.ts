@@ -805,7 +805,7 @@ export function rowsRunToEntry(run: RowsRun, options?: { noteTitle?: string }): 
     subtitleParts.push(formatDuration(metrics.elapsedMs))
   }
   if (metrics.tis != null) {
-    subtitleParts.push(`TIS ${metrics.tis.toFixed(1)}`)
+    subtitleParts.push(`TIS Score: ${metrics.tis.toFixed(1)}`)
   }
   if (metrics.loadLbs != null) {
     subtitleParts.push(`Volume: ${formatMetricAmount(metrics.loadLbs)} ${metrics.volumeUnit ?? 'lbs'}`)
@@ -959,7 +959,7 @@ export function unifiedEventToEntry(
     subtitleParts.push(`${distanceMeters}m`)
   }
   if (tis != null) {
-    subtitleParts.push(`TIS ${tis.toFixed(1)}`)
+    subtitleParts.push(`TIS Score: ${tis.toFixed(1)}`)
   }
 
   const dateStr = formatDateKey(new Date(event.timestamp))

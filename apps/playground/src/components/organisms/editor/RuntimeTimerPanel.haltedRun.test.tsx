@@ -339,4 +339,39 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
     expect(writerFinishes).toEqual(['sess-manual-1']);
     expect(localStorage.getItem(PENDING_HALTED_KEY)).toBeNull();
   });
+
+  it('renders an accessible not-found state with main[data-agent-status="ready"] on cold /run/invalid-id', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/run/invalid-id']}>
+        <Routes>
+          <Route path="/run/:runtimeId" element={<WallClockPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const main = container.querySelector('main[data-agent-status]');
+    expect(main).not.toBeNull();
+    expect(main?.getAttribute('data-agent-status')).toBe('ready');
+    expect(screen.getByRole('heading', { name: 'Workout session not found' })).toBeDefined();
+    expect(screen.getByTestId('run-notfound-go-home')).toBeDefined();
+  });
+
+  it('autoStart pops WaitingToStart so the live block runs immediately instead of staying on Ready to Start', async () => {
+    render(
+      <RuntimeTimerPanel
+        block={makeBlock('10:00 AMRAP\n  5 Pullups\n  10 Pushups')}
+        resultId="sess-autostart-1"
+        noteId="note-autostart-1"
+        autoStart={true}
+        onClose={() => {}}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(useActiveRunStore.getState().execution.status).toBe('running');
+    });
+
+    const rt = useActiveRunStore.getState().runtime;
+    expect(rt?.stack.current?.blockType).not.toBe('WaitingToStart');
+  });
 });
