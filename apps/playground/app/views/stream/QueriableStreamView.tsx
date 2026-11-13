@@ -130,6 +130,20 @@ function BatchingSentinel({
   )
 }
 
+/** WW-034 — convert plain-text search terms (no WQL operators like `:` or
+ *  `{`) into a `:${target}{text:...}` query so typing e.g. `kettlebell` in
+ *  the WQL bar works smoothly instead of failing as invalid syntax. */
+export function plainTextFallbackQuery(rawInput: string, target: string): string | null {
+  const trimmed = rawInput.trim()
+  if (!trimmed || /[:{}|]/.test(trimmed)) return null
+  if (!parseQuery(trimmed).error) return null
+  const escaped = /\s/.test(trimmed)
+    ? `"${trimmed.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+    : trimmed
+  const candidate = `:${target}{text:${escaped}}`
+  return parseQuery(candidate).error ? null : candidate
+}
+
 /** Host-owned execution debounce for stream queries — the composer resolves
  *  drafts synchronously; only the run coalesces (existing 150ms behavior). */
 const STREAM_EXECUTE_DEBOUNCE_MS = 150
@@ -387,7 +401,8 @@ export function QueriableStreamView({
   const hasSettledRun = settledRoute === profile.route
   const [shelfOpen, setShelfOpen] = useState(true)
   const [loading, setLoading] = useState(false)
-  const parsed = useMemo(() => parseQuery(query), [query])
+  const effectiveQuery = useMemo(() => plainTextFallbackQuery(query, profile.target) ?? query, [query, profile.target])
+  const parsed = useMemo(() => parseQuery(effectiveQuery), [effectiveQuery])
   const streamBusy = loading || (!hasSettledRun && !parsed.error)
   useEffect(() => setSurfaceBusy(streamBusy), [streamBusy])
   useEffect(() => {
@@ -859,7 +874,7 @@ export function QueriableStreamView({
       setStages(undefined)
       activeEngine
         .query(
-          query,
+          effectiveQuery,
           next => {
             if (!cancelled) setStages(next)
           },
@@ -883,18 +898,18 @@ export function QueriableStreamView({
             // Bind the query-leg grouping to the COMMITTED run: transient
             // draft edits (each valid intermediate re-parses) must never
             // regroup the still-displayed previous results.
-            setQueryRunDims(parseGroupingDimensions(query, parsed))
+            setQueryRunDims(parseGroupingDimensions(effectiveQuery, parsed))
             setSettledRoute(profile.route)
             // One full execution per query change — nav facet panels read
             // this snapshot instead of re-running the query.
-            publishStreamResults({ pathname: location.pathname, query, entries: results })
+            publishStreamResults({ pathname: location.pathname, query: effectiveQuery, entries: results })
           }
         })
         .catch(() => {
           if (!cancelled) {
             setEntries([])
             setSettledRoute(profile.route)
-            publishStreamResults({ pathname: location.pathname, query, entries: [] })
+            publishStreamResults({ pathname: location.pathname, query: effectiveQuery, entries: [] })
           }
         })
         .finally(() => {
@@ -905,7 +920,7 @@ export function QueriableStreamView({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [query, activeEngine, parsed, location.pathname, profile.route, feedReadiness, savedTick])
+  }, [effectiveQuery, activeEngine, parsed, location.pathname, profile.route, feedReadiness, savedTick])
 
   // Grouping: the committed run's query `by {}` dimensions win; otherwise
   // the view setting, then the surface's Group-By favorite, then the level

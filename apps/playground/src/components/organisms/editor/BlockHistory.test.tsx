@@ -48,7 +48,10 @@ describe('saved block history', () => {
       current = await persistence.saveNote({ noteId: current.id, rawContent: restored.rawContent, blocks: restored.blocks, expectedSourceRevision: current.sourceRevision ?? 1 });
     }} />);
     fireEvent.click(screen.getByText('Saved block history'));
-    await waitFor(() => expect(screen.getByRole('option', { name: new RegExp(`${id}.*removed`) })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('option', { name: /Block 1 · time:crossfit · not in current note/ })).toBeTruthy());
+    const optionText = screen.getByRole('option', { name: /Block 1/ }).textContent ?? '';
+    expect(optionText).not.toContain(id);
+    expect(optionText).not.toContain('removed');
     fireEvent.click(screen.getByRole('button', { name: 'Restore v1 as a new saved version' }));
     await waitFor(() => expect(current.rawContent).toContain('10 Pushups'));
     expect(current.blocks?.[id]).toBeDefined();

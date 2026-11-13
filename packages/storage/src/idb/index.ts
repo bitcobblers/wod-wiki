@@ -195,7 +195,22 @@ class IDBStore<T> implements IReadWriteStore<T> {
   }
 
   async getMany(keys: IDBValidKey[]): Promise<(T | undefined)[]> {
-    if (this.tx) return Promise.all(keys.map(key => this.tx!.objectStore(this.name).get(key)));
+    if (this.tx) {
+      if (keys.length >= 64) {
+        const def = STORE_DEFS.find(d => d.name === this.name);
+        if (def && typeof def.keyPath === 'string') {
+          const all = await this.tx.objectStore(this.name).getAll();
+          const byKey = new Map<unknown, T>();
+          for (const row of all) {
+            if (row !== null && typeof row === 'object') {
+              byKey.set(Reflect.get(row, def.keyPath), row as T);
+            }
+          }
+          return keys.map(key => byKey.get(key));
+        }
+      }
+      return Promise.all(keys.map(key => this.tx!.objectStore(this.name).get(key)));
+    }
     return this.owner.transaction([this.name], 'readonly', tx => tx.readonly(this.name).getMany(keys)) as Promise<(T | undefined)[]>;
   }
 
@@ -210,7 +225,29 @@ class IDBStore<T> implements IReadWriteStore<T> {
   }
 
   async getAllFromIndexMany(index: string, keys: IDBValidKey[]): Promise<T[][]> {
-    if (this.tx) return Promise.all(keys.map(key => this.tx!.objectStore(this.name).index(index).getAll(key)));
+    if (this.tx) {
+      if (keys.length >= 64) {
+        const def = STORE_DEFS.find(d => d.name === this.name);
+        const idxDef = def?.indexes?.find(i => i.name === index);
+        if (idxDef && typeof idxDef.keyPath === 'string' && !idxDef.multiEntry) {
+          const all = await this.tx.objectStore(this.name).getAll();
+          const byKey = new Map<unknown, T[]>();
+          for (const row of all) {
+            if (row !== null && typeof row === 'object') {
+              const k = Reflect.get(row, idxDef.keyPath);
+              let bucket = byKey.get(k);
+              if (!bucket) {
+                bucket = [];
+                byKey.set(k, bucket);
+              }
+              bucket.push(row as T);
+            }
+          }
+          return keys.map(key => byKey.get(key) ?? []);
+        }
+      }
+      return Promise.all(keys.map(key => this.tx!.objectStore(this.name).index(index).getAll(key)));
+    }
     return this.owner.transaction([this.name], 'readonly', tx => tx.readonly(this.name).getAllFromIndexMany(index, keys)) as Promise<T[][]>;
   }
 

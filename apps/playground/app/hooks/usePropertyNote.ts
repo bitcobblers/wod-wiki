@@ -172,7 +172,6 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
           }
           return;
         }
-        if (!slugChanged && committedNote.current) return;
         const note = await storageService.getNote(noteId);
         if (cancelled) return;
         setItem(resolved);

@@ -56,6 +56,16 @@ export function BlockHistory({ noteId, sourceRevision, blocks = {}, persistence 
   const ids = Array.from(new Set(rows.map(row => row.blockId)));
   const blockId = ids.includes(selectedId) ? selectedId : ids[0] ?? '';
   const versions = rows.filter(row => row.blockId === blockId).toSorted((a, b) => a.version - b.version);
+  const formatBlockOption = (id: string, index: number): string => {
+    const latest = rows.filter(row => row.blockId === id).at(-1);
+    const descriptor = latest?.dialect
+      ? (latest.sport ? `${latest.dialect}:${latest.sport}` : latest.dialect)
+      : latest?.kind;
+    const parts = [`Block ${index + 1}`];
+    if (descriptor) parts.push(descriptor);
+    if (!blocks[id]) parts.push('not in current note');
+    return parts.join(' · ');
+  };
   const left = versions.find(row => row.version === leftVersion) ?? versions[0];
   const right = versions.find(row => row.version === rightVersion) ?? versions.at(-1);
   const revert = async () => {
@@ -78,7 +88,7 @@ export function BlockHistory({ noteId, sourceRevision, blocks = {}, persistence 
       {ids.length === 0 ? <p className="text-sm text-muted-foreground">No saved actionable blocks.</p> : <>
         <label className="block text-sm">Block occurrence
           <select className="mt-1 block max-w-full rounded border bg-background p-2 text-foreground focus-visible:ring-2" value={blockId} onChange={event => { setSelectedId(event.target.value); setLeftVersion(0); setRightVersion(0); }}>
-            {ids.map((id, index) => <option key={id} value={id}>Block {index + 1} · {id}{blocks[id] ? '' : ' · removed'}</option>)}
+            {ids.map((id, index) => <option key={id} value={id}>{formatBlockOption(id, index)}</option>)}
           </select>
         </label>
         <ol aria-label="Saved versions" className="space-y-1 text-sm" style={{ contentVisibility: 'auto' }}>

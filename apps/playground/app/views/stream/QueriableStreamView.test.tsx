@@ -1827,6 +1827,44 @@ describe('QueriableStreamView — query truth and retained state', () => {
     expect(screen.getByText('Workout 1')).toBeDefined()
   })
 
+  it('falls back to :target{text:...} for plain-text search terms like kettlebell (WW-034)', async () => {
+    const queries: string[] = []
+    const engine = new StreamQueryEngine({
+      service: {
+        runFind: async parsed => {
+          queries.push(parsed.raw)
+          return {
+            parsed,
+            notes: [],
+            blocks: [],
+            efforts: [],
+            stages: { selected: 1, matched: 0 },
+          }
+        },
+      },
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/efforts']}>
+        <QueriableStreamView profile={{ ...EFFORTS_STREAM_PROFILE, defaultLayout: 'cards' }} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(queries.length).toBeGreaterThanOrEqual(1)
+    })
+
+    act(() => {
+      getActiveStreamBridge()?.setQuery('kettlebell')
+    })
+
+    await waitFor(() => {
+      expect(queries).toContain(':effort{text:kettlebell}')
+    })
+    expect(screen.queryByText('Invalid query — showing previous results')).toBeNull()
+    expect(screen.queryByTestId('stream-query-error')).toBeNull()
+  })
+
   it('renders an explicit not-found state for an unknown /notebook/:slug (WW-032)', async () => {
     setStorageForTesting(new InMemoryStorage())
     try {

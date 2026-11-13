@@ -528,3 +528,45 @@ describe('StreamQueryEngine — aggregate summaries', () => {
     expect(entries[0]!.kind).toBe('result')
   })
 })
+
+describe('StreamQueryEngine — WW-036 avoids duplicate getDetailBatches for pre-hydrated untagged notes', () => {
+  it('skips getDetailBatches when placements already cover untagged notes', async () => {
+    const memory = new InMemoryStorage()
+    setStorageForTesting(memory)
+    let detailBatchCalls = 0
+    const origGetDetailBatches = storageService.getDetailBatches.bind(storageService)
+    storageService.getDetailBatches = async (ids) => {
+      detailBatchCalls += 1
+      return origGetDetailBatches(ids)
+    }
+    try {
+      const notes = Array.from({ length: 10 }, (_, i) => ({
+        id: `n-${i}`,
+        title: `Note ${i}`,
+        createdAt: 1000 + i,
+        rawContent: `# Note ${i}`,
+        sourceRevision: 1,
+        blocks: {},
+      }))
+      const placements = Object.fromEntries(notes.map(n => [n.id, []]))
+      const engine = new StreamQueryEngine({
+        service: {
+          runFind: async parsed => ({
+            parsed,
+            notes,
+            blocks: [],
+            placements,
+            stages: { selected: notes.length, matched: notes.length },
+          }),
+        },
+      })
+      const entries = await engine.query(':note{notebook:*}')
+      expect(entries).toHaveLength(10)
+      expect(detailBatchCalls).toBe(0)
+    } finally {
+      storageService.getDetailBatches = origGetDetailBatches
+      resetStorageForTesting()
+      await memory.close()
+    }
+  })
+})

@@ -15,7 +15,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { createElement } from 'react';
 import { useEffortContent, type UseEffortContentResult } from './useEffortContent';
-import { EffortRegistryProvider } from '../contexts/EffortRegistryContext';
+import { EffortRegistryProvider, useEffortRegistry } from '../contexts/EffortRegistryContext';
+import { saveScopedPropertyOverride } from '@bitcobblers/wod-wiki-engine';
 import { setStorageForTesting, resetStorageForTesting, storageService } from '@/services/storage';
 import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
 
@@ -188,5 +189,35 @@ describe('useEffortContent — an effort written after hydration resolves withou
     expect(latest!.notFound).toBe(false);
     expect(latest!.isEditable).toBe(true);
     expect(latest!.document).toContain('met: 5');
+  });
+
+  it('updates registrySource from bundled to user immediately when a custom override is saved and refreshed', async () => {
+    await seedBundledThruster();
+    let latest: UseEffortContentResult | undefined;
+    let refreshRegistry: (() => Promise<void>) | undefined;
+    function Probe() {
+      const reg = useEffortRegistry();
+      refreshRegistry = reg.refresh;
+      latest = useEffortContent('thruster');
+      return null;
+    }
+
+    render(createElement(EffortRegistryProvider, null, createElement(Probe)));
+    await waitFor(() => expect(latest?.effort?.registrySource).toBe('bundled'), { timeout: 5000 });
+
+    await act(async () => {
+      await saveScopedPropertyOverride(storageService.storage, {
+        targetNotebookId: 'notebook/custom',
+        kind: 'effort',
+        slug: 'thruster',
+        rawContent: THRUSTER_DOC.replace('met: 8', 'met: 9'),
+        title: 'Thruster',
+      });
+      await refreshRegistry!();
+    });
+
+    await waitFor(() => expect(latest?.effort?.registrySource).toBe('user'), { timeout: 5000 });
+    expect(latest?.isEditable).toBe(true);
+    expect(latest?.document).toContain('met: 9');
   });
 });
