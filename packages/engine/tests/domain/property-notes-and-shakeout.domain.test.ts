@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { resetTestingVocabulary } from '@bitcobblers/wod-wiki-core/testing';
+import { buildTestSession, resetTestingVocabulary } from '@bitcobblers/wod-wiki-core/testing';
 import {
   DomainScenarioHarness,
+  HARNESS_EPOCH,
   type ShakeOutSourceInput,
 } from '../harness/DomainScenarioHarness';
-import { MetricType } from '../../src/index';
+import {
+  MetricType,
+  compilePropertySummaryCalcs,
+  extractPropertyRulesFromMeta,
+} from '../../src/index';
 
 describe('Domain — Property Notes, Scoped Overrides & the Metric Shake-Out Queue', () => {
   let harness: DomainScenarioHarness;
@@ -186,5 +191,100 @@ describe('Domain — Property Notes, Scoped Overrides & the Metric Shake-Out Que
     expect(result.values.work).toEqual({ value: 240, unit: 'kg' });
     expect(result.result.resolved).toContain('work');
     expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('evaluates Note summary overrides over Tag defaults, inherits Tag Category metrics, and surfaces totalWork via WQL', async () => {
+    harness = await DomainScenarioHarness.create();
+
+    // 1. Tag Category `domain` (`12 kg` resistance) reaches child-tagged statements (`10 * 12 = 120 kg`)
+    const categoryResult = await harness.evaluateShakeOut({
+      metrics: [rep(10)],
+      sources: [
+        { layer: 'category', slug: 'domain', metrics: { resistance: '12 kg' } },
+        { layer: 'note', slug: 'metric-category-contribution', metrics: { work: 'reps * resistance' } },
+      ],
+    });
+    expect(categoryResult.values.resistance).toEqual({ value: 12, unit: 'kg' });
+    expect(categoryResult.values.work).toEqual({ value: 120, unit: 'kg' });
+
+    // 2. Note `summaries.totalWork: sum(work) * 2` outranks `#tonnage` Tag `summaries.totalWork: sum(work)`
+    const tonnageRule = extractPropertyRulesFromMeta(
+      {
+        metrics: { resistance: '24 kg', work: 'reps * resistance' },
+        summaries: { totalWork: 'sum(work)' },
+      },
+      'tag',
+      'tonnage',
+    );
+    const noteOverrideRule = extractPropertyRulesFromMeta(
+      { summaries: { totalWork: 'sum(work) * 2' } },
+      'note',
+      'metric-summary-override',
+    );
+
+    const baseDefs = compilePropertySummaryCalcs([tonnageRule]);
+    expect(baseDefs.map((d) => d.id)).toContain('totalWork');
+
+    const overrideDefs = compilePropertySummaryCalcs([noteOverrideRule, tonnageRule]);
+    expect(overrideDefs.map((d) => d.id)).toContain('totalWork');
+
+    const setShakeOut = await harness.evaluateShakeOut({
+      metrics: [rep(10)],
+      sources: [
+        {
+          layer: 'tag',
+          slug: 'tonnage',
+          metrics: { resistance: '24 kg', work: 'reps * resistance' },
+          summaries: { totalWork: 'sum(work)' },
+        },
+        {
+          layer: 'note',
+          slug: 'metric-summary-override',
+          metrics: {},
+          summaries: { totalWork: 'sum(work) * 2' },
+        },
+      ],
+    });
+    expect(setShakeOut.values.work).toEqual({ value: 240, unit: 'kg' });
+
+    // 3. Persist base (240) and overridden (480) summary EventRecords and verify WQL `sum:totalWork{} by {session}`
+    const note = await harness.authorNote({
+      id: 'note-total-work-wql',
+      title: 'Metric Note Summary',
+      rawContent: '# Metric Note Summary\n\n```time\n10 Kettlebell Swings 24kg\n```\n',
+    });
+    const sessBase = buildTestSession({
+      id: 'sess-work-240',
+      noteId: note.note.id,
+      startedAt: HARNESS_EPOCH,
+      events: [
+        {
+          grain: 'summary',
+          outputType: 'completion',
+          metrics: [{ type: 'totalWork' as MetricType, value: 240, unit: 'kg', metadata: { canonicalKey: 'totalWork' } }],
+        },
+      ],
+    });
+    const sessOverride = buildTestSession({
+      id: 'sess-work-480',
+      noteId: note.note.id,
+      startedAt: HARNESS_EPOCH + 3_600_000,
+      events: [
+        {
+          grain: 'summary',
+          outputType: 'completion',
+          metrics: [{ type: 'totalWork' as MetricType, value: 480, unit: 'kg', metadata: { canonicalKey: 'totalWork' } }],
+        },
+      ],
+    });
+    await harness.storage.transaction(['sessions', 'events'], 'readwrite', async (tx) => {
+      await tx.readwrite('sessions').putMany([sessBase.session, sessOverride.session]);
+      await tx.readwrite('events').putMany([...sessBase.events, ...sessOverride.events]);
+    });
+
+    const wql = await harness.queryAggregate('sum:totalWork{} by {session}', { anchorNow: HARNESS_EPOCH + 7_200_000 });
+    const bySession = new Map(wql.series.map((s) => [s.label, s.points[0]?.value]));
+    expect(bySession.get('sess-work-240')).toBe(240);
+    expect(bySession.get('sess-work-480')).toBe(480);
   });
 });

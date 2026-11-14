@@ -11,7 +11,6 @@
 import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
 import { getSessions } from '../utils/sessionsDb';
-import type { Page } from '@playwright/test';
 
 const PEER_BASE = 'https://peer.example.org/readonly-run/';
 const WOD_MD = '# Hero WOD\n\n```time\n0:03 AMRAP\n  5 Air Squats\n```\n';

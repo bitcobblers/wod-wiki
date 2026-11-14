@@ -26,7 +26,13 @@ const SERVED: Record<string, string> = {
 }
 
 /** Repo-native skills mirrored whole into `.agents/skills/<name>/` for local agent CLIs. */
-const AGENT_MIRRORED = ['wod-wiki-testing', 'wod-cli', 'wod-wql', 'wod-agent-parity'] as const
+const AGENT_MIRRORED = [
+  'wod-wiki-testing',
+  'wod-playwright-recorder',
+  'wod-cli',
+  'wod-wql',
+  'wod-agent-parity',
+] as const
 
 const REPO_PATH_PREFIX = /^(?:packages|apps|e2e|docs|scripts)\/[A-Za-z0-9._/-]+$/
 

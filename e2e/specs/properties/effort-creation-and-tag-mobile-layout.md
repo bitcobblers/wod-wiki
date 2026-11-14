@@ -21,12 +21,12 @@ Given a hydrated Playground workspace on `/efforts`:
 - expect: Step 2 navigates to `/effort/qa-turkish-get-up` and immediately renders the `'QA Turkish Get Up'` Effort detail page without `'not found'` or requiring a hard reload.
 - expect: the browser console stays clean.
 
-### Scenario 2: Mobile tag drill-down has zero horizontal overflow and unknown notebook slug shows explicit not-found state
+### Scenario 2: Mobile tag drill-down has zero horizontal overflow, synthesized tonnage widget renders cleanly, and unknown notebook slug shows explicit not-found state
 
 Given a `375×812` mobile viewport:
 
-1. Athlete opens `/t/quality/strength` at `375×812` and inspects page scroll width and the `#tags-new` form.
+1. Athlete opens `/t/quality/strength` at `375×812` and inspects page scroll width and the `#tags-new` form, then opens `/t/tag/tonnage` and inspects its synthesized `Dashboard Widget` preview.
 2. Athlete opens `/notebook/does-not-exist-qa` and inspects the stream empty state.
-- expect: Step 1 renders `/t/quality/strength` with zero horizontal overflow (`scrollWidth <= clientWidth + 1`).
+- expect: Step 1 renders `/t/quality/strength` with zero horizontal overflow (`scrollWidth <= clientWidth + 1`) and renders `/t/tag/tonnage` with a live `.cm-query-block-preview` widget and zero query syntax errors.
 - expect: Step 2 renders an explicit `Notebook “does-not-exist-qa” not found.` state (`notebook-not-found`) with a recovery action to `/notebooks` and no active `+ Add Note` button.
 - expect: the browser console stays clean.

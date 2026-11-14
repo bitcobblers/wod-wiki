@@ -6,6 +6,8 @@ allowed-tools: Bash(playwright-cli:*) Bash(npx:*) Bash(npm:*)
 
 # Browser Automation with playwright-cli
 
+> **WOD Wiki Repository Note**: In this monorepo, invoke the CLI via `bun x playwright cli <command>` (rather than bare `playwright-cli` or `npm`/`npx`). When recording WOD Wiki workflows, co-driving a live browser session with the user, extracting `e2e/specs/<domain>/<journey>.md`, or generating `PlaygroundTestActor` E2E tests, load [`../wod-playwright-recorder/SKILL.md`](../wod-playwright-recorder/SKILL.md) and [`../wod-wiki-testing/SKILL.md`](../wod-wiki-testing/SKILL.md) so generated tests reuse WOD Wiki's UI ontology, `DomainWorld` builders, and event-driven readiness gates.
+
 ## Quick start
 
 ```bash

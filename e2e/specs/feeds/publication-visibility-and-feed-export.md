@@ -19,7 +19,7 @@ Given a Note with 2 completed Sessions (both private) and private user Notebook 
 2. Feed Publisher opens `NotePromotionSheet`, links 'notebook/coach-program', and toggles 'notebook/coach-program' to Public.
 3. Feed Publisher toggles Session #1 to Public while leaving Session #2 Private, clicks Export Feed Repository (`.zip`), and opens '/feeds' and '/notebooks'.
 - expect: Step 2 transitions `PublicationPill` immediately to 'Published Note' (0 public Sessions).
-- expect: Step 3 transitions `PublicationPill` to 'Published Note + Data', exports a Seed `.zip` including Session #1 while excluding Session #2, lists 'Coach Program' on `/notebooks`, and keeps the browser console clean.
+- expect: Step 3 transitions `PublicationPill` to 'Published Note + Data (1)', exports a Seed `.zip` including Session #1 while excluding Session #2, lists 'My Published Feed' on `/feeds` and 'Coach Program' on `/notebooks`, and keeps the browser console clean.
 
 ### Scenario 2: The same visibility ladder and Feed export stay reachable without overflow on mobile 375×812
 

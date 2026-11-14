@@ -187,7 +187,7 @@ describe('validateE2eSpecCrosswalk (spec-lint)', () => {
 
   it('validates the live repository with zero crosswalk or allowlist drift', () => {
     const repoRoot = join(import.meta.dirname, '..');
-    expect(LEGACY_UNPAIRED_E2E_FILES.size).toBe(44);
+    expect(LEGACY_UNPAIRED_E2E_FILES.size).toBe(24);
     expect(validateE2eSpecCrosswalk(repoRoot)).toEqual([]);
   });
 });

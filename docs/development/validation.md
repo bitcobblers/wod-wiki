@@ -5,7 +5,7 @@ Canonical validation reference for this repo. Agent instruction files
 duplicating command lists — update this document when validation commands or
 policies change.
 
-For authoring new tests across Tier 1 (domain scenarios), Tier 2 (Storybook `domainState` + `play()` and Playground `@/testing/host`), and Tier 3 (two-level `e2e/specs/` Markdown journeys + Playwright `PlaygroundTestActor`), load [`skills/wod-wiki-testing/SKILL.md`](../../skills/wod-wiki-testing/SKILL.md).
+For authoring new tests across Tier 1 (domain scenarios), Tier 2 (Storybook `domainState` + `play()` and Playground `@/testing/host`), and Tier 3 (two-level `e2e/specs/` Markdown journeys + Playwright `PlaygroundTestActor`), load [`skills/wod-wiki-testing/SKILL.md`](../../skills/wod-wiki-testing/SKILL.md) and [`skills/wod-wiki-testing/references/markdown-to-playwright.md`](../../skills/wod-wiki-testing/references/markdown-to-playwright.md). For recording solo or collaborative human+agent browser workflows and extracting `e2e/specs/<domain>/<journey>.md` via `bun scripts/e2e-workflow-recorder.ts`, load [`skills/wod-playwright-recorder/SKILL.md`](../../skills/wod-playwright-recorder/SKILL.md).
 
 All commands run from the repo root with `bun`.
 

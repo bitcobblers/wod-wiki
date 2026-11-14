@@ -52,7 +52,7 @@ async function expectColdHome(page: Page, screenshotName: string): Promise<void>
     editor,
   ]
   const contentBoxesBefore = await Promise.all(stableRegions.map(region => region.boundingBox()))
-  await page.screenshot({ path: `e2e/screenshots/${screenshotName}-before-seed.png`, animations: 'disabled' })
+  await page.screenshot({ path: test.info().outputPath(`${screenshotName}-before-seed.png`), animations: 'disabled' })
 
   test.info().annotations.push({
     type: 'cold-boot-budget',
@@ -65,7 +65,7 @@ async function expectColdHome(page: Page, screenshotName: string): Promise<void>
   await expect(root).toHaveAttribute('data-feed-state', 'ready', { timeout: 60_000 })
   await expect(hero).toBeVisible()
   await expect(editor).toHaveText(arrivalText ?? '')
-  await page.screenshot({ path: `e2e/screenshots/${screenshotName}-after-seed.png`, animations: 'disabled' })
+  await page.screenshot({ path: test.info().outputPath(`${screenshotName}-after-seed.png`), animations: 'disabled' })
   for (const close of await page.locator('[toast-close]').all()) await close.click()
   await page.evaluate(() => window.scrollTo(0, 0))
   // The scroll gate's optional "Scroll page" button changes wrapper height;

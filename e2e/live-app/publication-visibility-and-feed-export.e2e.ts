@@ -1,5 +1,5 @@
 // spec: e2e/specs/feeds/publication-visibility-and-feed-export.md
-import { expect, test } from '../fixtures/playgroundActor';
+import { expect, test, TEST_IDS } from '../fixtures/playgroundActor';
 
 const NOTE_ID = '01950000-0000-7000-8000-000000000889';
 const NOTEBOOK_SLUG = 'coach-program';
@@ -35,6 +35,7 @@ for (const viewport of [
     // 3. Publishing Session #1 while Session #2 stays private lifts the pill to 'Published Note + Data'
     await app.feeds.setSessionPublic(SESSION_PUBLIC, true);
     await app.feeds.expectPublicationVisibility('Published Note + Data');
+    await expect(app.page.getByTestId(TEST_IDS.PUBLICATION_PILL).first()).toContainText('Published Note + Data (1)');
 
     if (viewport.width === 375) {
       const noteOverflow = await app.page.evaluate(
@@ -51,6 +52,7 @@ for (const viewport of [
     // Unified /feeds and /notebooks stream surfaces list the published entities
     await app.feeds.openFeeds();
     await expect(app.page).toHaveURL(/\/feeds/);
+    await app.wql.expectStreamContains('My Published Feed');
     await app.notebooks.openLibrary();
     await app.wql.expectStreamContains('Coach Program');
 

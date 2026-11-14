@@ -59,6 +59,12 @@ test.describe('PRP-03 — Effort Creation, WQL Syntax Guidance & Mobile Tag Layo
     );
     expect(overflowPx).toBeLessThanOrEqual(1);
 
+    // Built-in tonnage Tag Property Note renders its synthesized query block preview without syntax errors
+    await app.goto('/t/tag/tonnage');
+    await expect(page.getByRole('heading', { name: 'Edit tonnage' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('.cm-query-block-preview').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Query syntax error/i)).toHaveCount(0);
+
     // WW-032: Unknown notebook slug renders explicit not-found recovery state
     await app.goto('/notebook/does-not-exist-qa');
     const notFound = page.getByTestId(TEST_IDS.NOTEBOOK_NOT_FOUND);

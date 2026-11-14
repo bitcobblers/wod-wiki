@@ -1,7 +1,7 @@
 // spec: e2e/specs/feeds/feed-subscription-and-autosync.md
 import { createHash } from 'node:crypto';
 import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
-import { compileSeedRow } from '../../packages/tools/src/seedbuild/compiler';
+import { compileSeedRow, seedNoteIdSync } from '../../packages/tools/src/seedbuild/compiler';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
 
 const INTAKE_SOURCE = 'https://catalog.example.org/training/';
@@ -23,26 +23,37 @@ const MANAGE_SOURCE = {
   url: MANAGE_URL,
   repositoryUrl: MANAGE_REPO,
 };
-const CHUNK_ID = 'notebook.demo';
-const CHUNK_PATH = `chunks/${CHUNK_ID}.json`;
-const SEED_NOTE_PATH = 'markdown/notebooks/demo-catalog/session-1.md';
-const SEED_NOTE_BODY = '---\ntags: [demo]\n---\n# Demo Session\n\n```time\n10 Push-ups\n```\n';
+
+const SEED_NOTE_A_PATH = 'markdown/notebooks/demo-catalog/session-1.md';
+const SEED_NOTE_A_BODY = '---\ntags: [demo]\n---\n# Demo Session\n\n```time\n10 Push-ups\n```\n';
+const SEED_NOTE_B_PATH = 'markdown/notebooks/demo-extra/session-2.md';
+const SEED_NOTE_B_BODY = '---\ntags: [demo]\n---\n# Extra Demo Session\n\n```time\n15 Air Squats\n```\n';
 const USER_NOTE_ID = 'markdown/notes/my-own-note.md';
 const USER_NOTE_BODY = '# My own note\n\nNever a seed row.\n';
 
-function buildManageChunk() {
-  const rows = [compileSeedRow(SEED_NOTE_PATH, SEED_NOTE_BODY)];
-  const bytes = JSON.stringify(rows);
-  return {
-    rows,
-    entry: {
-      id: CHUNK_ID,
-      path: CHUNK_PATH,
-      sha256: createHash('sha256').update(bytes).digest('hex'),
-      bytes: new TextEncoder().encode(bytes).length,
-      count: rows.length,
-    },
-  };
+function buildManageChunks() {
+  const specs = [
+    { id: 'notebook.demo', path: SEED_NOTE_A_PATH, body: SEED_NOTE_A_BODY },
+    { id: 'notebook.demo-extra', path: SEED_NOTE_B_PATH, body: SEED_NOTE_B_BODY },
+  ];
+  return specs.map((spec) => {
+    const rows = [compileSeedRow(spec.path, spec.body)];
+    const json = JSON.stringify(rows);
+    const chunkPath = `chunks/${spec.id}.json`;
+    return {
+      rows,
+      chunkPath,
+      noteUuid: seedNoteIdSync(spec.path),
+      noteBody: spec.body,
+      entry: {
+        id: spec.id,
+        path: chunkPath,
+        sha256: createHash('sha256').update(json).digest('hex'),
+        bytes: new TextEncoder().encode(json).length,
+        count: rows.length,
+      },
+    };
+  });
 }
 
 test.describe('FED-01 — Feed Subscription & Auto-Sync Lifecycle', () => {
@@ -50,7 +61,7 @@ test.describe('FED-01 — Feed Subscription & Auto-Sync Lifecycle', () => {
     { width: 1280, height: 900 },
     { width: 375, height: 812 },
   ]) {
-    test(`subscription intake requires consent and remembers auto-sync at ${viewport.width}x${viewport.height}`, async ({
+    test(`subscription intake requires consent, navigates via L2 configure-sources, and remembers auto-sync at ${viewport.width}x${viewport.height}`, async ({
       app,
     }) => {
       const { page } = app;
@@ -76,8 +87,21 @@ test.describe('FED-01 — Feed Subscription & Auto-Sync Lifecycle', () => {
 
       await banner.getByTestId(TEST_IDS.FEED_INTAKE_SUBSCRIBE).click();
       await expect(page).toHaveURL(/\/notebooks\?q=(:|%3A)notebook\{feed(:|%3A)training-catalog\}$/i);
+      await app.feeds.waitForReady();
 
-      await app.goto('/settings/sync');
+      // Verify /notebooks renders zero retired /c/ or /collections links and zero legacy feed-settings-button
+      await expect(page.locator('a[href^="/c/"], a[href^="/collections"]')).toHaveCount(0);
+      await expect(page.getByTestId('feed-settings-button')).toHaveCount(0);
+
+      // Reach /settings/sync through L2 `notebooks-configure-sources` (desktop sidebar vs mobile drawer)
+      if (viewport.width === 375) {
+        await page.getByRole('button', { name: 'Open navigation' }).click();
+        await page.getByRole('dialog').getByTestId('notebooks-configure-sources').click();
+      } else {
+        await page.getByTestId('notebooks-configure-sources').click();
+      }
+      await expect(page).toHaveURL(/\/settings\/sync$/);
+
       const row = page.getByTestId('feed-source-training-catalog');
       await expect(row).toBeVisible();
       await expect(row.getByTestId('feed-autosync-training-catalog')).toBeChecked();
@@ -114,13 +138,13 @@ test.describe('FED-01 — Feed Subscription & Auto-Sync Lifecycle', () => {
     app.assertCleanConsole();
   });
 
-  test('auto-sync applies version bumps, check-only waits for Sync, and Unsubscribe/Delete preserve user Notes', async ({
+  test('multi-Notebook import, overflow menu dismissal, auto-sync vs check-only updates, and Unsubscribe/Delete preserve user Notes', async ({
     app,
   }) => {
     test.setTimeout(120_000);
     const { page } = app;
     const version = { current: 42 };
-    const { rows, entry } = buildManageChunk();
+    const chunks = buildManageChunks();
 
     page.on('dialog', (dialog) => void dialog.accept());
     await page.addInitScript((src) => {
@@ -136,21 +160,45 @@ test.describe('FED-01 — Feed Subscription & Auto-Sync Lifecycle', () => {
           name: MANAGE_SOURCE.label,
           description: 'Seeded e2e catalog',
           repositoryUrl: MANAGE_REPO,
-          chunks: [entry],
+          chunks: chunks.map((c) => c.entry),
         },
       }),
     );
-    await page.context().route(`${MANAGE_URL}${CHUNK_PATH}`, (route) => route.fulfill({ json: rows }));
+    for (const chunk of chunks) {
+      await page.context().route(`${MANAGE_URL}${chunk.chunkPath}`, (route) => route.fulfill({ json: chunk.rows }));
+    }
 
     await app.goto('/settings/sync');
     await app.seed.note(USER_NOTE_ID, USER_NOTE_BODY);
 
     await page.getByRole('checkbox', { name: 'Subscribed only' }).setChecked(false);
     const row = page.getByTestId('feed-source-manage-library');
+    await expect(row.getByText('Manage Library', { exact: true })).toBeVisible();
+    await expect(row.getByTestId('feed-origin-manage-library')).toHaveText(MANAGE_URL);
+    await expect(row.getByTestId('feed-autosync-manage-library')).toBeDisabled();
 
+    // Overflow details: Published HTML + Git links, plus Escape and backdrop dismissal
+    const more = row.getByTestId('feed-more-manage-library');
+    await more.locator('summary').click();
+    await expect(more).toHaveAttribute('open', '');
+    await expect(row.getByRole('link', { name: `Published HTML: ${MANAGE_URL}` })).toHaveAttribute('href', MANAGE_URL);
+    await expect(row.getByRole('link', { name: 'Git source directory' })).toHaveAttribute('href', MANAGE_REPO);
+
+    await page.keyboard.press('Escape');
+    await expect(more).not.toHaveAttribute('open', '');
+
+    await more.locator('summary').click();
+    await expect(more).toHaveAttribute('open', '');
+    await more.locator('[data-testid="feed-more-backdrop"]').click({ position: { x: 5, y: 5 } });
+    await expect(more).not.toHaveAttribute('open', '');
+
+    // Subscribe -> imports BOTH Notebook chunks published by the Feed
     await expect(row.getByTestId('feed-subscribe-manage-library')).toBeEnabled({ timeout: 15_000 });
     await row.getByTestId('feed-subscribe-manage-library').click();
     await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
+    for (const chunk of chunks) {
+      expect(await getNoteContentByRouteId(page, chunk.noteUuid)).toBe(chunk.noteBody);
+    }
 
     const auto = row.getByTestId('feed-autosync-manage-library');
     await expect(auto).toBeEnabled();
@@ -173,8 +221,7 @@ test.describe('FED-01 — Feed Subscription & Auto-Sync Lifecycle', () => {
     await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
     await expect(row.getByTestId('feed-local-version')).toContainText('v44');
 
-    // Unsubscribe removes Seed rows while retaining source entry & user Note
-    const more = row.getByTestId('feed-more-manage-library');
+    // Unsubscribe removes all imported Seed rows while retaining source entry & user Note
     await more.locator('summary').click();
     await row.getByTestId('feed-unsubscribe-manage-library').click();
     await expect(async () => {
@@ -183,20 +230,21 @@ test.describe('FED-01 — Feed Subscription & Auto-Sync Lifecycle', () => {
       await expect(row.getByTestId('feed-subscribe-manage-library')).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: 30_000 });
 
-    expect(await getNoteContentByRouteId(page, SEED_NOTE_PATH)).toBeNull();
+    for (const chunk of chunks) {
+      expect(await getNoteContentByRouteId(page, chunk.noteUuid)).toBeNull();
+    }
     expect(await getNoteContentByRouteId(page, USER_NOTE_ID)).not.toBeNull();
 
     // Delete removes source entry completely while preserving user Note
-    const deleteButton = row.getByTestId('feed-delete-manage-library');
-    if (!(await deleteButton.isVisible())) await more.locator('summary').click();
-    await deleteButton.click();
+    await more.locator('summary').click();
+    await row.getByTestId('feed-delete-manage-library').click();
     await expect(row).toHaveCount(0);
     expect(await getNoteContentByRouteId(page, USER_NOTE_ID)).not.toBeNull();
 
     app.assertCleanConsole();
   });
 
-  test('bare /subscribe, /feed/:slug CTA, curated HYROX copy, subscription persistence, and /load UIs stay mounted', async ({
+  test('bare /subscribe, /feed/:slug CTA, curated HYROX copy, /page/guide-start smoke, and /load UIs stay mounted', async ({
     app,
   }) => {
     const { page } = app;
@@ -221,7 +269,7 @@ test.describe('FED-01 — Feed Subscription & Auto-Sync Lifecycle', () => {
     // WW-013: bare /subscribe stays on /subscribe with intake UI
     await page.goto('/subscribe');
     await expect(page).toHaveURL(/\/subscribe$/);
-    await expect(page.getByTestId('feed-subscription-intake')).toBeVisible();
+    await expect(page.getByTestId(TEST_IDS.FEED_SUBSCRIPTION_INTAKE)).toBeVisible();
 
     // WW-031: /load and /load/journal stay mounted with portable import / validation UI
     await page.goto('/load');
@@ -232,9 +280,16 @@ test.describe('FED-01 — Feed Subscription & Auto-Sync Lifecycle', () => {
     await expect(page).toHaveURL(/\/load\/journal$/);
     await expect(page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready');
 
+    // Guide route smoke (/page/guide-start resolves cleanly with Pages concept title)
+    await app.goto('/page/guide-start');
+    await expect(page.getByRole('heading', { name: /not found/i })).toHaveCount(0);
+    await expect.poll(() => page.title(), { timeout: 10_000 }).toBe('Wod.Wiki - Pages');
+
     // WW-014 + WW-015 + WW-021: Subscribe from /feed/sport-hyrox, verify curated copy & persistence across nav
     await app.goto('/feed/sport-hyrox');
-    const subBtn = page.getByTestId('feed-detail-subscribe-button').or(page.getByRole('button', { name: /^Subscribe$/i }));
+    const subBtn = page
+      .getByTestId(TEST_IDS.FEED_DETAIL_SUBSCRIBE_BUTTON)
+      .or(page.getByRole('button', { name: /^Subscribe$/i }));
     await expect(subBtn.first()).toBeVisible();
     await subBtn.first().click();
 

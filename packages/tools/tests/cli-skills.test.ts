@@ -62,6 +62,7 @@ describe('installSkills', () => {
     'wod-agent-parity',
     'wod-cli',
     'wod-extraction',
+    'wod-playwright-recorder',
     'wod-wiki-testing',
     'wod-wql',
   ];
@@ -77,6 +78,16 @@ describe('installSkills', () => {
       );
       expect(readFileSync(join(result.target, 'wod-wiki-testing', 'references', 'catalog.md'), 'utf-8')).toBe(
         readFileSync(join(skillsRoot, 'wod-wiki-testing', 'references', 'catalog.md'), 'utf-8'),
+      );
+      expect(
+        readFileSync(join(result.target, 'wod-wiki-testing', 'references', 'markdown-to-playwright.md'), 'utf-8'),
+      ).toBe(
+        readFileSync(join(skillsRoot, 'wod-wiki-testing', 'references', 'markdown-to-playwright.md'), 'utf-8'),
+      );
+      expect(
+        readFileSync(join(result.target, 'wod-playwright-recorder', 'references', 'ui-ontology.md'), 'utf-8'),
+      ).toBe(
+        readFileSync(join(skillsRoot, 'wod-playwright-recorder', 'references', 'ui-ontology.md'), 'utf-8'),
       );
     });
   });

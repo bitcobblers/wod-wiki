@@ -30,7 +30,7 @@ priority: P0-gate        # P0-gate | P1-core | P1 | P2
 - `1. <Persona> opens '<route>' and <action>.` — numbered user steps.
 - `- expect: <observable outcome>.` — outcome assertions as bullets.
 
-## Journey taxonomy (6 domains, 28 journeys — 13 authored, including all 9 P0-gates)
+## Journey taxonomy (6 domains, 28 journeys — 14 authored, including all 9 P0-gates)
 
 | Domain | Journey | Slug | Priority |
 |---|---|---|---|
@@ -48,7 +48,7 @@ priority: P0-gate        # P0-gate | P1-core | P1 | P2
 | runtime | RUN-02 | [readonly-intake-and-provenance-run](runtime/readonly-intake-and-provenance-run.md) | P0-gate |
 | runtime | RUN-03 | `timer-responsive-tiers-and-cast-receiver` | P1 |
 | runtime | RUN-04 | `session-actuals-persistence-and-retry` | P1 |
-| properties | PRP-01 | `efforts-catalog-and-alias-lifecycle` | P1 |
+| properties | PRP-01 | [efforts-catalog-and-alias-lifecycle](properties/efforts-catalog-and-alias-lifecycle.md) | P1 |
 | properties | PRP-02 | [equipment-catalog-and-backlinks](properties/equipment-catalog-and-backlinks.md) | P1-core |
 | properties | PRP-03 | [effort-creation-and-tag-mobile-layout](properties/effort-creation-and-tag-mobile-layout.md) | P1-core |
 | properties | PRP-04 | `scoped-property-override-sheets` | P1 |
