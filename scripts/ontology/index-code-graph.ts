@@ -592,7 +592,8 @@ export async function buildUnifiedGraph() {
     return best ?? syms[0];
   }
 
-  // 6. Index QA Runs, Proposed Journeys, and Issues from live QA site (with local fallbacks)
+  // 6. Index QA Runs, Proposed Journeys, and Issues from live QA site (with committed snapshot fallback)
+  const qaSnapshotPath = path.join(REPO_ROOT, 'ontology/qa/qa-snapshot.ttl');
   async function fetchQaOntologyTtl(): Promise<string | null> {
     const offline = process.argv.includes('--offline') || process.env.ONTOLOGY_OFFLINE === '1';
     if (!offline) {
@@ -602,13 +603,18 @@ export async function buildUnifiedGraph() {
         });
         if (res.ok) {
           const text = await res.text();
-          if (text.includes('qa:Issue')) return text;
+          if (text.includes('qa:Issue')) {
+            fs.mkdirSync(GENERATED_DIR, { recursive: true });
+            fs.writeFileSync(qaSnapshotPath, text, 'utf8');
+            return text;
+          }
         }
       } catch {
         // Fall through to local fallbacks
       }
     }
     const localCandidates = [
+      qaSnapshotPath,
       path.join(process.env.HOME ?? '', 'workspace/wod-wiki-ontology-audit/qa-ontology.ttl'),
       path.join(REPO_ROOT, 'docs/qa-walkthrough/qa-ontology.ttl'),
       '/tmp/qa-ontology.ttl',

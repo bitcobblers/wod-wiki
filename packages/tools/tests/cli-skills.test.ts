@@ -61,7 +61,9 @@ describe('installSkills', () => {
   const expectedBundledSkills = [
     'wod-agent-parity',
     'wod-cli',
+    'wod-code-to-ontology',
     'wod-extraction',
+    'wod-ontology-to-code',
     'wod-playwright-recorder',
     'wod-wiki-testing',
     'wod-wql',

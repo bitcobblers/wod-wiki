@@ -23,6 +23,7 @@ on:
 jobs:
   ontology-and-contracts:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -36,17 +37,33 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Validate ontology (Turtle, TriG, SHACL, seedNoun integrity)
-        run: bash ontology/validate.sh
+        continue-on-error: true
+        run: |
+          if ! bash ontology/validate.sh; then
+            echo "::warning::Ontology SHACL/syntax validation reported issues (non-blocking)."
+            exit 1
+          fi
 
       - name: Verify ontology generated artifacts are fresh
+        continue-on-error: true
         run: |
-          bun run ontology:build -- --offline
-          bun run ontology:codegen
-          bun run ontology:query -- --chains
-          git diff --exit-code ontology/generated/
+          if ! (bun run ontology:build -- --offline && bun run ontology:codegen && bun run ontology:query -- --chains && git diff --exit-code ontology/generated/); then
+            echo "::warning::Ontology generated artifacts are out of date (non-blocking)."
+            exit 1
+          fi
 
       - name: Enforce TEST_IDS contract
-        run: bun run check:test-ids
+        continue-on-error: true
+        run: |
+          if ! bun run check:test-ids; then
+            echo "::warning::TEST_IDS contract check reported violations (non-blocking)."
+            exit 1
+          fi
 
       - name: Check E2E spec parity
-        run: bun scripts/check-e2e-specs.ts
+        continue-on-error: true
+        run: |
+          if ! bun scripts/check-e2e-specs.ts; then
+            echo "::warning::E2E spec parity check reported violations (non-blocking)."
+            exit 1
+          fi

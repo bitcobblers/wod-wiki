@@ -390,7 +390,7 @@ function walkTtlFiles(dir: string, out: string[] = []): string[] {
     if (entry.isDirectory()) {
       if (['examples', 'generated', 'changesets', 'graphs'].includes(entry.name)) continue;
       walkTtlFiles(full, out);
-    } else if (entry.isFile() && entry.name.endsWith('.ttl')) {
+    } else if (entry.isFile() && entry.name.endsWith('.ttl') && entry.name !== 'qa-snapshot.ttl') {
       out.push(full);
     }
   }
