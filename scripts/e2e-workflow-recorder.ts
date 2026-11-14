@@ -843,6 +843,9 @@ export function extractJourneyFromFlightLog(
     '',
     `test.describe(${JSON.stringify(`${id} — ${title}`)}, () => {`,
     `  test(${JSON.stringify(`Scenario 1: ${scenarioTitle}`)}, async ({ app }) => {`,
+    ...(seenViewports.has('mobile-375')
+      ? ['    await app.page.setViewportSize({ width: 375, height: 812 });']
+      : []),
     '    // Given: seed isolated DomainWorld via @bitcobblers/wod-wiki-core/testing (far-future dates 2099-*)',
     '    // await app.seed.world({ notes: [...] });',
     '',

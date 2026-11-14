@@ -20,6 +20,10 @@
  * 6. Every `e2e/live-app/*.e2e.ts` without `// spec:` must be explicitly listed
  *    in `LEGACY_UNPAIRED_E2E_FILES`, and stale/migrated allowlist entries fail
  *    so the allowlist only ratchets down.
+ * 7. Every Markdown spec declaring `mobile-375` in `viewports` must EITHER have
+ *    its `specFile` matched in `playwright.journal.config.ts`'s
+ *    `journal-mobile-375` project OR explicitly exercise a `375` mobile viewport
+ *    (`setViewportSize` with `width: 375` / `375`) in its paired `.e2e.ts`.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
@@ -136,6 +140,118 @@ function parseBracketList(rawVal: string): string[] | null {
   return inner.split(',').map((item) => item.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
 }
 
+function stripTsComments(source: string): string {
+  return source.replace(
+    /(['"`])(?:\\.|(?!\1)[\s\S])*?\1|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g,
+    (match, quote) => (quote ? match : ' '),
+  );
+}
+
+function extractStringLiterals(snippet: string): string[] {
+  const out: string[] = [];
+  const re = /(['"])((?:\\.|(?!\1)[^\\\r\n])*)\1/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(snippet)) !== null) {
+    out.push(m[2]!);
+  }
+  return out;
+}
+
+function globMatchesSpecFile(pattern: string, specFile: string): boolean {
+  const normalizedSpec = specFile.replace(/^\.\//, '');
+  const relFromE2e = normalizedSpec.replace(/^e2e\//, '');
+  const normalizedPattern = pattern.replace(/^\.\//, '');
+  if (normalizedPattern === normalizedSpec || normalizedPattern === relFromE2e) {
+    return true;
+  }
+  const regexSrc =
+    '^' +
+    normalizedPattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*\*\//g, '(?:.+/)?')
+      .replace(/\*\*/g, '.*')
+      .replace(/\*/g, '[^/]*') +
+    '$';
+  const regex = new RegExp(regexSrc);
+  return regex.test(normalizedSpec) || regex.test(relFromE2e);
+}
+
+function exercisesInlineMobile375(tsCodeWithoutComments: string): boolean {
+  if (!/\bsetViewportSize\s*\(/.test(tsCodeWithoutComments)) return false;
+  return (
+    /\bwidth\s*:\s*375\b/.test(tsCodeWithoutComments) ||
+    /\bsetViewportSize\s*\([^)]*\b375\b/.test(tsCodeWithoutComments)
+  );
+}
+
+function isMatchedInJournalMobile375Project(
+  repoRoot: string,
+  specFile: string,
+  tsCodeWithoutComments: string,
+): boolean {
+  const configPath = join(repoRoot, 'playwright.journal.config.ts');
+  if (!existsSync(configPath)) return false;
+  const configCode = stripTsComments(readFileSync(configPath, 'utf8'));
+
+  const projectIdx = configCode.search(/name\s*:\s*['"]journal-mobile-375['"]/);
+  if (projectIdx === -1) return false;
+
+  let openIdx = projectIdx;
+  while (openIdx > 0 && configCode[openIdx] !== '{') openIdx--;
+  let depth = 0;
+  let closeIdx = configCode.length;
+  for (let i = openIdx; i < configCode.length; i++) {
+    if (configCode[i] === '{') depth++;
+    else if (configCode[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        closeIdx = i + 1;
+        break;
+      }
+    }
+  }
+
+  const projectBlock = configCode.slice(openIdx, closeIdx);
+  const testMatchM = projectBlock.match(
+    /testMatch\s*:\s*(\[[\s\S]*?\]|['"][^'"]+['"]|[A-Za-z0-9_$]+\s*\([^)]*\)|[A-Za-z0-9_$]+)/,
+  );
+  if (!testMatchM) return false;
+
+  const testMatchExpr = testMatchM[1]!;
+  const candidatePatterns: string[] = [...extractStringLiterals(testMatchExpr)];
+
+  const usesHelper = /\bresolveMobile375TestMatch\s*\(/.test(testMatchExpr);
+  const usesExplicitList =
+    usesHelper || /\bMOBILE_375_LEVEL2_SPECS\b/.test(testMatchExpr);
+
+  if (usesExplicitList) {
+    const explicitArrM = configCode.match(
+      /\bMOBILE_375_LEVEL2_SPECS\b[^=]*=\s*\[([\s\S]*?)\]/,
+    );
+    if (explicitArrM) {
+      for (const entry of extractStringLiterals(explicitArrM[1]!)) {
+        candidatePatterns.push(entry);
+        candidatePatterns.push(`**/${entry.replace(/^e2e\//, '')}`);
+      }
+    }
+  }
+
+  if (candidatePatterns.some((pat) => globMatchesSpecFile(pat, specFile))) {
+    return true;
+  }
+
+  if (
+    usesHelper &&
+    /\bfunction\s+resolveMobile375TestMatch\b/.test(configCode) &&
+    !exercisesInlineMobile375(tsCodeWithoutComments) &&
+    /\bviewportSize\s*\(\s*\)/.test(tsCodeWithoutComments)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export function validateE2eSpecCrosswalk(
   repoRoot: string,
   options?: SpecCrosswalkOptions,
@@ -244,6 +360,23 @@ export function validateE2eSpecCrosswalk(
         message: `Header '// spec: ${headerMatch[1]}' does not match '${relMd}'`,
       });
     }
+
+    const parsedViewports = fm.viewports ? parseBracketList(fm.viewports) : null;
+    if (parsedViewports?.includes('mobile-375')) {
+      const tsCodeWithoutComments = stripTsComments(tsRaw);
+      const hasInline375 = exercisesInlineMobile375(tsCodeWithoutComments);
+      const inMobileProject = isMatchedInJournalMobile375Project(
+        repoRoot,
+        specFile,
+        tsCodeWithoutComments,
+      );
+      if (!hasInline375 && !inMobileProject) {
+        issues.push({
+          file: relMd,
+          message: `Declares 'mobile-375' in 'viewports:', but '${specFile}' is neither matched by 'journal-mobile-375' in playwright.journal.config.ts nor exercises a 375 mobile viewport via setViewportSize({ width: 375, ... })`,
+        });
+      }
+    }
   }
 
   const seenLiveAppFiles = new Set<string>();
@@ -308,5 +441,5 @@ if (import.meta.main) {
     process.exit(1);
   }
   const count = walkFiles(join(root, 'e2e/specs'), '.md').filter((f) => !f.endsWith('/README.md')).length;
-  console.log(`[check-e2e-specs] Verified ${count} two-level Markdown <-> Playwright journey pair(s).`);
+  process.stdout.write(`[check-e2e-specs] Verified ${count} two-level Markdown <-> Playwright journey pair(s).\n`);
 }

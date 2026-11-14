@@ -223,7 +223,7 @@ async function suite(dir: string): Promise<void> {
     { op: 'put', store: 'notes', value: currentNote },
     { op: 'put', store: 'notes', value: { ...wholeNote(u2, 'Annie Row', 101), date: 20261005, userId: 'default' } },
     { op: 'put', store: 'notes', value: { ...wholeNote(u3, 'Page Home', 102), type: 'page', sourceId: 'page:home' } },
-    { op: 'put', store: 'notes', value: { ...wholeNote(u4, 'Feed G', 103), type: 'note', sourceId: 'notebook:g' } },
+    { op: 'put', store: 'notes', value: { ...wholeNote(u4, 'Feed G', 103), type: 'feed', sourceId: 'notebook:g' } },
     { op: 'put', store: 'notes', value: wholeNote(u5, 'No Date', 500) },
     { op: 'put', store: 'block_revisions', value: oldRevision },
     { op: 'put', store: 'block_revisions', value: currentRevision },
@@ -237,11 +237,14 @@ async function suite(dir: string): Promise<void> {
   assert.equal(seeded.status, 200);
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: handler });
   const txStatuses: number[] = [];
-  const recordFetch: typeof fetch = async (input, init) => {
-    const response = await fetch(input, init);
-    if (new URL(response.url).pathname === '/api/v1/tx') txStatuses.push(response.status);
-    return response;
-  };
+  const recordFetch: typeof fetch = Object.assign(
+    async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const response = await fetch(input, init);
+      if (new URL(response.url).pathname === '/api/v1/tx') txStatuses.push(response.status);
+      return response;
+    },
+    { preconnect: fetch.preconnect },
+  );
   const client = new ApiStorage(`http://127.0.0.1:${server.port}/api`, recordFetch);
   try {
     await client.transaction(['notes'], 'readwrite', async (tx) => {

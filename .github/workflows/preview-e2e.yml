@@ -35,6 +35,8 @@ on:
         value: ${{ jobs.e2e-report.outputs.playground-outcome }}
       storybook-outcome:
         value: ${{ jobs.e2e-report.outputs.storybook-outcome }}
+      webkit-outcome:
+        value: ${{ jobs.e2e-report.outputs.webkit-outcome }}
       tests:
         value: ${{ jobs.e2e-report.outputs.tests }}
       passed:
@@ -181,15 +183,69 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  webkit-smoke:
+    name: WebKit Smoke
+    runs-on: ubuntu-22.04
+    env:
+      TARGET_URL: ${{ inputs.preview-url || format('https://{0}.preview.wod.wiki', inputs.branch-slug || 'main') }}
+      BUILD_HASH: ${{ inputs.build-hash }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up environment (Bun + caches + webkit)
+        uses: ./.github/actions/setup-env
+        with:
+          browsers: 'webkit'
+
+      - name: Build workspace runtime packages
+        run: bun run build:packages:runtime
+
+      - name: Wait for current Playground build on S3/CloudFront
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 45); do
+            html=$(curl -fsS "$TARGET_URL" 2>/dev/null || true)
+            if [ -n "$html" ]; then
+              if [ -z "$BUILD_HASH" ] || grep -q "main-$BUILD_HASH.js" <<<"$html"; then
+                echo "Playground live: $TARGET_URL"
+                exit 0
+              fi
+              echo "Playground reachable but stale (want main-$BUILD_HASH.js) ($i/45)"
+            else
+              echo "Waiting for $TARGET_URL ($i/45)"
+            fi
+            sleep 5
+          done
+          echo "::error::Playground at $TARGET_URL did not serve main-$BUILD_HASH.js"
+          exit 1
+
+      - name: Run WebKit cross-browser smoke against deployed S3 branch
+        run: bun x playwright test --config playwright.webkit.config.ts
+        env:
+          CI: true
+          E2E_APP_URL: ${{ env.TARGET_URL }}
+
+      - name: Upload WebKit report on failure
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: webkit-playwright-report
+          path: |
+            playwright-report/webkit/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
   e2e-report:
     name: Merge & publish E2E report
     runs-on: ubuntu-22.04
-    needs: [playground-e2e, storybook-e2e]
+    needs: [playground-e2e, storybook-e2e, webkit-smoke]
     if: always()
     outputs:
       outcome: ${{ steps.gate.outputs.outcome }}
       playground-outcome: ${{ needs.playground-e2e.result }}
       storybook-outcome: ${{ needs.storybook-e2e.result }}
+      webkit-outcome: ${{ needs.webkit-smoke.result }}
       tests: ${{ steps.preview_stats.outputs.tests }}
       passed: ${{ steps.preview_stats.outputs.passed }}
       failures: ${{ steps.preview_stats.outputs.failures }}
@@ -287,10 +343,11 @@ jobs:
         env:
           PLAYGROUND_RESULT: ${{ needs.playground-e2e.result }}
           STORYBOOK_RESULT: ${{ needs.storybook-e2e.result }}
+          WEBKIT_RESULT: ${{ needs.webkit-smoke.result }}
           FAILURES: ${{ steps.preview_stats.outputs.failures }}
         run: |
           set -euo pipefail
-          if [ "$PLAYGROUND_RESULT" = "success" ] && [ "$STORYBOOK_RESULT" = "success" ] && [ "${FAILURES:-1}" = "0" ]; then
+          if [ "$PLAYGROUND_RESULT" = "success" ] && [ "$STORYBOOK_RESULT" = "success" ] && [ "$WEBKIT_RESULT" = "success" ] && [ "${FAILURES:-1}" = "0" ]; then
             outcome="success"
           else
             outcome="failure"
@@ -308,6 +365,7 @@ jobs:
 
           - Playground URL: $DEPLOY_URL ($PLAYGROUND_RESULT)
           - Storybook URL: $STORY_URL ($STORYBOOK_RESULT)
+          - WebKit smoke: $DEPLOY_URL ($WEBKIT_RESULT)
           - Overall outcome: $outcome
           - Commit: $GITHUB_SHA
           - Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)

@@ -172,7 +172,7 @@ async function queryAndStores(storage: SqlStorage, db: Database): Promise<void> 
   assert.deepEqual(sparse.rows.map(row => row.dataType).sort(), ['embed', 'query', 'widget']);
   assert.equal((await storage.queryDomain({ plan: 'notes', selection: [{ field: 'text', value: 'Recoverable source' }] }))?.matchedCount, 1);
   assert.equal((await storage.queryDomain({ plan: 'blocks', selection: [{ field: 'text', value: 'Recoverable source' }] }))?.matchedCount, 0);
-  assert.equal((await storage.queryDomain({ plan: 'entries', limit: 0 }))?.rows.length, 0);
+  assert.equal((await storage.queryDomain({ plan: 'detail', limit: 0 }))?.rows.length, 0);
   const action = fixture('action');
   await storage.transaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'tags', 'note_tags', 'page', 'page_notes'], 'readwrite', async tx => {
     await save(tx, action);
@@ -182,11 +182,11 @@ async function queryAndStores(storage: SqlStorage, db: Database): Promise<void> 
     await tx.readwrite('page').put({ id: 'page', slug: 'workouts', createdAt: 1 });
     await tx.readwrite('page_notes').put({ id: 'link', pageId: 'page', noteId: 'action', createdAt: 1 });
   });
-  const entries = await storage.queryDomain({ plan: 'entries', selection: [{ field: 'tags', values: ['strength'] }], filters: [{ field: 'text', value: 'pushups' }], limit: 1 });
-  assert.ok(entries?.plan === 'entries'); assert.equal(entries.selectedCount, 1); assert.equal(entries.matchedCount, 1);
-  assert.deepEqual(entries.rows[0].note, action.note); assert.equal(entries.rows[0].tags[0].label, 'strength');
-  assert.equal(entries.rows[0].links[0].pageId, 'page'); assert.equal(entries.rows[0].pages[0].slug, 'workouts');
-  assert.ok(!('segments' in entries.rows[0]));
+  const details = await storage.queryDomain({ plan: 'detail', selection: [{ field: 'tags', values: ['strength'] }], filters: [{ field: 'text', value: 'pushups' }], limit: 1 });
+  assert.ok(details?.plan === 'detail'); assert.equal(details.selectedCount, 1); assert.equal(details.matchedCount, 1);
+  assert.deepEqual(details.rows[0].note, action.note); assert.equal(details.rows[0].tags[0].label, 'strength');
+  assert.equal(details.rows[0].links[0].pageId, 'page'); assert.equal(details.rows[0].pages[0].slug, 'workouts');
+  assert.ok(!('segments' in details.rows[0]));
   const effort = await storage.queryDomain({ plan: 'blocks', selection: [{ field: 'effort', values: ['pushup'] }] });
   assert.ok(effort?.plan === 'blocks'); assert.deepEqual(effort.rows.map(row => row.id), ['action:b']);
   await storage.readwrite('notes').put({ ...action.note, date: 42 });
@@ -237,8 +237,8 @@ async function workload(dir: string): Promise<void> {
     const result = await storage.queryDomain({ plan: 'notes', limit: 20 });
     assert.equal(result?.rows.length, 20); assert.equal(result?.selectedCount, 1250); assert.equal(result?.matchedCount, 1250);
   }));
-  rows.push(await tracked.measure('Entries first 20', async () => {
-    const result = await storage.queryDomain({ plan: 'entries', limit: 20 });
+  rows.push(await tracked.measure('Details first 20', async () => {
+    const result = await storage.queryDomain({ plan: 'detail', limit: 20 });
     assert.equal(result?.rows.length, 20); assert.equal(result?.matchedCount, 1250);
   }));
   rows.push(await tracked.measure('Identical note put', () => storage.readwrite('notes').put({ ...values[0].note })));

@@ -232,23 +232,52 @@ test.describe('PRP-01 — Efforts Catalog & Alias Lifecycle', () => {
     app.assertCleanConsole();
   });
 
-  // Tracked UI gap (#719): EffortDetailPage autosaves inline edits on Custom Efforts,
-  // but does not yet expose a Delete action (`EFFORT_DETAIL_DELETE_BTN`) on /effort/:slug.
-  test.fixme(
-    'deleting a Custom Effort from the detail surface removes it and returns to /efforts (#719)',
-    async ({ app }) => {
-      const slug = `delete-me-${Date.now().toString().slice(-6)}`;
-      await app.goto('/effort/new?mode=create');
-      await app.page.getByRole('button', { name: 'Edit YAML' }).click();
-      await app.editor.replaceDocument(buildCustomEffortYaml(slug, 'Delete Me QA', 'Temporary custom effort.'));
-      await app.page.getByTestId('effort-create-btn').click();
-      await expect(app.page).toHaveURL(new RegExp(`/effort/${slug}$`));
+  test('Scenario 5: Athlete deletes a Custom Effort from the detail surface without affecting bundled Efforts (#719)', async ({
+    app,
+  }) => {
+    const slug = `delete-me-${Date.now().toString().slice(-6)}`;
+    const customLabel = `Delete Me QA ${slug.slice(-4)}`;
 
-      await expect(app.page.getByTestId(TEST_IDS.EFFORT_DETAIL_DELETE_BTN)).toBeVisible();
-      await app.page.getByTestId(TEST_IDS.EFFORT_DETAIL_DELETE_BTN).click();
-      await expect(app.page).toHaveURL('/efforts');
-      await app.wql.expectStreamExcludes('Delete Me QA');
-      app.assertCleanConsole();
-    },
-  );
+    // 1. Create a Custom Effort and confirm it lists under :effort{origin:user}
+    await app.goto('/effort/new?mode=create');
+    await app.page.getByRole('button', { name: 'Edit YAML' }).click();
+    await app.editor.replaceDocument(buildCustomEffortYaml(slug, customLabel, 'Temporary custom effort.'));
+    await app.page.getByTestId('effort-create-btn').click();
+    await expect(app.page).toHaveURL(new RegExp(`/effort/${slug}$`), { timeout: 15_000 });
+
+    await app.wql.queryStream('/efforts', ':effort{origin:user}');
+    await app.wql.expectStreamContains(customLabel);
+
+    // 2. Bundled Effort hides Delete; Custom Effort exposes Delete and confirms removal -> /efforts
+    const burpeeDetail = await app.properties.openEffort('burpee');
+    await burpeeDetail.waitForDetailLoaded();
+    await expect(app.page.getByTestId(TEST_IDS.EFFORT_DETAIL_DELETE_BTN)).toHaveCount(0);
+
+    const customDetail = await app.properties.openEffort(slug);
+    await customDetail.waitForDetailLoaded();
+    await expect(app.page.getByTestId(TEST_IDS.EFFORT_DETAIL_DELETE_BTN)).toBeVisible();
+    await app.page.getByTestId(TEST_IDS.EFFORT_DETAIL_DELETE_BTN).click();
+
+    const deleteDialog = app.page.getByTestId('effort-delete-dialog');
+    await expect(deleteDialog).toBeVisible();
+    await deleteDialog.getByTestId('effort-delete-confirm').click();
+    await expect(app.page).toHaveURL(/\/efforts(?:\?.*)?$/, { timeout: 15_000 });
+
+    // 3. Excluded from :effort{origin:user} immediately and across reload; bundled Efforts remain intact
+    await app.wql.queryStream('/efforts', ':effort{origin:user}');
+    await app.wql.expectStreamExcludes(customLabel);
+
+    await app.page.reload({ waitUntil: 'domcontentloaded' });
+    await app.feeds.waitForReady();
+    await app.wql.expectStreamExcludes(customLabel);
+
+    await app.wql.queryStream('/efforts', ':effort{origin:bundled}');
+    await app.wql.expectStreamContains('Burpee');
+    await app.wql.expectStreamContains('Rowing');
+
+    const deletedRoute = await app.properties.openEffort(slug);
+    await expect(deletedRoute.detailNotFound()).toBeVisible();
+
+    app.assertCleanConsole();
+  });
 });

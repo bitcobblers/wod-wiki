@@ -4,6 +4,8 @@ import { waitForFeedReady } from '../helpers/feedReadiness';
 /**
  * Mobile gate (journal-mobile-375 project): key playground routes render with
  * zero horizontal overflow at a 375px viewport, in forced light theme.
+ * Paired WCAG 2.1 A/AA + >= 44x44px touch-target assertions run alongside this
+ * file in `e2e/gates/a11y-and-touch.mobile.smoke.e2e.ts`.
  *
  * Scope is deliberate (map #990 acceptance gate): only routes verified clean
  * by the dark-mode/mobile inventory (docs/research/008, H3). Surfaces known

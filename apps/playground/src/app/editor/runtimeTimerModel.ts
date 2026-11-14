@@ -9,9 +9,20 @@ import {
   type RuntimeStackOptions,
   type IOutputStatement,
   type INowProvider,
+  type TagIndex,
 } from '@bitcobblers/wod-wiki-engine';
+import {
+  bundledEfforts,
+  EffortResolver,
+  InMemoryEffortRegistry,
+} from '@bitcobblers/wod-wiki-lang';
 import { parseFrontmatter } from '@bitcobblers/wod-wiki-wql';
 import { runtimeFactory } from '@/hooks/useRuntimeFactory';
+import {
+  buildEffectiveReferenceIndex,
+  getBlockScopedCatalog,
+  setBlockScopedCatalog,
+} from '@/services/runCapture';
 import { getTagIndex } from '@/services/tags/tagCatalogue';
 import type { IScriptRuntime } from '@/hooks/useRuntimeTimer';
 import { extractTypedFrontmatterTags } from '@/lib/frontmatter';
@@ -25,9 +36,20 @@ export function prepareRuntimeBlock(block: ScriptBlock): ScriptBlock & { stateme
   // Parse at Run time, not only at editor render time. The tag catalogue can
   // finish loading after the block was first parsed; reusing those statements
   // would leave inline #tag references as inert custom annotations forever.
-  const parser = createParser({ tags: getTagIndex() });
+  // When `captureRun` resolved a Notebook-scoped catalog, preserve its scoped
+  // tag and reference resolution across re-parse.
+  const scoped = getBlockScopedCatalog(block);
+  const effectiveTags = scoped && scoped.tags.length > 0 ? scoped.tagIndex : getTagIndex();
+  const effectiveReferences = scoped ? buildEffectiveReferenceIndex(scoped) : undefined;
+  const parser = createParser({
+    tags: effectiveTags,
+    ...(effectiveReferences ? { references: effectiveReferences } : {}),
+  });
   const prepared = { ...block, statements: parser.read(block.content, block.sport).statements };
   preparedBlocks.add(prepared);
+  if (scoped) {
+    setBlockScopedCatalog(prepared, scoped);
+  }
   return prepared;
 }
 
@@ -86,9 +108,9 @@ export interface ResolvedNotePropertyStack {
  */
 export function resolveNotePropertyStack(
   noteContent?: string,
-  options: { noteId?: string; scopeFilter?: string } = {},
+  options: { noteId?: string; scopeFilter?: string; tags?: TagIndex } = {},
 ): ResolvedNotePropertyStack {
-  const tags = getTagIndex();
+  const tags = options.tags ?? getTagIndex();
   const propertySources: PropertyRuleInput[] = [];
   const activeTags: string[] = [];
   if (noteContent && noteContent.trimStart().startsWith('---')) {
@@ -112,13 +134,25 @@ export function resolveNotePropertyStack(
 }
 
 export function createRuntimeForBlock(block: ScriptBlock, noteContent?: string): IScriptRuntime | null {
-  const tags = getTagIndex();
-  const { activeTags, propertySources } = resolveNotePropertyStack(noteContent);
+  const scoped = getBlockScopedCatalog(block);
+  const tags = scoped && scoped.tags.length > 0 ? scoped.tagIndex : getTagIndex();
+  const { activeTags, propertySources } = resolveNotePropertyStack(noteContent, { tags });
+  const effortResolver = scoped
+    ? (() => {
+        const registry = new InMemoryEffortRegistry();
+        registry.seed(bundledEfforts);
+        registry.seed(scoped.efforts);
+        return new EffortResolver(registry);
+      })()
+    : undefined;
+  const references = scoped ? buildEffectiveReferenceIndex(scoped) : undefined;
   const options: RuntimeStackOptions = {
     analyticsOptions: {
       tags,
       activeTags,
       propertySources,
+      ...(effortResolver ? { effortResolver } : {}),
+      ...(references ? { references } : {}),
     },
   };
   // Preserve pre-run wizard mutations (`Choice` / `?` target resolution) when

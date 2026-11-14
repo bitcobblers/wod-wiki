@@ -50,3 +50,14 @@ Given a hydrated workspace:
 2. Coach opens '/efforts', navigates in-app to a second unknown '/effort/:slug' route, clicks 'Link as Alias', selects 'Sled Drive QA', confirms the link, and then reopens the alias route from a fresh navigation.
 - expect: Step 1 transitions from 'effort-not-found' to create mode, commits the Custom Effort Note, navigates to '/effort/:slug' with source 'Custom', and preserves its authored body across reload.
 - expect: Step 2 links the unknown slug as an alias of 'Sled Drive QA', navigates to its detail page, and resolves subsequent full navigations to the alias URL directly to 'Sled Drive QA' without errors.
+
+### Scenario 5: Athlete deletes a Custom Effort from the detail surface without affecting bundled Efforts
+
+Given a hydrated workspace with bundled Effort definitions:
+
+1. Athlete creates a Custom Effort ('Delete Me QA') via '/effort/new?mode=create' and confirms it appears under ':effort{origin:user}' on '/efforts'.
+2. Athlete opens '/effort/burpee', verifies 'Delete' is hidden on bundled Effort definitions, then reopens the Custom Effort detail page, clicks 'Delete', and confirms deletion.
+3. Athlete queries ':effort{origin:user}' on '/efforts', reloads the browser, re-queries ':effort{origin:user}' and ':effort{origin:bundled}', and visits the deleted '/effort/:slug' route.
+- expect: Step 1 persists 'Delete Me QA' as a Custom Effort visible under ':effort{origin:user}'.
+- expect: Step 2 hides 'Delete' on bundled 'Burpee', exposes 'effort-detail-delete-btn' on 'Delete Me QA', removes the Custom Effort Note on confirmation, and returns to '/efforts'.
+- expect: Step 3 excludes 'Delete Me QA' from ':effort{origin:user}' before and after reload, renders 'effort-not-found' on the deleted '/effort/:slug' route, and keeps bundled Efforts ('Burpee', 'Rowing') intact with a clean browser console.

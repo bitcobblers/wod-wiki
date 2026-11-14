@@ -17,16 +17,33 @@ import { v7 as uuidv7 } from 'uuid';
 import {
   DocumentDuplicateIcon,
 } from '@heroicons/react/20/solid';
-import { Eye } from 'lucide-react';
+import { Eye, Trash2 } from 'lucide-react';
+import {
+  listScopedPropertyOverrides,
+  makeScopedOverrideId,
+  notebookSlugFromId,
+  saveScopedPropertyOverride,
+  toNotebookId,
+} from '@bitcobblers/wod-wiki-engine';
 import { Button } from '@/components/atoms/primitives/button';
 import { Badge } from '@/components/atoms/primitives/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/atoms/primitives/dialog';
 import { Select } from '@/components/atoms/primitives/select';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { useTheme } from '@/contexts/ThemeProvider';
 import { JournalPageShell } from '@/panels/page-shells';
 import type { ScriptBlock } from '@/components/Editor/types';
 import type { Session } from '@/types/storage';
+import { storageService } from '@/services/storage';
 import { useEffortContent } from '../hooks/useEffortContent';
+import { useEditorSave } from '../hooks/useEditorSave';
 import { useNotePageNav } from './shared/useNotePageNav';
 import {
   NoteContextNav,
@@ -117,12 +134,179 @@ export function EffortDetailPage() {
     effort,
     isEditable,
     notFound,
+    remove,
     cloneForEdit,
     error,
     onLineChange,
     onBlur,
     flush,
   } = useEffortContent(slug);
+
+  const rawNotebookParam = searchParams.get('notebook')?.trim() ?? '';
+  const scopedNotebookId = useMemo(() => {
+    if (!rawNotebookParam) return null;
+    const normalized = toNotebookId(rawNotebookParam);
+    return normalized === 'notebook/custom' ? null : normalized;
+  }, [rawNotebookParam]);
+
+  const [scopedDocument, setScopedDocumentState] = useState<string>('');
+  const [scopedLoadedKey, setScopedLoadedKey] = useState<string | null>(null);
+  const [scopedOwnerNoteId, setScopedOwnerNoteId] = useState<string | null>(null);
+  const expectedScopedKey = scopedNotebookId && slug ? `${scopedNotebookId}::${slug}` : null;
+  const isScopedPending = Boolean(expectedScopedKey && scopedLoadedKey !== expectedScopedKey);
+
+  useEffect(() => {
+    if (!scopedNotebookId || !slug || !expectedScopedKey) {
+      setScopedLoadedKey(null);
+      setScopedOwnerNoteId(null);
+      return;
+    }
+    let cancelled = false;
+    listScopedPropertyOverrides(storageService.storage, {
+      notebookId: scopedNotebookId,
+      kind: 'effort',
+      slug,
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        const row = rows[0];
+        if (row) {
+          setScopedDocumentState(row.rawContent);
+          setScopedOwnerNoteId(row.ownerNoteId);
+          setScopedLoadedKey(expectedScopedKey);
+        } else if (document) {
+          setScopedDocumentState(document);
+          setScopedOwnerNoteId(`override/${notebookSlugFromId(scopedNotebookId)}/effort/${slug}`);
+          setScopedLoadedKey(expectedScopedKey);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setScopedLoadedKey(expectedScopedKey);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [scopedNotebookId, slug, expectedScopedKey, document]);
+
+  const handleSaveScopedOverride = useCallback(
+    async (value: string) => {
+      if (!scopedNotebookId || !effort || !value.trim()) return;
+      const { effort: parsed, errors } = documentToEffort(value, effort);
+      if (errors.length > 0) {
+        toast({
+          title: 'Invalid YAML',
+          description: errors.join('\n'),
+          variant: 'destructive',
+        });
+        return;
+      }
+      const saved = await saveScopedPropertyOverride(storageService.storage, {
+        targetNotebookId: scopedNotebookId,
+        kind: 'effort',
+        slug: effort.slug,
+        rawContent: value,
+        title: parsed.label.trim() || effort.label,
+      });
+      setScopedOwnerNoteId(saved.ownerNoteId);
+    },
+    [scopedNotebookId, effort],
+  );
+
+  const {
+    onChange: onScopedChange,
+    onLineChange: onScopedLineChange,
+    onBlur: onScopedBlur,
+    flush: flushScoped,
+  } = useEditorSave({
+    onSave: handleSaveScopedOverride,
+  });
+
+  const setScopedDocument = useCallback(
+    (value: string) => {
+      setScopedDocumentState(value);
+      onScopedChange(value);
+    },
+    [onScopedChange],
+  );
+
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deletingEffort, setDeletingEffort] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const isDeletingRef = useRef(false);
+
+  const activeDocument = scopedNotebookId ? scopedDocument : document;
+  const activeSetDocument = scopedNotebookId ? setScopedDocument : setDocument;
+  const activeOnLineChange = scopedNotebookId ? onScopedLineChange : onLineChange;
+  const activeOnBlur = useCallback(() => {
+    if (isDeletingRef.current) return;
+    if (scopedNotebookId) {
+      onScopedBlur();
+    } else {
+      onBlur();
+    }
+  }, [scopedNotebookId, onScopedBlur, onBlur]);
+  const activeFlush = useCallback(() => {
+    if (isDeletingRef.current) return Promise.resolve();
+    return scopedNotebookId ? flushScoped() : flush();
+  }, [scopedNotebookId, flushScoped, flush]);
+  const activeIsEditable = Boolean(scopedNotebookId) || isEditable;
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!effort || deletingEffort) return;
+    setDeletingEffort(true);
+    setDeleteError(null);
+    isDeletingRef.current = true;
+    try {
+      if (scopedNotebookId) {
+        const overrideId = makeScopedOverrideId(scopedNotebookId, 'effort', effort.slug);
+        const targetOwnerNoteId =
+          scopedOwnerNoteId ?? `override/${notebookSlugFromId(scopedNotebookId)}/effort/${effort.slug}`;
+        await storageService.storage.transaction(
+          ['notes', 'property_overrides'],
+          'readwrite',
+          async (tx) => {
+            await tx.readwrite('property_overrides').delete(overrideId);
+            await tx.readwrite('notes').delete(targetOwnerNoteId);
+          },
+        );
+        await refresh();
+        setConfirmDeleteOpen(false);
+        toast({
+          title: 'Override deleted',
+          description: `Removed the ${notebookSlugFromId(scopedNotebookId)} override for "${effort.label}".`,
+        });
+        navigate(effortPath(effort.slug), { replace: true });
+        return;
+      }
+
+      if (effort.sourceId === 'notebook/custom' || effort.ownerNoteId?.startsWith('override/')) {
+        const overrideId = makeScopedOverrideId('notebook/custom', 'effort', effort.slug);
+        const targetOwnerNoteId = effort.ownerNoteId ?? `override/custom/effort/${effort.slug}`;
+        await storageService.storage.transaction(
+          ['notes', 'property_overrides'],
+          'readwrite',
+          async (tx) => {
+            await tx.readwrite('property_overrides').delete(overrideId);
+            await tx.readwrite('notes').delete(targetOwnerNoteId);
+          },
+        );
+        await refresh();
+      } else {
+        await remove();
+      }
+      setConfirmDeleteOpen(false);
+      toast({
+        title: 'Effort deleted',
+        description: `Deleted custom effort "${effort.label}".`,
+      });
+      navigate(effortsPath(), { replace: true });
+    } catch (err) {
+      isDeletingRef.current = false;
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete effort.');
+    } finally {
+      setDeletingEffort(false);
+    }
+  }, [effort, deletingEffort, scopedNotebookId, scopedOwnerNoteId, refresh, remove, navigate]);
 
   const previousSlugRef = useRef(effort?.slug);
   useEffect(() => {
@@ -298,22 +482,25 @@ export function EffortDetailPage() {
     void navigator.clipboard?.writeText(window.location.href)
   }, [])
   useNotePageNav({
-    content: document,
+    content: activeDocument,
     scriptBlocks,
     onStartWorkout: handleStartWorkout,
     results,
     enableUnrecognizedActions: false,
     helpfulActions: [
-      ...(effort && !isEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: effort.slug }] : []),
+      ...(effort && !activeIsEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: effort.slug }] : []),
       ...(effort ? [{ id: 'add-widget', label: 'Add widget', onRun: () => setWidgetComposerOpen(true) }] : []),
       ...(resolved ? [{ id: 'show-resolved', label: showResolved ? 'Hide Resolved' : 'Show Resolved', onRun: () => setShowResolved(v => !v) }] : []),
+      ...(effort && activeIsEditable ? [{ id: 'delete', label: 'Delete', onRun: () => setConfirmDeleteOpen(true), key: `${effort.slug}:delete` }] : []),
       { id: 'copy-link', label: 'Copy link', onRun: handleCopyLink },
     ],
   });
 
   // ── Contextual links: back to the catalog (history state intact) + journal
   // copies stamped with /e/<slug> + workouts whose scripts use this effort.
-  const ownerNoteId = effort?.ownerNoteId ?? `effort/${slug}`;
+  const ownerNoteId = scopedNotebookId
+    ? (scopedOwnerNoteId ?? `override/${notebookSlugFromId(scopedNotebookId)}/effort/${slug}`)
+    : (effort?.ownerNoteId ?? `effort/${slug}`);
   const ownership = useMemo(
     () => slug ? noteOwnership({ id: ownerNoteId, type: 'note' }) : null,
     [slug, ownerNoteId],
@@ -424,7 +611,7 @@ export function EffortDetailPage() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || isScopedPending) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="animate-pulse h-4 w-32 bg-muted rounded" />
@@ -528,37 +715,68 @@ export function EffortDetailPage() {
   // L2 Up link (NoteContextNav "Up" section).
   const pageActions = (
     <div className="flex items-center gap-2">
-      <ResponsiveActions primary={!isEditable ? (
+      <ResponsiveActions primary={!activeIsEditable ? (
         <div className="flex items-center gap-1.5">
           <Button
+            type="button"
             variant="default"
             onClick={() => setOverrideSheetOpen(true)}
             data-testid="effort-detail-override-btn"
           >
             Override
           </Button>
-          <Button variant="outline" onClick={handleClone} data-testid={TEST_IDS.EFFORT_DETAIL_CLONE_BTN}>
+          <Button type="button" variant="outline" onClick={handleClone} data-testid={TEST_IDS.EFFORT_DETAIL_CLONE_BTN}>
             <DocumentDuplicateIcon className="size-4 mr-1.5" />
             Clone
           </Button>
         </div>
       ) : (
-        <Button
-          variant="outline"
-          onClick={() => setOverrideSheetOpen(true)}
-          data-testid="effort-detail-override-btn"
-        >
-          Override Scope
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setOverrideSheetOpen(true)}
+            data-testid="effort-detail-override-btn"
+          >
+            Override Scope
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => {
+              setDeleteError(null);
+              setConfirmDeleteOpen(true);
+            }}
+            data-testid={TEST_IDS.EFFORT_DETAIL_DELETE_BTN}
+          >
+            <Trash2 className="size-4 mr-1.5" />
+            Delete
+          </Button>
+        </div>
       )}>
         <Badge
           data-testid={TEST_IDS.EFFORT_DETAIL_SOURCE}
-          variant={effort.registrySource === 'bundled' ? 'secondary' : 'default'}
+          variant={!activeIsEditable ? 'secondary' : 'default'}
         >
-          {effort.registrySource === 'bundled' ? 'Bundled' : 'Custom'}
+          {scopedNotebookId
+            ? `Scoped · ${notebookSlugFromId(scopedNotebookId)}`
+            : effort.registrySource === 'bundled'
+              ? 'Bundled'
+              : 'Custom'}
         </Badge>
+        {scopedNotebookId && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate(effortPath(effort.slug))}
+            data-testid="effort-detail-global-link"
+          >
+            Global Definition
+          </Button>
+        )}
         {resolved && (
           <Button
+            type="button"
             variant={showResolved ? 'default' : 'outline'}
             onClick={() => setShowResolved(v => !v)}
           >
@@ -590,12 +808,12 @@ export function EffortDetailPage() {
             )}
             <NoteEditor
               noteId={noteId}
-              value={document}
-              onChange={setDocument}
-              onCursorPositionChange={onLineChange}
-              onBlur={onBlur}
-              onSaveRequest={flush}
-              onCommitChange={flush}
+              value={activeDocument}
+              onChange={activeSetDocument}
+              onCursorPositionChange={activeOnLineChange}
+              onBlur={activeOnBlur}
+              onSaveRequest={activeFlush}
+              onCommitChange={activeFlush}
               theme={actualTheme}
               readonly={false}
               showLineNumbers={true}
@@ -636,7 +854,7 @@ export function EffortDetailPage() {
         executor={queryService}
         tokenValues={effortScope?.tokens}
         onApply={(spec) => {
-          setDocument(appendWidget(document, spec));
+          activeSetDocument(appendWidget(activeDocument, spec));
         }}
       />
       <PropertyOverrideSheet
@@ -645,11 +863,69 @@ export function EffortDetailPage() {
         kind="effort"
         slug={effort.slug}
         label={effort.label}
-        rawContent={document}
-        onSaved={() => {
-          void refresh();
+        rawContent={activeDocument}
+        onSaved={(targetNotebookId) => {
+          if (targetNotebookId === 'notebook/custom') {
+            void refresh();
+            if (scopedNotebookId) {
+              navigate(effortPath(effort.slug));
+            }
+          } else {
+            navigate(`${effortPath(effort.slug)}?notebook=${encodeURIComponent(targetNotebookId)}`);
+          }
         }}
       />
+      <Dialog
+        open={confirmDeleteOpen}
+        onOpenChange={(open) => {
+          if (!deletingEffort) {
+            setConfirmDeleteOpen(open);
+            if (!open) setDeleteError(null);
+          }
+        }}
+      >
+        <DialogContent data-testid="effort-delete-dialog">
+          <DialogHeader>
+            <DialogTitle>{scopedNotebookId ? 'Delete scoped override?' : 'Delete custom effort?'}</DialogTitle>
+            <DialogDescription>
+              {scopedNotebookId
+                ? `Remove the ${notebookSlugFromId(scopedNotebookId)} override for "${effort.label}"? The bundled catalog definition remains untouched.`
+                : `Permanently delete custom effort "${effort.label}"? Bundled efforts and your workout sessions remain untouched.`}
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <p role="alert" className="text-sm text-destructive">
+              {deleteError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deletingEffort}
+              onClick={() => {
+                setConfirmDeleteOpen(false);
+                setDeleteError(null);
+              }}
+              data-testid="effort-delete-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletingEffort}
+              aria-busy={deletingEffort}
+              onClick={() => {
+                void handleConfirmDelete();
+              }}
+              data-testid="effort-delete-confirm"
+            >
+              {deletingEffort ? 'Deleting…' : scopedNotebookId ? 'Delete override' : 'Delete effort'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -566,7 +566,11 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
         async saveScopedOverride(targetNotebookId: string): Promise<void> {
           const sheet = page.getByTestId(TEST_IDS.PROPERTY_OVERRIDE_SHEET);
           await expect(sheet).toBeVisible();
-          await sheet.getByTestId(`override-target-${targetNotebookId}`).click();
+          const normalizedTarget = targetNotebookId.startsWith('notebook/')
+            ? targetNotebookId
+            : `notebook/${targetNotebookId}`;
+          await sheet.getByTestId(`override-target-${normalizedTarget}`).click();
+          await expect(sheet).toBeHidden();
         },
       },
 

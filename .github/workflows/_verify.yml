@@ -2,7 +2,8 @@ name: Build Verify
 
 # Unified non-deploy verification leg (docs/build-process.canvas):
 #   - packages:   lint, typecheck, skill sync check, vitest, full package build,
-#                 CLI web assets smoke check, and Storybook interaction tests
+#                 CLI web assets smoke check, API storage/server contract check,
+#                 hosted SQLite browser E2E, and Storybook interaction tests
 #                 (sharing the single package build in one VM to save CPU)
 #   - playground: validation script tests, baseline type gate, isolated unit suite
 
@@ -67,6 +68,12 @@ jobs:
 
       - name: Build CLI web assets & smoke check
         run: bun run build:cli:assets && bun packages/tools/tests/cli-extension-check.ts
+
+      - name: Run API storage & server contract check
+        run: bun packages/storage/tests/sql-check.ts && bun run check:server
+
+      - name: Build API-mode Playground & run hosted SQLite browser E2E
+        run: bun run --filter '@bitcobblers/wod-wiki-playground' build:api && bun x playwright test --config playwright.api.config.ts
 
       - name: Upload packages-dist artifact
         if: inputs.upload-packages-dist

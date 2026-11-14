@@ -37,6 +37,70 @@ const trustSelfSigned = remoteURL
 const journalStorageState = resolve(import.meta.dirname, '.playwright/journal-storage-state.json');
 const journalDarkStorageState = resolve(import.meta.dirname, '.playwright/journal-dark-storage-state.json');
 const recordingIgnore = process.env.PLAYWRIGHT_RECORDING ? [] : ['**/*-recording.e2e.ts'];
+
+/**
+ * Explicit Level-2 journeys executed in full at `375x812` under the
+ * `journal-mobile-375` project.
+ *
+ * Mobile-375 parity contract (enforced by `scripts/check-e2e-specs.ts`):
+ * Every Level-1 Markdown spec (`e2e/specs/<domain>/<journey>.md`) declaring
+ * `mobile-375` in `viewports` MUST satisfy at least one of:
+ *   1. Its `specFile` is matched by `journal-mobile-375` (either listed in
+ *      `MOBILE_375_LEVEL2_SPECS` below or dynamically discovered because the
+ *      script adapts to `page.viewportSize()` without hardcoding a `375px`
+ *      `setViewportSize` call), OR
+ *   2. Its paired `e2e/live-app/<journey>.e2e.ts` explicitly exercises a
+ *      `375px` mobile viewport via `setViewportSize({ width: 375, ... })`
+ *      (used by journeys that loop desktop + `375x812` viewports internally so
+ *      they do not double-execute desktop-forced scenarios in `journal-mobile-375`).
+ */
+export const MOBILE_375_LEVEL2_SPECS: readonly string[] = [
+  'e2e/live-app/recovery-sample-and-dashboard-lifecycle.e2e.ts',
+];
+
+function walkSpecMarkdown(dir: string): string[] {
+  if (!fs.existsSync(dir)) return [];
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = resolve(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...walkSpecMarkdown(full));
+    } else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'README.md') {
+      files.push(full);
+    }
+  }
+  return files.sort();
+}
+
+export function resolveMobile375TestMatch(repoRoot: string = import.meta.dirname): string[] {
+  const patterns = new Set<string>([
+    '**/gates/*.mobile.smoke.e2e.ts',
+    ...MOBILE_375_LEVEL2_SPECS.map((specFile) => `**/${specFile.replace(/^e2e\//, '')}`),
+  ]);
+
+  for (const mdPath of walkSpecMarkdown(resolve(repoRoot, 'e2e/specs'))) {
+    const raw = fs.readFileSync(mdPath, 'utf8');
+    const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+    if (!fm) continue;
+    const viewportsRaw = fm.match(/^viewports:\s*\[([^\]]*)\]/m)?.[1] ?? '';
+    const viewports = viewportsRaw.split(',').map((v) => v.trim().replace(/^['"]|['"]$/g, ''));
+    if (!viewports.includes('mobile-375')) continue;
+
+    const specFile = fm.match(/^specFile:\s*(\S+)/m)?.[1]?.replace(/^['"]|['"]$/g, '');
+    if (!specFile) continue;
+    const absSpec = resolve(repoRoot, specFile);
+    if (!fs.existsSync(absSpec)) continue;
+
+    const tsRaw = fs.readFileSync(absSpec, 'utf8');
+    const hasInline375SetViewport = /\bsetViewportSize\s*\(/.test(tsRaw) && /\b375\b/.test(tsRaw);
+    const adaptsToProjectViewport = /\bviewportSize\s*\(\s*\)/.test(tsRaw);
+    if (!hasInline375SetViewport && adaptsToProjectViewport) {
+      patterns.add(`**/${specFile.replace(/^e2e\//, '')}`);
+    }
+  }
+
+  return [...patterns];
+}
 /**
  * Playwright configuration for journal / playground e2e tests.
  * Local: Vite dev server (default) or `vite preview` (E2E_TARGET=preview).
@@ -107,10 +171,7 @@ export default defineConfig({
       // IndexedDB from journal-setup.
       name: 'journal-mobile-375',
       dependencies: ['journal-setup'],
-      testMatch: [
-        '**/gates/*.mobile.smoke.e2e.ts',
-        '**/live-app/recovery-sample-and-dashboard-lifecycle.e2e.ts',
-      ],
+      testMatch: resolveMobile375TestMatch(),
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 375, height: 812 },

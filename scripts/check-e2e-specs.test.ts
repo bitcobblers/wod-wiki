@@ -35,7 +35,7 @@ describe('validateE2eSpecCrosswalk (spec-lint)', () => {
       );
       writeFileSync(
         join(dir, 'e2e/live-app/publication-visibility.e2e.ts'),
-        "// spec: e2e/specs/feeds/publication-visibility.md\nimport { test } from '../fixtures/playgroundActor';\ntest('noop', async () => {});\n",
+        "// spec: e2e/specs/feeds/publication-visibility.md\nimport { test } from '../fixtures/playgroundActor';\ntest('noop', async ({ page }) => { await page.setViewportSize({ width: 375, height: 812 }); });\n",
       );
 
       expect(validateE2eSpecCrosswalk(dir, NO_LEGACY)).toEqual([]);
@@ -180,6 +180,133 @@ describe('validateE2eSpecCrosswalk (spec-lint)', () => {
             i.message.includes('Stale LEGACY_UNPAIRED_E2E_FILES entry'),
         ),
       ).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('enforces mobile-375 viewport parity across inline setViewportSize and journal-mobile-375 config', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wod-spec-lint-mobile375-'));
+    try {
+      mkdirSync(join(dir, 'e2e/specs/journal'), { recursive: true });
+      mkdirSync(join(dir, 'e2e/specs/analytics'), { recursive: true });
+      mkdirSync(join(dir, 'e2e/specs/feeds'), { recursive: true });
+      mkdirSync(join(dir, 'e2e/live-app'), { recursive: true });
+
+      writeFileSync(
+        join(dir, 'playwright.journal.config.ts'),
+        [
+          "export const MOBILE_375_LEVEL2_SPECS = ['e2e/live-app/project-matched.e2e.ts'];",
+          'export function resolveMobile375TestMatch() { return MOBILE_375_LEVEL2_SPECS; }',
+          'export default {',
+          '  projects: [',
+          "    { name: 'journal-chromium', testMatch: ['**/live-app/**/*.e2e.ts'] },",
+          "    { name: 'journal-mobile-375', testMatch: resolveMobile375TestMatch() },",
+          '  ],',
+          '};',
+          '',
+        ].join('\n'),
+      );
+
+      // 1. Passing via journal-mobile-375 project match (no inline setViewportSize(375))
+      writeFileSync(
+        join(dir, 'e2e/specs/analytics/project-matched.md'),
+        [
+          '---',
+          'domain: analytics',
+          'specFile: e2e/live-app/project-matched.e2e.ts',
+          'routes: [/dashboards]',
+          'personas: [Athlete]',
+          'viewports: [desktop, mobile-375]',
+          'priority: P1-core',
+          '---',
+          '',
+          '# ANL-99 — Project Matched Mobile Spec',
+          '',
+          '### Scenario 1: Runs under journal-mobile-375 project',
+          'Given a seeded workspace:',
+          '1. Athlete opens /dashboards.',
+          '- expect: cards fit 375px without overflow.',
+          '',
+        ].join('\n'),
+      );
+      writeFileSync(
+        join(dir, 'e2e/live-app/project-matched.e2e.ts'),
+        "// spec: e2e/specs/analytics/project-matched.md\nimport { test } from '../fixtures/playgroundActor';\ntest('adapts', async ({ app }) => { await app.wql.openDashboards(); });\n",
+      );
+
+      // 2. Passing via viewport table + inline setViewportSize
+      writeFileSync(
+        join(dir, 'e2e/specs/feeds/inline-mobile.md'),
+        [
+          '---',
+          'domain: feeds',
+          'specFile: e2e/live-app/inline-mobile.e2e.ts',
+          'routes: [/load]',
+          'personas: [Athlete]',
+          'viewports: [desktop, mobile-375]',
+          'priority: P1',
+          '---',
+          '',
+          '# FED-99 — Inline Mobile Spec',
+          '',
+          '### Scenario 1: Exercises 375x812 inline',
+          'Given a portable archive:',
+          '1. Athlete opens /load at 375x812.',
+          '- expect: intake renders with zero overflow.',
+          '',
+        ].join('\n'),
+      );
+      writeFileSync(
+        join(dir, 'e2e/live-app/inline-mobile.e2e.ts'),
+        [
+          '// spec: e2e/specs/feeds/inline-mobile.md',
+          "import { test } from '../fixtures/playgroundActor';",
+          'const VIEWPORTS = [{ width: 1280, height: 900 }, { width: 375, height: 812 }] as const;',
+          "test('inline mobile', async ({ page }) => { for (const vp of VIEWPORTS) await page.setViewportSize(vp); });",
+          '',
+        ].join('\n'),
+      );
+
+      // 3. Failing: declares mobile-375 in .md, missing from journal-mobile-375 AND only desktop/comment in .e2e.ts
+      writeFileSync(
+        join(dir, 'e2e/specs/journal/missing-mobile.md'),
+        [
+          '---',
+          'domain: journal',
+          'specFile: e2e/live-app/missing-mobile.e2e.ts',
+          'routes: [/journal]',
+          'personas: [Athlete]',
+          'viewports: [desktop, mobile-375]',
+          'priority: P1',
+          '---',
+          '',
+          '# JRN-98 — Missing Mobile Coverage',
+          '',
+          '### Scenario 1: Forgot mobile viewport',
+          'Given a workspace:',
+          '1. Athlete opens /journal.',
+          '- expect: stream renders.',
+          '',
+        ].join('\n'),
+      );
+      writeFileSync(
+        join(dir, 'e2e/live-app/missing-mobile.e2e.ts'),
+        [
+          '// spec: e2e/specs/journal/missing-mobile.md',
+          "import { test } from '../fixtures/playgroundActor';",
+          '// TODO: await page.setViewportSize({ width: 375, height: 812 });',
+          "test('desktop only', async ({ page }) => { await page.setViewportSize({ width: 1280, height: 900 }); });",
+          '',
+        ].join('\n'),
+      );
+
+      const issues = validateE2eSpecCrosswalk(dir, NO_LEGACY);
+      expect(issues).toHaveLength(1);
+      expect(issues[0]?.file).toBe('e2e/specs/journal/missing-mobile.md');
+      expect(issues[0]?.message).toContain("Declares 'mobile-375' in 'viewports:'");
+      expect(issues[0]?.message).toContain('journal-mobile-375');
+      expect(issues[0]?.message).toContain('setViewportSize');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

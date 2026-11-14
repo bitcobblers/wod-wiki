@@ -18,12 +18,15 @@ All commands run from the repo root with `bun`.
 | Markdown fixture compile suite | `bun run --cwd apps/playground test:markdown` | Collections + syntax fixtures; decoupled from `bun run test` |
 | Storybook tests | `bun run test:storybook` | Story smoke + `play()` interaction tests |
 | Playground type gate | `bun run check:playground-types` | Compares `tsc` output against the checked-in baseline; pre-existing errors are tracked in that baseline, not by hand count |
-| E2E Markdown <-> Playwright spec parity | `bun scripts/check-e2e-specs.ts` | Enforces 1:1 bidirectional links between `e2e/specs/<domain>/<journey>.md` and `e2e/live-app/<journey>.e2e.ts` |
+| E2E Markdown <-> Playwright spec parity | `bun scripts/check-e2e-specs.ts` | Enforces 1:1 bidirectional links and `mobile-375` viewport parity between `e2e/specs/<domain>/<journey>.md` and `e2e/live-app/<journey>.e2e.ts` |
 | Validation & CLI script unit tests | `bun run test:validation-scripts` | Tests `check-playground-types`, `check-e2e-specs`, `ticket-report`, and `migrate-seed-markdown` |
 | Skill sync & cited-path check | `bun run check:skills` | Verifies served/mirrored skill copies and repo paths cited in `skills/` |
 | Agent action parity & manifest check | `bun run check:agent-parity` | Verifies 1:1 parity across `DOMAIN_AGENT_TOOLS`, Playground WebMCP `uiTools`, CLI subcommands, risk-tier annotations, and static discovery files (`llms.txt`, `llms-full.txt`, `.well-known/agent-capabilities.json`) |
+| API storage & server contract | `bun run check:server` | Verifies SQLite-backed Hono/engine server API endpoints (`apps/api/check.ts`) |
 | Full E2E / milestone acceptance | `bun run test:e2e` | Playwright journal config; heavyweight |
 | Targeted preview acceptance | `bun run test:e2e:preview` | Runs E2E against a production preview build; the UI-worker done gate |
+| Hosted API-mode SQLite E2E | `bun run test:e2e:api` | Builds `VITE_STORAGE=api` Playground bundle and runs Playwright against disposable SQLite `wod server` (`playwright.api.config.ts`) |
+| WebKit cross-browser smoke E2E | `bun run test:e2e:webkit` | Single-shard Desktop Safari + iPhone 13 WebKit smoke suite (`playwright.webkit.config.ts`) |
 | Static Storybook build | `bun run build-storybook` | Never cancel; can take up to 60 minutes |
 | Docs link check | `bun run docs:check` | Sub-second; must pass before merge |
 
@@ -57,7 +60,7 @@ checked-in baseline that `check:playground-types` compares against.
 Run the home-page WCAG A/AA checks at mobile and desktop sizes with:
 
 ```sh
-bun x playwright test --config playwright.journal.config.ts e2e/live-app/home-tour.e2e.ts --grep "meets WCAG" --project=journal-chromium --workers=1
+bun x playwright test --config playwright.journal.config.ts e2e/live-app/cold-boot-and-home-tour.e2e.ts --grep "meets WCAG" --project=journal-chromium --workers=1
 ```
 
 ### UI worker done gate

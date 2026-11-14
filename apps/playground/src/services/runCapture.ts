@@ -1,4 +1,14 @@
-import { createParser, resolveScopedPropertyCatalog, type ResolvedScopedCatalog } from '@bitcobblers/wod-wiki-engine';
+import {
+  createParser,
+  getNoteNotebooks,
+  resolveScopedPropertyCatalog,
+  type ResolvedScopedCatalog,
+} from '@bitcobblers/wod-wiki-engine';
+import {
+  bundledEfforts,
+  createReferenceIndex,
+  InMemoryEffortRegistry,
+} from '@bitcobblers/wod-wiki-lang';
 import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
 import { notePersistence, type INotePersistence, type SaveNoteInput } from '@/services/persistence';
 import { storageService } from '@/services/storage';
@@ -6,6 +16,33 @@ import { getTagIndex } from '@/services/tags/tagCatalogue';
 import type { BlockRevision, Note, ResultOrigin, Session } from '@/types/storage';
 import type { ScriptBlock } from '@/components/Editor/types';
 import { useActiveRunStore } from '@/stores/activeRunStore';
+
+const scopedCatalogByBlock = new WeakMap<ScriptBlock, ResolvedScopedCatalog>();
+
+export function setBlockScopedCatalog(
+  block: ScriptBlock,
+  catalog: ResolvedScopedCatalog | undefined,
+): void {
+  if (catalog) {
+    scopedCatalogByBlock.set(block, catalog);
+  }
+}
+
+export function getBlockScopedCatalog(block: ScriptBlock): ResolvedScopedCatalog | undefined {
+  return scopedCatalogByBlock.get(block);
+}
+
+export function buildEffectiveReferenceIndex(
+  scopedCatalog: Pick<ResolvedScopedCatalog, 'efforts' | 'equipment'>,
+) {
+  const registry = new InMemoryEffortRegistry();
+  registry.seed(bundledEfforts);
+  registry.seed(scopedCatalog.efforts);
+  return createReferenceIndex({
+    efforts: registry.list(),
+    equipment: scopedCatalog.equipment,
+  });
+}
 
 export interface CapturedRun {
   note: Note;
@@ -17,20 +54,32 @@ export interface CapturedRun {
 
 export function blockFromRevision(
   revision: BlockRevision,
-  scopedCatalog?: Pick<ResolvedScopedCatalog, 'tagIndex' | 'referenceIndex'>,
+  scopedCatalog?: Pick<ResolvedScopedCatalog, 'tagIndex' | 'referenceIndex'> &
+    Partial<Pick<ResolvedScopedCatalog, 'efforts' | 'equipment'>>,
 ): ScriptBlock {
   if (revision.kind !== 'wod' || !revision.dialect) throw new Error('The saved revision is not a workout.');
   const section = parseDocumentSections(revision.rawContent).find(section => section.type === revision.dialect);
   if (!section?.scriptBlock) throw new Error('The saved workout fence cannot be read.');
   const content = section.scriptBlock.content;
+  const effectiveReferences =
+    scopedCatalog?.efforts !== undefined
+      ? buildEffectiveReferenceIndex({
+          efforts: scopedCatalog.efforts,
+          equipment: scopedCatalog.equipment ?? [],
+        })
+      : scopedCatalog?.referenceIndex;
+  const effectiveTags =
+    scopedCatalog && ('tags' in scopedCatalog ? (scopedCatalog as ResolvedScopedCatalog).tags.length > 0 : true)
+      ? scopedCatalog.tagIndex
+      : getTagIndex();
   return {
     id: revision.blockId,
     content,
     dialect: revision.dialect,
     sport: revision.sport,
     statements: createParser({
-      tags: scopedCatalog?.tagIndex ?? getTagIndex(),
-      ...(scopedCatalog?.referenceIndex ? { references: scopedCatalog.referenceIndex } : {}),
+      tags: effectiveTags,
+      ...(effectiveReferences ? { references: effectiveReferences } : {}),
     }).read(content, revision.sport).statements,
     startLine: 0,
     endLine: revision.rawContent.split('\n').length - 1,
@@ -57,24 +106,32 @@ export async function captureRun(input: SaveNoteInput, block: ScriptBlock, resul
     status: 'in-progress',
     createdAt: startedAt,
   });
-  const needsScopedResolution = Boolean(
-    captured.note.provenance?.sourceNotebookId ||
-    captured.note.provenance?.feedSourceId ||
-    captured.note.feedSourceId ||
-    (captured.note.notebookId &&
-      captured.note.notebookId !== 'notebook/journal' &&
-      captured.note.notebookId !== 'notebook/playground'),
-  );
-  if (!needsScopedResolution) {
-    return { ...captured, block: blockFromRevision(captured.revision) };
-  }
   const backingStorage =
     (persistence as { persistenceStorage?: { storage?: typeof storageService.storage } })
       .persistenceStorage?.storage ?? storageService.storage;
+  const linkedNotebooks = await getNoteNotebooks(backingStorage, captured.note.id).catch(() => []);
+  const noteForScope =
+    linkedNotebooks.length > 0
+      ? { ...captured.note, notebookIds: linkedNotebooks }
+      : captured.note;
   const scopedCatalog = await resolveScopedPropertyCatalog(backingStorage, {
-    note: captured.note,
+    note: noteForScope,
   }).catch(() => undefined);
-  return { ...captured, block: blockFromRevision(captured.revision, scopedCatalog) };
+  const hasScopedEntities = Boolean(
+    scopedCatalog &&
+      (scopedCatalog.efforts.length > 0 ||
+        scopedCatalog.equipment.length > 0 ||
+        scopedCatalog.tags.length > 0 ||
+        scopedCatalog.tagTypes.length > 0),
+  );
+  const capturedBlock = blockFromRevision(
+    captured.revision,
+    hasScopedEntities ? scopedCatalog : undefined,
+  );
+  if (hasScopedEntities && scopedCatalog) {
+    setBlockScopedCatalog(capturedBlock, scopedCatalog);
+  }
+  return { ...captured, block: capturedBlock };
 }
 
 export async function captureStoredRun(noteId: string, block: ScriptBlock, resultId: string, origin?: ResultOrigin): Promise<CapturedRun> {

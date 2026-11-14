@@ -7,7 +7,7 @@ This directory holds the canonical **Level-1 Markdown journey specifications** f
 1. **Level 1 — `e2e/specs/<domain>/<journey>.md`**: business-readable journey (YAML frontmatter + `# <ID> — <Title>` H1 + `### Scenario N` bodies).
 2. **Level 2 — `e2e/live-app/<journey>.e2e.ts`**: thin Playwright script whose line 1 is `// spec: e2e/specs/<domain>/<journey>.md` and whose scenarios assert zero uncaught page or console errors via `app.assertCleanConsole()`.
 
-`bun scripts/check-e2e-specs.ts` ([source](../../scripts/check-e2e-specs.ts)) is the bidirectional integrity gate: frontmatter completeness & enum checks, H1 + scenario schema, `specFile` existence, and exact 1:1 crosswalk mapping in both directions.
+`bun scripts/check-e2e-specs.ts` ([source](../../scripts/check-e2e-specs.ts)) is the bidirectional integrity gate: frontmatter completeness & enum checks, H1 + scenario schema, `specFile` existence, `mobile-375` viewport parity (either matched by `journal-mobile-375` in `playwright.journal.config.ts` or exercising `375px` via `setViewportSize`), and exact 1:1 crosswalk mapping in both directions.
 
 ## Frontmatter schema
 
@@ -30,7 +30,7 @@ priority: P0-gate        # P0-gate | P1-core | P1 | P2
 - `1. <Persona> opens '<route>' and <action>.` — numbered user steps.
 - `- expect: <observable outcome>.` — outcome assertions as bullets.
 
-## Journey taxonomy (6 domains, 28 journeys — 14 authored, including all 9 P0-gates)
+## Journey taxonomy (6 domains, 28 journeys — 18 authored, including all 9 P0-gates)
 
 | Domain | Journey | Slug | Priority |
 |---|---|---|---|
@@ -38,11 +38,11 @@ priority: P0-gate        # P0-gate | P1-core | P1 | P2
 | journal | JRN-02 | [daily-note-authoring-and-persistence](journal/daily-note-authoring-and-persistence.md) | P0-gate |
 | journal | JRN-03 | `contextual-entry-creation-wizard` | P1 |
 | journal | JRN-04 | `calendar-agenda-and-planner` | P1 |
-| journal | JRN-05 | `markdown-and-zip-journal-intake` | P1 |
+| journal | JRN-05 | [markdown-and-zip-journal-intake](journal/markdown-and-zip-journal-intake.md) | P1 |
 | journal | JRN-06 | [agent-readiness](journal/agent-readiness.md) | P0-gate |
 | notebooks | NBK-01 | [notebook-hierarchy-and-crud](notebooks/notebook-hierarchy-and-crud.md) | P0-gate |
 | notebooks | NBK-02 | [nm-promotion-and-note-provenance](notebooks/nm-promotion-and-note-provenance.md) | P0-gate |
-| notebooks | NBK-03 | `page-placements-and-shell-navigation` | P1 |
+| notebooks | NBK-03 | [page-placements-and-shell-navigation](notebooks/page-placements-and-shell-navigation.md) | P1 |
 | notebooks | NBK-04 | `playground-scratchpad-and-guides` | P2 |
 | runtime | RUN-01 | [wall-clock-and-fastclock-protocols](runtime/wall-clock-and-fastclock-protocols.md) | P0-gate |
 | runtime | RUN-02 | [readonly-intake-and-provenance-run](runtime/readonly-intake-and-provenance-run.md) | P0-gate |
@@ -51,7 +51,7 @@ priority: P0-gate        # P0-gate | P1-core | P1 | P2
 | properties | PRP-01 | [efforts-catalog-and-alias-lifecycle](properties/efforts-catalog-and-alias-lifecycle.md) | P1 |
 | properties | PRP-02 | [equipment-catalog-and-backlinks](properties/equipment-catalog-and-backlinks.md) | P1-core |
 | properties | PRP-03 | [effort-creation-and-tag-mobile-layout](properties/effort-creation-and-tag-mobile-layout.md) | P1-core |
-| properties | PRP-04 | `scoped-property-override-sheets` | P1 |
+| properties | PRP-04 | [scoped-property-override-sheets](properties/scoped-property-override-sheets.md) | P1 |
 | properties | PRP-05 | `tag-categories-and-metric-stacking` | P1 |
 | analytics | ANL-01 | `stream-wql-and-query-settings` | P1 |
 | analytics | ANL-02 | `analytics-explorer-and-pipeline` | P1 |
@@ -61,7 +61,7 @@ priority: P0-gate        # P0-gate | P1-core | P1 | P2
 | feeds | FED-01 | [feed-subscription-and-autosync](feeds/feed-subscription-and-autosync.md) | P0-gate |
 | feeds | FED-02 | `remote-notebook-preview-and-clone` | P1 |
 | feeds | FED-03 | [publication-visibility-and-feed-export](feeds/publication-visibility-and-feed-export.md) | P0-gate |
-| feeds | FED-04 | `portable-codecs-and-backup-restore` | P1 |
+| feeds | FED-04 | [portable-codecs-and-backup-restore](feeds/portable-codecs-and-backup-restore.md) | P1 |
 
 Each journey's Level-2 script lives at `e2e/live-app/<slug>.e2e.ts`.
 
