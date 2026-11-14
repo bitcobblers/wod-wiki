@@ -55,6 +55,7 @@ describe('WaitingToStart clock gate', () => {
     expect(frame.activeSpans).toEqual([]);
     expect(frame.sessionElapsedMs).toBe(0);
     expect(frame.sessionSpans).toEqual([]);
+    expect(frame.isRunning).toBe(false);
   });
 
   it('starts session elapsed from 00:00 at the gate pop after an idle wait', () => {

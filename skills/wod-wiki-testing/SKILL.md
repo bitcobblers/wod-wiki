@@ -59,7 +59,7 @@ Every live-app E2E test follows a strict two-level **Markdown -> Shared WOD Wiki
    - **No silent `if (await loc.count())` / `if (await loc.isVisible())` guards**: Every step and assertion must execute deterministically.
    - **No vacuous or inverted assertions**: Never write `expect(errorMarker.or(playBtn)).toBeVisible()` or `not.toContainText('x')` without also asserting the positive expected content.
    - **Automatic error gate**: `PlaygroundTestActor` fails automatically on uncaught `pageerror`s after each test (only call `app.allowPageErrors()` in intentional crash/boundary tests; call `app.assertCleanConsole()` to also assert zero `console.error`s).
-   - **Viewport & artifact discipline**: Wire `mobile-375` / `dark` specs into `playwright.journal.config.ts`, and save any diagnostic screenshots strictly via `testInfo.outputPath(...)` (never `e2e/screenshots/` or `/tmp/`).
+   - **Viewport & artifact discipline**: Wire `mobile-375` / `dark` specs into `playwright.journal.config.ts`, and save any diagnostic screenshots strictly via `testInfo.outputPath(...)` (never ad-hoc repo screenshot directories or `/tmp/`).
 
 ## 4. Verification & Token-Lean Execution
 

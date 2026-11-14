@@ -593,7 +593,7 @@ export function projectSessionClock(
     secondaryTimers,
     upNext: readNextPreviewText(blocks),
     repTargets: extractRepTargets(blocks),
-    isRunning: isAnyTimerRunning || status === 'running',
+    isRunning: !isWaitingToStart && (isAnyTimerRunning || status === 'running'),
     isPaused,
     isNextDisabled: isPaused || options.canNextOverride === false,
     skipFlash,

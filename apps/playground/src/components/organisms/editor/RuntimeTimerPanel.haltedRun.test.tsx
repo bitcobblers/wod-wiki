@@ -22,8 +22,19 @@ import {
   stagePendingUnloadResult,
 } from '@/hooks/useWorkbenchServices';
 import { WallClockPage } from '../../../../app/pages/WallClockPage';
+import { TEST_IDS } from '@/lib/testIds';
 
 const PENDING_HALTED_KEY = 'wodwiki:pending-halted-sessions:v1';
+
+async function startFromReadyGate(): Promise<void> {
+  await waitFor(() => {
+    expect(useActiveRunStore.getState().runtime?.stack.current?.blockType).toBe('WaitingToStart');
+  });
+  fireEvent.click(screen.getByTestId(TEST_IDS.TIMER_PLAY_PAUSE));
+  await waitFor(() => {
+    expect(useActiveRunStore.getState().execution.status).toBe('running');
+  });
+}
 
 function makeBlock(content: string): ScriptBlock {
   return {
@@ -93,9 +104,7 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(useActiveRunStore.getState().execution.status).toBe('running');
-    });
+    await startFromReadyGate();
 
     act(() => {
       window.dispatchEvent(new Event('beforeunload'));
@@ -124,9 +133,7 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(useActiveRunStore.getState().execution.status).toBe('running');
-    });
+    await startFromReadyGate();
 
     rerender(
       <RuntimeTimerPanel
@@ -257,9 +264,7 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(useActiveRunStore.getState().execution.status).toBe('running');
-    });
+    await startFromReadyGate();
 
     // Stale marker cleared immediately on live start
     expect(getHaltedRun()).toBeNull();
@@ -294,9 +299,7 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(useActiveRunStore.getState().execution.status).toBe('running');
-    });
+    await startFromReadyGate();
 
     act(() => {
       window.dispatchEvent(new window.Event('beforeunload'));
@@ -356,7 +359,7 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
     expect(screen.getByTestId('run-notfound-go-home')).toBeDefined();
   });
 
-  it('autoStart pops WaitingToStart so the live block runs immediately instead of staying on Ready to Start', async () => {
+  it('autoStart opens at the WaitingToStart gate until explicit Start pops WaitingToStart and runs the live block', async () => {
     render(
       <RuntimeTimerPanel
         block={makeBlock('10:00 AMRAP\n  5 Pullups\n  10 Pushups')}
@@ -366,6 +369,13 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
         onClose={() => {}}
       />,
     );
+
+    await waitFor(() => {
+      expect(useActiveRunStore.getState().runtime?.stack.current?.blockType).toBe('WaitingToStart');
+    });
+    expect(useActiveRunStore.getState().execution.status).toBe('idle');
+
+    fireEvent.click(screen.getByTestId(TEST_IDS.TIMER_PLAY_PAUSE));
 
     await waitFor(() => {
       expect(useActiveRunStore.getState().execution.status).toBe('running');
