@@ -1,0 +1,46 @@
+# wod.wiki ontology — Legacy QA Namespace Alignment (WP4)
+# ---------------------------------------------------------------------------
+# Canonical QA namespace: <https://wod.wiki/ontology/qa#>
+# Legacy QA fork namespace: <https://qa.forest-adhara.ts.net/ont#>
+#
+# Provides OWL equivalence / alignment axioms so data ingested from the live
+# QA dashboard (qa.forest-adhara.ts.net) maps cleanly onto the canonical :qa
+# and :bridge vocabularies while the legacy fork is phased out.
+# ---------------------------------------------------------------------------
+
+@prefix qa:       <https://wod.wiki/ontology/qa#> .
+@prefix qaLegacy: <https://qa.forest-adhara.ts.net/ont#> .
+@prefix bridge:   <https://wod.wiki/ontology/bridge#> .
+@prefix prov:     <http://www.w3.org/ns/prov#> .
+@prefix owl:      <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+
+<https://wod.wiki/ontology/qa/legacy-alignment> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — legacy qa.forest-adhara.ts.net alignment" ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://wod.wiki/ontology/qa> , <https://wod.wiki/ontology/bridge> ;
+    rdfs:comment "Temporary alignment module bridging legacy qa.forest-adhara.ts.net/ont# IRIs to canonical https://wod.wiki/ontology/qa# and bridge# IRIs." .
+
+# === Class Alignments =======================================================
+
+qaLegacy:Domain  owl:equivalentClass qa:Domain .
+qaLegacy:Journey owl:equivalentClass qa:Journey .
+qaLegacy:Issue   owl:equivalentClass qa:Issue .
+qaLegacy:Run     owl:equivalentClass qa:Run .
+
+# === Property Alignments ====================================================
+
+qaLegacy:domain         owl:equivalentProperty qa:inDomain .
+qaLegacy:affects        owl:equivalentProperty qa:affects .
+qaLegacy:coveredBy      owl:equivalentProperty qa:coveredBy .
+qaLegacy:severity       owl:equivalentProperty qa:issueSeverity .
+qaLegacy:status         owl:equivalentProperty qa:issueStatus .
+qaLegacy:runDate        owl:equivalentProperty qa:runTimestamp .
+
+# Bridge & provenance alignments (legacy strings -> typed :bridge / PROV edges)
+qaLegacy:specFile       owl:equivalentProperty bridge:specFile .
+qaLegacy:playwrightSpec owl:equivalentProperty bridge:playwrightSpec .
+qaLegacy:rootCause      owl:equivalentProperty bridge:rootCause .
+qaLegacy:routes         owl:equivalentProperty bridge:route .
+qaLegacy:firstSeen      rdfs:subPropertyOf prov:wasGeneratedBy .
+qaLegacy:lastSeen       rdfs:subPropertyOf prov:wasGeneratedBy .

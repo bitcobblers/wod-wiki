@@ -46,6 +46,7 @@ export interface FileChange {
   removedSymbols: string[]
   addedMetrics: string[]
   addedTestIds: string[]
+  addedTestIdPairs?: Array<{ key: string; value: string }>
   addedTools: string[]
   addedRoutes: string[]
 }
@@ -240,6 +241,7 @@ export function extractDiffSignals(
   const removedSymbols = new Set<string>()
   const addedMetrics = new Set<string>()
   const addedTestIds = new Set<string>()
+  const addedTestIdPairs = new Map<string, string>()
   const addedTools = new Set<string>()
   const addedRoutes = new Set<string>()
 
@@ -266,7 +268,10 @@ export function extractDiffSignals(
 
     if (filePath.includes('testIds') || filePath.includes('TestIdContract')) {
       const tMatch = testIdRe.exec(line)
-      if (tMatch && tMatch[2]) addedTestIds.add(tMatch[2])
+      if (tMatch && tMatch[1] && tMatch[2]) {
+        addedTestIds.add(tMatch[2])
+        addedTestIdPairs.set(tMatch[2], tMatch[1])
+      }
     }
 
     if (filePath.includes('agent')) {
@@ -280,11 +285,19 @@ export function extractDiffSignals(
     }
   }
 
+  // Symbols that appear in both '+' and '-' of the same file diff were modified in place, not removed.
+  for (const sym of addedSymbols) {
+    removedSymbols.delete(sym)
+  }
+
   return {
     addedSymbols: [...addedSymbols].sort(),
     removedSymbols: [...removedSymbols].sort(),
     addedMetrics: [...addedMetrics].sort(),
     addedTestIds: [...addedTestIds].sort(),
+    addedTestIdPairs: [...addedTestIds]
+      .sort()
+      .map((value) => ({ key: addedTestIdPairs.get(value) ?? value, value })),
     addedTools: [...addedTools].sort(),
     addedRoutes: [...addedRoutes].sort(),
   }
@@ -534,7 +547,7 @@ function buildProposedTriples(
     for (const sym of f.addedSymbols) {
       const symId = `code:sym_${sanitizeIriSegment(f.path)}_${sanitizeIriSegment(sym)}`
       addedCode.push(
-        `  ${symId} a code:Symbol ;\n    code:symbolName "${escapeTurtleString(sym)}" ;\n    code:definedIn ${fileId} .`,
+        `  ${symId} a code:Symbol ;\n    code:symbolName "${escapeTurtleString(sym)}" ;\n    code:scipId "${escapeTurtleString(f.path)}#${escapeTurtleString(sym)}" ;\n    code:definedIn ${fileId} .`,
       )
       if (
         (f.category === 'domain_model' ||
@@ -554,7 +567,7 @@ function buildProposedTriples(
     for (const sym of f.removedSymbols) {
       const symId = `code:sym_${sanitizeIriSegment(f.path)}_${sanitizeIriSegment(sym)}`
       removedCode.push(
-        `  ${symId} a code:Symbol ;\n    code:symbolName "${escapeTurtleString(sym)}" .`,
+        `  ${symId} a code:Symbol ;\n    code:symbolName "${escapeTurtleString(sym)}" ;\n    code:scipId "${escapeTurtleString(f.path)}#${escapeTurtleString(sym)}" .`,
       )
     }
 
@@ -566,33 +579,37 @@ function buildProposedTriples(
       }
     }
 
-    for (const tid of f.addedTestIds) {
-      const tidId = `code:testid_${sanitizeIriSegment(tid)}`
+    const tidPairs =
+      f.addedTestIdPairs ??
+      f.addedTestIds.map((value) => ({
+        key: value.toUpperCase().replace(/[^A-Z0-9]+/g, '_'),
+        value,
+      }))
+    for (const tid of tidPairs) {
+      const tidId = `code:testid_${sanitizeIriSegment(tid.value)}`
       addedCode.push(
-        `  ${tidId} a code:TestId ;\n    rdfs:label "${escapeTurtleString(tid)}" ;\n    code:definedIn ${fileId} .`,
+        `  ${tidId} a code:TestId ;\n    code:testIdKey "TEST_IDS.${escapeTurtleString(tid.key)}" ;\n    code:testIdValue "${escapeTurtleString(tid.value)}" ;\n    code:definedIn ${fileId} .`,
       )
-      addedBridge.push(`  ${tidId} bridge:testId "${escapeTurtleString(tid)}" .`)
     }
 
     for (const tool of f.addedTools) {
       const toolId = `code:tool_${sanitizeIriSegment(tool)}`
       addedCode.push(
-        `  ${toolId} a code:WebMcpTool ;\n    rdfs:label "${escapeTurtleString(tool)}" ;\n    code:definedIn ${fileId} .`,
+        `  ${toolId} a code:WebMcpTool ;\n    code:toolName "${escapeTurtleString(tool)}" ;\n    code:definedIn ${fileId} .`,
       )
     }
 
     for (const route of f.addedRoutes) {
       const routeId = `code:route_${sanitizeIriSegment(route)}`
       addedCode.push(
-        `  ${routeId} a code:Route ;\n    rdfs:label "${escapeTurtleString(route)}" ;\n    code:definedIn ${fileId} .`,
+        `  ${routeId} a code:Route ;\n    code:routePath "${escapeTurtleString(route)}" ;\n    code:definedIn ${fileId} .`,
       )
-      addedBridge.push(`  ${routeId} bridge:route "${escapeTurtleString(route)}" .`)
     }
 
     if (f.category === 'e2e_specs') {
       const specId = `qa:spec_${sanitizeIriSegment(f.path)}`
       addedBridge.push(
-        `  ${specId} bridge:specFile "${escapeTurtleString(f.path)}" ;\n    bridge:touches ${fileId} .`,
+        `  ${specId} bridge:specFile ${fileId} ;\n    bridge:touches ${fileId} .`,
       )
     }
   }

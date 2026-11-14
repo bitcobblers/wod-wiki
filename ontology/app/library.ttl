@@ -71,6 +71,18 @@ wod:backedByQuery a owl:ObjectProperty ;
     rdfs:range wod:WQLQuery ;
     rdfs:comment "The WQLQuery computing dynamic membership for a QueryCollectionPage." .
 
+# === Notebooks & Feeds (WP2) ==============================================
+
+wod:Notebook a owl:Class ;
+    ufo:stereotype ufo:Kind ;
+    rdfs:label "Notebook" ;
+    rdfs:comment "A named, publishable or private grouping of Notes via many-to-many NotebookLinks (e.g. private 'notebook/journal', read-only 'notebook/defaults', private 'notebook/custom', or user-created Notebooks). See ADR 0006." .
+
+wod:Feed a owl:Class ;
+    ufo:stereotype ufo:Kind ;
+    rdfs:label "Feed" ;
+    rdfs:comment "A subscribed or published distribution stream delivering read-only Seed Notes and Notebook chunks across peers (see ADR 0001, ADR 0002, ADR 0005)." .
+
 wod:collectionName a owl:DatatypeProperty ;
     rdfs:label "collection name" ;
     rdfs:domain wod:Collection ;

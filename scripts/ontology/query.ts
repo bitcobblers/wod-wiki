@@ -237,9 +237,9 @@ function getJourneyView(store: GraphStore, jIri: string): JourneyView {
   const pwIri = store.val(jIri, 'bridge:playwrightSpec');
   const playwrightSpec = pwIri ? store.val(pwIri, 'code:filePath') ?? pwIri : undefined;
 
-  const routes = store.vals(jIri, 'bridge:route').map((r) => store.val(r, 'code:routePath') ?? r);
-  const testIds = store.vals(jIri, 'bridge:testId').map((t) => store.val(t, 'code:testIdValue') ?? t);
-  const seedNouns = store.vals(jIri, 'bridge:seedNoun');
+  const routes = [...new Set(store.vals(jIri, 'bridge:route').map((r) => store.val(r, 'code:routePath') ?? r))];
+  const testIds = [...new Set(store.vals(jIri, 'bridge:testId').map((t) => store.val(t, 'code:testIdValue') ?? t))];
+  const seedNouns = [...new Set(store.vals(jIri, 'bridge:seedNoun'))];
 
   const stepIris = store.vals(jIri, 'qa:hasStep');
   const beats = stepIris
@@ -281,12 +281,15 @@ function getJourneyView(store: GraphStore, jIri: string): JourneyView {
     }
   }
 
-  const issueIris = store.incoming(jIri, 'qa:affects').map((t) => t.s);
-  const issues = issueIris.map((iIri) => ({
-    id: iIri.split('/').pop() ?? iIri,
+  const issueIriSet = new Set<string>([
+    ...store.incoming(jIri, 'qa:affects').map((t) => t.s),
+    ...store.incoming(jIri, 'qa:coveredBy').map((t) => t.s),
+  ]);
+  const issues = [...issueIriSet].map((iIri) => ({
+    id: store.val(iIri, 'qa:issueId') ?? iIri.split('/').pop() ?? iIri,
     title: store.val(iIri, 'rdfs:label') ?? iIri,
     severity: store.val(iIri, 'qa:severity'),
-    rootCauses: store.vals(iIri, 'bridge:rootCause').map((rc) => store.val(rc, 'code:filePath') ?? rc),
+    rootCauses: store.vals(iIri, 'bridge:rootCause').map((rc) => store.val(rc, 'code:filePath') ?? store.val(rc, 'code:scipId') ?? rc),
   }));
 
   return {
@@ -386,7 +389,7 @@ function queryByFile(store: GraphStore, fileQuery: string, jsonMode: boolean) {
 
     const usedTestIds = store.vals(fIri, 'code:usesTestId').map((tid) => store.val(tid, 'code:testIdValue') ?? tid);
 
-    // Connected journeys: via specFile, playwrightSpec, touches, or testId overlap
+    // Connected journeys: via specFile, playwrightSpec, touches, testId overlap, or rootCause -> Issue -> coveredBy
     const journeySet = new Set<string>();
     for (const pred of ['bridge:specFile', 'bridge:playwrightSpec', 'bridge:touches']) {
       for (const inc of store.incoming(fIri, pred)) {
@@ -398,6 +401,11 @@ function queryByFile(store: GraphStore, fileQuery: string, jsonMode: boolean) {
         if (store.vals(inc.s, 'rdf:type').includes('qa:Journey')) journeySet.add(inc.s);
       }
     }
+    for (const inc of store.incoming(fIri, 'bridge:rootCause')) {
+      for (const jIri of store.vals(inc.s, 'qa:coveredBy')) {
+        if (store.vals(jIri, 'rdf:type').includes('qa:Journey')) journeySet.add(jIri);
+      }
+    }
 
     const journeys = [...journeySet].map((j) => ({
       id: store.val(j, 'qa:journeyId') ?? j,
@@ -406,11 +414,19 @@ function queryByFile(store: GraphStore, fileQuery: string, jsonMode: boolean) {
       seedNouns: store.vals(j, 'bridge:seedNoun'),
     }));
 
-    const issues = store.incoming(fIri, 'bridge:rootCause').map((inc) => ({
-      id: inc.s.split('/').pop() ?? inc.s,
-      title: store.val(inc.s, 'rdfs:label') ?? inc.s,
-      severity: store.val(inc.s, 'qa:severity'),
-    }));
+    const seenIssues = new Set<string>();
+    const issues = store
+      .incoming(fIri, 'bridge:rootCause')
+      .map((inc) => ({
+        id: store.val(inc.s, 'qa:issueId') ?? inc.s.split('/').pop() ?? inc.s,
+        title: store.val(inc.s, 'rdfs:label') ?? inc.s,
+        severity: store.val(inc.s, 'qa:severity'),
+      }))
+      .filter((iss) => {
+        if (seenIssues.has(iss.id)) return false;
+        seenIssues.add(iss.id);
+        return true;
+      });
 
     const domainClasses = new Set<string>();
     for (const s of symbols) for (const c of s.domainClasses) domainClasses.add(c);
@@ -549,9 +565,13 @@ function generateChainsMarkdown(store: GraphStore) {
     lines.push(`- **Domain**: \`${v.domain}\` | **Priority**: \`${v.priority}\``);
     if (v.specFile) lines.push(`- **Spec**: \`${v.specFile}\``);
     if (v.playwrightSpec) lines.push(`- **Playwright**: \`${v.playwrightSpec}\``);
-    lines.push(`- **5-Beat Causal Chain**:`);
-    for (const b of v.beats) {
-      lines.push(`  ${b.order}. **${b.beat}**: ${b.label}`);
+    if (v.beats.length > 0) {
+      lines.push(`- **5-Beat Causal Chain**:`);
+      for (const b of v.beats) {
+        lines.push(`  ${b.order}. **${b.beat}**: ${b.label}`);
+      }
+    } else {
+      lines.push(`- **Status**: \`proposed\` (open journey slot)`);
     }
     if (v.touchedFiles.length > 0) {
       lines.push(`- **Touched Files**: ${v.touchedFiles.slice(0, 10).map((f) => `\`${f}\``).join(', ')}`);
@@ -565,6 +585,54 @@ function generateChainsMarkdown(store: GraphStore) {
   const outPath = path.join(GENERATED_DIR, 'chains.md');
   fs.writeFileSync(outPath, lines.join('\n'), 'utf8');
   console.log(`Generated ${path.relative(REPO_ROOT, outPath)} (${views.length} journey chains).`);
+}
+
+function queryByIssue(store: GraphStore, issueQuery: string, jsonMode: boolean) {
+  const qLower = issueQuery.toLowerCase();
+  const issueIris = store.subjectsWith('rdf:type', 'qa:Issue');
+  const matches = issueIris.filter((i) => {
+    const id = (store.val(i, 'qa:issueId') ?? i.split('/').pop() ?? '').toLowerCase();
+    return id === qLower || id.includes(qLower);
+  });
+
+  if (matches.length === 0) {
+    console.error(`No issue found matching "${issueQuery}".`);
+    process.exit(1);
+  }
+
+  const results = matches.map((iIri) => {
+    const id = store.val(iIri, 'qa:issueId') ?? iIri.split('/').pop() ?? iIri;
+    const title = store.val(iIri, 'rdfs:label') ?? id;
+    const severity = store.val(iIri, 'qa:severity') ?? '';
+    const status = store.val(iIri, 'qa:status') ?? '';
+    const firstSeenRun = store.val(iIri, 'qa:firstSeenRun')?.split('/').pop();
+    const lastSeenRun = store.val(iIri, 'qa:lastSeenRun')?.split('/').pop();
+    const affects = store.vals(iIri, 'qa:affects').map((d) => d.split('/').pop() ?? d);
+    const coveredBy = store.vals(iIri, 'qa:coveredBy').map((j) => store.val(j, 'qa:journeyId') ?? j.split('/').pop() ?? j);
+    const rootCauses = store.vals(iIri, 'bridge:rootCause').map((rc) => ({
+      type: store.vals(rc, 'rdf:type').includes('code:Symbol') ? 'symbol' : 'file',
+      ref: store.val(rc, 'code:scipId') ?? store.val(rc, 'code:filePath') ?? rc,
+      lineHint: store.val(rc, 'code:lineHint'),
+    }));
+    return { id, title, severity, status, firstSeenRun, lastSeenRun, affects, coveredBy, rootCauses };
+  });
+
+  if (jsonMode) {
+    console.log(JSON.stringify(results, null, 2));
+    return;
+  }
+
+  for (const r of results) {
+    console.log(`\n=== Issue: ${r.id} [${r.severity} | ${r.status}] ===`);
+    console.log(`Title:      ${r.title}`);
+    console.log(`Runs:       firstSeen=${r.firstSeenRun ?? 'n/a'} | lastSeen=${r.lastSeenRun ?? 'n/a'}`);
+    console.log(`Affects:    ${r.affects.join(', ') || 'none'}`);
+    console.log(`Covered By: ${r.coveredBy.join(', ') || 'none'}`);
+    console.log(`Root Causes (${r.rootCauses.length}):`);
+    for (const rc of r.rootCauses) {
+      console.log(`  - [${rc.type}] ${rc.ref}${rc.lineHint ? ` (lineHint:${rc.lineHint})` : ''}`);
+    }
+  }
 }
 
 // ── CLI Entrypoint ─────────────────────────────────────────────────────────
@@ -581,6 +649,7 @@ const store = loadStore();
 const journeyArg = getFlag('--journey');
 const fileArg = getFlag('--file');
 const symbolArg = getFlag('--symbol');
+const issueArg = getFlag('--issue');
 const chainsFlag = args.includes('--chains');
 
 if (journeyArg) {
@@ -589,9 +658,11 @@ if (journeyArg) {
   queryByFile(store, fileArg, jsonMode);
 } else if (symbolArg) {
   queryBySymbol(store, symbolArg, jsonMode);
+} else if (issueArg) {
+  queryByIssue(store, issueArg, jsonMode);
 } else if (chainsFlag) {
   generateChainsMarkdown(store);
 } else {
-  console.log('Usage: bun run ontology:query -- [--journey <id> | --file <path> | --symbol <name> | --chains] [--json]');
+  console.log('Usage: bun run ontology:query -- [--journey <id> | --file <path> | --symbol <name> | --issue <id> | --chains] [--json]');
   process.exit(1);
 }

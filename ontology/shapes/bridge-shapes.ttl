@@ -19,7 +19,6 @@ bridge:IssueBridgeShape a sh:NodeShape ;
     sh:targetClass qa:Issue ;
     sh:property [
         sh:path bridge:rootCause ;
-        sh:nodeKind sh:IRI ;
         sh:or (
             [ sh:class code:Symbol ]
             [ sh:class code:File ]

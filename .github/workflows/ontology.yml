@@ -1,0 +1,52 @@
+name: Ontology & Contract Gates
+
+on:
+  pull_request:
+    paths:
+      - 'ontology/**'
+      - 'apps/playground/**'
+      - 'e2e/**'
+      - 'scripts/ontology/**'
+      - 'scripts/check-test-ids.ts'
+      - 'skills/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'ontology/**'
+      - 'apps/playground/**'
+      - 'e2e/**'
+      - 'scripts/ontology/**'
+      - 'scripts/check-test-ids.ts'
+      - 'skills/**'
+
+jobs:
+  ontology-and-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate ontology (Turtle, TriG, SHACL, seedNoun integrity)
+        run: bash ontology/validate.sh
+
+      - name: Verify ontology generated artifacts are fresh
+        run: |
+          bun run ontology:build -- --offline
+          bun run ontology:codegen
+          bun run ontology:query -- --chains
+          git diff --exit-code ontology/generated/
+
+      - name: Enforce TEST_IDS contract
+        run: bun run check:test-ids
+
+      - name: Check E2E spec parity
+        run: bun scripts/check-e2e-specs.ts

@@ -687,13 +687,19 @@ for (const root of SCAN_ROOTS) {
   }
 }
 
-if (violations.length > 0 || invalidRefs.length > 0) {
+const LEGACY_BASELINE_COUNT = 431;
+
+if (violations.length > 0 || invalidRefs.length > 0 || legacyCount > LEGACY_BASELINE_COUNT) {
   console.error("TEST_IDS contract check failed:");
   for (const v of violations) console.error(`  [literal] ${v}`);
   for (const r of invalidRefs) console.error(`  [invalid-ref] ${r}`);
+  if (legacyCount > LEGACY_BASELINE_COUNT) {
+    console.error(`  [baseline] legacy literal count (${legacyCount}) exceeds burn-down cap (${LEGACY_BASELINE_COUNT}).`);
+  }
   process.exit(1);
 }
 
+const burnedDown = LEGACY_BASELINE_COUNT - legacyCount;
 console.log(
-  `TEST_IDS contract check passed (0 new literal data-testid attributes, 0 invalid TEST_IDS refs; ${legacyCount} legacy baseline occurrences).`,
+  `TEST_IDS contract check passed (0 new literal data-testid attributes, 0 invalid TEST_IDS refs; legacy count: ${legacyCount}/${LEGACY_BASELINE_COUNT}${burnedDown > 0 ? `, burned down ${burnedDown}` : ""}).`,
 );

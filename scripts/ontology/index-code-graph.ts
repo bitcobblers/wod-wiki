@@ -305,7 +305,7 @@ function parseE2eSpec(filePath: string, knownTestIdValues: Set<string>): ParsedS
   };
 }
 
-export function buildUnifiedGraph() {
+export async function buildUnifiedGraph() {
   const codeLines: string[] = [PREFIXES, '', '# === :code — SCIP-style Files, Symbols, TestIds, Routes, WebMCP Tools ===', ''];
   const qaLines: string[] = [PREFIXES, '', '# === :qa — Domains, Journeys, 5-Beat Chains, Issues, Runs ===', ''];
   const bridgeLines: string[] = [PREFIXES, '', '# === :bridge — Cross-graph Links (:qa <-> :code <-> :domain) ===', ''];
@@ -368,11 +368,16 @@ export function buildUnifiedGraph() {
             bridgeLines.push(`${sIri} bridge:implementsDomainClass wod:${sym.name} .`);
           }
         }
-        // Index TEST_IDS.* usages in non-test source files
+        // Index TEST_IDS.* and literal data-testid usages in non-test source files
         const usedTestIds = new Set<string>();
         for (const m of content.matchAll(/\bTEST_IDS\.([A-Za-z0-9_.]+)/g)) {
           const val = testIdMap.get(m[1]);
           if (val) usedTestIds.add(val);
+        }
+        for (const m of content.matchAll(/data-testid=["']([^"']+)["']/g)) {
+          if (knownTestIdValues.has(m[1])) {
+            usedTestIds.add(m[1]);
+          }
         }
         for (const val of usedTestIds) {
           codeLines.push(`${fIri} code:usesTestId ${testIdIri(val)} .`);
@@ -400,7 +405,9 @@ export function buildUnifiedGraph() {
 
   // 3. Index ROUTE_PATTERNS
   const routesFile = fileIri('apps/playground/src/lib/routes.ts');
+  const knownRoutes = new Set<string>();
   for (const [key, pattern] of Object.entries(ROUTE_PATTERNS)) {
+    knownRoutes.add(pattern);
     const rIri = routeIri(pattern);
     codeLines.push(
       `${rIri} a code:Route ;`,
@@ -429,8 +436,8 @@ export function buildUnifiedGraph() {
     );
   }
 
-  // 5. Index QA Domains & Journeys from e2e/specs/ + e2e/live-app/
-  const domains = new Set<string>(['journal', 'notebooks', 'runtime', 'properties', 'analytics', 'feeds']);
+  // 5. Index QA Domains & Journeys from e2e/specs/ + e2e/live-app/ (all 7 domains)
+  const domains = new Set<string>(['journal', 'notebooks', 'runtime', 'properties', 'analytics', 'feeds', 'manual']);
   const domainToArea: Record<string, string> = {
     journal: 'apps/playground/app/pages',
     notebooks: 'apps/playground/app/views/stream',
@@ -438,6 +445,7 @@ export function buildUnifiedGraph() {
     properties: 'apps/playground/app/pages',
     analytics: 'apps/playground/app/views/dashboards',
     feeds: 'apps/playground/app/services',
+    manual: 'apps/playground/app/tour',
   };
 
   for (const dom of domains) {
@@ -536,6 +544,15 @@ export function buildUnifiedGraph() {
     }
 
     for (const r of parsed.routes) {
+      if (!knownRoutes.has(r)) {
+        knownRoutes.add(r);
+        codeLines.push(
+          `${routeIri(r)} a code:Route ;`,
+          `    rdfs:label "${esc(r)}" ;`,
+          `    code:routePath "${esc(r)}" .`,
+          '',
+        );
+      }
       bridgeLines.push(`${jIri} bridge:route ${routeIri(r)} .`);
     }
     for (const t of parsed.testIds) {
@@ -546,49 +563,241 @@ export function buildUnifiedGraph() {
     }
   }
 
-  // 6. Index QA Walkthrough findings.json if present
-  const findingsPath = path.join(REPO_ROOT, 'docs/qa-walkthrough/findings.json');
-  let issueCount = 0;
-  if (fs.existsSync(findingsPath)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));
-      const runs = Array.isArray(data.runs) ? data.runs : [];
-      for (const run of runs) {
-        if (!run?.id) continue;
-        qaLines.push(
-          `${runIri(run.id)} a qa:Run ;`,
-          `    rdfs:label "${esc(run.id)}" ;`,
-          `    qa:runDate "${esc(String(run.date ?? ''))}" .`,
-          '',
-        );
-      }
-      const issues = Array.isArray(data.issues) ? data.issues : Array.isArray(data) ? data : [];
-      for (const issue of issues) {
-        if (!issue?.id) continue;
-        issueCount++;
-        const iIri = issueIri(issue.id);
-        qaLines.push(
-          `${iIri} a qa:Issue ;`,
-          `    rdfs:label "${esc(issue.title ?? issue.id)}" ;`,
-          `    qa:severity "${esc(String(issue.severity ?? 'medium'))}" ;`,
-          `    qa:status "${esc(String(issue.status ?? 'open'))}"${issue.firstSeen ? ` ;\n    prov:wasGeneratedBy ${runIri(String(issue.firstSeen))}` : ''} .`,
-          '',
-        );
-        if (issue.journey && journeyById.has(issue.journey)) {
-          qaLines.push(`${iIri} qa:affects ${journeyIri(issue.journey)} .`);
+  // Build slug -> journeyId lookup from authored specs
+  const slugToJourneyIri = new Map<string, string>();
+  const symbolsByFile = new Map<string, ExtractedSymbol[]>();
+  for (const syms of symbolIndexByName.values()) {
+    for (const sym of syms) {
+      const list = symbolsByFile.get(sym.relPath) ?? [];
+      list.push(sym);
+      symbolsByFile.set(sym.relPath, list);
+    }
+  }
+  for (const syms of symbolsByFile.values()) {
+    syms.sort((a, b) => a.lineHint - b.lineHint);
+  }
+  for (const [, spec] of journeyById.entries()) {
+    slugToJourneyIri.set(`${spec.domain}-${spec.slug}`, journeyIri(spec.id));
+    slugToJourneyIri.set(spec.slug, journeyIri(spec.id));
+  }
+
+  function resolveRootCauseSymbol(rcFile: string, rcLine: number): ExtractedSymbol | undefined {
+    const syms = symbolsByFile.get(rcFile);
+    if (!syms || syms.length === 0) return undefined;
+    let best: ExtractedSymbol | undefined;
+    for (const s of syms) {
+      if (s.lineHint <= rcLine) best = s;
+      else break;
+    }
+    return best ?? syms[0];
+  }
+
+  // 6. Index QA Runs, Proposed Journeys, and Issues from live QA site (with local fallbacks)
+  async function fetchQaOntologyTtl(): Promise<string | null> {
+    const offline = process.argv.includes('--offline') || process.env.ONTOLOGY_OFFLINE === '1';
+    if (!offline) {
+      try {
+        const res = await fetch('https://qa.forest-adhara.ts.net/ontology.ttl', {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (res.ok) {
+          const text = await res.text();
+          if (text.includes('qa:Issue')) return text;
         }
-        if (typeof issue.rootCause === 'string') {
-          const [rcFile, rcLine] = issue.rootCause.split(':');
-          if (rcFile) {
-            bridgeLines.push(`${iIri} bridge:rootCause ${fileIri(rcFile)} .`);
-            if (rcLine) {
-              bridgeLines.push(`${fileIri(rcFile)} code:lineHint ${Number(rcLine) || 1} .`);
+      } catch {
+        // Fall through to local fallbacks
+      }
+    }
+    const localCandidates = [
+      path.join(process.env.HOME ?? '', 'workspace/wod-wiki-ontology-audit/qa-ontology.ttl'),
+      path.join(REPO_ROOT, 'docs/qa-walkthrough/qa-ontology.ttl'),
+      '/tmp/qa-ontology.ttl',
+    ];
+    for (const p of localCandidates) {
+      if (p && fs.existsSync(p)) {
+        return fs.readFileSync(p, 'utf8');
+      }
+    }
+    return null;
+  }
+
+  let issueCount = 0;
+  let runCount = 0;
+  let proposedCount = 0;
+  let rootCauseCount = 0;
+
+  const qaTtl = await fetchQaOntologyTtl();
+  if (qaTtl) {
+    const qaNodes = new Map<string, Map<string, string[]>>();
+    for (const rawLine of qaTtl.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('@prefix') || line.startsWith('#')) continue;
+      const m = line.match(/^(\S+)\s+(\S+)\s+([\s\S]+?)\s*\.$/);
+      if (!m) continue;
+      const [, subj, pred, rawObj] = m;
+      const obj = rawObj.startsWith('"') && rawObj.endsWith('"') ? rawObj.slice(1, -1) : rawObj;
+      let pMap = qaNodes.get(subj);
+      if (!pMap) {
+        pMap = new Map();
+        qaNodes.set(subj, pMap);
+      }
+      const vals = pMap.get(pred) ?? [];
+      vals.push(obj);
+      pMap.set(pred, vals);
+    }
+
+    // 6a. Proposed journeys (to reach 23/23 coverage)
+    for (const [subj, props] of qaNodes.entries()) {
+      if (!subj.startsWith('jrn:')) continue;
+      const key = subj.slice(4);
+      if (slugToJourneyIri.has(key)) continue;
+      const status = props.get('qa:status')?.[0] ?? 'proposed';
+      const label = props.get('rdfs:label')?.[0] ?? key;
+      const domVal = props.get('qa:domain')?.[0]?.replace(/^dom:/, '') ?? 'manual';
+      const propId = `PROP-${key.toUpperCase().replace(/[^A-Z0-9]+/g, '-').slice(0, 32)}`;
+      const jIri = journeyIri(key);
+      slugToJourneyIri.set(key, jIri);
+      proposedCount++;
+      qaLines.push(
+        `${jIri} a qa:Journey ;`,
+        `    rdfs:label "${esc(label)}" ;`,
+        `    qa:journeyId "${esc(propId)}" ;`,
+        `    qa:journeyTitle "${esc(label)}" ;`,
+        `    qa:slug "${esc(key)}" ;`,
+        `    qa:status "${esc(status)}" ;`,
+        `    qa:priority "P2" ;`,
+        `    qa:inDomain ${domainIri(domVal)} .`,
+        '',
+      );
+    }
+
+    // 6b. QA Runs
+    for (const [subj, props] of qaNodes.entries()) {
+      if (!subj.startsWith('run:')) continue;
+      const runId = subj.slice(4);
+      runCount++;
+      const rIri = runIri(runId);
+      const runDate = props.get('qa:runDate')?.[0] ?? '';
+      const commit = props.get('qa:commit')?.[0] ?? '';
+      const findings = props.get('qa:findings')?.[0] ?? '0';
+      const runDomains = props.get('qa:runDomain') ?? [];
+      qaLines.push(
+        `${rIri} a qa:Run ;`,
+        `    rdfs:label "${esc(runId)}" ;`,
+        `    qa:runDate "${esc(runDate)}" ;`,
+        `    qa:commit "${esc(commit)}" ;`,
+        `    qa:findings ${Number(findings) || 0}${runDomains.length > 0 ? ` ;\n    qa:runDomain ${runDomains.map((d) => domainIri(d.replace(/^dom:/, ''))).join(', ')}` : ''} .`,
+        '',
+      );
+    }
+
+    // 6c. QA Issues + PROV edges + SCIP bridge:rootCause edges
+    for (const [subj, props] of qaNodes.entries()) {
+      if (!subj.startsWith('ww:')) continue;
+      const id = subj.slice(3);
+      issueCount++;
+      const iIri = issueIri(id);
+      const title = props.get('rdfs:label')?.[0] ?? id;
+      const severity = props.get('qa:severity')?.[0] ?? 'Medium';
+      const kind = props.get('qa:kind')?.[0] ?? 'defect';
+      const status = props.get('qa:status')?.[0] ?? 'open';
+      const coverageStatus = props.get('qa:coverageStatus')?.[0] ?? '';
+      const firstSeen = props.get('qa:firstSeen')?.[0];
+      const lastSeen = props.get('qa:lastSeen')?.[0];
+      const affectsDoms = props.get('qa:affects') ?? [];
+      const coveredByJrns = props.get('qa:coveredBy') ?? [];
+      const rootCauses = props.get('qa:rootCause') ?? [];
+
+      const extraTriples: string[] = [];
+      if (coverageStatus) extraTriples.push(`    qa:coverageStatus "${esc(coverageStatus)}"`);
+      if (firstSeen) {
+        extraTriples.push(`    prov:wasGeneratedBy ${runIri(firstSeen)}`);
+        extraTriples.push(`    qa:firstSeenRun ${runIri(firstSeen)}`);
+      }
+      if (lastSeen) {
+        extraTriples.push(`    qa:lastSeenRun ${runIri(lastSeen)}`);
+      }
+      for (const dom of affectsDoms) {
+        extraTriples.push(`    qa:affects ${domainIri(dom.replace(/^dom:/, ''))}`);
+      }
+      for (const jrn of coveredByJrns) {
+        const jKey = jrn.replace(/^jrn:/, '');
+        const resolvedJrn = slugToJourneyIri.get(jKey) ?? journeyIri(jKey);
+        extraTriples.push(`    qa:coveredBy ${resolvedJrn}`);
+      }
+
+      qaLines.push(
+        `${iIri} a qa:Issue ;`,
+        `    rdfs:label "${esc(title)}" ;`,
+        `    qa:issueId "${esc(id)}" ;`,
+        `    qa:severity "${esc(severity)}" ;`,
+        `    qa:kind "${esc(kind)}" ;`,
+        `    qa:status "${esc(status)}"${extraTriples.length > 0 ? ` ;\n${extraTriples.join(' ;\n')}` : ''} .`,
+        '',
+      );
+
+      for (const rc of rootCauses) {
+        const [rcFile, rcLineStr] = rc.split(':');
+        if (!rcFile) continue;
+        rootCauseCount++;
+        const fIri = fileIri(rcFile);
+        bridgeLines.push(`${iIri} bridge:rootCause ${fIri} .`);
+        const rcLine = Number(rcLineStr);
+        if (!Number.isNaN(rcLine) && rcLine > 0) {
+          const sym = resolveRootCauseSymbol(rcFile, rcLine);
+          if (sym) {
+            bridgeLines.push(`${iIri} bridge:rootCause ${symbolIri(rcFile, sym.name)} .`);
+          }
+          bridgeLines.push(`${fIri} code:lineHint ${rcLine} .`);
+        }
+      }
+    }
+  } else {
+    // Fallback: docs/qa-walkthrough/findings.json
+    const findingsPath = path.join(REPO_ROOT, 'docs/qa-walkthrough/findings.json');
+    if (fs.existsSync(findingsPath)) {
+      try {
+        const data = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));
+        const runs = Array.isArray(data.runs) ? data.runs : [];
+        for (const run of runs) {
+          if (!run?.id) continue;
+          runCount++;
+          qaLines.push(
+            `${runIri(run.id)} a qa:Run ;`,
+            `    rdfs:label "${esc(run.id)}" ;`,
+            `    qa:runDate "${esc(String(run.date ?? ''))}" .`,
+            '',
+          );
+        }
+        const issues = Array.isArray(data.issues) ? data.issues : Array.isArray(data) ? data : [];
+        for (const issue of issues) {
+          if (!issue?.id) continue;
+          issueCount++;
+          const iIri = issueIri(issue.id);
+          qaLines.push(
+            `${iIri} a qa:Issue ;`,
+            `    rdfs:label "${esc(issue.title ?? issue.id)}" ;`,
+            `    qa:severity "${esc(String(issue.severity ?? 'medium'))}" ;`,
+            `    qa:status "${esc(String(issue.status ?? 'open'))}"${issue.firstSeen ? ` ;\n    prov:wasGeneratedBy ${runIri(String(issue.firstSeen))}` : ''} .`,
+            '',
+          );
+          if (issue.journey && journeyById.has(issue.journey)) {
+            qaLines.push(`${iIri} qa:affects ${journeyIri(issue.journey)} .`);
+          }
+          if (typeof issue.rootCause === 'string') {
+            const [rcFile, rcLine] = issue.rootCause.split(':');
+            if (rcFile) {
+              rootCauseCount++;
+              bridgeLines.push(`${iIri} bridge:rootCause ${fileIri(rcFile)} .`);
+              if (rcLine) {
+                bridgeLines.push(`${fileIri(rcFile)} code:lineHint ${Number(rcLine) || 1} .`);
+              }
             }
           }
         }
+      } catch (err) {
+        console.warn('Warning: failed to parse docs/qa-walkthrough/findings.json:', err);
       }
-    } catch (err) {
-      console.warn('Warning: failed to parse docs/qa-walkthrough/findings.json:', err);
     }
   }
 
@@ -625,7 +834,7 @@ export function buildUnifiedGraph() {
   fs.writeFileSync(trigOut, trigParts.join('\n'), 'utf8');
 
   console.log(
-    `Indexed code+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${Object.keys(ROUTE_PATTERNS).length} routes, ${agentTools.length} WebMCP tools, ${journeyById.size} journeys, ${issueCount} issues.`,
+    `Indexed code+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${knownRoutes.size} routes, ${agentTools.length} WebMCP tools, ${domains.size} domains, ${journeyById.size + proposedCount} journeys (${journeyById.size} authored, ${proposedCount} proposed), ${runCount} runs, ${issueCount} issues, ${rootCauseCount} rootCause edges.`,
   );
   console.log(
     `Wrote:\n  - ${path.relative(REPO_ROOT, codeOut)}\n  - ${path.relative(REPO_ROOT, qaOut)}\n  - ${path.relative(REPO_ROOT, bridgeOut)}\n  - ${path.relative(REPO_ROOT, trigOut)}`,
@@ -633,5 +842,5 @@ export function buildUnifiedGraph() {
 }
 
 if (import.meta.main) {
-  buildUnifiedGraph();
+  await buildUnifiedGraph();
 }

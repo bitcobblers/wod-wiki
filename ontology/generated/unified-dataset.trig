@@ -17325,6 +17325,8 @@
     code:definedIn <https://wod.wiki/code/file/packages/ui/src/composer/QueryObjectBuilder.tsx> ;
     code:lineHint 387 .
 
+<https://wod.wiki/code/file/packages/ui/src/composer/QueryObjectBuilder.tsx> code:usesTestId <https://wod.wiki/code/testid/widget-composer-subset> .
+<https://wod.wiki/code/file/packages/ui/src/composer/QueryObjectBuilder.tsx> code:usesTestId <https://wod.wiki/code/testid/widget-composer-wql> .
 <https://wod.wiki/code/file/packages/ui/src/composer/QueryPalette.tsx> a code:File ;
     rdfs:label "QueryPalette.tsx" ;
     code:filePath "packages/ui/src/composer/QueryPalette.tsx" ;
@@ -23365,6 +23367,9 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/AgentConfirmHost.tsx> ;
     code:lineHint 80 .
 
+<https://wod.wiki/code/file/apps/playground/app/agent/AgentConfirmHost.tsx> code:usesTestId <https://wod.wiki/code/testid/agent-confirm-dialog> .
+<https://wod.wiki/code/file/apps/playground/app/agent/AgentConfirmHost.tsx> code:usesTestId <https://wod.wiki/code/testid/agent-confirm-cancel> .
+<https://wod.wiki/code/file/apps/playground/app/agent/AgentConfirmHost.tsx> code:usesTestId <https://wod.wiki/code/testid/agent-confirm-approve> .
 <https://wod.wiki/code/file/apps/playground/app/agent/AgentStateScript.test.tsx> a code:File ;
     rdfs:label "AgentStateScript.test.tsx" ;
     code:filePath "apps/playground/app/agent/AgentStateScript.test.tsx" ;
@@ -29511,6 +29516,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/panels/ConditionsNavPanel.tsx> ;
     code:lineHint 111 .
 
+<https://wod.wiki/code/file/apps/playground/app/nav/panels/ConditionsNavPanel.tsx> code:usesTestId <https://wod.wiki/code/testid/conditions-nav-recent> .
 <https://wod.wiki/code/file/apps/playground/app/nav/panels/DashboardsNavPanel.test.tsx> a code:File ;
     rdfs:label "DashboardsNavPanel.test.tsx" ;
     code:filePath "apps/playground/app/nav/panels/DashboardsNavPanel.test.tsx" ;
@@ -29553,6 +29559,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> ;
     code:lineHint 111 .
 
+<https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-bar> .
 <https://wod.wiki/code/file/apps/playground/app/nav/panels/NotebookZonePanel.tsx> a code:File ;
     rdfs:label "NotebookZonePanel.tsx" ;
     code:filePath "apps/playground/app/nav/panels/NotebookZonePanel.tsx" ;
@@ -29875,6 +29882,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> ;
     code:lineHint 76 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/feed-detail-subscribe-button> .
 <https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> a code:File ;
     rdfs:label "JournalDatePage.tsx" ;
     code:filePath "apps/playground/app/pages/JournalDatePage.tsx" ;
@@ -29923,6 +29931,9 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> ;
     code:lineHint 100 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:usesTestId <https://wod.wiki/code/testid/load-zip-intake> .
+<https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:usesTestId <https://wod.wiki/code/testid/bundle-file-input> .
+<https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:usesTestId <https://wod.wiki/code/testid/bundle-import-error> .
 <https://wod.wiki/code/file/apps/playground/app/pages/NamedPagePage.tsx> a code:File ;
     rdfs:label "NamedPagePage.tsx" ;
     code:filePath "apps/playground/app/pages/NamedPagePage.tsx" ;
@@ -30163,6 +30174,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/SettingsPage.tsx> ;
     code:lineHint 82 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/SettingsPage.tsx> code:usesTestId <https://wod.wiki/code/testid/webmcp-debug-inspector> .
 <https://wod.wiki/code/file/apps/playground/app/pages/SettingsTags.test.tsx> a code:File ;
     rdfs:label "SettingsTags.test.tsx" ;
     code:filePath "apps/playground/app/pages/SettingsTags.test.tsx" ;
@@ -30848,6 +30860,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/SyncSection.tsx> ;
     code:lineHint 375 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/SyncSection.tsx> code:usesTestId <https://wod.wiki/code/testid/sync-subscribed-only-toggle> .
 <https://wod.wiki/code/file/apps/playground/app/pages/TagsPage.test.tsx> a code:File ;
     rdfs:label "TagsPage.test.tsx" ;
     code:filePath "apps/playground/app/pages/TagsPage.test.tsx" ;
@@ -32444,6 +32457,9 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/HomeInsightsSections.tsx> ;
     code:lineHint 92 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/HomeInsightsSections.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-pane-back-to-editor> .
+<https://wod.wiki/code/file/apps/playground/app/tour/HomeInsightsSections.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-sticky-pane> .
+<https://wod.wiki/code/file/apps/playground/app/tour/HomeInsightsSections.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-section-insights> .
 <https://wod.wiki/code/file/apps/playground/app/tour/HomeInsightsSections.zero-size-mounts.test.tsx> a code:File ;
     rdfs:label "HomeInsightsSections.zero-size-mounts.test.tsx" ;
     code:filePath "apps/playground/app/tour/HomeInsightsSections.zero-size-mounts.test.tsx" ;
@@ -32517,6 +32533,8 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/screens/SampleDashboardPane.tsx> ;
     code:lineHint 16 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/SampleDashboardPane.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-session-dashboard> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/SampleDashboardPane.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-session-dashboard-source> .
 <https://wod.wiki/code/file/apps/playground/app/tour/screens/TourEditorScreen.tsx> a code:File ;
     rdfs:label "TourEditorScreen.tsx" ;
     code:filePath "apps/playground/app/tour/screens/TourEditorScreen.tsx" ;
@@ -32540,6 +32558,8 @@
     code:lineHint 34 .
 
 <https://wod.wiki/code/file/apps/playground/app/tour/screens/TourEditorScreen.tsx> code:usesTestId <https://wod.wiki/code/testid/editor-start-workout> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourEditorScreen.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-wod-block-region> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourEditorScreen.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-run-button-region> .
 <https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.test.tsx> a code:File ;
     rdfs:label "TourSessionInsights.test.tsx" ;
     code:filePath "apps/playground/app/tour/screens/TourSessionInsights.test.tsx" ;
@@ -32600,6 +32620,12 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> ;
     code:lineHint 127 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights-empty> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights-run> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights-timeline> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights-impatience> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights-reaction> .
 <https://wod.wiki/code/file/apps/playground/app/tour/ScrollSection.test.tsx> a code:File ;
     rdfs:label "ScrollSection.test.tsx" ;
     code:filePath "apps/playground/app/tour/ScrollSection.test.tsx" ;
@@ -32696,6 +32722,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourCaptions.tsx> ;
     code:lineHint 80 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourCaptions.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-captions> .
 <https://wod.wiki/code/file/apps/playground/app/tour/TourChapterPicker.tsx> a code:File ;
     rdfs:label "TourChapterPicker.tsx" ;
     code:filePath "apps/playground/app/tour/TourChapterPicker.tsx" ;
@@ -32734,6 +32761,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourChapterPicker.tsx> ;
     code:lineHint 119 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourChapterPicker.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-chapter-picker> .
 <https://wod.wiki/code/file/apps/playground/app/tour/tourConstants.ts> a code:File ;
     rdfs:label "tourConstants.ts" ;
     code:filePath "apps/playground/app/tour/tourConstants.ts" ;
@@ -32802,6 +32830,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourFooter.tsx> ;
     code:lineHint 3 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourFooter.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-footer> .
 <https://wod.wiki/code/file/apps/playground/app/tour/TourHero.tsx> a code:File ;
     rdfs:label "TourHero.tsx" ;
     code:filePath "apps/playground/app/tour/TourHero.tsx" ;
@@ -32844,6 +32873,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourJumpSection.tsx> ;
     code:lineHint 101 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourJumpSection.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-jump-section> .
 <https://wod.wiki/code/file/apps/playground/app/tour/TourLearnSection.test.tsx> a code:File ;
     rdfs:label "TourLearnSection.test.tsx" ;
     code:filePath "apps/playground/app/tour/TourLearnSection.test.tsx" ;
@@ -32880,6 +32910,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourLearnSection.tsx> ;
     code:lineHint 102 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourLearnSection.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-learn> .
 <https://wod.wiki/code/file/apps/playground/app/tour/TourRing.tsx> a code:File ;
     rdfs:label "TourRing.tsx" ;
     code:filePath "apps/playground/app/tour/TourRing.tsx" ;
@@ -32950,6 +32981,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourRing.tsx> ;
     code:lineHint 124 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourRing.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-ring> .
 <https://wod.wiki/code/file/apps/playground/app/tour/TourSectionRunway.tsx> a code:File ;
     rdfs:label "TourSectionRunway.tsx" ;
     code:filePath "apps/playground/app/tour/TourSectionRunway.tsx" ;
@@ -33002,6 +33034,9 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourWhyVideo.tsx> ;
     code:lineHint 15 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourWhyVideo.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-why-video> .
+<https://wod.wiki/code/file/apps/playground/app/tour/TourWhyVideo.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-why-video-skip> .
+<https://wod.wiki/code/file/apps/playground/app/tour/TourWhyVideo.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-scroll-hint> .
 <https://wod.wiki/code/file/apps/playground/app/tour/YouTubeLightbox.tsx> a code:File ;
     rdfs:label "YouTubeLightbox.tsx" ;
     code:filePath "apps/playground/app/tour/YouTubeLightbox.tsx" ;
@@ -33156,6 +33191,8 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> ;
     code:lineHint 80 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> code:usesTestId <https://wod.wiki/code/testid/delete-dashboard-button> .
+<https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> code:usesTestId <https://wod.wiki/code/testid/confirm-delete-dashboard> .
 <https://wod.wiki/code/file/apps/playground/app/views/dashboards/WidgetComposerDialog.tsx> a code:File ;
     rdfs:label "WidgetComposerDialog.tsx" ;
     code:filePath "apps/playground/app/views/dashboards/WidgetComposerDialog.tsx" ;
@@ -33186,6 +33223,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/dashboards/WidgetComposerDialog.tsx> ;
     code:lineHint 106 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/dashboards/WidgetComposerDialog.tsx> code:usesTestId <https://wod.wiki/code/testid/widget-composer-apply> .
 <https://wod.wiki/code/file/apps/playground/app/views/HomeView.tsx> a code:File ;
     rdfs:label "HomeView.tsx" ;
     code:filePath "apps/playground/app/views/HomeView.tsx" ;
@@ -33296,6 +33334,9 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> ;
     code:lineHint 19 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> code:usesTestId <https://wod.wiki/code/testid/unknown-feed-intake-banner> .
+<https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> code:usesTestId <https://wod.wiki/code/testid/feed-intake-once> .
+<https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> code:usesTestId <https://wod.wiki/code/testid/feed-intake-subscribe> .
 <https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/MarqueeRow.tsx> a code:File ;
     rdfs:label "MarqueeRow.tsx" ;
     code:filePath "apps/playground/app/views/notebook-gallery/MarqueeRow.tsx" ;
@@ -33702,6 +33743,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/PropertyTable.tsx> ;
     code:lineHint 33 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/PropertyTable.tsx> code:usesTestId <https://wod.wiki/code/testid/property-table> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.test.tsx> a code:File ;
     rdfs:label "QueriableStreamView.test.tsx" ;
     code:filePath "apps/playground/app/views/stream/QueriableStreamView.test.tsx" ;
@@ -33738,6 +33780,11 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> ;
     code:lineHint 293 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-syntax-hint> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/notebook-not-found> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/queriable-stream-view> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/save-stream-query> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/remote-notebook-preview-banner> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/ReadmeQueryBlock.test.tsx> a code:File ;
     rdfs:label "ReadmeQueryBlock.test.tsx" ;
     code:filePath "apps/playground/app/views/stream/ReadmeQueryBlock.test.tsx" ;
@@ -33816,6 +33863,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamFeed.tsx> ;
     code:lineHint 170 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/StreamFeed.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-feed-item> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/streamProfile.test.ts> a code:File ;
     rdfs:label "streamProfile.test.ts" ;
     code:filePath "apps/playground/app/views/stream/streamProfile.test.ts" ;
@@ -34032,6 +34080,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> ;
     code:lineHint 59 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-bar> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/streamResults.ts> a code:File ;
     rdfs:label "streamResults.ts" ;
     code:filePath "apps/playground/app/views/stream/streamResults.ts" ;
@@ -37588,6 +37637,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/molecules/PublicationPill.tsx> ;
     code:lineHint 34 .
 
+<https://wod.wiki/code/file/apps/playground/src/components/molecules/PublicationPill.tsx> code:usesTestId <https://wod.wiki/code/testid/publication-pill> .
 <https://wod.wiki/code/file/apps/playground/src/components/molecules/ResultListItem.test.tsx> a code:File ;
     rdfs:label "ResultListItem.test.tsx" ;
     code:filePath "apps/playground/src/components/molecules/ResultListItem.test.tsx" ;
@@ -38783,6 +38833,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> ;
     code:lineHint 312 .
 
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> code:usesTestId <https://wod.wiki/code/testid/halted-run-notice> .
 <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/SelectionFormatBar.tsx> a code:File ;
     rdfs:label "SelectionFormatBar.tsx" ;
     code:filePath "apps/playground/src/components/organisms/editor/SelectionFormatBar.tsx" ;
@@ -39352,6 +39403,13 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> ;
     code:lineHint 53 .
 
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/publication-pill-popover> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/promotion-provenance-row> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/promotion-clone-readonly-btn> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/publication-notebook-public-toggle> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/promotion-new-notebook-input> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/promotion-new-notebook-submit> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/publication-export-repo-zip-btn> .
 <https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.test.tsx> a code:File ;
     rdfs:label "PropertyOverrideSheet.test.tsx" ;
     code:filePath "apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.test.tsx" ;
@@ -39380,6 +39438,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx> ;
     code:lineHint 38 .
 
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/property-override-sheet> .
 <https://wod.wiki/code/file/apps/playground/src/components/organisms/review/CollectionWizard.tsx> a code:File ;
     rdfs:label "CollectionWizard.tsx" ;
     code:filePath "apps/playground/src/components/organisms/review/CollectionWizard.tsx" ;
@@ -50592,6 +50651,7 @@
     code:packageName "e2e" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/e2e/live-app/property-responsive-defects.e2e.ts> code:usesTestId <https://wod.wiki/code/testid/tour-section-insights> .
 <https://wod.wiki/code/file/e2e/live-app/publication-visibility-and-feed-export.e2e.ts> a code:File ;
     rdfs:label "publication-visibility-and-feed-export.e2e.ts" ;
     code:filePath "e2e/live-app/publication-visibility-and-feed-export.e2e.ts" ;
@@ -52714,6 +52774,30 @@
     code:cliEquivalent "wod query " ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/wqlTools.ts> .
 
+<https://wod.wiki/code/route/page_guide-start> a code:Route ;
+    rdfs:label "/page/guide-start" ;
+    code:routePath "/page/guide-start" .
+
+<https://wod.wiki/code/route/legacy> a code:Route ;
+    rdfs:label "/legacy" ;
+    code:routePath "/legacy" .
+
+<https://wod.wiki/code/route/effort_new> a code:Route ;
+    rdfs:label "/effort/new" ;
+    code:routePath "/effort/new" .
+
+<https://wod.wiki/code/route/equipment_new> a code:Route ;
+    rdfs:label "/equipment/new" ;
+    code:routePath "/equipment/new" .
+
+<https://wod.wiki/code/route/notebook__slug__item> a code:Route ;
+    rdfs:label "/notebook/:slug/:item" ;
+    code:routePath "/notebook/:slug/:item" .
+
+<https://wod.wiki/code/route/playground__noteId> a code:Route ;
+    rdfs:label "/playground/:noteId" ;
+    code:routePath "/playground/:noteId" .
+
 }
 
 <https://wod.wiki/graph/qa> {
@@ -52743,6 +52827,10 @@
 <https://wod.wiki/qa/domain/feeds> a qa:Domain ;
     rdfs:label "feeds" ;
     qa:domainSlug "feeds" .
+
+<https://wod.wiki/qa/domain/manual> a qa:Domain ;
+    rdfs:label "manual" ;
+    qa:domainSlug "manual" .
 
 <https://wod.wiki/qa/journey/ANL-04> a qa:Journey ;
     rdfs:label "ANL-04: Entity Scope & Dashboard Promotion" ;
@@ -53446,6 +53534,1090 @@
     qa:hasBeat qa:Prove ;
     qa:beatOrder 5 .
 
+<https://wod.wiki/qa/journey/analytics-analytics-explorer-and-pipeline> a qa:Journey ;
+    rdfs:label "analytics-analytics-explorer-and-pipeline" ;
+    qa:journeyId "PROP-ANALYTICS-ANALYTICS-EXPLORER-AND" ;
+    qa:journeyTitle "analytics-analytics-explorer-and-pipeline" ;
+    qa:slug "analytics-analytics-explorer-and-pipeline" ;
+    qa:status "proposed" ;
+    qa:priority "P2" ;
+    qa:inDomain <https://wod.wiki/qa/domain/analytics> .
+
+<https://wod.wiki/qa/journey/feeds-feed-subscription-error-recovery> a qa:Journey ;
+    rdfs:label "feeds-feed-subscription-error-recovery" ;
+    qa:journeyId "PROP-FEEDS-FEED-SUBSCRIPTION-ERROR-RE" ;
+    qa:journeyTitle "feeds-feed-subscription-error-recovery" ;
+    qa:slug "feeds-feed-subscription-error-recovery" ;
+    qa:status "proposed" ;
+    qa:priority "P2" ;
+    qa:inDomain <https://wod.wiki/qa/domain/feeds> .
+
+<https://wod.wiki/qa/journey/journal-note-delete-lifecycle> a qa:Journey ;
+    rdfs:label "journal-note-delete-lifecycle" ;
+    qa:journeyId "PROP-JOURNAL-NOTE-DELETE-LIFECYCLE" ;
+    qa:journeyTitle "journal-note-delete-lifecycle" ;
+    qa:slug "journal-note-delete-lifecycle" ;
+    qa:status "proposed" ;
+    qa:priority "P2" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/journey/runtime-mobile-timer-controls-and-keypad> a qa:Journey ;
+    rdfs:label "runtime-mobile-timer-controls-and-keypad" ;
+    qa:journeyId "PROP-RUNTIME-MOBILE-TIMER-CONTROLS-AN" ;
+    qa:journeyTitle "runtime-mobile-timer-controls-and-keypad" ;
+    qa:slug "runtime-mobile-timer-controls-and-keypad" ;
+    qa:status "proposed" ;
+    qa:priority "P2" ;
+    qa:inDomain <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/journey/runtime-timer-responsive-tiers-and-cast-receiver> a qa:Journey ;
+    rdfs:label "runtime-timer-responsive-tiers-and-cast-receiver" ;
+    qa:journeyId "PROP-RUNTIME-TIMER-RESPONSIVE-TIERS-A" ;
+    qa:journeyTitle "runtime-timer-responsive-tiers-and-cast-receiver" ;
+    qa:slug "runtime-timer-responsive-tiers-and-cast-receiver" ;
+    qa:status "proposed" ;
+    qa:priority "P2" ;
+    qa:inDomain <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/run/2026-11-11-smoke-233631> a qa:Run ;
+    rdfs:label "2026-11-11-smoke-233631" ;
+    qa:runDate "2026-11-11" ;
+    qa:commit "5497f334e" ;
+    qa:findings 0 ;
+    qa:runDomain <https://wod.wiki/qa/domain/analytics>, <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/run/2026-11-12-nightly-073230> a qa:Run ;
+    rdfs:label "2026-11-12-nightly-073230" ;
+    qa:runDate "2026-11-12" ;
+    qa:commit "5735d1cd1" ;
+    qa:findings 0 ;
+    qa:runDomain <https://wod.wiki/qa/domain/analytics>, <https://wod.wiki/qa/domain/feeds>, <https://wod.wiki/qa/domain/journal>, <https://wod.wiki/qa/domain/notebooks>, <https://wod.wiki/qa/domain/properties>, <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/run/2026-11-12-nightly-210224> a qa:Run ;
+    rdfs:label "2026-11-12-nightly-210224" ;
+    qa:runDate "2026-11-12" ;
+    qa:commit "?" ;
+    qa:findings 0 .
+
+<https://wod.wiki/qa/run/2026-11-12-nightly-213722> a qa:Run ;
+    rdfs:label "2026-11-12-nightly-213722" ;
+    qa:runDate "2026-11-12" ;
+    qa:commit "92d64b550" ;
+    qa:findings 31 ;
+    qa:runDomain <https://wod.wiki/qa/domain/analytics>, <https://wod.wiki/qa/domain/feeds>, <https://wod.wiki/qa/domain/journal>, <https://wod.wiki/qa/domain/notebooks>, <https://wod.wiki/qa/domain/properties>, <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/run/2026-11-12-post-fix-171706> a qa:Run ;
+    rdfs:label "2026-11-12-post-fix-171706" ;
+    qa:runDate "2026-11-12" ;
+    qa:commit "49c50a249" ;
+    qa:findings 25 ;
+    qa:runDomain <https://wod.wiki/qa/domain/analytics>, <https://wod.wiki/qa/domain/feeds>, <https://wod.wiki/qa/domain/journal>, <https://wod.wiki/qa/domain/notebooks>, <https://wod.wiki/qa/domain/properties>, <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/run/2026-11-12-smoke-140138> a qa:Run ;
+    rdfs:label "2026-11-12-smoke-140138" ;
+    qa:runDate "2026-11-12" ;
+    qa:commit "[dogfood 14:01:38Z] Refreshing shared wod-wiki repository at /srv/nfs/helios/docker-shared/repos/wod-wiki (main) 5735d1cd1" ;
+    qa:findings 7 ;
+    qa:runDomain <https://wod.wiki/qa/domain/feeds>, <https://wod.wiki/qa/domain/journal>, <https://wod.wiki/qa/domain/properties> .
+
+<https://wod.wiki/qa/run/2026-11-12-smoke-142612> a qa:Run ;
+    rdfs:label "2026-11-12-smoke-142612" ;
+    qa:runDate "2026-11-12" ;
+    qa:commit "5735d1cd1" ;
+    qa:findings 5 ;
+    qa:runDomain <https://wod.wiki/qa/domain/properties> .
+
+<https://wod.wiki/qa/run/2026-11-13-nightly-073446> a qa:Run ;
+    rdfs:label "2026-11-13-nightly-073446" ;
+    qa:runDate "2026-11-13" ;
+    qa:commit "dee53b102" ;
+    qa:findings 29 ;
+    qa:runDomain <https://wod.wiki/qa/domain/analytics>, <https://wod.wiki/qa/domain/feeds>, <https://wod.wiki/qa/domain/journal>, <https://wod.wiki/qa/domain/notebooks>, <https://wod.wiki/qa/domain/properties>, <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/run/2026-11-13-ondemand-163801> a qa:Run ;
+    rdfs:label "2026-11-13-ondemand-163801" ;
+    qa:runDate "2026-11-13" ;
+    qa:commit "dee53b102" ;
+    qa:findings 44 ;
+    qa:runDomain <https://wod.wiki/qa/domain/analytics>, <https://wod.wiki/qa/domain/feeds>, <https://wod.wiki/qa/domain/journal>, <https://wod.wiki/qa/domain/manual>, <https://wod.wiki/qa/domain/notebooks>, <https://wod.wiki/qa/domain/properties>, <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/run/2026-11-14-nightly-060215> a qa:Run ;
+    rdfs:label "2026-11-14-nightly-060215" ;
+    qa:runDate "2026-11-14" ;
+    qa:commit "89b2e3949" ;
+    qa:findings 30 ;
+    qa:runDomain <https://wod.wiki/qa/domain/feeds>, <https://wod.wiki/qa/domain/properties>, <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/issue/WW-001> a qa:Issue ;
+    rdfs:label "Unbounded full-corpus IndexedDB detail scan stalls /day/:date (~40s), /dashboard/:slug (45-90s), /notes stream (~15s) and cold boot" ;
+    qa:issueId "WW-001" ;
+    qa:severity "High" ;
+    qa:kind "latency" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-01> .
+
+<https://wod.wiki/qa/issue/WW-002> a qa:Issue ;
+    rdfs:label "Deep-link 404.html fallback missing Open Graph / Twitter preview metadata (GitHub Pages 404 status accepted by decision)" ;
+    qa:issueId "WW-002" ;
+    qa:severity "Low" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-142612> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> .
+
+<https://wod.wiki/qa/issue/WW-003> a qa:Issue ;
+    rdfs:label "/notes default WQL ':note{notebook:*}' unsupported wildcard — page permanently 0 results with advisory" ;
+    qa:issueId "WW-003" ;
+    qa:severity "High" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+
+<https://wod.wiki/qa/issue/WW-004> a qa:Issue ;
+    rdfs:label "Stream status strip renders internal grouping token '(level)' — transient '0 of 0' flicker" ;
+    qa:issueId "WW-004" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-142612> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> .
+
+<https://wod.wiki/qa/issue/WW-005> a qa:Issue ;
+    rdfs:label "No UI affordance to delete an individual journal note" ;
+    qa:issueId "WW-005" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/journal-note-delete-lifecycle> .
+
+<https://wod.wiki/qa/issue/WW-006> a qa:Issue ;
+    rdfs:label "'Preview with sample data' shows no pending feedback; ~50s cold import looks like a dead button" ;
+    qa:issueId "WW-006" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+
+<https://wod.wiki/qa/issue/WW-007> a qa:Issue ;
+    rdfs:label "Trailing load '(24kg)' parses as phantom '24 Rounds' scheme and splits the movement in the timer outline" ;
+    qa:issueId "WW-007" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+
+<https://wod.wiki/qa/issue/WW-008> a qa:Issue ;
+    rdfs:label "Session card shows 'Volume: N lbs' — N is sessionLoad in AU, not pound tonnage" ;
+    qa:issueId "WW-008" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+
+<https://wod.wiki/qa/issue/WW-009> a qa:Issue ;
+    rdfs:label "Structural zero-duration segments mislabeled 'Round N' in results splits; 'N completed' counter inflated" ;
+    qa:issueId "WW-009" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+
+<https://wod.wiki/qa/issue/WW-010> a qa:Issue ;
+    rdfs:label "Chart Y-axis ticks unformatted ('5000kg'), tooltip over-precise" ;
+    qa:issueId "WW-010" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/analytics-analytics-explorer-and-pipeline> .
+
+<https://wod.wiki/qa/issue/WW-011> a qa:Issue ;
+    rdfs:label "Day-cell accessible name reads '1 entries' (pluralization defect)" ;
+    qa:issueId "WW-011" ;
+    qa:severity "Low" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> .
+
+<https://wod.wiki/qa/issue/WW-012> a qa:Issue ;
+    rdfs:label "Mid-run browser reload silently finalizes the run as partial results — no resume or notice" ;
+    qa:issueId "WW-012" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+
+<https://wod.wiki/qa/issue/WW-013> a qa:Issue ;
+    rdfs:label "Deep link /subscribe never lands on a subscribe page — redirect stub always bounces to /notebooks or /feeds" ;
+    qa:issueId "WW-013" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
+
+<https://wod.wiki/qa/issue/WW-014> a qa:Issue ;
+    rdfs:label "Feed detail page /feed/:slug offers no Subscribe/Unsubscribe action" ;
+    qa:issueId "WW-014" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
+
+<https://wod.wiki/qa/issue/WW-015> a qa:Issue ;
+    rdfs:label "Feed card title/description flips from curated 'HYROX' to repo slug manifest boilerplate after subscribing" ;
+    qa:issueId "WW-015" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
+
+<https://wod.wiki/qa/issue/WW-016> a qa:Issue ;
+    rdfs:label "Unsubscribe purges imported notes but leaves orphan tag definitions; /feeds-card unsubscribe fires with no confirmation" ;
+    qa:issueId "WW-016" ;
+    qa:severity "Low" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
+
+<https://wod.wiki/qa/issue/WW-017> a qa:Issue ;
+    rdfs:label "Advertised /.well-known/agent-capabilities.json 404s in production — artifact pipeline drops hidden dot-directories" ;
+    qa:issueId "WW-017" ;
+    qa:severity "High" ;
+    qa:kind "parity" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
+
+<https://wod.wiki/qa/issue/WW-018> a qa:Issue ;
+    rdfs:label "Empty-scopeOptions stream routes render 'No source options are set for this route' warning above fully populated results" ;
+    qa:issueId "WW-018" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-smoke-142612> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-142612> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-142612> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+
+<https://wod.wiki/qa/issue/WW-019> a qa:Issue ;
+    rdfs:label "Boot/import readiness contract still broken: 13-63.5s bare-'loading' cold stalls, ready-at-partial-stream-total, and sample-data import runs 'ready' with importPending=false" ;
+    qa:issueId "WW-019" ;
+    qa:severity "High" ;
+    qa:kind "introspection" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-smoke-142612> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-142612> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-01> .
+
+<https://wod.wiki/qa/issue/WW-020> a qa:Issue ;
+    rdfs:label "User-authored notes and recorded sessions silently deleted on page reload / boot re-import churn" ;
+    qa:issueId "WW-020" ;
+    qa:severity "Critical" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> .
+
+<https://wod.wiki/qa/issue/WW-021> a qa:Issue ;
+    rdfs:label "Feed subscription silently lost — wodwiki.seedSubscriptions reverts to defaults seconds after Subscribe" ;
+    qa:issueId "WW-021" ;
+    qa:severity "High" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
+
+<https://wod.wiki/qa/issue/WW-022> a qa:Issue ;
+    rdfs:label "Final typed line silently dropped when navigating away within ~0.5s — debounced autosave flush-on-navigation guarantee" ;
+    qa:issueId "WW-022" ;
+    qa:severity "Critical" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> .
+
+<https://wod.wiki/qa/issue/WW-023> a qa:Issue ;
+    rdfs:label "Stream reports data-agent-status=ready while 'Loading more — N remaining…' pagination is still visible (/notes)" ;
+    qa:issueId "WW-023" ;
+    qa:severity "Medium" ;
+    qa:kind "introspection" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> .
+
+<https://wod.wiki/qa/issue/WW-024> a qa:Issue ;
+    rdfs:label "/plan SPA-rewrites to /journal?q=:journal last 2w and renders '0 of 0 · 1 applied' despite an existing dated journal entry" ;
+    qa:issueId "WW-024" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> .
+
+<https://wod.wiki/qa/issue/WW-025> a qa:Issue ;
+    rdfs:label "navigator.modelContext.executeTool drops arguments for argument-requiring UI tools" ;
+    qa:issueId "WW-025" ;
+    qa:severity "High" ;
+    qa:kind "parity" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
+
+<https://wod.wiki/qa/issue/WW-026> a qa:Issue ;
+    rdfs:label "SPA not-found page renders without <main>/<nav> landmarks and without data-agent-status" ;
+    qa:issueId "WW-026" ;
+    qa:severity "Low" ;
+    qa:kind "introspection" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
+
+<https://wod.wiki/qa/issue/WW-027> a qa:Issue ;
+    rdfs:label "llms.txt advertises a hardcoded live UI/Clock WebMCP tool count that drifts from agent-capabilities.json uiTools" ;
+    qa:issueId "WW-027" ;
+    qa:severity "Low" ;
+    qa:kind "parity" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
+
+<https://wod.wiki/qa/issue/WW-028> a qa:Issue ;
+    rdfs:label "Prebuilt Recovery & Readiness dashboard renders 'No data for this range' in all 7 widgets even with the sample corpus loaded" ;
+    qa:issueId "WW-028" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+
+<https://wod.wiki/qa/issue/WW-029> a qa:Issue ;
+    rdfs:label "Explorer panel shows 'Records in this calculation 50' beside 'No data for this range' for an empty-range result" ;
+    qa:issueId "WW-029" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+
+<https://wod.wiki/qa/issue/WW-030> a qa:Issue ;
+    rdfs:label "Chart unit formatting inconsistent: Y-axis baseline tick '0 kg' (space) vs grouped ticks '5,000kg' (no space) on explorer bar charts" ;
+    qa:issueId "WW-030" ;
+    qa:severity "Low" ;
+    qa:kind "defect" ;
+    qa:status "open" ;
+    qa:coverageStatus "tier12" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> .
+
+<https://wod.wiki/qa/issue/WW-031> a qa:Issue ;
+    rdfs:label "All /load deep links bounce away before any import UI renders" ;
+    qa:issueId "WW-031" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
+
+<https://wod.wiki/qa/issue/WW-032> a qa:Issue ;
+    rdfs:label "Unknown /notebook/:slug deep link renders generic empty-search state with an active '+ Add Note'" ;
+    qa:issueId "WW-032" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/NBK-01> .
+
+<https://wod.wiki/qa/issue/WW-033> a qa:Issue ;
+    rdfs:label "Sidebar 'Recent' notebook list is a fixed built-in set, never reflects visited notebooks" ;
+    qa:issueId "WW-033" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/NBK-01> .
+
+<https://wod.wiki/qa/issue/WW-034> a qa:Issue ;
+    rdfs:label "WQL plain-text fallback on /efforts dead — bare words like 'kettlebell' parse as vacuous aggregates instead of engaging :effort{text:...}" ;
+    qa:issueId "WW-034" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-03> .
+
+<https://wod.wiki/qa/issue/WW-035> a qa:Issue ;
+    rdfs:label "Newly created effort lands on 'Effort \\\"slug\\\" not found' despite successful IndexedDB persistence" ;
+    qa:issueId "WW-035" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-03> .
+
+<https://wod.wiki/qa/issue/WW-036> a qa:Issue ;
+    rdfs:label "Unfiltered /notes still full-corpus detail-hydrates — 7.68s on properties corpus (regressed), ~3s elsewhere" ;
+    qa:issueId "WW-036" ;
+    qa:severity "Medium" ;
+    qa:kind "latency" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+
+<https://wod.wiki/qa/issue/WW-037> a qa:Issue ;
+    rdfs:label "Tag drill-down /t/:type/:tag overflows 65px horizontally on 375x812 mobile" ;
+    qa:issueId "WW-037" ;
+    qa:severity "Low" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-03> .
+
+<https://wod.wiki/qa/issue/WW-038> a qa:Issue ;
+    rdfs:label "Invalid WQL on /dashboards destroys the rendered chart, overwrites the shareable ?q= URL, and offers no restore to the last valid query" ;
+    qa:issueId "WW-038" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "proposed" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/analytics-analytics-explorer-and-pipeline> .
+
+<https://wod.wiki/qa/issue/WW-039> a qa:Issue ;
+    rdfs:label "data-agent-status flips 'ready' while dashboard/board widgets still render 'Loading…' skeletons (hydration window 2.7s-22s)" ;
+    qa:issueId "WW-039" ;
+    qa:severity "Medium" ;
+    qa:kind "introspection" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+
+<https://wod.wiki/qa/issue/WW-040> a qa:Issue ;
+    rdfs:label "/load surfaces the raw JSZip library exception as the import error message" ;
+    qa:issueId "WW-040" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
+
+<https://wod.wiki/qa/issue/WW-041> a qa:Issue ;
+    rdfs:label "Uploading a manifest-less/empty .zip on /load silently bounces to Home with zero import feedback" ;
+    qa:issueId "WW-041" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
+
+<https://wod.wiki/qa/issue/WW-042> a qa:Issue ;
+    rdfs:label "llms.txt advertises /settings/queries (settingsQueries) but the route is retired and bounces to /journal" ;
+    qa:issueId "WW-042" ;
+    qa:severity "Medium" ;
+    qa:kind "parity" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
+
+<https://wod.wiki/qa/issue/WW-043> a qa:Issue ;
+    rdfs:label "'Export Feed Repository (.zip)' bundles the entire local library on a profile with zero public user notebooks — expected a public-only package or the documented no-public-notebooks error" ;
+    qa:issueId "WW-043" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-03> .
+
+<https://wod.wiki/qa/issue/WW-044> a qa:Issue ;
+    rdfs:label "Export→Import round-trip broken — repository-layout export prefixes every artifact 'dist/' while importFromZip skips 'dist/' paths" ;
+    qa:issueId "WW-044" ;
+    qa:severity "High" ;
+    qa:kind "defect" ;
+    qa:status "open" ;
+    qa:coverageStatus "proposed" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-04> .
+
+<https://wod.wiki/qa/issue/WW-045> a qa:Issue ;
+    rdfs:label "WebMCP/MCP wod_feed_manage exposes no subscribe/unsubscribe/delete action — the primary feeds CTA is unavailable to agents" ;
+    qa:issueId "WW-045" ;
+    qa:severity "Medium" ;
+    qa:kind "parity" ;
+    qa:status "open" ;
+    qa:coverageStatus "tier12" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> .
+
+<https://wod.wiki/qa/issue/WW-046> a qa:Issue ;
+    rdfs:label "llms.txt advertises the HTTP MCP server at /api/mcp as live on wod.wiki but the endpoint is dead (POST 405, GET 404)" ;
+    qa:issueId "WW-046" ;
+    qa:severity "High" ;
+    qa:kind "parity" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:affects <https://wod.wiki/qa/domain/manual> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
+
+<https://wod.wiki/qa/issue/WW-047> a qa:Issue ;
+    rdfs:label "notebook library card count excludes the notebook's own landing note — contradicts the detail page stream count" ;
+    qa:issueId "WW-047" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/NBK-01> .
+
+<https://wod.wiki/qa/issue/WW-048> a qa:Issue ;
+    rdfs:label "note header shows a backlink chip for only one of two linked notebooks — N:M membership under-represented in the header" ;
+    qa:issueId "WW-048" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/NBK-02> .
+
+<https://wod.wiki/qa/issue/WW-049> a qa:Issue ;
+    rdfs:label "wod_note_delete without confirmId never resolves — promise pends indefinitely on a silent human-only 'Confirm Agent Action' modal (no timeout, no confirmation-required error)" ;
+    qa:issueId "WW-049" ;
+    qa:severity "Medium" ;
+    qa:kind "parity" ;
+    qa:status "open" ;
+    qa:coverageStatus "tier12" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> .
+
+<https://wod.wiki/qa/issue/WW-050> a qa:Issue ;
+    rdfs:label "#agent-view-state clock reports phase=ready/status=idle while the live workout timer visibly runs" ;
+    qa:issueId "WW-050" ;
+    qa:severity "Medium" ;
+    qa:kind "introspection" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
+
+<https://wod.wiki/qa/issue/WW-051> a qa:Issue ;
+    rdfs:label "Recorded session timing wrong across lifecycle paths — For Time IDB 91.1s vs ~57s wall vs UI '01:58', reload path drops 15s, splits never persisted (+00:00 rows)" ;
+    qa:issueId "WW-051" ;
+    qa:severity "High" ;
+    qa:kind "defect" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+
+<https://wod.wiki/qa/issue/WW-052> a qa:Issue ;
+    rdfs:label "Exiting at the Ready-to-Start gate records a 0s phantom session and leaves leaked clock state" ;
+    qa:issueId "WW-052" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+
+<https://wod.wiki/qa/issue/WW-053> a qa:Issue ;
+    rdfs:label "Cold load of an unregistered /run/:runtimeId renders a completely blank main — the existing 'Runtime not found' guard never appears, no data-agent-status" ;
+    qa:issueId "WW-053" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+
+<https://wod.wiki/qa/issue/WW-054> a qa:Issue ;
+    rdfs:label "wod_catalog_lookup validation error names the accepted values but omits the offending field name ('kind')" ;
+    qa:issueId "WW-054" ;
+    qa:severity "Low" ;
+    qa:kind "parity" ;
+    qa:status "resolved" ;
+    qa:coverageStatus "resolved" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> .
+
+<https://wod.wiki/qa/issue/WW-055> a qa:Issue ;
+    rdfs:label "Settings→Storage 'Export Feed Repository (.zip)' is a total silent no-op — no blob, no download, no error toast, no console" ;
+    qa:issueId "WW-055" ;
+    qa:severity "High" ;
+    qa:kind "defect" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-03> .
+
+<https://wod.wiki/qa/issue/WW-056> a qa:Issue ;
+    rdfs:label "sample-data EventRecords lack plane/effort attributes — /results/:id pre-filled plane:segment query returns 0 rows on every sample session and prebuilt Fran/Benchmark widgets permanently empty" ;
+    qa:issueId "WW-056" ;
+    qa:severity "High" ;
+    qa:kind "defect" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+
+<https://wod.wiki/qa/issue/WW-057> a qa:Issue ;
+    rdfs:label "NEW: :session{text:fran} reports '0 applied, 1 ignored' yet empties the result list to 0 of 48 — ignore advisory contradicts actual filtering" ;
+    qa:issueId "WW-057" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "open" ;
+    qa:coverageStatus "tier12" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> .
+
+<https://wod.wiki/qa/issue/WW-058> a qa:Issue ;
+    rdfs:label "NEW: Delete note on /note/:id applies silently/deferred with no confirmation dialog and a misleading 'Saved states are identical.' toast" ;
+    qa:issueId "WW-058" ;
+    qa:severity "High" ;
+    qa:kind "defect" ;
+    qa:status "open" ;
+    qa:coverageStatus "proposed" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/journal-note-delete-lifecycle> .
+
+<https://wod.wiki/qa/issue/WW-059> a qa:Issue ;
+    rdfs:label "NEW: /day/:date Page options panel lacks Delete note, Clone, Export, Notebooks & Promotion that exist on /note/:id" ;
+    qa:issueId "WW-059" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> .
+
+<https://wod.wiki/qa/issue/WW-060> a qa:Issue ;
+    rdfs:label "NEW: slash command menu /time and /wod show identical description 'Timer workout block' — indistinguishable" ;
+    qa:issueId "WW-060" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "tier12" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/issue/WW-061> a qa:Issue ;
+    rdfs:label "NEW: WebMCP wod_note_list silently ignores unknown input keys instead of rejecting (agents get silently wrong results)" ;
+    qa:issueId "WW-061" ;
+    qa:severity "Low" ;
+    qa:kind "parity" ;
+    qa:status "open" ;
+    qa:coverageStatus "tier12" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/issue/WW-062> a qa:Issue ;
+    rdfs:label "NEW: wod_notebook_list advertises notebook URLs as /notebooks/:slug — every link 404s 'Page not found'; real route is /notebook/:slug" ;
+    qa:issueId "WW-062" ;
+    qa:severity "Low" ;
+    qa:kind "parity" ;
+    qa:status "open" ;
+    qa:coverageStatus "tier12" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> .
+
+<https://wod.wiki/qa/issue/WW-063> a qa:Issue ;
+    rdfs:label "Unknown tag deep link /t/:type/:tag silently degrades to 'No tag is selected' instead of explicit not-found" ;
+    qa:issueId "WW-063" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-03> .
+
+<https://wod.wiki/qa/issue/WW-064> a qa:Issue ;
+    rdfs:label "Mobile timer footer stop/pause controls are icon-only with no accessible name at 375x812 (rep/round adjust pair NOW FIXED)" ;
+    qa:issueId "WW-064" ;
+    qa:severity "Low" ;
+    qa:kind "defect" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+
+<https://wod.wiki/qa/issue/WW-065> a qa:Issue ;
+    rdfs:label "NEW: prebuilt /dashboard/benchmark-pr-board takes 13.6s warm from navigation to last widget settled" ;
+    qa:issueId "WW-065" ;
+    qa:severity "Medium" ;
+    qa:kind "latency" ;
+    qa:status "open" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+
+<https://wod.wiki/qa/issue/WW-066> a qa:Issue ;
+    rdfs:label "NEW: Cast to TV click with no receiver produces zero user-facing feedback — console-only failure" ;
+    qa:issueId "WW-066" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "proposed" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:affects <https://wod.wiki/qa/domain/manual> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/runtime-timer-responsive-tiers-and-cast-receiver> .
+
+<https://wod.wiki/qa/issue/WW-067> a qa:Issue ;
+    rdfs:label "NEW: Mobile Keypad mode toggle sets aria-pressed=true but renders no digit pad at 375x812 — dead-end input affordance" ;
+    qa:issueId "WW-067" ;
+    qa:severity "Medium" ;
+    qa:kind "defect" ;
+    qa:status "open" ;
+    qa:coverageStatus "planned" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/runtime-mobile-timer-controls-and-keypad> .
+
+<https://wod.wiki/qa/issue/WW-068> a qa:Issue ;
+    rdfs:label "NEW: Live timer movement chip accessible name leaks 'Value: [object Object]' for resistance (9 kg renders fine visually)" ;
+    qa:issueId "WW-068" ;
+    qa:severity "Low" ;
+    qa:kind "defect" ;
+    qa:status "open" ;
+    qa:coverageStatus "planned" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/issue/WW-069> a qa:Issue ;
+    rdfs:label "NEW: Run button always launches the LAST workout block of a note — caret position and Saved-block-history selection ignored, no block picker in the gate" ;
+    qa:issueId "WW-069" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "planned" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+
+<https://wod.wiki/qa/issue/WW-070> a qa:Issue ;
+    rdfs:label "NEW: Scoped equipment override commits silently — no confirmation and header 'Bundled' badge stays stale until full reload" ;
+    qa:issueId "WW-070" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "planned" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-04> .
+
+<https://wod.wiki/qa/issue/WW-071> a qa:Issue ;
+    rdfs:label "NEW: Alias chips on /effort/:slug and /equipment/:slug are non-interactive spans — PRP-01 spec promises linked chips" ;
+    qa:issueId "WW-071" ;
+    qa:severity "Low" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "planned" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-01> .
+
+<https://wod.wiki/qa/issue/WW-072> a qa:Issue ;
+    rdfs:label "NEW: /subscribe probe failure surfaces raw browser error 'Failed to fetch' with no remediation hint" ;
+    qa:issueId "WW-072" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "planned" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/feeds-feed-subscription-error-recovery> .
+
+<https://wod.wiki/qa/issue/WW-073> a qa:Issue ;
+    rdfs:label "NEW: Feed overflow menu ignores Escape (backdrop click works) — contradicts FED-01 Scenario 3 despite handler + passing test in source" ;
+    qa:issueId "WW-073" ;
+    qa:severity "Medium" ;
+    qa:kind "friction" ;
+    qa:status "open" ;
+    qa:coverageStatus "planned" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:affects <https://wod.wiki/qa/domain/feeds> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
+
 }
 
 <https://wod.wiki/graph/bridge> {
@@ -53467,6 +54639,7 @@
 <https://wod.wiki/qa/domain/properties> bridge:domainMapping "apps/playground/app/pages" .
 <https://wod.wiki/qa/domain/analytics> bridge:domainMapping "apps/playground/app/views/dashboards" .
 <https://wod.wiki/qa/domain/feeds> bridge:domainMapping "apps/playground/app/services" .
+<https://wod.wiki/qa/domain/manual> bridge:domainMapping "apps/playground/app/tour" .
 <https://wod.wiki/qa/journey/ANL-04> bridge:specFile <https://wod.wiki/code/file/e2e/specs/analytics/entity-scope-and-dashboard-promotion.md> .
 <https://wod.wiki/qa/journey/ANL-04> bridge:playwrightSpec <https://wod.wiki/code/file/e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts> .
 <https://wod.wiki/qa/journey/ANL-04> bridge:touches <https://wod.wiki/code/file/e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts> .
@@ -53873,4 +55046,491 @@
 <https://wod.wiki/qa/journey/RUN-01> bridge:seedNoun wod:Notebook .
 <https://wod.wiki/qa/journey/RUN-01> bridge:seedNoun wod:Page .
 <https://wod.wiki/qa/journey/RUN-01> bridge:seedNoun wod:Session .
+<https://wod.wiki/qa/issue/WW-001> bridge:rootCause <https://wod.wiki/code/file/packages/storage/src/schema.ts> .
+<https://wod.wiki/qa/issue/WW-001> bridge:rootCause <https://wod.wiki/code/symbol/packages/storage/src/schema.ts#DB_VERSION> .
+<https://wod.wiki/code/file/packages/storage/src/schema.ts> code:lineHint 33 .
+<https://wod.wiki/qa/issue/WW-001> bridge:rootCause <https://wod.wiki/code/file/packages/storage/src/schema.ts> .
+<https://wod.wiki/qa/issue/WW-001> bridge:rootCause <https://wod.wiki/code/symbol/packages/storage/src/schema.ts#StorageColumnType> .
+<https://wod.wiki/code/file/packages/storage/src/schema.ts> code:lineHint 47 .
+<https://wod.wiki/qa/issue/WW-001> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts> .
+<https://wod.wiki/qa/issue/WW-001> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts#IndexedDBNotePersistence> .
+<https://wod.wiki/code/file/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts> code:lineHint 601 .
+<https://wod.wiki/qa/issue/WW-001> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> .
+<https://wod.wiki/qa/issue/WW-001> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/JournalDatePage.tsx#JournalDatePage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> code:lineHint 303 .
+<https://wod.wiki/qa/issue/WW-001> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/hooks/useDashboards.ts> .
+<https://wod.wiki/qa/issue/WW-001> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/hooks/useDashboards.ts#DashboardListItem> .
+<https://wod.wiki/code/file/apps/playground/app/hooks/useDashboards.ts> code:lineHint 59 .
+<https://wod.wiki/qa/issue/WW-002> bridge:rootCause <https://wod.wiki/code/file/apps/playground/public/404.html> .
+<https://wod.wiki/code/file/apps/playground/public/404.html> code:lineHint 8 .
+<https://wod.wiki/qa/issue/WW-003> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/streamProfile.ts> .
+<https://wod.wiki/qa/issue/WW-003> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/streamProfile.ts#NOTES_STREAM_PROFILE> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/streamProfile.ts> code:lineHint 156 .
+<https://wod.wiki/qa/issue/WW-003> bridge:rootCause <https://wod.wiki/code/file/packages/wql/src/wql.ts> .
+<https://wod.wiki/qa/issue/WW-003> bridge:rootCause <https://wod.wiki/code/symbol/packages/wql/src/wql.ts#suggestWqlSyntaxHint> .
+<https://wod.wiki/code/file/packages/wql/src/wql.ts> code:lineHint 1243 .
+<https://wod.wiki/qa/issue/WW-004> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> .
+<https://wod.wiki/qa/issue/WW-004> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#QueriableStreamView> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:lineHint 1259 .
+<https://wod.wiki/qa/issue/WW-005> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> .
+<https://wod.wiki/qa/issue/WW-005> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/NoteByIdPage.tsx#NoteByIdPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> code:lineHint 295 .
+<https://wod.wiki/qa/issue/WW-005> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> .
+<https://wod.wiki/qa/issue/WW-005> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/NoteByIdPage.tsx#NoteByIdPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> code:lineHint 611 .
+<https://wod.wiki/qa/issue/WW-006> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/analytics/SampleDataPrompt.tsx> .
+<https://wod.wiki/qa/issue/WW-006> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/analytics/SampleDataPrompt.tsx#SampleDataPrompt> .
+<https://wod.wiki/code/file/apps/playground/app/views/analytics/SampleDataPrompt.tsx> code:lineHint 29 .
+<https://wod.wiki/qa/issue/WW-007> bridge:rootCause <https://wod.wiki/code/file/packages/lang/src/grammar/whiteboardscript.grammar> .
+<https://wod.wiki/code/file/packages/lang/src/grammar/whiteboardscript.grammar> code:lineHint 81 .
+<https://wod.wiki/qa/issue/WW-007> bridge:rootCause <https://wod.wiki/code/file/packages/lang/src/parser/semantic-classifier.ts> .
+<https://wod.wiki/qa/issue/WW-007> bridge:rootCause <https://wod.wiki/code/symbol/packages/lang/src/parser/semantic-classifier.ts#resolveFusedEffortReferences> .
+<https://wod.wiki/code/file/packages/lang/src/parser/semantic-classifier.ts> code:lineHint 376 .
+<https://wod.wiki/qa/issue/WW-008> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/lib/entryMapper.ts> .
+<https://wod.wiki/qa/issue/WW-008> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/lib/entryMapper.ts#effortToEntry> .
+<https://wod.wiki/code/file/apps/playground/app/lib/entryMapper.ts> code:lineHint 744 .
+<https://wod.wiki/qa/issue/WW-009> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/lib/entryMapper.ts> .
+<https://wod.wiki/qa/issue/WW-009> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/lib/entryMapper.ts#rowsRunToEntry> .
+<https://wod.wiki/code/file/apps/playground/app/lib/entryMapper.ts> code:lineHint 861 .
+<https://wod.wiki/qa/issue/WW-009> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/atoms/VisualStateComponents.tsx> .
+<https://wod.wiki/qa/issue/WW-009> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/atoms/VisualStateComponents.tsx#HistorySummaryView> .
+<https://wod.wiki/code/file/apps/playground/src/components/atoms/VisualStateComponents.tsx> code:lineHint 45 .
+<https://wod.wiki/qa/issue/WW-010> bridge:rootCause <https://wod.wiki/code/file/packages/ui/src/widgets/WqlTimeseries.tsx> .
+<https://wod.wiki/qa/issue/WW-010> bridge:rootCause <https://wod.wiki/code/symbol/packages/ui/src/widgets/WqlTimeseries.tsx#formatTimeseriesTick> .
+<https://wod.wiki/code/file/packages/ui/src/widgets/WqlTimeseries.tsx> code:lineHint 33 .
+<https://wod.wiki/qa/issue/WW-011> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarAgendaView.tsx> .
+<https://wod.wiki/qa/issue/WW-011> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/CalendarAgendaView.tsx#formatEntryCount> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarAgendaView.tsx> code:lineHint 134 .
+<https://wod.wiki/qa/issue/WW-012> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/stores/activeRunStore.ts> .
+<https://wod.wiki/qa/issue/WW-012> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/stores/activeRunStore.ts#parkedRuns> .
+<https://wod.wiki/code/file/apps/playground/src/stores/activeRunStore.ts> code:lineHint 46 .
+<https://wod.wiki/qa/issue/WW-012> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/WallClockPage.tsx> .
+<https://wod.wiki/qa/issue/WW-012> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/WallClockPage.tsx#WallClockPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/WallClockPage.tsx> code:lineHint 104 .
+<https://wod.wiki/qa/issue/WW-012> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> .
+<https://wod.wiki/qa/issue/WW-012> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx#HaltedRunNotice> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> code:lineHint 254 .
+<https://wod.wiki/qa/issue/WW-012> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> .
+<https://wod.wiki/qa/issue/WW-012> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx#RuntimeTimerPanel> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> code:lineHint 562 .
+<https://wod.wiki/qa/issue/WW-012> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/NoteEditor.tsx> .
+<https://wod.wiki/qa/issue/WW-012> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/NoteEditor.tsx#NoteEditor> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/NoteEditor.tsx> code:lineHint 1157 .
+<https://wod.wiki/qa/issue/WW-013> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/SubscribePage.tsx> .
+<https://wod.wiki/qa/issue/WW-013> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/SubscribePage.tsx#SubscribePage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/SubscribePage.tsx> code:lineHint 14 .
+<https://wod.wiki/qa/issue/WW-013> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/App.tsx> .
+<https://wod.wiki/qa/issue/WW-013> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/App.tsx#App> .
+<https://wod.wiki/code/file/apps/playground/app/App.tsx> code:lineHint 222 .
+<https://wod.wiki/qa/issue/WW-013> bridge:rootCause <https://wod.wiki/code/file/apps/playground/index.html> .
+<https://wod.wiki/code/file/apps/playground/index.html> code:lineHint 42 .
+<https://wod.wiki/qa/issue/WW-014> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> .
+<https://wod.wiki/qa/issue/WW-014> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/FeedDetailPage.tsx#FeedDetailPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> code:lineHint 108 .
+<https://wod.wiki/qa/issue/WW-015> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedCatalog.ts> .
+<https://wod.wiki/qa/issue/WW-015> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedCatalog.ts#probeAndCacheFeedManifest> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedCatalog.ts> code:lineHint 156 .
+<https://wod.wiki/qa/issue/WW-015> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedCatalog.ts> .
+<https://wod.wiki/qa/issue/WW-015> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedCatalog.ts#playgroundFeedCatalogStore> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedCatalog.ts> code:lineHint 413 .
+<https://wod.wiki/qa/issue/WW-015> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedCatalog.ts> .
+<https://wod.wiki/qa/issue/WW-015> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedCatalog.ts#playgroundFeedCatalogStore> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedCatalog.ts> code:lineHint 414 .
+<https://wod.wiki/qa/issue/WW-016> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/FeedImportStorage.ts> .
+<https://wod.wiki/qa/issue/WW-016> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/FeedImportStorage.ts#IndexedDBFeedImportStorage> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/FeedImportStorage.ts> code:lineHint 71 .
+<https://wod.wiki/qa/issue/WW-016> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> .
+<https://wod.wiki/qa/issue/WW-016> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#QueriableStreamView> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:lineHint 681 .
+<https://wod.wiki/qa/issue/WW-017> bridge:rootCause <https://wod.wiki/code/file/.github/workflows/_deploy-playground.yml> .
+<https://wod.wiki/code/file/.github/workflows/_deploy-playground.yml> code:lineHint 99 .
+<https://wod.wiki/qa/issue/WW-018> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> .
+<https://wod.wiki/qa/issue/WW-018> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#QueriableStreamView> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:lineHint 1275 .
+<https://wod.wiki/qa/issue/WW-019> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedReadiness.ts> .
+<https://wod.wiki/qa/issue/WW-019> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedReadiness.ts#markFeedSyncStarted> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedReadiness.ts> code:lineHint 98 .
+<https://wod.wiki/qa/issue/WW-019> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedReadiness.ts> .
+<https://wod.wiki/qa/issue/WW-019> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedReadiness.ts#markFeedFirstPaint> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedReadiness.ts> code:lineHint 117 .
+<https://wod.wiki/qa/issue/WW-019> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedReadiness.ts> .
+<https://wod.wiki/qa/issue/WW-019> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedReadiness.ts#markFeedSyncSettled> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedReadiness.ts> code:lineHint 124 .
+<https://wod.wiki/qa/issue/WW-019> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedSync.ts> .
+<https://wod.wiki/qa/issue/WW-019> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedSync.ts#runFeedSync> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedSync.ts> code:lineHint 466 .
+<https://wod.wiki/qa/issue/WW-019> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> .
+<https://wod.wiki/qa/issue/WW-019> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/templates/SidebarLayout.tsx#MainLandmark> .
+<https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:lineHint 358 .
+<https://wod.wiki/qa/issue/WW-020> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/seed/runtime.ts> .
+<https://wod.wiki/qa/issue/WW-020> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/seed/runtime.ts#applySeedChunk> .
+<https://wod.wiki/code/file/packages/engine/src/seed/runtime.ts> code:lineHint 252 .
+<https://wod.wiki/qa/issue/WW-020> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/FeedImporter.ts> .
+<https://wod.wiki/qa/issue/WW-020> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/FeedImporter.ts#FeedImporter> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/FeedImporter.ts> code:lineHint 63 .
+<https://wod.wiki/qa/issue/WW-020> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/FeedImporter.ts> .
+<https://wod.wiki/qa/issue/WW-020> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/FeedImporter.ts#FeedImporter> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/FeedImporter.ts> code:lineHint 168 .
+<https://wod.wiki/qa/issue/WW-020> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedSync.ts> .
+<https://wod.wiki/qa/issue/WW-020> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedSync.ts#runFeedSync> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedSync.ts> code:lineHint 466 .
+<https://wod.wiki/qa/issue/WW-021> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedSubscriptions.ts> .
+<https://wod.wiki/qa/issue/WW-021> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedSubscriptions.ts#FeedSubscriptionMode> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedSubscriptions.ts> code:lineHint 19 .
+<https://wod.wiki/qa/issue/WW-021> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/playgroundFeedBootstrap.ts> .
+<https://wod.wiki/qa/issue/WW-021> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/playgroundFeedBootstrap.ts#ensurePlaygroundDefaultSubscriptions> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/playgroundFeedBootstrap.ts> code:lineHint 44 .
+<https://wod.wiki/qa/issue/WW-021> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedSync.ts> .
+<https://wod.wiki/qa/issue/WW-021> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedSync.ts#subscribeFeedUpdates> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedSync.ts> code:lineHint 433 .
+<https://wod.wiki/qa/issue/WW-022> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/hooks/useEditorSave.ts> .
+<https://wod.wiki/qa/issue/WW-022> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/hooks/useEditorSave.ts#useEditorSave> .
+<https://wod.wiki/code/file/apps/playground/app/hooks/useEditorSave.ts> code:lineHint 101 .
+<https://wod.wiki/qa/issue/WW-022> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/hooks/useEditorSave.ts> .
+<https://wod.wiki/qa/issue/WW-022> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/hooks/useEditorSave.ts#useEditorSave> .
+<https://wod.wiki/code/file/apps/playground/app/hooks/useEditorSave.ts> code:lineHint 116 .
+<https://wod.wiki/qa/issue/WW-022> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/hooks/useNoteDraft.ts> .
+<https://wod.wiki/qa/issue/WW-022> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/hooks/useNoteDraft.ts#useNoteDraft> .
+<https://wod.wiki/code/file/apps/playground/app/hooks/useNoteDraft.ts> code:lineHint 83 .
+<https://wod.wiki/qa/issue/WW-023> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> .
+<https://wod.wiki/qa/issue/WW-023> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#plainTextFallbackQuery> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:lineHint 125 .
+<https://wod.wiki/qa/issue/WW-023> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> .
+<https://wod.wiki/qa/issue/WW-023> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#QueriableStreamView> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:lineHint 404 .
+<https://wod.wiki/qa/issue/WW-024> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/lib/routeRedirects.tsx> .
+<https://wod.wiki/qa/issue/WW-024> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/lib/routeRedirects.tsx#ReviewRedirect> .
+<https://wod.wiki/code/file/apps/playground/app/lib/routeRedirects.tsx> code:lineHint 49 .
+<https://wod.wiki/qa/issue/WW-024> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts> .
+<https://wod.wiki/qa/issue/WW-024> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts#IndexedDBNotePersistence> .
+<https://wod.wiki/code/file/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts> code:lineHint 541 .
+<https://wod.wiki/qa/issue/WW-024> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/lib/directRouteMounting.test.tsx> .
+<https://wod.wiki/code/file/apps/playground/app/lib/directRouteMounting.test.tsx> code:lineHint 112 .
+<https://wod.wiki/qa/issue/WW-025> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/agent/PlaygroundAgentProvider.tsx> .
+<https://wod.wiki/qa/issue/WW-025> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/agent/PlaygroundAgentProvider.tsx#installModelContextExecuteToolAdapter> .
+<https://wod.wiki/code/file/apps/playground/app/agent/PlaygroundAgentProvider.tsx> code:lineHint 104 .
+<https://wod.wiki/qa/issue/WW-025> bridge:rootCause <https://wod.wiki/code/file/e2e/live-app/agent-readiness.e2e.ts> .
+<https://wod.wiki/code/file/e2e/live-app/agent-readiness.e2e.ts> code:lineHint 62 .
+<https://wod.wiki/qa/issue/WW-026> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/NotFoundPage.tsx> .
+<https://wod.wiki/qa/issue/WW-026> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/NotFoundPage.tsx#NotFoundPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/NotFoundPage.tsx> code:lineHint 48 .
+<https://wod.wiki/qa/issue/WW-026> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/App.tsx> .
+<https://wod.wiki/qa/issue/WW-026> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/App.tsx#App> .
+<https://wod.wiki/code/file/apps/playground/app/App.tsx> code:lineHint 173 .
+<https://wod.wiki/qa/issue/WW-027> bridge:rootCause <https://wod.wiki/code/file/apps/playground/public/llms.txt> .
+<https://wod.wiki/code/file/apps/playground/public/llms.txt> code:lineHint 6 .
+<https://wod.wiki/qa/issue/WW-027> bridge:rootCause <https://wod.wiki/code/file/scripts/generate-agent-manifest.ts> .
+<https://wod.wiki/code/file/scripts/generate-agent-manifest.ts> code:lineHint 61 .
+<https://wod.wiki/qa/issue/WW-028> bridge:rootCause <https://wod.wiki/code/file/markdown/dashboards/recovery-readiness.md> .
+<https://wod.wiki/code/file/markdown/dashboards/recovery-readiness.md> code:lineHint 20 .
+<https://wod.wiki/qa/issue/WW-028> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/analytics/sample.ts> .
+<https://wod.wiki/qa/issue/WW-028> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/analytics/sample.ts#setSampleDataService> .
+<https://wod.wiki/code/file/apps/playground/src/services/analytics/sample.ts> code:lineHint 322 .
+<https://wod.wiki/qa/issue/WW-029> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> .
+<https://wod.wiki/qa/issue/WW-029> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx#AnalyticsExplorerPage> .
+<https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> code:lineHint 209 .
+<https://wod.wiki/qa/issue/WW-030> bridge:rootCause <https://wod.wiki/code/file/packages/ui/src/widgets/WqlBars.tsx> .
+<https://wod.wiki/qa/issue/WW-030> bridge:rootCause <https://wod.wiki/code/symbol/packages/ui/src/widgets/WqlBars.tsx#WqlBars> .
+<https://wod.wiki/code/file/packages/ui/src/widgets/WqlBars.tsx> code:lineHint 57 .
+<https://wod.wiki/qa/issue/WW-030> bridge:rootCause <https://wod.wiki/code/file/packages/ui/src/widgets/WqlTimeseries.tsx> .
+<https://wod.wiki/qa/issue/WW-030> bridge:rootCause <https://wod.wiki/code/symbol/packages/ui/src/widgets/WqlTimeseries.tsx#WqlTimeseriesProps> .
+<https://wod.wiki/code/file/packages/ui/src/widgets/WqlTimeseries.tsx> code:lineHint 23 .
+<https://wod.wiki/qa/issue/WW-031> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> .
+<https://wod.wiki/qa/issue/WW-031> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/LoadZipPage.tsx#LoadZipPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:lineHint 14 .
+<https://wod.wiki/qa/issue/WW-031> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/hooks/useJournalZipProcessor.ts> .
+<https://wod.wiki/qa/issue/WW-031> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/hooks/useJournalZipProcessor.ts#useJournalZipProcessor> .
+<https://wod.wiki/code/file/apps/playground/app/hooks/useJournalZipProcessor.ts> code:lineHint 63 .
+<https://wod.wiki/qa/issue/WW-032> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> .
+<https://wod.wiki/qa/issue/WW-032> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#plainTextFallbackQuery> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:lineHint 150 .
+<https://wod.wiki/qa/issue/WW-032> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> .
+<https://wod.wiki/qa/issue/WW-032> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#QueriableStreamView> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:lineHint 1200 .
+<https://wod.wiki/qa/issue/WW-032> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> .
+<https://wod.wiki/qa/issue/WW-032> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#QueriableStreamView> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:lineHint 1210 .
+<https://wod.wiki/qa/issue/WW-033> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/nav/panels/ConditionsNavPanel.tsx> .
+<https://wod.wiki/qa/issue/WW-033> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/nav/panels/ConditionsNavPanel.tsx#RECENT_RESULTS_LIMIT> .
+<https://wod.wiki/code/file/apps/playground/app/nav/panels/ConditionsNavPanel.tsx> code:lineHint 67 .
+<https://wod.wiki/qa/issue/WW-033> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/nav/panels/ConditionsNavPanel.tsx> .
+<https://wod.wiki/qa/issue/WW-033> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/nav/panels/ConditionsNavPanel.tsx#createConditionsNavPanel> .
+<https://wod.wiki/code/file/apps/playground/app/nav/panels/ConditionsNavPanel.tsx> code:lineHint 139 .
+<https://wod.wiki/qa/issue/WW-034> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> .
+<https://wod.wiki/qa/issue/WW-034> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#plainTextFallbackQuery> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:lineHint 136 .
+<https://wod.wiki/qa/issue/WW-034> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> .
+<https://wod.wiki/qa/issue/WW-034> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#plainTextFallbackQuery> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:lineHint 143 .
+<https://wod.wiki/qa/issue/WW-034> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> .
+<https://wod.wiki/qa/issue/WW-034> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#QueriableStreamView> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:lineHint 404 .
+<https://wod.wiki/qa/issue/WW-035> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> .
+<https://wod.wiki/qa/issue/WW-035> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/EffortDetailPage.tsx#EffortDetailPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:lineHint 111 .
+<https://wod.wiki/qa/issue/WW-035> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/effortRegistry.ts> .
+<https://wod.wiki/qa/issue/WW-035> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/effortRegistry.ts#hydrateAppEffortRegistry> .
+<https://wod.wiki/code/file/apps/playground/src/services/effortRegistry.ts> code:lineHint 33 .
+<https://wod.wiki/qa/issue/WW-036> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts> .
+<https://wod.wiki/qa/issue/WW-036> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts#IndexedDBNotePersistence> .
+<https://wod.wiki/code/file/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts> code:lineHint 203 .
+<https://wod.wiki/qa/issue/WW-036> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts> .
+<https://wod.wiki/qa/issue/WW-036> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts#IndexedDBNotePersistence> .
+<https://wod.wiki/code/file/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts> code:lineHint 594 .
+<https://wod.wiki/qa/issue/WW-036> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts> .
+<https://wod.wiki/qa/issue/WW-036> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts#IndexedDBNotePersistence> .
+<https://wod.wiki/code/file/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts> code:lineHint 634 .
+<https://wod.wiki/qa/issue/WW-037> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/TagsPage.tsx> .
+<https://wod.wiki/qa/issue/WW-037> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/TagsPage.tsx#TagsPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/TagsPage.tsx> code:lineHint 382 .
+<https://wod.wiki/qa/issue/WW-037> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/TagsPage.tsx> .
+<https://wod.wiki/qa/issue/WW-037> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/TagsPage.tsx#TagsPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/TagsPage.tsx> code:lineHint 409 .
+<https://wod.wiki/qa/issue/WW-038> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> .
+<https://wod.wiki/qa/issue/WW-038> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx#AnalyticsExplorerPage> .
+<https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> code:lineHint 363 .
+<https://wod.wiki/qa/issue/WW-039> bridge:rootCause <https://wod.wiki/code/file/packages/ui/src/widgets/DashboardView.tsx> .
+<https://wod.wiki/qa/issue/WW-039> bridge:rootCause <https://wod.wiki/code/symbol/packages/ui/src/widgets/DashboardView.tsx#DashboardView> .
+<https://wod.wiki/code/file/packages/ui/src/widgets/DashboardView.tsx> code:lineHint 264 .
+<https://wod.wiki/qa/issue/WW-039> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedReadiness.ts> .
+<https://wod.wiki/qa/issue/WW-039> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedReadiness.ts#markFeedFirstPaint> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedReadiness.ts> code:lineHint 117 .
+<https://wod.wiki/qa/issue/WW-040> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> .
+<https://wod.wiki/qa/issue/WW-040> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/LoadZipPage.tsx#LoadZipPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:lineHint 35 .
+<https://wod.wiki/qa/issue/WW-040> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> .
+<https://wod.wiki/qa/issue/WW-040> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#importFromZip> .
+<https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> code:lineHint 465 .
+<https://wod.wiki/qa/issue/WW-041> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> .
+<https://wod.wiki/qa/issue/WW-041> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/LoadZipPage.tsx#LoadZipPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:lineHint 31 .
+<https://wod.wiki/qa/issue/WW-041> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> .
+<https://wod.wiki/qa/issue/WW-041> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#importFromZip> .
+<https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> code:lineHint 473 .
+<https://wod.wiki/qa/issue/WW-042> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/App.tsx> .
+<https://wod.wiki/qa/issue/WW-042> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/App.tsx#App> .
+<https://wod.wiki/code/file/apps/playground/app/App.tsx> code:lineHint 202 .
+<https://wod.wiki/qa/issue/WW-042> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/lib/routes.ts> .
+<https://wod.wiki/code/file/apps/playground/app/lib/routes.ts> code:lineHint 80 .
+<https://wod.wiki/qa/issue/WW-042> bridge:rootCause <https://wod.wiki/code/file/apps/playground/public/llms.txt> .
+<https://wod.wiki/code/file/apps/playground/public/llms.txt> code:lineHint 72 .
+<https://wod.wiki/qa/issue/WW-043> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> .
+<https://wod.wiki/qa/issue/WW-043> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#exportFeedRepositoryZip> .
+<https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> code:lineHint 587 .
+<https://wod.wiki/qa/issue/WW-043> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> .
+<https://wod.wiki/qa/issue/WW-043> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/feed/publisher.ts#UnpublishedFeedStatus> .
+<https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> code:lineHint 444 .
+<https://wod.wiki/qa/issue/WW-043> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> .
+<https://wod.wiki/qa/issue/WW-043> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/feed/publisher.ts#UnpublishedFeedStatus> .
+<https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> code:lineHint 463 .
+<https://wod.wiki/qa/issue/WW-043> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> .
+<https://wod.wiki/qa/issue/WW-043> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/feed/publisher.ts#publishFeedFromStorage> .
+<https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> code:lineHint 563 .
+<https://wod.wiki/qa/issue/WW-044> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> .
+<https://wod.wiki/qa/issue/WW-044> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#importFromZip> .
+<https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> code:lineHint 473 .
+<https://wod.wiki/qa/issue/WW-044> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> .
+<https://wod.wiki/qa/issue/WW-044> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/feed/publisher.ts#publishFeedFromStorage> .
+<https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> code:lineHint 567 .
+<https://wod.wiki/qa/issue/WW-044> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> .
+<https://wod.wiki/qa/issue/WW-044> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/LoadZipPage.tsx#LoadZipPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:lineHint 31 .
+<https://wod.wiki/qa/issue/WW-045> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/agent/tools/feedTools.ts> .
+<https://wod.wiki/qa/issue/WW-045> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/feedTools.ts#wodFeedManageTool> .
+<https://wod.wiki/code/file/packages/engine/src/agent/tools/feedTools.ts> code:lineHint 24 .
+<https://wod.wiki/qa/issue/WW-045> bridge:rootCause <https://wod.wiki/code/file/apps/playground/public/.well-known/agent-capabilities.json> .
+<https://wod.wiki/code/file/apps/playground/public/.well-known/agent-capabilities.json> code:lineHint 954 .
+<https://wod.wiki/qa/issue/WW-046> bridge:rootCause <https://wod.wiki/code/file/apps/playground/public/llms.txt> .
+<https://wod.wiki/code/file/apps/playground/public/llms.txt> code:lineHint 7 .
+<https://wod.wiki/qa/issue/WW-046> bridge:rootCause <https://wod.wiki/code/file/apps/playground/public/.well-known/agent-capabilities.json> .
+<https://wod.wiki/code/file/apps/playground/public/.well-known/agent-capabilities.json> code:lineHint 12 .
+<https://wod.wiki/qa/issue/WW-047> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/feed/feedCatalog.ts> .
+<https://wod.wiki/qa/issue/WW-047> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/feed/feedCatalog.ts#resolveFeedDisplayDescription> .
+<https://wod.wiki/code/file/apps/playground/src/services/feed/feedCatalog.ts> code:lineHint 228 .
+<https://wod.wiki/qa/issue/WW-047> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/lib/entryMapper.ts> .
+<https://wod.wiki/qa/issue/WW-047> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/lib/entryMapper.ts#toEntry> .
+<https://wod.wiki/code/file/apps/playground/app/lib/entryMapper.ts> code:lineHint 294 .
+<https://wod.wiki/qa/issue/WW-048> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> .
+<https://wod.wiki/qa/issue/WW-048> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#collectionLinks> .
+<https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> code:lineHint 236 .
+<https://wod.wiki/qa/issue/WW-048> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> .
+<https://wod.wiki/qa/issue/WW-048> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#useNoteContextLinks> .
+<https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> code:lineHint 620 .
+<https://wod.wiki/qa/issue/WW-049> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> .
+<https://wod.wiki/qa/issue/WW-049> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/noteTools.ts#wodNoteDeleteTool> .
+<https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> code:lineHint 402 .
+<https://wod.wiki/qa/issue/WW-049> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/agent/types.ts> .
+<https://wod.wiki/qa/issue/WW-049> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/agent/types.ts#requireDestructiveConfirmation> .
+<https://wod.wiki/code/file/packages/engine/src/agent/types.ts> code:lineHint 82 .
+<https://wod.wiki/qa/issue/WW-050> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/agent/AgentStateScript.tsx> .
+<https://wod.wiki/qa/issue/WW-050> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/agent/AgentStateScript.tsx#AgentStateScript> .
+<https://wod.wiki/code/file/apps/playground/app/agent/AgentStateScript.tsx> code:lineHint 32 .
+<https://wod.wiki/qa/issue/WW-050> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/agent/AgentStateScript.tsx> .
+<https://wod.wiki/qa/issue/WW-050> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/agent/AgentStateScript.tsx#AgentStateScript> .
+<https://wod.wiki/code/file/apps/playground/app/agent/AgentStateScript.tsx> code:lineHint 90 .
+<https://wod.wiki/qa/issue/WW-050> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/clock/clockCommands.ts> .
+<https://wod.wiki/qa/issue/WW-050> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/clock/clockCommands.ts#getClockSnapshot> .
+<https://wod.wiki/code/file/apps/playground/src/clock/clockCommands.ts> code:lineHint 163 .
+<https://wod.wiki/qa/issue/WW-051> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/app/editor/runtimeTimerModel.ts> .
+<https://wod.wiki/qa/issue/WW-051> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/app/editor/runtimeTimerModel.ts#createRuntimeForBlock> .
+<https://wod.wiki/code/file/apps/playground/src/app/editor/runtimeTimerModel.ts> code:lineHint 163 .
+<https://wod.wiki/qa/issue/WW-051> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> .
+<https://wod.wiki/qa/issue/WW-051> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx#RuntimeTimerPanel> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> code:lineHint 562 .
+<https://wod.wiki/qa/issue/WW-051> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> .
+<https://wod.wiki/qa/issue/WW-051> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx#RuntimeTimerPanel> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> code:lineHint 669 .
+<https://wod.wiki/qa/issue/WW-051> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/resultRecorder.ts> .
+<https://wod.wiki/qa/issue/WW-051> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/resultRecorder.ts#PendingUnloadResult> .
+<https://wod.wiki/code/file/apps/playground/src/services/resultRecorder.ts> code:lineHint 89 .
+<https://wod.wiki/qa/issue/WW-052> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> .
+<https://wod.wiki/qa/issue/WW-052> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx#RuntimeTimerPanel> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> code:lineHint 669 .
+<https://wod.wiki/qa/issue/WW-052> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/lib/entryMapper.ts> .
+<https://wod.wiki/qa/issue/WW-052> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/lib/entryMapper.ts#rowsRunToEntry> .
+<https://wod.wiki/code/file/apps/playground/app/lib/entryMapper.ts> code:lineHint 828 .
+<https://wod.wiki/qa/issue/WW-053> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/WallClockPage.tsx> .
+<https://wod.wiki/qa/issue/WW-053> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/WallClockPage.tsx#WallClockPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/WallClockPage.tsx> code:lineHint 216 .
+<https://wod.wiki/qa/issue/WW-053> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/WallClockPage.tsx> .
+<https://wod.wiki/qa/issue/WW-053> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/WallClockPage.tsx#WallClockPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/WallClockPage.tsx> code:lineHint 229 .
+<https://wod.wiki/qa/issue/WW-053> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/App.tsx> .
+<https://wod.wiki/qa/issue/WW-053> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/App.tsx#App> .
+<https://wod.wiki/code/file/apps/playground/app/App.tsx> code:lineHint 249 .
+<https://wod.wiki/qa/issue/WW-054> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/agent/tools/catalogTools.ts> .
+<https://wod.wiki/qa/issue/WW-054> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/catalogTools.ts#wodCatalogLookupTool> .
+<https://wod.wiki/code/file/packages/engine/src/agent/tools/catalogTools.ts> code:lineHint 24 .
+<https://wod.wiki/qa/issue/WW-055> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/DataSection.tsx> .
+<https://wod.wiki/qa/issue/WW-055> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/DataSection.tsx#TursoConnectForm> .
+<https://wod.wiki/code/file/apps/playground/app/pages/DataSection.tsx> code:lineHint 489 .
+<https://wod.wiki/qa/issue/WW-055> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/DataSection.tsx> .
+<https://wod.wiki/qa/issue/WW-055> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/DataSection.tsx#TursoConnectForm> .
+<https://wod.wiki/code/file/apps/playground/app/pages/DataSection.tsx> code:lineHint 591 .
+<https://wod.wiki/qa/issue/WW-055> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> .
+<https://wod.wiki/qa/issue/WW-055> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#exportFeedRepositoryZip> .
+<https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> code:lineHint 587 .
+<https://wod.wiki/qa/issue/WW-055> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> .
+<https://wod.wiki/qa/issue/WW-055> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/feed/publisher.ts#publishFeedFromStorage> .
+<https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> code:lineHint 563 .
+<https://wod.wiki/qa/issue/WW-056> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/analytics/sample.ts> .
+<https://wod.wiki/qa/issue/WW-056> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/analytics/sample.ts#setSampleDataService> .
+<https://wod.wiki/code/file/apps/playground/src/services/analytics/sample.ts> code:lineHint 262 .
+<https://wod.wiki/qa/issue/WW-056> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/services/analytics/sample.ts> .
+<https://wod.wiki/qa/issue/WW-056> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/services/analytics/sample.ts#setSampleDataService> .
+<https://wod.wiki/code/file/apps/playground/src/services/analytics/sample.ts> code:lineHint 243 .
+<https://wod.wiki/qa/issue/WW-056> bridge:rootCause <https://wod.wiki/code/file/packages/wql/src/derivation.ts> .
+<https://wod.wiki/qa/issue/WW-056> bridge:rootCause <https://wod.wiki/code/symbol/packages/wql/src/derivation.ts#toEventRows> .
+<https://wod.wiki/code/file/packages/wql/src/derivation.ts> code:lineHint 231 .
+<https://wod.wiki/qa/issue/WW-057> bridge:rootCause <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> .
+<https://wod.wiki/qa/issue/WW-057> bridge:rootCause <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#QueryService> .
+<https://wod.wiki/code/file/packages/wql/src/QueryService.ts> code:lineHint 1337 .
+<https://wod.wiki/qa/issue/WW-057> bridge:rootCause <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> .
+<https://wod.wiki/qa/issue/WW-057> bridge:rootCause <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#QueryService> .
+<https://wod.wiki/code/file/packages/wql/src/QueryService.ts> code:lineHint 1376 .
+<https://wod.wiki/qa/issue/WW-057> bridge:rootCause <https://wod.wiki/code/file/packages/wql/src/wql.ts> .
+<https://wod.wiki/qa/issue/WW-057> bridge:rootCause <https://wod.wiki/code/symbol/packages/wql/src/wql.ts#findTargetAdvisories> .
+<https://wod.wiki/code/file/packages/wql/src/wql.ts> code:lineHint 1252 .
+<https://wod.wiki/qa/issue/WW-058> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> .
+<https://wod.wiki/qa/issue/WW-058> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/NoteByIdPage.tsx#NoteByIdPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> code:lineHint 295 .
+<https://wod.wiki/qa/issue/WW-058> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> .
+<https://wod.wiki/qa/issue/WW-058> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/NoteByIdPage.tsx#NoteByIdPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> code:lineHint 601 .
+<https://wod.wiki/qa/issue/WW-059> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> .
+<https://wod.wiki/qa/issue/WW-059> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/JournalDatePage.tsx#JournalDatePage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> code:lineHint 251 .
+<https://wod.wiki/qa/issue/WW-059> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> .
+<https://wod.wiki/qa/issue/WW-059> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/JournalDatePage.tsx#JournalDatePage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> code:lineHint 305 .
+<https://wod.wiki/qa/issue/WW-060> bridge:rootCause <https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-autocomplete.ts> .
+<https://wod.wiki/qa/issue/WW-060> bridge:rootCause <https://wod.wiki/code/symbol/packages/ui/src/extensions/whiteboard-autocomplete.ts#fenceCompletion> .
+<https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-autocomplete.ts> code:lineHint 70 .
+<https://wod.wiki/qa/issue/WW-060> bridge:rootCause <https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-autocomplete.ts> .
+<https://wod.wiki/qa/issue/WW-060> bridge:rootCause <https://wod.wiki/code/symbol/packages/ui/src/extensions/whiteboard-autocomplete.ts#fenceCompletion> .
+<https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-autocomplete.ts> code:lineHint 77 .
+<https://wod.wiki/qa/issue/WW-061> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> .
+<https://wod.wiki/qa/issue/WW-061> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/noteTools.ts#wodNoteListTool> .
+<https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> code:lineHint 28 .
+<https://wod.wiki/qa/issue/WW-062> bridge:rootCause <https://wod.wiki/code/file/packages/engine/src/agent/tools/notebookTools.ts> .
+<https://wod.wiki/qa/issue/WW-062> bridge:rootCause <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/notebookTools.ts#wodNotebookListTool> .
+<https://wod.wiki/code/file/packages/engine/src/agent/tools/notebookTools.ts> code:lineHint 133 .
+<https://wod.wiki/qa/issue/WW-063> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/TagsPage.tsx> .
+<https://wod.wiki/qa/issue/WW-063> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/TagsPage.tsx#TagsPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/TagsPage.tsx> code:lineHint 449 .
+<https://wod.wiki/qa/issue/WW-064> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerStackView.tsx> .
+<https://wod.wiki/qa/issue/WW-064> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/workout/TimerStackView.tsx#TimerStackView> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerStackView.tsx> code:lineHint 444 .
+<https://wod.wiki/qa/issue/WW-064> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerStackView.tsx> .
+<https://wod.wiki/qa/issue/WW-064> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/workout/TimerStackView.tsx#TimerStackView> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerStackView.tsx> code:lineHint 456 .
+<https://wod.wiki/qa/issue/WW-064> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerCore.tsx> .
+<https://wod.wiki/qa/issue/WW-064> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/workout/TimerCore.tsx#TimerControls> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerCore.tsx> code:lineHint 255 .
+<https://wod.wiki/qa/issue/WW-064> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerCore.tsx> .
+<https://wod.wiki/qa/issue/WW-064> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/workout/TimerCore.tsx#TimerControls> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerCore.tsx> code:lineHint 267 .
+<https://wod.wiki/qa/issue/WW-065> bridge:rootCause <https://wod.wiki/code/file/packages/ui/src/widgets/DashboardView.tsx> .
+<https://wod.wiki/qa/issue/WW-065> bridge:rootCause <https://wod.wiki/code/symbol/packages/ui/src/widgets/DashboardView.tsx#DashboardView> .
+<https://wod.wiki/code/file/packages/ui/src/widgets/DashboardView.tsx> code:lineHint 229 .
+<https://wod.wiki/qa/issue/WW-065> bridge:rootCause <https://wod.wiki/code/file/packages/ui/src/widgets/DashboardView.tsx> .
+<https://wod.wiki/qa/issue/WW-065> bridge:rootCause <https://wod.wiki/code/symbol/packages/ui/src/widgets/DashboardView.tsx#DashboardView> .
+<https://wod.wiki/code/file/packages/ui/src/widgets/DashboardView.tsx> code:lineHint 264 .
+<https://wod.wiki/qa/issue/WW-066> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/cast/CastButtonRpc.tsx> .
+<https://wod.wiki/qa/issue/WW-066> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/cast/CastButtonRpc.tsx#CastButtonRpc> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/cast/CastButtonRpc.tsx> code:lineHint 299 .
+<https://wod.wiki/qa/issue/WW-067> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/clock/ClockCommandBoard.tsx> .
+<https://wod.wiki/qa/issue/WW-067> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/clock/ClockCommandBoard.tsx#ClockControlModeToggle> .
+<https://wod.wiki/code/file/apps/playground/src/clock/ClockCommandBoard.tsx> code:lineHint 51 .
+<https://wod.wiki/qa/issue/WW-067> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/clock/ClockCommandBoard.tsx> .
+<https://wod.wiki/qa/issue/WW-067> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/clock/ClockCommandBoard.tsx#ClockControlModeToggle> .
+<https://wod.wiki/code/file/apps/playground/src/clock/ClockCommandBoard.tsx> code:lineHint 69 .
+<https://wod.wiki/qa/issue/WW-067> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/clock/ClockCommandBoard.tsx> .
+<https://wod.wiki/qa/issue/WW-067> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/clock/ClockCommandBoard.tsx#ClockCommandBoard> .
+<https://wod.wiki/code/file/apps/playground/src/clock/ClockCommandBoard.tsx> code:lineHint 319 .
+<https://wod.wiki/qa/issue/WW-068> bridge:rootCause <https://wod.wiki/code/file/packages/lang/src/metrics/presentation/labelFormatting.ts> .
+<https://wod.wiki/qa/issue/WW-068> bridge:rootCause <https://wod.wiki/code/symbol/packages/lang/src/metrics/presentation/labelFormatting.ts#buildTooltip> .
+<https://wod.wiki/code/file/packages/lang/src/metrics/presentation/labelFormatting.ts> code:lineHint 61 .
+<https://wod.wiki/qa/issue/WW-068> bridge:rootCause <https://wod.wiki/code/file/packages/lang/src/metrics/presentation/MetricPresentationPolicy.ts> .
+<https://wod.wiki/qa/issue/WW-068> bridge:rootCause <https://wod.wiki/code/symbol/packages/lang/src/metrics/presentation/MetricPresentationPolicy.ts#metricPresentation> .
+<https://wod.wiki/code/file/packages/lang/src/metrics/presentation/MetricPresentationPolicy.ts> code:lineHint 106 .
+<https://wod.wiki/qa/issue/WW-068> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/views/runtime/MetricVisualizer.tsx> .
+<https://wod.wiki/qa/issue/WW-068> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/views/runtime/MetricVisualizer.tsx#MetricVisualizer> .
+<https://wod.wiki/code/file/apps/playground/src/views/runtime/MetricVisualizer.tsx> code:lineHint 164 .
+<https://wod.wiki/qa/issue/WW-069> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNotePageNav.ts> .
+<https://wod.wiki/qa/issue/WW-069> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/useNotePageNav.ts#wirePageIndexLinks> .
+<https://wod.wiki/code/file/apps/playground/app/pages/shared/useNotePageNav.ts> code:lineHint 138 .
+<https://wod.wiki/qa/issue/WW-069> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/NoteEditor.tsx> .
+<https://wod.wiki/qa/issue/WW-069> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/NoteEditor.tsx#NoteEditor> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/NoteEditor.tsx> code:lineHint 423 .
+<https://wod.wiki/qa/issue/WW-069> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> .
+<https://wod.wiki/qa/issue/WW-069> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/JournalDatePage.tsx#JournalDatePage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> code:lineHint 247 .
+<https://wod.wiki/qa/issue/WW-070> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> .
+<https://wod.wiki/qa/issue/WW-070> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/EquipmentDetailPage.tsx#EquipmentDetailPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:lineHint 333 .
+<https://wod.wiki/qa/issue/WW-070> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> .
+<https://wod.wiki/qa/issue/WW-070> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/EquipmentDetailPage.tsx#EquipmentDetailPage> .
+<https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:lineHint 392 .
+<https://wod.wiki/qa/issue/WW-070> bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx> .
+<https://wod.wiki/qa/issue/WW-070> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx#PropertyOverrideSheet> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx> code:lineHint 100 .
+<https://wod.wiki/qa/issue/WW-071> bridge:rootCause <https://wod.wiki/code/file/packages/ui/src/extensions/frontmatter-preview.ts> .
+<https://wod.wiki/qa/issue/WW-071> bridge:rootCause <https://wod.wiki/code/symbol/packages/ui/src/extensions/frontmatter-preview.ts#frontmatterSource> .
+<https://wod.wiki/code/file/packages/ui/src/extensions/frontmatter-preview.ts> code:lineHint 943 .
+<https://wod.wiki/qa/issue/WW-071> bridge:rootCause <https://wod.wiki/code/file/packages/ui/src/extensions/frontmatter-preview.ts> .
+<https://wod.wiki/qa/issue/WW-071> bridge:rootCause <https://wod.wiki/code/symbol/packages/ui/src/extensions/frontmatter-preview.ts#frontmatterSource> .
+<https://wod.wiki/code/file/packages/ui/src/extensions/frontmatter-preview.ts> code:lineHint 966 .
+<https://wod.wiki/qa/issue/WW-072> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> .
+<https://wod.wiki/qa/issue/WW-072> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx#FeedIntakeBanner> .
+<https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> code:lineHint 82 .
+<https://wod.wiki/qa/issue/WW-072> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> .
+<https://wod.wiki/qa/issue/WW-072> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx#FeedIntakeBanner> .
+<https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> code:lineHint 49 .
+<https://wod.wiki/qa/issue/WW-073> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/SyncSection.tsx> .
+<https://wod.wiki/qa/issue/WW-073> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/SyncSection.tsx#OUTCOME_LABEL> .
+<https://wod.wiki/code/file/apps/playground/app/pages/SyncSection.tsx> code:lineHint 191 .
+<https://wod.wiki/qa/issue/WW-073> bridge:rootCause <https://wod.wiki/code/file/apps/playground/app/pages/SyncSection.tsx> .
+<https://wod.wiki/qa/issue/WW-073> bridge:rootCause <https://wod.wiki/code/symbol/apps/playground/app/pages/SyncSection.tsx#OUTCOME_LABEL> .
+<https://wod.wiki/code/file/apps/playground/app/pages/SyncSection.tsx> code:lineHint 195 .
 }

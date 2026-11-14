@@ -42,6 +42,7 @@ ontology/
     queries.ttl               WQLQuery, AnalyticsDataPoint, Dashboard, DashboardWidget
   qa/
     qa-schema.ttl             QA & Hermes 5-beat schema (:qa)
+    qa-legacy-alignment.ttl   Temporary OWL alignment for legacy qa.forest-adhara.ts.net/ont# IRIs
   code/
     code-schema.ttl           SCIP-style code graph schema (:code)
   bridge/
@@ -77,3 +78,4 @@ Uses `uv run --with rdflib --with pyshacl` (no pre-installed local venv required
    - **NoteKind (#1026):** Closed `wod:NoteKind` enumeration (`owl:oneOf`) selecting default presentation only, never permission, placement, or provenance.
    - **Collection membership (#1031):** Disjoint `wod:StaticCollection` (corpus directory + `wod:hasCollectionItem`) vs `wod:QueryCollectionPage` (dynamic `wod:backedByQuery`).
    - **Field source prefix (`result:` → `session:`):** `session:` is canonical; `result:` is retained as a legacy alias in `FieldSourceRecordShape`.
+   - **Canonical QA namespace:** `https://wod.wiki/ontology/qa#` is canonical. The live QA dashboard (`qa.forest-adhara.ts.net/ont#`) is a temporary fork; `qa/qa-legacy-alignment.ttl` provides OWL equivalence axioms during migration.

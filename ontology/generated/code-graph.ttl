@@ -17321,6 +17321,8 @@
     code:definedIn <https://wod.wiki/code/file/packages/ui/src/composer/QueryObjectBuilder.tsx> ;
     code:lineHint 387 .
 
+<https://wod.wiki/code/file/packages/ui/src/composer/QueryObjectBuilder.tsx> code:usesTestId <https://wod.wiki/code/testid/widget-composer-subset> .
+<https://wod.wiki/code/file/packages/ui/src/composer/QueryObjectBuilder.tsx> code:usesTestId <https://wod.wiki/code/testid/widget-composer-wql> .
 <https://wod.wiki/code/file/packages/ui/src/composer/QueryPalette.tsx> a code:File ;
     rdfs:label "QueryPalette.tsx" ;
     code:filePath "packages/ui/src/composer/QueryPalette.tsx" ;
@@ -23361,6 +23363,9 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/AgentConfirmHost.tsx> ;
     code:lineHint 80 .
 
+<https://wod.wiki/code/file/apps/playground/app/agent/AgentConfirmHost.tsx> code:usesTestId <https://wod.wiki/code/testid/agent-confirm-dialog> .
+<https://wod.wiki/code/file/apps/playground/app/agent/AgentConfirmHost.tsx> code:usesTestId <https://wod.wiki/code/testid/agent-confirm-cancel> .
+<https://wod.wiki/code/file/apps/playground/app/agent/AgentConfirmHost.tsx> code:usesTestId <https://wod.wiki/code/testid/agent-confirm-approve> .
 <https://wod.wiki/code/file/apps/playground/app/agent/AgentStateScript.test.tsx> a code:File ;
     rdfs:label "AgentStateScript.test.tsx" ;
     code:filePath "apps/playground/app/agent/AgentStateScript.test.tsx" ;
@@ -29507,6 +29512,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/panels/ConditionsNavPanel.tsx> ;
     code:lineHint 111 .
 
+<https://wod.wiki/code/file/apps/playground/app/nav/panels/ConditionsNavPanel.tsx> code:usesTestId <https://wod.wiki/code/testid/conditions-nav-recent> .
 <https://wod.wiki/code/file/apps/playground/app/nav/panels/DashboardsNavPanel.test.tsx> a code:File ;
     rdfs:label "DashboardsNavPanel.test.tsx" ;
     code:filePath "apps/playground/app/nav/panels/DashboardsNavPanel.test.tsx" ;
@@ -29549,6 +29555,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> ;
     code:lineHint 111 .
 
+<https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-bar> .
 <https://wod.wiki/code/file/apps/playground/app/nav/panels/NotebookZonePanel.tsx> a code:File ;
     rdfs:label "NotebookZonePanel.tsx" ;
     code:filePath "apps/playground/app/nav/panels/NotebookZonePanel.tsx" ;
@@ -29871,6 +29878,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> ;
     code:lineHint 76 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/feed-detail-subscribe-button> .
 <https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> a code:File ;
     rdfs:label "JournalDatePage.tsx" ;
     code:filePath "apps/playground/app/pages/JournalDatePage.tsx" ;
@@ -29919,6 +29927,9 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> ;
     code:lineHint 100 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:usesTestId <https://wod.wiki/code/testid/load-zip-intake> .
+<https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:usesTestId <https://wod.wiki/code/testid/bundle-file-input> .
+<https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:usesTestId <https://wod.wiki/code/testid/bundle-import-error> .
 <https://wod.wiki/code/file/apps/playground/app/pages/NamedPagePage.tsx> a code:File ;
     rdfs:label "NamedPagePage.tsx" ;
     code:filePath "apps/playground/app/pages/NamedPagePage.tsx" ;
@@ -30159,6 +30170,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/SettingsPage.tsx> ;
     code:lineHint 82 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/SettingsPage.tsx> code:usesTestId <https://wod.wiki/code/testid/webmcp-debug-inspector> .
 <https://wod.wiki/code/file/apps/playground/app/pages/SettingsTags.test.tsx> a code:File ;
     rdfs:label "SettingsTags.test.tsx" ;
     code:filePath "apps/playground/app/pages/SettingsTags.test.tsx" ;
@@ -30844,6 +30856,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/SyncSection.tsx> ;
     code:lineHint 375 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/SyncSection.tsx> code:usesTestId <https://wod.wiki/code/testid/sync-subscribed-only-toggle> .
 <https://wod.wiki/code/file/apps/playground/app/pages/TagsPage.test.tsx> a code:File ;
     rdfs:label "TagsPage.test.tsx" ;
     code:filePath "apps/playground/app/pages/TagsPage.test.tsx" ;
@@ -32440,6 +32453,9 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/HomeInsightsSections.tsx> ;
     code:lineHint 92 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/HomeInsightsSections.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-pane-back-to-editor> .
+<https://wod.wiki/code/file/apps/playground/app/tour/HomeInsightsSections.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-sticky-pane> .
+<https://wod.wiki/code/file/apps/playground/app/tour/HomeInsightsSections.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-section-insights> .
 <https://wod.wiki/code/file/apps/playground/app/tour/HomeInsightsSections.zero-size-mounts.test.tsx> a code:File ;
     rdfs:label "HomeInsightsSections.zero-size-mounts.test.tsx" ;
     code:filePath "apps/playground/app/tour/HomeInsightsSections.zero-size-mounts.test.tsx" ;
@@ -32513,6 +32529,8 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/screens/SampleDashboardPane.tsx> ;
     code:lineHint 16 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/SampleDashboardPane.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-session-dashboard> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/SampleDashboardPane.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-session-dashboard-source> .
 <https://wod.wiki/code/file/apps/playground/app/tour/screens/TourEditorScreen.tsx> a code:File ;
     rdfs:label "TourEditorScreen.tsx" ;
     code:filePath "apps/playground/app/tour/screens/TourEditorScreen.tsx" ;
@@ -32536,6 +32554,8 @@
     code:lineHint 34 .
 
 <https://wod.wiki/code/file/apps/playground/app/tour/screens/TourEditorScreen.tsx> code:usesTestId <https://wod.wiki/code/testid/editor-start-workout> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourEditorScreen.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-wod-block-region> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourEditorScreen.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-run-button-region> .
 <https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.test.tsx> a code:File ;
     rdfs:label "TourSessionInsights.test.tsx" ;
     code:filePath "apps/playground/app/tour/screens/TourSessionInsights.test.tsx" ;
@@ -32596,6 +32616,12 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> ;
     code:lineHint 127 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights-empty> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights-run> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights-timeline> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights-impatience> .
+<https://wod.wiki/code/file/apps/playground/app/tour/screens/TourSessionInsights.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-insights-reaction> .
 <https://wod.wiki/code/file/apps/playground/app/tour/ScrollSection.test.tsx> a code:File ;
     rdfs:label "ScrollSection.test.tsx" ;
     code:filePath "apps/playground/app/tour/ScrollSection.test.tsx" ;
@@ -32692,6 +32718,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourCaptions.tsx> ;
     code:lineHint 80 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourCaptions.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-captions> .
 <https://wod.wiki/code/file/apps/playground/app/tour/TourChapterPicker.tsx> a code:File ;
     rdfs:label "TourChapterPicker.tsx" ;
     code:filePath "apps/playground/app/tour/TourChapterPicker.tsx" ;
@@ -32730,6 +32757,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourChapterPicker.tsx> ;
     code:lineHint 119 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourChapterPicker.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-chapter-picker> .
 <https://wod.wiki/code/file/apps/playground/app/tour/tourConstants.ts> a code:File ;
     rdfs:label "tourConstants.ts" ;
     code:filePath "apps/playground/app/tour/tourConstants.ts" ;
@@ -32798,6 +32826,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourFooter.tsx> ;
     code:lineHint 3 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourFooter.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-footer> .
 <https://wod.wiki/code/file/apps/playground/app/tour/TourHero.tsx> a code:File ;
     rdfs:label "TourHero.tsx" ;
     code:filePath "apps/playground/app/tour/TourHero.tsx" ;
@@ -32840,6 +32869,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourJumpSection.tsx> ;
     code:lineHint 101 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourJumpSection.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-jump-section> .
 <https://wod.wiki/code/file/apps/playground/app/tour/TourLearnSection.test.tsx> a code:File ;
     rdfs:label "TourLearnSection.test.tsx" ;
     code:filePath "apps/playground/app/tour/TourLearnSection.test.tsx" ;
@@ -32876,6 +32906,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourLearnSection.tsx> ;
     code:lineHint 102 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourLearnSection.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-learn> .
 <https://wod.wiki/code/file/apps/playground/app/tour/TourRing.tsx> a code:File ;
     rdfs:label "TourRing.tsx" ;
     code:filePath "apps/playground/app/tour/TourRing.tsx" ;
@@ -32946,6 +32977,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourRing.tsx> ;
     code:lineHint 124 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourRing.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-ring> .
 <https://wod.wiki/code/file/apps/playground/app/tour/TourSectionRunway.tsx> a code:File ;
     rdfs:label "TourSectionRunway.tsx" ;
     code:filePath "apps/playground/app/tour/TourSectionRunway.tsx" ;
@@ -32998,6 +33030,9 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/tour/TourWhyVideo.tsx> ;
     code:lineHint 15 .
 
+<https://wod.wiki/code/file/apps/playground/app/tour/TourWhyVideo.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-why-video> .
+<https://wod.wiki/code/file/apps/playground/app/tour/TourWhyVideo.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-why-video-skip> .
+<https://wod.wiki/code/file/apps/playground/app/tour/TourWhyVideo.tsx> code:usesTestId <https://wod.wiki/code/testid/tour-scroll-hint> .
 <https://wod.wiki/code/file/apps/playground/app/tour/YouTubeLightbox.tsx> a code:File ;
     rdfs:label "YouTubeLightbox.tsx" ;
     code:filePath "apps/playground/app/tour/YouTubeLightbox.tsx" ;
@@ -33152,6 +33187,8 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> ;
     code:lineHint 80 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> code:usesTestId <https://wod.wiki/code/testid/delete-dashboard-button> .
+<https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> code:usesTestId <https://wod.wiki/code/testid/confirm-delete-dashboard> .
 <https://wod.wiki/code/file/apps/playground/app/views/dashboards/WidgetComposerDialog.tsx> a code:File ;
     rdfs:label "WidgetComposerDialog.tsx" ;
     code:filePath "apps/playground/app/views/dashboards/WidgetComposerDialog.tsx" ;
@@ -33182,6 +33219,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/dashboards/WidgetComposerDialog.tsx> ;
     code:lineHint 106 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/dashboards/WidgetComposerDialog.tsx> code:usesTestId <https://wod.wiki/code/testid/widget-composer-apply> .
 <https://wod.wiki/code/file/apps/playground/app/views/HomeView.tsx> a code:File ;
     rdfs:label "HomeView.tsx" ;
     code:filePath "apps/playground/app/views/HomeView.tsx" ;
@@ -33292,6 +33330,9 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> ;
     code:lineHint 19 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> code:usesTestId <https://wod.wiki/code/testid/unknown-feed-intake-banner> .
+<https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> code:usesTestId <https://wod.wiki/code/testid/feed-intake-once> .
+<https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx> code:usesTestId <https://wod.wiki/code/testid/feed-intake-subscribe> .
 <https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/MarqueeRow.tsx> a code:File ;
     rdfs:label "MarqueeRow.tsx" ;
     code:filePath "apps/playground/app/views/notebook-gallery/MarqueeRow.tsx" ;
@@ -33698,6 +33739,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/PropertyTable.tsx> ;
     code:lineHint 33 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/PropertyTable.tsx> code:usesTestId <https://wod.wiki/code/testid/property-table> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.test.tsx> a code:File ;
     rdfs:label "QueriableStreamView.test.tsx" ;
     code:filePath "apps/playground/app/views/stream/QueriableStreamView.test.tsx" ;
@@ -33734,6 +33776,11 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> ;
     code:lineHint 293 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-syntax-hint> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/notebook-not-found> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/queriable-stream-view> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/save-stream-query> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/remote-notebook-preview-banner> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/ReadmeQueryBlock.test.tsx> a code:File ;
     rdfs:label "ReadmeQueryBlock.test.tsx" ;
     code:filePath "apps/playground/app/views/stream/ReadmeQueryBlock.test.tsx" ;
@@ -33812,6 +33859,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamFeed.tsx> ;
     code:lineHint 170 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/StreamFeed.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-feed-item> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/streamProfile.test.ts> a code:File ;
     rdfs:label "streamProfile.test.ts" ;
     code:filePath "apps/playground/app/views/stream/streamProfile.test.ts" ;
@@ -34028,6 +34076,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> ;
     code:lineHint 59 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-bar> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/streamResults.ts> a code:File ;
     rdfs:label "streamResults.ts" ;
     code:filePath "apps/playground/app/views/stream/streamResults.ts" ;
@@ -37584,6 +37633,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/molecules/PublicationPill.tsx> ;
     code:lineHint 34 .
 
+<https://wod.wiki/code/file/apps/playground/src/components/molecules/PublicationPill.tsx> code:usesTestId <https://wod.wiki/code/testid/publication-pill> .
 <https://wod.wiki/code/file/apps/playground/src/components/molecules/ResultListItem.test.tsx> a code:File ;
     rdfs:label "ResultListItem.test.tsx" ;
     code:filePath "apps/playground/src/components/molecules/ResultListItem.test.tsx" ;
@@ -38779,6 +38829,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> ;
     code:lineHint 312 .
 
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx> code:usesTestId <https://wod.wiki/code/testid/halted-run-notice> .
 <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/SelectionFormatBar.tsx> a code:File ;
     rdfs:label "SelectionFormatBar.tsx" ;
     code:filePath "apps/playground/src/components/organisms/editor/SelectionFormatBar.tsx" ;
@@ -39348,6 +39399,13 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> ;
     code:lineHint 53 .
 
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/publication-pill-popover> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/promotion-provenance-row> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/promotion-clone-readonly-btn> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/publication-notebook-public-toggle> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/promotion-new-notebook-input> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/promotion-new-notebook-submit> .
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/publication-export-repo-zip-btn> .
 <https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.test.tsx> a code:File ;
     rdfs:label "PropertyOverrideSheet.test.tsx" ;
     code:filePath "apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.test.tsx" ;
@@ -39376,6 +39434,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx> ;
     code:lineHint 38 .
 
+<https://wod.wiki/code/file/apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx> code:usesTestId <https://wod.wiki/code/testid/property-override-sheet> .
 <https://wod.wiki/code/file/apps/playground/src/components/organisms/review/CollectionWizard.tsx> a code:File ;
     rdfs:label "CollectionWizard.tsx" ;
     code:filePath "apps/playground/src/components/organisms/review/CollectionWizard.tsx" ;
@@ -50588,6 +50647,7 @@
     code:packageName "e2e" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/e2e/live-app/property-responsive-defects.e2e.ts> code:usesTestId <https://wod.wiki/code/testid/tour-section-insights> .
 <https://wod.wiki/code/file/e2e/live-app/publication-visibility-and-feed-export.e2e.ts> a code:File ;
     rdfs:label "publication-visibility-and-feed-export.e2e.ts" ;
     code:filePath "e2e/live-app/publication-visibility-and-feed-export.e2e.ts" ;
@@ -52709,4 +52769,28 @@
     code:toolTier 0 ;
     code:cliEquivalent "wod query " ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/wqlTools.ts> .
+
+<https://wod.wiki/code/route/page_guide-start> a code:Route ;
+    rdfs:label "/page/guide-start" ;
+    code:routePath "/page/guide-start" .
+
+<https://wod.wiki/code/route/legacy> a code:Route ;
+    rdfs:label "/legacy" ;
+    code:routePath "/legacy" .
+
+<https://wod.wiki/code/route/effort_new> a code:Route ;
+    rdfs:label "/effort/new" ;
+    code:routePath "/effort/new" .
+
+<https://wod.wiki/code/route/equipment_new> a code:Route ;
+    rdfs:label "/equipment/new" ;
+    code:routePath "/equipment/new" .
+
+<https://wod.wiki/code/route/notebook__slug__item> a code:Route ;
+    rdfs:label "/notebook/:slug/:item" ;
+    code:routePath "/notebook/:slug/:item" .
+
+<https://wod.wiki/code/route/playground__noteId> a code:Route ;
+    rdfs:label "/playground/:noteId" ;
+    code:routePath "/playground/:noteId" .
 

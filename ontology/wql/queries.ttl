@@ -29,6 +29,12 @@ wod:WQLQuery a owl:Class ;
     rdfs:label "WQL Query" ;
     rdfs:comment "One query document: a source head, a pipeline of transforms, and a presentation. Authored inside a note's markdown segment as a query fence; the definition is scoped to that document and is never a stored row of its own." .
 
+wod:Query a owl:Class ;
+    owl:equivalentClass wod:WQLQuery ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Query" ;
+    rdfs:comment "Canonical alias for wod:WQLQuery." .
+
 wod:AnalyticsDataPoint a owl:Class ;
     ufo:stereotype ufo:InformationObject ;
     ufo:instantiatesPattern ufo:DerivedProjectionPattern ;

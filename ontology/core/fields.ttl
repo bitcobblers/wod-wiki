@@ -40,6 +40,12 @@ wod:FieldValueRecord a owl:Class ;
     rdfs:label "Field Value Record" ;
     rdfs:comment "One observed categorical value of a field (string/boolean fields only), keyed [fieldId, value] with the value's original spelling preserved. Repo store: field_values." .
 
+wod:FieldValue a owl:Class ;
+    owl:equivalentClass wod:FieldValueRecord ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Field Value" ;
+    rdfs:comment "Canonical alias for wod:FieldValueRecord." .
+
 wod:CatalogBackfillState a owl:Class ;
     ufo:stereotype ufo:Mode ;
     rdfs:label "Catalog Backfill State" ;

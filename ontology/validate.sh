@@ -19,8 +19,8 @@ uv run --with rdflib --with pyshacl python3 - <<'EOF'
 import glob
 import os
 import sys
-from rdflib import Dataset, Graph
-from rdflib.namespace import SH
+from rdflib import Dataset, Graph, Namespace
+from rdflib.namespace import OWL, RDF, RDFS, SH
 import pyshacl
 
 errors = 0
@@ -108,5 +108,29 @@ if errors:
     print(f"Validation FAILED with {errors} error(s).")
     sys.exit(1)
 
+# 5. Referential integrity check for bridge:seedNoun targets (WP2)
+BRIDGE = Namespace("https://wod.wiki/ontology/bridge#")
+declared_classes = set(schema.subjects(RDF.type, OWL.Class)) | set(schema.subjects(RDF.type, RDFS.Class))
+
+seed_noun_sources = ["examples/unified-qa-bridge.ttl"]
+if os.path.exists("generated/bridge-instances.ttl"):
+    seed_noun_sources.append("generated/bridge-instances.ttl")
+
+missing_nouns = []
+checked_nouns = 0
+for src in seed_noun_sources:
+    g = Graph().parse(src, format="turtle")
+    for s, _, o in g.triples((None, BRIDGE.seedNoun, None)):
+        checked_nouns += 1
+        if o not in declared_classes:
+            missing_nouns.append((src, str(s), str(o)))
+
+if missing_nouns:
+    print("FAIL: Dangling bridge:seedNoun targets (not declared as owl:Class/rdfs:Class in :domain):")
+    for src, s, o in missing_nouns:
+        print(f"  {src}: {s} -> {o}")
+    sys.exit(1)
+
+print(f"Referential integrity PASSED: {checked_nouns} bridge:seedNoun edge(s) resolved to declared :domain classes.")
 print("All ontology syntax and SHACL validation checks PASSED.")
 EOF
