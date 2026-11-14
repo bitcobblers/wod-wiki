@@ -13,29 +13,35 @@
 # ---------------------------------------------------------------------------
 
 @prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 <https://wod.wiki/ontology/wql/queries> a owl:Ontology ;
     rdfs:label "wod.wiki ontology — wql: queries, facts & dashboards" ;
-    owl:versionInfo "0.2.0" .
+    owl:versionInfo "0.3.0" .
 
 # === Classes ==============================================================
 
 wod:WQLQuery a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
     rdfs:label "WQL Query" ;
     rdfs:comment "One query document: a source head, a pipeline of transforms, and a presentation. Authored inside a note's markdown segment as a query fence; the definition is scoped to that document and is never a stored row of its own." .
 
 wod:AnalyticsDataPoint a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    ufo:instantiatesPattern ufo:DerivedProjectionPattern ;
     rdfs:label "Analytics Data Point" ;
     rdfs:comment "An in-memory query FACT projected from one EventRecord for one numeric metric (projectEventToFacts). Filters, buckets, rollups and cross-workout joins run over these — they are computed, never stored. Joins are relational: to the session, through the note to pages, and by blockContentId to the same workout across notes and days." .
 
 wod:Dashboard a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
     rdfs:label "Dashboard" ;
     rdfs:comment "A composed presentation over query results (packages/wql dashboard model), configured by a dashboard note. A composition of widgets — not a storage kind of its own." .
 
 wod:DashboardWidget a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
     rdfs:label "Dashboard Widget" ;
     rdfs:comment "One widget on a dashboard, presenting one query's results in one form." .
 
@@ -48,6 +54,7 @@ wod:querySource a owl:ObjectProperty ;
     rdfs:comment "The query's source head — what population of facts or content it starts from." .
 
 wod:QuerySource a owl:Class ;
+    ufo:stereotype ufo:Mode ;
     rdfs:label "Query Source" ;
     rdfs:comment "Vocabulary class for WQL source heads. Members are individuals; shapes may pin a query to exactly one." .
 

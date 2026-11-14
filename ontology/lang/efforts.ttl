@@ -9,15 +9,17 @@
 # ---------------------------------------------------------------------------
 
 @prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 <https://wod.wiki/ontology/lang/efforts> a owl:Ontology ;
     rdfs:label "wod.wiki ontology — lang: efforts" ;
-    owl:versionInfo "0.2.0" .
+    owl:versionInfo "0.3.0" .
 
 wod:Effort a owl:Class ;
+    ufo:stereotype ufo:Kind ;
     rdfs:label "Effort" ;
     rdfs:comment "A movement/activity registry entry, keyed by slug (e.g. 'burpees', 'back-squat'). Carries authored attributes used for matching and analytics. Referenced by EventRecord.effortSlug; authored as a note in the domain, projected to IEffort in the registry." .
 

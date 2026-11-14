@@ -13,6 +13,7 @@
 # ---------------------------------------------------------------------------
 
 @prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix sosa: <http://www.w3.org/ns/sosa/> .
@@ -21,16 +22,18 @@
 
 <https://wod.wiki/ontology/lang/metrics> a owl:Ontology ;
     rdfs:label "wod.wiki ontology — lang: metrics & observations" ;
-    owl:versionInfo "0.2.0" .
+    owl:versionInfo "0.3.0" .
 
 # === Classes ==============================================================
 
 wod:Metric a owl:Class ;
+    ufo:stereotype ufo:Quantity ;
     rdfs:label "Metric" ;
     rdfs:comment "A measurable quantity the runtime can record — the metric keys WQL aggregates over. Members are individuals below (wod:mReps, wod:mDistance, ...). Live code types them as IMetric classes (RepMetric, DurationMetric, ...) flowing parser -> compiler -> runtime -> stored statements; the ontology models the shared vocabulary those types project onto." .
 
 wod:MetricObservation a owl:Class ;
     rdfs:subClassOf sosa:Observation ;
+    ufo:stereotype ufo:Quantity ;
     rdfs:label "Metric Observation" ;
     rdfs:comment "One typed metric entry on a statement: which metric, what value, in what unit. A SOSA Observation: observedProperty = the metric, hasSimpleResult = the value, hasUnit = the unit." .
 
@@ -51,17 +54,20 @@ wod:allowedUnit a owl:ObjectProperty ;
 # === Units used by this slice =============================================
 # QUDT individuals typed so SHACL class checks can see them in a merged
 # graph. (Asserting types about external IRIs is normal alignment practice.)
-unit:LB     a qudt:Unit .
-unit:KiloGM a qudt:Unit .
-unit:M      a qudt:Unit .
-unit:KiloM  a qudt:Unit .
-unit:MI     a qudt:Unit .
-unit:SEC    a qudt:Unit .
-unit:W      a qudt:Unit .
+unit:LB       a qudt:Unit .
+unit:KiloGM   a qudt:Unit .
+unit:M        a qudt:Unit .
+unit:KiloM    a qudt:Unit .
+unit:MI       a qudt:Unit .
+unit:SEC      a qudt:Unit .
+unit:MilliSEC a qudt:Unit .
+unit:W        a qudt:Unit .
+unit:NUM      a qudt:Unit .
 
 wod:CountUnit a qudt:Unit ;
+    owl:sameAs unit:NUM ;
     rdfs:label "count" ;
-    rdfs:comment "Local placeholder for counted repetitions. OPEN: the full pass must settle the canonical count unit IRI against QUDT instead of coining one here." .
+    rdfs:comment "QUDT RESOLUTION: Canonical count unit aligned via owl:sameAs to unit:NUM (QUDT Number/Count dimensionless unit)." .
 
 # === Metric vocabulary (the WQL metric keys) ===============================
 
@@ -79,8 +85,8 @@ wod:mResistance a wod:Metric ;
 
 wod:mElapsed a wod:Metric ;
     rdfs:label "elapsed" ;
-    wod:allowedUnit unit:SEC ;
-    rdfs:comment "Repo timers run in milliseconds at the storage layer; whether observations may also use a millisecond unit is an open question." .
+    wod:allowedUnit unit:SEC , unit:MilliSEC ;
+    rdfs:comment "TIME POLICY RESOLUTION: Elapsed observations accept unit:SEC (canonical display) and unit:MilliSEC (storage timer precision)." .
 
 wod:mPower a wod:Metric ;
     rdfs:label "power" ;

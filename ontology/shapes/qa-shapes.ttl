@@ -1,0 +1,88 @@
+# wod.wiki ontology — SHACL shapes for :qa named graph
+# Contracts for qa:Domain, qa:Journey, qa:Step, qa:Run, qa:Issue.
+
+@prefix qa:   <https://wod.wiki/ontology/qa#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+<https://wod.wiki/ontology/shapes/qa> a owl:Ontology ;
+    sh:declare
+        [ sh:prefix "qa" ;   sh:namespace "https://wod.wiki/ontology/qa#"^^xsd:anyURI ] ,
+        [ sh:prefix "prov" ; sh:namespace "http://www.w3.org/ns/prov#"^^xsd:anyURI ] .
+
+qa:JourneyShape a sh:NodeShape ;
+    sh:targetClass qa:Journey ;
+    sh:property [
+        sh:path qa:journeyId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[A-Z]+-[0-9]+$" ;
+        sh:message "A QA journey id must match '<AREA>-<NN>' (e.g. 'JRN-01', 'RUN-02')." ;
+    ] ;
+    sh:property [
+        sh:path qa:inDomain ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class qa:Domain ;
+        sh:message "A QA journey belongs to exactly one qa:Domain." ;
+    ] ;
+    sh:property [
+        sh:path qa:hasStep ;
+        sh:minCount 1 ;
+        sh:class qa:Step ;
+        sh:message "A QA journey has at least one qa:Step." ;
+    ] .
+
+qa:StepShape a sh:NodeShape ;
+    sh:targetClass qa:Step ;
+    sh:property [
+        sh:path qa:hasBeat ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class qa:Beat ;
+        sh:message "A QA step is classified by exactly one Hermes 5-beat (Seed, Enter, Sense, Drive, Prove)." ;
+    ] ;
+    sh:property [
+        sh:path qa:stepIndex ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:minInclusive 1 ;
+        sh:message "A QA step has a 1-based stepIndex >= 1." ;
+    ] .
+
+qa:RunShape a sh:NodeShape ;
+    sh:targetClass qa:Run ;
+    sh:property [
+        sh:path qa:runId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A QA run has exactly one runId." ;
+    ] ;
+    sh:property [
+        sh:path qa:runTimestamp ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:dateTime ;
+        sh:message "A QA run has an xsd:dateTime timestamp." ;
+    ] .
+
+qa:IssueShape a sh:NodeShape ;
+    sh:targetClass qa:Issue ;
+    sh:property [
+        sh:path qa:issueId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A QA issue has exactly one issueId." ;
+    ] ;
+    sh:property [
+        sh:path prov:wasGeneratedBy ;
+        sh:minCount 1 ;
+        sh:class qa:Run ;
+        sh:message "A QA issue must link via prov:wasGeneratedBy to at least one qa:Run (no raw run-id strings)." ;
+    ] ;
+    sh:property [
+        sh:path qa:issueSeverity ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:in ( "critical" "high" "medium" "low" ) ;
+        sh:message "Issue severity must be critical, high, medium, or low." ;
+    ] .

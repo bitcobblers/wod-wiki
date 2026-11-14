@@ -1,0 +1,111 @@
+# Valid example: Unified :domain + :qa + :code + :bridge instance graph.
+# Demonstrates a 5-beat Hermes journey (RUN-02), SCIP-style File/Symbol nodes,
+# TestId, Route, WebMcpTool, a QA Run, and a QA Issue with PROV-O + bridge links.
+
+@prefix wod:    <https://wod.wiki/ontology#> .
+@prefix qa:     <https://wod.wiki/ontology/qa#> .
+@prefix code:   <https://wod.wiki/ontology/code#> .
+@prefix bridge: <https://wod.wiki/ontology/bridge#> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix ex:     <https://wod.wiki/data/> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+
+# === :code nodes ============================================================
+
+ex:file-spec-run02 a code:File ;
+    code:filePath "e2e/specs/runtime/readonly-intake-and-provenance-run.md" ;
+    code:packageName "e2e" .
+
+ex:file-pw-run02 a code:File ;
+    code:filePath "e2e/live-app/readonly-intake-and-provenance-run.e2e.ts" ;
+    code:packageName "e2e" .
+
+ex:file-prepare-run a code:File ;
+    code:filePath "packages/engine/src/notebook/prepareJournalSessionRun.ts" ;
+    code:packageName "@bitcobblers/wod-wiki-engine" .
+
+ex:sym-prepareJournalSessionRun a code:Symbol ;
+    code:symbolName "prepareJournalSessionRun" ;
+    code:scipId "packages/engine/src/notebook/prepareJournalSessionRun.ts#prepareJournalSessionRun" ;
+    code:symbolKind "function" ;
+    code:definedIn ex:file-prepare-run ;
+    code:lineHint 42 ;
+    bridge:implementsDomainClass wod:PrepareJournalSessionRun .
+
+ex:route-note a code:Route ;
+    code:routePath "/note/:noteId" .
+
+ex:testid-tour-hero a code:TestId ;
+    code:testIdKey "TEST_IDS.tour.hero" ;
+    code:testIdValue "tour-hero" .
+
+ex:tool-start-session a code:WebMcpTool ;
+    code:toolName "start_workout_session" ;
+    code:toolTier "tier1-write" .
+
+# === :qa nodes + :bridge edges ==============================================
+
+ex:domain-runtime a qa:Domain ;
+    rdfs:label "Runtime" ;
+    bridge:domainMapping <https://wod.wiki/ontology/engine/activities> .
+
+ex:run-2026-11-14 a qa:Run ;
+    qa:runId "run-2026-11-14T10:00:00Z" ;
+    qa:runTimestamp "2026-11-14T10:00:00Z"^^xsd:dateTime .
+
+ex:journey-run-02 a qa:Journey ;
+    qa:journeyId "RUN-02" ;
+    qa:journeyTitle "Read-only Intake & Provenance Run" ;
+    qa:inDomain ex:domain-runtime ;
+    qa:coveredBy ex:run-2026-11-14 ;
+    bridge:specFile ex:file-spec-run02 ;
+    bridge:playwrightSpec ex:file-pw-run02 ;
+    bridge:seedNoun wod:Note , wod:SessionRun ;
+    bridge:touches ex:sym-prepareJournalSessionRun ;
+    bridge:route ex:route-note ;
+    bridge:testId ex:testid-tour-hero ;
+    bridge:webMcpTool ex:tool-start-session ;
+    qa:hasStep ex:step-run02-1 , ex:step-run02-2 , ex:step-run02-3 , ex:step-run02-4 , ex:step-run02-5 .
+
+ex:step-run02-1 a qa:Step ;
+    qa:stepIndex 1 ;
+    qa:hasBeat qa:Seed ;
+    qa:stepText "Seed peer Feed delivering read-only workout Note" ;
+    qa:nextStep ex:step-run02-2 .
+
+ex:step-run02-2 a qa:Step ;
+    qa:stepIndex 2 ;
+    qa:hasBeat qa:Enter ;
+    qa:stepText "Navigate to /note/:noteId" ;
+    bridge:route ex:route-note ;
+    qa:nextStep ex:step-run02-3 .
+
+ex:step-run02-3 a qa:Step ;
+    qa:stepIndex 3 ;
+    qa:hasBeat qa:Sense ;
+    qa:stepText "Observe Note ready state" ;
+    bridge:testId ex:testid-tour-hero ;
+    qa:nextStep ex:step-run02-4 .
+
+ex:step-run02-4 a qa:Step ;
+    qa:stepIndex 4 ;
+    qa:hasBeat qa:Drive ;
+    qa:stepText "Run workout via prepareJournalSessionRun" ;
+    bridge:touches ex:sym-prepareJournalSessionRun ;
+    bridge:webMcpTool ex:tool-start-session ;
+    qa:nextStep ex:step-run02-5 .
+
+ex:step-run02-5 a qa:Step ;
+    qa:stepIndex 5 ;
+    qa:hasBeat qa:Prove ;
+    qa:stepText "Verify upstream Seed Note is untouched and Note Provenance links to origin" .
+
+ex:issue-provenance-01 a qa:Issue ;
+    qa:issueId "ISS-001" ;
+    qa:issueSeverity "medium" ;
+    qa:issueStatus "resolved" ;
+    qa:issueSummary "Snapshot provenance link missing when feed note cloned twice" ;
+    prov:wasGeneratedBy ex:run-2026-11-14 ;
+    qa:affects ex:domain-runtime , ex:journey-run-02 ;
+    bridge:rootCause ex:sym-prepareJournalSessionRun .

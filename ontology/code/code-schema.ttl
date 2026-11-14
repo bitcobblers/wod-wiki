@@ -1,0 +1,121 @@
+# wod.wiki ontology — :code named graph (SCIP-Style Code & UI Contract Graph)
+# Named Graph: <https://wod.wiki/graph/code>
+# ---------------------------------------------------------------------------
+# Models source files, exported/internal symbols, UI TestId contracts,
+# application routes, and WebMCP agent tools.
+#
+# Identity rule: File and Symbol IRIs are keyed by repository-relative path
+# and symbol name (SCIP-style), NEVER by line number. Line numbers are stored
+# strictly as non-load-bearing code:lineHint annotations so edits never break
+# graph identity.
+# ---------------------------------------------------------------------------
+
+@prefix code: <https://wod.wiki/ontology/code#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/code> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — :code named graph (SCIP-style code graph)" ;
+    owl:versionInfo "0.3.0" .
+
+# === Classes ==============================================================
+
+code:File a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Source File" ;
+    rdfs:comment "A repository source or spec file keyed by its repo-relative code:filePath (e.g. 'packages/engine/src/index.ts')." .
+
+code:Symbol a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Code Symbol" ;
+    rdfs:comment "A TypeScript/React symbol (class, function, interface, type, const, hook, component) keyed by code:filePath + code:symbolName (SCIP-style)." .
+
+code:TestId a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Test ID Contract" ;
+    rdfs:comment "A registered UI test-id constant in apps/playground/src/lib/testIds.ts (enforced in CI via check:test-ids)." .
+
+code:Route a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Application Route" ;
+    rdfs:comment "A Playground or API route path (e.g. '/', '/day/:date', '/note/:noteId', '/p/:slug')." .
+
+code:WebMcpTool a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "WebMCP / Agent Tool" ;
+    rdfs:comment "A portable AgentToolSpec or UI useWebMCP() tool registered in packages/engine/src/agent/manifest.ts or apps/playground/app/agent/." .
+
+# === Properties ===========================================================
+
+code:filePath a owl:DatatypeProperty ;
+    rdfs:label "file path" ;
+    rdfs:domain code:File ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo-relative POSIX path (e.g. 'apps/playground/app/tour/HomeTour.tsx'). Primary key for code:File." .
+
+code:symbolName a owl:DatatypeProperty ;
+    rdfs:label "symbol name" ;
+    rdfs:domain code:Symbol ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Canonical symbol name within its file (e.g. 'RuntimeStack', 'HomeTour'). Combined with filePath to form scipId." .
+
+code:scipId a owl:DatatypeProperty ;
+    rdfs:label "SCIP identifier" ;
+    rdfs:domain code:Symbol ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Durable SCIP-style identifier '<filePath>#<symbolName>' (independent of line numbers)." .
+
+code:symbolKind a owl:DatatypeProperty ;
+    rdfs:label "symbol kind" ;
+    rdfs:domain code:Symbol ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Kind of symbol: class, function, interface, type, const, component, hook." .
+
+code:definedIn a owl:ObjectProperty ;
+    rdfs:label "defined in" ;
+    rdfs:domain code:Symbol ;
+    rdfs:range code:File ;
+    rdfs:comment "Links a code:Symbol to the code:File that defines it." .
+
+code:lineHint a owl:DatatypeProperty ;
+    rdfs:label "line hint" ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Non-load-bearing 1-based line number hint for editor jump-to-definition. Never used as an identity key." .
+
+code:packageName a owl:DatatypeProperty ;
+    rdfs:label "package name" ;
+    rdfs:domain code:File ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Workspace package or app owning the file (e.g. '@bitcobblers/wod-wiki-engine', 'playground')." .
+
+code:testIdKey a owl:DatatypeProperty ;
+    rdfs:label "test id key" ;
+    rdfs:domain code:TestId ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Dotted constant path in TEST_IDS (e.g. 'TEST_IDS.tour.hero')." .
+
+code:testIdValue a owl:DatatypeProperty ;
+    rdfs:label "test id value" ;
+    rdfs:domain code:TestId ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Rendered data-testid attribute string (e.g. 'tour-hero')." .
+
+code:routePath a owl:DatatypeProperty ;
+    rdfs:label "route path" ;
+    rdfs:domain code:Route ;
+    rdfs:range xsd:string ;
+    rdfs:comment "URL path pattern (e.g. '/day/:date')." .
+
+code:toolName a owl:DatatypeProperty ;
+    rdfs:label "tool name" ;
+    rdfs:domain code:WebMcpTool ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Registered MCP / WebMCP tool name." .
+
+code:toolTier a owl:DatatypeProperty ;
+    rdfs:label "tool tier" ;
+    rdfs:domain code:WebMcpTool ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Safety tier of the tool (e.g. 'tier1-read', 'tier1-write', 'tier2-destructive')." .

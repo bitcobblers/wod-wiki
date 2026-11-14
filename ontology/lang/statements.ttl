@@ -13,25 +13,29 @@
 # ---------------------------------------------------------------------------
 
 @prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 <https://wod.wiki/ontology/lang/statements> a owl:Ontology ;
     rdfs:label "wod.wiki ontology — lang: statements & dialects" ;
-    owl:versionInfo "0.2.0" .
+    owl:versionInfo "0.3.0" .
 
 # === Classes ==============================================================
 
 wod:ScriptBlock a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
     rdfs:label "Script Block" ;
     rdfs:comment "The structured JSON payload stored on a 'wod' NoteSegment (NoteSegment.data): the parsed form of one workout section, from which statements are compiled at run time." .
 
 wod:Statement a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
     rdfs:label "Statement" ;
     rdfs:comment "One parsed statement of the authoring language (ICodeStatement): a line/construct of a workout script carrying a container of typed metrics. Executed by the engine; its execution emits output statements, stored as EventRecords." .
 
 wod:Dialect a owl:Class ;
+    ufo:stereotype ufo:Mode ;
     rdfs:label "Dialect" ;
     rdfs:comment "A post-parse dialect of the language (packages/lang/src/dialects): a lens that classifies and fuses primitives for a training style — e.g. unit fusion turning a number plus a unit word into one metric. Dialects are vocabulary individuals below." .
 

@@ -1,0 +1,83 @@
+# wod.wiki ontology — SHACL shapes for :code named graph
+# Contracts for SCIP-style code:File, code:Symbol, code:TestId, code:Route, code:WebMcpTool.
+
+@prefix code: <https://wod.wiki/ontology/code#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+
+<https://wod.wiki/ontology/shapes/code> a owl:Ontology .
+
+code:FileShape a sh:NodeShape ;
+    sh:targetClass code:File ;
+    sh:property [
+        sh:path code:filePath ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[^/].+$" ;
+        sh:message "A code:File must have a repo-relative POSIX code:filePath (no leading slash)." ;
+    ] .
+
+code:SymbolShape a sh:NodeShape ;
+    sh:targetClass code:Symbol ;
+    sh:property [
+        sh:path code:symbolName ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A code:Symbol must have exactly one code:symbolName." ;
+    ] ;
+    sh:property [
+        sh:path code:scipId ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[^#]+#.+$" ;
+        sh:message "A code:Symbol must have a SCIP-style code:scipId formatted '<filePath>#<symbolName>'." ;
+    ] ;
+    sh:property [
+        sh:path code:definedIn ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:class code:File ;
+        sh:message "A code:Symbol must be definedIn exactly one code:File." ;
+    ] ;
+    sh:property [
+        sh:path code:lineHint ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:minInclusive 1 ;
+        sh:message "code:lineHint, when present, is a 1-based positive integer." ;
+    ] .
+
+code:TestIdShape a sh:NodeShape ;
+    sh:targetClass code:TestId ;
+    sh:property [
+        sh:path code:testIdKey ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^TEST_IDS\\..+" ;
+        sh:message "A code:TestId key must start with 'TEST_IDS.'." ;
+    ] ;
+    sh:property [
+        sh:path code:testIdValue ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A code:TestId must have exactly one string value." ;
+    ] .
+
+code:RouteShape a sh:NodeShape ;
+    sh:targetClass code:Route ;
+    sh:property [
+        sh:path code:routePath ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^/.*" ;
+        sh:message "A code:Route must have a routePath starting with '/'." ;
+    ] .
+
+code:WebMcpToolShape a sh:NodeShape ;
+    sh:targetClass code:WebMcpTool ;
+    sh:property [
+        sh:path code:toolName ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A code:WebMcpTool must have exactly one toolName." ;
+    ] .

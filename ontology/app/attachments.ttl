@@ -10,15 +10,17 @@
 # ---------------------------------------------------------------------------
 
 @prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 <https://wod.wiki/ontology/app/attachments> a owl:Ontology ;
     rdfs:label "wod.wiki ontology — app: attachments" ;
-    owl:versionInfo "0.2.0" .
+    owl:versionInfo "0.3.0" .
 
 wod:Attachment a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
     rdfs:label "Attachment" ;
     rdfs:comment "A captured blob (GPX track, HR stream JSON, ...) with a time span. The payload itself (ArrayBuffer|string in the repo) is deliberately not modeled — the ontology describes the record, not the bytes. Repo store: attachments." .
 

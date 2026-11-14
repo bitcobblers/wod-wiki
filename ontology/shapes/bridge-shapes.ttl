@@ -1,0 +1,56 @@
+# wod.wiki ontology — SHACL shapes for :bridge named graph
+# Enforces that cross-graph links (rootCause, specFile, playwrightSpec, touches,
+# seedNoun) resolve to typed IRI nodes rather than raw strings.
+
+@prefix bridge: <https://wod.wiki/ontology/bridge#> .
+@prefix qa:     <https://wod.wiki/ontology/qa#> .
+@prefix code:   <https://wod.wiki/ontology/code#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+
+<https://wod.wiki/ontology/shapes/bridge> a owl:Ontology ;
+    sh:declare
+        [ sh:prefix "bridge" ; sh:namespace "https://wod.wiki/ontology/bridge#"^^xsd:anyURI ] ,
+        [ sh:prefix "qa" ;     sh:namespace "https://wod.wiki/ontology/qa#"^^xsd:anyURI ] ,
+        [ sh:prefix "code" ;   sh:namespace "https://wod.wiki/ontology/code#"^^xsd:anyURI ] .
+
+bridge:IssueBridgeShape a sh:NodeShape ;
+    sh:targetClass qa:Issue ;
+    sh:property [
+        sh:path bridge:rootCause ;
+        sh:nodeKind sh:IRI ;
+        sh:or (
+            [ sh:class code:Symbol ]
+            [ sh:class code:File ]
+        ) ;
+        sh:message "bridge:rootCause must resolve to a typed code:Symbol or code:File IRI (never a raw 'path:line' string)." ;
+    ] .
+
+bridge:JourneyBridgeShape a sh:NodeShape ;
+    sh:targetClass qa:Journey ;
+    sh:property [
+        sh:path bridge:specFile ;
+        sh:maxCount 1 ;
+        sh:class code:File ;
+        sh:message "bridge:specFile must point to a code:File." ;
+    ] ;
+    sh:property [
+        sh:path bridge:playwrightSpec ;
+        sh:maxCount 1 ;
+        sh:class code:File ;
+        sh:message "bridge:playwrightSpec must point to a code:File." ;
+    ] ;
+    sh:property [
+        sh:path bridge:touches ;
+        sh:or (
+            [ sh:class code:Symbol ]
+            [ sh:class code:File ]
+        ) ;
+        sh:message "bridge:touches must target a code:Symbol or code:File." ;
+    ] ;
+    sh:property [
+        sh:path bridge:seedNoun ;
+        sh:nodeKind sh:IRI ;
+        sh:message "bridge:seedNoun must reference a domain owl:Class IRI." ;
+    ] .

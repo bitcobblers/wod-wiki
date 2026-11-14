@@ -1,0 +1,179 @@
+# wod.wiki ontology — engine/activities
+# Library: packages/engine (@bitcobblers/wod-wiki-engine) &
+#          packages/lang/src/runtime/ (RuntimeStack, RuntimeBlock, actions/)
+# ---------------------------------------------------------------------------
+# Engine verbs and runtime execution model. Bridges the static authoring
+# language (lang/statements) and the stored archival records (core/results)
+# by modeling the perdurant activities, runtime stack, blocks, and actions.
+# ---------------------------------------------------------------------------
+
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/engine/activities> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — engine: runtime & activities" ;
+    owl:versionInfo "0.3.0" .
+
+# === Runtime Structural & Perdurant Classes =================================
+
+wod:ScriptRuntime a owl:Class ;
+    ufo:stereotype ufo:Kind ;
+    rdfs:label "Script Runtime" ;
+    rdfs:comment "The execution host (ScriptRuntime / RuntimeController) owning a RuntimeStack, RuntimeClock, RuntimeMemory, and OutputEmitter for a workout run." .
+
+wod:RuntimeStack a owl:Class ;
+    ufo:stereotype ufo:Kind ;
+    rdfs:label "Runtime Stack" ;
+    rdfs:comment "LIFO execution stack of compiled RuntimeBlocks. Consumer-managed disposal: popping a block requires calling dispose()." .
+
+wod:RuntimeBlock a owl:Class ;
+    ufo:stereotype ufo:Phase ;
+    rdfs:label "Runtime Block" ;
+    rdfs:comment "A lazily JIT-compiled execution frame on the RuntimeStack, initialized in its constructor and disposed on pop (IRuntimeBlock)." .
+
+wod:RuntimeClock a owl:Class ;
+    ufo:stereotype ufo:Mode ;
+    rdfs:label "Runtime Clock" ;
+    rdfs:comment "The monotonic/controllable clock driving block timers and fast-clock test runs." .
+
+wod:OutputEmitter a owl:Class ;
+    ufo:stereotype ufo:Kind ;
+    rdfs:label "Output Emitter" ;
+    rdfs:comment "Runtime component emitting live output statements that are persisted as EventRecords." .
+
+wod:Activity a owl:Class ;
+    ufo:stereotype ufo:Perdurant ;
+    rdfs:label "Activity" ;
+    rdfs:comment "A domain or engine verb/operation that transforms state, executes workout scripts, or derives projections." .
+
+wod:RuntimeAction a owl:Class ;
+    rdfs:subClassOf wod:Activity ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Runtime Action" ;
+    rdfs:comment "An atomic command dispatched to the RuntimeStack or ScriptRuntime (IRuntimeAction in packages/lang/src/runtime/actions/)." .
+
+# === Engine Activity Verbs ==================================================
+
+wod:PrepareJournalSessionRun a owl:Class ;
+    rdfs:subClassOf wod:Activity ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Prepare Journal Session Run" ;
+    rdfs:comment "Engine verb (prepareJournalSessionRun): snapshots a read-only/seed Note into the user's private journal before starting a SessionRun, preserving Note Provenance." .
+
+wod:StartSession a owl:Class ;
+    rdfs:subClassOf wod:RuntimeAction ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Start Session" ;
+    rdfs:comment "Runtime verb (StartSessionAction): initiates a SessionRun and creates its in-progress SessionRecord." .
+
+wod:StartWorkout a owl:Class ;
+    rdfs:subClassOf wod:RuntimeAction ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Start Workout" ;
+    rdfs:comment "Runtime verb (StartWorkoutAction): begins active workout execution on the RuntimeStack." .
+
+wod:AbortSession a owl:Class ;
+    rdfs:subClassOf wod:RuntimeAction ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Abort Session" ;
+    rdfs:comment "Runtime verb (AbortSessionAction): terminates an active SessionRun early and cleans up stack blocks." .
+
+wod:CompileAndPushBlock a owl:Class ;
+    rdfs:subClassOf wod:RuntimeAction ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Compile and Push Block" ;
+    rdfs:comment "Runtime verb (CompileAndPushBlockAction): JIT-compiles a Statement or ScriptBlock into a RuntimeBlock and pushes it onto the RuntimeStack." .
+
+wod:PushBlock a owl:Class ;
+    rdfs:subClassOf wod:RuntimeAction ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Push Block" ;
+    rdfs:comment "Runtime verb (PushBlockAction / PushRestBlockAction / PushIdleBlockAction): pushes an initialized RuntimeBlock onto the RuntimeStack." .
+
+wod:PopBlock a owl:Class ;
+    rdfs:subClassOf wod:RuntimeAction ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Pop Block" ;
+    rdfs:comment "Runtime verb (PopBlockAction / PopToBlockAction): pops a RuntimeBlock from the RuntimeStack and invokes dispose()." .
+
+wod:AdvanceNext a owl:Class ;
+    rdfs:subClassOf wod:RuntimeAction ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Advance Next" ;
+    rdfs:comment "Runtime verb (NextAction): advances the active RuntimeBlock or workout segment to the next step/round." .
+
+wod:SkipBlock a owl:Class ;
+    rdfs:subClassOf wod:RuntimeAction ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Skip Block" ;
+    rdfs:comment "Runtime verb (SkipCurrentBlockAction): skips the current RuntimeBlock and advances execution." .
+
+wod:EmitOutputEvent a owl:Class ;
+    rdfs:subClassOf wod:RuntimeAction ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Emit Output Event" ;
+    rdfs:comment "Runtime verb (EmitEventAction / EmitSystemOutputAction): emits a WorkoutEvent / live output statement persisted as an EventRecord." .
+
+wod:FinalizeSummaries a owl:Class ;
+    rdfs:subClassOf wod:Activity ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Finalize Summaries" ;
+    rdfs:comment "Engine verb (finalizeSummaries): folds Tier-2 EventRecords into derived SummaryEvent rows at session completion." .
+
+wod:ProjectEventToFacts a owl:Class ;
+    rdfs:subClassOf wod:Activity ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Project Event to Facts" ;
+    rdfs:comment "WQL/Engine verb (projectEventToFacts): flattens an EventRecord into in-memory AnalyticsDataPoint facts for query evaluation." .
+
+# === Engine Properties ======================================================
+
+wod:hasStack a owl:ObjectProperty ;
+    rdfs:label "has stack" ;
+    rdfs:domain wod:ScriptRuntime ;
+    rdfs:range wod:RuntimeStack ;
+    rdfs:comment "The RuntimeStack owned by a ScriptRuntime." .
+
+wod:hasClock a owl:ObjectProperty ;
+    rdfs:label "has clock" ;
+    rdfs:domain wod:ScriptRuntime ;
+    rdfs:range wod:RuntimeClock ;
+    rdfs:comment "The RuntimeClock driving a ScriptRuntime." .
+
+wod:activeBlock a owl:ObjectProperty ;
+    rdfs:label "active block" ;
+    rdfs:domain wod:RuntimeStack ;
+    rdfs:range wod:RuntimeBlock ;
+    rdfs:comment "A RuntimeBlock currently resident on the RuntimeStack." .
+
+wod:executesScript a owl:ObjectProperty ;
+    rdfs:label "executes script" ;
+    rdfs:domain wod:Activity ;
+    rdfs:range wod:ScriptBlock ;
+    rdfs:comment "The ScriptBlock compiled and executed by a runtime activity." .
+
+wod:runsInSession a owl:ObjectProperty ;
+    rdfs:label "runs in session" ;
+    rdfs:domain wod:Activity ;
+    rdfs:range wod:SessionRun ;
+    rdfs:comment "The SessionRun occurrence within which an activity or runtime action occurs." .
+
+wod:emitsRecord a owl:ObjectProperty ;
+    rdfs:label "emits record" ;
+    rdfs:domain wod:Activity ;
+    rdfs:range wod:EventRecord ;
+    rdfs:comment "An EventRecord persisted as a result of an engine activity." .
+
+wod:actsOn a owl:ObjectProperty ;
+    rdfs:label "acts on" ;
+    rdfs:domain wod:Activity ;
+    rdfs:comment "The domain entity or runtime block targeted by an activity." .
+
+wod:actionName a owl:DatatypeProperty ;
+    rdfs:label "action name" ;
+    rdfs:domain wod:RuntimeAction ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Canonical action identifier (e.g. 'start-session', 'next', 'pop-block')." .

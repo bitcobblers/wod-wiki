@@ -1,0 +1,167 @@
+# wod.wiki ontology — :qa named graph (QA & Hermes 5-Beat Acceptance Schema)
+# Named Graph: <https://wod.wiki/graph/qa>
+# ---------------------------------------------------------------------------
+# Declares the QA graph vocabulary (previously undeclared 113-node graph) with
+# PROV-O provenance edges and the Hermes 5-beat causal chain:
+#   Seed -> Enter -> Sense -> Drive -> Prove
+# ---------------------------------------------------------------------------
+
+@prefix qa:   <https://wod.wiki/ontology/qa#> .
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/qa> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — :qa named graph (QA & 5-beat journeys)" ;
+    owl:versionInfo "0.3.0" .
+
+# === Classes ==============================================================
+
+qa:Domain a owl:Class ;
+    ufo:stereotype ufo:Kind ;
+    rdfs:label "QA Domain" ;
+    rdfs:comment "A functional QA domain area (e.g. journal, notebooks, feeds, properties, analytics, runtime) aligned via bridge:domainMapping." .
+
+qa:Journey a owl:Class ;
+    rdfs:subClassOf prov:Plan ;
+    ufo:stereotype ufo:InformationObject ;
+    ufo:instantiatesPattern ufo:FiveBeatJourneyPattern ;
+    rdfs:label "QA Journey" ;
+    rdfs:comment "An end-to-end user acceptance journey (e.g. JRN-01, NBK-02, RUN-02) composed of ordered Steps and 5-beat causal chains." .
+
+qa:Step a owl:Class ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "QA Step" ;
+    rdfs:comment "One discrete step within a QA Journey, classified by a 5-beat phase (Seed, Enter, Sense, Drive, Prove)." .
+
+qa:Beat a owl:Class ;
+    ufo:stereotype ufo:Phase ;
+    rdfs:label "QA Beat" ;
+    rdfs:comment "Hermes O1-O5 causal beat classification for a QA journey step: Seed -> Enter -> Sense -> Drive -> Prove." .
+
+qa:SeedBeat  a owl:Class ; rdfs:subClassOf qa:Beat ; ufo:stereotype ufo:Phase ; rdfs:label "Seed Beat" ;  rdfs:comment "Beat 1 (Seed): establishes preconditions, seed notes, or domain world state." .
+qa:EnterBeat a owl:Class ; rdfs:subClassOf qa:Beat ; ufo:stereotype ufo:Phase ; rdfs:label "Enter Beat" ; rdfs:comment "Beat 2 (Enter): navigates to a route or opens a surface." .
+qa:SenseBeat a owl:Class ; rdfs:subClassOf qa:Beat ; ufo:stereotype ufo:Phase ; rdfs:label "Sense Beat" ; rdfs:comment "Beat 3 (Sense): observes UI readiness, testIds, or DOM/state signals." .
+qa:DriveBeat a owl:Class ; rdfs:subClassOf qa:Beat ; ufo:stereotype ufo:Phase ; rdfs:label "Drive Beat" ; rdfs:comment "Beat 4 (Drive): performs user or WebMCP agent actions." .
+qa:ProveBeat a owl:Class ; rdfs:subClassOf qa:Beat ; ufo:stereotype ufo:Phase ; rdfs:label "Prove Beat" ; rdfs:comment "Beat 5 (Prove): asserts expected outcome, persistence, or console cleanliness." .
+
+# Canonical Beat individuals (for property-path queries when beats are referenced as values)
+qa:Seed  a qa:SeedBeat  ; rdfs:label "Seed"  ; qa:beatOrder 1 .
+qa:Enter a qa:EnterBeat ; rdfs:label "Enter" ; qa:beatOrder 2 .
+qa:Sense a qa:SenseBeat ; rdfs:label "Sense" ; qa:beatOrder 3 .
+qa:Drive a qa:DriveBeat ; rdfs:label "Drive" ; qa:beatOrder 4 .
+qa:Prove a qa:ProveBeat ; rdfs:label "Prove" ; qa:beatOrder 5 .
+
+qa:Run a owl:Class ;
+    rdfs:subClassOf prov:Activity ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "QA Run" ;
+    rdfs:comment "One execution of QA journeys (automated Playwright run or manual walkthrough), replacing raw firstSeen/lastSeen run-id strings with PROV-O activity links." .
+
+qa:Issue a owl:Class ;
+    rdfs:subClassOf prov:Entity ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "QA Issue" ;
+    rdfs:comment "A defect or finding discovered during a QA Run, linked via prov:wasGeneratedBy to its Run and bridge:rootCause to Code Symbols/Files." .
+
+# === Properties ===========================================================
+
+qa:inDomain a owl:ObjectProperty ;
+    rdfs:label "in domain" ;
+    rdfs:domain qa:Journey ;
+    rdfs:range qa:Domain ;
+    rdfs:comment "Assigns a QA Journey to its primary QA Domain." .
+
+qa:hasStep a owl:ObjectProperty ;
+    rdfs:label "has step" ;
+    rdfs:domain qa:Journey ;
+    rdfs:range qa:Step ;
+    rdfs:comment "Links a QA Journey to its ordered Steps." .
+
+qa:hasBeat a owl:ObjectProperty ;
+    rdfs:label "has beat" ;
+    rdfs:domain qa:Step ;
+    rdfs:range qa:Beat ;
+    rdfs:comment "Classifies a QA Step into one of the 5 Hermes beats (Seed, Enter, Sense, Drive, Prove)." .
+
+qa:nextStep a owl:ObjectProperty ;
+    rdfs:label "next step" ;
+    rdfs:domain qa:Step ;
+    rdfs:range qa:Step ;
+    rdfs:comment "Ordered causal link between consecutive steps in a journey (queryable via SPARQL property paths qa:nextStep+)." .
+
+qa:coveredBy a owl:ObjectProperty ;
+    rdfs:label "covered by" ;
+    rdfs:comment "Links a QA Journey or Issue to the Run or Journey that covers/verifies it." .
+
+qa:affects a owl:ObjectProperty ;
+    rdfs:label "affects" ;
+    rdfs:domain qa:Issue ;
+    rdfs:comment "Links a QA Issue to the QA Domain or Journey it impacts." .
+
+# PROV-O edges (redeclared with domain/range comments for clarity)
+prov:wasGeneratedBy a owl:ObjectProperty ;
+    rdfs:label "was generated by" ;
+    rdfs:comment "PROV-O edge linking a qa:Issue to the qa:Run that discovered it (replaces raw firstSeen/lastSeen strings)." .
+
+prov:used a owl:ObjectProperty ;
+    rdfs:label "used" ;
+    rdfs:comment "PROV-O edge linking a qa:Run or qa:Journey to the Seed Note, DomainWorld, or fixture it consumed." .
+
+qa:journeyId a owl:DatatypeProperty ;
+    rdfs:label "journey id" ;
+    rdfs:domain qa:Journey ;
+    rdfs:range xsd:string .
+
+qa:journeyTitle a owl:DatatypeProperty ;
+    rdfs:label "journey title" ;
+    rdfs:domain qa:Journey ;
+    rdfs:range xsd:string .
+
+qa:stepIndex a owl:DatatypeProperty ;
+    rdfs:label "step index" ;
+    rdfs:domain qa:Step ;
+    rdfs:range xsd:integer .
+
+qa:stepText a owl:DatatypeProperty ;
+    rdfs:label "step text" ;
+    rdfs:domain qa:Step ;
+    rdfs:range xsd:string .
+
+qa:beatOrder a owl:DatatypeProperty ;
+    rdfs:label "beat order" ;
+    rdfs:domain qa:Beat ;
+    rdfs:range xsd:integer .
+
+qa:runId a owl:DatatypeProperty ;
+    rdfs:label "run id" ;
+    rdfs:domain qa:Run ;
+    rdfs:range xsd:string .
+
+qa:runTimestamp a owl:DatatypeProperty ;
+    rdfs:label "run timestamp" ;
+    rdfs:domain qa:Run ;
+    rdfs:range xsd:dateTime .
+
+qa:issueId a owl:DatatypeProperty ;
+    rdfs:label "issue id" ;
+    rdfs:domain qa:Issue ;
+    rdfs:range xsd:string .
+
+qa:issueSeverity a owl:DatatypeProperty ;
+    rdfs:label "issue severity" ;
+    rdfs:domain qa:Issue ;
+    rdfs:range xsd:string .
+
+qa:issueStatus a owl:DatatypeProperty ;
+    rdfs:label "issue status" ;
+    rdfs:domain qa:Issue ;
+    rdfs:range xsd:string .
+
+qa:issueSummary a owl:DatatypeProperty ;
+    rdfs:label "issue summary" ;
+    rdfs:domain qa:Issue ;
+    rdfs:range xsd:string .

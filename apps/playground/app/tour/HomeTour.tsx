@@ -55,6 +55,7 @@ import { ScrollGate, ScrollTrackProvider, useTrackAnchor } from '../scroll/Scrol
 import { HOME_EVENTS, useTelemetry, useScrollTelemetry } from '@/services/telemetry'
 import { toast } from '@/hooks/use-toast'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { TEST_IDS } from '@/lib/testIds'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -591,7 +592,7 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
               onClick={handleClearShared}
               title="Reset"
               className="rounded-md border border-border px-2 py-1 text-[10px] transition-colors hover:bg-accent"
-              data-testid="tour-hero-reset-shared"
+              data-testid={TEST_IDS.tour.HERO_RESET_SHARED}
             >
               Reset
             </button>
@@ -632,14 +633,14 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
     <div
       ref={editorSectionRef}
       id="tour-section-editor"
-      data-testid="tour-section-editor"
+      data-testid={TEST_IDS.tour.SECTION_EDITOR}
       className="flex w-full flex-col items-center px-5 py-8 text-center lg:px-10 xl:py-10 2xl:px-16"
     >
       {whyShrunk && (
         <button
           type="button"
           onClick={handleWatchAgain}
-          data-testid="tour-why-watch-again"
+          data-testid={TEST_IDS.tour.WHY_WATCH_AGAIN}
           className="inline-flex items-center gap-1.5 rounded-t-lg border border-b-0 border-border bg-muted/40 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
         >
           <Play className="size-3" />
@@ -653,8 +654,8 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
   // Reduced-motion: the same sections, flat hero — no sticky choreography.
   if (prefersReducedMotion) {
     return (
-      <div data-testid="home-tour">
-        <section id="tour-hero" data-testid="tour-hero" className="flex flex-col items-center gap-5 px-6 py-6 text-center">
+      <div data-testid={TEST_IDS.tour.HOME_TOUR}>
+        <section id="tour-hero" data-testid={TEST_IDS.tour.HERO} className="flex flex-col items-center gap-5 px-6 py-6 text-center">
           <TourHeroHeading />
           {whyVideoBlock}
           {editorBlock}
@@ -672,7 +673,7 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
   // ── Normal flow: heading hero (pitch video, then the live editor
   // preview) → the two data sections → feeds → offerings → footer. ──
   return (
-    <div data-testid="home-tour">
+    <div data-testid={TEST_IDS.tour.HOME_TOUR}>
       {/* Arrival sentinel (#882): a 1px mark at the very top of the page —
           its document top IS the sticky header's bottom edge (parking math). */}
       <div ref={heroRef} aria-hidden className="h-px" />
@@ -680,7 +681,7 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
       <section
         ref={heroSectionRef}
         id="tour-hero"
-        data-testid="tour-hero"
+        data-testid={TEST_IDS.tour.HERO}
         className="relative flex min-h-[calc(100dvh-65px)] flex-col items-center justify-center gap-5 px-5 py-6 text-center lg:min-h-[calc(100dvh-104px)] lg:px-10 xl:gap-7 xl:py-8 2xl:px-16"
       >
         <TourHeroHeading />

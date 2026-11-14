@@ -22,12 +22,14 @@
 
 <https://wod.wiki/ontology> a owl:Ontology ;
     rdfs:label "wod.wiki ontology" ;
-    owl:versionInfo "0.2.0" ;
-    rdfs:comment "Formal domain model for wod.wiki, split by owning library. Start with README.md in this directory." ;
+    owl:versionInfo "0.3.0" ;
+    rdfs:comment "Formal domain model for wod.wiki (:domain named graph), split by owning library. Start with README.md in this directory." ;
     owl:imports
+        <https://wod.wiki/ontology/patterns/ufo> ,
         <https://wod.wiki/ontology/lang/metrics> ,
         <https://wod.wiki/ontology/lang/efforts> ,
         <https://wod.wiki/ontology/lang/statements> ,
+        <https://wod.wiki/ontology/engine/activities> ,
         <https://wod.wiki/ontology/core/results> ,
         <https://wod.wiki/ontology/core/fields> ,
         <https://wod.wiki/ontology/app/content> ,

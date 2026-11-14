@@ -10,19 +10,23 @@
 # ---------------------------------------------------------------------------
 
 @prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 <https://wod.wiki/ontology/app/pages> a owl:Ontology ;
     rdfs:label "wod.wiki ontology — app: pages & placement" ;
-    owl:versionInfo "0.2.0" .
+    owl:versionInfo "0.3.0" .
 
 wod:Page a owl:Class ;
+    ufo:stereotype ufo:Kind ;
     rdfs:label "Page" ;
     rdfs:comment "A grouping/address record for notes. Two flavors by address: a calendar page (unique date, YYYY-MM-DD, the journal-date route) or a custom page (unique slug, the named route /p/:slug). Authored content lives strictly in Notes. Repo store: page." .
 
 wod:PageNote a owl:Class ;
+    ufo:stereotype ufo:Relator ;
+    ufo:instantiatesPattern ufo:RelatorJunctionPattern ;
     rdfs:label "Page Note (placement)" ;
     rdfs:comment "The canonical many-to-many placement junction between Page and Note (store: page_notes). Unique on (pageId, noteId): a note is placed on a page at most once, and may be placed on many pages. Replaces synthetic note merging on multi-note calendar pages." .
 

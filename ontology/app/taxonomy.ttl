@@ -10,6 +10,7 @@
 # ---------------------------------------------------------------------------
 
 @prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
@@ -17,18 +18,22 @@
 
 <https://wod.wiki/ontology/app/taxonomy> a owl:Ontology ;
     rdfs:label "wod.wiki ontology — app: tags & tag types" ;
-    owl:versionInfo "0.2.0" .
+    owl:versionInfo "0.3.0" .
 
 wod:Tag a owl:Class ;
     rdfs:subClassOf skos:Concept ;
+    ufo:stereotype ufo:Kind ;
     rdfs:label "Tag" ;
     rdfs:comment "A normalized classification concept attached to notes through NoteTag. Label is unique. Modeled as a SKOS Concept: it is vocabulary for discovery, and carries no ownership semantics. Repo store: tags. (The denormalized Note.tags string array is a projection of NoteTag rows, not the canonical persistence.)" .
 
 wod:TagType a owl:Class ;
+    ufo:stereotype ufo:Kind ;
     rdfs:label "Tag Type" ;
     rdfs:comment "A dynamic classification DIMENSION for tags (category, type, equipment, discipline...), defined at runtime and managed in Settings. Frontmatter properties matching a registered tag type name participate in typeahead, on-the-fly tag creation, and bidirectional sync with Tag/NoteTag. Repo store: tag_types." .
 
 wod:NoteTag a owl:Class ;
+    ufo:stereotype ufo:Relator ;
+    ufo:instantiatesPattern ufo:RelatorJunctionPattern ;
     rdfs:label "Note Tag (classification)" ;
     rdfs:comment "The normalized many-to-many junction between Note and Tag (store: note_tags). It records classification only — not query membership, source authority, or a supertype relationship — and it targets the concrete owning note id." .
 
