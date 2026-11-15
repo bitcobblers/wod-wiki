@@ -8,7 +8,7 @@ WOD Wiki is a TypeScript monorepo toolkit for parsing, executing, and analyzing 
 
 ---
 
-## Getting started
+## Getting started (for now)
 
 WOD Wiki has two hosting levels. Both run the same playground application; the difference is where your data lives. A container runs server mode, not a third storage mode. The globally installed `wod` CLI includes both apps: `wod init` prepares a database, then `wod server` or `wod playground` hosts either level ([self-host with the `wod` CLI](#self-host-with-the-wod-cli)).
 
