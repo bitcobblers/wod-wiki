@@ -1,0 +1,168 @@
+name: Deploy – Prod
+
+# Production promotion pipeline (step 2 of 2):
+#   Triggered when a verified commit is tagged `prod` (or `prod-*` / `prod/*`).
+#   Resolves the staged `main.yml` build artifacts (`packages-dist` + `playground-dist`)
+#   for that commit, publishes @bitcobblers/* to npm and Playground to GitHub Pages
+#   (https://wod.wiki), and creates the GitHub release + version tag.
+
+on:
+  push:
+    tags:
+      - 'prod'
+      - 'prod-*'
+      - 'prod/*'
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: Optional main.yml workflow run ID to promote (defaults to latest successful main.yml run for the checked-out commit)
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  actions: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  resolve-artifacts:
+    name: Resolve Staged Artifacts
+    runs-on: ubuntu-22.04
+    outputs:
+      run-id: ${{ steps.find-run.outputs.run-id }}
+      target-sha: ${{ steps.find-run.outputs.target-sha }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Find successful main.yml run for commit
+        id: find-run
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const overrideRunId = '${{ inputs.run-id }}'.trim();
+
+            if (overrideRunId) {
+              const { data: run } = await github.rest.actions.getWorkflowRun({
+                owner,
+                repo,
+                run_id: Number(overrideRunId),
+              });
+              if (run.conclusion !== 'success') {
+                core.setFailed(`Workflow run ${overrideRunId} did not succeed (conclusion: ${run.conclusion}).`);
+                return;
+              }
+              core.info(`Using specified run ${run.id} (${run.html_url}) for commit ${run.head_sha}`);
+              core.setOutput('run-id', String(run.id));
+              core.setOutput('target-sha', run.head_sha);
+              return;
+            }
+
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: 'main.yml',
+              head_sha: context.sha,
+              status: 'completed',
+              per_page: 20,
+            });
+
+            const match = data.workflow_runs.find((r) => r.conclusion === 'success');
+            if (!match) {
+              core.setFailed(
+                `No successful main.yml workflow run found for commit ${context.sha}. ` +
+                `Ensure main.yml completed successfully and its artifacts have not expired.`
+              );
+              return;
+            }
+
+            core.info(`Resolved main.yml run ${match.id} (${match.html_url}) for commit ${context.sha}`);
+            core.setOutput('run-id', String(match.id));
+            core.setOutput('target-sha', context.sha);
+
+      - name: Download packages-dist to verify availability & read version
+        uses: actions/download-artifact@v7
+        with:
+          name: packages-dist
+          path: packages/
+          run-id: ${{ steps.find-run.outputs.run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract stamped version
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./packages/core/package.json').version")
+          if [ -z "$VERSION" ]; then
+            echo "::error::Failed to read version from packages/core/package.json"
+            exit 1
+          fi
+          echo "Resolved stamped version: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish
+    needs: [resolve-artifacts]
+    uses: ./.github/workflows/_publish.yml
+    secrets: inherit
+    with:
+      run-id: ${{ needs.resolve-artifacts.outputs.run-id }}
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-22.04
+    needs: [resolve-artifacts, publish]
+    permissions:
+      contents: write
+    steps:
+      - name: Create or update GitHub release and tag
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const tag = '${{ needs.resolve-artifacts.outputs.tag }}';
+            const sha = '${{ needs.resolve-artifacts.outputs.target-sha }}';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            try {
+              const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
+              if (ref.data.object.sha !== sha) {
+                core.setFailed(`Tag ${tag} already exists at ${ref.data.object.sha}; refusing to move it.`);
+                return;
+              }
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.git.createRef({ owner, repo, ref: `refs/tags/${tag}`, sha });
+            }
+
+            try {
+              const existing = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              await github.rest.repos.updateRelease({
+                owner, repo, release_id: existing.data.id, target_commitish: sha,
+                name: tag, draft: false, prerelease: false,
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.repos.createRelease({
+                owner, repo, tag_name: tag, target_commitish: sha, name: tag,
+                generate_release_notes: true, draft: false, prerelease: false,
+              });
+            }
+
+      - name: Write release summary
+        run: |
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          ## Production release pipeline
+
+          - Version: \`${{ needs.resolve-artifacts.outputs.version }}\` (\`${{ needs.resolve-artifacts.outputs.tag }}\`)
+          - Commit: \`${{ needs.resolve-artifacts.outputs.target-sha }}\`
+          - Source build run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ needs.resolve-artifacts.outputs.run-id }}
+          - Pages URL: ${{ needs.publish.outputs.page-url }}
+          EOF

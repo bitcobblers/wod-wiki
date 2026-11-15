@@ -84,7 +84,7 @@ jobs:
             packages/*/dist/
             packages/*/package.json
           include-hidden-files: true
-          retention-days: 1
+          retention-days: 7
 
       - name: Record packages status
         id: pkg-status

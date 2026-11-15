@@ -1,10 +1,11 @@
-name: Release – Main
+name: Build & Stage – Main
 
-# Merge To Main pipeline (docs/build-process.canvas):
+# Merge To Main pipeline (step 1 of 2):
 #   Slug (main + version) → [ Build Verify | Build Deploy Playground -> s3 | Build Deploy Storybook -> s3 ]
-#                         → E2E tests against deployed s3 branch (main.preview.wod.wiki + main.story.wod.wiki)
-#                         → Publish (npm @bitcobblers/* + GitHub Pages wod.wiki)
-#                         → Create Release
+#
+# E2E testing against S3 staging (main.preview.wod.wiki + main.story.wod.wiki)
+# is executed externally. Once E2E passes, tagging the commit `prod` triggers
+# deploy-prod.yml (step 2) to publish the staged artifacts to wod.wiki and npm.
 
 on:
   push:
@@ -12,9 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -118,69 +117,23 @@ jobs:
     with:
       slug: ${{ needs.slug.outputs.slug }}
 
-  e2e:
-    name: E2E (S3 branch)
-    needs: [slug, deploy-playground, deploy-storybook]
-    uses: ./.github/workflows/preview-e2e.yml
-    secrets: inherit
-    with:
-      branch-slug: ${{ needs.slug.outputs.slug }}
-      build-hash: ${{ needs.deploy-playground.outputs.bundle-hash }}
-
-  publish:
-    name: Publish
-    needs: [slug, build-verify, deploy-playground, e2e]
-    uses: ./.github/workflows/_publish.yml
-    secrets: inherit
-
-  create-release:
-    name: Create Release
+  summary:
+    name: Staging Summary
     runs-on: ubuntu-22.04
-    needs: [slug, publish]
-    permissions:
-      contents: write
+    needs: [slug, build-verify, deploy-playground, deploy-storybook, deploy-ontology]
     steps:
-      - name: Create or update GitHub release and tag
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const tag = '${{ needs.slug.outputs.tag }}';
-            const sha = context.sha;
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-
-            try {
-              const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
-              if (ref.data.object.sha !== sha) {
-                core.setFailed(`Tag ${tag} already exists at ${ref.data.object.sha}; refusing to move it.`);
-                return;
-              }
-            } catch (error) {
-              if (error.status !== 404) throw error;
-              await github.rest.git.createRef({ owner, repo, ref: `refs/tags/${tag}`, sha });
-            }
-
-            try {
-              const existing = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-              await github.rest.repos.updateRelease({
-                owner, repo, release_id: existing.data.id, target_commitish: sha,
-                name: tag, draft: false, prerelease: false,
-              });
-            } catch (error) {
-              if (error.status !== 404) throw error;
-              await github.rest.repos.createRelease({
-                owner, repo, tag_name: tag, target_commitish: sha, name: tag,
-                generate_release_notes: true, draft: false, prerelease: false,
-              });
-            }
-
-      - name: Write release summary
+      - name: Write staging summary
         run: |
           cat <<EOF >> "$GITHUB_STEP_SUMMARY"
-          ## Main release pipeline
+          ## Main staging build complete
 
-          - Version: ${{ needs.slug.outputs.version }} (${{ needs.slug.outputs.tag }})
-          - Pages URL: ${{ needs.publish.outputs.page-url }}
-          - S3 staging verified: https://main.preview.wod.wiki & https://main.story.wod.wiki
-          - E2E report: https://e2e.wod.wiki
+          - Version: \`${{ needs.slug.outputs.version }}\` (\`${{ needs.slug.outputs.tag }}\`)
+          - Commit: \`${{ github.sha }}\`
+          - Playground S3 staging: https://main.preview.wod.wiki
+          - Storybook S3 staging: https://main.story.wod.wiki
+          - Bundle hash: \`${{ needs.deploy-playground.outputs.bundle-hash }}\`
+          - Artifacts uploaded: \`packages-dist\`, \`playground-dist\`
+
+          > External E2E testing can now run against the S3 staging URLs.
+          > Tag this commit \`prod\` when E2E passes to trigger \`deploy-prod.yml\` (GitHub Pages + npm + release).
           EOF

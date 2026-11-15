@@ -6,6 +6,12 @@ name: Publish
 
 on:
   workflow_call:
+    inputs:
+      run-id:
+        description: Optional workflow run ID to download packages-dist and playground-dist from (defaults to current run)
+        required: false
+        type: string
+        default: ''
     outputs:
       page-url:
         value: ${{ jobs.publish-pages.outputs.page-url }}
@@ -20,6 +26,7 @@ jobs:
     environment: npm
     permissions:
       contents: read
+      actions: read
     steps:
       - name: Configure npm auth
         uses: actions/setup-node@v6
@@ -27,11 +34,21 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Download packages-dist
+      - name: Download packages-dist (current run)
+        if: inputs.run-id == ''
         uses: actions/download-artifact@v7
         with:
           name: packages-dist
           path: packages/
+
+      - name: Download packages-dist (from main build run)
+        if: inputs.run-id != ''
+        uses: actions/download-artifact@v7
+        with:
+          name: packages-dist
+          path: packages/
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish workspace packages
         env:
@@ -55,14 +72,25 @@ jobs:
       page-url: ${{ steps.deployment.outputs.page_url }}
     permissions:
       contents: read
+      actions: read
       pages: write
       id-token: write
     steps:
-      - name: Download playground-dist
+      - name: Download playground-dist (current run)
+        if: inputs.run-id == ''
         uses: actions/download-artifact@v7
         with:
           name: playground-dist
           path: ./dist/
+
+      - name: Download playground-dist (from main build run)
+        if: inputs.run-id != ''
+        uses: actions/download-artifact@v7
+        with:
+          name: playground-dist
+          path: ./dist/
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify hidden discovery files in Pages bundle
         run: |
