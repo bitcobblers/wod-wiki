@@ -143,3 +143,16 @@ When any E2E suite fails:
    ```
 
 4. Exit with a non-zero status code (`exit 1`).
+
+---
+
+## Helios external-agent operational notes
+
+The reference implementation runs on the Helios workstation (`itsme@helios`), nightly plus per staged build:
+
+- Env: `bun` at `~/.bun/bin/bun` (not on default PATH), repo clone `/srv/nfs/helios/docker-shared/repos/wod-wiki`, Playwright browsers via `bun x playwright install chromium webkit` **and** `bun x playwright install-deps webkit`, workspace packages via `bun run build:packages:runtime`.
+- Scripts (`/srv/nfs/helios/dogfood/wod-wiki/qa-gate/`): `qa-gate.sh` (nightly advisory E2E + ledger check) and `qa-readiness.sh` (promotion verdict: the four suites above plus a quick dogfood on the domains touched since the last release tag, and a critical-findings check). On PASS it writes `e2e/main-staging=success` and **moves the `prod` tag**; on FAIL it writes `failure` and opens a labeled issue. Verdicts are append-only in `history.jsonl`.
+- Suite strategy: smoke + storybook + webkit run on every assessment (~6 min on an SBC); the full journal suite runs nightly through the same agent or on demand — CI `preview-e2e.yml` shards remain the reference full-journal run.
+- Quick dogfood: domains derived from `git log <last release tag>..<SHA>` path matching (journal/notebooks/runtime/properties/analytics/feeds), smoke missions against `main.preview.wod.wiki`. Any `severity: Critical` finding blocks promotion; deploy/CI-only diffs skip the dogfood phase.
+- `deploy-prod.yml` additionally requires the `e2e/main-staging=success` status before publishing (defense in depth against a manual `prod` tag); `workflow_dispatch` with `force: true` bypasses the check for emergencies.
+- Reports are served read-only at `https://qa.forest-adhara.ts.net/qa-gate/` (`qa-report.md`, `readiness-report.md`, `history.jsonl`).
