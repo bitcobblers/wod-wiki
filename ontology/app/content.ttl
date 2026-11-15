@@ -9,23 +9,54 @@
 # ---------------------------------------------------------------------------
 
 @prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 <https://wod.wiki/ontology/app/content> a owl:Ontology ;
     rdfs:label "wod.wiki ontology — app: notes & segments" ;
-    owl:versionInfo "0.2.0" .
+    owl:versionInfo "0.3.0" .
 
 # === Classes ==============================================================
 
 wod:Note a owl:Class ;
+    ufo:stereotype ufo:Kind ;
     rdfs:label "Note" ;
     rdfs:comment "The owning unit of authored content: identity, routing, placement, provenance. Content lives in its NoteSegments. Identity is a UUID for user notes; seed import derives ids from source paths, and static projections expose block-index locators — canonical joins use the note id and preserve locators for deep links. Repo store: notes." .
 
 wod:NoteSegment a owl:Class ;
+    ufo:stereotype ufo:Phase ;
     rdfs:label "Note Segment" ;
-    rdfs:comment "A versioned chunk of an owning note's content. Storage key is the PAIR (id, version): content changes create new incarnations, superseded ones flagged isHistory. This storage unit is not an editor section, not a runtime output grain, and not a page block — three other things also called 'segment/block' in the codebase. Repo store: segments." .
+    rdfs:comment "A versioned chunk of an owning note's content (live vs historical phase). Storage key is the PAIR (id, version): content changes create new incarnations, superseded ones flagged isHistory. This storage unit is not an editor section, not a runtime output grain, and not a page block — three other things also called 'segment/block' in the codebase. Repo store: segments." .
+
+wod:NoteKind a owl:Class ;
+    ufo:stereotype ufo:Mode ;
+    owl:oneOf (
+        wod:nkJournal
+        wod:nkTemplate
+        wod:nkPlayground
+        wod:nkCollection
+        wod:nkDashboard
+        wod:nkPage
+        wod:nkNote
+    ) ;
+    rdfs:label "Note Kind" ;
+    rdfs:comment "TAXONOMY RESOLUTION (#1026): Closed presentation descriptor for Note.type. Selects default presentation only — NEVER permission, placement, or provenance. Absent defaults to wod:nkJournal / wod:nkNote." .
+
+wod:nkJournal    a wod:NoteKind ; rdfs:label "journal" .
+wod:nkTemplate   a wod:NoteKind ; rdfs:label "template" .
+wod:nkPlayground a wod:NoteKind ; rdfs:label "playground" .
+wod:nkCollection a wod:NoteKind ; rdfs:label "collection" .
+wod:nkDashboard  a wod:NoteKind ; rdfs:label "dashboard" .
+wod:nkPage       a wod:NoteKind ; rdfs:label "page" .
+wod:nkNote       a wod:NoteKind ; rdfs:label "note" .
+
+wod:hasNoteKind a owl:ObjectProperty ;
+    rdfs:label "has note kind" ;
+    rdfs:domain wod:Note ;
+    rdfs:range wod:NoteKind ;
+    rdfs:comment "Structured object-property counterpart to wod:noteKind." .
 
 # === Note properties =======================================================
 

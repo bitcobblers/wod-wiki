@@ -1,0 +1,119 @@
+# wod.wiki ontology — :bridge named graph (Cross-Graph & Hermes O1-O5 Bridge)
+# Named Graph: <https://wod.wiki/graph/bridge>
+# ---------------------------------------------------------------------------
+# Connects the three previously disconnected islands:
+#   :domain (wod:) <-> :qa (qa:) <-> :code (code:)
+#
+# Enables bidirectional traversal:
+#   - Journey -> Code: 5-beat chain, touched files/symbols, root-cause symbols
+#   - Code -> Journey: given a file or symbol, find all journeys, issues, and
+#     domain classes connected to it.
+# ---------------------------------------------------------------------------
+
+@prefix bridge: <https://wod.wiki/ontology/bridge#> .
+@prefix wod:    <https://wod.wiki/ontology#> .
+@prefix qa:     <https://wod.wiki/ontology/qa#> .
+@prefix code:   <https://wod.wiki/ontology/code#> .
+@prefix ufo:    <https://wod.wiki/ontology/patterns#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/bridge> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — :bridge named graph (cross-graph alignment)" ;
+    owl:versionInfo "0.3.0" .
+
+# === Hermes O1-O5 Alignment Model ==========================================
+
+bridge:HermesLevel a owl:Class ;
+    ufo:stereotype ufo:Mode ;
+    rdfs:label "Hermes Ontology Level (O1-O5)" ;
+    rdfs:comment "Alignment layer mapping the 5-named-graph architecture to Hermes O1-O5 testing levels." .
+
+bridge:O1DomainOntology a bridge:HermesLevel ;
+    rdfs:label "O1: Domain Ontology (:domain)" ;
+    rdfs:comment "Domain nouns & engine verbs (wod: classes, properties, and SHACL contracts)." .
+
+bridge:O2TestOntology a bridge:HermesLevel ;
+    rdfs:label "O2: Test / QA Ontology (:qa)" ;
+    rdfs:comment "QA domains, journeys, 5-beat steps (Seed -> Enter -> Sense -> Drive -> Prove), runs, and issues." .
+
+bridge:O3CodeGraph a bridge:HermesLevel ;
+    rdfs:label "O3: Code Graph (:code)" ;
+    rdfs:comment "SCIP-style Files, Symbols, TestIds, Routes, and WebMCP tools." .
+
+bridge:O4BridgeGraph a bridge:HermesLevel ;
+    rdfs:label "O4: Bridge Graph (:bridge)" ;
+    rdfs:comment "Cross-graph edges (touches, rootCause, seedNoun, domainMapping, specFile, playwrightSpec, route, testId)." .
+
+bridge:O5Projection a bridge:HermesLevel ;
+    rdfs:label "O5: Generated Projections" ;
+    rdfs:comment "Derived chain projections (chains.md), TypeScript ontology types, and bidirectional impact queries." .
+
+bridge:hermesLevel a owl:AnnotationProperty ;
+    rdfs:label "Hermes level" ;
+    rdfs:comment "Annotates a graph, class, or property with its Hermes O1-O5 level." .
+
+# === Bridge Object Properties ==============================================
+
+bridge:touches a owl:ObjectProperty ;
+    bridge:hermesLevel bridge:O4BridgeGraph ;
+    rdfs:label "touches" ;
+    rdfs:comment "Links a qa:Journey or qa:Step to a code:Symbol or code:File exercised or depended upon by that journey/step." .
+
+bridge:rootCause a owl:ObjectProperty ;
+    bridge:hermesLevel bridge:O4BridgeGraph ;
+    rdfs:label "root cause" ;
+    rdfs:domain qa:Issue ;
+    rdfs:comment "Links a qa:Issue to the code:Symbol or code:File responsible for the defect (replaces raw 'path:line' strings)." .
+
+bridge:seedNoun a owl:ObjectProperty ;
+    bridge:hermesLevel bridge:O4BridgeGraph ;
+    rdfs:range owl:Class ;
+    rdfs:label "seed noun" ;
+    rdfs:comment "Links a qa:Journey or qa:Beat (typically qa:SeedBeat) to the wod: domain owl:Class it seeds or tests." .
+
+bridge:domainMapping a owl:ObjectProperty ;
+    bridge:hermesLevel bridge:O4BridgeGraph ;
+    rdfs:domain qa:Domain ;
+    rdfs:label "domain mapping" ;
+    rdfs:comment "Aligns a qa:Domain with its corresponding ontology module IRI (e.g. <https://wod.wiki/ontology/app/content>) or app area." .
+
+bridge:specFile a owl:ObjectProperty ;
+    bridge:hermesLevel bridge:O4BridgeGraph ;
+    rdfs:domain qa:Journey ;
+    rdfs:range code:File ;
+    rdfs:label "spec file" ;
+    rdfs:comment "Links a qa:Journey to its Level-1 business-language Markdown spec (e2e/specs/<domain>/<journey>.md)." .
+
+bridge:playwrightSpec a owl:ObjectProperty ;
+    bridge:hermesLevel bridge:O4BridgeGraph ;
+    rdfs:domain qa:Journey ;
+    rdfs:range code:File ;
+    rdfs:label "playwright spec" ;
+    rdfs:comment "Links a qa:Journey to its Level-2 Playwright test file (e2e/live-app/<journey>.e2e.ts)." .
+
+bridge:route a owl:ObjectProperty ;
+    bridge:hermesLevel bridge:O4BridgeGraph ;
+    rdfs:range code:Route ;
+    rdfs:label "route" ;
+    rdfs:comment "Links a qa:Journey or qa:Step to the code:Route it enters or verifies." .
+
+bridge:testId a owl:ObjectProperty ;
+    bridge:hermesLevel bridge:O4BridgeGraph ;
+    rdfs:range code:TestId ;
+    rdfs:label "test id" ;
+    rdfs:comment "Links a qa:Journey or qa:Step to the code:TestId sensed or driven." .
+
+bridge:webMcpTool a owl:ObjectProperty ;
+    bridge:hermesLevel bridge:O4BridgeGraph ;
+    rdfs:range code:WebMcpTool ;
+    rdfs:label "WebMCP tool" ;
+    rdfs:comment "Links a qa:Journey or qa:Step to a code:WebMcpTool invoked during agent-driven execution." .
+
+bridge:implementsDomainClass a owl:ObjectProperty ;
+    bridge:hermesLevel bridge:O4BridgeGraph ;
+    rdfs:domain code:Symbol ;
+    rdfs:range owl:Class ;
+    rdfs:label "implements domain class" ;
+    rdfs:comment "Links a TypeScript code:Symbol (interface/class) to the wod: domain owl:Class it implements." .

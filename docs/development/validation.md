@@ -22,6 +22,13 @@ All commands run from the repo root with `bun`.
 | Validation & CLI script unit tests | `bun run test:validation-scripts` | Tests `check-playground-types`, `check-e2e-specs`, `ticket-report`, and `migrate-seed-markdown` |
 | Skill sync & cited-path check | `bun run check:skills` | Verifies served/mirrored skill copies and repo paths cited in `skills/` |
 | Agent action parity & manifest check | `bun run check:agent-parity` | Verifies 1:1 parity across `DOMAIN_AGENT_TOOLS`, Playground WebMCP `uiTools`, CLI subcommands, risk-tier annotations, and static discovery files (`llms.txt`, `llms-full.txt`, `.well-known/agent-capabilities.json`) |
+| `TEST_IDS` contract & burn-down gate | `bun run check:test-ids` | Fails on new literal `data-testid="..."` attributes, invalid `TEST_IDS.*` refs, or regressions above the legacy burn-down baseline (431) |
+| Ontology RDF / SHACL validation | `bun run ontology:validate` | Runs `ontology/validate.sh` (`rdflib` + `pyshacl` via `uv`, see [ADR 0007](../adrs/0007-python-uv-ontology-validation.md)) across all 5 named graphs and `bridge:seedNoun` integrity |
+| Ontology code-graph & bridge build | `bun run ontology:build` | Indexes `packages/`, `apps/playground/`, `e2e/`, and QA findings into `ontology/generated/` |
+| Ontology TypeScript codegen | `bun run ontology:codegen` | Generates `ontology/generated/ontology-types.ts` (75+ classes, SHACL validators, stereotype metadata) |
+| Ontology bidirectional query & chains | `bun run ontology:query -- --chains` | Generates `ontology/generated/chains.md` and supports `--journey`, `--file`, `--symbol`, `--issue` traversal |
+| Ontology static HTML explorer | `bun run ontology:viewer` | Generates self-contained, offline `ontology/generated/explorer.html` for interactive 5-layer traversal |
+| Ontology bidirectional changeset gate | `bun run ontology:changeset` | Proposes, approves, and applies gated code-to-ontology changesets (`propose` / `approve` / `apply` / `sync-from-ontology`) |
 | API storage & server contract | `bun run check:server` | Verifies SQLite-backed Hono/engine server API endpoints (`apps/api/check.ts`) |
 | Full E2E / milestone acceptance | `bun run test:e2e` | Playwright journal config; heavyweight |
 | Targeted preview acceptance | `bun run test:e2e:preview` | Runs E2E against a production preview build; the UI-worker done gate |

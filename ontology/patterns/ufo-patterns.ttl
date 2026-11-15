@@ -1,0 +1,104 @@
+# wod.wiki ontology — :patterns named graph (UFO stereotypes & OTTR annotations)
+# Named Graph: <https://wod.wiki/graph/patterns>
+# ---------------------------------------------------------------------------
+# Foundational Ontology Design Patterns (ODP) & Unified Foundational Ontology
+# (UFO / OntoUML) stereotypes for wod.wiki.
+#
+# Every domain, QA, code, and bridge class in the unified dataset carries a
+# ufo:stereotype annotation so downstream codegen, documentation, and queries
+# distinguish rigid kinds, relational relators, dynamic phases/roles,
+# perdurant events, intrinsic modes/quantities, and information objects.
+# ---------------------------------------------------------------------------
+
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
+@prefix ottr: <http://ns.ottr.xyz/0.4/> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/patterns/ufo> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — UFO stereotypes & OTTR patterns" ;
+    owl:versionInfo "0.3.0" ;
+    rdfs:comment "Foundational UFO stereotype vocabulary and OTTR-style pattern annotations for the :patterns named graph." .
+
+# === Annotation & Pattern Properties ========================================
+
+ufo:stereotype a owl:AnnotationProperty ;
+    rdfs:label "UFO stereotype" ;
+    rdfs:comment "Assigns a Unified Foundational Ontology (UFO) stereotype to an OWL class." .
+
+ufo:ottrSignature a owl:AnnotationProperty ;
+    rdfs:label "OTTR template signature" ;
+    rdfs:comment "Human- and machine-readable OTTR-style template signature documenting the canonical instantiation pattern for a class or relation." .
+
+ufo:instantiatesPattern a owl:AnnotationProperty ;
+    rdfs:label "instantiates pattern" ;
+    rdfs:comment "Links a domain class or property to an ODP / OTTR pattern individual in :patterns." .
+
+# === Stereotype Meta-Class & Vocabulary =====================================
+
+ufo:Stereotype a owl:Class ;
+    rdfs:label "UFO Stereotype" ;
+    rdfs:comment "Meta-class of OntoUML / UFO ontological categories." .
+
+ufo:Kind a ufo:Stereotype ;
+    rdfs:label "«kind»" ;
+    rdfs:comment "Rigid, identity-providing substance sortal (e.g., Note, Page, Effort, ScriptRuntime)." .
+
+ufo:Relator a ufo:Stereotype ;
+    rdfs:label "«relator»" ;
+    rdfs:comment "Existentially dependent truth-maker mediating two or more entities (e.g., PageNote, NoteTag, FieldSourceRecord)." .
+
+ufo:Phase a ufo:Stereotype ;
+    rdfs:label "«phase»" ;
+    rdfs:comment "Anti-rigid, intrinsically grounded state of a kind (e.g., a live vs historical NoteSegment, an active RuntimeBlock)." .
+
+ufo:Role a ufo:Stereotype ;
+    rdfs:label "«role»" ;
+    rdfs:comment "Anti-rigid, relationally grounded specialization of a kind (e.g., a Note acting as a Template or Collection item)." .
+
+ufo:Event a ufo:Stereotype ;
+    rdfs:label "«event»" ;
+    rdfs:comment "Perdurant occurrence unfolding in time (e.g., SessionRun, WorkoutEvent, RuntimeAction, Activity, qa:Run)." .
+
+ufo:Perdurant a ufo:Stereotype ;
+    rdfs:label "«perdurant»" ;
+    rdfs:comment "General perdurant / process category encompassing events and ongoing runtime executions." .
+
+ufo:Mode a ufo:Stereotype ;
+    rdfs:label "«mode»" ;
+    rdfs:comment "Intrinsic, non-measurable dependent aspect of an entity (e.g., RuntimeClock state, Configuration)." .
+
+ufo:Quantity a ufo:Stereotype ;
+    rdfs:label "«quantity»" ;
+    rdfs:comment "Measurable quality value / magnitude (e.g., MetricObservation, Metric)." .
+
+ufo:InformationObject a ufo:Stereotype ;
+    rdfs:label "«informationObject»" ;
+    rdfs:comment "Stored or serialized informational artifact / record, distinct from the occurrence it describes (e.g., SessionRecord, EventRecord, BlockIndexRow, code:File, code:Symbol)." .
+
+# === OTTR-Style Pattern Templates ===========================================
+
+ufo:PatternTemplate a owl:Class ;
+    rdfs:label "Pattern Template" ;
+    rdfs:comment "An OTTR-style Ontology Design Pattern template." .
+
+ufo:RecordVsOccurrencePattern a ufo:PatternTemplate ;
+    rdfs:label "Record vs Occurrence Pattern" ;
+    ufo:ottrSignature "wod:RecordOccurrence(?record: InformationObject, ?occurrence: Event)" ;
+    rdfs:comment "Separates a stored archival record (e.g., SessionRecord, EventRecord) from the perdurant occurrence it documents (SessionRun, WorkoutEvent) via wod:recordsOccurrence." .
+
+ufo:RelatorJunctionPattern a ufo:PatternTemplate ;
+    rdfs:label "Relator Junction Pattern" ;
+    ufo:ottrSignature "wod:Relator(?relator: Relator, ?source: Kind, ?target: Kind)" ;
+    rdfs:comment "Models N:M reified relationships (PageNote, NoteTag) as UFO Relators mediating two Kinds with explicit cardinality and ordering." .
+
+ufo:DerivedProjectionPattern a ufo:PatternTemplate ;
+    rdfs:label "Derived Projection Pattern" ;
+    ufo:ottrSignature "wod:DerivedProjection(?projection: InformationObject, ?source: Kind)" ;
+    rdfs:comment "Marks read-only projections (BlockIndexRow, AnalyticsDataPoint, FieldCatalogEntry) as derived from authored sources, never a second authoring truth." .
+
+ufo:FiveBeatJourneyPattern a ufo:PatternTemplate ;
+    rdfs:label "Five-Beat QA Journey Pattern (Hermes O1-O5)" ;
+    ufo:ottrSignature "qa:FiveBeat(?journey: Journey, ?seed: SeedBeat, ?enter: EnterBeat, ?sense: SenseBeat, ?drive: DriveBeat, ?prove: ProveBeat)" ;
+    rdfs:comment "Structures every QA acceptance journey as a 5-beat causal chain: Seed -> Enter -> Sense -> Drive -> Prove." .

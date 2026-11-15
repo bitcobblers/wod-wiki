@@ -210,6 +210,38 @@ export const TEST_IDS = {
   AGENT_CONFIRM_APPROVE: 'agent-confirm-approve',
   AGENT_CONFIRM_CANCEL: 'agent-confirm-cancel',
   WEBMCP_DEBUG_INSPECTOR: 'webmcp-debug-inspector',
+
+  // ── Home Tour ──────────────────────────────────────────────────────────────
+  tour: {
+    HOME_TOUR: 'home-tour',
+    HERO: 'tour-hero',
+    HERO_RESET_SHARED: 'tour-hero-reset-shared',
+    SECTION_EDITOR: 'tour-section-editor',
+    WHY_WATCH_AGAIN: 'tour-why-watch-again',
+    WHY_VIDEO: 'tour-why-video',
+    WHY_VIDEO_SKIP: 'tour-why-video-skip',
+    SCROLL_HINT: 'tour-scroll-hint',
+    SECTION_INSIGHTS: 'tour-section-insights',
+    INSIGHTS_EMPTY: 'tour-insights-empty',
+    INSIGHTS_RUN: 'tour-insights-run',
+    INSIGHTS: 'tour-insights',
+    INSIGHTS_TIMELINE: 'tour-insights-timeline',
+    INSIGHTS_IMPATIENCE: 'tour-insights-impatience',
+    INSIGHTS_REACTION: 'tour-insights-reaction',
+    PANE_BACK_TO_EDITOR: 'tour-pane-back-to-editor',
+    STICKY_PANE: 'tour-sticky-pane',
+    SESSION_DASHBOARD: 'tour-session-dashboard',
+    SESSION_DASHBOARD_SOURCE: 'tour-session-dashboard-source',
+    WOD_BLOCK_REGION: 'tour-wod-block-region',
+    RUN_BUTTON_REGION: 'tour-run-button-region',
+    JUMP_SECTION: 'tour-jump-section',
+    LEARN: 'tour-learn',
+    FOOTER: 'tour-footer',
+    CHAPTER_PICKER: 'tour-chapter-picker',
+    CAPTIONS: 'tour-captions',
+    RING: 'tour-ring',
+  },
 } as const;
 
-export type TestId = (typeof TEST_IDS)[keyof typeof TEST_IDS];
+type LeafValues<T> = T extends string ? T : T extends Record<string, unknown> ? LeafValues<T[keyof T]> : never;
+export type TestId = LeafValues<typeof TEST_IDS>;

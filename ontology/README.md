@@ -1,50 +1,57 @@
-# wod.wiki Ontology
+# wod.wiki Unified Ontology
 
-The wod.wiki domain model as a formal, machine-checkable ontology: Turtle
-modules for meaning, SHACL shapes for contracts, and examples that prove both
-directions — valid data conforms, broken data fails with readable reasons.
+The wod.wiki domain, QA, and code knowledge graph as a formal, machine-checkable
+**5-named-graph RDF dataset** (`dataset.trig`): Turtle/TriG modules for meaning,
+SHACL contracts for validation, and examples that prove both directions — valid
+data conforms, broken data fails with readable reasons.
 
-The model is **modeled on the code as it exists** (`docs/domain-model/*.md` +
-the type sources they cite). Where the docs record open design questions, the
-ontology models the current state and flags the question in a comment — it
-does not silently decide it.
+## 5-Named-Graph Architecture (`dataset.trig`)
 
-## Layout — split by owning library
+| Named Graph | Graph IRI | Source Modules | Purpose |
+|---|---|---|---|
+| `:patterns` | `<https://wod.wiki/graph/patterns>` | `patterns/ufo-patterns.ttl` | UFO stereotypes (`«kind»`, `«relator»`, `«phase»`, `«role»`, `«event»`, `«mode»`, `«quantity»`, `«informationObject»`, `«perdurant»`) & OTTR pattern annotations |
+| `:domain` | `<https://wod.wiki/graph/domain>` | `ontology.ttl`, `lang/`, `engine/`, `core/`, `app/`, `wql/` | Domain nouns (`wod:`), record-vs-occurrence split (`SessionRun` vs `SessionRecord`, `WorkoutEvent` vs `EventRecord`), and engine `Activity` verbs |
+| `:qa` | `<https://wod.wiki/graph/qa>` | `qa/qa-schema.ttl` (+ `generated/qa-instances.ttl`) | Declared QA schema (`qa:Domain`, `qa:Journey`, `qa:Step`, `qa:Beat` 5-beat chain `Seed → Enter → Sense → Drive → Prove`, `qa:Run`, `qa:Issue`) + PROV-O edges |
+| `:code` | `<https://wod.wiki/graph/code>` | `code/code-schema.ttl` (+ `generated/code-graph.ttl`) | SCIP-style `code:File`, `code:Symbol`, `code:TestId`, `code:Route`, `code:WebMcpTool` keyed by path + symbol name (`code:lineHint` is non-load-bearing) |
+| `:bridge` | `<https://wod.wiki/graph/bridge>` | `bridge/bridge.ttl` (+ `generated/bridge-instances.ttl`) | Cross-graph alignment (`bridge:touches`, `bridge:rootCause`, `bridge:seedNoun`, `bridge:domainMapping`, `bridge:specFile`, `bridge:playwrightSpec`, `bridge:route`, `bridge:testId`) & Hermes O1–O5 levels |
 
-The ontology mirrors the codebase: each module models the types its library
-owns, so a change in a package has an obvious ontology home.
+## Directory Layout
 
 ```
 ontology/
-  ontology.ttl            root manifest (owl:imports of all modules)
-  lang/                   @bitcobblers/wod-wiki-lang
-    metrics.ttl             Metric vocabulary, MetricObservation, QUDT units
-    efforts.ttl             Effort (slug key, MET, discipline)
-    statements.ttl          ScriptBlock, Statement, dialects
-  core/                   @bitcobblers/wod-wiki-core
-    results.ttl             Session, EventRecord, SegmentEvent, SummaryEvent
-    fields.ttl              Field catalog / sources / values, backfill state
-  app/                    apps/playground
-    content.ttl             Note, NoteSegment (versioned [id, version])
-    pages.ttl               Page, PageNote (placement junction)
-    taxonomy.ttl            Tag, TagType, NoteTag
-    attachments.ttl         Attachment
-    library.ttl             BlockIndexRow, Collection, Configuration
-  wql/                    @bitcobblers/wod-wiki-wql
-    queries.ttl             WQLQuery, AnalyticsDataPoint, Dashboard, widgets
-  shapes/                 SHACL contracts, split the same way (lang/core/app/wql)
-  examples/               valid + deliberately broken data
-  graphs/                 diagrams (regenerate: graphs/make_graphs.py)
-  validate.sh             run every example against every shape
+  dataset.trig              5-named-graph TriG dataset manifest
+  ontology.ttl              :domain root manifest (owl:imports of domain modules)
+  patterns/
+    ufo-patterns.ttl          UFO stereotypes & OTTR templates (:patterns)
+  lang/                     @bitcobblers/wod-wiki-lang
+    metrics.ttl               Metric vocabulary, MetricObservation, QUDT units (incl. unit:NUM, unit:MilliSEC)
+    efforts.ttl               Effort (slug key, MET, discipline)
+    statements.ttl            ScriptBlock, Statement, dialects
+  engine/                   @bitcobblers/wod-wiki-engine
+    activities.ttl            ScriptRuntime, RuntimeStack, RuntimeBlock, Activity & RuntimeAction verbs
+  core/                     @bitcobblers/wod-wiki-core
+    results.ttl               SessionRun vs SessionRecord (= Session), WorkoutEvent vs EventRecord, BlockContentHash
+    fields.ttl                FieldCatalogEntry, FieldSourceRecord, FieldValueRecord, CatalogBackfillState
+  app/                      apps/playground
+    content.ttl               Note, NoteSegment, NoteKind
+    pages.ttl                 Page, PageNote (placement relator)
+    taxonomy.ttl              Tag, TagType, NoteTag (classification relator)
+    attachments.ttl           Attachment
+    library.ttl               BlockIndexRow, StaticCollection vs QueryCollectionPage, Configuration
+  wql/                      @bitcobblers/wod-wiki-wql
+    queries.ttl               WQLQuery, AnalyticsDataPoint, Dashboard, DashboardWidget
+  qa/
+    qa-schema.ttl             QA & Hermes 5-beat schema (:qa)
+    qa-legacy-alignment.ttl   Temporary OWL alignment for legacy qa.forest-adhara.ts.net/ont# IRIs
+  code/
+    code-schema.ttl           SCIP-style code graph schema (:code)
+  bridge/
+    bridge.ttl                Cross-graph & Hermes O1-O5 alignment (:bridge)
+  shapes/                   SHACL contracts (lang, core, app, wql, qa, code, bridge)
+  examples/                 Valid + deliberately broken data
+  generated/                Generated code/QA/bridge instances, chains.md, and TypeScript types
+  validate.sh               Syntax + pySHACL validation via uv
 ```
-
-`packages/engine` executes lang statements (its outputs are what core/results
-stores) and `packages/storage` defines the physical stores beneath core/app —
-neither owns domain types, so neither has a module.
-
-Diagrams: `graphs/overview.png` (module map by library), `graphs/authoring.png`
-(the app side as a class graph), `graphs/shapes.png` (shape inventory),
-`graphs/tabata-instance.png` (example data as a graph).
 
 ## Validate
 
@@ -52,52 +59,23 @@ Diagrams: `graphs/overview.png` (module map by library), `graphs/authoring.png`
 ontology/validate.sh
 ```
 
-Expected: `tabata-session` and `notebook` conform; `broken-session` and
-`broken-notebook` fail with exactly five violations each. Tooling: pySHACL +
-rdflib (a local venv; the script merges all modules into the data graph
-because validators need the vocabulary and subclass triples present).
+Uses `uv run --with rdflib --with pyshacl` (no pre-installed local venv required):
+- Syntax-checks all `.ttl` and `.trig` files.
+- Runs `pyshacl` with `advanced=True` (enabling SHACL-SPARQL constraints such as `wod:MetricObservationShape` unit-compatibility checking).
+- Expected:
+  - `tabata-session`, `notebook`, `unified-qa-bridge` → `Conforms: True`
+  - `broken-session`, `broken-notebook`, `broken-bridge` → `Conforms: False`
 
-## Design rules that hold across modules
+## Design Rules & Taxonomy Resolutions
 
-1. **Meaning (OWL/Turtle) and contract (SHACL) are separate layers.** The
-   ontology says what things are; shapes say what data may claim to follow it.
-2. **Closed shapes for small, fully-known records** (MetricObservation);
-   **open shapes where the product must grow** (the event stream's
-   outputType vocabulary is deliberately unconstrained).
-3. **Aggregates are derived, never stored** — a session's total reps is a
-   WQL computation, not a field. SummaryEvent rows are the one stored
-   exception, and they are system-produced folds, one metric per row.
-4. **String-key joins are modeled honestly** — effortSlug, Tag.type,
-   blockContentId and FieldSourceRecord's `note:`/`result:` ids are strings
-   in storage that the ontology resolves to the records they name.
-   blockContentId in particular is a content-hash join, *not* an identity.
-5. **Derived things say so** — BlockIndexRow and Collection are projections
-   of authored sources, never a second authoring source.
-6. **Vocabulary as individuals** (metrics, dialects, query sources), so
-   shapes validate against lists and new terms are data, not schema edits.
-
-## Open questions (flagged in the files, undecided)
-
-- Count unit: settle reps' unit against QUDT (today: `wod:CountUnit`
-  placeholder in lang/metrics).
-- Time policy: repo stores epoch ms (and `timeSpan`s); the ontology uses
-  `xsd:dateTime`. Elapsed observations in milliseconds are unresolved.
-- Segment identity: editor and persistence mint block ids differently
-  (`wblk-` vs `bc-`); canonical contract before cross-source joins rely on it.
-- Note kind taxonomy (issue #1026) and collection-page membership (#1031)
-  remain the tickets' decisions, not the ontology's.
-- Where results join: `result:` → `session:` prefix rename is proposed in the
-  field docs; shapes accept both today.
-- LinkML (one model generating OWL + SHACL + TypeScript types) is still the
-  open bridge back to compile-time type safety.
-- This directory currently lives on the `scroll-track-service` branch clone;
-  re-home onto main when it is committed.
-
-## History
-
-Spike 1 (2026-10-23) proved the approach on the metric core alone
-(Session → EventRecord → MetricObservation) in `~/workspace/wod-wiki-ontology/`.
-This directory is its full home: the spike's monolith split by library, the
-stubs (Note, NoteSegment) fleshed out, and every other domain-model entity
-(Page, PageNote, Tag/TagType/NoteTag, Attachment, BlockIndexRow, the field
-subsystem, Configuration, Collection, WQL queries/dashboards) modeled.
+1. **Meaning (OWL/Turtle) and contract (SHACL) are separate layers.**
+2. **UFO stereotypes & Record-vs-Occurrence split:** Every class carries `ufo:stereotype`. Archival records (`wod:SessionRecord`, `wod:EventRecord`) are `«informationObject»`s distinct from the perdurant `«event»` occurrences (`wod:SessionRun`, `wod:WorkoutEvent`) linked via `wod:recordsOccurrence`.
+3. **SCIP-style code identity:** `code:File` and `code:Symbol` are keyed by `code:filePath` and `code:scipId` (`<filePath>#<symbolName>`). `code:lineHint` is strictly non-load-bearing.
+4. **Resolved open taxonomy questions:**
+   - **QUDT CountUnit:** `wod:CountUnit` is aligned via `owl:sameAs` to `unit:NUM`.
+   - **Time policy:** Canonical RDF timestamps use `xsd:dateTime` (raw storage epoch-ms may be carried on `wod:epochMs`); `wod:mElapsed` accepts `unit:SEC` and `unit:MilliSEC`.
+   - **Block content hash (`wblk-` vs `bc-`):** Modeled as `wod:BlockContentHash` — a content-hash join that must normalize before cross-path joins, never an occurrence identity.
+   - **NoteKind (#1026):** Closed `wod:NoteKind` enumeration (`owl:oneOf`) selecting default presentation only, never permission, placement, or provenance.
+   - **Collection membership (#1031):** Disjoint `wod:StaticCollection` (corpus directory + `wod:hasCollectionItem`) vs `wod:QueryCollectionPage` (dynamic `wod:backedByQuery`).
+   - **Field source prefix (`result:` → `session:`):** `session:` is canonical; `result:` is retained as a legacy alias in `FieldSourceRecordShape`.
+   - **Canonical QA namespace:** `https://wod.wiki/ontology/qa#` is canonical. The live QA dashboard (`qa.forest-adhara.ts.net/ont#`) is a temporary fork; `qa/qa-legacy-alignment.ttl` provides OWL equivalence axioms during migration.

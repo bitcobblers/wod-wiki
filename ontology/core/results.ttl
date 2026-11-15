@@ -11,35 +11,72 @@
 # ---------------------------------------------------------------------------
 
 @prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 <https://wod.wiki/ontology/core/results> a owl:Ontology ;
     rdfs:label "wod.wiki ontology — core: sessions & event records" ;
-    owl:versionInfo "0.2.0" .
+    owl:versionInfo "0.3.0" .
 
 # === Classes ==============================================================
+# Record vs Occurrence split (ufo:RecordVsOccurrencePattern):
+# - SessionRun / WorkoutEvent are perdurant «event» occurrences unfolding in time.
+# - SessionRecord (= Session) / EventRecord are archival «informationObject» rows.
+
+wod:SessionRun a owl:Class ;
+    ufo:stereotype ufo:Event ;
+    ufo:instantiatesPattern ufo:RecordVsOccurrencePattern ;
+    rdfs:label "Session Run" ;
+    rdfs:comment "The perdurant workout execution occurrence unfolding in time from workout start to completion/abort." .
+
+wod:SessionRecord a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    ufo:instantiatesPattern ufo:RecordVsOccurrencePattern ;
+    rdfs:label "Session Record" ;
+    rdfs:comment "Archival execution metadata row for one SessionRun: born in-progress at workout start, completed at finalize. Repo store: sessions." .
 
 wod:Session a owl:Class ;
+    owl:equivalentClass wod:SessionRecord ;
+    ufo:stereotype ufo:InformationObject ;
     rdfs:label "Session" ;
-    rdfs:comment "Execution metadata for one run of a note segment: born in-progress at workout start, completed at finalize. Identity and totals only — the statement stream lives on EventRecords, not on the session row. Repo store: sessions." .
+    rdfs:comment "Canonical alias for wod:SessionRecord. Identity and totals only — the statement stream lives on EventRecords, not on the session row. Repo store: sessions." .
+
+wod:WorkoutEvent a owl:Class ;
+    ufo:stereotype ufo:Event ;
+    ufo:instantiatesPattern ufo:RecordVsOccurrencePattern ;
+    rdfs:label "Workout Event" ;
+    rdfs:comment "A perdurant occurrence emitted during a SessionRun (e.g., completing a round, rep, or interval) that is archived as an EventRecord." .
 
 wod:EventRecord a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    ufo:instantiatesPattern ufo:RecordVsOccurrencePattern ;
     rdfs:label "Event Record" ;
     rdfs:comment "One row of the archival statement stream the runtime engine emits (the stored form of a live output statement). Grain 'event' rows are raw statements; grain 'summary' rows are derived aggregates folded from Tier-2 outputs. Repo store: events." .
 
 wod:SegmentEvent a owl:Class ;
     rdfs:subClassOf wod:EventRecord ;
+    ufo:stereotype ufo:InformationObject ;
     rdfs:label "Segment Event" ;
     rdfs:comment "An EventRecord with outputType 'segment': one performed piece of the workout carrying the metrics recorded for it." .
 
 wod:SummaryEvent a owl:Class ;
     rdfs:subClassOf wod:EventRecord ;
+    ufo:stereotype ufo:InformationObject ;
     rdfs:label "Summary Event" ;
     rdfs:comment "An EventRecord with grain 'summary': a derived aggregate row. Carries exactly one metric entry (EventRecord.metrics[0] is shape-uniform with events). Produced by finalizeSummaries / re-derivation, never authored directly." .
 
+wod:BlockContentHash a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Block Content Hash" ;
+    rdfs:comment "TAXONOMY RESOLUTION (wblk- vs bc-): Content-comparison key for workout blocks. Editor (wblk-) and persistence (bc-) must normalize to a single canonical content hash before cross-path joins; it is NEVER an occurrence identity." .
+
 # === Properties ===========================================================
+
+wod:recordsOccurrence a owl:ObjectProperty ;
+    rdfs:label "records occurrence" ;
+    rdfs:comment "Links an archival InformationObject record (SessionRecord, EventRecord) to the perdurant Event occurrence (SessionRun, WorkoutEvent) it documents." .
 
 wod:hasEvent a owl:ObjectProperty ;
     rdfs:label "has event" ;
@@ -104,7 +141,12 @@ wod:startTime a owl:DatatypeProperty ;
     rdfs:label "start time" ;
     rdfs:domain wod:Session ;
     rdfs:range xsd:dateTime ;
-    rdfs:comment "Repo stores epoch milliseconds; the ontology uses xsd:dateTime. The mapping is a serialization concern, flagged in the README's open questions." .
+    rdfs:comment "TIME POLICY RESOLUTION: Canonical RDF representation is xsd:dateTime (ISO-8601 with timezone). Repo storage uses epoch milliseconds, serialized to xsd:dateTime at the RDF boundary (or preserved via wod:epochMs)." .
+
+wod:epochMs a owl:DatatypeProperty ;
+    rdfs:label "epoch milliseconds" ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Raw storage epoch-millisecond timestamp when lossless round-trip of storage integers is needed alongside canonical xsd:dateTime." .
 
 wod:endTime a owl:DatatypeProperty ;
     rdfs:label "end time" ;

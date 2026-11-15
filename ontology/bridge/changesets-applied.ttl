@@ -1,0 +1,129 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix wod: <https://wod.wiki/ontology#> .
+@prefix code: <https://wod.wiki/ontology/code#> .
+@prefix bridge: <https://wod.wiki/ontology/bridge#> .
+@prefix qa: <https://wod.wiki/ontology/qa#> .
+
+# Canonical triples merged from approved ontology changesets.
+
+# --- Applied changeset: 20261114T172431Z-tour-testids-shakedown (2026-11-14T17:24:41.813Z) ---
+code:file_apps_playground_app_tour_HomeTour_tsx a code:File ;
+    code:filePath "apps/playground/app/tour/HomeTour.tsx" .
+  code:file_apps_playground_src_lib_testIds_ts a code:File ;
+    code:filePath "apps/playground/src/lib/testIds.ts" .
+  code:sym_apps_playground_src_lib_testIds_ts_TestId a code:Symbol ;
+    code:symbolName "TestId" ;
+    code:scipId "apps/playground/src/lib/testIds.ts#TestId" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_home-tour a code:TestId ;
+    code:testIdKey "TEST_IDS.HOME_TOUR" ;
+    code:testIdValue "home-tour" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-captions a code:TestId ;
+    code:testIdKey "TEST_IDS.CAPTIONS" ;
+    code:testIdValue "tour-captions" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-chapter-picker a code:TestId ;
+    code:testIdKey "TEST_IDS.CHAPTER_PICKER" ;
+    code:testIdValue "tour-chapter-picker" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-footer a code:TestId ;
+    code:testIdKey "TEST_IDS.FOOTER" ;
+    code:testIdValue "tour-footer" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-hero a code:TestId ;
+    code:testIdKey "TEST_IDS.HERO" ;
+    code:testIdValue "tour-hero" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-hero-reset-shared a code:TestId ;
+    code:testIdKey "TEST_IDS.HERO_RESET_SHARED" ;
+    code:testIdValue "tour-hero-reset-shared" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-insights a code:TestId ;
+    code:testIdKey "TEST_IDS.INSIGHTS" ;
+    code:testIdValue "tour-insights" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-insights-empty a code:TestId ;
+    code:testIdKey "TEST_IDS.INSIGHTS_EMPTY" ;
+    code:testIdValue "tour-insights-empty" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-insights-impatience a code:TestId ;
+    code:testIdKey "TEST_IDS.INSIGHTS_IMPATIENCE" ;
+    code:testIdValue "tour-insights-impatience" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-insights-reaction a code:TestId ;
+    code:testIdKey "TEST_IDS.INSIGHTS_REACTION" ;
+    code:testIdValue "tour-insights-reaction" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-insights-run a code:TestId ;
+    code:testIdKey "TEST_IDS.INSIGHTS_RUN" ;
+    code:testIdValue "tour-insights-run" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-insights-timeline a code:TestId ;
+    code:testIdKey "TEST_IDS.INSIGHTS_TIMELINE" ;
+    code:testIdValue "tour-insights-timeline" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-jump-section a code:TestId ;
+    code:testIdKey "TEST_IDS.JUMP_SECTION" ;
+    code:testIdValue "tour-jump-section" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-learn a code:TestId ;
+    code:testIdKey "TEST_IDS.LEARN" ;
+    code:testIdValue "tour-learn" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-pane-back-to-editor a code:TestId ;
+    code:testIdKey "TEST_IDS.PANE_BACK_TO_EDITOR" ;
+    code:testIdValue "tour-pane-back-to-editor" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-ring a code:TestId ;
+    code:testIdKey "TEST_IDS.RING" ;
+    code:testIdValue "tour-ring" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-run-button-region a code:TestId ;
+    code:testIdKey "TEST_IDS.RUN_BUTTON_REGION" ;
+    code:testIdValue "tour-run-button-region" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-scroll-hint a code:TestId ;
+    code:testIdKey "TEST_IDS.SCROLL_HINT" ;
+    code:testIdValue "tour-scroll-hint" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-section-editor a code:TestId ;
+    code:testIdKey "TEST_IDS.SECTION_EDITOR" ;
+    code:testIdValue "tour-section-editor" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-section-insights a code:TestId ;
+    code:testIdKey "TEST_IDS.SECTION_INSIGHTS" ;
+    code:testIdValue "tour-section-insights" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-session-dashboard a code:TestId ;
+    code:testIdKey "TEST_IDS.SESSION_DASHBOARD" ;
+    code:testIdValue "tour-session-dashboard" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-session-dashboard-source a code:TestId ;
+    code:testIdKey "TEST_IDS.SESSION_DASHBOARD_SOURCE" ;
+    code:testIdValue "tour-session-dashboard-source" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-sticky-pane a code:TestId ;
+    code:testIdKey "TEST_IDS.STICKY_PANE" ;
+    code:testIdValue "tour-sticky-pane" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-why-video a code:TestId ;
+    code:testIdKey "TEST_IDS.WHY_VIDEO" ;
+    code:testIdValue "tour-why-video" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-why-video-skip a code:TestId ;
+    code:testIdKey "TEST_IDS.WHY_VIDEO_SKIP" ;
+    code:testIdValue "tour-why-video-skip" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-why-watch-again a code:TestId ;
+    code:testIdKey "TEST_IDS.WHY_WATCH_AGAIN" ;
+    code:testIdValue "tour-why-watch-again" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .
+  code:testid_tour-wod-block-region a code:TestId ;
+    code:testIdKey "TEST_IDS.WOD_BLOCK_REGION" ;
+    code:testIdValue "tour-wod-block-region" ;
+    code:definedIn code:file_apps_playground_src_lib_testIds_ts .

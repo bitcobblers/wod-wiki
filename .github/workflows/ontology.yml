@@ -1,0 +1,82 @@
+name: Ontology & Contract Gates
+
+on:
+  pull_request:
+    paths:
+      - 'ontology/**'
+      - 'apps/playground/**'
+      - 'e2e/**'
+      - 'scripts/ontology/**'
+      - 'scripts/check-test-ids.ts'
+      - 'skills/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'ontology/**'
+      - 'apps/playground/**'
+      - 'e2e/**'
+      - 'scripts/ontology/**'
+      - 'scripts/check-test-ids.ts'
+      - 'skills/**'
+
+jobs:
+  ontology-and-contracts:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate ontology (Turtle, TriG, SHACL, seedNoun integrity)
+        continue-on-error: true
+        run: |
+          if ! bash ontology/validate.sh; then
+            echo "::warning::Ontology SHACL/syntax validation reported issues (non-blocking)."
+            exit 1
+          fi
+
+      - name: Verify ontology generated artifacts are fresh
+        continue-on-error: true
+        run: |
+          if ! (bun run ontology:build -- --offline && bun run ontology:codegen && bun run ontology:query -- --chains && bun run ontology:viewer && git diff --exit-code ontology/generated/); then
+            echo "::warning::Ontology generated artifacts are out of date (non-blocking)."
+            exit 1
+          fi
+
+      - name: Enforce TEST_IDS contract
+        continue-on-error: true
+        run: |
+          if ! bun run check:test-ids; then
+            echo "::warning::TEST_IDS contract check reported violations (non-blocking)."
+            exit 1
+          fi
+
+      - name: Check E2E spec parity
+        continue-on-error: true
+        run: |
+          if ! bun scripts/check-e2e-specs.ts; then
+            echo "::warning::E2E spec parity check reported violations (non-blocking)."
+            exit 1
+          fi
+
+      - name: Upload Ontology Explorer & dataset artifacts
+        uses: actions/upload-artifact@v7
+        if: always()
+        continue-on-error: true
+        with:
+          name: ontology-explorer
+          path: |
+            ontology/generated/explorer.html
+            ontology/generated/chains.md
+            ontology/generated/unified-dataset.trig
+          if-no-files-found: ignore
+          retention-days: 14

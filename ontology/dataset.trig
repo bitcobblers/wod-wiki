@@ -1,0 +1,60 @@
+# wod.wiki Unified 5-Named-Graph RDF Dataset Manifest (TriG)
+# ---------------------------------------------------------------------------
+# Unifies the three previously disconnected islands into 5 named graphs:
+#   1. wodg:patterns — <https://wod.wiki/graph/patterns>  (ontology/patterns/ufo-patterns.ttl)
+#   2. wodg:domain   — <https://wod.wiki/graph/domain>    (ontology/ontology.ttl + modules)
+#   3. wodg:qa       — <https://wod.wiki/graph/qa>        (ontology/qa/qa-schema.ttl + generated/qa-instances.ttl)
+#   4. wodg:code     — <https://wod.wiki/graph/code>      (ontology/code/code-schema.ttl + generated/code-graph.ttl)
+#   5. wodg:bridge   — <https://wod.wiki/graph/bridge>    (ontology/bridge/bridge.ttl + generated/bridge-instances.ttl)
+# ---------------------------------------------------------------------------
+
+@prefix wodg:   <https://wod.wiki/graph/> .
+@prefix wod:    <https://wod.wiki/ontology#> .
+@prefix ufo:    <https://wod.wiki/ontology/patterns#> .
+@prefix qa:     <https://wod.wiki/ontology/qa#> .
+@prefix code:   <https://wod.wiki/ontology/code#> .
+@prefix bridge: <https://wod.wiki/ontology/bridge#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix void:   <http://rdfs.org/ns/void#> .
+
+# Default graph: dataset catalog & named-graph registry
+<https://wod.wiki/dataset> a void:Dataset ;
+    rdfs:label "wod.wiki Unified Ontology Dataset" ;
+    owl:versionInfo "0.3.0" ;
+    dcterms:hasPart wodg:patterns , wodg:domain , wodg:qa , wodg:code , wodg:bridge .
+
+wodg:patterns {
+    <https://wod.wiki/graph/patterns> a owl:Ontology ;
+        rdfs:label ":patterns — UFO stereotypes & OTTR templates" ;
+        owl:imports <https://wod.wiki/ontology/patterns/ufo> .
+}
+
+wodg:domain {
+    <https://wod.wiki/graph/domain> a owl:Ontology ;
+        bridge:hermesLevel bridge:O1DomainOntology ;
+        rdfs:label ":domain — wod.wiki domain nouns & engine activities" ;
+        owl:imports <https://wod.wiki/ontology> .
+}
+
+wodg:qa {
+    <https://wod.wiki/graph/qa> a owl:Ontology ;
+        bridge:hermesLevel bridge:O2TestOntology ;
+        rdfs:label ":qa — QA domains, 5-beat journeys, runs & issues" ;
+        owl:imports <https://wod.wiki/ontology/qa> .
+}
+
+wodg:code {
+    <https://wod.wiki/graph/code> a owl:Ontology ;
+        bridge:hermesLevel bridge:O3CodeGraph ;
+        rdfs:label ":code — SCIP-style files, symbols, testIds, routes & WebMCP tools" ;
+        owl:imports <https://wod.wiki/ontology/code> .
+}
+
+wodg:bridge {
+    <https://wod.wiki/graph/bridge> a owl:Ontology ;
+        bridge:hermesLevel bridge:O4BridgeGraph ;
+        rdfs:label ":bridge — cross-graph alignment & Hermes O1-O5 edges" ;
+        owl:imports <https://wod.wiki/ontology/bridge> .
+}

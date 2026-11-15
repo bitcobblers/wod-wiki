@@ -32,6 +32,8 @@ const AGENT_MIRRORED = [
   'wod-cli',
   'wod-wql',
   'wod-agent-parity',
+  'wod-ontology-to-code',
+  'wod-code-to-ontology',
 ] as const
 
 const REPO_PATH_PREFIX = /^(?:packages|apps|e2e|docs|scripts)\/[A-Za-z0-9._/-]+$/

@@ -1,0 +1,46 @@
+# Broken example (:qa + :code + :bridge): five deliberate defects.
+# Validation MUST fail on this file. Expected violations:
+#   1. journey id "run_02" (bad pattern)         -> JourneyShape journeyId pattern
+#   2. step missing qa:hasBeat                   -> StepShape hasBeat minCount
+#   3. symbol missing code:definedIn             -> SymbolShape definedIn minCount
+#   4. filePath starts with "/"                  -> FileShape filePath pattern
+#   5. issue rootCause is a raw string literal   -> IssueBridgeShape rootCause nodeKind/or
+
+@prefix qa:     <https://wod.wiki/ontology/qa#> .
+@prefix code:   <https://wod.wiki/ontology/code#> .
+@prefix bridge: <https://wod.wiki/ontology/bridge#> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix ex:     <https://wod.wiki/data/> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+
+ex:domain-bad a qa:Domain .
+
+ex:run-bad a qa:Run ;
+    qa:runId "run-bad-1" ;
+    qa:runTimestamp "2026-11-14T10:00:00Z"^^xsd:dateTime .
+
+# Defect 4: leading slash in filePath
+ex:file-bad a code:File ;
+    code:filePath "/abs/path/to/file.ts" .
+
+# Defect 3: Symbol missing definedIn
+ex:sym-bad a code:Symbol ;
+    code:symbolName "brokenFn" ;
+    code:scipId "src/broken.ts#brokenFn" .
+
+# Defect 2: Step missing hasBeat
+ex:step-bad a qa:Step ;
+    qa:stepIndex 1 .
+
+# Defect 1: Journey id fails ^[A-Z]+-[0-9]+$
+ex:journey-bad a qa:Journey ;
+    qa:journeyId "run_02" ;
+    qa:inDomain ex:domain-bad ;
+    qa:hasStep ex:step-bad .
+
+# Defect 5: Issue rootCause is a raw string instead of a typed Symbol/File IRI
+ex:issue-bad a qa:Issue ;
+    qa:issueId "ISS-BAD" ;
+    qa:issueSeverity "high" ;
+    prov:wasGeneratedBy ex:run-bad ;
+    bridge:rootCause "packages/engine/src/broken.ts:42" .

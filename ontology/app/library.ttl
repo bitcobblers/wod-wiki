@@ -11,17 +11,20 @@
 # ---------------------------------------------------------------------------
 
 @prefix wod:  <https://wod.wiki/ontology#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 <https://wod.wiki/ontology/app/library> a owl:Ontology ;
     rdfs:label "wod.wiki ontology — app: library, collections, configuration" ;
-    owl:versionInfo "0.2.0" .
+    owl:versionInfo "0.3.0" .
 
 # === Block index ===========================================================
 
 wod:BlockIndexRow a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    ufo:instantiatesPattern ufo:DerivedProjectionPattern ;
     rdfs:label "Block Index Row" ;
     rdfs:comment "A DERIVED content-search projection (one row per live NoteSegment for user notes) backing WQL find:block and Library deep links. Query data, never an authoring source; rebuildable from the owning note. Corpus/static rows are generated separately and are NOT guaranteed to reference the same segment rows or note ids — locator-to-note reconciliation is a known gap. Repo store: block_index." .
 
@@ -45,8 +48,40 @@ wod:isStatic a owl:DatatypeProperty ;
 # === Collections ===========================================================
 
 wod:Collection a owl:Class ;
+    ufo:stereotype ufo:Kind ;
     rdfs:label "Collection" ;
     rdfs:comment "A grouping of named items from the bundled seed corpus (markdown/collections/{dir}/). NOT a database row: derived at read from the corpus snapshot. Identity is the directory name ('crossfit-girls'); categories come from the README frontmatter. Seed import materializes members as Notes with seedOrigin 'seed' and catalog set to this id. Feeds are the dated sibling of the same mechanism." .
+
+wod:StaticCollection a owl:Class ;
+    rdfs:subClassOf wod:Collection ;
+    ufo:stereotype ufo:Kind ;
+    owl:disjointWith wod:QueryCollectionPage ;
+    rdfs:label "Static Collection" ;
+    rdfs:comment "TAXONOMY RESOLUTION (#1031): A seed/corpus collection whose membership is determined by directory location and materialized via wod:hasCollectionItem." .
+
+wod:QueryCollectionPage a owl:Class ;
+    rdfs:subClassOf wod:Page ;
+    ufo:stereotype ufo:Role ;
+    rdfs:label "Query Collection Page" ;
+    rdfs:comment "TAXONOMY RESOLUTION (#1031): A dynamic collection page backed by a WQLQuery (wod:backedByQuery). Membership is computed at read time and NEVER materialized into NoteTag or hasCollectionItem." .
+
+wod:backedByQuery a owl:ObjectProperty ;
+    rdfs:label "backed by query" ;
+    rdfs:domain wod:QueryCollectionPage ;
+    rdfs:range wod:WQLQuery ;
+    rdfs:comment "The WQLQuery computing dynamic membership for a QueryCollectionPage." .
+
+# === Notebooks & Feeds (WP2) ==============================================
+
+wod:Notebook a owl:Class ;
+    ufo:stereotype ufo:Kind ;
+    rdfs:label "Notebook" ;
+    rdfs:comment "A named, publishable or private grouping of Notes via many-to-many NotebookLinks (e.g. private 'notebook/journal', read-only 'notebook/defaults', private 'notebook/custom', or user-created Notebooks). See ADR 0006." .
+
+wod:Feed a owl:Class ;
+    ufo:stereotype ufo:Kind ;
+    rdfs:label "Feed" ;
+    rdfs:comment "A subscribed or published distribution stream delivering read-only Seed Notes and Notebook chunks across peers (see ADR 0001, ADR 0002, ADR 0005)." .
 
 wod:collectionName a owl:DatatypeProperty ;
     rdfs:label "collection name" ;
@@ -63,6 +98,7 @@ wod:hasCollectionItem a owl:ObjectProperty ;
 # === Configuration =========================================================
 
 wod:Configuration a owl:Class ;
+    ufo:stereotype ufo:Mode ;
     rdfs:label "Configuration" ;
     rdfs:comment "The opaque key-value store (repo store: 'meta', proposed rename 'configuration'): seed-import checkpoints and app-level state. Values are schema-level unknown BY DESIGN — readers cast. Modeled so the inventory is complete; the ontology intentionally says nothing about value shapes. Type source: apps/playground/src/services/db/IndexedDBService.ts." .
 
