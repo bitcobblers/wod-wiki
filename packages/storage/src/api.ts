@@ -103,6 +103,7 @@ export class ApiStorage implements IStorage {
   private readonly defs: Record<StoreName, StoreDef>;
   /** Injected identity: user-owned rows are stamped with this on write. */
   private readonly getUserId?: () => string;
+  private writeChain: Promise<void> = Promise.resolve();
 
   constructor(
     baseUrl: string = '/api',
@@ -158,22 +159,30 @@ export class ApiStorage implements IStorage {
     mode: 'readonly' | 'readwrite',
     fn: (tx: IStorageTransaction) => Promise<R>,
   ): Promise<R> {
-    const buffer = new Map<string, BufferEntry>();
-    const cleared = new Set<StoreName>();
-    const checks = new Map<string, Extract<TxOp, {op: 'check'}>>();
-    const scoped = new Set<StoreName>(stores);
-    const view = <S extends StoreName>(store: S, mutable: boolean) => {
-      if (!scoped.has(store)) throw new Error('store outside transaction scope');
-      if (mutable && mode !== 'readwrite') throw new Error('read-only transaction');
-      return this.makeView(store, buffer, cleared, checks, mutable);
+    const run = async (): Promise<R> => {
+      const buffer = new Map<string, BufferEntry>();
+      const cleared = new Set<StoreName>();
+      const checks = new Map<string, Extract<TxOp, {op: 'check'}>>();
+      const scoped = new Set<StoreName>(stores);
+      const view = <S extends StoreName>(store: S, mutable: boolean) => {
+        if (!scoped.has(store)) throw new Error('store outside transaction scope');
+        if (mutable && mode !== 'readwrite') throw new Error('read-only transaction');
+        return this.makeView(store, buffer, cleared, checks, mutable);
+      };
+      const tx: IStorageTransaction = {
+        readonly: <S extends StoreName>(store: S) => view(store, false),
+        readwrite: <S extends StoreName>(store: S) => view(store, true),
+      };
+      const result = await fn(tx);
+      await this.flush(buffer, cleared, checks);
+      return result;
     };
-    const tx: IStorageTransaction = {
-      readonly: <S extends StoreName>(store: S) => view(store, false),
-      readwrite: <S extends StoreName>(store: S) => view(store, true),
-    };
-    const result = await fn(tx);
-    await this.flush(buffer, cleared, checks);
-    return result;
+    if (mode !== 'readwrite') return run();
+    // Serialize in-tab readwrite transactions to match IndexedDB/SqlStorage and
+    // prevent background tasks (seed sync, catalog backfill) from racing user saves.
+    const next = this.writeChain.then(run, run);
+    this.writeChain = next.then(() => undefined, () => undefined);
+    return next;
   }
 
   /** Sends buffered ops as one server-side SQL transaction. */

@@ -172,3 +172,43 @@ it.each(['unchanged', 'ownership', 'absence', 'listed row'] as const)('preserves
     await server.close();
   }
 });
+
+it('serializes concurrent in-tab readwrite transactions without 409 conflicts', async () => {
+  const initial: Note = { id: 'n', title: 'v0', rawContent: 'Body', sourceRevision: 1, blocks: {}, createdAt: 1, date: 1 };
+  const db = libsqlDatabase(createClient({ url: ':memory:' }));
+  const server = new SqlStorage(db);
+  try {
+    await server.readwrite('notes').put(initial);
+    const storage = new ApiStorage('http://storage.test', async (input, init) => {
+      const url = new URL(String(input));
+      try {
+        if (url.pathname.endsWith('/tx')) {
+          const { ops }: { ops: TxOp[] } = JSON.parse(String(init?.body));
+          await db.transaction(tx => refreshDomain(tx, ops));
+          return Response.json({});
+        }
+        if (url.pathname.endsWith('/get')) {
+          const row = await server.readonly('notes').get(JSON.parse(url.searchParams.get('key')!));
+          return row ? Response.json(row) : Response.json({}, { status: 404 });
+        }
+        return Response.json(await server.readonly('notes').getAll());
+      } catch (error) {
+        if (error instanceof StorageError) return Response.json({ code: error.code }, { status: error.status });
+        throw error;
+      }
+    });
+    const tx1 = storage.transaction(['notes'], 'readwrite', async tx => {
+      const row = await tx.readonly('notes').get('n');
+      await new Promise(r => setTimeout(r, 15));
+      await tx.readwrite('notes').put({ ...row!, title: 'v1', sourceRevision: 2 });
+    });
+    const tx2 = storage.transaction(['notes'], 'readwrite', async tx => {
+      const row = await tx.readonly('notes').get('n');
+      await tx.readwrite('notes').put({ ...row!, title: `${row!.title}+v2`, sourceRevision: 3 });
+    });
+    await Promise.all([tx1, tx2]);
+    expect((await server.readonly('notes').get('n'))?.title).toBe('v1+v2');
+  } finally {
+    await server.close();
+  }
+});
