@@ -499,8 +499,10 @@ export function buildViewer() {
   .subtab { padding: 4px 9px; border-radius: 5px; border: 1px solid var(--border); background: var(--panel); color: var(--muted); cursor: pointer; font-size: 11px; }
   .subtab.active { border-color: var(--accent); color: var(--text); background: var(--panel2); }
   .breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
-  .btn { padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); cursor: pointer; font-size: 11.5px; }
-  .btn:hover { border-color: var(--accent); }
+  .btn { padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); cursor: pointer; font-size: 11.5px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .ext-links { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
+  a.badge { text-decoration: none; }
   svg.graph { width: 100%; height: 480px; border: 1px solid var(--border); border-radius: 8px; background: #090c12; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); }
@@ -520,6 +522,18 @@ export function buildViewer() {
   <label class="layer-toggle"><input type="checkbox" data-layer="qa" checked /><span class="dot" style="background:var(--c-qa)"></span>:qa</label>
   <label class="layer-toggle"><input type="checkbox" data-layer="code" checked /><span class="dot" style="background:var(--c-code)"></span>:code</label>
   <label class="layer-toggle"><input type="checkbox" data-layer="bridge" checked /><span class="dot" style="background:var(--c-bridge)"></span>:bridge</label>
+  <div class="ext-links" id="surface-links">
+    <select id="env-select" title="Target *.wod.wiki environment for cross-links">
+      <option value="auto">Env: Auto</option>
+      <option value="prod">Env: prod (wod.wiki)</option>
+      <option value="main">Env: main (*.wod.wiki)</option>
+      <option value="local">Env: local (:5173/:6006)</option>
+    </select>
+    <a class="btn" id="link-playground" target="_blank" rel="noopener noreferrer">Playground ↗</a>
+    <a class="btn" id="link-storybook" target="_blank" rel="noopener noreferrer">Storybook ↗</a>
+    <a class="btn" id="link-e2e" target="_blank" rel="noopener noreferrer">E2E Report ↗</a>
+    <a class="btn" id="link-qa" target="_blank" rel="noopener noreferrer">Dogfood QA ↗</a>
+  </div>
 </div>
 
 <div class="toolbar">
@@ -609,10 +623,109 @@ export function buildViewer() {
     stereotype: '',
     severity: '',
     status: '',
+    env: 'auto',
     layers: { patterns: true, domain: true, qa: true, code: true, bridge: true },
-    selected: { kind: 'journey', id: DATA.qaJourneys[0]?.id || '' },
-    history: []
+    selected: { kind: 'journey', id: DATA.qaJourneys[0]?.id || '' }
   };
+
+  function resolveOrigins() {
+    const qa = 'https://qa.forest-adhara.ts.net';
+    const host = window.location.hostname || '';
+    let mode = state.env;
+    if (mode === 'auto') {
+      const m = host.match(/^([a-z0-9-]+)\.(preview|story|e2e|ontology)\.wod\.wiki$/i);
+      if (m) {
+        const slug = m[1];
+        return {
+          playground: \`https://\${slug}.preview.wod.wiki\`,
+          storybook: \`https://\${slug}.story.wod.wiki\`,
+          e2e: \`https://\${slug}.e2e.wod.wiki\`,
+          qa
+        };
+      }
+      if (/^(?:www\.|story\.|e2e\.|ontology\.)?wod\.wiki$/i.test(host)) {
+        mode = 'prod';
+      } else {
+        mode = 'main';
+      }
+    }
+    if (mode === 'prod') {
+      return { playground: 'https://wod.wiki', storybook: 'https://story.wod.wiki', e2e: 'https://e2e.wod.wiki', qa };
+    }
+    if (mode === 'local') {
+      return { playground: 'http://localhost:5173', storybook: 'http://localhost:6006', e2e: 'http://localhost:9323', qa };
+    }
+    return { playground: 'https://main.preview.wod.wiki', storybook: 'https://main.story.wod.wiki', e2e: 'https://main.e2e.wod.wiki', qa };
+  }
+
+  function syncSurfaceLinks() {
+    const o = resolveOrigins();
+    document.getElementById('link-playground').href = o.playground;
+    document.getElementById('link-storybook').href = o.storybook;
+    document.getElementById('link-e2e').href = o.e2e;
+    document.getElementById('link-qa').href = o.qa;
+  }
+
+  function defaultTabForKind(kind) {
+    if (kind === 'journey') return 'journeys';
+    if (kind === 'class') return 'domain';
+    if (kind === 'file') return 'code';
+    if (kind === 'issue') return 'issues';
+    return 'journeys';
+  }
+
+  function buildHash(kind, id, tab, codeSubtab) {
+    const encodedId = kind === 'file'
+      ? id.split('/').map(encodeURIComponent).join('/')
+      : encodeURIComponent(id);
+    const params = new URLSearchParams();
+    if (tab && tab !== defaultTabForKind(kind)) params.set('tab', tab);
+    if (tab === 'code' && codeSubtab && codeSubtab !== 'files') params.set('sub', codeSubtab);
+    const qs = params.toString();
+    return \`#/\${kind}/\${encodedId}\${qs ? '?' + qs : ''}\`;
+  }
+
+  function parseHash(hashStr) {
+    const raw = (hashStr || '').replace(/^#/, '').replace(/^[/]+/, '');
+    if (!raw) return null;
+    const [pathPart, qs] = raw.split('?');
+    const parts = pathPart.split('/').filter(Boolean);
+    if (parts.length < 2) return null;
+    const kind = parts[0];
+    if (!['journey', 'class', 'file', 'issue'].includes(kind)) return null;
+    let id = '';
+    try {
+      id = kind === 'file'
+        ? parts.slice(1).map(decodeURIComponent).join('/')
+        : decodeURIComponent(parts.slice(1).join('/'));
+    } catch {
+      id = parts.slice(1).join('/');
+    }
+    const params = new URLSearchParams(qs || '');
+    return { kind, id, tab: params.get('tab'), sub: params.get('sub') };
+  }
+
+  function syncHash(replace) {
+    const next = buildHash(state.selected.kind, state.selected.id, state.tab, state.codeSubtab);
+    if (window.location.hash !== next) {
+      if (replace && window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', next);
+      } else {
+        window.location.hash = next;
+      }
+    }
+  }
+
+  function applyHashFromLocation() {
+    const parsed = parseHash(window.location.hash);
+    if (!parsed) return false;
+    state.selected = { kind: parsed.kind, id: parsed.id };
+    state.tab = parsed.tab || defaultTabForKind(parsed.kind);
+    if (parsed.sub) state.codeSubtab = parsed.sub;
+    else if (parsed.kind === 'file') state.codeSubtab = 'files';
+    syncTabUI();
+    return true;
+  }
 
   function esc(s) {
     return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -648,20 +761,15 @@ export function buildViewer() {
   }
 
   function navigateTo(kind, id, switchTab) {
-    if (state.selected.id && (state.selected.kind !== kind || state.selected.id !== id)) {
-      state.history.push({ ...state.selected });
-      if (state.history.length > 30) state.history.shift();
-    }
     state.selected = { kind, id };
     if (switchTab) {
       state.tab = switchTab;
     } else if (state.tab !== 'graph') {
-      if (kind === 'journey') state.tab = 'journeys';
-      else if (kind === 'class') state.tab = 'domain';
-      else if (kind === 'file') { state.tab = 'code'; state.codeSubtab = 'files'; }
-      else if (kind === 'issue') state.tab = 'issues';
+      state.tab = defaultTabForKind(kind);
+      if (kind === 'file') state.codeSubtab = 'files';
     }
     syncTabUI();
+    syncHash(false);
     render();
   }
 
@@ -721,12 +829,17 @@ export function buildViewer() {
           </div>\`;
         }).join('');
       } else if (state.codeSubtab === 'routes') {
+        const origins = resolveOrigins();
         const items = DATA.codeRoutes.filter(r => matchSearch(\`\${r.path} \${r.name}\`));
-        el.innerHTML = subTabs + items.map(r => \`
+        el.innerHTML = subTabs + items.map(r => {
+          const isStatic = !r.path.includes(':');
+          const routeHref = origins.playground + (r.path.startsWith('/') ? r.path : '/' + r.path);
+          return \`
           <div class="card">
-            <div class="card-title"><span class="mono">\${esc(r.path)}</span><span class="badge b-code">\${esc(r.name || 'spec')}</span></div>
+            <div class="card-title"><span class="mono">\${esc(r.path)}</span>\${isStatic ? \`<a class="badge b-code clickable" href="\${esc(routeHref)}" target="_blank" rel="noopener noreferrer">Open ↗</a>\` : \`<span class="badge b-code">\${esc(r.name || 'route')}</span>\`}</div>
             <div class="card-sub">\${r.journeys.map(j => badge(j, 'b-qa', 'journey', j)).join('')}</div>
-          </div>\`).join('');
+          </div>\`;
+        }).join('');
       } else if (state.codeSubtab === 'testids') {
         const items = DATA.codeTestIds.filter(t => matchSearch(\`\${t.val} \${t.key}\`)).slice(0, 150);
         el.innerHTML = subTabs + items.map(t => \`
@@ -848,10 +961,13 @@ export function buildViewer() {
 
   function renderDetail() {
     const el = document.getElementById('detail-pane');
+    const origins = resolveOrigins();
     const crumbs = \`<div class="breadcrumbs">
-      \${state.history.length ? '<button class="btn" id="btn-back">← Back</button>' : ''}
+      <button class="btn" id="btn-back" title="Browser Back">← Back</button>
+      <button class="btn" id="btn-fwd" title="Browser Forward">Forward →</button>
       <span class="badge b-bridge">\${esc(state.selected.kind)}: \${esc(state.selected.id)}</span>
       \${state.tab !== 'graph' ? '<button class="btn" id="btn-open-graph">View Neighborhood Graph</button>' : ''}
+      <button class="btn" id="btn-copy-link" title="Copy deep link">Copy # Link</button>
     </div>\`;
 
     if (state.tab === 'graph') {
@@ -863,11 +979,12 @@ export function buildViewer() {
     if (kind === 'journey') {
       const j = journeyById.get(id);
       if (!j) { el.innerHTML = crumbs + '<p>Select a journey.</p>'; return; }
+      const e2eHref = \`\${origins.e2e}/#?q=\${encodeURIComponent(j.id)}\`;
       el.innerHTML = crumbs + \`
         <div class="section">
           <h2 style="margin:0 0 6px;">\${esc(j.id)} — \${esc(j.title)}</h2>
-          <div>\${badge(j.domain, 'b-qa')} \${badge(j.priority, 'b-qa')} \${badge(j.status, 'b-qa')}</div>
-          <p class="card-sub">Spec: <code>\${esc(j.specFile || 'proposed')}</code> · Playwright: <code>\${esc(j.pwSpec || '—')}</code></p>
+          <div>\${badge(j.domain, 'b-qa')} \${badge(j.priority, 'b-qa')} \${badge(j.status, 'b-qa')} \${j.pwSpec ? \`<a class="badge b-code clickable" href="\${esc(e2eHref)}" target="_blank" rel="noopener noreferrer">E2E Report ↗</a>\` : ''}</div>
+          <p class="card-sub">Spec: \${j.specFile ? badge(j.specFile, 'b-code', 'file', j.specFile) : '<code>proposed</code>'} · Playwright: \${j.pwSpec ? badge(j.pwSpec, 'b-code', 'file', j.pwSpec) : '<code>—</code>'}</p>
         </div>
         <div class="section">
           <h3>5-Beat Causal Chain (Seed → Enter → Sense → Drive → Prove)</h3>
@@ -876,7 +993,7 @@ export function buildViewer() {
         \${state.layers.bridge ? \`<div class="section">
           <h3>Bridge Connections</h3>
           <p><strong>Seed Nouns (:domain):</strong> \${j.seedNouns.map(s => badge(s, 'b-domain', 'class', s)).join('') || '—'}</p>
-          <p><strong>Routes (:code):</strong> \${j.routes.map(r => badge(r, 'b-code')).join('') || '—'}</p>
+          <p><strong>Routes (:code):</strong> \${j.routes.map(r => !r.includes(':') ? \`<a class="badge b-code clickable" href="\${esc(origins.playground + (r.startsWith('/') ? r : '/' + r))}" target="_blank" rel="noopener noreferrer">\${esc(r)} ↗</a>\` : badge(r, 'b-code')).join('') || '—'}</p>
           <p><strong>TEST_IDS (:code):</strong> \${j.testIds.map(t => badge(t, 'b-code')).join('') || '—'}</p>
           <p><strong>Touched Files (\${j.touchedFiles.length}):</strong><br/>\${j.touchedFiles.map(f => badge(f, 'b-code', 'file', f)).join('') || '—'}</p>
           <p><strong>Covering / Affected Issues (\${j.issueIds.length}):</strong><br/>\${j.issueIds.map(i => badge(i, 'b-qa', 'issue', i)).join('') || '—'}</p>
@@ -931,11 +1048,15 @@ export function buildViewer() {
     } else if (kind === 'issue') {
       const iss = issueById.get(id);
       if (!iss) { el.innerHTML = crumbs + '<p>Select an issue.</p>'; return; }
+      const qaIssueHref = \`\${origins.qa}/issues/\${encodeURIComponent(iss.id)}\`;
+      const fmtRun = (runId) => runId
+        ? \`<a class="badge b-qa clickable" href="\${esc(origins.qa + '/sessions/' + encodeURIComponent(runId))}" target="_blank" rel="noopener noreferrer">\${esc(runId)} ↗</a>\`
+        : '<code>n/a</code>';
       el.innerHTML = crumbs + \`
         <div class="section">
           <h2 style="margin:0 0 6px;">\${esc(iss.id)} — \${esc(iss.title)}</h2>
-          <div>\${badge(iss.severity, iss.severity === 'High' ? 'b-high' : 'b-med')} \${badge(iss.status, 'b-qa')} \${badge(iss.kind, 'b-qa')} \${iss.coverageStatus ? badge(iss.coverageStatus, 'b-qa') : ''}</div>
-          <p class="card-sub">PROV Runs: <code>firstSeen=\${esc(iss.firstSeenRun || 'n/a')}</code> · <code>lastSeen=\${esc(iss.lastSeenRun || 'n/a')}</code></p>
+          <div>\${badge(iss.severity, iss.severity === 'High' ? 'b-high' : 'b-med')} \${badge(iss.status, 'b-qa')} \${badge(iss.kind, 'b-qa')} \${iss.coverageStatus ? badge(iss.coverageStatus, 'b-qa') : ''} <a class="badge b-code clickable" href="\${esc(qaIssueHref)}" target="_blank" rel="noopener noreferrer">Dogfood QA ↗</a></div>
+          <p class="card-sub">PROV Runs: firstSeen=\${fmtRun(iss.firstSeenRun)} · lastSeen=\${fmtRun(iss.lastSeenRun)}</p>
         </div>
         <div class="section">
           <h3>Affected Domains &amp; Covering Journeys</h3>
@@ -970,27 +1091,51 @@ export function buildViewer() {
       if (state.tab === 'issues' && state.selected.kind !== 'issue' && DATA.qaIssues[0]) state.selected = { kind: 'issue', id: DATA.qaIssues[0].id };
       if (state.tab === 'code' && state.selected.kind !== 'file' && DATA.codeFiles[0]) state.selected = { kind: 'file', id: DATA.codeFiles[0].p };
       syncTabUI();
+      syncHash(false);
       render();
       return;
     }
     const subEl = e.target.closest('[data-subtab]');
     if (subEl) {
       state.codeSubtab = subEl.dataset.subtab;
+      syncHash(false);
       render();
       return;
     }
-    if (e.target.id === 'btn-back' && state.history.length) {
-      state.selected = state.history.pop();
-      render();
+    if (e.target.id === 'btn-back') {
+      window.history.back();
+      return;
+    }
+    if (e.target.id === 'btn-fwd') {
+      window.history.forward();
+      return;
+    }
+    if (e.target.id === 'btn-copy-link') {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(window.location.href).then(() => {
+          e.target.textContent = 'Copied!';
+          setTimeout(() => { e.target.textContent = 'Copy # Link'; }, 1200);
+        }).catch(() => {});
+      }
       return;
     }
     if (e.target.id === 'btn-open-graph') {
       state.tab = 'graph';
       syncTabUI();
+      syncHash(false);
       render();
     }
   });
 
+  window.addEventListener('hashchange', () => {
+    if (applyHashFromLocation()) render();
+  });
+
+  document.getElementById('env-select').addEventListener('change', (e) => {
+    state.env = e.target.value;
+    syncSurfaceLinks();
+    render();
+  });
   document.getElementById('search-input').addEventListener('input', (e) => { state.search = e.target.value.trim().toLowerCase(); render(); });
   document.getElementById('filter-domain').addEventListener('change', (e) => { state.domain = e.target.value; render(); });
   document.getElementById('filter-priority').addEventListener('change', (e) => { state.priority = e.target.value; render(); });
@@ -1001,6 +1146,10 @@ export function buildViewer() {
     cb.addEventListener('change', (e) => { state.layers[e.target.dataset.layer] = e.target.checked; render(); });
   });
 
+  syncSurfaceLinks();
+  if (!applyHashFromLocation()) {
+    syncHash(true);
+  }
   render();
 })();
 </script>
