@@ -110,6 +110,14 @@ jobs:
       slug: ${{ needs.slug.outputs.slug }}
       version: ${{ needs.slug.outputs.version }}
 
+  deploy-ontology:
+    name: Build Deploy Ontology -> s3
+    needs: [slug]
+    uses: ./.github/workflows/_ontology.yml
+    secrets: inherit
+    with:
+      slug: ${{ needs.slug.outputs.slug }}
+
   e2e:
     name: E2E (S3 branch)
     needs: [slug, deploy-playground, deploy-storybook]
