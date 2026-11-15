@@ -269,6 +269,9 @@ export function buildViewer() {
       const routes = [...new Set(store.vals(j, 'bridge:route').map((r) => store.val(r, 'code:routePath') ?? r))].sort();
       const testIds = [...new Set(store.vals(j, 'bridge:testId').map((t) => store.val(t, 'code:testIdValue') ?? t))].sort();
       const seedNouns = [...new Set(store.vals(j, 'bridge:seedNoun'))].sort();
+      const stories = [
+        ...new Set(store.vals(j, 'bridge:story').map((s) => store.val(s, 'code:storyId') ?? s.split('/').pop() ?? s)),
+      ].sort();
 
       const steps = store
         .vals(j, 'qa:hasStep')
@@ -309,6 +312,7 @@ export function buildViewer() {
         routes,
         testIds,
         seedNouns,
+        stories,
         steps,
         touchedFiles,
         issueIds,
@@ -426,6 +430,24 @@ export function buildViewer() {
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const codeStories = store
+    .subjectsWith('rdf:type', 'code:Story')
+    .map((s) => ({
+      id: store.val(s, 'code:storyId') ?? '',
+      title: store.val(s, 'code:storyTitle') ?? '',
+      name: store.val(s, 'code:storyName') ?? '',
+      domainState: store.val(s, 'code:domainStatePreset') ?? '',
+      file: store.val(store.val(s, 'code:definedIn') ?? '', 'code:filePath') ?? '',
+      journeys: [
+        ...new Set(store.incoming(s, 'bridge:story').filter((t) => t.s.includes('/qa/journey/')).map((t) => store.val(t.s, 'qa:journeyId') ?? t.s)),
+      ].sort(),
+      classes: [
+        ...new Set(store.incoming(s, 'bridge:story').filter((t) => !t.s.includes('/qa/journey/')).map((t) => t.s)),
+      ].sort(),
+    }))
+    .filter((s) => s.id)
+    .sort((a, b) => a.title.localeCompare(b.title) || a.name.localeCompare(b.name));
+
   const payload = {
     stereotypes,
     classes,
@@ -438,6 +460,7 @@ export function buildViewer() {
     codeRoutes,
     codeTestIds,
     codeTools,
+    codeStories,
   };
 
   const jsonStr = JSON.stringify(payload).replace(/<\//g, '<\\/');
@@ -585,6 +608,19 @@ export function buildViewer() {
   const issueById = new Map(DATA.qaIssues.map(i => [i.id, i]));
   const classByCurie = new Map(DATA.classes.map(c => [c.curie, c]));
   const fileByPath = new Map(DATA.codeFiles.map(f => [f.p, f]));
+
+  const storiesByFile = new Map();
+  const storiesByClass = new Map();
+  for (const s of DATA.codeStories || []) {
+    if (s.file) {
+      if (!storiesByFile.has(s.file)) storiesByFile.set(s.file, []);
+      storiesByFile.get(s.file).push(s);
+    }
+    for (const c of s.classes || []) {
+      if (!storiesByClass.has(c)) storiesByClass.set(c, []);
+      storiesByClass.get(c).push(s);
+    }
+  }
 
   const fileToJourneys = new Map();
   const fileToIssues = new Map();
@@ -741,7 +777,7 @@ export function buildViewer() {
     \`<span class="pill"><span class="dot" style="background:var(--c-patterns)"></span>\${DATA.stereotypes.length} UFO stereotypes</span>\`,
     \`<span class="pill"><span class="dot" style="background:var(--c-domain)"></span>\${DATA.classes.length} classes</span>\`,
     \`<span class="pill"><span class="dot" style="background:var(--c-qa)"></span>\${DATA.qaJourneys.length} journeys · \${DATA.qaIssues.length} issues · \${DATA.qaRuns.length} runs</span>\`,
-    \`<span class="pill"><span class="dot" style="background:var(--c-code)"></span>\${DATA.codeFiles.length} files · \${DATA.codeTestIds.length} testIds · \${DATA.codeTools.length} tools</span>\`
+    \`<span class="pill"><span class="dot" style="background:var(--c-code)"></span>\${DATA.codeFiles.length} files · \${DATA.codeStories.length} stories · \${DATA.codeTestIds.length} testIds · \${DATA.codeTools.length} tools</span>\`
   ].join('');
 
   // Populate filter selects
@@ -814,6 +850,7 @@ export function buildViewer() {
       if (!state.layers.code) { el.innerHTML = '<div class="card-sub">Layer :code is hidden.</div>'; return; }
       const subTabs = \`<div class="subtabs">
         <button class="subtab \${state.codeSubtab === 'files' ? 'active' : ''}" data-subtab="files">Files (\${DATA.codeFiles.length})</button>
+        <button class="subtab \${state.codeSubtab === 'stories' ? 'active' : ''}" data-subtab="stories">Stories (\${(DATA.codeStories || []).length})</button>
         <button class="subtab \${state.codeSubtab === 'routes' ? 'active' : ''}" data-subtab="routes">Routes (\${DATA.codeRoutes.length})</button>
         <button class="subtab \${state.codeSubtab === 'testids' ? 'active' : ''}" data-subtab="testids">TEST_IDS (\${DATA.codeTestIds.length})</button>
         <button class="subtab \${state.codeSubtab === 'tools' ? 'active' : ''}" data-subtab="tools">WebMCP (\${DATA.codeTools.length})</button>
@@ -828,6 +865,16 @@ export function buildViewer() {
             <div class="card-sub">\${esc(f.p)} · \${jc} journeys · \${ic} issues</div>
           </div>\`;
         }).join('');
+      } else if (state.codeSubtab === 'stories') {
+        const origins = resolveOrigins();
+        const items = (DATA.codeStories || []).filter(s => matchSearch(\`\${s.id} \${s.title} \${s.name} \${s.domainState} \${s.file}\`)).slice(0, 150);
+        el.innerHTML = subTabs + items.map(s => {
+          const sbHref = \`\${origins.storybook}/?path=/story/\${encodeURIComponent(s.id)}\`;
+          return \`<div class="card" data-nav-kind="file" data-nav-id="\${esc(s.file)}">
+            <div class="card-title"><span>\${esc(s.title)} / \${esc(s.name)}</span><a class="badge b-code clickable" href="\${esc(sbHref)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Storybook ↗</a></div>
+            <div class="card-sub">\${s.domainState ? badge('domainState: ' + s.domainState, 'b-domain') : ''} \${s.journeys.map(j => badge(j, 'b-qa', 'journey', j)).join('')} <code>\${esc(s.id)}</code></div>
+          </div>\`;
+        }).join('') || '<div class="card-sub">No matching stories.</div>';
       } else if (state.codeSubtab === 'routes') {
         const origins = resolveOrigins();
         const items = DATA.codeRoutes.filter(r => matchSearch(\`\${r.path} \${r.name}\`));
@@ -994,6 +1041,7 @@ export function buildViewer() {
           <h3>Bridge Connections</h3>
           <p><strong>Seed Nouns (:domain):</strong> \${j.seedNouns.map(s => badge(s, 'b-domain', 'class', s)).join('') || '—'}</p>
           <p><strong>Routes (:code):</strong> \${j.routes.map(r => !r.includes(':') ? \`<a class="badge b-code clickable" href="\${esc(origins.playground + (r.startsWith('/') ? r : '/' + r))}" target="_blank" rel="noopener noreferrer">\${esc(r)} ↗</a>\` : badge(r, 'b-code')).join('') || '—'}</p>
+          <p><strong>Storybook Stories (:code):</strong> \${(j.stories || []).map(sid => \`<a class="badge b-code clickable" href="\${esc(origins.storybook + '/?path=/story/' + encodeURIComponent(sid))}" target="_blank" rel="noopener noreferrer">\${esc(sid)} ↗</a>\`).join('') || '—'}</p>
           <p><strong>TEST_IDS (:code):</strong> \${j.testIds.map(t => badge(t, 'b-code')).join('') || '—'}</p>
           <p><strong>Touched Files (\${j.touchedFiles.length}):</strong><br/>\${j.touchedFiles.map(f => badge(f, 'b-code', 'file', f)).join('') || '—'}</p>
           <p><strong>Covering / Affected Issues (\${j.issueIds.length}):</strong><br/>\${j.issueIds.map(i => badge(i, 'b-qa', 'issue', i)).join('') || '—'}</p>
@@ -1022,6 +1070,7 @@ export function buildViewer() {
         <div class="section">
           <h3>Reverse Bridge Links</h3>
           <p><strong>Seeded Journeys:</strong> \${c.seededJourneys.map(j => badge(j, 'b-qa', 'journey', j)).join('') || '—'}</p>
+          <p><strong>Storybook Stories:</strong> \${(storiesByClass.get(c.curie) || []).map(s => \`<a class="badge b-code clickable" href="\${esc(origins.storybook + '/?path=/story/' + encodeURIComponent(s.id))}" target="_blank" rel="noopener noreferrer">\${esc(s.title + ' / ' + s.name)} ↗</a>\`).join('') || '—'}</p>
           <p><strong>Implementing Symbols:</strong> \${c.implSymbols.map(s => badge(s.name + ' (' + s.file + ')', 'b-code', 'file', s.file)).join('') || '—'}</p>
         </div>\`;
     } else if (kind === 'file') {
@@ -1043,6 +1092,7 @@ export function buildViewer() {
           <h3>Connected Journeys (\${jIds.length}) &amp; Root-Cause Issues (\${iIds.length})</h3>
           <p><strong>Journeys:</strong> \${jIds.map(j => badge(j + ' — ' + (journeyById.get(j)?.title || ''), 'b-qa', 'journey', j)).join('') || '—'}</p>
           <p><strong>Issues:</strong> \${iIds.map(i => badge(i + ' — ' + (issueById.get(i)?.title || ''), 'b-high', 'issue', i)).join('') || '—'}</p>
+          \${(storiesByFile.get(id) || []).length ? \`<p><strong>Storybook Stories:</strong> \${(storiesByFile.get(id) || []).map(s => \`<a class="badge b-code clickable" href="\${esc(origins.storybook + '/?path=/story/' + encodeURIComponent(s.id))}" target="_blank" rel="noopener noreferrer">\${esc(s.name)} ↗</a>\`).join('')}</p>\` : ''}
           \${f?.tids.length ? \`<p><strong>TEST_IDS used:</strong> \${f.tids.map(t => badge(t, 'b-code')).join('')}</p>\` : ''}
         </div>\`;
     } else if (kind === 'issue') {

@@ -47,6 +47,11 @@ code:WebMcpTool a owl:Class ;
     rdfs:label "WebMCP / Agent Tool" ;
     rdfs:comment "A portable AgentToolSpec or UI useWebMCP() tool registered in packages/engine/src/agent/manifest.ts or apps/playground/app/agent/." .
 
+code:Story a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Storybook Story" ;
+    rdfs:comment "A Storybook component story in apps/storybook/src/**/*.stories.tsx keyed by its Storybook storyId (e.g. 'playground-views-sessiondetail--active-session')." .
+
 # === Properties ===========================================================
 
 code:filePath a owl:DatatypeProperty ;
@@ -119,3 +124,33 @@ code:toolTier a owl:DatatypeProperty ;
     rdfs:domain code:WebMcpTool ;
     rdfs:range xsd:string ;
     rdfs:comment "Safety tier of the tool (e.g. 'tier1-read', 'tier1-write', 'tier2-destructive')." .
+
+code:storyId a owl:DatatypeProperty ;
+    rdfs:label "story id" ;
+    rdfs:domain code:Story ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Canonical Storybook story ID (e.g. 'playground-views-sessiondetail--active-session')." .
+
+code:storyTitle a owl:DatatypeProperty ;
+    rdfs:label "story title" ;
+    rdfs:domain code:Story ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Storybook CSF meta title (e.g. 'Playground/Views/SessionDetail')." .
+
+code:storyName a owl:DatatypeProperty ;
+    rdfs:label "story name" ;
+    rdfs:domain code:Story ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Exported CSF story name (e.g. 'ActiveSession')." .
+
+code:domainStatePreset a owl:DatatypeProperty ;
+    rdfs:label "domainState preset" ;
+    rdfs:domain code:Story ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Named DomainWorld preset in apps/storybook/src/testing/domainStates.tsx (e.g. 'activeSession', 'populatedJournal')." .
+
+code:storyComponent a owl:ObjectProperty ;
+    rdfs:label "story component" ;
+    rdfs:domain code:Story ;
+    rdfs:range code:Symbol ;
+    rdfs:comment "Links a code:Story to the React component code:Symbol it renders." .

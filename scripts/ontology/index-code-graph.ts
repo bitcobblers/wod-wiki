@@ -110,6 +110,24 @@ function toolIri(name: string): string {
   return `<https://wod.wiki/code/tool/${encodeSegment(name)}>`;
 }
 
+function storyIri(storyId: string): string {
+  return `<https://wod.wiki/code/story/${encodeSegment(storyId)}>`;
+}
+
+function sanitizeStorySlug(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function toStorybookId(title: string, exportName: string): string {
+  const spacedName = exportName
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
+  return `${sanitizeStorySlug(title)}--${sanitizeStorySlug(spacedName)}`;
+}
+
 function domainIri(domain: string): string {
   return `<https://wod.wiki/qa/domain/${encodeSegment(domain)}>`;
 }
@@ -205,6 +223,7 @@ interface ParsedSpec {
   summary: string;
   testIds: string[];
   seedNouns: string[];
+  stories: string[];
   scenarios: string[];
 }
 
@@ -271,14 +290,23 @@ function parseE2eSpec(filePath: string, knownTestIdValues: Set<string>): ParsedS
     }
   }
 
-  // Infer seed nouns
+  // Infer seed nouns + explicit frontmatter seedNouns
   const seedNouns = new Set<string>();
+  const explicitSeedNouns = Array.isArray(meta.seedNouns)
+    ? meta.seedNouns
+    : typeof meta.seedNouns === 'string'
+      ? [meta.seedNouns]
+      : [];
+  for (const sn of explicitSeedNouns) {
+    if (sn) seedNouns.add(sn);
+  }
   for (const hint of DOMAIN_CLASS_HINTS) {
     if (hint.pattern.test(body)) {
       seedNouns.add(hint.wodClass);
     }
   }
 
+  const stories = Array.isArray(meta.stories) ? meta.stories : typeof meta.stories === 'string' ? [meta.stories] : [];
   const routes = Array.isArray(meta.routes) ? meta.routes : typeof meta.routes === 'string' ? [meta.routes] : [];
   const personas = Array.isArray(meta.personas) ? meta.personas : typeof meta.personas === 'string' ? [meta.personas] : [];
   const viewports = Array.isArray(meta.viewports)
@@ -301,6 +329,7 @@ function parseE2eSpec(filePath: string, knownTestIdValues: Set<string>): ParsedS
     summary: summaryLines[0]?.trim() ?? title,
     testIds: [...referencedTestIds].sort(),
     seedNouns: [...seedNouns].sort(),
+    stories,
     scenarios,
   };
 }
@@ -436,6 +465,92 @@ export async function buildUnifiedGraph() {
     );
   }
 
+  // 4b. Index Storybook Stories (apps/storybook/src/**/*.stories.tsx -> code:Story)
+  interface IndexedStory {
+    id: string;
+    title: string;
+    name: string;
+    relPath: string;
+    domainState?: string;
+    componentName?: string;
+    route?: string;
+  }
+  const storyFiles = walkFiles(path.join(REPO_ROOT, 'apps/storybook/src'), new Set(['.tsx', '.ts'])).filter((f) =>
+    f.endsWith('.stories.tsx') || f.endsWith('.stories.ts'),
+  );
+  const indexedStories: IndexedStory[] = [];
+  const knownStoryIds = new Set<string>();
+  const storyIdsByRoute = new Map<string, string[]>();
+  const storyIdsByFile = new Map<string, string[]>();
+
+  for (const absStory of storyFiles) {
+    const relPath = path.relative(REPO_ROOT, absStory).replace(/\\/g, '/');
+    const content = fs.readFileSync(absStory, 'utf8');
+    const titleMatch = content.match(/\btitle\s*:\s*['"]([^'"]+)['"]/);
+    if (!titleMatch) continue;
+    const storyTitle = titleMatch[1];
+    const compMatch = content.match(/\bcomponent\s*:\s*([A-Z][A-Za-z0-9_]*)/);
+    const componentName = compMatch?.[1];
+    const defaultDomainState = content.match(/meta[\s\S]{0,600}?\bdomainState\s*:\s*['"]([A-Za-z0-9_-]+)['"]/)?.[1];
+
+    // Match CSF3 `export const Foo: Story = ...` or `export const Foo = ...`
+    const exportMatches = [...content.matchAll(/^export\s+const\s+([A-Za-z0-9_]+)\s*(?::\s*Story[^=]*)?=/gm)];
+    for (let idx = 0; idx < exportMatches.length; idx++) {
+      const m = exportMatches[idx];
+      const exportName = m[1];
+      if (exportName === 'default' || exportName === 'meta') continue;
+      const startOffset = m.index ?? 0;
+      const endOffset = idx + 1 < exportMatches.length ? (exportMatches[idx + 1].index ?? content.length) : content.length;
+      const chunk = content.slice(startOffset, endOffset);
+      const storyId = toStorybookId(storyTitle, exportName);
+      if (knownStoryIds.has(storyId)) continue;
+      knownStoryIds.add(storyId);
+
+      const ds = chunk.match(/\bdomainState\s*:\s*['"]([A-Za-z0-9_-]+)['"]/)?.[1] ?? defaultDomainState;
+      const storyRoute = chunk.match(/\broutePath\s*:\s*['"]([^'"]+)['"]/)?.[1] ?? chunk.match(/\broute\s*:\s*['"]([^'"]+)['"]/)?.[1];
+
+      indexedStories.push({
+        id: storyId,
+        title: storyTitle,
+        name: exportName,
+        relPath,
+        domainState: ds,
+        componentName,
+        route: storyRoute,
+      });
+
+      const sIri = storyIri(storyId);
+      const compSyms = componentName ? (symbolIndexByName.get(componentName) ?? []) : [];
+      const compSym = compSyms[0];
+
+      codeLines.push(
+        `${sIri} a code:Story ;`,
+        `    rdfs:label "${esc(storyTitle + ' / ' + exportName)}" ;`,
+        `    code:storyId "${esc(storyId)}" ;`,
+        `    code:storyTitle "${esc(storyTitle)}" ;`,
+        `    code:storyName "${esc(exportName)}" ;`,
+        ...(ds ? [`    code:domainStatePreset "${esc(ds)}" ;`] : []),
+        ...(compSym ? [`    code:storyComponent ${symbolIri(compSym.relPath, compSym.name)} ;`] : []),
+        `    code:definedIn ${fileIri(relPath)} .`,
+        '',
+      );
+
+      for (const hint of DOMAIN_CLASS_HINTS) {
+        if (hint.pattern.test(`${storyTitle} ${componentName ?? ''} ${exportName}`)) {
+          bridgeLines.push(`${hint.wodClass} bridge:story ${sIri} .`);
+        }
+      }
+      if (storyRoute) {
+        const list = storyIdsByRoute.get(storyRoute) ?? [];
+        list.push(storyId);
+        storyIdsByRoute.set(storyRoute, list);
+      }
+      const fList = storyIdsByFile.get(relPath) ?? [];
+      fList.push(storyId);
+      storyIdsByFile.set(relPath, fList);
+    }
+  }
+
   // 5. Index QA Domains & Journeys from e2e/specs/ + e2e/live-app/ (all 7 domains)
   const domains = new Set<string>(['journal', 'notebooks', 'runtime', 'properties', 'analytics', 'feeds', 'manual']);
   const domainToArea: Record<string, string> = {
@@ -560,6 +675,15 @@ export async function buildUnifiedGraph() {
     }
     for (const noun of parsed.seedNouns) {
       bridgeLines.push(`${jIri} bridge:seedNoun ${noun} .`);
+    }
+    const linkedStories = new Set<string>(parsed.stories.filter((s) => knownStoryIds.has(s)));
+    for (const r of parsed.routes) {
+      for (const sid of storyIdsByRoute.get(r) ?? []) {
+        linkedStories.add(sid);
+      }
+    }
+    for (const sid of linkedStories) {
+      bridgeLines.push(`${jIri} bridge:story ${storyIri(sid)} .`);
     }
   }
 
@@ -840,7 +964,7 @@ export async function buildUnifiedGraph() {
   fs.writeFileSync(trigOut, trigParts.join('\n'), 'utf8');
 
   console.log(
-    `Indexed code+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${knownRoutes.size} routes, ${agentTools.length} WebMCP tools, ${domains.size} domains, ${journeyById.size + proposedCount} journeys (${journeyById.size} authored, ${proposedCount} proposed), ${runCount} runs, ${issueCount} issues, ${rootCauseCount} rootCause edges.`,
+    `Indexed code+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${knownRoutes.size} routes, ${agentTools.length} WebMCP tools, ${indexedStories.length} stories, ${domains.size} domains, ${journeyById.size + proposedCount} journeys (${journeyById.size} authored, ${proposedCount} proposed), ${runCount} runs, ${issueCount} issues, ${rootCauseCount} rootCause edges.`,
   );
   console.log(
     `Wrote:\n  - ${path.relative(REPO_ROOT, codeOut)}\n  - ${path.relative(REPO_ROOT, qaOut)}\n  - ${path.relative(REPO_ROOT, bridgeOut)}\n  - ${path.relative(REPO_ROOT, trigOut)}`,

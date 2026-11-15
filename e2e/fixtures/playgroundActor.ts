@@ -160,6 +160,27 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
       testInfo.title.includes('@cold-boot') ||
       testInfo.titlePath.some((segment) => segment.includes('@cold-boot'));
 
+    try {
+      const e2eHead = readFileSync(testInfo.file, 'utf8').slice(0, 256);
+      const specMatch = e2eHead.match(/^\/\/\s*spec:\s*(\S+)/m);
+      if (specMatch) {
+        const specText = readFileSync(specMatch[1], 'utf8').slice(0, 1024);
+        const idMatch = specText.match(/^#\s+([A-Z]+-\d+)\s+[—-]/m);
+        if (idMatch) {
+          const targetBase = process.env.TARGET_URL || testInfo.project.use.baseURL || 'https://wod.wiki';
+          let ontologyBase = 'https://wod.wiki/ontology';
+          const previewMatch = targetBase.match(/^https?:\/\/([a-z0-9-]+)\.preview\.wod\.wiki/i);
+          if (previewMatch) ontologyBase = `https://${previewMatch[1]}.preview.wod.wiki/ontology`;
+          testInfo.annotations.push({
+            type: 'ontology',
+            description: `${ontologyBase}/#/journey/${encodeURIComponent(idMatch[1])}`,
+          });
+        }
+      }
+    } catch {
+      // Non-fatal: spec annotation is best-effort
+    }
+
     if (!isColdBoot) {
       await page.addInitScript(() => {
         window.localStorage.setItem('wodwiki.profileInitialized.v1', 'true');
