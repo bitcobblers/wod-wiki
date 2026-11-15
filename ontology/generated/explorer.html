@@ -160,6 +160,7 @@
   <select id="filter-stereotype"><option value="">All UFO Stereotypes</option></select>
   <select id="filter-severity">
     <option value="">All Severities</option>
+    <option value="Critical">Critical</option>
     <option value="High">High</option>
     <option value="Medium">Medium</option>
     <option value="Low">Low</option>
@@ -351,6 +352,13 @@
     return 'journeys';
   }
 
+  const VALID_TABS = new Set(['overview', 'journeys', 'domain', 'code', 'issues', 'graph']);
+  const VALID_SUBTABS = new Set(['files', 'stories', 'routes', 'testids', 'webmcp']);
+  const VALID_KINDS = new Set(['journey', 'class', 'stereotype', 'file', 'issue', 'story', 'route', 'testid', 'tool']);
+  const LAYER_NAMES = ['patterns', 'domain', 'qa', 'code', 'bridge'];
+  const KIND_BUCKETS = ['stereotype', 'class', 'journey', 'issue', 'story', 'testFile', 'sourceFile', 'route', 'testid', 'tool'];
+  const VALID_BUDGETS = new Set(['shortest', 'plus1', 'plus2', 'max4', 'max5', 'max6']);
+
   function buildHash(kind, id, tab, codeSubtab) {
     const encodedId = kind === 'file'
       ? id.split('/').map(encodeURIComponent).join('/')
@@ -358,12 +366,49 @@
     const params = new URLSearchParams();
     if (tab && tab !== defaultTabForKind(kind)) params.set('tab', tab);
     if (tab === 'code' && codeSubtab && codeSubtab !== 'files') params.set('sub', codeSubtab);
-    if (tab === 'graph') {
-      if (state.graph.mode !== 'neighborhood') params.set('gmode', state.graph.mode);
-      if (state.graph.mode === 'path' && state.graph.to?.id) {
-        params.set('to', state.graph.to.kind + ':' + state.graph.to.id);
-      }
+
+    const enabledLayers = LAYER_NAMES.filter(l => state.layers[l]);
+    if (enabledLayers.length === 0) {
+      params.set('layers', 'none');
+    } else if (enabledLayers.length < LAYER_NAMES.length) {
+      params.set('layers', enabledLayers.join(','));
     }
+
+    if (tab === 'graph') {
+      const g = state.graph;
+      if (g.mode !== 'neighborhood') params.set('gmode', g.mode);
+      if (g.mode === 'path' && g.to?.id) {
+        params.set('to', g.to.kind + ':' + g.to.id);
+      }
+      if (g.hops !== 1) params.set('hops', String(g.hops));
+      const disabledKinds = KIND_BUCKETS.filter(k => !g.enabledKinds[k]);
+      if (disabledKinds.length === KIND_BUCKETS.length) {
+        params.set('kinds', 'none');
+      } else if (disabledKinds.length > 0) {
+        if (disabledKinds.length <= KIND_BUCKETS.length / 2) {
+          params.set('kinds', disabledKinds.map(k => '-' + k).join(','));
+        } else {
+          const enabledKinds = KIND_BUCKETS.filter(k => g.enabledKinds[k]);
+          params.set('kinds', enabledKinds.join(','));
+        }
+      }
+      if (g.disabledPreds.size > 0) {
+        params.set('preds', [...g.disabledPreds].sort().map(p => '-' + p).join(','));
+      }
+      if (g.nodeFilter) params.set('nf', g.nodeFilter);
+      if (g.nodeFilterMode !== 'highlight') params.set('nfmode', g.nodeFilterMode);
+      if (g.pathBudget !== 'plus1') params.set('budget', g.pathBudget);
+      if (g.activePathIdx >= 0) params.set('path', String(g.activePathIdx));
+      if (g.fullscreen) params.set('fs', '1');
+    }
+
+    if (state.search) params.set('q', state.search);
+    if (state.domain) params.set('dom', state.domain);
+    if (state.priority) params.set('pri', state.priority);
+    if (state.stereotype) params.set('st', state.stereotype);
+    if (state.severity) params.set('sev', state.severity);
+    if (state.status) params.set('stat', state.status);
+
     const qs = params.toString();
     return `#/${kind}/${encodedId}${qs ? '?' + qs : ''}`;
   }
@@ -375,7 +420,7 @@
     const parts = pathPart.split('/').filter(Boolean);
     if (parts.length < 2) return null;
     const kind = parts[0];
-    if (!['journey', 'class', 'stereotype', 'file', 'issue', 'story', 'route', 'testid', 'tool'].includes(kind)) return null;
+    if (!VALID_KINDS.has(kind)) return null;
     let id = '';
     try {
       id = kind === 'file'
@@ -385,7 +430,29 @@
       id = parts.slice(1).join('/');
     }
     const params = new URLSearchParams(qs || '');
-    return { kind, id, tab: params.get('tab'), sub: params.get('sub'), gmode: params.get('gmode'), to: params.get('to') };
+    return {
+      kind,
+      id,
+      tab: params.get('tab'),
+      sub: params.get('sub'),
+      gmode: params.get('gmode'),
+      to: params.get('to'),
+      layers: params.get('layers'),
+      kinds: params.get('kinds'),
+      preds: params.get('preds'),
+      hops: params.get('hops'),
+      nf: params.get('nf'),
+      nfmode: params.get('nfmode'),
+      budget: params.get('budget'),
+      path: params.get('path'),
+      fs: params.get('fs'),
+      q: params.get('q'),
+      dom: params.get('dom'),
+      pri: params.get('pri'),
+      st: params.get('st'),
+      sev: params.get('sev'),
+      stat: params.get('stat')
+    };
   }
 
   function syncHash(replace) {
@@ -400,20 +467,132 @@
     }
   }
 
+  function syncFilterInputsUI() {
+    document.querySelectorAll('.layer-toggle input').forEach(cb => {
+      const l = cb.dataset.layer;
+      if (l && l in state.layers) cb.checked = Boolean(state.layers[l]);
+    });
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    setVal('search-input', state.search);
+    setVal('filter-domain', state.domain);
+    setVal('filter-priority', state.priority);
+    setVal('filter-stereotype', state.stereotype);
+    setVal('filter-severity', state.severity);
+    setVal('filter-status', state.status);
+  }
+
   function applyHashFromLocation() {
     const parsed = parseHash(window.location.hash);
-    if (!parsed) return false;
+    if (!parsed) {
+      if (window.location.hash) {
+        console.warn('Invalid deep-link hash ignored:', window.location.hash);
+        syncHash(true);
+      }
+      return false;
+    }
     state.selected = { kind: parsed.kind, id: parsed.id };
     state.graph.from = { kind: parsed.kind, id: parsed.id };
-    state.tab = parsed.tab || defaultTabForKind(parsed.kind);
+    if (parsed.tab) {
+      if (VALID_TABS.has(parsed.tab)) {
+        state.tab = parsed.tab;
+      } else {
+        console.warn('Unknown tab in deep link:', parsed.tab);
+        state.tab = defaultTabForKind(parsed.kind);
+      }
+    } else {
+      state.tab = defaultTabForKind(parsed.kind);
+    }
+
+    if (parsed.sub) {
+      if (VALID_SUBTABS.has(parsed.sub)) state.codeSubtab = parsed.sub;
+      else {
+        console.warn('Unknown code subtab in deep link:', parsed.sub);
+        state.codeSubtab = parsed.kind === 'story' ? 'stories' : 'files';
+      }
+    } else if (parsed.kind === 'file') {
+      state.codeSubtab = 'files';
+    } else if (parsed.kind === 'story') {
+      state.codeSubtab = 'stories';
+    }
+
+    if (parsed.layers !== null) {
+      const nextLayers = {};
+      LAYER_NAMES.forEach(l => { nextLayers[l] = false; });
+      if (parsed.layers !== 'none') {
+        parsed.layers.split(',').map(s => s.trim()).filter(Boolean).forEach(l => {
+          if (l in nextLayers) nextLayers[l] = true;
+          else console.warn('Unknown layer in deep link:', l);
+        });
+      }
+      state.layers = nextLayers;
+    } else {
+      LAYER_NAMES.forEach(l => { state.layers[l] = true; });
+    }
+
     if (parsed.gmode === 'path' || parsed.gmode === 'neighborhood') state.graph.mode = parsed.gmode;
     if (parsed.to) {
       const idx = parsed.to.indexOf(':');
-      if (idx > 0) state.graph.to = { kind: parsed.to.slice(0, idx), id: parsed.to.slice(idx + 1) };
+      if (idx > 0) {
+        const toKind = parsed.to.slice(0, idx);
+        const toId = parsed.to.slice(idx + 1);
+        if (VALID_KINDS.has(toKind)) state.graph.to = { kind: toKind, id: toId };
+        else console.warn('Unknown target kind in deep link:', toKind);
+      }
     }
-    if (parsed.sub) state.codeSubtab = parsed.sub;
-    else if (parsed.kind === 'file') state.codeSubtab = 'files';
-    else if (parsed.kind === 'story') state.codeSubtab = 'stories';
+
+    if (parsed.hops !== null) {
+      const h = Number(parsed.hops);
+      state.graph.hops = h === 2 ? 2 : 1;
+    }
+
+    if (parsed.kinds !== null) {
+      const tokens = parsed.kinds.split(',').map(s => s.trim()).filter(Boolean);
+      const isDelta = tokens.some(t => t.startsWith('-'));
+      if (parsed.kinds === 'none') {
+        KIND_BUCKETS.forEach(k => { state.graph.enabledKinds[k] = false; });
+      } else if (isDelta) {
+        KIND_BUCKETS.forEach(k => { state.graph.enabledKinds[k] = true; });
+        tokens.forEach(t => {
+          const k = t.startsWith('-') ? t.slice(1) : t;
+          if (k in state.graph.enabledKinds) state.graph.enabledKinds[k] = false;
+          else console.warn('Unknown node kind in deep link:', k);
+        });
+      } else {
+        KIND_BUCKETS.forEach(k => { state.graph.enabledKinds[k] = false; });
+        tokens.forEach(k => {
+          if (k in state.graph.enabledKinds) state.graph.enabledKinds[k] = true;
+          else console.warn('Unknown node kind in deep link:', k);
+        });
+      }
+    } else {
+      KIND_BUCKETS.forEach(k => { state.graph.enabledKinds[k] = true; });
+    }
+
+    state.graph.disabledPreds.clear();
+    if (parsed.preds !== null) {
+      parsed.preds.split(',').map(s => s.trim()).filter(Boolean).forEach(t => {
+        const p = t.startsWith('-') ? t.slice(1) : t;
+        if (p) state.graph.disabledPreds.add(p);
+      });
+    }
+
+    if (parsed.nf !== null) state.graph.nodeFilter = parsed.nf;
+    if (parsed.nfmode === 'highlight' || parsed.nfmode === 'isolate') state.graph.nodeFilterMode = parsed.nfmode;
+    if (parsed.budget && VALID_BUDGETS.has(parsed.budget)) state.graph.pathBudget = parsed.budget;
+    if (parsed.path !== null) {
+      const pi = Number(parsed.path);
+      state.graph.activePathIdx = Number.isInteger(pi) && pi >= 0 ? pi : -1;
+    }
+    state.graph.fullscreen = parsed.fs === '1' || parsed.fs === 'true';
+
+    if (parsed.q !== null) state.search = parsed.q.toLowerCase();
+    if (parsed.dom !== null) state.domain = parsed.dom;
+    if (parsed.pri !== null) state.priority = parsed.pri;
+    if (parsed.st !== null) state.stereotype = parsed.st;
+    if (parsed.sev !== null) state.severity = parsed.sev;
+    if (parsed.stat !== null) state.status = parsed.stat;
+
+    syncFilterInputsUI();
     syncTabUI();
     return true;
   }
@@ -427,10 +606,11 @@
     return `<span class="badge ${cls} ${navKind ? 'clickable' : ''}"${click}>${esc(text)}</span>`;
   }
 
-  function codeJumpLinks(filePath, lineHint) {
+  function codeJumpLinks(filePath, lineHint, labelPrefix) {
     if (!filePath) return '';
     const line = Number(lineHint) > 0 ? Number(lineHint) : 1;
     const ghHref = `https://github.com/bitcobblers/wod-wiki/blob/main/${filePath}#L${line}`;
+    const ghLabel = labelPrefix ? `${labelPrefix} ↗` : 'GitHub ↗';
     let vsLink = '';
     if (window.location.protocol === 'file:') {
       const repoRoot = decodeURIComponent(window.location.pathname).replace(/\/ontology\/generated\/explorer\.html$/i, '');
@@ -439,7 +619,7 @@
         vsLink = `<a class="btn" href="${esc(vsHref)}" title="Open in VS Code at line ${line}">VS Code ↗</a>`;
       }
     }
-    return `${vsLink}<a class="btn" href="${esc(ghHref)}" target="_blank" rel="noopener noreferrer" title="View on GitHub at line ${line}">GitHub ↗</a>`;
+    return `${vsLink}<a class="btn" href="${esc(ghHref)}" target="_blank" rel="noopener noreferrer" title="View on GitHub at line ${line}">${esc(ghLabel)}</a>`;
   }
 
   // Stats bar
@@ -949,7 +1129,9 @@
         <button class="subtab ${state.codeSubtab === 'tools' ? 'active' : ''}" data-subtab="tools">WebMCP (${DATA.codeTools.length})</button>
       </div>`;
       if (state.codeSubtab === 'files') {
-        const items = DATA.codeFiles.filter(f => matchSearch(`${f.p} ${f.syms.map(s => s.n).join(' ')}`)).slice(0, 120);
+        const allItems = DATA.codeFiles.filter(f => matchSearch(`${f.p} ${f.syms.map(s => s.n).join(' ')}`));
+        const items = allItems.slice(0, 120);
+        const truncNote = allItems.length > items.length ? `<div class="card-sub" style="padding:6px 4px;">Showing ${items.length} of ${allItems.length} files — use Search to narrow.</div>` : '';
         el.innerHTML = subTabs + items.map(f => {
           const jc = (fileToJourneys.get(f.p)?.size) || 0;
           const ic = (fileToIssues.get(f.p)?.size) || 0;
@@ -957,17 +1139,19 @@
             <div class="card-title"><span class="mono">${esc(f.p.split('/').pop())}</span><span class="badge b-code">${f.syms.length} syms</span></div>
             <div class="card-sub">${esc(f.p)} · ${jc} journeys · ${ic} issues</div>
           </div>`;
-        }).join('');
+        }).join('') + truncNote || subTabs + '<div class="card-sub">No matching files.</div>';
       } else if (state.codeSubtab === 'stories') {
         const origins = resolveOrigins();
-        const items = (DATA.codeStories || []).filter(s => matchSearch(`${s.id} ${s.title} ${s.name} ${s.domainState} ${s.file}`)).slice(0, 150);
-        el.innerHTML = subTabs + items.map(s => {
+        const allItems = (DATA.codeStories || []).filter(s => matchSearch(`${s.id} ${s.title} ${s.name} ${s.domainState} ${s.file}`));
+        const items = allItems.slice(0, 150);
+        const truncNote = allItems.length > items.length ? `<div class="card-sub" style="padding:6px 4px;">Showing ${items.length} of ${allItems.length} stories — use Search to narrow.</div>` : '';
+        el.innerHTML = subTabs + (items.map(s => {
           const sbHref = `${origins.storybook}/?path=/story/${encodeURIComponent(s.id)}`;
           return `<div class="card ${state.selected.kind === 'story' && state.selected.id === s.id ? 'selected' : ''}" data-nav-kind="story" data-nav-id="${esc(s.id)}">
             <div class="card-title"><span>${esc(s.title)} / ${esc(s.name)}</span><span>${s.hasPlay ? badge('play()', 'b-qa') : ''}<a class="badge b-code clickable" href="${esc(sbHref)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Storybook ↗</a></span></div>
             <div class="card-sub">${s.domainState ? badge('domainState: ' + s.domainState, 'b-domain') : ''} ${s.journeys.map(j => badge(j, 'b-qa', 'journey', j)).join('')} <code>${esc(s.id)}</code></div>
           </div>`;
-        }).join('') || '<div class="card-sub">No matching stories.</div>';
+        }).join('') + truncNote || '<div class="card-sub">No matching stories.</div>');
       } else if (state.codeSubtab === 'routes') {
         const origins = resolveOrigins();
         const items = DATA.codeRoutes.filter(r => matchSearch(`${r.path} ${r.name}`));
@@ -1055,7 +1239,8 @@
     const kindChips = kindDefs.map(([k, lbl, cls]) => {
       const cnt = sub.kindCounts[k] || 0;
       const active = g.enabledKinds[k];
-      return `<button class="chip ${active ? 'active' : ''}" data-g-kind="${k}"><span class="badge ${cls}" style="margin:0;padding:0 4px;">${cnt}</span>${lbl}</button>`;
+      const dimStyle = cnt === 0 ? ' style="opacity:0.45;"' : '';
+      return `<button class="chip ${active ? 'active' : ''}" data-g-kind="${k}"${dimStyle}><span class="badge ${cls}" style="margin:0;padding:0 4px;">${cnt}</span>${lbl}</button>`;
     }).join('');
 
     const allPreds = Object.keys(sub.predCounts).sort();
@@ -1255,6 +1440,13 @@
               <button class="btn" id="btn-zoom-out" title="Zoom Out">−</button>
               <button class="btn" id="btn-zoom-reset" title="Reset View &amp; Node Positions">Reset</button>
             </div>
+            <div style="position:absolute;bottom:8px;left:10px;z-index:2;display:flex;flex-wrap:wrap;gap:8px;font-size:10.5px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:3px 8px;opacity:0.9;">
+              <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#a78bfa;margin-right:4px;"></span>:patterns</span>
+              <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#34d399;margin-right:4px;"></span>:domain</span>
+              <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#fbbf24;margin-right:4px;"></span>:qa</span>
+              <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#38bdf8;margin-right:4px;"></span>:code</span>
+              <span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#fb7185;margin-right:4px;"></span>:bridge</span>
+            </div>
             <svg class="graph" id="graph-svg" viewBox="0 0 ${W} ${H}">
               <g id="graph-viewport" transform="translate(${g.panX},${g.panY}) scale(${g.zoom})">
                 ${edgeSvg}
@@ -1304,8 +1496,8 @@
       const j = journeyById.get(node.id);
       extra = `
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;">
-          ${j?.specFile ? codeJumpLinks(j.specFile, 1) : ''}
-          ${j?.pwSpec ? `<span title="Playwright spec">${codeJumpLinks(j.pwSpec, 1)}</span>` : ''}
+          ${j?.specFile ? codeJumpLinks(j.specFile, 1, 'Spec (GitHub)') : ''}
+          ${j?.pwSpec ? codeJumpLinks(j.pwSpec, 1, 'E2E (GitHub)') : ''}
           <button class="btn" data-open-detail-kind="journey" data-open-detail-id="${esc(node.id)}">Open Journey Detail</button>
         </div>
         <p class="card-sub">${esc(j?.title || '')}</p>`;
@@ -1471,10 +1663,25 @@
       return;
     }
 
+    function renderNotFound(kindLabel, idVal, candidates, navKind) {
+      const q = (idVal || '').toLowerCase();
+      const sugg = candidates
+        .filter(x => x.id.toLowerCase().includes(q) || q.includes(x.id.toLowerCase()) || (x.label && x.label.toLowerCase().includes(q)))
+        .slice(0, 6);
+      const fallback = sugg.length ? sugg : candidates.slice(0, 6);
+      return crumbs + `
+        <div class="section">
+          <h2 style="margin:0 0 6px;">${esc(kindLabel)} not found</h2>
+          <p class="card-sub">No ${esc(kindLabel.toLowerCase())} matched <code>${esc(idVal)}</code>.</p>
+          <p><strong>${sugg.length ? 'Did you mean:' : 'Available examples:'}</strong><br/>
+          ${fallback.map(x => badge(x.label ? `${x.id} — ${x.label}` : x.id, 'b-bridge', navKind, x.id)).join('')}</p>
+        </div>`;
+    }
+
     const { kind, id } = state.selected;
     if (kind === 'journey') {
       const j = journeyById.get(id);
-      if (!j) { el.innerHTML = crumbs + '<p>Select a journey.</p>'; return; }
+      if (!j) { el.innerHTML = renderNotFound('Journey', id, DATA.qaJourneys.map(x => ({ id: x.id, label: x.title })), 'journey'); return; }
       const e2eHref = `${origins.e2e}/#?q=${encodeURIComponent(j.id)}`;
       el.innerHTML = crumbs + `
         <div class="section">
@@ -1515,7 +1722,7 @@
         </div>`;
     } else if (kind === 'class') {
       const c = classByCurie.get(id);
-      if (!c) { el.innerHTML = crumbs + '<p>Select a class.</p>'; return; }
+      if (!c) { el.innerHTML = renderNotFound('Class', id, DATA.classes.map(x => ({ id: x.curie, label: x.module })), 'class'); return; }
       const objProps = c.props.filter(p => p.kind === 'object');
       const dtProps = c.props.filter(p => p.kind !== 'object');
       const incProps = incomingPropsByClass.get(c.curie) || [];
@@ -1595,7 +1802,7 @@
         </div>`;
     } else if (kind === 'story') {
       const st = storyById.get(id);
-      if (!st) { el.innerHTML = crumbs + '<p>Select a story test.</p>'; return; }
+      if (!st) { el.innerHTML = renderNotFound('Story', id, (DATA.codeStories || []).map(x => ({ id: x.id, label: x.title + ' / ' + x.name })), 'story'); return; }
       const sbHref = `${origins.storybook}/?path=/story/${encodeURIComponent(st.id)}`;
       el.innerHTML = crumbs + `
         <div class="section">
@@ -1616,7 +1823,7 @@
         </div>` : ''}`;
     } else if (kind === 'issue') {
       const iss = issueById.get(id);
-      if (!iss) { el.innerHTML = crumbs + '<p>Select an issue.</p>'; return; }
+      if (!iss) { el.innerHTML = renderNotFound('Issue', id, DATA.qaIssues.map(x => ({ id: x.id, label: x.title })), 'issue'); return; }
       const qaIssueHref = `${origins.qa}/issues/${encodeURIComponent(iss.id)}`;
       const fmtRun = (runId) => runId
         ? `<a class="badge b-qa clickable" href="${esc(origins.qa + '/sessions/' + encodeURIComponent(runId))}" target="_blank" rel="noopener noreferrer">${esc(runId)} ↗</a>`
@@ -1624,7 +1831,7 @@
       el.innerHTML = crumbs + `
         <div class="section">
           <h2 style="margin:0 0 6px;">${esc(iss.id)} — ${esc(iss.title)}</h2>
-          <div>${badge(iss.severity, iss.severity === 'High' ? 'b-high' : 'b-med')} ${badge(iss.status, 'b-qa')} ${badge(iss.kind, 'b-qa')} ${iss.coverageStatus ? badge(iss.coverageStatus, 'b-qa') : ''} <a class="badge b-code clickable" href="${esc(qaIssueHref)}" target="_blank" rel="noopener noreferrer">Dogfood QA ↗</a></div>
+          <div>${badge(iss.severity, (iss.severity === 'High' || iss.severity === 'Critical') ? 'b-high' : 'b-med')} ${badge(iss.status, 'b-qa')} ${badge(iss.kind, 'b-qa')} ${iss.coverageStatus ? badge(iss.coverageStatus, 'b-qa') : ''} <a class="badge b-code clickable" href="${esc(qaIssueHref)}" target="_blank" rel="noopener noreferrer">Dogfood QA ↗</a></div>
           <p class="card-sub">PROV Runs: firstSeen=${fmtRun(iss.firstSeenRun)} · lastSeen=${fmtRun(iss.lastSeenRun)}</p>
         </div>
         <div class="section">
@@ -1690,6 +1897,7 @@
       nfInput.addEventListener('input', (e) => {
         g.nodeFilter = e.target.value;
         const selStart = e.target.selectionStart;
+        syncHash(true);
         render();
         const nextInp = document.getElementById('input-g-nodefilter');
         if (nextInp) { nextInp.focus(); nextInp.setSelectionRange(selStart, selStart); }
@@ -1880,10 +2088,10 @@
       state.graph.customPos = {}; state.graph.activePathIdx = -1; syncHash(false); render(); return;
     }
     if (e.target.id === 'btn-g-fullscreen') {
-      state.graph.fullscreen = !state.graph.fullscreen; syncTabUI(); render(); return;
+      state.graph.fullscreen = !state.graph.fullscreen; syncTabUI(); syncHash(true); render(); return;
     }
     if (e.target.id === 'btn-show-all-nodes') { state.graph.showAllNodes = true; render(); return; }
-    if (e.target.id === 'btn-clear-path') { state.graph.activePathIdx = -1; render(); return; }
+    if (e.target.id === 'btn-clear-path') { state.graph.activePathIdx = -1; syncHash(true); render(); return; }
     if (e.target.id === 'btn-zoom-in') { state.graph.zoom = Math.min(4, state.graph.zoom * 1.25); render(); return; }
     if (e.target.id === 'btn-zoom-out') { state.graph.zoom = Math.max(0.25, state.graph.zoom * 0.8); render(); return; }
     if (e.target.id === 'btn-zoom-reset') { state.graph.zoom = 1; state.graph.panX = 0; state.graph.panY = 0; state.graph.customPos = {}; render(); return; }
@@ -1916,6 +2124,7 @@
       const k = kindChip.dataset.gKind;
       state.graph.enabledKinds[k] = !state.graph.enabledKinds[k];
       state.graph.activePathIdx = -1;
+      syncHash(true);
       render();
       return;
     }
@@ -1925,25 +2134,30 @@
       if (state.graph.disabledPreds.has(p)) state.graph.disabledPreds.delete(p);
       else state.graph.disabledPreds.add(p);
       state.graph.activePathIdx = -1;
+      syncHash(true);
       render();
       return;
     }
     if (e.target.id === 'btn-kinds-all') {
       Object.keys(state.graph.enabledKinds).forEach(k => { state.graph.enabledKinds[k] = true; });
+      syncHash(true);
       render(); return;
     }
     if (e.target.id === 'btn-kinds-none') {
       Object.keys(state.graph.enabledKinds).forEach(k => { state.graph.enabledKinds[k] = false; });
+      syncHash(true);
       render(); return;
     }
     if (e.target.id === 'btn-preds-all') {
       state.graph.disabledPreds.clear();
+      syncHash(true);
       render(); return;
     }
     const pathItem = e.target.closest('[data-path-idx]');
     if (pathItem) {
       const idx = Number(pathItem.dataset.pathIdx);
       state.graph.activePathIdx = state.graph.activePathIdx === idx ? -1 : idx;
+      syncHash(true);
       render(); return;
     }
     if (e.target.id === 'btn-insp-set-a') {
@@ -2003,9 +2217,9 @@
   });
 
   document.addEventListener('change', (e) => {
-    if (e.target.id === 'sel-g-hops') { state.graph.hops = Number(e.target.value); state.graph.customPos = {}; render(); }
-    if (e.target.id === 'sel-g-budget') { state.graph.pathBudget = e.target.value; state.graph.customPos = {}; state.graph.activePathIdx = -1; render(); }
-    if (e.target.id === 'sel-g-filtermode') { state.graph.nodeFilterMode = e.target.value; render(); }
+    if (e.target.id === 'sel-g-hops') { state.graph.hops = Number(e.target.value); state.graph.customPos = {}; syncHash(true); render(); }
+    if (e.target.id === 'sel-g-budget') { state.graph.pathBudget = e.target.value; state.graph.customPos = {}; state.graph.activePathIdx = -1; syncHash(true); render(); }
+    if (e.target.id === 'sel-g-filtermode') { state.graph.nodeFilterMode = e.target.value; syncHash(true); render(); }
     if (e.target.id === 'chk-domain-simplify') { state.domainSimplify = e.target.checked; renderList(); }
   });
 
@@ -2034,14 +2248,14 @@
     syncSurfaceLinks();
     render();
   });
-  document.getElementById('search-input').addEventListener('input', (e) => { state.search = e.target.value.trim().toLowerCase(); render(); });
-  document.getElementById('filter-domain').addEventListener('change', (e) => { state.domain = e.target.value; render(); });
-  document.getElementById('filter-priority').addEventListener('change', (e) => { state.priority = e.target.value; render(); });
-  document.getElementById('filter-stereotype').addEventListener('change', (e) => { state.stereotype = e.target.value; render(); });
-  document.getElementById('filter-severity').addEventListener('change', (e) => { state.severity = e.target.value; render(); });
-  document.getElementById('filter-status').addEventListener('change', (e) => { state.status = e.target.value; render(); });
+  document.getElementById('search-input').addEventListener('input', (e) => { state.search = e.target.value.trim().toLowerCase(); syncHash(true); render(); });
+  document.getElementById('filter-domain').addEventListener('change', (e) => { state.domain = e.target.value; syncHash(true); render(); });
+  document.getElementById('filter-priority').addEventListener('change', (e) => { state.priority = e.target.value; syncHash(true); render(); });
+  document.getElementById('filter-stereotype').addEventListener('change', (e) => { state.stereotype = e.target.value; syncHash(true); render(); });
+  document.getElementById('filter-severity').addEventListener('change', (e) => { state.severity = e.target.value; syncHash(true); render(); });
+  document.getElementById('filter-status').addEventListener('change', (e) => { state.status = e.target.value; syncHash(true); render(); });
   document.querySelectorAll('.layer-toggle input').forEach(cb => {
-    cb.addEventListener('change', (e) => { state.layers[e.target.dataset.layer] = e.target.checked; render(); });
+    cb.addEventListener('change', (e) => { state.layers[e.target.dataset.layer] = e.target.checked; syncHash(true); render(); });
   });
 
   applyTheme(state.theme);
