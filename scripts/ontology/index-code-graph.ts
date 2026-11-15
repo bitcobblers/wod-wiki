@@ -114,6 +114,23 @@ function storyIri(storyId: string): string {
   return `<https://wod.wiki/code/story/${encodeSegment(storyId)}>`;
 }
 
+function storyTestIri(storyId: string): string {
+  return `<https://wod.wiki/qa/story/${encodeSegment(storyId)}>`;
+}
+
+function storyBeatIri(storyId: string, beatName: string): string {
+  return `<https://wod.wiki/qa/story/${encodeSegment(storyId)}/beat/${beatName}>`;
+}
+
+const DOMAIN_STATE_NOUNS: Record<string, string[]> = {
+  empty: [],
+  populatedJournal: ['wod:Note', 'wod:Notebook', 'wod:Page', 'wod:PageNote', 'wod:Session', 'wod:Effort', 'wod:Equipment', 'wod:Tag'],
+  activeSession: ['wod:Session', 'wod:SessionRun', 'wod:Note', 'wod:Effort'],
+  scopedPropertyOverride: ['wod:FieldValue', 'wod:Effort', 'wod:Equipment', 'wod:Note'],
+  skippedDependencyDiagnostic: ['wod:Session', 'wod:Note', 'wod:EventRecord'],
+  readOnlyFeedNote: ['wod:Feed', 'wod:Note', 'wod:Notebook'],
+};
+
 function sanitizeStorySlug(s: string): string {
   return s
     .toLowerCase()
@@ -474,6 +491,9 @@ export async function buildUnifiedGraph() {
     domainState?: string;
     componentName?: string;
     route?: string;
+    hasPlay: boolean;
+    testIds: string[];
+    seedNouns: string[];
   }
   const storyFiles = walkFiles(path.join(REPO_ROOT, 'apps/storybook/src'), new Set(['.tsx', '.ts'])).filter((f) =>
     f.endsWith('.stories.tsx') || f.endsWith('.stories.ts'),
@@ -508,6 +528,30 @@ export async function buildUnifiedGraph() {
 
       const ds = chunk.match(/\bdomainState\s*:\s*['"]([A-Za-z0-9_-]+)['"]/)?.[1] ?? defaultDomainState;
       const storyRoute = chunk.match(/\broutePath\s*:\s*['"]([^'"]+)['"]/)?.[1] ?? chunk.match(/\broute\s*:\s*['"]([^'"]+)['"]/)?.[1];
+      const hasPlay = /\bplay\s*:\s*async\b/.test(chunk);
+
+      // Extract per-story TEST_IDS and literal data-testid queries
+      const storyTestIds = new Set<string>();
+      for (const tidMatch of chunk.matchAll(/\bTEST_IDS\.([A-Za-z0-9_.]+)/g)) {
+        const val = testIdMap.get(tidMatch[1]);
+        if (val) storyTestIds.add(val);
+      }
+      for (const tidMatch of chunk.matchAll(/(?:getByTestId|queryByTestId|findByTestId|data-testid=)\(?['"]([a-z0-9-]+)['"]/g)) {
+        if (knownTestIdValues.has(tidMatch[1])) storyTestIds.add(tidMatch[1]);
+      }
+
+      // Extract per-story seed nouns from DOMAIN_STATE_PRESETS + story text hints
+      const storySeedNouns = new Set<string>(ds && DOMAIN_STATE_NOUNS[ds] ? DOMAIN_STATE_NOUNS[ds] : []);
+      for (const hint of DOMAIN_CLASS_HINTS) {
+        if (hint.pattern.test(`${storyTitle} ${componentName ?? ''} ${exportName}`)) {
+          storySeedNouns.add(hint.wodClass);
+        }
+      }
+
+      // Extract Drive actions & Prove assertions from play()
+      const driveCalls = [...chunk.matchAll(/\b(?:userEvent|storyActions|fireEvent)\.([A-Za-z0-9_]+)/g)].map((x) => x[1]);
+      const uniqueDrive = [...new Set(driveCalls)];
+      const expectCount = (chunk.match(/\bexpect\s*\(/g) ?? []).length;
 
       indexedStories.push({
         id: storyId,
@@ -517,9 +561,13 @@ export async function buildUnifiedGraph() {
         domainState: ds,
         componentName,
         route: storyRoute,
+        hasPlay,
+        testIds: [...storyTestIds].sort(),
+        seedNouns: [...storySeedNouns].sort(),
       });
 
       const sIri = storyIri(storyId);
+      const stIri = storyTestIri(storyId);
       const compSyms = componentName ? (symbolIndexByName.get(componentName) ?? []) : [];
       const compSym = compSyms[0];
 
@@ -535,10 +583,74 @@ export async function buildUnifiedGraph() {
         '',
       );
 
-      for (const hint of DOMAIN_CLASS_HINTS) {
-        if (hint.pattern.test(`${storyTitle} ${componentName ?? ''} ${exportName}`)) {
-          bridgeLines.push(`${hint.wodClass} bridge:story ${sIri} .`);
-        }
+      // Emit dedicated qa:StoryTest + 5-beat causal chain for this story
+      const stBeats: Array<{ name: string; beatRef: string; desc: string; next?: string }> = [
+        {
+          name: 'Seed',
+          beatRef: 'qa:Seed',
+          desc: `Seed: ${ds ? `domainState=${ds}` : 'props/args'}${storySeedNouns.size ? ` (${[...storySeedNouns].join(', ')})` : ''}`,
+          next: 'Enter',
+        },
+        {
+          name: 'Enter',
+          beatRef: 'qa:Enter',
+          desc: `Enter: ${componentName ?? storyTitle}${storyRoute ? ` @ ${storyRoute}` : ''}`,
+          next: 'Sense',
+        },
+        {
+          name: 'Sense',
+          beatRef: 'qa:Sense',
+          desc: `Sense: ${storyTestIds.size ? [...storyTestIds].slice(0, 6).join(', ') : 'rendered DOM'}`,
+          next: 'Drive',
+        },
+        {
+          name: 'Drive',
+          beatRef: 'qa:Drive',
+          desc: `Drive: ${hasPlay ? (uniqueDrive.length ? uniqueDrive.join(', ') : 'play() mount') : 'static story render'}`,
+          next: 'Prove',
+        },
+        {
+          name: 'Prove',
+          beatRef: 'qa:Prove',
+          desc: `Prove: ${hasPlay ? `${expectCount} expect() assertion(s)` : 'visual/render baseline'}`,
+        },
+      ];
+
+      qaLines.push(
+        `${stIri} a qa:StoryTest ;`,
+        `    rdfs:label "${esc(storyTitle + ' / ' + exportName)}" ;`,
+        `    qa:hasPlayTest ${hasPlay ? 'true' : 'false'} ;`,
+        `    qa:hasStep ${stBeats.map((b) => storyBeatIri(storyId, b.name)).join(', ')} .`,
+        '',
+      );
+
+      for (let bi = 0; bi < stBeats.length; bi++) {
+        const b = stBeats[bi];
+        const bIri = storyBeatIri(storyId, b.name);
+        qaLines.push(
+          `${bIri} a qa:Step ;`,
+          `    rdfs:label "${esc(b.desc)}" ;`,
+          `    qa:hasBeat ${b.beatRef} ;`,
+          `    qa:stepIndex ${bi + 1} ;`,
+          `    qa:beatOrder ${bi + 1}${b.next ? ` ;\n    qa:nextStep ${storyBeatIri(storyId, b.next)}` : ''} .`,
+          '',
+        );
+      }
+
+      bridgeLines.push(`${stIri} bridge:story ${sIri} .`);
+      bridgeLines.push(`${stIri} bridge:touches ${fileIri(relPath)} .`);
+      if (compSym) {
+        bridgeLines.push(`${stIri} bridge:touches ${fileIri(compSym.relPath)} .`);
+      }
+      if (storyRoute && knownRoutes.has(storyRoute)) {
+        bridgeLines.push(`${stIri} bridge:route ${routeIri(storyRoute)} .`);
+      }
+      for (const tid of storyTestIds) {
+        bridgeLines.push(`${stIri} bridge:testId ${testIdIri(tid)} .`);
+      }
+      for (const noun of storySeedNouns) {
+        bridgeLines.push(`${stIri} bridge:seedNoun ${noun} .`);
+        bridgeLines.push(`${noun} bridge:story ${sIri} .`);
       }
       if (storyRoute) {
         const list = storyIdsByRoute.get(storyRoute) ?? [];
@@ -684,6 +796,18 @@ export async function buildUnifiedGraph() {
     }
     for (const sid of linkedStories) {
       bridgeLines.push(`${jIri} bridge:story ${storyIri(sid)} .`);
+      qaLines.push(`${storyTestIri(sid)} qa:verifiesJourney ${jIri} .`);
+    }
+    // Also link any qa:StoryTest that shares >= 2 TEST_IDS with this journey
+    if (parsed.testIds.length >= 2) {
+      const jTidSet = new Set(parsed.testIds);
+      for (const st of indexedStories) {
+        const overlap = st.testIds.filter((t) => jTidSet.has(t));
+        if (overlap.length >= 2 && !linkedStories.has(st.id)) {
+          bridgeLines.push(`${jIri} bridge:story ${storyIri(st.id)} .`);
+          qaLines.push(`${storyTestIri(st.id)} qa:verifiesJourney ${jIri} .`);
+        }
+      }
     }
   }
 

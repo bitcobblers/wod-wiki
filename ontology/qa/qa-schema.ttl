@@ -32,6 +32,13 @@ qa:Journey a owl:Class ;
     rdfs:label "QA Journey" ;
     rdfs:comment "An end-to-end user acceptance journey (e.g. JRN-01, NBK-02, RUN-02) composed of ordered Steps and 5-beat causal chains." .
 
+qa:StoryTest a owl:Class ;
+    rdfs:subClassOf prov:Plan ;
+    ufo:stereotype ufo:InformationObject ;
+    ufo:instantiatesPattern ufo:FiveBeatJourneyPattern ;
+    rdfs:label "Storybook Component Test" ;
+    rdfs:comment "A Tier 2 Storybook component test (play() interaction or visual state) with its own 5-beat causal chain (Seed -> Enter -> Sense -> Drive -> Prove)." .
+
 qa:Step a owl:Class ;
     ufo:stereotype ufo:Event ;
     rdfs:label "QA Step" ;
@@ -165,3 +172,15 @@ qa:issueSummary a owl:DatatypeProperty ;
     rdfs:label "issue summary" ;
     rdfs:domain qa:Issue ;
     rdfs:range xsd:string .
+
+qa:hasPlayTest a owl:DatatypeProperty ;
+    rdfs:label "has play test" ;
+    rdfs:domain qa:StoryTest ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "True when the story defines an interactive Storybook play() test function." .
+
+qa:verifiesJourney a owl:ObjectProperty ;
+    rdfs:label "verifies journey" ;
+    rdfs:domain qa:StoryTest ;
+    rdfs:range qa:Journey ;
+    rdfs:comment "Links a Tier 2 Storybook qa:StoryTest to a Tier 3 qa:Journey it supports or verifies." .
