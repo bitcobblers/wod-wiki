@@ -117,3 +117,9 @@ bridge:implementsDomainClass a owl:ObjectProperty ;
     rdfs:range owl:Class ;
     rdfs:label "implements domain class" ;
     rdfs:comment "Links a TypeScript code:Symbol (interface/class) to the wod: domain owl:Class it implements." .
+
+bridge:story a owl:ObjectProperty ;
+    bridge:hermesLevel bridge:O4BridgeGraph ;
+    rdfs:range code:Story ;
+    rdfs:label "story" ;
+    rdfs:comment "Links a qa:Journey, qa:Step, or wod: domain owl:Class to a Storybook code:Story that exercises or renders it." .

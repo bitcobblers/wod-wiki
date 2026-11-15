@@ -35,6 +35,21 @@ qa:JourneyShape a sh:NodeShape ;
         sh:message "A QA journey has at least one qa:Step." ;
     ] .
 
+qa:StoryTestShape a sh:NodeShape ;
+    sh:targetClass qa:StoryTest ;
+    sh:property [
+        sh:path qa:hasStep ;
+        sh:minCount 1 ;
+        sh:class qa:Step ;
+        sh:message "A qa:StoryTest has at least one qa:Step." ;
+    ] ;
+    sh:property [
+        sh:path qa:hasPlayTest ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+        sh:message "A qa:StoryTest must declare qa:hasPlayTest (boolean)." ;
+    ] .
+
 qa:StepShape a sh:NodeShape ;
     sh:targetClass qa:Step ;
     sh:property [

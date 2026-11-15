@@ -110,6 +110,41 @@ function toolIri(name: string): string {
   return `<https://wod.wiki/code/tool/${encodeSegment(name)}>`;
 }
 
+function storyIri(storyId: string): string {
+  return `<https://wod.wiki/code/story/${encodeSegment(storyId)}>`;
+}
+
+function storyTestIri(storyId: string): string {
+  return `<https://wod.wiki/qa/story/${encodeSegment(storyId)}>`;
+}
+
+function storyBeatIri(storyId: string, beatName: string): string {
+  return `<https://wod.wiki/qa/story/${encodeSegment(storyId)}/beat/${beatName}>`;
+}
+
+const DOMAIN_STATE_NOUNS: Record<string, string[]> = {
+  empty: [],
+  populatedJournal: ['wod:Note', 'wod:Notebook', 'wod:Page', 'wod:PageNote', 'wod:Session', 'wod:Effort', 'wod:Equipment', 'wod:Tag'],
+  activeSession: ['wod:Session', 'wod:SessionRun', 'wod:Note', 'wod:Effort'],
+  scopedPropertyOverride: ['wod:FieldValue', 'wod:Effort', 'wod:Equipment', 'wod:Note'],
+  skippedDependencyDiagnostic: ['wod:Session', 'wod:Note', 'wod:EventRecord'],
+  readOnlyFeedNote: ['wod:Feed', 'wod:Note', 'wod:Notebook'],
+};
+
+function sanitizeStorySlug(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function toStorybookId(title: string, exportName: string): string {
+  const spacedName = exportName
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
+  return `${sanitizeStorySlug(title)}--${sanitizeStorySlug(spacedName)}`;
+}
+
 function domainIri(domain: string): string {
   return `<https://wod.wiki/qa/domain/${encodeSegment(domain)}>`;
 }
@@ -205,6 +240,7 @@ interface ParsedSpec {
   summary: string;
   testIds: string[];
   seedNouns: string[];
+  stories: string[];
   scenarios: string[];
 }
 
@@ -271,14 +307,23 @@ function parseE2eSpec(filePath: string, knownTestIdValues: Set<string>): ParsedS
     }
   }
 
-  // Infer seed nouns
+  // Infer seed nouns + explicit frontmatter seedNouns
   const seedNouns = new Set<string>();
+  const explicitSeedNouns = Array.isArray(meta.seedNouns)
+    ? meta.seedNouns
+    : typeof meta.seedNouns === 'string'
+      ? [meta.seedNouns]
+      : [];
+  for (const sn of explicitSeedNouns) {
+    if (sn) seedNouns.add(sn);
+  }
   for (const hint of DOMAIN_CLASS_HINTS) {
     if (hint.pattern.test(body)) {
       seedNouns.add(hint.wodClass);
     }
   }
 
+  const stories = Array.isArray(meta.stories) ? meta.stories : typeof meta.stories === 'string' ? [meta.stories] : [];
   const routes = Array.isArray(meta.routes) ? meta.routes : typeof meta.routes === 'string' ? [meta.routes] : [];
   const personas = Array.isArray(meta.personas) ? meta.personas : typeof meta.personas === 'string' ? [meta.personas] : [];
   const viewports = Array.isArray(meta.viewports)
@@ -301,6 +346,7 @@ function parseE2eSpec(filePath: string, knownTestIdValues: Set<string>): ParsedS
     summary: summaryLines[0]?.trim() ?? title,
     testIds: [...referencedTestIds].sort(),
     seedNouns: [...seedNouns].sort(),
+    stories,
     scenarios,
   };
 }
@@ -436,6 +482,187 @@ export async function buildUnifiedGraph() {
     );
   }
 
+  // 4b. Index Storybook Stories (apps/storybook/src/**/*.stories.tsx -> code:Story)
+  interface IndexedStory {
+    id: string;
+    title: string;
+    name: string;
+    relPath: string;
+    domainState?: string;
+    componentName?: string;
+    route?: string;
+    hasPlay: boolean;
+    testIds: string[];
+    seedNouns: string[];
+  }
+  const storyFiles = walkFiles(path.join(REPO_ROOT, 'apps/storybook/src'), new Set(['.tsx', '.ts'])).filter((f) =>
+    f.endsWith('.stories.tsx') || f.endsWith('.stories.ts'),
+  );
+  const indexedStories: IndexedStory[] = [];
+  const knownStoryIds = new Set<string>();
+  const storyIdsByRoute = new Map<string, string[]>();
+  const storyIdsByFile = new Map<string, string[]>();
+
+  for (const absStory of storyFiles) {
+    const relPath = path.relative(REPO_ROOT, absStory).replace(/\\/g, '/');
+    const content = fs.readFileSync(absStory, 'utf8');
+    const titleMatch = content.match(/\btitle\s*:\s*['"]([^'"]+)['"]/);
+    if (!titleMatch) continue;
+    const storyTitle = titleMatch[1];
+    const compMatch = content.match(/\bcomponent\s*:\s*([A-Z][A-Za-z0-9_]*)/);
+    const componentName = compMatch?.[1];
+    const defaultDomainState = content.match(/meta[\s\S]{0,600}?\bdomainState\s*:\s*['"]([A-Za-z0-9_-]+)['"]/)?.[1];
+
+    // Match CSF3 `export const Foo: Story = ...` or `export const Foo = ...`
+    const exportMatches = [...content.matchAll(/^export\s+const\s+([A-Za-z0-9_]+)\s*(?::\s*Story[^=]*)?=/gm)];
+    for (let idx = 0; idx < exportMatches.length; idx++) {
+      const m = exportMatches[idx];
+      const exportName = m[1];
+      if (exportName === 'default' || exportName === 'meta') continue;
+      const startOffset = m.index ?? 0;
+      const endOffset = idx + 1 < exportMatches.length ? (exportMatches[idx + 1].index ?? content.length) : content.length;
+      const chunk = content.slice(startOffset, endOffset);
+      const storyId = toStorybookId(storyTitle, exportName);
+      if (knownStoryIds.has(storyId)) continue;
+      knownStoryIds.add(storyId);
+
+      const ds = chunk.match(/\bdomainState\s*:\s*['"]([A-Za-z0-9_-]+)['"]/)?.[1] ?? defaultDomainState;
+      const storyRoute = chunk.match(/\broutePath\s*:\s*['"]([^'"]+)['"]/)?.[1] ?? chunk.match(/\broute\s*:\s*['"]([^'"]+)['"]/)?.[1];
+      const hasPlay = /\bplay\s*:\s*async\b/.test(chunk);
+
+      // Extract per-story TEST_IDS and literal data-testid queries
+      const storyTestIds = new Set<string>();
+      for (const tidMatch of chunk.matchAll(/\bTEST_IDS\.([A-Za-z0-9_.]+)/g)) {
+        const val = testIdMap.get(tidMatch[1]);
+        if (val) storyTestIds.add(val);
+      }
+      for (const tidMatch of chunk.matchAll(/(?:getByTestId|queryByTestId|findByTestId|data-testid=)\(?['"]([a-z0-9-]+)['"]/g)) {
+        if (knownTestIdValues.has(tidMatch[1])) storyTestIds.add(tidMatch[1]);
+      }
+
+      // Extract per-story seed nouns from DOMAIN_STATE_PRESETS + story text hints
+      const storySeedNouns = new Set<string>(ds && DOMAIN_STATE_NOUNS[ds] ? DOMAIN_STATE_NOUNS[ds] : []);
+      for (const hint of DOMAIN_CLASS_HINTS) {
+        if (hint.pattern.test(`${storyTitle} ${componentName ?? ''} ${exportName}`)) {
+          storySeedNouns.add(hint.wodClass);
+        }
+      }
+
+      // Extract Drive actions & Prove assertions from play()
+      const driveCalls = [...chunk.matchAll(/\b(?:userEvent|storyActions|fireEvent)\.([A-Za-z0-9_]+)/g)].map((x) => x[1]);
+      const uniqueDrive = [...new Set(driveCalls)];
+      const expectCount = (chunk.match(/\bexpect\s*\(/g) ?? []).length;
+
+      indexedStories.push({
+        id: storyId,
+        title: storyTitle,
+        name: exportName,
+        relPath,
+        domainState: ds,
+        componentName,
+        route: storyRoute,
+        hasPlay,
+        testIds: [...storyTestIds].sort(),
+        seedNouns: [...storySeedNouns].sort(),
+      });
+
+      const sIri = storyIri(storyId);
+      const stIri = storyTestIri(storyId);
+      const compSyms = componentName ? (symbolIndexByName.get(componentName) ?? []) : [];
+      const compSym = compSyms[0];
+
+      codeLines.push(
+        `${sIri} a code:Story ;`,
+        `    rdfs:label "${esc(storyTitle + ' / ' + exportName)}" ;`,
+        `    code:storyId "${esc(storyId)}" ;`,
+        `    code:storyTitle "${esc(storyTitle)}" ;`,
+        `    code:storyName "${esc(exportName)}" ;`,
+        ...(ds ? [`    code:domainStatePreset "${esc(ds)}" ;`] : []),
+        ...(compSym ? [`    code:storyComponent ${symbolIri(compSym.relPath, compSym.name)} ;`] : []),
+        `    code:definedIn ${fileIri(relPath)} .`,
+        '',
+      );
+
+      // Emit dedicated qa:StoryTest + 5-beat causal chain for this story
+      const stBeats: Array<{ name: string; beatRef: string; desc: string; next?: string }> = [
+        {
+          name: 'Seed',
+          beatRef: 'qa:Seed',
+          desc: `Seed: ${ds ? `domainState=${ds}` : 'props/args'}${storySeedNouns.size ? ` (${[...storySeedNouns].join(', ')})` : ''}`,
+          next: 'Enter',
+        },
+        {
+          name: 'Enter',
+          beatRef: 'qa:Enter',
+          desc: `Enter: ${componentName ?? storyTitle}${storyRoute ? ` @ ${storyRoute}` : ''}`,
+          next: 'Sense',
+        },
+        {
+          name: 'Sense',
+          beatRef: 'qa:Sense',
+          desc: `Sense: ${storyTestIds.size ? [...storyTestIds].slice(0, 6).join(', ') : 'rendered DOM'}`,
+          next: 'Drive',
+        },
+        {
+          name: 'Drive',
+          beatRef: 'qa:Drive',
+          desc: `Drive: ${hasPlay ? (uniqueDrive.length ? uniqueDrive.join(', ') : 'play() mount') : 'static story render'}`,
+          next: 'Prove',
+        },
+        {
+          name: 'Prove',
+          beatRef: 'qa:Prove',
+          desc: `Prove: ${hasPlay ? `${expectCount} expect() assertion(s)` : 'visual/render baseline'}`,
+        },
+      ];
+
+      qaLines.push(
+        `${stIri} a qa:StoryTest ;`,
+        `    rdfs:label "${esc(storyTitle + ' / ' + exportName)}" ;`,
+        `    qa:hasPlayTest ${hasPlay ? 'true' : 'false'} ;`,
+        `    qa:hasStep ${stBeats.map((b) => storyBeatIri(storyId, b.name)).join(', ')} .`,
+        '',
+      );
+
+      for (let bi = 0; bi < stBeats.length; bi++) {
+        const b = stBeats[bi];
+        const bIri = storyBeatIri(storyId, b.name);
+        qaLines.push(
+          `${bIri} a qa:Step ;`,
+          `    rdfs:label "${esc(b.desc)}" ;`,
+          `    qa:hasBeat ${b.beatRef} ;`,
+          `    qa:stepIndex ${bi + 1} ;`,
+          `    qa:beatOrder ${bi + 1}${b.next ? ` ;\n    qa:nextStep ${storyBeatIri(storyId, b.next)}` : ''} .`,
+          '',
+        );
+      }
+
+      bridgeLines.push(`${stIri} bridge:story ${sIri} .`);
+      bridgeLines.push(`${stIri} bridge:touches ${fileIri(relPath)} .`);
+      if (compSym) {
+        bridgeLines.push(`${stIri} bridge:touches ${fileIri(compSym.relPath)} .`);
+      }
+      if (storyRoute && knownRoutes.has(storyRoute)) {
+        bridgeLines.push(`${stIri} bridge:route ${routeIri(storyRoute)} .`);
+      }
+      for (const tid of storyTestIds) {
+        bridgeLines.push(`${stIri} bridge:testId ${testIdIri(tid)} .`);
+      }
+      for (const noun of storySeedNouns) {
+        bridgeLines.push(`${stIri} bridge:seedNoun ${noun} .`);
+        bridgeLines.push(`${noun} bridge:story ${sIri} .`);
+      }
+      if (storyRoute) {
+        const list = storyIdsByRoute.get(storyRoute) ?? [];
+        list.push(storyId);
+        storyIdsByRoute.set(storyRoute, list);
+      }
+      const fList = storyIdsByFile.get(relPath) ?? [];
+      fList.push(storyId);
+      storyIdsByFile.set(relPath, fList);
+    }
+  }
+
   // 5. Index QA Domains & Journeys from e2e/specs/ + e2e/live-app/ (all 7 domains)
   const domains = new Set<string>(['journal', 'notebooks', 'runtime', 'properties', 'analytics', 'feeds', 'manual']);
   const domainToArea: Record<string, string> = {
@@ -560,6 +787,27 @@ export async function buildUnifiedGraph() {
     }
     for (const noun of parsed.seedNouns) {
       bridgeLines.push(`${jIri} bridge:seedNoun ${noun} .`);
+    }
+    const linkedStories = new Set<string>(parsed.stories.filter((s) => knownStoryIds.has(s)));
+    for (const r of parsed.routes) {
+      for (const sid of storyIdsByRoute.get(r) ?? []) {
+        linkedStories.add(sid);
+      }
+    }
+    for (const sid of linkedStories) {
+      bridgeLines.push(`${jIri} bridge:story ${storyIri(sid)} .`);
+      qaLines.push(`${storyTestIri(sid)} qa:verifiesJourney ${jIri} .`);
+    }
+    // Also link any qa:StoryTest that shares >= 2 TEST_IDS with this journey
+    if (parsed.testIds.length >= 2) {
+      const jTidSet = new Set(parsed.testIds);
+      for (const st of indexedStories) {
+        const overlap = st.testIds.filter((t) => jTidSet.has(t));
+        if (overlap.length >= 2 && !linkedStories.has(st.id)) {
+          bridgeLines.push(`${jIri} bridge:story ${storyIri(st.id)} .`);
+          qaLines.push(`${storyTestIri(st.id)} qa:verifiesJourney ${jIri} .`);
+        }
+      }
     }
   }
 
@@ -840,7 +1088,7 @@ export async function buildUnifiedGraph() {
   fs.writeFileSync(trigOut, trigParts.join('\n'), 'utf8');
 
   console.log(
-    `Indexed code+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${knownRoutes.size} routes, ${agentTools.length} WebMCP tools, ${domains.size} domains, ${journeyById.size + proposedCount} journeys (${journeyById.size} authored, ${proposedCount} proposed), ${runCount} runs, ${issueCount} issues, ${rootCauseCount} rootCause edges.`,
+    `Indexed code+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${knownRoutes.size} routes, ${agentTools.length} WebMCP tools, ${indexedStories.length} stories, ${domains.size} domains, ${journeyById.size + proposedCount} journeys (${journeyById.size} authored, ${proposedCount} proposed), ${runCount} runs, ${issueCount} issues, ${rootCauseCount} rootCause edges.`,
   );
   console.log(
     `Wrote:\n  - ${path.relative(REPO_ROOT, codeOut)}\n  - ${path.relative(REPO_ROOT, qaOut)}\n  - ${path.relative(REPO_ROOT, bridgeOut)}\n  - ${path.relative(REPO_ROOT, trigOut)}`,
