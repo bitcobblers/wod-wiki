@@ -19,6 +19,11 @@ on:
         required: false
         type: string
         default: ''
+      force:
+        description: Skip the QA readiness status check (emergency only)
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -85,6 +90,32 @@ jobs:
             core.info(`Resolved main.yml run ${match.id} (${match.html_url}) for commit ${context.sha}`);
             core.setOutput('run-id', String(match.id));
             core.setOutput('target-sha', context.sha);
+
+      - name: Require QA readiness verdict
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.force) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Requiring commit status e2e/main-staging=success on ${GITHUB_SHA}"
+          echo "Set by the external E2E promotion agent (docs/e2e-promotion-agent.md)."
+          for i in $(seq 1 20); do
+            STATE=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/status" \
+              --jq '[.statuses[]? | select(.context=="e2e/main-staging")][0].state' 2>/dev/null || true)
+            case "$STATE" in
+              success)
+                echo "Readiness verdict: success"
+                exit 0
+                ;;
+              failure)
+                echo "::error::Readiness verdict is failure - production promotion blocked"
+                exit 1
+                ;;
+            esac
+            echo "waiting for readiness verdict (${i}/20, state=${STATE:-missing})"
+            sleep 30
+          done
+          echo "::error::No readiness verdict after 10 minutes - run the E2E promotion agent before tagging prod"
+          exit 1
 
       - name: Download packages-dist to verify availability & read version
         uses: actions/download-artifact@v7
