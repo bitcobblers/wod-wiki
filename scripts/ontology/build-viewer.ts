@@ -569,7 +569,32 @@ export function buildViewer() {
   .btn:hover { border-color: var(--accent); color: var(--accent); }
   .ext-links { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
   a.badge { text-decoration: none; }
-  svg.graph { width: 100%; height: 480px; border: 1px solid var(--border); border-radius: 8px; background: #090c12; }
+  svg.graph { width: 100%; height: 540px; border: 1px solid var(--border); border-radius: 8px; background: #090c12; display: block; cursor: grab; user-select: none; }
+  svg.graph:active { cursor: grabbing; }
+  .graph-fullscreen main { grid-template-columns: 0px 1fr; }
+  .graph-fullscreen .list-pane { display: none; }
+  .graph-controls { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+  .graph-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .picker-wrap { position: relative; flex: 1; min-width: 220px; }
+  .picker-input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; }
+  .picker-input:focus { outline: none; border-color: var(--accent); }
+  .picker-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 50; max-height: 260px; overflow-y: auto; background: var(--panel2); border: 1px solid var(--accent); border-radius: 6px; margin-top: 3px; box-shadow: 0 10px 28px rgba(0,0,0,.55); display: none; }
+  .picker-dropdown.open { display: block; }
+  .picker-item { padding: 6px 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px solid rgba(38,48,68,.5); font-size: 12px; }
+  .picker-item:last-child { border-bottom: none; }
+  .picker-item:hover { background: rgba(56,189,248,.12); }
+  .chip-bar { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); font-size: 11px; cursor: pointer; user-select: none; }
+  .chip.active { background: var(--panel2); color: var(--text); border-color: var(--accent); }
+  .chip:hover { border-color: var(--accent); }
+  .graph-stage { position: relative; }
+  .graph-hud { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; z-index: 10; }
+  .graph-hud .btn { background: rgba(18,23,34,.9); backdrop-filter: blur(4px); }
+  .graph-legend { position: absolute; bottom: 10px; left: 10px; display: flex; flex-wrap: wrap; gap: 8px; padding: 5px 9px; border-radius: 6px; background: rgba(18,23,34,.85); border: 1px solid var(--border); font-size: 10.5px; color: var(--muted); pointer-events: none; }
+  .graph-grid { display: grid; grid-template-columns: 1fr 340px; gap: 12px; align-items: start; }
+  @media (max-width: 1200px) { .graph-grid { grid-template-columns: 1fr; } }
+  .path-item { padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 5px; background: var(--bg); cursor: pointer; font-size: 11.5px; }
+  .path-item:hover, .path-item.active { border-color: var(--accent); background: var(--panel2); }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 500; }
@@ -633,7 +658,7 @@ export function buildViewer() {
   <button class="tab" data-tab="domain">Domain &amp; Patterns</button>
   <button class="tab" data-tab="code">Code &amp; Reverse Lookup</button>
   <button class="tab" data-tab="issues">Issues &amp; Provenance</button>
-  <button class="tab" data-tab="graph">Interactive Neighborhood Graph</button>
+  <button class="tab" data-tab="graph">Interactive Graph &amp; Path Explorer</button>
 </div>
 
 <main>
@@ -705,7 +730,27 @@ export function buildViewer() {
     status: '',
     env: 'auto',
     layers: { patterns: true, domain: true, qa: true, code: true, bridge: true },
-    selected: { kind: 'journey', id: DATA.qaJourneys[0]?.id || '' }
+    selected: { kind: 'journey', id: DATA.qaJourneys[0]?.id || '' },
+    graph: {
+      mode: 'neighborhood', // 'neighborhood' | 'path'
+      from: { kind: 'journey', id: DATA.qaJourneys[0]?.id || '' },
+      to: { kind: 'stereotype', id: DATA.stereotypes[0] || 'ufo:Kind' },
+      hops: 1,              // 1 | 2 for neighborhood
+      pathBudget: 'plus1',  // 'shortest' | 'plus1' | 'plus2' | 'max4' | 'max5' | 'max6'
+      enabledKinds: {
+        stereotype: true, class: true, journey: true, issue: true,
+        story: true, testFile: true, sourceFile: true, route: true, testid: true, tool: true
+      },
+      disabledPreds: new Set(),
+      nodeFilter: '',
+      nodeFilterMode: 'highlight', // 'highlight' | 'isolate'
+      inspectedKey: '',
+      activePathIdx: -1,
+      fullscreen: false,
+      showAllNodes: false,
+      panX: 0, panY: 0, zoom: 1,
+      customPos: {}
+    }
   };
 
   function resolveOrigins() {
@@ -748,9 +793,10 @@ export function buildViewer() {
 
   function defaultTabForKind(kind) {
     if (kind === 'journey') return 'journeys';
-    if (kind === 'class') return 'domain';
+    if (kind === 'class' || kind === 'stereotype') return 'domain';
     if (kind === 'file' || kind === 'story') return 'code';
     if (kind === 'issue') return 'issues';
+    if (kind === 'route' || kind === 'testid' || kind === 'tool') return 'graph';
     return 'journeys';
   }
 
@@ -761,6 +807,12 @@ export function buildViewer() {
     const params = new URLSearchParams();
     if (tab && tab !== defaultTabForKind(kind)) params.set('tab', tab);
     if (tab === 'code' && codeSubtab && codeSubtab !== 'files') params.set('sub', codeSubtab);
+    if (tab === 'graph') {
+      if (state.graph.mode !== 'neighborhood') params.set('gmode', state.graph.mode);
+      if (state.graph.mode === 'path' && state.graph.to?.id) {
+        params.set('to', state.graph.to.kind + ':' + state.graph.to.id);
+      }
+    }
     const qs = params.toString();
     return \`#/\${kind}/\${encodedId}\${qs ? '?' + qs : ''}\`;
   }
@@ -772,7 +824,7 @@ export function buildViewer() {
     const parts = pathPart.split('/').filter(Boolean);
     if (parts.length < 2) return null;
     const kind = parts[0];
-    if (!['journey', 'class', 'file', 'issue', 'story'].includes(kind)) return null;
+    if (!['journey', 'class', 'stereotype', 'file', 'issue', 'story', 'route', 'testid', 'tool'].includes(kind)) return null;
     let id = '';
     try {
       id = kind === 'file'
@@ -782,11 +834,12 @@ export function buildViewer() {
       id = parts.slice(1).join('/');
     }
     const params = new URLSearchParams(qs || '');
-    return { kind, id, tab: params.get('tab'), sub: params.get('sub') };
+    return { kind, id, tab: params.get('tab'), sub: params.get('sub'), gmode: params.get('gmode'), to: params.get('to') };
   }
 
   function syncHash(replace) {
-    const next = buildHash(state.selected.kind, state.selected.id, state.tab, state.codeSubtab);
+    const activeRef = state.tab === 'graph' ? state.graph.from : state.selected;
+    const next = buildHash(activeRef.kind, activeRef.id, state.tab, state.codeSubtab);
     if (window.location.hash !== next) {
       if (replace && window.history && window.history.replaceState) {
         window.history.replaceState(null, '', next);
@@ -800,7 +853,13 @@ export function buildViewer() {
     const parsed = parseHash(window.location.hash);
     if (!parsed) return false;
     state.selected = { kind: parsed.kind, id: parsed.id };
+    state.graph.from = { kind: parsed.kind, id: parsed.id };
     state.tab = parsed.tab || defaultTabForKind(parsed.kind);
+    if (parsed.gmode === 'path' || parsed.gmode === 'neighborhood') state.graph.mode = parsed.gmode;
+    if (parsed.to) {
+      const idx = parsed.to.indexOf(':');
+      if (idx > 0) state.graph.to = { kind: parsed.to.slice(0, idx), id: parsed.to.slice(idx + 1) };
+    }
     if (parsed.sub) state.codeSubtab = parsed.sub;
     else if (parsed.kind === 'file') state.codeSubtab = 'files';
     else if (parsed.kind === 'story') state.codeSubtab = 'stories';
@@ -815,6 +874,21 @@ export function buildViewer() {
   function badge(text, cls, navKind, navId) {
     const click = navKind ? \` data-nav-kind="\${esc(navKind)}" data-nav-id="\${esc(navId)}"\` : '';
     return \`<span class="badge \${cls} \${navKind ? 'clickable' : ''}"\${click}>\${esc(text)}</span>\`;
+  }
+
+  function codeJumpLinks(filePath, lineHint) {
+    if (!filePath) return '';
+    const line = Number(lineHint) > 0 ? Number(lineHint) : 1;
+    const ghHref = \`https://github.com/bitcobblers/wod-wiki/blob/main/\${filePath}#L\${line}\`;
+    let vsLink = '';
+    if (window.location.protocol === 'file:') {
+      const repoRoot = decodeURIComponent(window.location.pathname).replace(/\\/ontology\\/generated\\/explorer\\.html$/i, '');
+      if (repoRoot) {
+        const vsHref = \`vscode://file\${repoRoot}/\${filePath}:\${line}\`;
+        vsLink = \`<a class="btn" href="\${esc(vsHref)}" title="Open in VS Code at line \${line}">VS Code ↗</a>\`;
+      }
+    }
+    return \`\${vsLink}<a class="btn" href="\${esc(ghHref)}" target="_blank" rel="noopener noreferrer" title="View on GitHub at line \${line}">GitHub ↗</a>\`;
   }
 
   // Stats bar
@@ -850,6 +924,14 @@ export function buildViewer() {
       if (kind === 'file') state.codeSubtab = 'files';
       if (kind === 'story') state.codeSubtab = 'stories';
     }
+    if (state.tab === 'graph') {
+      if (state.graph.mode === 'neighborhood') {
+        state.graph.from = { kind, id };
+        state.graph.customPos = {};
+        state.graph.panX = 0; state.graph.panY = 0; state.graph.zoom = 1;
+      }
+      state.graph.inspectedKey = kind + ':' + id;
+    }
     syncTabUI();
     syncHash(false);
     render();
@@ -859,11 +941,354 @@ export function buildViewer() {
     document.querySelectorAll('#main-tabs .tab').forEach(b => {
       b.classList.toggle('active', b.dataset.tab === state.tab);
     });
+    document.body.classList.toggle('graph-fullscreen', state.tab === 'graph' && state.graph.fullscreen);
   }
 
   function matchSearch(haystack) {
     if (!state.search) return true;
     return haystack.toLowerCase().includes(state.search);
+  }
+
+  // --- Unified Graph Index ---
+  const graphNodes = new Map();
+  const graphEdges = [];
+  const graphEdgeKeys = new Set();
+  const graphAdj = new Map();
+
+  function addGraphNode(kind, id, label, sublabel, layer, isTest) {
+    if (!id) return null;
+    const key = kind + ':' + id;
+    if (!graphNodes.has(key)) {
+      graphNodes.set(key, {
+        key, kind, id,
+        label: label || id,
+        sublabel: sublabel || '',
+        layer,
+        isTest: Boolean(isTest),
+        searchText: (kind + ' ' + id + ' ' + (label || '') + ' ' + (sublabel || '')).toLowerCase()
+      });
+      graphAdj.set(key, []);
+    }
+    return key;
+  }
+
+  function addGraphEdge(fromKey, toKey, pred, layer, detail) {
+    if (!fromKey || !toKey || fromKey === toKey) return;
+    const ek = fromKey + '|' + toKey + '|' + pred + '|' + (detail || '');
+    if (graphEdgeKeys.has(ek)) return;
+    graphEdgeKeys.add(ek);
+    const idx = graphEdges.length;
+    graphEdges.push({ idx, from: fromKey, to: toKey, pred, layer, detail: detail || '' });
+    graphAdj.get(fromKey).push({ edgeIdx: idx, neighbor: toKey });
+    graphAdj.get(toKey).push({ edgeIdx: idx, neighbor: fromKey });
+  }
+
+  (function buildGraphIndex() {
+    for (const s of DATA.stereotypes) {
+      addGraphNode('stereotype', s, s, 'UFO Pattern', 'patterns', false);
+    }
+    for (const c of DATA.classes) {
+      const ck = addGraphNode('class', c.curie, c.curie, c.label + ' (' + c.module + ')', 'domain', false);
+      if (c.stereotype) {
+        const sk = addGraphNode('stereotype', c.stereotype, c.stereotype, 'UFO Pattern', 'patterns', false);
+        addGraphEdge(ck, sk, 'stereotype', 'patterns');
+      }
+    }
+    for (const c of DATA.classes) {
+      const ck = 'class:' + c.curie;
+      for (const sc of c.superClasses || []) {
+        if (graphNodes.has('class:' + sc)) {
+          addGraphEdge(ck, 'class:' + sc, 'subClassOf', 'domain');
+        }
+      }
+      for (const p of c.props || []) {
+        if (p.range && graphNodes.has('class:' + p.range)) {
+          addGraphEdge(ck, 'class:' + p.range, 'domainProp', 'domain', p.curie);
+        }
+      }
+    }
+    for (const f of DATA.codeFiles) {
+      const fk = addGraphNode('file', f.p, f.p.split('/').pop(), f.p, 'code', f.isTest);
+      for (const sym of f.syms || []) {
+        for (const d of sym.d || []) {
+          const ck = 'class:' + d;
+          if (graphNodes.has(ck)) {
+            addGraphEdge(fk, ck, 'implements', 'bridge', sym.n + (sym.l ? ':' + sym.l : ''));
+          }
+        }
+      }
+      for (const tid of f.tids || []) {
+        const tk = addGraphNode('testid', tid, tid, 'TEST_ID', 'code', false);
+        addGraphEdge(fk, tk, 'usesTestId', 'code');
+      }
+    }
+    for (const r of DATA.codeRoutes) {
+      addGraphNode('route', r.path, r.path, r.name || 'Route', 'code', false);
+    }
+    for (const t of DATA.codeTestIds) {
+      addGraphNode('testid', t.val, t.val, t.key || 'TEST_ID', 'code', false);
+    }
+    for (const w of DATA.codeTools) {
+      const wk = addGraphNode('tool', w.name, w.name, w.title || w.cli, 'code', false);
+      if (w.file) {
+        const fk = addGraphNode('file', w.file, w.file.split('/').pop(), w.file, 'code', false);
+        addGraphEdge(wk, fk, 'definedIn', 'code');
+      }
+    }
+    for (const st of DATA.codeStories || []) {
+      const sk = addGraphNode('story', st.id, st.title + ' / ' + st.name, st.id, 'code', st.hasPlay);
+      if (st.file) {
+        const fk = addGraphNode('file', st.file, st.file.split('/').pop(), st.file, 'code', true);
+        addGraphEdge(sk, fk, 'definedIn', 'code');
+      }
+      for (const sn of st.seedNouns || []) {
+        if (graphNodes.has('class:' + sn)) addGraphEdge(sk, 'class:' + sn, 'seedNoun', 'bridge');
+      }
+      for (const tf of st.touchedFiles || []) {
+        const fk = addGraphNode('file', tf, tf.split('/').pop(), tf, 'code', false);
+        addGraphEdge(sk, fk, 'touches', 'bridge');
+      }
+      for (const tid of st.testIds || []) {
+        const tk = addGraphNode('testid', tid, tid, 'TEST_ID', 'code', false);
+        addGraphEdge(sk, tk, 'testId', 'bridge');
+      }
+      for (const cl of st.classes || []) {
+        if (graphNodes.has('class:' + cl)) addGraphEdge(sk, 'class:' + cl, 'storyClass', 'bridge');
+      }
+    }
+    for (const j of DATA.qaJourneys) {
+      const jk = addGraphNode('journey', j.id, j.id + ' — ' + j.title, j.domain + ' · ' + j.priority, 'qa', false);
+      if (j.specFile) {
+        const fk = addGraphNode('file', j.specFile, j.specFile.split('/').pop(), j.specFile, 'code', true);
+        addGraphEdge(jk, fk, 'specFile', 'bridge');
+      }
+      if (j.pwSpec) {
+        const fk = addGraphNode('file', j.pwSpec, j.pwSpec.split('/').pop(), j.pwSpec, 'code', true);
+        addGraphEdge(jk, fk, 'playwrightSpec', 'bridge');
+      }
+      for (const sn of j.seedNouns || []) {
+        if (graphNodes.has('class:' + sn)) addGraphEdge(jk, 'class:' + sn, 'seedNoun', 'bridge');
+      }
+      for (const tf of j.touchedFiles || []) {
+        const fk = addGraphNode('file', tf, tf.split('/').pop(), tf, 'code', false);
+        addGraphEdge(jk, fk, 'touches', 'bridge');
+      }
+      for (const r of j.routes || []) {
+        const rk = addGraphNode('route', r, r, 'Route', 'code', false);
+        addGraphEdge(jk, rk, 'route', 'bridge');
+      }
+      for (const tid of j.testIds || []) {
+        const tk = addGraphNode('testid', tid, tid, 'TEST_ID', 'code', false);
+        addGraphEdge(jk, tk, 'testId', 'bridge');
+      }
+      for (const sid of j.stories || []) {
+        const sk = 'story:' + sid;
+        if (graphNodes.has(sk)) addGraphEdge(jk, sk, 'story', 'bridge');
+      }
+    }
+    for (const iss of DATA.qaIssues) {
+      const ik = addGraphNode('issue', iss.id, iss.id, iss.title, 'qa', false);
+      for (const jid of iss.coveredBy || []) {
+        const jk = 'journey:' + jid;
+        if (graphNodes.has(jk)) addGraphEdge(ik, jk, 'coveredBy', 'qa');
+      }
+      for (const rc of iss.rootCauses || []) {
+        if (rc.file) {
+          const fk = addGraphNode('file', rc.file, rc.file.split('/').pop(), rc.file, 'code', false);
+          addGraphEdge(ik, fk, 'rootCause', 'bridge', (rc.symbol || '') + (rc.lineHint ? ':' + rc.lineHint : ''));
+        }
+      }
+    }
+  })();
+
+  const allGraphNodesSorted = [...graphNodes.values()].sort((a, b) => a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label));
+
+  function nodeKindBucket(node) {
+    if (node.kind === 'file') return node.isTest ? 'testFile' : 'sourceFile';
+    return node.kind;
+  }
+
+  function isNodeAllowed(node, anchorA, anchorB) {
+    if (!state.layers[node.layer]) return false;
+    if (node.key === anchorA || node.key === anchorB) return true;
+    return Boolean(state.graph.enabledKinds[nodeKindBucket(node)]);
+  }
+
+  function isEdgeAllowed(edge, anchorA, anchorB, ignorePredFilter) {
+    if (!state.layers[edge.layer]) return false;
+    if (!ignorePredFilter && state.graph.disabledPreds.has(edge.pred)) return false;
+    const n1 = graphNodes.get(edge.from);
+    const n2 = graphNodes.get(edge.to);
+    if (!n1 || !n2) return false;
+    return isNodeAllowed(n1, anchorA, anchorB) && isNodeAllowed(n2, anchorA, anchorB);
+  }
+
+  function bfsDistances(startKey, maxDepth, anchorA, anchorB, ignorePredFilter) {
+    const dist = new Map();
+    if (!startKey || !graphNodes.has(startKey)) return dist;
+    dist.set(startKey, 0);
+    const q = [startKey];
+    let head = 0;
+    while (head < q.length) {
+      const u = q[head++];
+      const d = dist.get(u);
+      if (d >= maxDepth) continue;
+      for (const adj of graphAdj.get(u) || []) {
+        const edge = graphEdges[adj.edgeIdx];
+        if (!isEdgeAllowed(edge, anchorA, anchorB, ignorePredFilter)) continue;
+        if (!dist.has(adj.neighbor)) {
+          dist.set(adj.neighbor, d + 1);
+          q.push(adj.neighbor);
+        }
+      }
+    }
+    return dist;
+  }
+
+  function computeGraphSubgraph() {
+    const g = state.graph;
+    const fromKey = g.from.kind + ':' + g.from.id;
+    const toKey = g.mode === 'path' ? (g.to.kind + ':' + g.to.id) : '';
+
+    // First pass: discover available predicates & kinds with layers only (for filter chips)
+    const kindCounts = {};
+    const predCounts = {};
+    const nodeKeys = new Set();
+    const edgeList = [];
+    const distA = new Map();
+    let minDist = null;
+    let maxLen = 0;
+    let concretePaths = [];
+
+    if (g.mode === 'neighborhood') {
+      const dMap = bfsDistances(fromKey, g.hops, fromKey, '', false);
+      for (const [k, d] of dMap.entries()) {
+        nodeKeys.add(k);
+        distA.set(k, d);
+      }
+      for (const e of graphEdges) {
+        if (!nodeKeys.has(e.from) || !nodeKeys.has(e.to)) continue;
+        if (!isEdgeAllowed(e, fromKey, '', true)) continue;
+        predCounts[e.pred] = (predCounts[e.pred] || 0) + 1;
+        if (!g.disabledPreds.has(e.pred)) edgeList.push(e);
+      }
+      for (const k of nodeKeys) {
+        const b = nodeKindBucket(graphNodes.get(k));
+        kindCounts[b] = (kindCounts[b] || 0) + 1;
+      }
+    } else {
+      const dA = bfsDistances(fromKey, 6, fromKey, toKey, false);
+      const dB = bfsDistances(toKey, 6, fromKey, toKey, false);
+      minDist = dA.get(toKey);
+      if (minDist !== undefined) {
+        if (g.pathBudget === 'shortest') maxLen = minDist;
+        else if (g.pathBudget === 'plus1') maxLen = minDist + 1;
+        else if (g.pathBudget === 'plus2') maxLen = minDist + 2;
+        else if (g.pathBudget === 'max4') maxLen = 4;
+        else if (g.pathBudget === 'max5') maxLen = 5;
+        else maxLen = 6;
+
+        for (const [k, da] of dA.entries()) {
+          const db = dB.get(k);
+          if (db !== undefined && da + db <= maxLen) {
+            nodeKeys.add(k);
+            distA.set(k, da);
+          }
+        }
+        for (const e of graphEdges) {
+          if (!nodeKeys.has(e.from) || !nodeKeys.has(e.to)) continue;
+          if (!isEdgeAllowed(e, fromKey, toKey, true)) continue;
+          const d1 = dA.get(e.from) + 1 + dB.get(e.to);
+          const d2 = dB.get(e.from) + 1 + dA.get(e.to);
+          if (Math.min(d1, d2) <= maxLen) {
+            predCounts[e.pred] = (predCounts[e.pred] || 0) + 1;
+            if (!g.disabledPreds.has(e.pred)) edgeList.push(e);
+          }
+        }
+        // Re-prune any isolated intermediate nodes if predicates were disabled
+        if (g.disabledPreds.size > 0) {
+          const conn = new Set([fromKey, toKey]);
+          for (const e of edgeList) { conn.add(e.from); conn.add(e.to); }
+          for (const k of [...nodeKeys]) { if (!conn.has(k)) nodeKeys.delete(k); }
+        }
+        for (const k of nodeKeys) {
+          const b = nodeKindBucket(graphNodes.get(k));
+          kindCounts[b] = (kindCounts[b] || 0) + 1;
+        }
+        // Extract up to 25 concrete simple paths on the induced subgraph
+        const subAdj = new Map();
+        for (const k of nodeKeys) subAdj.set(k, []);
+        for (const e of edgeList) {
+          subAdj.get(e.from).push({ to: e.to, edge: e });
+          subAdj.get(e.to).push({ to: e.from, edge: e });
+        }
+        const bfsQ = [{ nodes: [fromKey], edges: [] }];
+        while (bfsQ.length && concretePaths.length < 25) {
+          const cur = bfsQ.shift();
+          const last = cur.nodes[cur.nodes.length - 1];
+          if (cur.edges.length >= maxLen) continue;
+          for (const step of subAdj.get(last) || []) {
+            if (cur.nodes.includes(step.to)) continue;
+            const nextNodes = [...cur.nodes, step.to];
+            const nextEdges = [...cur.edges, step.edge];
+            if (step.to === toKey) {
+              concretePaths.push({ nodes: nextNodes, edges: nextEdges });
+              if (concretePaths.length >= 25) break;
+            } else if (nextEdges.length < maxLen) {
+              bfsQ.push({ nodes: nextNodes, edges: nextEdges });
+            }
+          }
+        }
+      }
+    }
+
+    // Optional in-graph node text filter
+    const nf = (g.nodeFilter || '').trim().toLowerCase();
+    const matchedKeys = new Set();
+    if (nf) {
+      for (const k of nodeKeys) {
+        if (graphNodes.get(k).searchText.includes(nf)) matchedKeys.add(k);
+      }
+      if (g.nodeFilterMode === 'isolate') {
+        const keep = new Set([fromKey]);
+        if (toKey) keep.add(toKey);
+        for (const k of matchedKeys) keep.add(k);
+        // Also keep immediate neighbors on edges touching matchedKeys
+        for (const e of edgeList) {
+          if (matchedKeys.has(e.from) || matchedKeys.has(e.to)) {
+            keep.add(e.from); keep.add(e.to);
+          }
+        }
+        for (const k of [...nodeKeys]) { if (!keep.has(k)) nodeKeys.delete(k); }
+      }
+    }
+
+    const totalNodes = nodeKeys.size;
+    let truncated = false;
+    let finalKeys = [...nodeKeys];
+    const cap = g.showAllNodes ? 600 : 120;
+    if (finalKeys.length > cap) {
+      truncated = true;
+      // Keep anchors first, then sort by degree/dist
+      finalKeys.sort((a, b) => {
+        if (a === fromKey || a === toKey) return -1;
+        if (b === fromKey || b === toKey) return 1;
+        return (distA.get(a) ?? 99) - (distA.get(b) ?? 99);
+      });
+      finalKeys = finalKeys.slice(0, cap);
+    }
+    const finalSet = new Set(finalKeys);
+    const finalEdges = edgeList.filter(e => finalSet.has(e.from) && finalSet.has(e.to));
+
+    return {
+      fromKey, toKey,
+      nodes: finalKeys.map(k => graphNodes.get(k)),
+      edges: finalEdges,
+      distA, minDist, maxLen,
+      kindCounts, predCounts,
+      matchedKeys, totalNodes, truncated,
+      concretePaths
+    };
   }
 
   function renderList() {
@@ -882,12 +1307,18 @@ export function buildViewer() {
           <div class="card-sub">\${esc(j.domain)} · \${esc(j.status)} · \${j.touchedFiles.length} files · \${j.issueIds.length} issues</div>
         </div>\`).join('') || '<div class="card-sub">No matching journeys.</div>';
     } else if (state.tab === 'domain') {
-      if (!state.layers.domain) { el.innerHTML = '<div class="card-sub">Layer :domain is hidden.</div>'; return; }
-      const items = DATA.classes.filter(c => {
+      if (!state.layers.domain && !state.layers.patterns) { el.innerHTML = '<div class="card-sub">Layers :domain and :patterns are hidden.</div>'; return; }
+      const patCards = state.layers.patterns ? DATA.stereotypes.filter(s => matchSearch(s + ' ufo pattern')).map(s => {
+        const cnt = DATA.classes.filter(c => c.stereotype === s).length;
+        return \`<div class="card \${state.selected.kind === 'stereotype' && state.selected.id === s ? 'selected' : ''}" data-nav-kind="stereotype" data-nav-id="\${esc(s)}">
+          <div class="card-title"><span class="mono">\${esc(s)}</span><span class="badge b-patterns">UFO Pattern · \${cnt}</span></div>
+        </div>\`;
+      }).join('') : '';
+      const items = state.layers.domain ? DATA.classes.filter(c => {
         if (state.stereotype && c.stereotype !== state.stereotype) return false;
         return matchSearch(\`\${c.curie} \${c.label} \${c.module} \${c.stereotype}\`);
-      });
-      el.innerHTML = items.map(c => \`
+      }) : [];
+      el.innerHTML = patCards + items.map(c => \`
         <div class="card \${state.selected.kind === 'class' && state.selected.id === c.curie ? 'selected' : ''}" data-nav-kind="class" data-nav-id="\${esc(c.curie)}">
           <div class="card-title"><span class="mono">\${esc(c.curie)}</span><span class="badge b-patterns">\${esc(c.stereotype || 'class')}</span></div>
           <div class="card-sub">\${esc(c.label)} · \${esc(c.module)} · \${c.props.length} props</div>
@@ -962,116 +1393,366 @@ export function buildViewer() {
           <div class="card-sub">\${esc(i.title)}</div>
         </div>\`).join('') || '<div class="card-sub">No matching issues.</div>';
     } else {
-      // Graph tab: quick jump list of top entities matching search
+      // Graph tab: quick jump list of top entities matching search (or UFO patterns)
       const cards = [];
+      for (const s of DATA.stereotypes.filter(x => matchSearch(x)).slice(0, 9)) {
+        cards.push(\`<div class="card" data-nav-kind="stereotype" data-nav-id="\${esc(s)}"><div class="card-title"><span class="mono">\${esc(s)}</span><span class="badge b-patterns">Pattern</span></div></div>\`);
+      }
       for (const j of DATA.qaJourneys.filter(x => matchSearch(x.id + ' ' + x.title)).slice(0, 12)) {
         cards.push(\`<div class="card" data-nav-kind="journey" data-nav-id="\${esc(j.id)}"><div class="card-title"><span>\${esc(j.id)}</span><span class="badge b-qa">Journey</span></div><div class="card-sub">\${esc(j.title)}</div></div>\`);
+      }
+      for (const st of (DATA.codeStories || []).filter(x => matchSearch(x.id + ' ' + x.title + ' ' + x.name)).slice(0, 10)) {
+        cards.push(\`<div class="card" data-nav-kind="story" data-nav-id="\${esc(st.id)}"><div class="card-title"><span>\${esc(st.title)} / \${esc(st.name)}</span><span class="badge b-code">\${st.hasPlay ? 'play() Test' : 'Story'}</span></div></div>\`);
       }
       for (const c of DATA.classes.filter(x => matchSearch(x.curie + ' ' + x.label)).slice(0, 10)) {
         cards.push(\`<div class="card" data-nav-kind="class" data-nav-id="\${esc(c.curie)}"><div class="card-title"><span class="mono">\${esc(c.curie)}</span><span class="badge b-domain">Class</span></div></div>\`);
       }
-      for (const i of DATA.qaIssues.filter(x => matchSearch(x.id + ' ' + x.title)).slice(0, 10)) {
+      for (const i of DATA.qaIssues.filter(x => matchSearch(x.id + ' ' + x.title)).slice(0, 8)) {
         cards.push(\`<div class="card" data-nav-kind="issue" data-nav-id="\${esc(i.id)}"><div class="card-title"><span>\${esc(i.id)}</span><span class="badge b-qa">Issue</span></div><div class="card-sub">\${esc(i.title)}</div></div>\`);
       }
       for (const f of DATA.codeFiles.filter(x => matchSearch(x.p)).slice(0, 12)) {
-        cards.push(\`<div class="card" data-nav-kind="file" data-nav-id="\${esc(f.p)}"><div class="card-title"><span class="mono">\${esc(f.p.split('/').pop())}</span><span class="badge b-code">File</span></div><div class="card-sub">\${esc(f.p)}</div></div>\`);
+        cards.push(\`<div class="card" data-nav-kind="file" data-nav-id="\${esc(f.p)}"><div class="card-title"><span class="mono">\${esc(f.p.split('/').pop())}</span><span class="badge b-code">\${f.isTest ? 'Test File' : 'File'}</span></div><div class="card-sub">\${esc(f.p)}</div></div>\`);
       }
       el.innerHTML = cards.join('') || '<div class="card-sub">Search to jump to any node.</div>';
     }
   }
 
-  function renderNeighborhoodSvg(kind, id) {
-    const nodes = [];
-    const edges = [];
-    const seen = new Set();
-    function addNode(k, nid, label, layer) {
-      if (!state.layers[layer]) return;
-      const key = k + ':' + nid;
-      if (seen.has(key)) return;
-      seen.add(key);
-      nodes.push({ k, id: nid, label, layer });
-    }
-    const centerLayer = kind === 'class' ? 'domain' : kind === 'file' ? 'code' : 'qa';
-    addNode(kind, id, id.split('/').pop(), centerLayer);
+  function renderGraphWorkspace() {
+    const g = state.graph;
+    const sub = computeGraphSubgraph();
+    const fromNode = graphNodes.get(sub.fromKey);
+    const toNode = sub.toKey ? graphNodes.get(sub.toKey) : null;
 
-    if (kind === 'journey') {
-      const j = journeyById.get(id);
-      if (j) {
-        for (const s of j.seedNouns) { addNode('class', s, s, 'domain'); edges.push([0, nodes.length - 1, 'seedNoun']); }
-        for (const f of j.touchedFiles.slice(0, 8)) { addNode('file', f, f.split('/').pop(), 'code'); edges.push([0, nodes.length - 1, 'touches']); }
-        for (const iid of j.issueIds.slice(0, 6)) { addNode('issue', iid, iid, 'qa'); edges.push([0, nodes.length - 1, 'coveredBy']); }
-      }
-    } else if (kind === 'file') {
-      for (const jid of (fileToJourneys.get(id) || [])) { addNode('journey', jid, jid, 'qa'); edges.push([0, nodes.length - 1, 'journey']); }
-      for (const iid of (fileToIssues.get(id) || [])) { addNode('issue', iid, iid, 'qa'); edges.push([0, nodes.length - 1, 'rootCause']); }
-      const f = fileByPath.get(id);
-      if (f) {
-        for (const s of f.syms) for (const d of s.d) { addNode('class', d, d, 'domain'); edges.push([0, nodes.length - 1, 'implements']); }
-      }
-    } else if (kind === 'class') {
-      const c = classByCurie.get(id);
-      if (c) {
-        for (const jid of c.seededJourneys) { addNode('journey', jid, jid, 'qa'); edges.push([0, nodes.length - 1, 'seedNoun']); }
-        for (const sym of c.implSymbols) { addNode('file', sym.file, sym.name, 'code'); edges.push([0, nodes.length - 1, 'impl']); }
-      }
-    } else if (kind === 'issue') {
-      const iss = issueById.get(id);
-      if (iss) {
-        for (const jid of iss.coveredBy) { addNode('journey', jid, jid, 'qa'); edges.push([0, nodes.length - 1, 'coveredBy']); }
-        for (const rc of iss.rootCauses.slice(0, 10)) {
-          if (rc.file) { addNode('file', rc.file, rc.symbol || rc.file.split('/').pop(), 'code'); edges.push([0, nodes.length - 1, 'rootCause']); }
-        }
-      }
-    } else if (kind === 'story') {
-      const st = storyById.get(id);
-      if (st) {
-        for (const s of st.seedNouns) { addNode('class', s, s, 'domain'); edges.push([0, nodes.length - 1, 'seedNoun']); }
-        for (const f of st.touchedFiles.slice(0, 6)) { addNode('file', f, f.split('/').pop(), 'code'); edges.push([0, nodes.length - 1, 'touches']); }
-        for (const jid of st.journeys) { addNode('journey', jid, jid, 'qa'); edges.push([0, nodes.length - 1, 'verifies']); }
-      }
-    }
+    const kindDefs = [
+      ['stereotype', 'UFO Pattern', 'b-patterns'],
+      ['class', 'Domain Class', 'b-domain'],
+      ['journey', 'Journey', 'b-qa'],
+      ['issue', 'Issue', 'b-high'],
+      ['story', 'Story / Tier 2', 'b-code'],
+      ['testFile', 'Test File', 'b-code'],
+      ['sourceFile', 'Source File', 'b-code'],
+      ['route', 'Route', 'b-code'],
+      ['testid', 'TEST_ID', 'b-code'],
+      ['tool', 'WebMCP Tool', 'b-code']
+    ];
 
-    const W = 760, H = 460, cx = W / 2, cy = H / 2;
-    const colors = { patterns: '#a78bfa', domain: '#34d399', qa: '#fbbf24', code: '#38bdf8', bridge: '#fb7185' };
-    const coords = nodes.map((n, idx) => {
-      if (idx === 0) return { x: cx, y: cy };
-      const angle = ((idx - 1) / Math.max(1, nodes.length - 1)) * Math.PI * 2 - Math.PI / 2;
-      const r = 165 + (idx % 2) * 32;
-      return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
-    });
-
-    const edgeSvg = edges.map(([a, b, lbl]) => {
-      const p1 = coords[a], p2 = coords[b];
-      if (!p1 || !p2) return '';
-      const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
-      return \`<line x1="\${p1.x}" y1="\${p1.y}" x2="\${p2.x}" y2="\${p2.y}" stroke="#334155" stroke-width="1.4" /><text x="\${mx}" y="\${my - 3}" fill="#64748b" font-size="9" text-anchor="middle">\${esc(lbl)}</text>\`;
+    const kindChips = kindDefs.map(([k, lbl, cls]) => {
+      const cnt = sub.kindCounts[k] || 0;
+      const active = g.enabledKinds[k];
+      return \`<button class="chip \${active ? 'active' : ''}" data-g-kind="\${k}"><span class="badge \${cls}" style="margin:0;padding:0 4px;">\${cnt}</span>\${lbl}</button>\`;
     }).join('');
 
-    const nodeSvg = nodes.map((n, idx) => {
-      const p = coords[idx];
-      const col = colors[n.layer] || '#38bdf8';
-      return \`<g style="cursor:pointer" data-nav-kind="\${esc(n.k)}" data-nav-id="\${esc(n.id)}">
-        <circle cx="\${p.x}" cy="\${p.y}" r="\${idx === 0 ? 22 : 15}" fill="#121722" stroke="\${col}" stroke-width="\${idx === 0 ? 3 : 2}" />
-        <text x="\${p.x}" y="\${p.y + (idx === 0 ? 35 : 26)}" fill="#e5ecf4" font-size="10.5" text-anchor="middle">\${esc(n.label.slice(0, 28))}</text>
+    const allPreds = Object.keys(sub.predCounts).sort();
+    const predChips = allPreds.map(p => {
+      const active = !g.disabledPreds.has(p);
+      return \`<button class="chip \${active ? 'active' : ''}" data-g-pred="\${esc(p)}">\${esc(p)} (\${sub.predCounts[p]})</button>\`;
+    }).join('') || '<span class="card-sub">No active predicates.</span>';
+
+    // Compute SVG layout
+    const W = 900, H = 540;
+    const colors = { patterns: '#a78bfa', domain: '#34d399', qa: '#fbbf24', code: '#38bdf8', bridge: '#fb7185' };
+    const pos = new Map();
+
+    if (g.mode === 'path' && sub.minDist !== undefined) {
+      // Layered left-to-right layout by distA
+      const cols = new Map();
+      for (const n of sub.nodes) {
+        const d = sub.distA.get(n.key) ?? 0;
+        if (!cols.has(d)) cols.set(d, []);
+        cols.get(d).push(n);
+      }
+      const maxCol = Math.max(1, ...cols.keys());
+      const padX = 85, padY = 48;
+      const usableW = W - padX * 2;
+      const sortedCols = [...cols.keys()].sort((a, b) => a - b);
+      for (const colIdx of sortedCols) {
+        const list = cols.get(colIdx);
+        list.sort((a, b) => a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label));
+        const x = padX + (colIdx / maxCol) * usableW;
+        const stepY = (H - padY * 2) / Math.max(1, list.length);
+        list.forEach((n, i) => {
+          const y = list.length === 1 ? H / 2 : padY + stepY * (i + 0.5);
+          pos.set(n.key, g.customPos[n.key] || { x, y });
+        });
+      }
+    } else {
+      // Concentric radial layout by distA (0, 1, 2)
+      const cx = W / 2, cy = H / 2;
+      const ring1 = sub.nodes.filter(n => (sub.distA.get(n.key) ?? 0) === 1);
+      const ring2 = sub.nodes.filter(n => (sub.distA.get(n.key) ?? 0) >= 2);
+      pos.set(sub.fromKey, g.customPos[sub.fromKey] || { x: cx, y: cy });
+      ring1.sort((a, b) => a.layer.localeCompare(b.layer) || a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label));
+      ring1.forEach((n, i) => {
+        const angle = (i / Math.max(1, ring1.length)) * Math.PI * 2 - Math.PI / 2;
+        const r = ring2.length > 0 ? 150 + (i % 2) * 26 : 190 + (i % 2) * 30;
+        pos.set(n.key, g.customPos[n.key] || { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
+      });
+      ring2.sort((a, b) => a.layer.localeCompare(b.layer) || a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label));
+      ring2.forEach((n, i) => {
+        const angle = (i / Math.max(1, ring2.length)) * Math.PI * 2 - Math.PI / 2;
+        const r = 245 + (i % 2) * 24;
+        pos.set(n.key, g.customPos[n.key] || { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
+      });
+    }
+
+    const activePath = g.activePathIdx >= 0 ? sub.concretePaths[g.activePathIdx] : null;
+    const activePathEdgeSet = new Set(activePath ? activePath.edges.map(e => e.idx) : []);
+    const activePathNodeSet = new Set(activePath ? activePath.nodes : []);
+
+    const edgeSvg = sub.edges.map(e => {
+      const p1 = pos.get(e.from), p2 = pos.get(e.to);
+      if (!p1 || !p2) return '';
+      const isHi = activePathEdgeSet.has(e.idx);
+      const stroke = isHi ? '#38bdf8' : (colors[e.layer] || '#475569');
+      const opacity = activePath ? (isHi ? '0.95' : '0.16') : '0.55';
+      const sw = isHi ? '2.4' : '1.4';
+      const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+      const lbl = e.detail ? e.pred + ' (' + e.detail.split(':')[0] + ')' : e.pred;
+      return \`<g class="g-edge" data-from="\${esc(e.from)}" data-to="\${esc(e.to)}" opacity="\${opacity}">
+        <line x1="\${p1.x}" y1="\${p1.y}" x2="\${p2.x}" y2="\${p2.y}" stroke="\${stroke}" stroke-width="\${sw}" />
+        <text x="\${mx}" y="\${my - 4}" fill="#94a3b8" font-size="8.5" text-anchor="middle">\${esc(lbl.slice(0, 26))}</text>
       </g>\`;
     }).join('');
 
-    return \`<svg class="graph" viewBox="0 0 \${W} \${H}">\${edgeSvg}\${nodeSvg}</svg>\`;
+    const nodeSvg = sub.nodes.map(n => {
+      const p = pos.get(n.key);
+      if (!p) return '';
+      const isA = n.key === sub.fromKey;
+      const isB = n.key === sub.toKey;
+      const isInsp = n.key === g.inspectedKey;
+      const isMatch = sub.matchedKeys.size > 0 && sub.matchedKeys.has(n.key);
+      const col = colors[n.layer] || '#38bdf8';
+      const r = (isA || isB) ? 20 : (isInsp ? 17 : 13);
+      let stroke = col;
+      if (isA) stroke = '#34d399';
+      if (isB) stroke = '#fb7185';
+      if (isMatch) stroke = '#fde047';
+      const dim = (activePath && !activePathNodeSet.has(n.key)) || (g.nodeFilter && g.nodeFilterMode === 'highlight' && sub.matchedKeys.size > 0 && !isMatch && !isA && !isB);
+      return \`<g class="g-node" data-node-key="\${esc(n.key)}" data-nav-kind="\${esc(n.kind)}" data-nav-id="\${esc(n.id)}" style="cursor:pointer" opacity="\${dim ? '0.28' : '1'}">
+        <circle cx="\${p.x}" cy="\${p.y}" r="\${r}" fill="\${isInsp ? '#1e293b' : '#121722'}" stroke="\${stroke}" stroke-width="\${(isA || isB || isInsp || isMatch) ? 3 : 2}" />
+        <text x="\${p.x}" y="\${p.y + r + 12}" fill="#e5ecf4" font-size="10.5" font-weight="\${(isA || isB) ? '700' : '500'}" text-anchor="middle">\${esc(n.label.slice(0, 30))}</text>
+        \${(isA || isB) ? \`<text x="\${p.x}" y="\${p.y + 4}" fill="\${stroke}" font-size="10" font-weight="700" text-anchor="middle">\${isA ? 'A' : 'B'}</text>\` : ''}
+      </g>\`;
+    }).join('');
+
+    // Inspector for clicked/selected node
+    const inspKey = g.inspectedKey && graphNodes.has(g.inspectedKey) ? g.inspectedKey : sub.fromKey;
+    const inspNode = graphNodes.get(inspKey);
+    const inspHtml = renderGraphInspector(inspNode);
+
+    const statusLine = g.mode === 'path'
+      ? (sub.minDist === undefined
+        ? \`<span class="badge b-high">No path found within 6 hops under current filters</span>\`
+        : \`<span class="badge b-domain">Shortest: \${sub.minDist} hops · Showing ≤ \${sub.maxLen} hops · \${sub.nodes.length} nodes · \${sub.edges.length} links</span>\`)
+      : \`<span class="badge b-domain">\${g.hops}-Hop Neighborhood · \${sub.nodes.length} nodes · \${sub.edges.length} links</span>\`;
+
+    const truncBanner = sub.truncated
+      ? \`<span class="badge b-med">Showing \${sub.nodes.length} of \${sub.totalNodes} nodes <button class="btn" id="btn-show-all-nodes" style="padding:1px 6px;margin-left:4px;">Show all</button></span>\`
+      : '';
+
+    const pathsHtml = g.mode === 'path' && sub.concretePaths.length ? \`
+      <div class="section" style="margin-top:12px;">
+        <h3>Shared Paths (\${sub.concretePaths.length}\${sub.concretePaths.length >= 25 ? '+' : ''}) — Click to highlight</h3>
+        \${sub.concretePaths.map((cp, idx) => {
+          const chain = cp.nodes.map((nk, i) => {
+            const nd = graphNodes.get(nk);
+            const edgeStr = i < cp.edges.length ? \` <span style="color:var(--muted)">—[\${esc(cp.edges[i].pred)}]→</span> \` : '';
+            return \`<span class="mono" style="color:var(--text)">\${esc(nd ? nd.label.slice(0, 26) : nk)}</span>\${edgeStr}\`;
+          }).join('');
+          return \`<div class="path-item \${g.activePathIdx === idx ? 'active' : ''}" data-path-idx="\${idx}">\${chain}</div>\`;
+        }).join('')}
+      </div>\` : '';
+
+    return \`
+      <div class="graph-controls">
+        <div class="graph-row">
+          <div class="subtabs" style="margin:0;">
+            <button class="subtab \${g.mode === 'neighborhood' ? 'active' : ''}" id="btn-gmode-neigh">Neighborhood</button>
+            <button class="subtab \${g.mode === 'path' ? 'active' : ''}" id="btn-gmode-path">Shared Path (A ↔ B)</button>
+          </div>
+          \${g.mode === 'neighborhood' ? \`
+            <select id="sel-g-hops">
+              <option value="1" \${g.hops === 1 ? 'selected' : ''}>1 Hop</option>
+              <option value="2" \${g.hops === 2 ? 'selected' : ''}>2 Hops</option>
+            </select>
+          \` : \`
+            <select id="sel-g-budget" title="Maximum path length">
+              <option value="shortest" \${g.pathBudget === 'shortest' ? 'selected' : ''}>Shortest path only</option>
+              <option value="plus1" \${g.pathBudget === 'plus1' ? 'selected' : ''}>Shortest + 1 hop (recommended)</option>
+              <option value="plus2" \${g.pathBudget === 'plus2' ? 'selected' : ''}>Shortest + 2 hops</option>
+              <option value="max4" \${g.pathBudget === 'max4' ? 'selected' : ''}>All paths ≤ 4 hops</option>
+              <option value="max5" \${g.pathBudget === 'max5' ? 'selected' : ''}>All paths ≤ 5 hops</option>
+              <option value="max6" \${g.pathBudget === 'max6' ? 'selected' : ''}>All paths ≤ 6 hops</option>
+            </select>
+          \`}
+          \${statusLine}
+          \${truncBanner}
+          <button class="btn" id="btn-g-fullscreen" style="margin-left:auto;">\${g.fullscreen ? 'Show Sidebar' : 'Expand Graph'}</button>
+        </div>
+
+        <div class="graph-row">
+          <div class="picker-wrap">
+            <input class="picker-input" id="picker-from" placeholder="Point A (search journey, pattern, class, file, test...)" value="\${esc(fromNode ? fromNode.kind + ': ' + fromNode.label : g.from.id)}" autocomplete="off" />
+            <div class="picker-dropdown" id="dropdown-from"></div>
+          </div>
+          \${g.mode === 'path' ? \`
+            <button class="btn" id="btn-g-swap" title="Swap Point A and Point B">⇄ Swap</button>
+            <div class="picker-wrap">
+              <input class="picker-input" id="picker-to" placeholder="Point B (search test, story, journey, pattern, file...)" value="\${esc(toNode ? toNode.kind + ': ' + toNode.label : g.to.id)}" autocomplete="off" />
+              <div class="picker-dropdown" id="dropdown-to"></div>
+            </div>
+          \` : ''}
+          <button class="btn" id="btn-preset-jrn-test" title="Example: Path between current Journey and a Storybook/E2E Test">Preset: Journey ↔ Test</button>
+          <button class="btn" id="btn-preset-pat-jrn" title="Example: Trace a UFO Pattern across a Journey">Preset: Pattern ↔ Journey</button>
+        </div>
+
+        <div class="graph-row">
+          <span style="color:var(--muted);font-size:11px;min-width:72px;">Elements:</span>
+          <div class="chip-bar">\${kindChips}</div>
+          <button class="btn" id="btn-kinds-all" style="padding:2px 7px;font-size:10.5px;">All</button>
+          <button class="btn" id="btn-kinds-none" style="padding:2px 7px;font-size:10.5px;">None</button>
+        </div>
+
+        <div class="graph-row">
+          <span style="color:var(--muted);font-size:11px;min-width:72px;">Links:</span>
+          <div class="chip-bar">\${predChips}</div>
+          <button class="btn" id="btn-preds-all" style="padding:2px 7px;font-size:10.5px;">All</button>
+        </div>
+
+        <div class="graph-row">
+          <span style="color:var(--muted);font-size:11px;min-width:72px;">Finetune:</span>
+          <input type="search" id="input-g-nodefilter" placeholder="Filter/highlight nodes in graph (e.g. timer, .test., Note)..." value="\${esc(g.nodeFilter)}" style="min-width:220px;max-width:340px;" />
+          <select id="sel-g-filtermode">
+            <option value="highlight" \${g.nodeFilterMode === 'highlight' ? 'selected' : ''}>Highlight matches</option>
+            <option value="isolate" \${g.nodeFilterMode === 'isolate' ? 'selected' : ''}>Isolate matching subgraph</option>
+          </select>
+          \${g.activePathIdx >= 0 ? '<button class="btn" id="btn-clear-path">Clear Path Highlight</button>' : ''}
+        </div>
+      </div>
+
+      <div class="graph-grid">
+        <div>
+          <div class="graph-stage">
+            <div class="graph-hud">
+              <button class="btn" id="btn-zoom-in" title="Zoom In">+</button>
+              <button class="btn" id="btn-zoom-out" title="Zoom Out">−</button>
+              <button class="btn" id="btn-zoom-reset" title="Reset View &amp; Node Positions">Reset</button>
+            </div>
+            <svg class="graph" id="graph-svg" viewBox="0 0 \${W} \${H}">
+              <g id="graph-viewport" transform="translate(\${g.panX},\${g.panY}) scale(\${g.zoom})">
+                \${edgeSvg}
+                \${nodeSvg}
+              </g>
+            </svg>
+            <div class="graph-legend">
+              <span><span class="dot" style="background:var(--c-patterns)"></span> :patterns</span>
+              <span><span class="dot" style="background:var(--c-domain)"></span> :domain</span>
+              <span><span class="dot" style="background:var(--c-qa)"></span> :qa</span>
+              <span><span class="dot" style="background:var(--c-code)"></span> :code</span>
+              <span><span class="dot" style="background:var(--c-bridge)"></span> :bridge</span>
+              <span>· Wheel to zoom · Drag canvas to pan · Drag nodes to arrange</span>
+            </div>
+          </div>
+          \${pathsHtml}
+        </div>
+        <div>\${inspHtml}</div>
+      </div>\`;
+  }
+
+  function renderGraphInspector(node) {
+    if (!node) return '<div class="section"><h3>Node Inspector</h3><p class="card-sub">Click any node in the graph to inspect it and jump into code.</p></div>';
+    const origins = resolveOrigins();
+    let extra = '';
+    if (node.kind === 'file') {
+      const f = fileByPath.get(node.id);
+      const syms = f?.syms || [];
+      extra = \`
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;">
+          \${codeJumpLinks(node.id, syms[0]?.l || 1)}
+          <button class="btn" data-open-detail-kind="file" data-open-detail-id="\${esc(node.id)}">Open in Code Tab</button>
+        </div>
+        <p class="card-sub">Package: <code>\${esc(f?.pkg || '—')}</code> · \${node.isTest ? 'Test file' : 'Source file'}</p>
+        \${syms.length ? \`<p><strong>Symbols (\${syms.length}):</strong><br/>\${syms.slice(0, 14).map(s => \`<span class="badge b-code">\${esc(s.n)}:\${s.l}</span>\`).join('')}</p>\` : ''}\`;
+    } else if (node.kind === 'story') {
+      const st = storyById.get(node.id);
+      const sbHref = \`\${origins.storybook}/?path=/story/\${encodeURIComponent(node.id)}\`;
+      extra = \`
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;">
+          \${st?.file ? codeJumpLinks(st.file, 1) : ''}
+          <a class="btn" href="\${esc(sbHref)}" target="_blank" rel="noopener noreferrer">Storybook ↗</a>
+          <button class="btn" data-open-detail-kind="story" data-open-detail-id="\${esc(node.id)}">Open in Code Tab</button>
+        </div>
+        \${st?.file ? \`<p class="card-sub">File: <code>\${esc(st.file)}</code></p>\` : ''}\`;
+    } else if (node.kind === 'journey') {
+      const j = journeyById.get(node.id);
+      extra = \`
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;">
+          \${j?.specFile ? codeJumpLinks(j.specFile, 1) : ''}
+          \${j?.pwSpec ? \`<span title="Playwright spec">\${codeJumpLinks(j.pwSpec, 1)}</span>\` : ''}
+          <button class="btn" data-open-detail-kind="journey" data-open-detail-id="\${esc(node.id)}">Open Journey Detail</button>
+        </div>
+        <p class="card-sub">\${esc(j?.title || '')}</p>\`;
+    } else if (node.kind === 'class') {
+      const c = classByCurie.get(node.id);
+      extra = \`
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;">
+          <button class="btn" data-open-detail-kind="class" data-open-detail-id="\${esc(node.id)}">Open Class Detail</button>
+        </div>
+        <p class="card-sub">\${esc(c?.comment || '')}</p>
+        \${c?.implSymbols?.length ? \`<p><strong>Implemented in:</strong><br/>\${c.implSymbols.slice(0, 6).map(s => badge(s.name + ' (' + s.file.split('/').pop() + ')', 'b-code', 'file', s.file)).join('')}</p>\` : ''}\`;
+    } else if (node.kind === 'stereotype') {
+      const clsCount = DATA.classes.filter(c => c.stereotype === node.id).length;
+      extra = \`
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;">
+          <button class="btn" data-open-detail-kind="stereotype" data-open-detail-id="\${esc(node.id)}">Open Pattern Detail</button>
+        </div>
+        <p class="card-sub">\${clsCount} domain classes carry this UFO stereotype.</p>\`;
+    } else if (node.kind === 'issue') {
+      const iss = issueById.get(node.id);
+      extra = \`
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;">
+          \${iss?.rootCauses?.[0]?.file ? codeJumpLinks(iss.rootCauses[0].file, iss.rootCauses[0].lineHint) : ''}
+          <button class="btn" data-open-detail-kind="issue" data-open-detail-id="\${esc(node.id)}">Open Issue Detail</button>
+        </div>
+        <p class="card-sub">\${esc(iss?.title || '')}</p>\`;
+    } else if (node.kind === 'tool') {
+      const t = DATA.codeTools.find(x => x.name === node.id);
+      extra = t?.file ? \`<div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;">\${codeJumpLinks(t.file, 1)}</div><p class="card-sub"><code>\${esc(t.cli)}</code></p>\` : '';
+    } else if (node.kind === 'route') {
+      const isStatic = !node.id.includes(':');
+      const href = origins.playground + (node.id.startsWith('/') ? node.id : '/' + node.id);
+      extra = isStatic ? \`<div style="margin:8px 0;"><a class="btn" href="\${esc(href)}" target="_blank" rel="noopener noreferrer">Open Route ↗</a></div>\` : '';
+    }
+
+    return \`<div class="section">
+      <h3>Node Inspector</h3>
+      <div style="margin-bottom:6px;"><span class="badge b-\${node.layer}">\${esc(node.kind)}</span> <strong class="mono">\${esc(node.label)}</strong></div>
+      <div class="card-sub" style="margin-bottom:8px;">\${esc(node.id)}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+        <button class="btn" id="btn-insp-set-a" data-k="\${esc(node.kind)}" data-id="\${esc(node.id)}">Set as Point A</button>
+        <button class="btn" id="btn-insp-set-b" data-k="\${esc(node.kind)}" data-id="\${esc(node.id)}">Set as Point B</button>
+        <button class="btn" id="btn-insp-neigh" data-k="\${esc(node.kind)}" data-id="\${esc(node.id)}">Neighborhood</button>
+      </div>
+      \${extra}
+    </div>\`;
   }
 
   function renderDetail() {
     const el = document.getElementById('detail-pane');
     const origins = resolveOrigins();
+    const activeRef = state.tab === 'graph' ? state.graph.from : state.selected;
     const crumbs = \`<div class="breadcrumbs">
       <button class="btn" id="btn-back" title="Browser Back">← Back</button>
       <button class="btn" id="btn-fwd" title="Browser Forward">Forward →</button>
-      <span class="badge b-bridge">\${esc(state.selected.kind)}: \${esc(state.selected.id)}</span>
-      \${state.tab !== 'graph' ? '<button class="btn" id="btn-open-graph">View Neighborhood Graph</button>' : ''}
+      <span class="badge b-bridge">\${esc(activeRef.kind)}: \${esc(activeRef.id)}</span>
+      \${state.tab !== 'graph' ? '<button class="btn" id="btn-open-graph">Open in Graph Explorer</button>' : ''}
+      \${state.tab !== 'graph' ? '<button class="btn" id="btn-find-path">Find Shared Path (A ↔ B)</button>' : ''}
       <button class="btn" id="btn-copy-link" title="Copy deep link">Copy # Link</button>
     </div>\`;
 
     if (state.tab === 'graph') {
-      el.innerHTML = crumbs + \`<div class="section"><h3>1-Hop Neighborhood Graph (Click any node to traverse)</h3>\${renderNeighborhoodSvg(state.selected.kind, state.selected.id)}</div>\`;
+      el.innerHTML = crumbs + renderGraphWorkspace();
+      wireGraphInteractions();
       return;
     }
 
@@ -1084,7 +1765,7 @@ export function buildViewer() {
         <div class="section">
           <h2 style="margin:0 0 6px;">\${esc(j.id)} — \${esc(j.title)}</h2>
           <div>\${badge(j.domain, 'b-qa')} \${badge(j.priority, 'b-qa')} \${badge(j.status, 'b-qa')} \${j.pwSpec ? \`<a class="badge b-code clickable" href="\${esc(e2eHref)}" target="_blank" rel="noopener noreferrer">E2E Report ↗</a>\` : ''}</div>
-          <p class="card-sub">Spec: \${j.specFile ? badge(j.specFile, 'b-code', 'file', j.specFile) : '<code>proposed</code>'} · Playwright: \${j.pwSpec ? badge(j.pwSpec, 'b-code', 'file', j.pwSpec) : '<code>—</code>'}</p>
+          <p class="card-sub">Spec: \${j.specFile ? badge(j.specFile, 'b-code', 'file', j.specFile) + ' ' + codeJumpLinks(j.specFile, 1) : '<code>proposed</code>'} · Playwright: \${j.pwSpec ? badge(j.pwSpec, 'b-code', 'file', j.pwSpec) + ' ' + codeJumpLinks(j.pwSpec, 1) : '<code>—</code>'}</p>
         </div>
         <div class="section">
           <h3>5-Beat Causal Chain (Seed → Enter → Sense → Drive → Prove)</h3>
@@ -1099,13 +1780,31 @@ export function buildViewer() {
           <p><strong>Touched Files (\${j.touchedFiles.length}):</strong><br/>\${j.touchedFiles.map(f => badge(f, 'b-code', 'file', f)).join('') || '—'}</p>
           <p><strong>Covering / Affected Issues (\${j.issueIds.length}):</strong><br/>\${j.issueIds.map(i => badge(i, 'b-qa', 'issue', i)).join('') || '—'}</p>
         </div>\` : ''}\`;
+    } else if (kind === 'stereotype') {
+      const matchingClasses = DATA.classes.filter(c => c.stereotype === id);
+      const jSet = new Set();
+      for (const c of matchingClasses) for (const jid of c.seededJourneys) jSet.add(jid);
+      const jList = [...jSet].sort();
+      el.innerHTML = crumbs + \`
+        <div class="section">
+          <h2 style="margin:0 0 6px;" class="mono">\${esc(id)}</h2>
+          <div>\${badge('UFO Pattern', 'b-patterns')} \${badge(matchingClasses.length + ' classes', 'b-domain')} \${badge(jList.length + ' journeys', 'b-qa')}</div>
+        </div>
+        <div class="section">
+          <h3>Domain Classes with \${esc(id)} (\${matchingClasses.length})</h3>
+          <p>\${matchingClasses.map(c => badge(c.curie, 'b-domain', 'class', c.curie)).join('') || 'None.'}</p>
+        </div>
+        <div class="section">
+          <h3>Journeys Exercising \${esc(id)} (\${jList.length})</h3>
+          <p>\${jList.map(j => badge(j, 'b-qa', 'journey', j)).join('') || 'None.'}</p>
+        </div>\`;
     } else if (kind === 'class') {
       const c = classByCurie.get(id);
       if (!c) { el.innerHTML = crumbs + '<p>Select a class.</p>'; return; }
       el.innerHTML = crumbs + \`
         <div class="section">
           <h2 style="margin:0 0 6px;" class="mono">\${esc(c.curie)}</h2>
-          <div>\${badge(c.stereotype || 'owl:Class', 'b-patterns')} \${badge(c.module, 'b-domain')} \${c.superClasses.map(sc => badge('subClassOf ' + sc, 'b-domain', 'class', sc)).join('')}</div>
+          <div>\${c.stereotype ? badge(c.stereotype, 'b-patterns', 'stereotype', c.stereotype) : badge('owl:Class', 'b-patterns')} \${badge(c.module, 'b-domain')} \${c.superClasses.map(sc => badge('subClassOf ' + sc, 'b-domain', 'class', sc)).join('')}</div>
           <p>\${esc(c.comment)}</p>
         </div>
         <div class="section">
@@ -1133,12 +1832,12 @@ export function buildViewer() {
       el.innerHTML = crumbs + \`
         <div class="section">
           <h2 style="margin:0 0 6px;" class="mono">\${esc(id)}</h2>
-          <div>\${f ? badge(f.pkg, 'b-code') : ''} \${badge(jIds.length + ' journeys', 'b-qa')} \${badge(iIds.length + ' issues', 'b-qa')}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">\${f ? badge(f.pkg, 'b-code') : ''} \${badge(jIds.length + ' journeys', 'b-qa')} \${badge(iIds.length + ' issues', 'b-qa')} \${codeJumpLinks(id, f?.syms?.[0]?.l || 1)}</div>
         </div>
         <div class="section">
           <h3>Exported Symbols (\${f ? f.syms.length : 0})</h3>
-          <table><tr><th>Symbol</th><th>Kind</th><th>lineHint</th><th>Implements</th></tr>
-          \${(f?.syms || []).map(s => \`<tr><td class="mono">\${esc(s.n)}</td><td>\${esc(s.k)}</td><td>\${s.l}</td><td>\${s.d.map(d => badge(d, 'b-domain', 'class', d)).join('')}</td></tr>\`).join('') || '<tr><td colspan="4">No exported symbols.</td></tr>'}
+          <table><tr><th>Symbol</th><th>Kind</th><th>lineHint</th><th>Implements</th><th>Jump</th></tr>
+          \${(f?.syms || []).map(s => \`<tr><td class="mono">\${esc(s.n)}</td><td>\${esc(s.k)}</td><td>\${s.l}</td><td>\${s.d.map(d => badge(d, 'b-domain', 'class', d)).join('')}</td><td>\${codeJumpLinks(id, s.l)}</td></tr>\`).join('') || '<tr><td colspan="5">No exported symbols.</td></tr>'}
           </table>
         </div>
         <div class="section">
@@ -1155,7 +1854,7 @@ export function buildViewer() {
       el.innerHTML = crumbs + \`
         <div class="section">
           <h2 style="margin:0 0 6px;">\${esc(st.title)} / \${esc(st.name)}</h2>
-          <div>\${badge(st.hasPlay ? 'Tier 2 play() test' : 'Visual story', 'b-qa')} \${st.domainState ? badge('domainState: ' + st.domainState, 'b-domain') : ''} \${st.component ? badge(st.component, 'b-code') : ''} <a class="badge b-code clickable" href="\${esc(sbHref)}" target="_blank" rel="noopener noreferrer">Open in Storybook ↗</a></div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">\${badge(st.hasPlay ? 'Tier 2 play() test' : 'Visual story', 'b-qa')} \${st.domainState ? badge('domainState: ' + st.domainState, 'b-domain') : ''} \${st.component ? badge(st.component, 'b-code') : ''} <a class="badge b-code clickable" href="\${esc(sbHref)}" target="_blank" rel="noopener noreferrer">Open in Storybook ↗</a> \${codeJumpLinks(st.file, 1)}</div>
           <p class="card-sub">Story ID: <code>\${esc(st.id)}</code> · File: \${badge(st.file, 'b-code', 'file', st.file)}</p>
         </div>
         <div class="section">
@@ -1189,12 +1888,174 @@ export function buildViewer() {
         </div>
         <div class="section">
           <h3>Root-Cause Files &amp; Symbols (bridge:rootCause)</h3>
-          <table><tr><th>Type</th><th>File</th><th>Symbol</th><th>lineHint</th></tr>
-          \${iss.rootCauses.map(rc => \`<tr><td>\${esc(rc.type)}</td><td>\${badge(rc.file, 'b-code', 'file', rc.file)}</td><td class="mono">\${esc(rc.symbol || '—')}</td><td>\${rc.lineHint || '—'}</td></tr>\`).join('') || '<tr><td colspan="4">None recorded.</td></tr>'}
+          <table><tr><th>Type</th><th>File</th><th>Symbol</th><th>lineHint</th><th>Jump</th></tr>
+          \${iss.rootCauses.map(rc => \`<tr><td>\${esc(rc.type)}</td><td>\${badge(rc.file, 'b-code', 'file', rc.file)}</td><td class="mono">\${esc(rc.symbol || '—')}</td><td>\${rc.lineHint || '—'}</td><td>\${codeJumpLinks(rc.file, rc.lineHint)}</td></tr>\`).join('') || '<tr><td colspan="5">None recorded.</td></tr>'}
           </table>
         </div>\`;
     }
   }
+
+  function wirePicker(inputId, dropdownId, onSelect) {
+    const inp = document.getElementById(inputId);
+    const dd = document.getElementById(dropdownId);
+    if (!inp || !dd) return;
+    function showMatches(q) {
+      const ql = (q || '').trim().toLowerCase();
+      const matches = (ql
+        ? allGraphNodesSorted.filter(n => n.searchText.includes(ql))
+        : allGraphNodesSorted.filter(n => ['journey', 'stereotype', 'story', 'class'].includes(n.kind))
+      ).slice(0, 40);
+      dd.innerHTML = matches.map(n => \`
+        <div class="picker-item" data-pk-kind="\${esc(n.kind)}" data-pk-id="\${esc(n.id)}">
+          <span><span class="badge b-\${n.layer}">\${esc(n.kind)}</span> \${esc(n.label)}</span>
+          <span class="card-sub" style="margin:0;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">\${esc(n.sublabel)}</span>
+        </div>\`).join('') || '<div class="picker-item">No matches</div>';
+      dd.classList.add('open');
+    }
+    inp.addEventListener('focus', () => { inp.select(); showMatches(''); });
+    inp.addEventListener('input', () => showMatches(inp.value));
+    dd.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('[data-pk-kind]');
+      if (!item) return;
+      e.preventDefault();
+      dd.classList.remove('open');
+      onSelect(item.dataset.pkKind, item.dataset.pkId);
+    });
+    inp.addEventListener('blur', () => setTimeout(() => dd.classList.remove('open'), 150));
+  }
+
+  function wireGraphInteractions() {
+    const g = state.graph;
+    wirePicker('picker-from', 'dropdown-from', (kind, id) => {
+      g.from = { kind, id };
+      g.inspectedKey = kind + ':' + id;
+      g.customPos = {}; g.activePathIdx = -1;
+      syncHash(false); render();
+    });
+    wirePicker('picker-to', 'dropdown-to', (kind, id) => {
+      g.to = { kind, id };
+      g.inspectedKey = kind + ':' + id;
+      g.customPos = {}; g.activePathIdx = -1;
+      syncHash(false); render();
+    });
+
+    const nfInput = document.getElementById('input-g-nodefilter');
+    if (nfInput) {
+      nfInput.addEventListener('input', (e) => {
+        g.nodeFilter = e.target.value;
+        const selStart = e.target.selectionStart;
+        render();
+        const nextInp = document.getElementById('input-g-nodefilter');
+        if (nextInp) { nextInp.focus(); nextInp.setSelectionRange(selStart, selStart); }
+      });
+    }
+
+    const svg = document.getElementById('graph-svg');
+    const vp = document.getElementById('graph-viewport');
+    if (!svg || !vp) return;
+
+    function applyTransform() {
+      vp.setAttribute('transform', \`translate(\${g.panX},\${g.panY}) scale(\${g.zoom})\`);
+    }
+
+    svg.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.12 : 0.89;
+      const nextZoom = Math.max(0.25, Math.min(4, g.zoom * factor));
+      const rect = svg.getBoundingClientRect();
+      const mx = ((e.clientX - rect.left) / rect.width) * 900;
+      const my = ((e.clientY - rect.top) / rect.height) * 540;
+      g.panX = mx - (mx - g.panX) * (nextZoom / g.zoom);
+      g.panY = my - (my - g.panY) * (nextZoom / g.zoom);
+      g.zoom = nextZoom;
+      applyTransform();
+    }, { passive: false });
+
+    svg.addEventListener('mousedown', (e) => {
+      const nodeEl = e.target.closest('.g-node');
+      const rect = svg.getBoundingClientRect();
+      const scaleX = 900 / rect.width;
+      const scaleY = 540 / rect.height;
+      if (nodeEl) {
+        e.stopPropagation();
+        const key = nodeEl.dataset.nodeKey;
+        const circle = nodeEl.querySelector('circle');
+        activeDrag = {
+          type: 'node',
+          svg, vp,
+          key,
+          startX: e.clientX,
+          startY: e.clientY,
+          origX: Number(circle.getAttribute('cx')),
+          origY: Number(circle.getAttribute('cy')),
+          scaleX, scaleY,
+          moved: false
+        };
+      } else {
+        activeDrag = {
+          type: 'pan',
+          svg, vp,
+          startX: e.clientX,
+          startY: e.clientY,
+          origPanX: g.panX,
+          origPanY: g.panY,
+          scaleX, scaleY,
+          moved: false
+        };
+      }
+    });
+  }
+
+  let activeDrag = null;
+  window.addEventListener('mousemove', (e) => {
+    if (!activeDrag) return;
+    const g = state.graph;
+    const dx = (e.clientX - activeDrag.startX) * activeDrag.scaleX;
+    const dy = (e.clientY - activeDrag.startY) * activeDrag.scaleY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) activeDrag.moved = true;
+    if (activeDrag.type === 'pan') {
+      g.panX = activeDrag.origPanX + dx;
+      g.panY = activeDrag.origPanY + dy;
+      activeDrag.vp.setAttribute('transform', \`translate(\${g.panX},\${g.panY}) scale(\${g.zoom})\`);
+    } else if (activeDrag.type === 'node' && activeDrag.moved) {
+      const nx = activeDrag.origX + dx / g.zoom;
+      const ny = activeDrag.origY + dy / g.zoom;
+      g.customPos[activeDrag.key] = { x: nx, y: ny };
+      const nodeEl = activeDrag.svg.querySelector(\`.g-node[data-node-key="\${CSS.escape(activeDrag.key)}"]\`);
+      if (nodeEl) {
+        const circle = nodeEl.querySelector('circle');
+        const r = Number(circle.getAttribute('r'));
+        circle.setAttribute('cx', nx);
+        circle.setAttribute('cy', ny);
+        const texts = nodeEl.querySelectorAll('text');
+        if (texts[0]) { texts[0].setAttribute('x', nx); texts[0].setAttribute('y', ny + r + 12); }
+        if (texts[1]) { texts[1].setAttribute('x', nx); texts[1].setAttribute('y', ny + 4); }
+      }
+      activeDrag.svg.querySelectorAll('.g-edge').forEach(eg => {
+        const isFrom = eg.dataset.from === activeDrag.key;
+        const isTo = eg.dataset.to === activeDrag.key;
+        if (!isFrom && !isTo) return;
+        const line = eg.querySelector('line');
+        const txt = eg.querySelector('text');
+        if (isFrom) { line.setAttribute('x1', nx); line.setAttribute('y1', ny); }
+        if (isTo) { line.setAttribute('x2', nx); line.setAttribute('y2', ny); }
+        const x1 = Number(line.getAttribute('x1')), y1 = Number(line.getAttribute('y1'));
+        const x2 = Number(line.getAttribute('x2')), y2 = Number(line.getAttribute('y2'));
+        txt.setAttribute('x', (x1 + x2) / 2);
+        txt.setAttribute('y', (y1 + y2) / 2 - 4);
+      });
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (activeDrag && activeDrag.type === 'node' && !activeDrag.moved) {
+      state.graph.inspectedKey = activeDrag.key;
+      activeDrag = null;
+      render();
+      return;
+    }
+    activeDrag = null;
+  });
 
   function render() {
     renderList();
@@ -1203,6 +2064,20 @@ export function buildViewer() {
 
   // Event delegation
   document.addEventListener('click', (e) => {
+    if (e.target.closest('.g-node')) return; // handled by svg mouseup for drag vs click
+
+    const openDet = e.target.closest('[data-open-detail-kind]');
+    if (openDet) {
+      const k = openDet.dataset.openDetailKind;
+      const id = openDet.dataset.openDetailId;
+      state.selected = { kind: k, id };
+      state.tab = defaultTabForKind(k);
+      if (k === 'file') state.codeSubtab = 'files';
+      if (k === 'story') state.codeSubtab = 'stories';
+      syncTabUI(); syncHash(false); render();
+      return;
+    }
+
     const navEl = e.target.closest('[data-nav-kind]');
     if (navEl) {
       navigateTo(navEl.dataset.navKind, navEl.dataset.navId);
@@ -1211,9 +2086,10 @@ export function buildViewer() {
     const tabEl = e.target.closest('#main-tabs .tab');
     if (tabEl) {
       state.tab = tabEl.dataset.tab;
-      if (state.tab === 'domain' && state.selected.kind !== 'class' && DATA.classes[0]) state.selected = { kind: 'class', id: DATA.classes[0].curie };
+      if (state.tab === 'domain' && state.selected.kind !== 'class' && state.selected.kind !== 'stereotype' && DATA.classes[0]) state.selected = { kind: 'class', id: DATA.classes[0].curie };
       if (state.tab === 'issues' && state.selected.kind !== 'issue' && DATA.qaIssues[0]) state.selected = { kind: 'issue', id: DATA.qaIssues[0].id };
       if (state.tab === 'code' && state.selected.kind !== 'file' && DATA.codeFiles[0]) state.selected = { kind: 'file', id: DATA.codeFiles[0].p };
+      if (state.tab === 'graph' && !state.graph.from.id) state.graph.from = { ...state.selected };
       syncTabUI();
       syncHash(false);
       render();
@@ -1226,6 +2102,97 @@ export function buildViewer() {
       render();
       return;
     }
+
+    // Graph controls
+    if (e.target.id === 'btn-gmode-neigh') { state.graph.mode = 'neighborhood'; state.graph.customPos = {}; state.graph.activePathIdx = -1; syncHash(false); render(); return; }
+    if (e.target.id === 'btn-gmode-path') { state.graph.mode = 'path'; state.graph.customPos = {}; state.graph.activePathIdx = -1; syncHash(false); render(); return; }
+    if (e.target.id === 'btn-g-swap') {
+      const tmp = state.graph.from; state.graph.from = state.graph.to; state.graph.to = tmp;
+      state.graph.customPos = {}; state.graph.activePathIdx = -1; syncHash(false); render(); return;
+    }
+    if (e.target.id === 'btn-g-fullscreen') {
+      state.graph.fullscreen = !state.graph.fullscreen; syncTabUI(); render(); return;
+    }
+    if (e.target.id === 'btn-show-all-nodes') { state.graph.showAllNodes = true; render(); return; }
+    if (e.target.id === 'btn-clear-path') { state.graph.activePathIdx = -1; render(); return; }
+    if (e.target.id === 'btn-zoom-in') { state.graph.zoom = Math.min(4, state.graph.zoom * 1.25); render(); return; }
+    if (e.target.id === 'btn-zoom-out') { state.graph.zoom = Math.max(0.25, state.graph.zoom * 0.8); render(); return; }
+    if (e.target.id === 'btn-zoom-reset') { state.graph.zoom = 1; state.graph.panX = 0; state.graph.panY = 0; state.graph.customPos = {}; render(); return; }
+
+    if (e.target.id === 'btn-preset-jrn-test') {
+      const j = (state.selected.kind === 'journey' ? journeyById.get(state.selected.id) : null) || DATA.qaJourneys.find(x => x.stories?.length || x.pwSpec) || DATA.qaJourneys[0];
+      if (j) {
+        state.graph.mode = 'path';
+        state.graph.from = { kind: 'journey', id: j.id };
+        if (j.stories?.length) state.graph.to = { kind: 'story', id: j.stories[0] };
+        else if (j.pwSpec) state.graph.to = { kind: 'file', id: j.pwSpec };
+        else if (DATA.codeStories?.[0]) state.graph.to = { kind: 'story', id: DATA.codeStories[0].id };
+        state.graph.customPos = {}; state.graph.activePathIdx = -1; syncHash(false); render();
+      }
+      return;
+    }
+    if (e.target.id === 'btn-preset-pat-jrn') {
+      const j = (state.selected.kind === 'journey' ? journeyById.get(state.selected.id) : null) || DATA.qaJourneys.find(x => x.seedNouns?.length) || DATA.qaJourneys[0];
+      const firstClass = j?.seedNouns?.[0] ? classByCurie.get(j.seedNouns[0]) : null;
+      const st = firstClass?.stereotype || DATA.stereotypes[0] || 'ufo:Kind';
+      state.graph.mode = 'path';
+      state.graph.from = { kind: 'stereotype', id: st };
+      if (j) state.graph.to = { kind: 'journey', id: j.id };
+      state.graph.customPos = {}; state.graph.activePathIdx = -1; syncHash(false); render();
+      return;
+    }
+
+    const kindChip = e.target.closest('[data-g-kind]');
+    if (kindChip) {
+      const k = kindChip.dataset.gKind;
+      state.graph.enabledKinds[k] = !state.graph.enabledKinds[k];
+      state.graph.activePathIdx = -1;
+      render();
+      return;
+    }
+    const predChip = e.target.closest('[data-g-pred]');
+    if (predChip) {
+      const p = predChip.dataset.gPred;
+      if (state.graph.disabledPreds.has(p)) state.graph.disabledPreds.delete(p);
+      else state.graph.disabledPreds.add(p);
+      state.graph.activePathIdx = -1;
+      render();
+      return;
+    }
+    if (e.target.id === 'btn-kinds-all') {
+      Object.keys(state.graph.enabledKinds).forEach(k => { state.graph.enabledKinds[k] = true; });
+      render(); return;
+    }
+    if (e.target.id === 'btn-kinds-none') {
+      Object.keys(state.graph.enabledKinds).forEach(k => { state.graph.enabledKinds[k] = false; });
+      render(); return;
+    }
+    if (e.target.id === 'btn-preds-all') {
+      state.graph.disabledPreds.clear();
+      render(); return;
+    }
+    const pathItem = e.target.closest('[data-path-idx]');
+    if (pathItem) {
+      const idx = Number(pathItem.dataset.pathIdx);
+      state.graph.activePathIdx = state.graph.activePathIdx === idx ? -1 : idx;
+      render(); return;
+    }
+    if (e.target.id === 'btn-insp-set-a') {
+      state.graph.mode = 'path';
+      state.graph.from = { kind: e.target.dataset.k, id: e.target.dataset.id };
+      state.graph.customPos = {}; state.graph.activePathIdx = -1; syncHash(false); render(); return;
+    }
+    if (e.target.id === 'btn-insp-set-b') {
+      state.graph.mode = 'path';
+      state.graph.to = { kind: e.target.dataset.k, id: e.target.dataset.id };
+      state.graph.customPos = {}; state.graph.activePathIdx = -1; syncHash(false); render(); return;
+    }
+    if (e.target.id === 'btn-insp-neigh') {
+      state.graph.mode = 'neighborhood';
+      state.graph.from = { kind: e.target.dataset.k, id: e.target.dataset.id };
+      state.graph.customPos = {}; state.graph.activePathIdx = -1; syncHash(false); render(); return;
+    }
+
     if (e.target.id === 'btn-back') {
       window.history.back();
       return;
@@ -1244,11 +2211,32 @@ export function buildViewer() {
       return;
     }
     if (e.target.id === 'btn-open-graph') {
+      state.graph.mode = 'neighborhood';
+      state.graph.from = { ...state.selected };
+      state.graph.inspectedKey = state.selected.kind + ':' + state.selected.id;
+      state.graph.customPos = {}; state.graph.activePathIdx = -1;
+      state.tab = 'graph';
+      syncTabUI();
+      syncHash(false);
+      render();
+      return;
+    }
+    if (e.target.id === 'btn-find-path') {
+      state.graph.mode = 'path';
+      state.graph.from = { ...state.selected };
+      state.graph.inspectedKey = state.selected.kind + ':' + state.selected.id;
+      state.graph.customPos = {}; state.graph.activePathIdx = -1;
       state.tab = 'graph';
       syncTabUI();
       syncHash(false);
       render();
     }
+  });
+
+  document.addEventListener('change', (e) => {
+    if (e.target.id === 'sel-g-hops') { state.graph.hops = Number(e.target.value); state.graph.customPos = {}; render(); }
+    if (e.target.id === 'sel-g-budget') { state.graph.pathBudget = e.target.value; state.graph.customPos = {}; state.graph.activePathIdx = -1; render(); }
+    if (e.target.id === 'sel-g-filtermode') { state.graph.nodeFilterMode = e.target.value; render(); }
   });
 
   window.addEventListener('hashchange', () => {
