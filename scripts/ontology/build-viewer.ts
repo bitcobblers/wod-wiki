@@ -177,9 +177,55 @@ class Store {
 
 export function buildViewer() {
   const store = new Store();
+  const bridgeRawByPred = new Map<string, number>();
+  const bridgeDistinctByPred = new Map<string, Set<string>>();
+  const emittedPredCounts = new Map<string, number>();
+
   for (const f of ['code-graph.ttl', 'qa-instances.ttl', 'bridge-instances.ttl']) {
-    store.addAll(parseGeneratedTtl(path.join(GENERATED_DIR, f)));
+    const triples = parseGeneratedTtl(path.join(GENERATED_DIR, f));
+    store.addAll(triples);
+    for (const t of triples) {
+      emittedPredCounts.set(t.p, (emittedPredCounts.get(t.p) ?? 0) + 1);
+      if (f === 'bridge-instances.ttl') {
+        bridgeRawByPred.set(t.p, (bridgeRawByPred.get(t.p) ?? 0) + 1);
+        const set = bridgeDistinctByPred.get(t.p) ?? new Set<string>();
+        set.add(`${t.s}\0${t.p}\0${t.o}`);
+        bridgeDistinctByPred.set(t.p, set);
+      }
+    }
   }
+
+  const declaredPropMap = new Map(Object.values(ONTOLOGY_PROPERTIES).map((p) => [p.curie, p]));
+  const builtinPreds = new Set(['rdf:type', 'rdfs:label', 'rdfs:comment', 'owl:equivalentClass']);
+  const undeclaredEmitted = [...emittedPredCounts.entries()]
+    .filter(([p]) => !declaredPropMap.has(p) && !builtinPreds.has(p))
+    .map(([pred, count]) => ({ pred, count }))
+    .sort((a, b) => b.count - a.count || a.pred.localeCompare(b.pred));
+
+  const zeroEdgeProps = Object.values(ONTOLOGY_PROPERTIES)
+    .filter((p) => (emittedPredCounts.get(p.curie) ?? 0) === 0)
+    .map((p) => ({ curie: p.curie, kind: p.kind, domains: [...p.domains], ranges: [...p.ranges] }))
+    .sort((a, b) => a.curie.localeCompare(b.curie));
+
+  const duplicateBridgePreds = [...bridgeRawByPred.entries()]
+    .map(([pred, raw]) => ({ pred, raw, distinct: bridgeDistinctByPred.get(pred)?.size ?? raw }))
+    .filter((x) => x.raw > x.distinct)
+    .sort((a, b) => (b.raw - b.distinct) - (a.raw - a.distinct) || a.pred.localeCompare(b.pred));
+
+  const bridgeRawTotal = [...bridgeRawByPred.values()].reduce((a, b) => a + b, 0);
+  const bridgeDistinctTotal = [...bridgeDistinctByPred.values()].reduce((a, s) => a + s.size, 0);
+
+  const properties = Object.values(ONTOLOGY_PROPERTIES)
+    .map((p) => ({
+      curie: p.curie,
+      kind: p.kind,
+      label: p.label,
+      comment: p.comment,
+      domains: [...p.domains],
+      ranges: [...p.ranges],
+      emittedCount: emittedPredCounts.get(p.curie) ?? 0,
+    }))
+    .sort((a, b) => a.curie.localeCompare(b.curie));
 
   // 1. Patterns
   const stereotypes = [
@@ -494,6 +540,7 @@ export function buildViewer() {
   const payload = {
     stereotypes,
     classes,
+    properties,
     metrics: Object.values(ONTOLOGY_METRICS).sort((a, b) => a.curie.localeCompare(b.curie)),
     qaDomains,
     qaRuns,
@@ -504,6 +551,13 @@ export function buildViewer() {
     codeTestIds,
     codeTools,
     codeStories,
+    health: {
+      bridgeRawTotal,
+      bridgeDistinctTotal,
+      duplicateBridgePreds,
+      undeclaredEmitted,
+      zeroEdgeProps,
+    },
   };
 
   const jsonStr = JSON.stringify(payload).replace(/<\//g, '<\\/');
@@ -516,11 +570,31 @@ export function buildViewer() {
 <title>WOD Wiki — Unified 5-Named-Graph Ontology Explorer</title>
 <style>
   :root {
-    --bg: #0b0e14; --panel: #121722; --panel2: #181f2e; --border: #263044;
+    color-scheme: dark light;
+    --bg: #0b0e14; --panel: #121722; --panel2: #181f2e; --subbar: #0e131d; --listbg: #0d111a; --graphbg: #090c12;
+    --hudbg: rgba(18,23,34,.9); --border: #263044; --rowline: rgba(38,48,68,.5);
     --text: #e5ecf4; --muted: #8b9bb4; --accent: #38bdf8;
     --c-patterns: #a78bfa; --c-domain: #34d399; --c-qa: #fbbf24;
     --c-code: #38bdf8; --c-bridge: #fb7185;
-    --sev-high: #ef4444; --sev-med: #f59e0b; --sev-low: #64748b;
+    --sev-high: #ef4444; --sev-high-text: #fca5a5; --sev-med: #f59e0b; --sev-med-text: #fcd34d; --sev-low: #64748b;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f8fafc; --panel: #ffffff; --panel2: #f1f5f9; --subbar: #f1f5f9; --listbg: #f8fafc; --graphbg: #f1f5f9;
+      --hudbg: rgba(255,255,255,.92); --border: #cbd5e1; --rowline: rgba(203,213,225,.6);
+      --text: #0f172a; --muted: #475569; --accent: #0284c7;
+      --c-patterns: #7c3aed; --c-domain: #059669; --c-qa: #d97706;
+      --c-code: #0284c7; --c-bridge: #e11d48;
+      --sev-high: #dc2626; --sev-high-text: #b91c1c; --sev-med: #d97706; --sev-med-text: #b45309; --sev-low: #64748b;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --panel: #ffffff; --panel2: #f1f5f9; --subbar: #f1f5f9; --listbg: #f8fafc; --graphbg: #f1f5f9;
+    --hudbg: rgba(255,255,255,.92); --border: #cbd5e1; --rowline: rgba(203,213,225,.6);
+    --text: #0f172a; --muted: #475569; --accent: #0284c7;
+    --c-patterns: #7c3aed; --c-domain: #059669; --c-qa: #d97706;
+    --c-code: #0284c7; --c-bridge: #e11d48;
+    --sev-high: #dc2626; --sev-high-text: #b91c1c; --sev-med: #d97706; --sev-med-text: #b45309; --sev-low: #64748b;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.45; }
@@ -530,18 +604,18 @@ export function buildViewer() {
   .stats { display: flex; flex-wrap: wrap; gap: 8px; }
   .pill { padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel2); font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  .layer-bar { padding: 8px 20px; border-bottom: 1px solid var(--border); background: #0e131d; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .layer-bar { padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--subbar); display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .layer-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); cursor: pointer; font-size: 12px; user-select: none; }
   .layer-toggle input { accent-color: var(--accent); margin: 0; }
   .toolbar { padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--panel); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   input[type="search"], select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; }
   input[type="search"] { min-width: 260px; flex: 1; max-width: 420px; }
   .tabs { display: flex; gap: 4px; padding: 8px 20px 0; border-bottom: 1px solid var(--border); background: var(--panel); overflow-x: auto; }
-  .tab { padding: 8px 14px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; color: var(--muted); background: transparent; font-size: 12px; font-weight: 500; }
+  .tab { padding: 8px 14px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; color: var(--muted); background: transparent; font-size: 12px; font-weight: 500; white-space: nowrap; }
   .tab.active { background: var(--bg); color: var(--text); border-color: var(--border); }
   main { display: grid; grid-template-columns: 380px 1fr; height: calc(100vh - 178px); min-height: 480px; }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; height: auto; } }
-  .list-pane { border-right: 1px solid var(--border); overflow-y: auto; padding: 8px; background: #0d111a; }
+  .list-pane { border-right: 1px solid var(--border); overflow-y: auto; padding: 8px; background: var(--listbg); }
   .detail-pane { overflow-y: auto; padding: 18px 22px; }
   .card { padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px; margin-bottom: 6px; background: var(--panel); cursor: pointer; transition: border-color .12s; }
   .card:hover, .card.selected { border-color: var(--accent); background: var(--panel2); }
@@ -550,16 +624,16 @@ export function buildViewer() {
   .badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10.5px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); margin: 2px 3px 2px 0; }
   .badge.clickable { cursor: pointer; }
   .badge.clickable:hover { border-color: var(--accent); color: var(--accent); }
-  .b-patterns { border-color: rgba(167,139,250,.4); color: var(--c-patterns); }
-  .b-domain { border-color: rgba(52,211,153,.4); color: var(--c-domain); }
-  .b-qa { border-color: rgba(251,191,36,.4); color: var(--c-qa); }
-  .b-code { border-color: rgba(56,189,248,.4); color: var(--c-code); }
-  .b-bridge { border-color: rgba(251,113,133,.4); color: var(--c-bridge); }
-  .b-high { border-color: rgba(239,68,68,.5); color: #fca5a5; }
-  .b-med { border-color: rgba(245,158,11,.5); color: #fcd34d; }
+  .b-patterns { border-color: rgba(167,139,250,.45); color: var(--c-patterns); }
+  .b-domain { border-color: rgba(52,211,153,.45); color: var(--c-domain); }
+  .b-qa { border-color: rgba(251,191,36,.45); color: var(--c-qa); }
+  .b-code { border-color: rgba(56,189,248,.45); color: var(--c-code); }
+  .b-bridge { border-color: rgba(251,113,133,.45); color: var(--c-bridge); }
+  .b-high { border-color: rgba(239,68,68,.5); color: var(--sev-high-text); }
+  .b-med { border-color: rgba(245,158,11,.5); color: var(--sev-med-text); }
   .section { margin-bottom: 18px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
   .section h3 { margin: 0 0 10px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-  .beat-row { display: grid; grid-template-columns: 80px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(38,48,68,.5); }
+  .beat-row { display: grid; grid-template-columns: 80px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--rowline); }
   .beat-row:last-child { border-bottom: none; }
   .subtabs { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
   .subtab { padding: 4px 9px; border-radius: 5px; border: 1px solid var(--border); background: var(--panel); color: var(--muted); cursor: pointer; font-size: 11px; }
@@ -569,7 +643,7 @@ export function buildViewer() {
   .btn:hover { border-color: var(--accent); color: var(--accent); }
   .ext-links { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
   a.badge { text-decoration: none; }
-  svg.graph { width: 100%; height: 540px; border: 1px solid var(--border); border-radius: 8px; background: #090c12; display: block; cursor: grab; user-select: none; }
+  svg.graph { width: 100%; height: 540px; border: 1px solid var(--border); border-radius: 8px; background: var(--graphbg); display: block; cursor: grab; user-select: none; }
   svg.graph:active { cursor: grabbing; }
   .graph-fullscreen main { grid-template-columns: 0px 1fr; }
   .graph-fullscreen .list-pane { display: none; }
@@ -578,9 +652,9 @@ export function buildViewer() {
   .picker-wrap { position: relative; flex: 1; min-width: 220px; }
   .picker-input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; }
   .picker-input:focus { outline: none; border-color: var(--accent); }
-  .picker-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 50; max-height: 260px; overflow-y: auto; background: var(--panel2); border: 1px solid var(--accent); border-radius: 6px; margin-top: 3px; box-shadow: 0 10px 28px rgba(0,0,0,.55); display: none; }
+  .picker-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 50; max-height: 260px; overflow-y: auto; background: var(--panel2); border: 1px solid var(--accent); border-radius: 6px; margin-top: 3px; box-shadow: 0 10px 28px rgba(0,0,0,.35); display: none; }
   .picker-dropdown.open { display: block; }
-  .picker-item { padding: 6px 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px solid rgba(38,48,68,.5); font-size: 12px; }
+  .picker-item { padding: 6px 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px solid var(--rowline); font-size: 12px; }
   .picker-item:last-child { border-bottom: none; }
   .picker-item:hover { background: rgba(56,189,248,.12); }
   .chip-bar { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
@@ -589,12 +663,17 @@ export function buildViewer() {
   .chip:hover { border-color: var(--accent); }
   .graph-stage { position: relative; }
   .graph-hud { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; z-index: 10; }
-  .graph-hud .btn { background: rgba(18,23,34,.9); backdrop-filter: blur(4px); }
-  .graph-legend { position: absolute; bottom: 10px; left: 10px; display: flex; flex-wrap: wrap; gap: 8px; padding: 5px 9px; border-radius: 6px; background: rgba(18,23,34,.85); border: 1px solid var(--border); font-size: 10.5px; color: var(--muted); pointer-events: none; }
+  .graph-hud .btn { background: var(--hudbg); backdrop-filter: blur(4px); }
+  .graph-legend { position: absolute; bottom: 10px; left: 10px; display: flex; flex-wrap: wrap; gap: 8px; padding: 5px 9px; border-radius: 6px; background: var(--hudbg); border: 1px solid var(--border); font-size: 10.5px; color: var(--muted); pointer-events: none; }
   .graph-grid { display: grid; grid-template-columns: 1fr 340px; gap: 12px; align-items: start; }
   @media (max-width: 1200px) { .graph-grid { grid-template-columns: 1fr; } }
   .path-item { padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 5px; background: var(--bg); cursor: pointer; font-size: 11.5px; }
   .path-item:hover, .path-item.active { border-color: var(--accent); background: var(--panel2); }
+  .cockpit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .stat-card { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+  .stat-num { font-size: 22px; font-weight: 700; margin: 4px 0; }
+  .family-header { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; margin-bottom: 5px; background: var(--panel2); cursor: pointer; font-weight: 600; font-size: 12px; }
+  .family-members { padding-left: 10px; border-left: 2px solid var(--border); margin-bottom: 8px; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 500; }
@@ -614,6 +693,11 @@ export function buildViewer() {
   <label class="layer-toggle"><input type="checkbox" data-layer="code" checked /><span class="dot" style="background:var(--c-code)"></span>:code</label>
   <label class="layer-toggle"><input type="checkbox" data-layer="bridge" checked /><span class="dot" style="background:var(--c-bridge)"></span>:bridge</label>
   <div class="ext-links" id="surface-links">
+    <select id="theme-select" title="Color theme (defaults to OS/system preference)">
+      <option value="system">Theme: System</option>
+      <option value="dark">Theme: Dark</option>
+      <option value="light">Theme: Light</option>
+    </select>
     <select id="env-select" title="Target *.wod.wiki environment for cross-links">
       <option value="auto">Env: Auto</option>
       <option value="prod">Env: prod (wod.wiki)</option>
@@ -654,11 +738,13 @@ export function buildViewer() {
 </div>
 
 <div class="tabs" id="main-tabs">
-  <button class="tab active" data-tab="journeys">Journeys &amp; 5-Beat Flows</button>
+  <button class="tab active" data-tab="overview">Overview &amp; Health</button>
+  <button class="tab" data-tab="journeys">Journeys &amp; 5-Beat Flows</button>
   <button class="tab" data-tab="domain">Domain &amp; Patterns</button>
   <button class="tab" data-tab="code">Code &amp; Reverse Lookup</button>
   <button class="tab" data-tab="issues">Issues &amp; Provenance</button>
   <button class="tab" data-tab="graph">Interactive Graph &amp; Path Explorer</button>
+</div>
 </div>
 
 <main>
@@ -719,9 +805,38 @@ export function buildViewer() {
     }
   }
 
+  const ALIAS_TO_CANONICAL = {
+    'wod:Session': 'wod:SessionRecord',
+    'wod:Query': 'wod:WQLQuery',
+    'wod:FieldValue': 'wod:FieldValueRecord',
+  };
+  const CANONICAL_TO_ALIAS = {
+    'wod:SessionRecord': 'wod:Session',
+    'wod:WQLQuery': 'wod:Query',
+    'wod:FieldValueRecord': 'wod:FieldValue',
+  };
+  const PROJECTION_PREDS = new Set(['wod:hasTag', 'wod:placedOn', 'wod:hasEvent']);
+  const VERB_FAMILY_PARENTS = new Set(['wod:RuntimeAction', 'wod:Activity', 'qa:Beat']);
+
+  const incomingPropsByClass = new Map();
+  for (const c of DATA.classes) {
+    for (const p of c.props || []) {
+      if (p.kind === 'object' && p.range) {
+        if (!incomingPropsByClass.has(p.range)) incomingPropsByClass.set(p.range, []);
+        incomingPropsByClass.get(p.range).push({ from: c.curie, curie: p.curie, isProjection: PROJECTION_PREDS.has(p.curie) });
+      }
+    }
+  }
+
+  let savedTheme = 'system';
+  try { savedTheme = localStorage.getItem('wod-ontology-theme') || 'system'; } catch {}
+
   const state = {
-    tab: 'journeys',
+    tab: 'overview',
     codeSubtab: 'files',
+    domainSimplify: true,
+    expandedFamilies: new Set(),
+    theme: savedTheme,
     search: '',
     domain: '',
     priority: '',
@@ -972,13 +1087,13 @@ export function buildViewer() {
     return key;
   }
 
-  function addGraphEdge(fromKey, toKey, pred, layer, detail) {
+  function addGraphEdge(fromKey, toKey, pred, layer, detail, isProjection) {
     if (!fromKey || !toKey || fromKey === toKey) return;
     const ek = fromKey + '|' + toKey + '|' + pred + '|' + (detail || '');
     if (graphEdgeKeys.has(ek)) return;
     graphEdgeKeys.add(ek);
     const idx = graphEdges.length;
-    graphEdges.push({ idx, from: fromKey, to: toKey, pred, layer, detail: detail || '' });
+    graphEdges.push({ idx, from: fromKey, to: toKey, pred, layer, detail: detail || '', isProjection: Boolean(isProjection) });
     graphAdj.get(fromKey).push({ edgeIdx: idx, neighbor: toKey });
     graphAdj.get(toKey).push({ edgeIdx: idx, neighbor: fromKey });
   }
@@ -1002,8 +1117,8 @@ export function buildViewer() {
         }
       }
       for (const p of c.props || []) {
-        if (p.range && graphNodes.has('class:' + p.range)) {
-          addGraphEdge(ck, 'class:' + p.range, 'domainProp', 'domain', p.curie);
+        if (p.kind === 'object' && p.range && graphNodes.has('class:' + p.range)) {
+          addGraphEdge(ck, 'class:' + p.range, 'domainProp', 'domain', p.curie, PROJECTION_PREDS.has(p.curie));
         }
       }
     }
@@ -1293,7 +1408,35 @@ export function buildViewer() {
 
   function renderList() {
     const el = document.getElementById('list-pane');
-    if (state.tab === 'journeys') {
+    if (state.tab === 'overview') {
+      const terms = [];
+      for (const s of DATA.stereotypes) terms.push({ kind: 'stereotype', id: s, badgeCls: 'b-patterns', tag: 'UFO Pattern', sub: ':patterns' });
+      for (const c of DATA.classes) {
+        const aka = CANONICAL_TO_ALIAS[c.curie];
+        terms.push({
+          kind: 'class', id: c.curie, badgeCls: 'b-domain',
+          tag: c.stereotype || c.module,
+          sub: (aka ? 'aka ' + aka + ' · ' : '') + c.label
+        });
+      }
+      for (const p of DATA.properties || []) {
+        terms.push({
+          kind: 'class', id: p.domains[0] || DATA.classes[0]?.curie || '',
+          badgeCls: p.kind === 'object' ? 'b-bridge' : 'b-code',
+          tag: p.kind,
+          sub: (p.domains[0] || '—') + ' → ' + (p.ranges[0] || '—'),
+          display: p.curie
+        });
+      }
+      terms.sort((a, b) => (a.display || a.id).localeCompare(b.display || b.id));
+      const filtered = terms.filter(t => matchSearch((t.display || t.id) + ' ' + t.tag + ' ' + t.sub)).slice(0, 260);
+      el.innerHTML = \`<div style="padding:4px 4px 8px;color:var(--muted);font-size:11px;">Alphabetical Term Index (\${terms.length} terms · click to jump)</div>\` +
+        (filtered.map(t => \`
+          <div class="card" data-nav-kind="\${esc(t.kind)}" data-nav-id="\${esc(t.id)}">
+            <div class="card-title"><span class="mono">\${esc(t.display || t.id)}</span><span class="badge \${t.badgeCls}">\${esc(t.tag)}</span></div>
+            <div class="card-sub">\${esc(t.sub)}</div>
+          </div>\`).join('') || '<div class="card-sub">No matching terms.</div>');
+    } else if (state.tab === 'journeys') {
       if (!state.layers.qa) { el.innerHTML = '<div class="card-sub">Layer :qa is hidden.</div>'; return; }
       const items = DATA.qaJourneys.filter(j => {
         if (state.domain && j.domain !== state.domain) return false;
@@ -1308,21 +1451,58 @@ export function buildViewer() {
         </div>\`).join('') || '<div class="card-sub">No matching journeys.</div>';
     } else if (state.tab === 'domain') {
       if (!state.layers.domain && !state.layers.patterns) { el.innerHTML = '<div class="card-sub">Layers :domain and :patterns are hidden.</div>'; return; }
+      const simplifyBar = \`<label class="layer-toggle" style="width:100%;margin-bottom:8px;justify-content:space-between;">
+        <span>Simplify (collapse aliases &amp; verb families)</span>
+        <input type="checkbox" id="chk-domain-simplify" \${state.domainSimplify ? 'checked' : ''} />
+      </label>\`;
       const patCards = state.layers.patterns ? DATA.stereotypes.filter(s => matchSearch(s + ' ufo pattern')).map(s => {
         const cnt = DATA.classes.filter(c => c.stereotype === s).length;
         return \`<div class="card \${state.selected.kind === 'stereotype' && state.selected.id === s ? 'selected' : ''}" data-nav-kind="stereotype" data-nav-id="\${esc(s)}">
           <div class="card-title"><span class="mono">\${esc(s)}</span><span class="badge b-patterns">UFO Pattern · \${cnt}</span></div>
         </div>\`;
       }).join('') : '';
-      const items = state.layers.domain ? DATA.classes.filter(c => {
+
+      let items = state.layers.domain ? DATA.classes.filter(c => {
         if (state.stereotype && c.stereotype !== state.stereotype) return false;
-        return matchSearch(\`\${c.curie} \${c.label} \${c.module} \${c.stereotype}\`);
+        const aka = CANONICAL_TO_ALIAS[c.curie] || '';
+        return matchSearch(\`\${c.curie} \${aka} \${c.label} \${c.module} \${c.stereotype}\`);
       }) : [];
-      el.innerHTML = patCards + items.map(c => \`
-        <div class="card \${state.selected.kind === 'class' && state.selected.id === c.curie ? 'selected' : ''}" data-nav-kind="class" data-nav-id="\${esc(c.curie)}">
+
+      if (state.domainSimplify) {
+        items = items.filter(c => !ALIAS_TO_CANONICAL[c.curie]);
+      }
+
+      const familyBuckets = new Map();
+      const standalone = [];
+      for (const c of items) {
+        const famParent = state.domainSimplify ? (c.superClasses || []).find(sc => VERB_FAMILY_PARENTS.has(sc)) : null;
+        if (famParent) {
+          if (!familyBuckets.has(famParent)) familyBuckets.set(famParent, []);
+          familyBuckets.get(famParent).push(c);
+        } else {
+          standalone.push(c);
+        }
+      }
+
+      const renderClassCard = (c) => {
+        const aka = CANONICAL_TO_ALIAS[c.curie];
+        const objCnt = c.props.filter(p => p.kind === 'object').length;
+        const dtCnt = c.props.length - objCnt;
+        return \`<div class="card \${state.selected.kind === 'class' && state.selected.id === c.curie ? 'selected' : ''}" data-nav-kind="class" data-nav-id="\${esc(c.curie)}">
           <div class="card-title"><span class="mono">\${esc(c.curie)}</span><span class="badge b-patterns">\${esc(c.stereotype || 'class')}</span></div>
-          <div class="card-sub">\${esc(c.label)} · \${esc(c.module)} · \${c.props.length} props</div>
-        </div>\`).join('') || '<div class="card-sub">No matching classes.</div>';
+          <div class="card-sub">\${aka ? badge('aka ' + aka, 'b-bridge') : ''}\${esc(c.label)} · \${objCnt} edges · \${dtCnt} attrs</div>
+        </div>\`;
+      };
+
+      const familyHtml = [...familyBuckets.entries()].map(([fam, members]) => {
+        const open = state.expandedFamilies.has(fam) || Boolean(state.search);
+        return \`<div class="family-header" data-toggle-family="\${esc(fam)}">
+          <span class="mono">\${open ? '▾' : '▸'} \${esc(fam)} family</span>
+          <span class="badge b-domain">\${members.length} members</span>
+        </div>\${open ? \`<div class="family-members">\${members.map(renderClassCard).join('')}</div>\` : ''}\`;
+      }).join('');
+
+      el.innerHTML = simplifyBar + patCards + familyHtml + (standalone.map(renderClassCard).join('') || (!familyHtml ? '<div class="card-sub">No matching classes.</div>' : ''));
     } else if (state.tab === 'code') {
       if (!state.layers.code) { el.innerHTML = '<div class="card-sub">Layer :code is hidden.</div>'; return; }
       const subTabs = \`<div class="subtabs">
@@ -1503,14 +1683,15 @@ export function buildViewer() {
       const p1 = pos.get(e.from), p2 = pos.get(e.to);
       if (!p1 || !p2) return '';
       const isHi = activePathEdgeSet.has(e.idx);
-      const stroke = isHi ? '#38bdf8' : (colors[e.layer] || '#475569');
-      const opacity = activePath ? (isHi ? '0.95' : '0.16') : '0.55';
+      const stroke = isHi ? 'var(--accent)' : (colors[e.layer] || 'var(--muted)');
+      const opacity = activePath ? (isHi ? '0.95' : '0.16') : '0.58';
       const sw = isHi ? '2.4' : '1.4';
+      const dash = e.isProjection ? ' stroke-dasharray="4 3"' : '';
       const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
       const lbl = e.detail ? e.pred + ' (' + e.detail.split(':')[0] + ')' : e.pred;
       return \`<g class="g-edge" data-from="\${esc(e.from)}" data-to="\${esc(e.to)}" opacity="\${opacity}">
-        <line x1="\${p1.x}" y1="\${p1.y}" x2="\${p2.x}" y2="\${p2.y}" stroke="\${stroke}" stroke-width="\${sw}" />
-        <text x="\${mx}" y="\${my - 4}" fill="#94a3b8" font-size="8.5" text-anchor="middle">\${esc(lbl.slice(0, 26))}</text>
+        <line x1="\${p1.x}" y1="\${p1.y}" x2="\${p2.x}" y2="\${p2.y}" stroke="\${stroke}" stroke-width="\${sw}"\${dash} />
+        <text x="\${mx}" y="\${my - 4}" fill="var(--muted)" font-size="8.5" text-anchor="middle">\${esc(lbl.slice(0, 26))}</text>
       </g>\`;
     }).join('');
 
@@ -1521,16 +1702,16 @@ export function buildViewer() {
       const isB = n.key === sub.toKey;
       const isInsp = n.key === g.inspectedKey;
       const isMatch = sub.matchedKeys.size > 0 && sub.matchedKeys.has(n.key);
-      const col = colors[n.layer] || '#38bdf8';
+      const col = colors[n.layer] || 'var(--accent)';
       const r = (isA || isB) ? 20 : (isInsp ? 17 : 13);
       let stroke = col;
-      if (isA) stroke = '#34d399';
-      if (isB) stroke = '#fb7185';
-      if (isMatch) stroke = '#fde047';
+      if (isA) stroke = 'var(--c-domain)';
+      if (isB) stroke = 'var(--c-bridge)';
+      if (isMatch) stroke = 'var(--c-qa)';
       const dim = (activePath && !activePathNodeSet.has(n.key)) || (g.nodeFilter && g.nodeFilterMode === 'highlight' && sub.matchedKeys.size > 0 && !isMatch && !isA && !isB);
       return \`<g class="g-node" data-node-key="\${esc(n.key)}" data-nav-kind="\${esc(n.kind)}" data-nav-id="\${esc(n.id)}" style="cursor:pointer" opacity="\${dim ? '0.28' : '1'}">
-        <circle cx="\${p.x}" cy="\${p.y}" r="\${r}" fill="\${isInsp ? '#1e293b' : '#121722'}" stroke="\${stroke}" stroke-width="\${(isA || isB || isInsp || isMatch) ? 3 : 2}" />
-        <text x="\${p.x}" y="\${p.y + r + 12}" fill="#e5ecf4" font-size="10.5" font-weight="\${(isA || isB) ? '700' : '500'}" text-anchor="middle">\${esc(n.label.slice(0, 30))}</text>
+        <circle cx="\${p.x}" cy="\${p.y}" r="\${r}" fill="\${isInsp ? 'var(--panel2)' : 'var(--panel)'}" stroke="\${stroke}" stroke-width="\${(isA || isB || isInsp || isMatch) ? 3 : 2}" />
+        <text x="\${p.x}" y="\${p.y + r + 12}" fill="var(--text)" font-size="10.5" font-weight="\${(isA || isB) ? '700' : '500'}" text-anchor="middle">\${esc(n.label.slice(0, 30))}</text>
         \${(isA || isB) ? \`<text x="\${p.x}" y="\${p.y + 4}" fill="\${stroke}" font-size="10" font-weight="700" text-anchor="middle">\${isA ? 'A' : 'B'}</text>\` : ''}
       </g>\`;
     }).join('');
@@ -1737,6 +1918,99 @@ export function buildViewer() {
     </div>\`;
   }
 
+  function renderOverviewCockpit() {
+    const objProps = (DATA.properties || []).filter(p => p.kind === 'object');
+    const dtProps = (DATA.properties || []).filter(p => p.kind !== 'object');
+    const simplifiedClasses = DATA.classes.filter(c => !ALIAS_TO_CANONICAL[c.curie]);
+    const h = DATA.health || { bridgeRawTotal: 0, bridgeDistinctTotal: 0, duplicateBridgePreds: [], undeclaredEmitted: [], zeroEdgeProps: [] };
+
+    // Top hub nodes by degree across the unified graph
+    const hubs = [...graphNodes.values()]
+      .map(n => ({ node: n, degree: (graphAdj.get(n.key) || []).length }))
+      .sort((a, b) => b.degree - a.degree || a.node.id.localeCompare(b.node.id))
+      .slice(0, 18);
+
+    // Orphan classes (0 graph edges except stereotype/subClassOf)
+    const orphanClasses = DATA.classes.filter(c => {
+      const edges = (graphAdj.get('class:' + c.curie) || []).filter(a => {
+        const e = graphEdges[a.edgeIdx];
+        return e.pred !== 'stereotype' && e.pred !== 'subClassOf';
+      });
+      return edges.length === 0 && !ALIAS_TO_CANONICAL[c.curie];
+    });
+
+    return \`
+      <div class="section">
+        <h2 style="margin:0 0 6px;">Ontology Review Cockpit — 5-Named-Graph Surface</h2>
+        <p class="card-sub">Start at a hub, jump to any named term from the alphabetical index on the left, or scan health exceptions below. Datatype attributes are rendered in class tables; only object/bridge relations are drawn as graph edges.</p>
+      </div>
+
+      <div class="cockpit-grid">
+        <div class="stat-card">
+          <div class="card-sub"><span class="dot" style="background:var(--c-patterns)"></span> :patterns</div>
+          <div class="stat-num">\${DATA.stereotypes.length}</div>
+          <div class="card-sub">UFO stereotypes</div>
+        </div>
+        <div class="stat-card">
+          <div class="card-sub"><span class="dot" style="background:var(--c-domain)"></span> :domain (classes)</div>
+          <div class="stat-num">\${simplifiedClasses.length} <span style="font-size:12px;color:var(--muted);font-weight:400;">/ \${DATA.classes.length} raw</span></div>
+          <div class="card-sub">\${objProps.length} object edges · \${dtProps.length} scalar attrs</div>
+        </div>
+        <div class="stat-card">
+          <div class="card-sub"><span class="dot" style="background:var(--c-qa)"></span> :qa</div>
+          <div class="stat-num">\${DATA.qaJourneys.length} <span style="font-size:12px;color:var(--muted);font-weight:400;">journeys</span></div>
+          <div class="card-sub">\${DATA.qaIssues.length} issues · \${DATA.qaRuns.length} runs</div>
+        </div>
+        <div class="stat-card">
+          <div class="card-sub"><span class="dot" style="background:var(--c-code)"></span> :code</div>
+          <div class="stat-num">\${DATA.codeFiles.length} <span style="font-size:12px;color:var(--muted);font-weight:400;">files</span></div>
+          <div class="card-sub">\${DATA.codeStories.length} stories · \${DATA.codeTestIds.length} testIds · \${DATA.codeTools.length} tools</div>
+        </div>
+        <div class="stat-card">
+          <div class="card-sub"><span class="dot" style="background:var(--c-bridge)"></span> :bridge</div>
+          <div class="stat-num">\${h.bridgeDistinctTotal} <span style="font-size:12px;color:var(--muted);font-weight:400;">distinct</span></div>
+          <div class="card-sub">\${h.bridgeRawTotal} raw assertions</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Top Hub Nodes (Highest Degree — Start Review Here)</h3>
+        <table>
+          <tr><th>Node</th><th>Kind</th><th>Layer</th><th>Degree</th><th>Actions</th></tr>
+          \${hubs.map(x => \`<tr>
+            <td><span class="mono">\${esc(x.node.label.slice(0, 48))}</span></td>
+            <td>\${badge(x.node.kind, 'b-' + x.node.layer)}</td>
+            <td>:\${esc(x.node.layer)}</td>
+            <td><strong>\${x.degree}</strong></td>
+            <td>
+              <button class="btn" data-nav-kind="\${esc(x.node.kind)}" data-nav-id="\${esc(x.node.id)}">Inspect</button>
+              <button class="btn" data-graph-node-kind="\${esc(x.node.kind)}" data-graph-node-id="\${esc(x.node.id)}">Graph</button>
+            </td>
+          </tr>\`).join('')}
+        </table>
+      </div>
+
+      <div class="section">
+        <h3>Health &amp; Exceptions</h3>
+        <p><strong>Canonical Alias Pairs (owl:equivalentClass / view-collapsed):</strong>
+          \${Object.entries(ALIAS_TO_CANONICAL).map(([al, can]) => badge(al + ' → ' + can, 'b-domain', 'class', can)).join(' ')}
+        </p>
+        <p><strong>Zero-Edge Declared Properties (\${h.zeroEdgeProps.length}):</strong><br/>
+          \${h.zeroEdgeProps.slice(0, 20).map(p => badge(p.curie + ' (' + p.kind + ')', 'b-med', p.domains[0] ? 'class' : '', p.domains[0] || '')).join('') || 'None.'}
+        </p>
+        <p><strong>Undeclared Emitted Predicates (\${h.undeclaredEmitted.length}):</strong><br/>
+          \${h.undeclaredEmitted.map(u => badge(u.pred + ' (' + u.count + ')', 'b-high')).join('') || 'None.'}
+        </p>
+        <p><strong>Duplicate Bridge Assertions (\${h.duplicateBridgePreds.length} predicates):</strong><br/>
+          \${h.duplicateBridgePreds.map(d => badge(d.pred + ': ' + d.raw + ' → ' + d.distinct + ' distinct', 'b-med')).join('') || 'None.'}
+        </p>
+        <p><strong>Classes Without Object/Bridge Edges (\${orphanClasses.length}):</strong><br/>
+          \${orphanClasses.map(c => badge(c.curie, 'b-domain', 'class', c.curie)).join('') || 'None.'}
+        </p>
+      </div>
+    \`;
+  }
+
   function renderDetail() {
     const el = document.getElementById('detail-pane');
     const origins = resolveOrigins();
@@ -1749,6 +2023,11 @@ export function buildViewer() {
       \${state.tab !== 'graph' ? '<button class="btn" id="btn-find-path">Find Shared Path (A ↔ B)</button>' : ''}
       <button class="btn" id="btn-copy-link" title="Copy deep link">Copy # Link</button>
     </div>\`;
+
+    if (state.tab === 'overview') {
+      el.innerHTML = renderOverviewCockpit();
+      return;
+    }
 
     if (state.tab === 'graph') {
       el.innerHTML = crumbs + renderGraphWorkspace();
@@ -1801,22 +2080,53 @@ export function buildViewer() {
     } else if (kind === 'class') {
       const c = classByCurie.get(id);
       if (!c) { el.innerHTML = crumbs + '<p>Select a class.</p>'; return; }
+      const objProps = c.props.filter(p => p.kind === 'object');
+      const dtProps = c.props.filter(p => p.kind !== 'object');
+      const incProps = incomingPropsByClass.get(c.curie) || [];
+      const aka = CANONICAL_TO_ALIAS[c.curie];
+      const canon = ALIAS_TO_CANONICAL[c.curie];
+      const ttlPath = 'ontology/' + c.module + '.ttl';
       el.innerHTML = crumbs + \`
         <div class="section">
           <h2 style="margin:0 0 6px;" class="mono">\${esc(c.curie)}</h2>
-          <div>\${c.stereotype ? badge(c.stereotype, 'b-patterns', 'stereotype', c.stereotype) : badge('owl:Class', 'b-patterns')} \${badge(c.module, 'b-domain')} \${c.superClasses.map(sc => badge('subClassOf ' + sc, 'b-domain', 'class', sc)).join('')}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+            \${c.stereotype ? badge(c.stereotype, 'b-patterns', 'stereotype', c.stereotype) : badge('owl:Class', 'b-patterns')}
+            \${badge(c.module, 'b-domain')}
+            \${aka ? badge('aka ' + aka, 'b-bridge', 'class', aka) : ''}
+            \${canon ? badge('canonical → ' + canon, 'b-bridge', 'class', canon) : ''}
+            \${c.superClasses.map(sc => badge('subClassOf ' + sc, 'b-domain', 'class', sc)).join('')}
+            \${codeJumpLinks(ttlPath, 1)}
+          </div>
           <p>\${esc(c.comment)}</p>
         </div>
         <div class="section">
-          <h3>Properties (\${c.props.length})</h3>
-          <table><tr><th>Property</th><th>Kind</th><th>Range</th></tr>
-          \${c.props.map(p => \`<tr><td class="mono">\${esc(p.curie)}</td><td>\${esc(p.kind)}</td><td class="mono">\${esc(p.range)}</td></tr>\`).join('') || '<tr><td colspan="3">None declared directly.</td></tr>'}
+          <h3>Connected Via — Object Properties (Out: \${objProps.length} · In: \${incProps.length})</h3>
+          <table><tr><th>Dir</th><th>Property</th><th>Connected Class</th><th>Notes</th></tr>
+          \${objProps.map(p => \`<tr>
+            <td>out →</td>
+            <td class="mono">\${esc(p.curie)}</td>
+            <td>\${classByCurie.has(p.range) ? badge(p.range, 'b-domain', 'class', p.range) : \`<span class="mono">\${esc(p.range)}</span>\`}</td>
+            <td>\${PROJECTION_PREDS.has(p.curie) ? badge('projection (dashed)', 'b-med') : 'canonical'}</td>
+          </tr>\`).join('')}
+          \${incProps.map(ip => \`<tr>
+            <td>← in</td>
+            <td class="mono">\${esc(ip.curie)}</td>
+            <td>\${badge(ip.from, 'b-domain', 'class', ip.from)}</td>
+            <td>\${ip.isProjection ? badge('projection (dashed)', 'b-med') : 'canonical'}</td>
+          </tr>\`).join('')}
+          \${(!objProps.length && !incProps.length) ? '<tr><td colspan="4">No object property edges.</td></tr>' : ''}
           </table>
         </div>
         <div class="section">
-          <h3>SHACL Constraints (\${c.shapes.length})</h3>
+          <h3>Datatype Attributes (\${dtProps.length} scalar fields — not drawn as graph edges)</h3>
+          <table><tr><th>Attribute</th><th>Kind</th><th>Datatype</th></tr>
+          \${dtProps.map(p => \`<tr><td class="mono">\${esc(p.curie)}</td><td>\${esc(p.kind)}</td><td class="mono">\${esc(p.range)}</td></tr>\`).join('') || '<tr><td colspan="3">None declared directly.</td></tr>'}
+          </table>
+        </div>
+        <div class="section">
+          <h3>Constrained By — SHACL Shapes (\${c.shapes.length})</h3>
           <table><tr><th>Path</th><th>Card</th><th>Type / Values</th></tr>
-          \${c.shapes.map(s => \`<tr><td class="mono">\${esc(s.path)}</td><td>[\${s.min ?? 0}..\${s.max ?? '*'}]</td><td class="mono">\${esc(s.dt || s.cls || (s.inVals ? s.inVals.join(' | ') : ''))}</td></tr>\`).join('') || '<tr><td colspan="3">None.</td></tr>'}
+          \${c.shapes.map(s => \`<tr><td class="mono">\${esc(s.path)}</td><td>[\${s.min ?? 0}..\${s.max ?? '*'}]</td><td class="mono">\${s.cls && classByCurie.has(s.cls) ? badge(s.cls, 'b-domain', 'class', s.cls) : esc(s.dt || s.cls || (s.inVals ? s.inVals.join(' | ') : ''))}</td></tr>\`).join('') || '<tr><td colspan="3">None.</td></tr>'}
           </table>
         </div>
         <div class="section">
@@ -2066,6 +2376,29 @@ export function buildViewer() {
   document.addEventListener('click', (e) => {
     if (e.target.closest('.g-node')) return; // handled by svg mouseup for drag vs click
 
+    const graphBtn = e.target.closest('[data-graph-node-kind]');
+    if (graphBtn) {
+      const k = graphBtn.dataset.graphNodeKind;
+      const id = graphBtn.dataset.graphNodeId;
+      state.selected = { kind: k, id };
+      state.graph.mode = 'neighborhood';
+      state.graph.from = { kind: k, id };
+      state.graph.inspectedKey = k + ':' + id;
+      state.graph.customPos = {}; state.graph.activePathIdx = -1;
+      state.tab = 'graph';
+      syncTabUI(); syncHash(false); render();
+      return;
+    }
+
+    const famEl = e.target.closest('[data-toggle-family]');
+    if (famEl) {
+      const fam = famEl.dataset.toggleFamily;
+      if (state.expandedFamilies.has(fam)) state.expandedFamilies.delete(fam);
+      else state.expandedFamilies.add(fam);
+      renderList();
+      return;
+    }
+
     const openDet = e.target.closest('[data-open-detail-kind]');
     if (openDet) {
       const k = openDet.dataset.openDetailKind;
@@ -2237,6 +2570,23 @@ export function buildViewer() {
     if (e.target.id === 'sel-g-hops') { state.graph.hops = Number(e.target.value); state.graph.customPos = {}; render(); }
     if (e.target.id === 'sel-g-budget') { state.graph.pathBudget = e.target.value; state.graph.customPos = {}; state.graph.activePathIdx = -1; render(); }
     if (e.target.id === 'sel-g-filtermode') { state.graph.nodeFilterMode = e.target.value; render(); }
+    if (e.target.id === 'chk-domain-simplify') { state.domainSimplify = e.target.checked; renderList(); }
+  });
+
+  function applyTheme(mode) {
+    state.theme = mode || 'system';
+    if (state.theme === 'light' || state.theme === 'dark') {
+      document.documentElement.dataset.theme = state.theme;
+    } else {
+      delete document.documentElement.dataset.theme;
+    }
+    const sel = document.getElementById('theme-select');
+    if (sel) sel.value = state.theme;
+    try { localStorage.setItem('wod-ontology-theme', state.theme); } catch {}
+  }
+
+  document.getElementById('theme-select').addEventListener('change', (e) => {
+    applyTheme(e.target.value);
   });
 
   window.addEventListener('hashchange', () => {
@@ -2258,6 +2608,7 @@ export function buildViewer() {
     cb.addEventListener('change', (e) => { state.layers[e.target.dataset.layer] = e.target.checked; render(); });
   });
 
+  applyTheme(state.theme);
   syncSurfaceLinks();
   if (!applyHashFromLocation()) {
     syncHash(true);
