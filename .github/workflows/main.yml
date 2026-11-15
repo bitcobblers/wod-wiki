@@ -119,7 +119,7 @@ jobs:
 
   push-build-diff:
     name: Push Build Diff -> Tailscale S3
-    needs: [slug]
+    needs: [slug, build-verify, deploy-playground, deploy-storybook, deploy-ontology]
     uses: ./.github/workflows/_push-build-diff.yml
     secrets: inherit
 
