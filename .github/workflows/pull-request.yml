@@ -104,6 +104,15 @@ jobs:
       slug: ${{ needs.slug.outputs.slug }}
       version: ${{ needs.slug.outputs.preview-version }}
 
+  deploy-ontology:
+    name: Build Deploy Ontology -> s3
+    if: github.event.action != 'closed'
+    needs: [slug]
+    uses: ./.github/workflows/_ontology.yml
+    secrets: inherit
+    with:
+      slug: ${{ needs.slug.outputs.slug }}
+
   e2e:
     name: E2E (S3 branch)
     if: github.event.action != 'closed'
