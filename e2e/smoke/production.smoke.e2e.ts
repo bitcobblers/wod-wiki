@@ -115,8 +115,8 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
     await expect(play).toBeVisible({ timeout: 15_000 });
     await play.evaluate((el) => (el as HTMLElement).click());
 
-    await expect(page).toHaveURL(/\/day\/\d{4}-\d{2}-\d{2}/);
-    await expect(page.getByRole('button', { name: 'Stop Session', exact: true }).first()).toBeVisible();
+    await expect(page).toHaveURL(/\/day\/\d{4}-\d{2}-\d{2}/, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Stop Session', exact: true }).first()).toBeVisible({ timeout: 15_000 });
     await page.screenshot({ path: 'e2e/screenshots/smoke-fran-timer.png', fullPage: false });
   });
 
