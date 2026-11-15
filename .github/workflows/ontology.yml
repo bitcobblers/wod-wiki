@@ -47,7 +47,7 @@ jobs:
       - name: Verify ontology generated artifacts are fresh
         continue-on-error: true
         run: |
-          if ! (bun run ontology:build -- --offline && bun run ontology:codegen && bun run ontology:query -- --chains && git diff --exit-code ontology/generated/); then
+          if ! (bun run ontology:build -- --offline && bun run ontology:codegen && bun run ontology:query -- --chains && bun run ontology:viewer && git diff --exit-code ontology/generated/); then
             echo "::warning::Ontology generated artifacts are out of date (non-blocking)."
             exit 1
           fi
@@ -67,3 +67,16 @@ jobs:
             echo "::warning::E2E spec parity check reported violations (non-blocking)."
             exit 1
           fi
+
+      - name: Upload Ontology Explorer & dataset artifacts
+        uses: actions/upload-artifact@v7
+        if: always()
+        continue-on-error: true
+        with:
+          name: ontology-explorer
+          path: |
+            ontology/generated/explorer.html
+            ontology/generated/chains.md
+            ontology/generated/unified-dataset.trig
+          if-no-files-found: ignore
+          retention-days: 14

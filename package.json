@@ -88,6 +88,7 @@
     "ontology:codegen": "bun scripts/ontology/codegen.ts",
     "ontology:validate": "bash ontology/validate.sh",
     "ontology:changeset": "bun scripts/ontology/changeset.ts",
+    "ontology:viewer": "bun scripts/ontology/build-viewer.ts",
     "test:seed": "bun scripts/sync-seed.ts",
     "docs:check": "node scripts/check-docs-links.cjs",
     "check:architecture-regressions": "node scripts/check-architecture-regressions.cjs",

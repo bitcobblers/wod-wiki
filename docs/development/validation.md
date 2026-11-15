@@ -27,6 +27,7 @@ All commands run from the repo root with `bun`.
 | Ontology code-graph & bridge build | `bun run ontology:build` | Indexes `packages/`, `apps/playground/`, `e2e/`, and QA findings into `ontology/generated/` |
 | Ontology TypeScript codegen | `bun run ontology:codegen` | Generates `ontology/generated/ontology-types.ts` (75+ classes, SHACL validators, stereotype metadata) |
 | Ontology bidirectional query & chains | `bun run ontology:query -- --chains` | Generates `ontology/generated/chains.md` and supports `--journey`, `--file`, `--symbol`, `--issue` traversal |
+| Ontology static HTML explorer | `bun run ontology:viewer` | Generates self-contained, offline `ontology/generated/explorer.html` for interactive 5-layer traversal |
 | Ontology bidirectional changeset gate | `bun run ontology:changeset` | Proposes, approves, and applies gated code-to-ontology changesets (`propose` / `approve` / `apply` / `sync-from-ontology`) |
 | API storage & server contract | `bun run check:server` | Verifies SQLite-backed Hono/engine server API endpoints (`apps/api/check.ts`) |
 | Full E2E / milestone acceptance | `bun run test:e2e` | Playwright journal config; heavyweight |
