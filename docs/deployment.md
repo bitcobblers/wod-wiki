@@ -27,6 +27,8 @@ build component is the GitHub Actions run number.
 - PR previews are destroyed when the PR closes or merges.
 - A version tag (`v<version>`) already pointing at the current SHA is safe to re-run; a tag pointing elsewhere fails rather than moving a release marker.
 
-See [e2e-promotion-agent.md](./e2e-promotion-agent.md) for the external E2E agent validation and `prod` tagging runbook.
+The `prod` tag is the only production promotion trigger and requires the
+external QA readiness verdict (`e2e/main-staging=success`) before it is
+moved — the runbook is [e2e-promotion-agent.md](./e2e-promotion-agent.md).
 
 Out of scope: preview URL naming, CloudFront/S3 layout, and `_verify.yml` internals.
