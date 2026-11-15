@@ -1,0 +1,79 @@
+name: Push Build Diff
+
+# Generates a git diff between the last released version tag on main and the
+# current build commit, connects to the tailnet via Tailscale, and uploads the
+# diff to s3://build-changes/{date}-{commitid}/{released-commit-id}-{build-commit-id}.diff.
+# Intended to be called from main.yml on main builds only.
+
+on:
+  workflow_call:
+    outputs:
+      diff-path:
+        description: S3 object path of the uploaded diff
+        value: ${{ jobs.push-diff.outputs.diff-path }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  push-diff:
+    name: Diff vs Last Release -> Tailscale S3
+    runs-on: ubuntu-22.04
+    outputs:
+      diff-path: ${{ steps.diff.outputs.s3-path }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Generate diff against last released version
+        id: diff
+        run: |
+          set -euo pipefail
+
+          LATEST_TAG=$(git for-each-ref refs/tags \
+            --sort=-v:refname \
+            --format '%(refname:short)' \
+            | grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$' \
+            | head -1 || true)
+
+          if [ -n "$LATEST_TAG" ]; then
+            RELEASED_SHA=$(git rev-list -n 1 "$LATEST_TAG")
+            echo "Comparing against latest release tag: $LATEST_TAG ($RELEASED_SHA)"
+          else
+            RELEASED_SHA=$(git rev-list --max-parents=0 HEAD | tail -n 1)
+            echo "No release tag found; comparing against root commit: $RELEASED_SHA"
+          fi
+
+          RELEASED_COMMIT_ID=$(git rev-parse --short=7 "$RELEASED_SHA")
+          BUILD_COMMIT_ID=$(git rev-parse --short=7 HEAD)
+          BUILD_DATE=$(date -u +%Y-%m-%d)
+
+          FOLDER="${BUILD_DATE}-${BUILD_COMMIT_ID}"
+          DIFF_FILE="${RELEASED_COMMIT_ID}-${BUILD_COMMIT_ID}.diff"
+          S3_PATH="s3://build-changes/${FOLDER}/${DIFF_FILE}"
+
+          git diff "${RELEASED_SHA}..HEAD" > "${DIFF_FILE}"
+
+          echo "folder=${FOLDER}" >> "$GITHUB_OUTPUT"
+          echo "file=${DIFF_FILE}" >> "$GITHUB_OUTPUT"
+          echo "s3-path=${S3_PATH}" >> "$GITHUB_OUTPUT"
+          echo "Generated ${DIFF_FILE} ($(wc -c < "${DIFF_FILE}") bytes) -> ${S3_PATH}"
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Upload diff to build-changes bucket
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.FILES_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.FILES_S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+          FILES_S3_ENDPOINT: ${{ secrets.FILES_S3_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          aws configure set default.s3.addressing_style path
+          aws s3 cp "${{ steps.diff.outputs.file }}" \
+            "${{ steps.diff.outputs.s3-path }}" \
+            --endpoint-url "${FILES_S3_ENDPOINT}"

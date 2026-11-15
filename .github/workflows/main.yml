@@ -117,10 +117,16 @@ jobs:
     with:
       slug: ${{ needs.slug.outputs.slug }}
 
+  push-build-diff:
+    name: Push Build Diff -> Tailscale S3
+    needs: [slug]
+    uses: ./.github/workflows/_push-build-diff.yml
+    secrets: inherit
+
   summary:
     name: Staging Summary
     runs-on: ubuntu-22.04
-    needs: [slug, build-verify, deploy-playground, deploy-storybook, deploy-ontology]
+    needs: [slug, build-verify, deploy-playground, deploy-storybook, deploy-ontology, push-build-diff]
     steps:
       - name: Write staging summary
         run: |
@@ -132,6 +138,7 @@ jobs:
           - Playground S3 staging: https://main.preview.wod.wiki
           - Storybook S3 staging: https://main.story.wod.wiki
           - Bundle hash: \`${{ needs.deploy-playground.outputs.bundle-hash }}\`
+          - Build diff: \`${{ needs.push-build-diff.outputs.diff-path }}\`
           - Artifacts uploaded: \`packages-dist\`, \`playground-dist\`
 
           > External E2E testing can now run against the S3 staging URLs.
