@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { act, render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { createParser } from '@bitcobblers/wod-wiki-engine';
@@ -410,8 +410,8 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
   });
 
   it('WW-052: clicking Stop at the WaitingToStart gate closes without calling onComplete', async () => {
-    const onClose = vi.fn();
-    const onComplete = vi.fn();
+    const onClose = mock(() => {});
+    const onComplete = mock(() => {});
     render(
       <RuntimeTimerPanel
         block={makeBlock('10:00 AMRAP\n  5 Pullups')}

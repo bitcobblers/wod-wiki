@@ -162,6 +162,7 @@ describe('TimerViewPolicy and unified Minimal/General/Detail behavior (Seam 4b)'
     expect(screen.getByLabelText('Round 2 of 3')).toBeDefined();
     expect(screen.getByTestId(TEST_IDS.TIMER_UP_NEXT_CAPTION).textContent).toContain('Run 400 m');
     expect(screen.getByText(/Locked/i)).toBeDefined();
-    expect(container.querySelector('style')?.textContent).toContain('animation: skip-flash-fade');
+    expect(container.querySelector('style')).toBeNull();
+    expect(container.querySelector('.animate-skip-flash')?.textContent).toContain("Timer can't be skipped!");
   });
 });
