@@ -188,4 +188,45 @@ describe('Note persistence projections', () => {
     expect(ids).toContain('dated');
     expect(ids).not.toContain('placed-old');
   });
+
+  it('pushes summary plan and limit/offset down to queryDomain and bounds local detail hydration (WW-036)', async () => {
+    const memory = new InMemoryStorage();
+    const service = new StorageService(memory);
+    const persistence = new IndexedDBNotePersistence(service);
+
+    const blocks = reconcileNoteBlocks(SOURCE, { sourceRevision: 1 });
+    for (const [id, ts] of [['n1', 1000], ['n2', 2000], ['n3', 3000]] as const) {
+      await persistence.saveNote({ noteId: id, rawContent: SOURCE, blocks, expectedSourceRevision: 0, metadata: { title: id } });
+      const note = await service.getNote(id);
+      await service.saveNote({ ...note!, date: ts, createdAt: ts });
+    }
+
+    const hydratedBatches: string[][] = [];
+    const origGetDetailBatches = service.getDetailBatches.bind(service);
+    service.getDetailBatches = async (noteIds) => {
+      hydratedBatches.push([...noteIds]);
+      return origGetDetailBatches(noteIds);
+    };
+
+    const localPage = await persistence.listNotes({ offset: 1, limit: 1 });
+    expect(localPage.map((n) => n.id)).toEqual(['n2']);
+    expect(hydratedBatches).toEqual([['n3', 'n2']]);
+
+    const seenQueries: unknown[] = [];
+    service.queryDomain = async (q) => {
+      seenQueries.push(q);
+      const allNotes = await service.getAllNotes();
+      return {
+        plan: 'notes',
+        rows: allNotes.sort((a, b) => (b.date ?? b.createdAt) - (a.date ?? a.createdAt)).slice(q.offset ?? 0, (q.offset ?? 0) + (q.limit ?? allNotes.length)),
+        selectedCount: allNotes.length,
+        matchedCount: allNotes.length,
+        projectionVersion: 4,
+      };
+    };
+
+    const summaryPage = await persistence.listNotes({ projection: 'summary', offset: 1, limit: 1 });
+    expect(summaryPage.map((n) => n.id)).toEqual(['n2']);
+    expect(seenQueries[0]).toMatchObject({ plan: 'notes', offset: 0, limit: 2 });
+  });
 });

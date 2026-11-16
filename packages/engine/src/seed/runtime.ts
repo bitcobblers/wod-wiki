@@ -402,10 +402,10 @@ async function applyPreparedSeedChunkInTx(
         if (compiledById.get(compiled.blockId)?.dataType !== 'wod') throw new Error('Orphan seed session pin');
         const prior = existingTelemetrySessions.get(compiled.id);
         if (prior && prior.noteId !== id) throw new Error(`Seed session ${compiled.id} belongs to another note`);
-        // A session the user recorded (journal/playground/user) is never
-        // overwritten by feed telemetry — skip it and its events so a
+        // A session the user recorded (explicit origin or any non-seed session id)
+        // is never overwritten by feed telemetry — skip it and its events so a
         // re-import can never destroy user workout history.
-        if (prior?.origin) {
+        if (prior && (prior.origin || !prior.id.startsWith('seed:'))) {
           userRecordedSessions.add(compiled.id);
           continue;
         }

@@ -63,6 +63,8 @@ export interface DashboardViewProps {
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   /** Optional resolver returning the destination href for an item in content-plane widgets. */
   noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
+  /** Optional callback reporting whether widget queries are still executing. */
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 interface WidgetRun {
@@ -129,6 +131,7 @@ export function DashboardView({
   preferredUnit,
   onOpenNote,
   noteHref,
+  onLoadingChange,
 }: DashboardViewProps) {
   const values = useMemo(
     () => ({ ...defaultTokenValues(document.tokens), ...tokenValues }),
@@ -156,6 +159,10 @@ export function DashboardView({
 
   const [runs, setRuns] = useState<Record<string, WidgetRun>>({});
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
 
   const resolvedKey = useMemo(
     () => resolved.map((r) => `${r.widget.key}:${r.query}`).join('|'),

@@ -10,7 +10,7 @@ import {
 } from '@bitcobblers/wod-wiki-core';
 import { createParser, prepareJournalSessionRun } from '@bitcobblers/wod-wiki-engine';
 import { notebookOfItem, notebookOriginOfItem, toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import type { DomainDetail, DomainPredicate } from '@bitcobblers/wod-wiki-storage';
+import type { DomainDetail, DomainPredicate, DomainQuery } from '@bitcobblers/wod-wiki-storage';
 
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
 import { localDateKey } from '@/lib/dateFormat';
@@ -108,6 +108,27 @@ function entryFromDomainRow(row: DomainDetail): HistoryRecord {
   };
 }
 
+function entryFromNoteSummary(note: Note): HistoryRecord {
+  return {
+    id: note.id,
+    title: note.title,
+    createdAt: note.createdAt,
+    updatedAt: note.createdAt,
+    targetDate: note.date ?? note.createdAt,
+    rawContent: note.rawContent,
+    blocks: note.blocks,
+    sourceRevision: note.sourceRevision,
+    tags: note.tags ?? [],
+    type: note.type ?? 'note',
+    sourceId: note.sourceId,
+    notebookId: note.notebookId,
+    notebookIds: note.notebookIds,
+    provenance: note.provenance,
+    seedOrigin: note.seedOrigin,
+    schemaVersion: 1,
+  };
+}
+
 function entryDateWindow(query?: HistoryQuery): { start: number; end: number } | undefined {
   if (query?.dateRange) return query.dateRange;
   if (query?.daysBack != null) {
@@ -117,7 +138,7 @@ function entryDateWindow(query?: HistoryQuery): { start: number; end: number } |
   return undefined;
 }
 
-interface SelectiveRecordQuery extends HistoryQuery, Pick<NoteQuery, 'journalDate' | 'kind' | 'search'> {}
+interface SelectiveRecordQuery extends HistoryQuery, Pick<NoteQuery, 'journalDate' | 'kind' | 'search' | 'offset' | 'limit' | 'projection'> {}
 
 /**
  * Unified IndexedDB-backed note persistence & content provider.
@@ -631,13 +652,38 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
     if (window) selection.push({ field: 'date', start: window.start, end: window.end });
     for (const tag of query?.tags ?? []) selection.push({ field: 'tags', values: [tag] });
     if (query?.kind && query.kind !== 'note') selection.push({ field: 'type', values: [query.kind] });
-    const result = await this.storage.queryDomain(selection.length ? { plan: 'detail', selection } : { plan: 'detail' });
+    if (query?.search?.trim()) selection.push({ field: 'text', value: query.search.trim() });
+
+    const useSummaryPlan = query?.projection === 'summary' && !query?.journalDate && !(query?.tags?.length);
+    const canBoundWindow = query?.limit !== undefined && !query?.journalDate && query?.kind !== 'note' && !window && !(query?.tags?.length);
+    const boundedLimit = canBoundWindow ? (query?.offset ?? 0) + query.limit! : undefined;
+
+    const domainQuery: DomainQuery = {
+      plan: useSummaryPlan ? 'notes' : 'detail',
+      ...(selection.length ? { selection } : {}),
+      order: [{ field: 'date', direction: 'desc' }, { field: 'createdAt', direction: 'desc' }],
+      ...(boundedLimit !== undefined ? { offset: 0, limit: boundedLimit } : {}),
+    };
+    const result = await this.storage.queryDomain(domainQuery);
     let entries: HistoryRecord[];
     if (result?.plan === 'detail') {
       entries = result.rows.map(entryFromDomainRow);
+    } else if (result?.plan === 'notes') {
+      entries = result.rows.map(entryFromNoteSummary);
     } else {
-      const candidateIds = await this.selectLocalCandidateIds(query, window);
+      let candidateIds = await this.selectLocalCandidateIds(query, window);
       if (candidateIds.length === 0) return [];
+      if (boundedLimit !== undefined && candidateIds.length > boundedLimit) {
+        const notes = await this.storage.getNotesByIds(candidateIds);
+        const byId = new Map(notes.map((n) => [n.id, n]));
+        candidateIds = [...candidateIds]
+          .sort((a, b) => {
+            const na = byId.get(a);
+            const nb = byId.get(b);
+            return (nb?.date ?? nb?.createdAt ?? 0) - (na?.date ?? na?.createdAt ?? 0);
+          })
+          .slice(0, boundedLimit);
+      }
       const bundles = await this.storage.getDetailBatches(candidateIds);
       entries = [...bundles.values()].map(entryFromDomainRow);
     }

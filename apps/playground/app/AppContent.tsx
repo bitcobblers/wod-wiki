@@ -44,6 +44,7 @@ import { resolveStreamProfile } from './views/stream/streamProfile'
 import { applyRouteWqlConfig, useAppliedRouteWqlConfig } from './lib/routeWqlConfig'
 import { PaletteQuerySettings } from './components/organisms/wql/PaletteQuerySettings'
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc'
+import { HaltedRunNotice } from '@/components/organisms/editor/RuntimeTimerPanel'
 import { CanvasPage } from '@/panels/page-shells'
 import { ChallengeHeaderBadge } from './components/molecules/ChallengeHeaderBadge'
 import { getChallengeSectionMap } from './canvas/parseCanvasMarkdown'
@@ -458,6 +459,9 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       />
       <div className="flex flex-col h-full min-h-[calc(100vh-theme(spacing.20))]">
         <div className="flex-1 flex flex-col min-h-0">
+          {view.page !== 'note' && view.page !== 'playground' && view.page !== 'day' && view.page !== 'workout' && (
+            <HaltedRunNotice />
+          )}
           {renderShell(renderInner[view.page]())}
         </div>
       </div>

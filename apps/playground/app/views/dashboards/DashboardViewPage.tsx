@@ -377,10 +377,18 @@ export function DashboardViewPage() {
   // unmounts mid-refresh. A source from a different slug is never shown.
   const sourceReady = source != null && source.slug === slug;
   const isInitialLoading = loading && !sourceReady;
+  const [widgetsLoading, setWidgetsLoading] = useState(false);
   const feedProgress = useFeedSyncProgress();
   const [slowLoad, setSlowLoad] = useState(false);
 
-  useEffect(() => setSurfaceBusy(isInitialLoading), [isInitialLoading]);
+  useEffect(() => {
+    if (!sourceReady || !document) setWidgetsLoading(false);
+  }, [sourceReady, document, slug]);
+
+  useEffect(() => {
+    const hasWidgets = Boolean(sourceReady && document);
+    return setSurfaceBusy(isInitialLoading || (hasWidgets && widgetsLoading));
+  }, [isInitialLoading, sourceReady, document, widgetsLoading]);
 
   useEffect(() => {
     if (!isInitialLoading) {
@@ -559,6 +567,7 @@ export function DashboardViewPage() {
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
             preferredUnit={preferredUnit}
+            onLoadingChange={setWidgetsLoading}
             noteHref={(item) => {
               const isBlock = 'blockContentId' in item || 'dataType' in item;
               const entry = isBlock

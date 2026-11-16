@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applySeedChunk, emptySeedMeta, SEED_SCHEMA, type SeedMetaRecord, type SeedManifest, type SeedRow } from '../../src/index';
+import { applySeedChunk, applySeedChunks, emptySeedMeta, SEED_SCHEMA, type SeedMetaRecord, type SeedManifest, type SeedRow } from '../../src/index';
 import { seedNoteId } from '../../src/seed/runtime';
 import { compileSeedRow } from '../../../tools/src/seedbuild/compiler';
 import { SqlStorage, libsqlDatabase } from '@bitcobblers/wod-wiki-storage/sql';
@@ -227,5 +227,141 @@ describe('WW-020 — seed import never destroys user data', () => {
     const event = await storage.transaction(['events'], 'readonly', async (tx) => tx.readonly('events').get('ev-user-1')) as EventRecord | undefined;
     expect(event?.timestamp).toBe(1_500);
     expect(event?.grain).toBe('event');
+  });
+
+  it('never lets feed telemetry overwrite a non-seed Session even when origin is unset (WW-012)', async () => {
+    const storage = createRealSqlStorage();
+    const noteId = await seedNoteId(PATH);
+    const row = compileSeedRow(PATH, SEED_CONTENT);
+    const wod = row.blockIndex.find((block) => block.dataType === 'wod')!;
+    const meta1 = metaRecord('seed:demo-feed', 1, { [CHUNK_ID]: [noteId] });
+    await applySeedChunk(storage, {
+      chunkId: CHUNK_ID,
+      rows: [row],
+      manifest: manifest(1, [CHUNK_ID]),
+      expectedMeta: undefined,
+      meta: meta1,
+    });
+
+    const originlessUserSession: Session = {
+      ...journalSession(noteId, wod.blockId, wod.blockContentId!),
+      id: 'run-local-without-origin',
+      origin: undefined,
+    };
+    await putRow(storage, 'sessions', originlessUserSession);
+
+    const telemetryRow: SeedRow = {
+      ...row,
+      telemetry: {
+        sessions: [{
+          ...originlessUserSession,
+          startTime: 99_000,
+          endTime: 99_500,
+          duration: 500,
+          completed: true,
+          createdAt: 99_500,
+        }],
+        events: [{
+          id: 'ev-colliding',
+          resultId: originlessUserSession.id,
+          noteId,
+          blockId: wod.blockId,
+          blockVersion: 1,
+          blockContentId: wod.blockContentId,
+          timestamp: 99_400,
+          grain: 'summary',
+          outputType: 'time',
+          metrics: [{ type: 'time', value: 500 }],
+        }],
+      },
+    };
+    const meta2 = metaRecord('seed:demo-feed', 2, { [CHUNK_ID]: [noteId] });
+    await applySeedChunk(storage, {
+      chunkId: CHUNK_ID,
+      rows: [telemetryRow],
+      manifest: manifest(2, [CHUNK_ID]),
+      expectedMeta: meta1,
+      meta: meta2,
+    });
+
+    const preserved = await getSession(storage, originlessUserSession.id);
+    expect(preserved?.startTime).toBe(1_000);
+    expect(preserved?.completed).toBe(false);
+    const ignoredEvent = await storage.transaction(['events'], 'readonly', async (tx) => tx.readonly('events').get('ev-colliding'));
+    expect(ignoredEvent).toBeUndefined();
+  });
+
+  it('preserves user-authored notes and in-progress sessions across multi-source reload imports (WW-020, WW-012)', async () => {
+    const storage = createRealSqlStorage();
+    const corePath = 'markdown/canvas/guide-protocols.md';
+    const coreNoteId = await seedNoteId(corePath);
+    const coreRow = compileSeedRow(corePath, SEED_CONTENT);
+    const resultsPath = 'markdown/notebooks/athletics-results/event-1.md';
+    const resultsNoteId = await seedNoteId(resultsPath);
+    const resultsRow = compileSeedRow(resultsPath, SEED_CONTENT);
+
+    await applySeedChunks(storage, [{
+      chunkId: 'canvas',
+      rows: [coreRow],
+      manifest: manifest(1, ['canvas']),
+      expectedMeta: undefined,
+      meta: metaRecord('seed:core', 1, { canvas: [coreNoteId] }),
+    }]);
+
+    // User authors a new note and starts an in-progress session on the guide note.
+    const userNoteId = '01a1e2dd-c53c-734a-8880-b0610f97f712';
+    const userBlocks = reconcileNoteBlocks(USER_CONTENT, { sourceRevision: 1 });
+    for (const block of Object.values(userBlocks)) {
+      await putRow(storage, 'block_revisions', {
+        noteId: userNoteId,
+        blockId: block.id,
+        version: block.version,
+        kind: block.kind,
+        rawContent: USER_CONTENT.slice(block.from, block.to),
+        savedAt: 100,
+        ...(block.dialect ? { dialect: block.dialect } : {}),
+      });
+    }
+    await putRow(storage, 'notes', {
+      id: userNoteId,
+      title: 'Kettlebell Hell 5RFT',
+      rawContent: USER_CONTENT,
+      sourceRevision: 1,
+      blocks: userBlocks,
+      createdAt: 100,
+      type: 'note',
+      seedOrigin: 'user',
+    } satisfies Note);
+
+    const wod = coreRow.blockIndex.find((b) => b.dataType === 'wod')!;
+    const activeSession: Session = {
+      ...journalSession(coreNoteId, wod.blockId, wod.blockContentId!),
+      id: '01a1e2e9-0000-7000-8000-000000000001',
+      completed: false,
+    };
+    await putRow(storage, 'sessions', activeSession);
+
+    // Simulate reload triggering multi-source feed import (core + samples-results),
+    // including a checkpoint loss on samples-results.
+    await applySeedChunks(storage, [{
+      chunkId: 'notebook.athletics-results',
+      rows: [resultsRow],
+      manifest: manifest(1, ['notebook.athletics-results']),
+      expectedMeta: undefined,
+      meta: metaRecord('seed:samples-results', 1, { 'notebook.athletics-results': [resultsNoteId] }),
+    }]);
+    await applySeedChunks(storage, [{
+      chunkId: 'canvas',
+      rows: [coreRow],
+      manifest: manifest(2, ['canvas']),
+      expectedMeta: metaRecord('seed:core', 1, { canvas: [coreNoteId] }),
+      meta: metaRecord('seed:core', 2, { canvas: [coreNoteId] }),
+    }]);
+
+    expect((await getNote(storage, userNoteId))?.rawContent).toBe(USER_CONTENT);
+    expect((await getNote(storage, resultsNoteId))?.seedOrigin).toBe('seed');
+    const survivingSession = await getSession(storage, activeSession.id);
+    expect(survivingSession?.id).toBe(activeSession.id);
+    expect(survivingSession?.completed).toBe(false);
   });
 });
