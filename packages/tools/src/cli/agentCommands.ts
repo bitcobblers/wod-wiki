@@ -649,7 +649,7 @@ export async function runAgentNounVerbCommand(env: AgentCliExecutionEnv): Promis
             | 'unsubscribe'
             | 'delete'
             | undefined) ?? 'list';
-        const sourceId = parsed.id ?? parsed.positional[0];
+        const sourceId = arg1;
         const out = await wodFeedManageTool.execute(
           {
             action,
