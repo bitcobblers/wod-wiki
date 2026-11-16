@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { createClient } from '@libsql/client';
 import { SqlStorage, libsqlDatabase } from '@bitcobblers/wod-wiki-storage/sql';
 import {

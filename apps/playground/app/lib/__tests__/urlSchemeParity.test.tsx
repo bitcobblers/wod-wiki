@@ -9,8 +9,8 @@
  *     (`wodwiki.routeWql.v1/catalogs`) resolve on `/notebooks` and clear cleanly.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { cleanup, render, renderHook, screen } from '@testing-library/react'
 import { MemoryRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { DocumentTitleSync } from '../DocumentTitleSync'
@@ -229,7 +229,10 @@ describe('URL scheme parity — /catalogs -> /notebooks localStorage migrations'
 
 describe('URL scheme parity — llms.txt advertised routes resolve without redirect', () => {
   it('excludes retired redirect patterns from llms.txt and resolves every advertised route', () => {
-    const llmsPath = join(import.meta.dir, '..', '..', '..', 'public', 'llms.txt')
+    const localLlms = resolve(process.cwd(), 'public', 'llms.txt')
+    const llmsPath = existsSync(localLlms)
+      ? localLlms
+      : resolve(process.cwd(), 'apps', 'playground', 'public', 'llms.txt')
     const llmsTxt = readFileSync(llmsPath, 'utf8')
 
     for (const legacyPath of Object.values(LEGACY_REDIRECT_PATTERNS)) {

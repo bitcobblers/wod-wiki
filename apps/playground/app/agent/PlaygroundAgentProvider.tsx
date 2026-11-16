@@ -218,7 +218,7 @@ const DomainWebMcpToolRegistration: React.FC<{ spec: AnyAgentToolSpec }> = ({ sp
               sourceId,
               subscribed: true,
               notebookIds: opts?.notebookIds ?? null,
-              synced: outcome.status !== 'error',
+              synced: outcome !== 'error',
             };
           },
           unsubscribe: async (sourceId) => {
