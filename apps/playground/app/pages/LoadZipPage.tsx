@@ -31,6 +31,15 @@ function BundleImportIntake() {
     setError(null)
     try {
       const res = await importFromZip(file, portableContentProvider)
+      const importedTotal = res.imported + (res.sessionsImported ?? 0)
+      if (importedTotal === 0) {
+        setError(
+          res.errors.length > 0
+            ? res.errors.slice(0, 2).join('; ')
+            : 'No portable notes or sessions were found in that bundle.',
+        )
+        return
+      }
       toast({
         title: `Imported ${res.imported} note(s), ${res.sessionsImported ?? 0} session(s)`,
         description: res.errors.length > 0 ? res.errors.slice(0, 2).join('; ') : 'Import complete.',

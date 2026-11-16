@@ -19,6 +19,7 @@ import {
   parseNoteBundleFromJsonl,
   parseNoteMarkdown,
   publishFeedFromStorage,
+  recordPublishedFeedCheckpoint,
   checkUnpublishedFeedChanges,
   serializeNoteBundleToJsonl,
   sha256HexAsync,
@@ -50,6 +51,34 @@ export interface NoteImportResult {
   sessionsImported?: number;
   eventsImported?: number;
   errors: string[];
+}
+
+/** Thrown when an uploaded `.zip` cannot be parsed as a valid zip archive. */
+export class InvalidBundleError extends Error {
+  constructor(message = 'That file is not a valid .zip bundle archive.') {
+    super(message);
+    this.name = 'InvalidBundleError';
+  }
+}
+
+/** Thrown when a valid `.zip` contains no portable notes or telemetry files. */
+export class EmptyBundleError extends Error {
+  constructor(
+    message = 'This .zip archive contains no portable notes (.md) or telemetry bundles (.jsonl/.csv).',
+  ) {
+    super(message);
+    this.name = 'EmptyBundleError';
+  }
+}
+
+/** Thrown when a feed repository export stage stalls or fails. */
+export class FeedExportError extends Error {
+  readonly stage: string;
+  constructor(stage: string, message: string) {
+    super(message);
+    this.name = 'FeedExportError';
+    this.stage = stage;
+  }
 }
 
 export type ParsedNoteEntry = Omit<HistoryRecord, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'> & {
@@ -462,7 +491,12 @@ export async function importFromZip(file: File, provider: IContentProvider): Pro
   }
 
   const clock = wallClockNow;
-  const zip = await JSZip.loadAsync(file);
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(await file.arrayBuffer());
+  } catch {
+    throw new InvalidBundleError();
+  }
   const errors: string[] = [];
   const noteIds = new Set<string>();
   const failedRevisionNotes = new Set<string>();
@@ -475,6 +509,10 @@ export async function importFromZip(file: File, provider: IContentProvider): Pro
   const mdFiles = allPaths.filter(
     (name) => name.endsWith('.md') && !/(?:^|\/)README\.md$/i.test(name),
   );
+
+  if (jsonlFiles.length === 0 && csvFiles.length === 0 && mdFiles.length === 0) {
+    throw new EmptyBundleError();
+  }
 
   const parsedBundles: Array<{ source: string; parsed: NoteTelemetryBundleResult }> = [];
   for (const name of jsonlFiles) {
@@ -584,22 +622,66 @@ export async function publishSelfHostedFeed(
   return { report: data, feedUrl: data.feedUrl };
 }
 
-export async function exportFeedRepositoryZip(
-  options: Pick<PublishFeedOptions, 'name' | 'description' | 'repositoryUrl' | 'notebookSlug'> = {},
-): Promise<PublishFeedReport> {
-  await whenStorageReady();
-  const zipTree = new ZipFeedTree();
-  const report = await publishFeedFromStorage(storage, zipTree, {
-    ...options,
-    layout: 'repository',
-    recordCheckpoint: true,
+const DEFAULT_EXPORT_STAGE_TIMEOUT_MS = 30_000;
+const CHECKPOINT_STAGE_TIMEOUT_MS = 5_000;
+
+async function withStageTimeout<T>(
+  stage: string,
+  run: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(
+        new FeedExportError(
+          stage,
+          `Feed repository export timed out during ${stage} (${Math.max(1, Math.round(timeoutMs / 1000))}s).`,
+        ),
+      );
+    }, timeoutMs);
   });
-  const blob = await zipTree.toBlob();
-  const slug = (options.name ?? 'wod-wiki-feed-repository')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'wod-wiki-feed-repository';
+  try {
+    return await Promise.race([run(controller.signal), timeoutPromise]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+export async function exportFeedRepositoryZip(
+  options: Pick<PublishFeedOptions, 'name' | 'description' | 'repositoryUrl' | 'notebookSlug'> & {
+    stageTimeoutMs?: number;
+  } = {},
+): Promise<PublishFeedReport> {
+  const { stageTimeoutMs = DEFAULT_EXPORT_STAGE_TIMEOUT_MS, ...publishOptions } = options;
+  await withStageTimeout('storage initialization', () => whenStorageReady(), stageTimeoutMs);
+  const zipTree = new ZipFeedTree();
+  const report = await withStageTimeout(
+    'feed compilation',
+    (signal) =>
+      publishFeedFromStorage(storage, zipTree, {
+        ...publishOptions,
+        layout: 'repository',
+        recordCheckpoint: false,
+        signal,
+      }),
+    stageTimeoutMs,
+  );
+  const blob = await withStageTimeout('zip archive generation', () => zipTree.toBlob(), stageTimeoutMs);
+  const slug =
+    (publishOptions.name ?? 'wod-wiki-feed-repository')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'wod-wiki-feed-repository';
   downloadBlob(blob, `${slug}.zip`);
+  // Persist checkpoint after the download is triggered so an IndexedDB lock cannot block export.
+  await withStageTimeout(
+    'checkpoint persistence',
+    () => recordPublishedFeedCheckpoint(storage, report),
+    Math.min(stageTimeoutMs, CHECKPOINT_STAGE_TIMEOUT_MS),
+  ).catch(() => undefined);
   return report;
 }
 

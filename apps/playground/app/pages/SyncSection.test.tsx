@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Location } from 'react-router-dom';
-import { SyncSection } from './SyncSection';
+import { SyncSection, type SyncSectionDeps } from './SyncSection';
 import {
   PlaygroundProviderTree,
   setupPlaygroundTestHost,
@@ -56,14 +56,14 @@ const openHosts: PlaygroundHostHandle[] = [];
 
 // SyncSection rides the real router through PlaygroundProviderTree; only the
 // network-touching feed seams are injected (readFeedStatus et al.).
-async function renderSync() {
+async function renderSync(extraDeps: Partial<SyncSectionDeps> = {}) {
   const host = await setupPlaygroundTestHost();
   openHosts.push(host);
   let location: Location | null = null;
   await act(async () => {
     render(
       <PlaygroundProviderTree route="/settings/sync" onLocationChange={(loc) => { location = loc; }}>
-        <SyncSection deps={{ readFeedStatus: async () => mockStatus }} />
+        <SyncSection deps={{ readFeedStatus: async () => mockStatus, ...extraDeps }} />
       </PlaygroundProviderTree>,
     );
   });
@@ -161,5 +161,24 @@ describe('SyncSection notebook subscriptions and filtering', () => {
     expect(backdrop).toBeTruthy();
     fireEvent.click(backdrop!);
     expect(details.open).toBe(false);
-  })
+  });
+
+  it('shows Subscribing… pending state and aria-busy while subscribe sync is in flight (WW-086)', async () => {
+    let resolveSync!: (v: 'imported') => void;
+    const syncFeedSource = () => new Promise<'imported'>((resolve) => { resolveSync = resolve; });
+    await renderSync({ syncFeedSource: syncFeedSource as never });
+    fireEvent.click(screen.getByTestId('sync-subscribed-only-toggle'));
+
+    const btn = await screen.findByTestId('feed-subscribe-seed-crossfit');
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      const activeBtn = screen.getByTestId('feed-subscribe-seed-crossfit') as HTMLButtonElement;
+      expect(activeBtn.disabled).toBe(true);
+      expect(activeBtn.getAttribute('aria-busy')).toBe('true');
+      expect(activeBtn.textContent).toContain('Subscribing…');
+    });
+
+    resolveSync('imported');
+  });
 });

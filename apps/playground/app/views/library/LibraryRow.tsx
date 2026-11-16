@@ -8,7 +8,7 @@
  */
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Copy, Share2, Pencil, Trash2 } from 'lucide-react'
+import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Loader2, Copy, Share2, Pencil, Trash2 } from 'lucide-react'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/atoms/primitives/dropdown-menu'
 import type { Entry } from '../../lib/entryMapper'
 import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryNotebookHref } from '../../lib/entryActions'
@@ -48,6 +48,8 @@ export interface LibraryRowProps {
   moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
   onMoveNotebook?: (entry: Entry, notebookId: string) => void
   onToggleSubscribe?: (entry: Entry) => void
+  /** True while this row's feed/notebook subscription sync is in flight. */
+  subscribing?: boolean
   onCloneRemote?: (entry: Entry) => void
   onPublishFeed?: (entry: Entry) => void
   onTogglePublicNotebook?: (entry: Entry) => void
@@ -106,6 +108,7 @@ export function LibraryRow({
   moveNotebookTargets,
   onMoveNotebook,
   onToggleSubscribe,
+  subscribing,
   onCloneRemote,
   onPublishFeed,
   onTogglePublicNotebook,
@@ -286,6 +289,7 @@ export function LibraryRow({
           moveNotebookTargets={moveNotebookTargets}
           onMoveNotebook={onMoveNotebook}
           onToggleSubscribe={onToggleSubscribe}
+          subscribing={subscribing}
           onCloneRemote={onCloneRemote}
           onPublishFeed={onPublishFeed}
           onTogglePublicNotebook={onTogglePublicNotebook}
@@ -304,6 +308,8 @@ interface RowActionsProps {
   moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
   onMoveNotebook?: (entry: Entry, notebookId: string) => void
   onToggleSubscribe?: (entry: Entry) => void
+  /** True while this row's feed/notebook subscription sync is in flight. */
+  subscribing?: boolean
   onCloneRemote?: (entry: Entry) => void
   onPublishFeed?: (entry: Entry) => void
   onTogglePublicNotebook?: (entry: Entry) => void
@@ -311,7 +317,7 @@ interface RowActionsProps {
   onDeleteNotebook?: (entry: Entry) => void
 }
 
-function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook, onToggleSubscribe, onCloneRemote, onPublishFeed, onTogglePublicNotebook, onEditNotebook, onDeleteNotebook }: RowActionsProps) {
+function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook, onToggleSubscribe, subscribing, onCloneRemote, onPublishFeed, onTogglePublicNotebook, onEditNotebook, onDeleteNotebook }: RowActionsProps) {
   const navigate = useNavigate()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const compareHref = entryCompareHref(entry)
@@ -333,16 +339,18 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
       {(entry.kind === 'feed' || entry.kind === 'notebook') && entry.feedId !== 'local' && entry.feedId !== 'core' && onToggleSubscribe && (
         <button
           type="button"
+          disabled={Boolean(subscribing)}
+          aria-busy={Boolean(subscribing)}
           onClick={() => onToggleSubscribe(entry)}
           data-testid={entry.subscribed ? `row-unsubscribe-${entry.sourceNote}` : `row-subscribe-${entry.sourceNote}`}
-          className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors ${
+          className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors disabled:opacity-60 disabled:cursor-wait ${
             entry.subscribed
               ? 'border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40'
               : 'bg-primary text-primary-foreground hover:bg-primary/90'
           }`}
         >
-          <CloudDownload className="size-3" />
-          <span>{entry.subscribed ? 'Unsubscribe' : 'Subscribe'}</span>
+          {subscribing ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <CloudDownload className="size-3" />}
+          <span>{subscribing ? (entry.subscribed ? 'Unsubscribing…' : 'Subscribing…') : (entry.subscribed ? 'Unsubscribe' : 'Subscribe')}</span>
         </button>
       )}
       {entry.kind === 'notebook' && entry.feedId === 'local' && onTogglePublicNotebook && (

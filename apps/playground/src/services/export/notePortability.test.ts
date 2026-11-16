@@ -224,4 +224,18 @@ describe('Canonical Markdown + JSONL/CSV Portability & Feed Repository Export', 
     expect(jsonlText).toContain('pub-sess');
     expect(jsonlText).not.toContain('priv-sess');
   });
+
+  it('throws InvalidBundleError for corrupt zip bytes without leaking JSZip internals (WW-040)', async () => {
+    const { importFromZip, InvalidBundleError } = await import('../ExportImportService');
+    const badFile = new File([new Uint8Array([1, 2, 3, 4, 5])], 'corrupt.zip', { type: 'application/zip' });
+    await expect(importFromZip(badFile, {} as never)).rejects.toBeInstanceOf(InvalidBundleError);
+  });
+
+  it('throws EmptyBundleError for a valid zip with no portable notes or telemetry, while allowing manifest-less .md zips (WW-041)', async () => {
+    const { importFromZip, EmptyBundleError } = await import('../ExportImportService');
+    const emptyTree = new ZipFeedTree();
+    await emptyTree.writeText('some/stray-note.txt', 'hello');
+    const emptyZip = new File([await emptyTree.toUint8Array()], 'stray.zip', { type: 'application/zip' });
+    await expect(importFromZip(emptyZip, {} as never)).rejects.toBeInstanceOf(EmptyBundleError);
+  });
 });

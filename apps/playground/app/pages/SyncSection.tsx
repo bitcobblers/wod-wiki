@@ -129,11 +129,16 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
               size="sm"
               onClick={() => onSubscribe(source.id)}
               disabled={disabled}
+              aria-busy={running}
               data-testid={`feed-subscribe-${source.id}`}
               className="gap-2"
             >
-              <CloudDownload className="size-3.5" />
-              <span>Subscribe</span>
+              {running ? (
+                <RefreshCw className="size-3.5 animate-spin" />
+              ) : (
+                <CloudDownload className="size-3.5" />
+              )}
+              <span>{running ? 'Subscribing…' : 'Subscribe'}</span>
             </Button>
           ) : pending ? (
             <Button

@@ -84,6 +84,20 @@ describe('LoadZipPage portable bundle import (WW-031)', () => {
     expect(screen.getByTestId('load-zip-intake')).toBeTruthy();
   });
 
+  it('stays on /load with an inline error when a bundle yields 0 notes and 0 sessions (WW-041)', async () => {
+    importImpl = async () => ({ imported: 0, sessionsImported: 0, errors: [] });
+    renderAt();
+
+    const input = screen.getByTestId('bundle-file-input') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [bundleFile('empty.zip')] } });
+
+    await waitFor(() =>
+      expect(screen.getByTestId('bundle-import-error').textContent).toContain('No portable notes or sessions'),
+    );
+    expect(screen.getByTestId('load-zip-intake')).toBeTruthy();
+    expect(toastModule.toast).not.toHaveBeenCalled();
+  });
+
   it('keeps the progress state while a ?zip= bundle is being processed', async () => {
     renderAt('/load?zip=encoded-content');
 

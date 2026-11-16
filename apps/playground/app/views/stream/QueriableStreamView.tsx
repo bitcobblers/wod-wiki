@@ -23,7 +23,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Button } from '@/components/atoms/primitives/button'
 import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
-import { useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'
+import { useFeedImportPending, useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'
 import { subscribeAppEffortRegistry } from '@/services/effortRegistry'
 import { defaultFeedSources, syncFeedSource, type FeedSyncProgress } from '@/services/feed/feedSync'
 import { listFeedSources, feedSourceById } from '@/services/feed/feedSources'
@@ -303,6 +303,7 @@ export function QueriableStreamView({
   // First-run gate: the vault query must not execute until the seed import
   // has settled, or a fresh profile briefly commits a permanent "0 of 0".
   const feedReadiness = useFeedReadiness()
+  const feedImportPending = useFeedImportPending()
   const libraryMissing = useFeedLibraryMissing()
   // Inline community sync from the core-only notice (the probe above is
   // mount-only, so a successful sync suppresses it via librarySynced).
@@ -701,14 +702,25 @@ export function QueriableStreamView({
       setActionError(err instanceof Error ? err.message : String(err))
     }
   }, [])
+  const subscribingIdsRef = useRef<Set<string>>(new Set())
+  const [subscribingIds, setSubscribingIds] = useState<ReadonlySet<string>>(() => new Set())
   const handleToggleSubscribeEntry = useCallback(async (entry: Entry) => {
+    const subKey = entry.feedId ?? entry.id
+    if (subscribingIdsRef.current.has(subKey)) return
     setActionError(null)
+    subscribingIdsRef.current.add(subKey)
+    setSubscribingIds(new Set(subscribingIdsRef.current))
     try {
       const nextSub = !entry.subscribed
       if (entry.kind === 'feed' && entry.feedId) {
         if (nextSub) {
-          setFeedSubscribed(entry.feedId, true)
-          await syncFeedSource(entry.feedId)
+          const outcome = await syncFeedSource(entry.feedId)
+          if (outcome === 'imported' || outcome === 'current' || outcome === 'server-stale') {
+            setFeedSubscribed(entry.feedId, true)
+          } else {
+            setActionError(outcome === 'busy' ? 'Another tab is already syncing.' : 'Feed sync failed.')
+            return
+          }
         } else {
           const label = entry.title || feedSourceById(entry.feedId)?.label || entry.feedId
           if (
@@ -726,6 +738,9 @@ export function QueriableStreamView({
       setSavedTick(t => t + 1)
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      subscribingIdsRef.current.delete(subKey)
+      setSubscribingIds(new Set(subscribingIdsRef.current))
     }
   }, [])
 
@@ -920,7 +935,7 @@ export function QueriableStreamView({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [effectiveQuery, activeEngine, parsed, location.pathname, profile.route, feedReadiness, savedTick])
+  }, [effectiveQuery, activeEngine, parsed, location.pathname, profile.route, feedReadiness, feedImportPending, savedTick])
 
   // Grouping: the committed run's query `by {}` dimensions win; otherwise
   // the view setting, then the surface's Group-By favorite, then the level
@@ -1653,6 +1668,7 @@ export function QueriableStreamView({
                               moveNotebookTargets={moveNotebookTargets}
                               onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.id, notebookId)}
                               onToggleSubscribe={(e) => void handleToggleSubscribeEntry(e)}
+                              subscribing={subscribingIds.has(entry.feedId ?? entry.id)}
                               onTogglePublicNotebook={(e) => void handleTogglePublicNotebookEntry(e)}
                               onPublishFeed={() => void handlePublishOutboundFeed()}
                               onCloneRemote={(e) => void handleCloneRemoteEntry(e)}
@@ -1691,6 +1707,7 @@ export function QueriableStreamView({
                           moveNotebookTargets={moveNotebookTargets}
                           onMoveNotebook={(e, notebookId) => void handleMoveNotebook(e.id, notebookId)}
                           onToggleSubscribe={(e) => void handleToggleSubscribeEntry(e)}
+                          subscribing={subscribingIds.has(entry.feedId ?? entry.id)}
                           onTogglePublicNotebook={(e) => void handleTogglePublicNotebookEntry(e)}
                           onPublishFeed={() => void handlePublishOutboundFeed()}
                           onCloneRemote={(e) => void handleCloneRemoteEntry(e)}

@@ -503,7 +503,11 @@ function PortabilityAndFeedPublishSection({ isApiBuild }: { isApiBuild: boolean 
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-4" data-testid="portability-and-feed-publish-section">
+    <div
+      className="rounded-xl border border-border bg-card p-5 space-y-4"
+      data-testid="portability-and-feed-publish-section"
+      aria-busy={busyAction !== null}
+    >
       <div>
         <h3 className="text-sm font-semibold text-foreground">Portable Notes (.md + .jsonl / .csv) &amp; Feed Publishing</h3>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
@@ -588,6 +592,7 @@ function PortabilityAndFeedPublishSection({ isApiBuild }: { isApiBuild: boolean 
             <Button
               size="sm"
               disabled={busyAction !== null}
+              aria-busy={busyAction === 'pub-zip'}
               data-testid="data-export-feed-repo-zip"
               onClick={() =>
                 void runAction('pub-zip', async () => {
@@ -600,8 +605,12 @@ function PortabilityAndFeedPublishSection({ isApiBuild }: { isApiBuild: boolean 
               }
               className="gap-1.5"
             >
-              <Download className="size-3.5" />
-              <span>Export Feed Repository (.zip)</span>
+              {busyAction === 'pub-zip' ? (
+                <RefreshCw className="size-3.5 animate-spin" />
+              ) : (
+                <Download className="size-3.5" />
+              )}
+              <span>{busyAction === 'pub-zip' ? 'Exporting…' : 'Export Feed Repository (.zip)'}</span>
             </Button>
             {supportsDirectoryPicker() && (
               <Button

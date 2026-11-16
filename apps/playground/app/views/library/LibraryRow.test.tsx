@@ -138,4 +138,28 @@ describe('LibraryRow — field projection adaptation', () => {
     effortLink.dispatchEvent(event)
     expect(stopped).toBe(true)
   })
+
+  it('disables Subscribe button and sets aria-busy + Subscribing… label when subscribing (WW-086)', () => {
+    const feedEntry: Entry = {
+      id: 'feed:sport-crossfit',
+      kind: 'feed',
+      feedId: 'sport-crossfit',
+      subscribed: false,
+      sourceNotebook: 'feeds',
+      sourceNote: 'sport-crossfit',
+      title: 'CrossFit',
+      date: null,
+    }
+
+    render(
+      <MemoryRouter>
+        <LibraryRow entry={feedEntry} onToggleSubscribe={() => {}} subscribing />
+      </MemoryRouter>,
+    )
+
+    const btn = screen.getByTestId('row-subscribe-sport-crossfit') as HTMLButtonElement
+    expect(btn.disabled).toBe(true)
+    expect(btn.getAttribute('aria-busy')).toBe('true')
+    expect(btn.textContent).toContain('Subscribing…')
+  })
 })

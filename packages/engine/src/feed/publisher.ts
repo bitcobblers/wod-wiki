@@ -97,6 +97,8 @@ export interface PublishFeedOptions {
   builtAt?: string;
   /** Update the storage checkpoint (`publish:local-feed`) on completion (default true when layout === 'feed'). */
   recordCheckpoint?: boolean;
+  /** Optional abort signal to cancel long-running feed compilation on timeout. */
+  signal?: AbortSignal;
 }
 
 export interface PublishFeedReport {
@@ -539,14 +541,35 @@ async function collectPublicStorageState(
   };
 }
 
+/** Persist the published-feed checkpoint in the `meta` store after a successful publish/export. */
+export async function recordPublishedFeedCheckpoint(
+  storage: IStorage,
+  report: Pick<PublishFeedReport, 'manifest' | 'manifestSha256'>,
+): Promise<void> {
+  const chunkShas: Record<string, string> = {};
+  for (const c of report.manifest.chunks) chunkShas[c.id] = c.sha256;
+  const cp: PublishedFeedCheckpoint = {
+    key: PUBLISHED_FEED_META_KEY,
+    version: report.manifest.version,
+    builtAt: report.manifest.builtAt,
+    manifestSha256: report.manifestSha256,
+    chunkShas,
+  };
+  await storage.transaction(['meta'], 'readwrite', async (tx) => {
+    await tx.readwrite('meta').put(cp);
+  });
+}
+
 export async function publishFeedFromStorage(
   storage: IStorage,
   tree: FeedTree,
   options: PublishFeedOptions = {},
 ): Promise<PublishFeedReport> {
+  options.signal?.throwIfAborted();
   const t0 = Date.now();
   const layout = options.layout ?? 'feed';
   const state = await collectPublicStorageState(storage, options);
+  options.signal?.throwIfAborted();
 
   if (state.notebooks.size === 0) {
     throw new Error('No public notebooks found to publish. Mark at least one user-owned notebook as Public first.');
@@ -873,29 +896,21 @@ export async function publishFeedFromStorage(
   const manifestSha256 = await sha256HexAsync(manifestBytes);
   await tree.write(`${artifactPrefix}manifest.json`, manifestBytes);
 
-  const shouldCheckpoint = options.recordCheckpoint ?? (layout === 'feed' && !options.notebookSlug);
-  if (shouldCheckpoint) {
-    const chunkShas: Record<string, string> = {};
-    for (const c of manifestChunks) chunkShas[c.id] = c.sha256;
-    const cp: PublishedFeedCheckpoint = {
-      key: PUBLISHED_FEED_META_KEY,
-      version: nextVersion,
-      builtAt,
-      manifestSha256,
-      chunkShas,
-    };
-    await storage.transaction(['meta'], 'readwrite', async (tx) => {
-      await tx.readwrite('meta').put(cp);
-    });
-  }
-
-  return {
+  const report: PublishFeedReport = {
     manifest,
     notebooks: sortedSlugs,
     totalNotes,
     totalPublicSessions,
     manifestSha256,
   };
+
+  const shouldCheckpoint = options.recordCheckpoint ?? (layout === 'feed' && !options.notebookSlug);
+  if (shouldCheckpoint) {
+    options.signal?.throwIfAborted();
+    await recordPublishedFeedCheckpoint(storage, report);
+  }
+
+  return report;
 }
 
 /**
