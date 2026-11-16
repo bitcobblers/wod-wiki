@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # WOD Wiki release readiness assessment for one staged main build.
-# Runs: (a) E2E gate suites via qa-gate.sh --no-status, (b) quick touched-domain
-# dogfood smoke on main.preview (changes since the last release tag), (c) critical
-# findings check. Writes the composed verdict as commit status e2e/main-staging and
-# a qa-blessed-<shortsha> tag. A release is promotable only on PASS.
+# Runs the E2E gate suites via qa-gate.sh --no-status and decides the verdict
+# from the E2E results only. The dogfood audit runs nightly (Hermes cron
+# orchestrator) and is deliberately NOT part of the per-diff verdict.
 #
-# Usage: qa-readiness.sh [SHA] [--skip-dogfood]
+# PASS  -> commit status e2e/main-staging=success, move refs/tags/prod
+#          (triggers deploy-prod.yml -> npm + GitHub Pages), stamp
+#          qa-blessed-<shortsha> audit tag.
+# FAIL  -> commit status failure + upload a markdown research request to the
+#          files S3 `to-muse` bucket (receiver noops it into `to-muse-outbox`
+#          for the muse research agent).
+#
+# Usage: qa-readiness.sh [SHA] [--force] [--skip-dogfood (ignored, kept for compat)]
 # Exit: 0=ready (PASS), 1=blocked (FAIL), 2=environment/setup error.
 set -uo pipefail
 export PATH="$HOME/.bun/bin:$PATH"
@@ -14,16 +20,16 @@ DOG=/srv/nfs/helios/dogfood/wod-wiki
 QADIR="$DOG/qa-gate"
 GATE="$QADIR/qa-gate.sh"
 REPO=/srv/nfs/helios/docker-shared/repos/wod-wiki
-PREVIEW_APP=https://main.preview.wod.wiki
-DOGFOOD=/usr/local/bin/wod-wiki-dogfood
-DOGF_TIMEOUT=4200
+FILES_ENV=/opt/helios-services/files.env
+S3=http://10.1.0.30:9000
+MUSE_BUCKET=to-muse
 
 SHA=""
 SKIP_DOGFOOD=0
 FORCE=0
 for a in "$@"; do
   case "$a" in
-    --skip-dogfood) SKIP_DOGFOOD=1 ;;
+    --skip-dogfood) SKIP_DOGFOOD=1 ;;  # dogfood is nightly-only now; accepted and ignored
     --force) FORCE=1 ;;
     --*) : ;;
     *) SHA=$a ;;
@@ -69,64 +75,7 @@ if [ $E2E_RC -ne 0 ]; then
 fi
 log "phase 1 done rc=$E2E_RC"
 
-# --- 2. Quick dogfood on the changes since the last release ---------------------
-CRIT_COUNT=0
-CRIT_LIST=""
-DOMAINS="(skipped)"
-SESSION=""
-if [ "$SKIP_DOGFOOD" = 0 ]; then
-  DOMAINS=$(git -C "$REPO" log --name-only --pretty=format: "${LAST_TAG}..${SHA}" 2>/dev/null | python3 -c '
-import sys, re
-kw = [(r"journal|/note|editor", "journal"), (r"notebook", "notebooks"),
-      (r"runtime|timer|clock|/run|workout", "runtime"), (r"propert", "properties"),
-      (r"analytic|dashboard|results|chart|effort", "analytics"),
-      (r"feed|stream", "feeds")]
-seen = []
-for line in sys.stdin:
-    p = line.strip().lower()
-    if not p:
-        continue
-    for rx, d in kw:
-        if re.search(rx, p) and d not in seen:
-            seen.append(d)
-            break
-print(",".join(seen[:2]))
-')  # empty output = no product-surface changes -> dogfood phase skipped
-  if [ -n "$DOMAINS" ]; then
-    log "phase 2: quick dogfood on $PREVIEW_APP, domains: $DOMAINS"
-    if timeout "$DOGF_TIMEOUT" "$DOGFOOD" --url "$PREVIEW_APP" --domains "$DOMAINS" --smoke \
-      >"$QADIR/suites/dogfood-quick.log" 2>&1; then
-      SESSION=$(ls -dt "$DOG"/*-smoke-*/ 2>/dev/null | head -1)
-      log "dogfood session: ${SESSION:-none found}"
-      if [ -n "$SESSION" ]; then
-        CRIT_OUT=$(python3 - "$SESSION" <<'PY'
-import json, sys, glob, os
-crit = []
-for f in glob.glob(os.path.join(sys.argv[1], "domains", "*", "findings.jsonl")):
-    for line in open(f):
-        d = json.loads(line)
-        if str(d.get("severity", "")).lower() == "critical":
-            crit.append(f"{d.get('title', '')[:110]} [{os.path.basename(os.path.dirname(f))}]")
-print(len(crit))
-for c in crit:
-    print("- " + c)
-PY
-)
-      CRIT_COUNT=$(printf '%s\n' "$CRIT_OUT" | head -1)
-      CRIT_LIST=$(printf '%s\n' "$CRIT_OUT" | tail -n +2)
-      [ "$CRIT_COUNT" != "0" ] && REASONS+=("dogfood found $CRIT_COUNT Critical finding(s) on the staged build")
-    fi
-    else
-      REASONS+=("dogfood smoke driver failed or timed out after ${DOGF_TIMEOUT}s")
-    fi
-  else
-    log "phase 2 skipped: no product-surface changes since $LAST_TAG"
-    DOMAINS="(no product-surface changes)"
-  fi
-fi
-log "phase 2 done (critical findings: $CRIT_COUNT)"
-
-# --- 3. Verdict ------------------------------------------------------------------
+# --- 2. Verdict -------------------------------------------------------------------
 if [ ${#REASONS[@]} -eq 0 ]; then VERDICT=PASS; else VERDICT=FAIL; fi
 
 {
@@ -137,29 +86,42 @@ if [ ${#REASONS[@]} -eq 0 ]; then VERDICT=PASS; else VERDICT=FAIL; fi
   echo "- Changes since: ${LAST_TAG:-unknown}"
   echo "- Verdict: **$VERDICT**"
   echo "- E2E gate: $([ $E2E_RC -eq 0 ] && echo pass || echo "fail (rc=$E2E_RC)")"
-  echo "- Quick dogfood domains: $DOMAINS"
-  echo "- Dogfood session: ${SESSION:-none}"
-  echo "- Critical findings: $CRIT_COUNT"
   echo
   if [ ${#REASONS[@]} -gt 0 ]; then
     echo "## Blocking reasons"; echo
     for r in "${REASONS[@]}"; do echo "- $r"; done
     echo
   fi
-  [ -n "$CRIT_LIST" ] && { echo "## Critical findings"; echo; echo "$CRIT_LIST"; echo; }
 } >"$QADIR/readiness-report.md"
 
-printf '{"run":"%s","sha":"%s","verdict":"%s","kind":"readiness","e2e_rc":%s,"domains":"%s","critical":%s,"reasons":%s}\n' \
-  "$(ts)" "$SHA" "$VERDICT" "$E2E_RC" "$DOMAINS" "$CRIT_COUNT" \
+printf '{"run":"%s","sha":"%s","verdict":"%s","kind":"readiness","e2e_rc":%s,"reasons":%s}\n' \
+  "$(ts)" "$SHA" "$VERDICT" "$E2E_RC" \
   "$(printf '%s\n' "${REASONS[@]:-}" | python3 -c 'import json,sys; print(json.dumps([l for l in sys.stdin.read().splitlines() if l]))')" \
   >>"$QADIR/history.jsonl"
+
+# Upload a markdown object to the files S3 `to-muse` bucket and verify it by
+# byte-for-byte re-GET. Credentials come from the root-owned files env via
+# sudo; they are never echoed and unset immediately after use.
+upload_to_muse() { # upload_to_muse <file> <key>
+  local RK RS out rc
+  RK=$(sudo -n awk -F= '$1=="RUSTFS_ACCESS_KEY"{print $2}' "$FILES_ENV") || return 1
+  RS=$(sudo -n awk -F= '$1=="RUSTFS_SECRET_KEY"{print $2}' "$FILES_ENV") || return 1
+  out="$(mktemp)"
+  curl -sS --fail --aws-sigv4 "aws:amz:us-east-1:s3" --user "$RK:$RS" -T "$1" \
+    "$S3/$MUSE_BUCKET/$2" &&
+  curl -sS --fail --aws-sigv4 "aws:amz:us-east-1:s3" --user "$RK:$RS" -o "$out" \
+    "$S3/$MUSE_BUCKET/$2" && cmp -s "$1" "$out"
+  rc=$?
+  rm -f "$out"; unset RK RS
+  return $rc
+}
 
 if [ "$VERDICT" = PASS ]; then
   gh api "repos/bitcobblers/wod-wiki/statuses/$SHA" \
     -f state=success -f context=e2e/main-staging \
-    -f description="Readiness PASS: E2E + quick dogfood on staged build" >/dev/null \
+    -f description="Readiness PASS: E2E suites on staged build" >/dev/null \
     && log "commit status: success" || { log "FATAL: status write failed"; exit 2; }
-  # Promote: move the mutable prod tag -> triggers deploy-prod.yml
+  # Promote: move the mutable prod tag -> triggers deploy-prod.yml (npm + Pages)
   if gh api "repos/bitcobblers/wod-wiki/git/ref/tags/prod" >/dev/null 2>&1; then
     gh api "repos/bitcobblers/wod-wiki/git/refs/tags/prod" -X PATCH \
       -f sha="$SHA" -F force=true >/dev/null \
@@ -183,14 +145,46 @@ else
     -f state=failure -f context=e2e/main-staging \
     -f description="Readiness blocked: ${REASONS[0]:0:100}" >/dev/null \
     || log "WARNING: failure status write failed"
-  gh label create qa-gate -R bitcobblers/wod-wiki \
-    --description "Blocking issue opened by helios QA readiness gate" \
-    --color D93F0B --force >/dev/null 2>&1 || true
-  gh issue create -R bitcobblers/wod-wiki \
-    --title "Readiness blocked main $SHORT" \
-    --label qa-gate \
-    --body "$(printf 'Readiness verdict FAIL for `%s`.\n\n' "$SHA"; printf -- '- %s\n' "${REASONS[@]}"; [ -n "$CRIT_LIST" ] && { echo; echo '## Critical findings'; echo "$CRIT_LIST"; }; echo; echo 'Report: /srv/nfs/helios/dogfood/wod-wiki/qa-gate/readiness-report.md')" \
-    >>"$QADIR/issue-create.log" 2>&1 && log "blocking issue opened" || log "WARNING: issue create failed (details: $QADIR/issue-create.log)"
+
+  # Research request for the muse agent: failure details + what to produce.
+  MUSE_STAMP="$(date -u +%Y-%m-%d)/readiness-blocked-${SHORT}-$(date -u +%H%M%SZ)"
+  MUSE_KEY="qa-gate/${MUSE_STAMP}.md"
+  MUSE_LOCAL="$QADIR/muse-request-$(date -u +%Y%m%d-%H%M%SZ)-${SHORT}.md"
+  {
+    echo "# Research request: QA readiness blocked on main $SHORT"
+    echo
+    echo "- Run: $(ts)"
+    echo "- Release commit: \`$SHA\`"
+    echo "- Changes since: ${LAST_TAG:-unknown}"
+    echo "- Verdict: FAIL"
+    echo
+    echo "## Blocking reasons"
+    echo
+    for r in "${REASONS[@]}"; do echo "- $r"; done
+    echo
+    echo "## Request"
+    echo
+    echo "Research the issues above and propose a fix. For each issue:"
+    echo "1. Identify the root cause with exact \`file:line\` + symbol in the wod-wiki repo"
+    echo "   (helios checkout: \`$REPO\`, commit \`$SHA\`)."
+    echo "2. Propose a concrete code fix."
+    echo "3. Name the regression test tier: Tier 1 unit (\`packages/*/tests\`),"
+    echo "   Tier 2 Storybook/component, or Tier 3 \`e2e/specs/<domain>/\` journey."
+    echo
+    echo "## Failure log (suites/e2e-assess.log tail)"
+    echo
+    echo '```'
+    tail -n 80 "$QADIR/suites/e2e-assess.log" 2>/dev/null
+    echo '```'
+    echo
+    echo "Full reports: \`$QADIR/readiness-report.md\`, \`$QADIR/qa-report.md\`."
+  } >"$MUSE_LOCAL"
+
+  if upload_to_muse "$MUSE_LOCAL" "$MUSE_KEY"; then
+    log "research request uploaded: $MUSE_BUCKET/$MUSE_KEY (local copy: $MUSE_LOCAL)"
+  else
+    log "WARNING: to-muse upload failed; research request kept at $MUSE_LOCAL"
+  fi
 fi
 
 log "verdict: $VERDICT (report: $QADIR/readiness-report.md)"
