@@ -1,0 +1,593 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Two-stage nightly and on-demand production dogfood QA orchestrator for wod.wiki.
+# Stage 1: Dispatches persona + white-box introspection (wod-probe.js) explorer
+#          workers in bounded waves (1 browser job per SBC + Swarm containers),
+#          streaming findings live into domains/<domain>/findings.jsonl + diary.md.
+# Stage 2: Runs pi-planner on Helios with read/grep/find/write tools against the
+#          local NVMe wod-wiki checkout to deduplicate cross-domain symptoms,
+#          pinpoint exact file:line root causes once per bug, update persistent
+#          known-issues.json memory, and publish summary.md.
+
+TARGET_URL="${DOGFOOD_URL:-https://wod.wiki}"
+DOMAINS_CSV="${DOGFOOD_DOMAINS:-journal,notebooks,runtime,properties,analytics,feeds}"
+SESSION_LABEL="${DOGFOOD_LABEL:-nightly}"
+JOB_TIMEOUT="${DOGFOOD_TIMEOUT:-3600}"
+MAX_PARALLEL="${DOGFOOD_MAX_PARALLEL:-3}"
+PLANNER_TIMEOUT="${DOGFOOD_PLANNER_TIMEOUT:-1800}"
+NFS_DOGFOOD_ROOT="${DOGFOOD_NFS_ROOT:-/srv/nfs/helios/dogfood/wod-wiki}"
+FOCUS_FILE="${DOGFOOD_FOCUS_FILE:-$NFS_DOGFOOD_ROOT/nightly-focus.md}"
+SHARED_REPO_DIR="${DOGFOOD_REPO_DIR:-/srv/nfs/helios/docker-shared/repos/wod-wiki}"
+REPO_URL="${DOGFOOD_REPO_URL:-https://github.com/bitcobblers/wod-wiki.git}"
+REPO_BRANCH="${DOGFOOD_REPO_BRANCH:-main}"
+SHARED_AGENT_DIR="${SOLAR_SHARED_AGENT_DIR:-/srv/nfs/helios/docker-shared/agents/solar-system}"
+EVENTS_DIR="${SOLAR_EVENTS_DIR:-/srv/nfs/helios/docker-shared/swarm-events}"
+SSH_KEY="${SOLAR_SSH_KEY:-$HOME/.ssh/id_ed25519}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  wod-wiki-dogfood [--url URL] [--domains CSV] [--label LABEL] [--timeout SEC] [--max-parallel N] [--smoke]
+  wod-wiki-dogfood synthesize [SESSION_DIR_OR_NAME]
+
+Options:
+  --url URL           Target web origin (default: https://wod.wiki)
+  --domains CSV       Comma-separated subset of: journal,notebooks,runtime,properties,analytics,feeds
+  --label LABEL       Session label suffix (default: nightly)
+  --timeout SEC       Per-wave worker wait timeout in seconds (default: 3600)
+  --max-parallel N    Max concurrent browser domain workers per wave (default: 3)
+  --smoke             Fast smoke pass on 1 primary mission flow + wod-probe per domain
+  -h, --help          Show this help
+EOF
+}
+
+log() { printf '[dogfood %s] %s\n' "$(date -u +%H:%M:%SZ)" "$*" >&2; }
+
+refresh_repo() {
+  log "Refreshing shared wod-wiki repository at $SHARED_REPO_DIR ($REPO_BRANCH)"
+  mkdir -p "$(dirname "$SHARED_REPO_DIR")"
+  if [[ -d "$SHARED_REPO_DIR/.git" ]]; then
+    git -C "$SHARED_REPO_DIR" fetch --prune origin >&2
+    git -C "$SHARED_REPO_DIR" checkout -q "$REPO_BRANCH" >&2
+    git -C "$SHARED_REPO_DIR" reset --hard "origin/$REPO_BRANCH" >/dev/null
+  else
+    git clone --branch "$REPO_BRANCH" --single-branch "$REPO_URL" "$SHARED_REPO_DIR" >&2
+  fi
+  chmod -R a+rX "$SHARED_REPO_DIR" 2>/dev/null || true
+  git -C "$SHARED_REPO_DIR" rev-parse --short HEAD
+}
+
+collect_domain_artifacts() {
+  local session_dir="$1"
+  local ddir rid ev_dir
+  for ddir in "$session_dir"/domains/*/; do
+    [[ -d "$ddir" ]] || continue
+    rid=""
+    if [[ -f "$ddir/worker-status.json" ]]; then
+      rid=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("run_id",""))' "$ddir/worker-status.json" 2>/dev/null || true)
+    fi
+    if [[ -n "$rid" ]]; then
+      ev_dir="$EVENTS_DIR/$rid"
+      if [[ -d "$ev_dir/workspace/dogfood-out" ]]; then
+        cp -R "$ev_dir/workspace/dogfood-out/." "$ddir/" 2>/dev/null || true
+      fi
+      if [[ -f "$ev_dir/status.json" ]]; then
+        cp "$ev_dir/status.json" "$ddir/worker-status.json" 2>/dev/null || true
+      fi
+      if [[ ! -s "$ddir/diary.md" && ! -s "$ddir/report.md" && -s "$ev_dir/result.md" ]]; then
+        cp "$ev_dir/result.md" "$ddir/diary.md" 2>/dev/null || true
+      fi
+    fi
+  done
+}
+
+write_metadata() {
+  local session_dir="$1" target_url="$2" repo_sha="$3" domains_csv="$4"
+  SESSION_DIR="$session_dir" TARGET_URL="$target_url" REPO_SHA="$repo_sha" DOMAINS_CSV="$domains_csv" python3 - <<'PY'
+import datetime, json, os
+from pathlib import Path
+
+sdir = Path(os.environ["SESSION_DIR"])
+existing_meta = {}
+if (sdir / "metadata.json").is_file():
+    try:
+        existing_meta = json.loads((sdir / "metadata.json").read_text())
+    except Exception:
+        existing_meta = {}
+
+domains = {}
+for ddir in sorted((sdir / "domains").iterdir()):
+    if not ddir.is_dir():
+        continue
+    st_file = ddir / "worker-status.json"
+    st = json.loads(st_file.read_text()) if st_file.is_file() else {}
+    screenshots = sorted(p.name for p in (ddir / "screenshots").glob("*.png")) if (ddir / "screenshots").is_dir() else []
+    findings_file = ddir / "findings.jsonl"
+    findings_count = 0
+    if findings_file.is_file():
+        findings_count = sum(1 for line in findings_file.read_text().splitlines() if line.strip())
+    diary_exists = (ddir / "diary.md").is_file()
+    report_exists = (ddir / "report.md").is_file()
+    raw_state = st.get("state", "unknown")
+    effective_state = raw_state
+    if raw_state == "running" and (diary_exists or report_exists):
+        effective_state = "completed"
+    domains[ddir.name] = {
+        "run_id": st.get("run_id"),
+        "target": st.get("target"),
+        "state": effective_state,
+        "raw_state": raw_state,
+        "findings_count": findings_count,
+        "diary_exists": diary_exists,
+        "report_exists": report_exists,
+        "screenshot_count": len(screenshots),
+        "screenshots": screenshots,
+    }
+
+req_domains = [d.strip() for d in os.environ["DOMAINS_CSV"].split(",") if d.strip()]
+if not req_domains and existing_meta.get("requested_domains"):
+    req_domains = existing_meta["requested_domains"]
+if not req_domains:
+    req_domains = sorted(domains.keys())
+
+meta = {
+    "session": sdir.name,
+    "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "target_url": os.environ["TARGET_URL"] or existing_meta.get("target_url", "https://wod.wiki"),
+    "wod_wiki_commit": os.environ["REPO_SHA"] or existing_meta.get("wod_wiki_commit", "unknown"),
+    "requested_domains": req_domains,
+    "domains": domains,
+}
+(sdir / "metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
+PY
+}
+
+synthesize_session() {
+  local session_dir="$1" target_url="${2:-}" repo_sha="${3:-}" domains_csv="${4:-}" update_latest="${5:-1}"
+  [[ -d "$session_dir/domains" ]] || { echo "wod-wiki-dogfood: session directory missing domains/: $session_dir" >&2; exit 1; }
+
+  collect_domain_artifacts "$session_dir"
+
+  if [[ -z "$repo_sha" && -f "$session_dir/metadata.json" ]]; then
+    repo_sha=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("wod_wiki_commit",""))' "$session_dir/metadata.json" 2>/dev/null || true)
+  fi
+  if [[ -z "$repo_sha" && -d "$SHARED_REPO_DIR/.git" ]]; then
+    repo_sha=$(git -C "$SHARED_REPO_DIR" rev-parse --short HEAD)
+  fi
+  if [[ -z "$target_url" && -f "$session_dir/metadata.json" ]]; then
+    target_url=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("target_url","https://wod.wiki"))' "$session_dir/metadata.json" 2>/dev/null || true)
+  fi
+  target_url="${target_url:-$TARGET_URL}"
+
+  write_metadata "$session_dir" "$target_url" "$repo_sha" "$domains_csv"
+
+  local known_file="$NFS_DOGFOOD_ROOT/known-issues.json"
+  local synth_prompt="$session_dir/synthesize-prompt.md"
+  local run_stamp
+  run_stamp="$(basename "$session_dir")"
+
+  log "Running Stage 2 planner source triage & delta synthesis for $run_stamp"
+  SESSION_DIR="$session_dir" TARGET_URL="$target_url" REPO_SHA="$repo_sha" RUN_STAMP="$run_stamp" REPO_DIR="$SHARED_REPO_DIR" KNOWN_FILE="$known_file" FOCUS_FILE="$FOCUS_FILE" python3 - "$synth_prompt" <<'PY'
+import json, os, sys
+from pathlib import Path
+
+sdir = Path(os.environ["SESSION_DIR"])
+known_file = Path(os.environ["KNOWN_FILE"])
+repo_dir = os.environ["REPO_DIR"]
+repo_sha = os.environ["REPO_SHA"]
+target_url = os.environ["TARGET_URL"]
+run_stamp = os.environ["RUN_STAMP"]
+
+known_text = known_file.read_text() if known_file.is_file() else '{\n  "issues": []\n}'
+
+parts = [
+    f"You are the Stage 2 Lead Dogfood Triager & Synthesizer on Helios for session `{run_stamp}`.",
+    "",
+    "## Inputs & Paths",
+    f"- **Session directory:** `{sdir}`",
+    f"- **Summary output file (MUST write):** `{sdir}/summary.md`",
+    f"- **Persistent known-issues ledger (MUST write/update):** `{known_file}`",
+    f"- **Checked-out `wod-wiki` source repo (commit `{repo_sha}`):** `{repo_dir}`",
+    f"- **Target URL:** `{target_url}`",
+]
+
+focus_p = Path(os.environ.get("FOCUS_FILE", "")) if os.environ.get("FOCUS_FILE") else None
+if focus_p and focus_p.is_file():
+    ftext = focus_p.read_text(errors="replace").strip()
+    if ftext:
+        parts.extend([
+            "",
+            "## Owner Focus Requests (nightly-focus.md)",
+            "Weight these requests in dedup, triage, and e2e planning — findings that address them outrank generic polish, and the summary must state per entry whether it was addressed.",
+            "",
+            ftext,
+        ])
+
+parts.extend([
+    "",
+    "## Required Steps",
+    "1. Review `metadata.json` and every domain's `findings.jsonl`, `diary.md`, and/or `report.md` included below.",
+    f"2. **Write the consolidated report to `{sdir}/summary.md` EARLY and refine it in place.** The file already exists as a skeleton with sections 1-5; fill/overwrite each section as soon as you know its content (coverage table first, rollup, then findings). Never buffer the finished report only in memory — if this run is killed, the on-disk file must stay useful. Your stdout is buffered and lost on SIGTERM; only files count.",
+    "3. **Deduplicate cross-domain symptoms first** so shared root causes (for example an unbounded `IndexedDBNotePersistence` scan stalling multiple routes, or static-host HTTP 404 deep-link rewrites) become ONE canonical finding referencing all affected domains and screenshots.",
+    f"4. For each unique finding that lacks a verified root cause at `{repo_sha}` (or whose path moved), use `grep`, `find`, and `read` inside `{repo_dir}` to verify the exact file path, symbol, and concrete code fix, and the `wod-wiki` regression test tier (`Tier 1` unit, `Tier 2` component/Storybook, or `Tier 3` `e2e/specs/<domain>/`). Record root causes as TYPED `root_cause` entries `{{file, line, symbol}}` — identity is `file` (+ `symbol` when known); the line number is a non-load-bearing hint only (canonical code:lineHint rule). Map every issue to canonical journey IDs (`JRN-02`, `RUN-01`, ... — read the `# <ID> —` H1 of each spec under `{repo_dir}/e2e/specs/`; for uncovered behavior mint the next free `<AREA>-<NN>` ID in that domain). Never modify `{repo_dir}`.",
+    f"5. **Map every confirmed finding to `wod-wiki` e2e coverage and write `{sdir}/e2e-test-plan.md` (business-aligned, ranked) EARLY and refine in place.** Inspect the existing business-language journeys under `{repo_dir}/e2e/specs/` and the paired `e2e/live-app/*.e2e.ts` names with `grep`/`read`. For each confirmed open finding classify exactly one of:",
+    "   - **Spec Gap** — a journey already exercises this behavior (the bug shipped anyway): name the journey file and propose the added `### Scenario` block in that file's exact Markdown format.",
+    f"   - **New Journey** — no existing coverage: propose a complete Tier 3 journey in the repo's exact format (YAML frontmatter with `domain`, `specFile` -> `e2e/live-app/<journey>.e2e.ts`, `routes`, `personas`, `viewports` incl. mobile-375, `priority`; `# <DOM>-<NN> — <Title>` heading with the next free number in that domain; one-line business context; `### Scenario N` blocks with `Given ...:` + numbered persona steps + `- expect:` lines). Scenarios must be end-user/business language derived from the findings' repro steps — never implementation internals.",
+    "   - **Tier 1/2 instead** — deterministic core/parser/component defect where a Playwright journey is the wrong tool: name the Tier 1 (`packages/*/tests`) or Tier 2 (Storybook `parameters.domainState` + `play()`) target instead.",
+    "   Rank the plan by business impact: Severity, then journey criticality (authoring/publishing/export journeys outrank cosmetic polish), then recurrence across sessions from the ledger. Lead the file with a ranked table (`Rank | WW-NNN | Severity | Business journey at risk | Coverage action | Proposed spec file`).",
+    f"6. Compare confirmed findings against the previous `{known_file}`:",
+    "   - Classify each confirmed finding as **New Regression** (not previously in `known-issues.json` or regressed after `resolved`) or **Known Open Issue** (already tracked).",
+    "   - If a previously `open` issue in `known-issues.json` had its domain tested cleanly in this run and no longer reproduces, mark it `resolved` with `resolved_in_run`.",
+    "   - Write the updated JSON ledger to `" + str(known_file) + "` with schema:",
+    '     CANONICAL SCHEMA v2 (mirrors https://wod.wiki/ontology/qa# — severity is LOWERCASE per qa:issueSeverity SHACL; root_cause is typed; journeys use canonical <AREA>-<NN> IDs):',
+    '     `{"schema": "https://wod.wiki/ontology/qa#v2", "updated_at": "<UTC ISO>", "wod_wiki_commit": "' + repo_sha + '", "latest_session": "' + run_stamp + '", "issues": [{"id": "WW-001", "fingerprint": "<stable-slug>", "title": "...", "kind": "defect|friction|latency|parity|introspection", "severity": "critical|high|medium|low", "category": "...", "status": "open|resolved", "domains": ["..."], "root_cause": [{"file": "path.ts", "line": 42, "symbol": "Symbol"}], "first_seen_run": "<session-id>", "last_seen_run": "<session-id>", "resolved_in_run": "<session-id or omit>", "summary": "...", "coverage": {"journeys": [{"id": "JRN-02", "spec_file": "e2e/specs/journal/daily-note-authoring-and-persistence.md"}], "status": "planned|specified|covered|spec-gap|tier12"}}]}`.',
+    f"7. Write the complete consolidated report directly to `{sdir}/summary.md` (refine the on-disk skeleton in place, keeping every section fully populated) containing:",
+    f"   - `# WOD Wiki Production Dogfood Report — {run_stamp}`",
+    "   - **1. Run Metadata & Fleet Coverage** table (Target URL, `wod-wiki` commit, UTC timestamp, and per-domain worker, status, findings count, screenshot count, and link to `domains/<domain>/diary.md` or `report.md`).",
+    "   - **2. Delta & Severity Rollup** table (counts by `Critical`, `High`, `Medium`, `Low`, plus `New Regressions`, `Known Open`, and `Resolved`).",
+    f"   - **3. Deduplicated Findings (Critical -> Low)** with `[NEW]` or `[KNOWN WW-NNN]` badge, Severity, Kind, Category, Domain(s), URL, reproduction steps, measured probe/latency telemetry, relative screenshot links (`domains/<domain>/screenshots/...`), **Root Cause (`wod-wiki` `{repo_sha}`)** with exact `file:line` + symbol, and **Suggested Fix & Test Tier**.",
+    "   - **4. Friction Diary, Introspection & WebMCP Parity Highlights** (paper cuts, loading/pending UX gaps, `#agent-view-state` / `navigator.modelContext` / `/llms.txt` observations, and untested candidate screenshots from any interrupted domain).",
+    "   - **5. Verified Healthy Journeys** across tested domains.",
+    "8. Ground every claim strictly in the domain artifacts and verified `wod-wiki` source files.",
+    "",
+    "## Previous `known-issues.json`",
+    "```json",
+    known_text.strip(),
+    "```",
+    "",
+    "## Session `metadata.json`",
+    "```json",
+    (sdir / "metadata.json").read_text().strip(),
+    "```",
+])
+
+for ddir in sorted((sdir / "domains").iterdir()):
+    if not ddir.is_dir():
+        continue
+    parts.append(f"\n## Domain `{ddir.name}`")
+    f_jsonl = ddir / "findings.jsonl"
+    if f_jsonl.is_file() and f_jsonl.stat().st_size > 0:
+        parts.extend([f"### `domains/{ddir.name}/findings.jsonl`", "```jsonl", f_jsonl.read_text().strip(), "```"])
+    diary = ddir / "diary.md"
+    if diary.is_file() and diary.stat().st_size > 0:
+        parts.extend([f"### `domains/{ddir.name}/diary.md`", diary.read_text().strip()])
+    rpt = ddir / "report.md"
+    if rpt.is_file() and rpt.stat().st_size > 0:
+        parts.extend([f"### `domains/{ddir.name}/report.md`", rpt.read_text().strip()])
+    if not (f_jsonl.is_file() or diary.is_file() or rpt.is_file()):
+        shots = sorted(p.name for p in (ddir / "screenshots").glob("*.png")) if (ddir / "screenshots").is_dir() else []
+        parts.append(f"No text report written; screenshots on disk ({len(shots)}): {', '.join(shots) if shots else 'none'}")
+
+Path(sys.argv[1]).write_text("\n".join(parts) + "\n")
+PY
+
+  # Write the report skeleton BEFORE the planner runs: pi-planner --print buffers
+  # stdout, so a SIGTERM at timeout leaves 0 bytes. With a skeleton on disk the
+  # worst case is a partially refined report, never a stub.
+  if [[ ! -s "$session_dir/summary.md" ]]; then
+    SESSION_DIR="$session_dir" RUN_STAMP="$run_stamp" TARGET_URL="$target_url" REPO_SHA="$repo_sha" python3 - <<'PY'
+import json, os
+from pathlib import Path
+
+sdir = Path(os.environ["SESSION_DIR"])
+meta = {}
+mf = sdir / "metadata.json"
+if mf.is_file():
+    try:
+        meta = json.loads(mf.read_text())
+    except Exception:
+        meta = {}
+rows = []
+for name, d in sorted((meta.get("domains") or {}).items()):
+    rows.append(
+        f"| {name} | `{d.get('run_id') or '-'}` | {d.get('target') or '-'} | "
+        f"{d.get('state', 'unknown')} | {d.get('findings_count', 0)} | {d.get('screenshot_count', 0)} |"
+    )
+table = "\n".join(rows) or "| (none) | - | - | - | 0 | 0 |"
+sdir.joinpath("summary.md").write_text(
+    f"# WOD Wiki Production Dogfood Report — {os.environ['RUN_STAMP']}\n\n"
+    f"- **Target URL:** {os.environ['TARGET_URL']}\n"
+    f"- **`wod-wiki` commit:** `{os.environ['REPO_SHA']}`\n\n"
+    "## 1. Run Metadata & Fleet Coverage\n\n"
+    "| Domain | Run ID | Target | State | Findings | Screenshots |\n"
+    "|---|---|---|---|---|---|\n"
+    f"{table}\n\n"
+    "## 2. Delta & Severity Rollup\n\n(pending Stage 2 triage)\n\n"
+    "## 3. Deduplicated Findings\n\n(pending Stage 2 triage)\n\n"
+    "## 4. Friction Diary, Introspection & WebMCP Parity Highlights\n\n(pending Stage 2 triage)\n\n"
+    "## 5. Verified Healthy Journeys\n\n(pending Stage 2 triage)\n"
+)
+plan = sdir / "e2e-test-plan.md"
+if not plan.exists() or plan.stat().st_size == 0:
+    plan.write_text(
+        f"# WOD Wiki E2E Coverage Plan — {os.environ['RUN_STAMP']}\n\n"
+        "(pending Stage 2 triage: ranked table of Spec Gaps / New Journeys / "
+        "Tier 1-2 reroutes, one entry per confirmed open finding)\n"
+    )
+PY
+  fi
+
+  rm -f "$session_dir/summary.md.tmp"
+  timeout "$PLANNER_TIMEOUT" "$HOME/.local/bin/pi-planner" \
+    --session "$session_dir/planner-session.jsonl" \
+    --tools read,grep,find,ls,write \
+    --print "$(<"$synth_prompt")" > "$session_dir/planner-output.md" 2> "$session_dir/planner.log" || true
+  rm -f "$synth_prompt"
+
+  if [[ ! -s "$session_dir/summary.md" && -s "$session_dir/planner-output.md" ]]; then
+    cp "$session_dir/planner-output.md" "$session_dir/summary.md"
+  fi
+
+  if grep -q 'pending Stage 2 triage' "$session_dir/e2e-test-plan.md" 2>/dev/null; then
+    log "WARN: planner did not refine e2e-test-plan.md (skeleton only) — run 'wod-wiki-dogfood synthesize $session_dir' with a longer DOGFOOD_PLANNER_TIMEOUT"
+  fi
+
+  if [[ ! -s "$session_dir/summary.md" ]]; then
+    cat > "$session_dir/summary.md" <<EOF
+# WOD Wiki Production Dogfood Report — $run_stamp
+
+- **Target:** $target_url
+- **\`wod-wiki\` commit:** \`$repo_sha\`
+
+Planner synthesis did not write \`summary.md\`; inspect \`metadata.json\`, \`planner.log\`, and \`domains/*/\`.
+EOF
+  fi
+
+  chmod -R a+rX "$session_dir" 2>/dev/null || true
+  [[ -f "$known_file" ]] && chmod 0664 "$known_file" 2>/dev/null || true
+
+  # Point `latest` at this session BEFORE the slow QA-site refresh: if the driver
+  # is killed mid-refresh, `latest` still names the finished session.
+  if [[ "$update_latest" -eq 1 ]]; then
+    ln -sfn "$run_stamp" "$NFS_DOGFOOD_ROOT/latest"
+  fi
+
+  # Refresh the static QA site (timeline / open issues / rendered docs).
+  command -v wod-wiki-qa-site >/dev/null 2>&1 && wod-wiki-qa-site || true
+  log "Published consolidated dogfood report to $session_dir/summary.md"
+  head -n 35 "$session_dir/summary.md" 2>/dev/null || true
+}
+
+subcmd="${1:-}"
+if [[ "$subcmd" == "synthesize" ]]; then
+  shift || true
+  target_session="${1:-$NFS_DOGFOOD_ROOT/latest}"
+  if [[ "$target_session" != /* ]]; then
+    if [[ -d "$NFS_DOGFOOD_ROOT/$target_session" ]]; then
+      target_session="$NFS_DOGFOOD_ROOT/$target_session"
+    else
+      target_session="$(cd "$target_session" && pwd)"
+    fi
+  fi
+  target_session="$(readlink -f "$target_session")"
+  umask 0002
+  synthesize_session "$target_session" "" "" "" 1
+  exit 0
+fi
+
+smoke_mode=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --url) TARGET_URL="${2:?}"; shift 2 ;;
+    --domains) DOMAINS_CSV="${2:?}"; DOGFOOD_DOMAINS_OVERRIDE="${2:?}"; shift 2 ;;
+    --label) SESSION_LABEL="${2:?}"; shift 2 ;;
+    --timeout) JOB_TIMEOUT="${2:?}"; shift 2 ;;
+    --max-parallel) MAX_PARALLEL="${2:?}"; shift 2 ;;
+    --smoke) smoke_mode=1; SESSION_LABEL="smoke"; DOMAINS_CSV="${DOGFOOD_DOMAINS_OVERRIDE:-journal,analytics}"; JOB_TIMEOUT=1800; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "wod-wiki-dogfood: unknown argument: $1" >&2; usage >&2; exit 1 ;;
+  esac
+done
+
+umask 0002
+run_stamp="$(date -u +%Y-%m-%d)-${SESSION_LABEL}-$(date -u +%H%M%S)"
+session_dir="$NFS_DOGFOOD_ROOT/$run_stamp"
+mkdir -p "$session_dir/domains"
+chmod 0777 "$NFS_DOGFOOD_ROOT" "$session_dir" "$session_dir/domains" 2>/dev/null || true
+
+repo_sha="$(refresh_repo)"
+log "Checked out wod-wiki commit $repo_sha"
+
+# Probe healthy workers: assign at most 1 browser job per SBC per wave, overflow to Docker.
+sbc_targets=()
+ssh_opts=(-o BatchMode=yes -o ConnectTimeout=5 -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -i "$SSH_KEY")
+for sbc in "belter-2:itsme@10.1.0.32" "belter-1:itsme@10.1.0.31"; do
+  name="${sbc%%:*}"
+  addr="${sbc#*:}"
+  if [[ -r "$SSH_KEY" ]] && ssh "${ssh_opts[@]}" "$addr" 'command -v playwright-cli >/dev/null 2>&1 && test -d /srv/nfs/helios' >/dev/null 2>&1; then
+    sbc_targets+=("$name")
+  fi
+done
+if command -v playwright-cli >/dev/null 2>&1; then
+  sbc_targets+=("helios")
+fi
+
+IFS=',' read -r -a raw_domains <<< "$DOMAINS_CSV"
+domains=()
+for d in "${raw_domains[@]}"; do
+  d="$(printf '%s' "$d" | tr -d '[:space:]')"
+  [[ -n "$d" ]] || continue
+  case "$d" in
+    journal|notebooks|runtime|properties|analytics|feeds) domains+=("$d") ;;
+    *) echo "wod-wiki-dogfood: invalid domain '$d'" >&2; exit 1 ;;
+  esac
+done
+[[ ${#domains[@]} -gt 0 ]] || { echo "wod-wiki-dogfood: no domains selected" >&2; exit 1; }
+
+known_file="$NFS_DOGFOOD_ROOT/known-issues.json"
+total="${#domains[@]}"
+offset=0
+wave=0
+
+while [[ "$offset" -lt "$total" ]]; do
+  wave=$(( wave + 1 ))
+  wave_domains=("${domains[@]:$offset:$MAX_PARALLEL}")
+  offset=$(( offset + ${#wave_domains[@]} ))
+
+  wave_targets=("${sbc_targets[@]}")
+  while [[ ${#wave_targets[@]} -lt ${#wave_domains[@]} ]]; do
+    wave_targets+=("docker")
+  done
+
+  log "Starting wave $wave (${#wave_domains[@]} domains: ${wave_domains[*]}) across pool: ${wave_targets[*]:0:${#wave_domains[@]}}"
+  wave_run_ids=()
+  wave_docker_ids=()
+  declare -A domain_for_run=()
+
+  for i in "${!wave_domains[@]}"; do
+    domain="${wave_domains[$i]}"
+    target="${wave_targets[$i]}"
+
+    domain_dir="$session_dir/domains/$domain"
+    mkdir -p "$domain_dir/screenshots"
+    chmod -R 0777 "$domain_dir" 2>/dev/null || true
+
+    if [[ "$target" == "docker" ]]; then
+      out_hint="/workspace/dogfood-out"
+      agent_hint="/shared-agent"
+      repo_hint="/shared-repos/wod-wiki"
+    else
+      out_hint="$domain_dir"
+      agent_hint="$SHARED_AGENT_DIR"
+      repo_hint="$SHARED_REPO_DIR"
+    fi
+
+    known_snippet=$(KNOWN_FILE="$known_file" DOMAIN="$domain" python3 - <<'PY'
+import json, os
+from pathlib import Path
+
+p = Path(os.environ["KNOWN_FILE"])
+dom = os.environ["DOMAIN"]
+if not p.is_file():
+    print("None recorded yet.")
+    raise SystemExit(0)
+try:
+    issues = json.loads(p.read_text()).get("issues", [])
+except Exception:
+    print("None recorded yet.")
+    raise SystemExit(0)
+relevant = [
+    it for it in issues
+    if it.get("status", "open") == "open" and (dom in it.get("domains", []) or len(it.get("domains", [])) >= 2)
+]
+if not relevant:
+    print("None open for this domain.")
+else:
+    for it in relevant[:12]:
+        short_sum = (it.get('summary', '') or '')[:260]
+        print(f"- [{it.get('id','WW-?')}] ({it.get('severity','?')}) {it.get('title','')}: {short_sum}")
+PY
+)
+
+    # Owner focus requests (nightly-focus.md) — entries tagged for this domain or [any].
+    focus_snippet=$(FOCUS_FILE="$FOCUS_FILE" DOMAIN="$domain" python3 - <<'PY'
+import os, re
+from pathlib import Path
+
+p = Path(os.environ["FOCUS_FILE"])
+dom = os.environ["DOMAIN"]
+out = []
+if p.is_file():
+    for line in p.read_text(errors="replace").splitlines():
+        m = re.match(r"^\s*-\s*\[([a-z|]+)\]\s+(\d{4}-\d{2}-\d{2}):\s+(.*)$", line)
+        if not m:
+            continue
+        tags = [t.strip() for t in m.group(1).split("|")]
+        if "any" in tags or dom in tags:
+            out.append(f"- [{m.group(2)}] {m.group(3)}")
+print("\n".join(out))
+PY
+)
+    focus_section=""
+    if [[ -n "$focus_snippet" ]]; then
+      focus_section=$(printf '## Special Focus Requests (owner, via nightly-focus.md)\n%s\n\nGive these priority during your mission: verify, measure, and log findings for them before general exploration. Reference them in diary.md.' "$focus_snippet")
+    fi
+
+    depth_instruction="Execute the full persona mission and introspection checks for \`$domain\` on desktop (\`1280x900\`) and mobile (\`375x812\`). Carry realistic user data across steps, measure cold-load and async-button latencies, check WebMCP parity, and verify reproducibility before logging."
+    if [[ "$smoke_mode" -eq 1 ]]; then
+      depth_instruction="SMOKE MODE: Execute step 1 and one interactive workflow from the \`$domain\` persona mission on desktop (\`1280x900\`) plus one quick \`375x812\` overflow/probe check, run \`wod-probe.js\`, log any confirmed finding via \`record-finding.py\`, write \`diary.md\`, and close \`playwright-cli\` promptly."
+    fi
+
+    prompt_file="$domain_dir/prompt.md"
+    cat > "$prompt_file" <<EOF
+You are the Stage 1 **$domain** Persona & Introspection Dogfood Explorer for WOD Wiki.
+
+- **Target URL:** $TARGET_URL
+- **Assigned domain:** \`$domain\`
+- **Execution target:** \`$target\`
+- **Output directory:** \`$out_hint\` (\`findings.jsonl\`, \`diary.md\`, and \`screenshots/\`)
+- **Introspection probe:** \`$agent_hint/skills/wod-wiki-dogfood/scripts/wod-probe.js\`
+- **Finding logger:** \`$agent_hint/skills/wod-wiki-dogfood/scripts/record-finding.py\`
+- **Reference journey specs (optional lookup only):** \`$repo_hint/e2e/specs/$domain/\`
+
+## Known Open Issues in \`$domain\`
+$known_snippet
+*(Explicitly retest each Known Open Issue listed above during your mission: if it still reproduces, log it once via \`record-finding.py\`; if it is now FIXED, record \`[RESOLVED WW-NNN]\` with concrete proof in \`diary.md\` under Verified Healthy Journeys, then spend the rest of your budget exploring deeper flows for new regressions or friction. Note: GitHub Pages HTTP 404 status on deep-link \`404.html\` fallback is accepted platform behavior; only flag \`WW-002\` if \`404.html\` lacks Open Graph/Twitter preview metadata or fails to restore the SPA route. Leave source-code \`file:line\` grepping to the Stage 2 Helios planner.)*
+$focus_section
+
+## Procedure (TIME-BOXED — a diary must survive even if your mission is cut short)
+
+1. Read your \`$domain\` persona mission in \`$agent_hint/skills/wod-wiki-dogfood/references/domains.md\` and severity/kind rules in \`$agent_hint/skills/hermes-dogfood/references/issue-taxonomy.md\`.
+2. Prepare output directories and open an isolated headless Chromium session:
+   \`\`\`bash
+   mkdir -p "$out_hint/screenshots"
+   cp "$agent_hint/skills/wod-wiki-dogfood/scripts/wod-probe.js" "$out_hint/probe.js"
+   SESSION="ww-${domain}-\$\$"
+   playwright-cli -s="\$SESSION" open "$TARGET_URL"
+   playwright-cli -s="\$SESSION" resize 1280 900
+   \`\`\`
+3. **Write the diary skeleton IMMEDIATELY** to \`$out_hint/diary.md\` (title, target URL, a \`## Known Issue Retests\` checklist with one unchecked line per known-issue ID above, plus empty \`## Findings\`, \`## Verified Healthy Journeys\`, \`## Coverage Boundaries\` sections, per \`$agent_hint/skills/hermes-dogfood/templates/dogfood-report-template.md\`). Append to it after EVERY journey — a kill must cost at most your last journey, never the whole document.
+4. **Retests first, hard 5-minute budget.** Before any new exploration, retest each Known Open Issue from the checklist above: one probe/click + one screenshot each. If it still reproduces, log it once via \`record-finding.py\`; if it is now FIXED, mark \`[RESOLVED WW-NNN]\` in the checklist with concrete proof. Check each line off as you go.
+5. Run white-box introspection after cold boot and key transitions:
+   \`\`\`bash
+   playwright-cli -s="\$SESSION" --raw eval "\$(cat "$out_hint/probe.js")"
+   playwright-cli -s="\$SESSION" console warning
+   playwright-cli -s="\$SESSION" requests
+   \`\`\`
+   Wait for gate flips in ONE bash call — poll inside a single command (e.g. \`for i in \$(seq 1 30); do playwright-cli -s="\$SESSION" --raw eval 'document.querySelector("[data-agent-status]").getAttribute("data-agent-status")' 2>/dev/null; sleep 2; done | tail -1\`), never one tool call per sample.
+6. $depth_instruction
+7. **Stream every finding immediately** when confirmed (never wait until the end of the session):
+   - Capture \`$out_hint/screenshots/issue-NN-<slug>.png\`.
+   - Call \`python3 "$agent_hint/skills/wod-wiki-dogfood/scripts/record-finding.py" --out-dir "$out_hint" --domain "$domain" --kind <defect|friction|latency|parity|introspection> --severity <critical|high|medium|low> --category <Category> --title "..." --url "..." --expected "..." --actual "..." --steps "step 1; step 2" --screenshot "screenshots/issue-NN-<slug>.png" --probe "..." --ui-clue "..." --journey <JRN-01|NBK-01|RUN-01|PRP-01|ANL-04|FED-01|...> --beat <Seed|Enter|Sense|Drive|Prove>\` (canonical ontology vocabulary: severity is lowercase; journey IDs come from the mission header in domains.md; beat = which of the 5 phases observed it).
+8. **Minute-15 checkpoint:** by minute ~15 you must already be writing \`diary.md\`. If time runs short, fill in \`## Findings\`, \`## Verified Healthy Journeys\`, and \`## Coverage Boundaries\` and close the browser INSTEAD of starting another journey.
+9. Always close your browser before exiting: \`playwright-cli -s="\$SESSION" close\`.
+EOF
+
+    log "Dispatching domain '$domain' -> target '$target' (wave $wave)"
+    if [[ "$target" == "docker" ]]; then
+      ctx_dir=$(mktemp -d)
+      mkdir -p "$ctx_dir/scripts"
+      cat > "$ctx_dir/scripts/10-prepare-dogfood.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p /workspace/dogfood-out/screenshots
+SH
+      chmod 0755 "$ctx_dir/scripts/10-prepare-dogfood.sh"
+      rid=$(solar-dispatch run --target docker --role worker --name "df-${domain}" \
+        --constraint "node.role==manager" \
+        --no-repo --context-dir "$ctx_dir" \
+        --prompt-file "$prompt_file" --bg)
+      rm -rf "$ctx_dir"
+      wave_docker_ids+=("$rid")
+    else
+      rid=$(solar-dispatch run --target "$target" --role worker --name "df-${domain}" \
+        --prompt-file "$prompt_file" --bg)
+    fi
+    cp "$EVENTS_DIR/$rid/status.json" "$domain_dir/worker-status.json" 2>/dev/null || true
+    wave_run_ids+=("$rid")
+    domain_for_run["$rid"]="$domain"
+  done
+
+  log "Waiting for wave $wave (${#wave_run_ids[@]} workers, timeout ${JOB_TIMEOUT}s): ${wave_run_ids[*]}"
+  solar-dispatch wait "${wave_run_ids[@]}" --timeout "$JOB_TIMEOUT" || log "WARN: wave $wave hit timeout or non-zero exit; harvesting streamed findings"
+
+  collect_domain_artifacts "$session_dir"
+  solar-dispatch clean "${wave_run_ids[@]}" || true
+  if [[ "$(hostname)" == "helios" ]]; then
+    playwright-cli close-all >/dev/null 2>&1 || pkill -f 'playwright-core/lib/entry/cliDaemon.js ww-' >/dev/null 2>&1 || true
+  fi
+  collect_domain_artifacts "$session_dir"
+done
+
+synthesize_session "$session_dir" "$TARGET_URL" "$repo_sha" "$DOMAINS_CSV" 1
