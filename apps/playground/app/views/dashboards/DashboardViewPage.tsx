@@ -82,8 +82,10 @@ export function DashboardViewPage() {
   const navigate = useNavigate();
   const [weeks] = useAnalyticsRange();
   const { unit: preferredUnit } = useAnalyticsUnitPreference();
-  const rangeStart = Date.now() - weeks * 7 * 86400000;
-  const rangeEnd = Date.now();
+  const { rangeStart, rangeEnd } = useMemo(() => {
+    const now = Date.now();
+    return { rangeStart: now - weeks * 7 * 86400000, rangeEnd: now };
+  }, [weeks]);
 
   // refreshKey forces re-resolution after a clone or an edit write-back.
   const [refreshKey, setRefreshKey] = useState(0);
