@@ -25,7 +25,7 @@ function isLandingNote(note: Note): boolean {
   return note.id.startsWith('notebook/') && note.notebookId === note.id;
 }
 
-const noteListInputSchema = z.object({
+const noteListInputSchema = z.strictObject({
   notebookId: z
     .string()
     .optional()
@@ -56,24 +56,33 @@ export const wodNoteListTool = defineAgentTool({
   inputSchema: noteListInputSchema,
   cliEquivalent: 'wod note list --json',
   async execute(args, ctx) {
-    const allNotes = await ctx.storage.readonly('notes').getAll();
     const targetNb = args.notebookId ? toNotebookId(args.notebookId) : undefined;
     const includeSeed = args.includeSeed ?? Boolean(targetNb);
     const searchLower = args.search?.trim().toLowerCase();
     const tagLower = args.tag?.trim().toLowerCase();
     const limit = args.limit ?? 50;
 
-    let linkedNoteIdsForNb: Set<string> | undefined;
-    if (targetNb) {
-      try {
-        const links = await ctx.storage.readonly('notebook_links').getAllFromIndex('by-notebook', targetNb);
-        linkedNoteIdsForNb = new Set(
-          links.filter((l) => l.targetKind === 'note').map((l) => l.noteId),
-        );
-      } catch {
-        linkedNoteIdsForNb = new Set();
-      }
-    }
+    // WW-082: Read notes and notebook_links in one readonly snapshot transaction
+    // so list results never skew against concurrent seed/feed import churn.
+    const { allNotes, linkedNoteIdsForNb } = await ctx.storage.transaction(
+      ['notes', 'notebook_links'],
+      'readonly',
+      async (tx) => {
+        const notes = await tx.readonly('notes').getAll();
+        let linkedIds: Set<string> | undefined;
+        if (targetNb) {
+          try {
+            const links = await tx.readonly('notebook_links').getAllFromIndex('by-notebook', targetNb);
+            linkedIds = new Set(
+              links.filter((l) => l.targetKind === 'note').map((l) => l.noteId),
+            );
+          } catch {
+            linkedIds = new Set();
+          }
+        }
+        return { allNotes: notes, linkedNoteIdsForNb: linkedIds };
+      },
+    );
 
     const filtered = allNotes
       .filter((n) => {
@@ -123,7 +132,7 @@ export const wodNoteListTool = defineAgentTool({
   },
 });
 
-const noteGetInputSchema = z.object({
+const noteGetInputSchema = z.strictObject({
   noteId: z.string().min(1).describe('Unique Note ID (UUID or seed route ID).'),
 });
 
@@ -212,7 +221,7 @@ export const wodNoteGetTool = defineAgentTool({
   },
 });
 
-const noteUpsertInputSchema = z.object({
+const noteUpsertInputSchema = z.strictObject({
   noteId: z.string().optional().describe('Existing Note ID to update, or omit to create a new Note.'),
   title: z.string().optional().describe('Note title (defaults to # H1 heading in content).'),
   content: z
@@ -289,7 +298,7 @@ export const wodNoteUpsertTool = defineAgentTool({
   },
 });
 
-const noteCloneInputSchema = z.object({
+const noteCloneInputSchema = z.strictObject({
   sourceNoteId: z.string().min(1).describe('Source Note ID (including read-only Seed/Feed Notes) to clone.'),
   targetNotebookId: z
     .string()
@@ -369,7 +378,7 @@ export const wodNoteCloneTool = defineAgentTool({
   },
 });
 
-const noteDeleteInputSchema = z.object({
+const noteDeleteInputSchema = z.strictObject({
   noteId: z.string().min(1).describe('ID of the Note to delete.'),
   confirmId: z
     .string()

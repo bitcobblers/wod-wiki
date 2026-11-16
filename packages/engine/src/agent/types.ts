@@ -45,12 +45,23 @@ export class AgentConfirmationRequiredError extends Error {
   }
 }
 
+export interface AgentFeedLifecycleAdapter {
+  subscribe?: (
+    sourceId: string,
+    options?: { notebookIds?: string[]; url?: string; name?: string },
+  ) => Promise<{ sourceId: string; subscribed: boolean; notebookIds?: string[] | null; synced?: boolean }>;
+  unsubscribe?: (sourceId: string) => Promise<{ sourceId: string; unsubscribed: boolean; deletedNotes: number }>;
+  delete?: (sourceId: string) => Promise<{ sourceId: string; deleted: boolean; deletedNotes: number }>;
+}
+
 export interface AgentDomainContext {
   storage: IStorage;
   /** Base origin for canonical deep links (e.g. https://wod.wiki or http://127.0.0.1:3000). */
   baseUrl?: string;
   /** Optional feed tree for `wod_feed_manage` (`publish` / `status` on server or CLI). */
   feedTree?: FeedTree;
+  /** Optional runtime-specific feed subscription/source adapter (e.g. Playground WebMCP). */
+  feedLifecycle?: AgentFeedLifecycleAdapter;
   /** Surface-specific Tier 2 gate (Radix modal in WebMCP, elicitation in MCP, --yes in CLI). */
   confirmDestructive?: (req: AgentConfirmationRequest) => Promise<boolean>;
   /** Optional hook run after writes (e.g. cache invalidation in Playground, domain refresh in SQL). */

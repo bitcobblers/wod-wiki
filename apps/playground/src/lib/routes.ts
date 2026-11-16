@@ -75,6 +75,14 @@ export const ROUTE_PATTERNS = {
   settingsSystem: '/settings/system',
   settingsTags: '/settings/tags',
   settingsSoundProfiles: '/settings/sound-profiles',
+} as const;
+
+/**
+ * Retired route patterns retained solely for `<Navigate>` redirects in `App.tsx`.
+ * Excluded from `ROUTE_PATTERNS` so discovery manifests (`llms.txt`) only
+ * advertise canonical live routes.
+ */
+export const LEGACY_REDIRECT_PATTERNS = {
   settingsData: '/settings/data',
   settingsDatabase: '/settings/database',
   settingsQueries: '/settings/queries',

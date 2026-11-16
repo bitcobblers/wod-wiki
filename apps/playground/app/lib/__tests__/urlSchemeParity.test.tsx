@@ -9,10 +9,12 @@
  *     (`wodwiki.routeWql.v1/catalogs`) resolve on `/notebooks` and clear cleanly.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { cleanup, render, renderHook, screen } from '@testing-library/react'
 import { MemoryRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { DocumentTitleSync } from '../DocumentTitleSync'
-import { ROUTE_PATTERNS } from '../routes'
+import { LEGACY_REDIRECT_PATTERNS, ROUTE_PATTERNS } from '../routes'
 import { PlanRedirect, ReviewRedirect, SegmentsRedirect, TrackerRedirect } from '../routeRedirects'
 import { NotFoundPage } from '../../pages/NotFoundPage'
 import {
@@ -89,12 +91,12 @@ function renderAppRouteTable(initialPath: string) {
         <Route path="/settings" element={<Navigate to="/settings/appearance" replace />} />
         <Route path="/settings/appearance" element={<MatchedSurface pattern="/settings/appearance" />} />
         <Route path={ROUTE_PATTERNS.settingsProfile} element={<MatchedSurface pattern={ROUTE_PATTERNS.settingsProfile} />} />
-        <Route path={ROUTE_PATTERNS.settingsData} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
-        <Route path={ROUTE_PATTERNS.settingsDatabase} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
+        <Route path={LEGACY_REDIRECT_PATTERNS.settingsData} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
+        <Route path={LEGACY_REDIRECT_PATTERNS.settingsDatabase} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
         <Route path={ROUTE_PATTERNS.settingsStorage} element={<MatchedSurface pattern={ROUTE_PATTERNS.settingsStorage} />} />
         <Route path={ROUTE_PATTERNS.settingsSync} element={<MatchedSurface pattern={ROUTE_PATTERNS.settingsSync} />} />
         <Route path="/settings/system" element={<MatchedSurface pattern="/settings/system" />} />
-        <Route path={ROUTE_PATTERNS.settingsQueries} element={<Navigate to={ROUTE_PATTERNS.journal} replace />} />
+        <Route path={LEGACY_REDIRECT_PATTERNS.settingsQueries} element={<Navigate to={ROUTE_PATTERNS.journal} replace />} />
         <Route path={ROUTE_PATTERNS.settingsTags} element={<MatchedSurface pattern={ROUTE_PATTERNS.settingsTags} />} />
         <Route path={ROUTE_PATTERNS.settingsSoundProfiles} element={<MatchedSurface pattern={ROUTE_PATTERNS.settingsSoundProfiles} />} />
         <Route path="/settings/library/calcs" element={<MatchedSurface pattern="/settings/library/calcs" />} />
@@ -139,6 +141,7 @@ function renderAppRouteTable(initialPath: string) {
         <Route path={ROUTE_PATTERNS.tag} element={<MatchedSurface pattern={ROUTE_PATTERNS.tag} />} />
         <Route path={ROUTE_PATTERNS.dashboards} element={<MatchedSurface pattern={ROUTE_PATTERNS.dashboards} />} />
         <Route path={ROUTE_PATTERNS.dashboardView} element={<MatchedSurface pattern={ROUTE_PATTERNS.dashboardView} />} />
+        <Route path={ROUTE_PATTERNS.aiFirst} element={<MatchedSurface pattern={ROUTE_PATTERNS.aiFirst} />} />
       </Routes>
       <DocumentTitleSync />
     </MemoryRouter>,
@@ -221,5 +224,32 @@ describe('URL scheme parity — /catalogs -> /notebooks localStorage migrations'
     await clearRouteWqlConfig('/notebooks')
     expect(window.localStorage.getItem('wodwiki.routeWql.v1/catalogs')).toBeNull()
     expect(readRouteWqlConfig('/notebooks')).toEqual({})
+  })
+})
+
+describe('URL scheme parity — llms.txt advertised routes resolve without redirect', () => {
+  it('excludes retired redirect patterns from llms.txt and resolves every advertised route', () => {
+    const llmsPath = join(import.meta.dir, '..', '..', '..', 'public', 'llms.txt')
+    const llmsTxt = readFileSync(llmsPath, 'utf8')
+
+    for (const legacyPath of Object.values(LEGACY_REDIRECT_PATTERNS)) {
+      expect(llmsTxt).not.toContain(`\`${legacyPath}\``)
+    }
+
+    const section = llmsTxt.split('## Canonical Application Routes')[1] ?? ''
+    const patterns = Array.from(section.matchAll(/^- `([^`]+)`/gm)).map((m) => m[1])
+    expect(patterns.length).toBeGreaterThan(0)
+
+    for (const pattern of patterns) {
+      const samplePath = pattern.replace(/:([a-zA-Z0-9_]+)/g, (_, name: string) =>
+        name === 'date' || name === 'itemDate' ? '2099-12-31' : `sample-${name}`,
+      )
+      renderAppRouteTable(samplePath)
+      expect(screen.getByTestId('matched-route')).toBeDefined()
+      if (pattern !== '/plan' && pattern !== '/tracker/:runtimeId' && pattern !== '/settings') {
+        expect(observedPathname).toBe(samplePath)
+      }
+      cleanup()
+    }
   })
 })

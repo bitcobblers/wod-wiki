@@ -4,14 +4,14 @@ import {
   type AgentUiToolManifestEntry,
 } from '@bitcobblers/wod-wiki-engine/agent';
 
-export const uiGetViewContextSchema = z.object({
+export const uiGetViewContextSchema = z.strictObject({
   includeSampleEntries: z
     .boolean()
     .optional()
     .describe('Include up to 50 unbatched stream entries when on a stream route (default true).'),
 });
 
-export const uiNavigateSchema = z.object({
+export const uiNavigateSchema = z.strictObject({
   path: z
     .string()
     .min(1)
@@ -21,13 +21,13 @@ export const uiNavigateSchema = z.object({
   replace: z.boolean().optional().describe('Replace current history entry instead of pushing.'),
 });
 
-export const uiCastControlSchema = z.object({
+export const uiCastControlSchema = z.strictObject({
   action: z
     .enum(['status', 'disconnect'])
     .describe('Inspect active Chromecast/receiver session status or disconnect an active session.'),
 });
 
-export const uiSetStreamQuerySchema = z.object({
+export const uiSetStreamQuerySchema = z.strictObject({
   query: z
     .string()
     .optional()
@@ -47,7 +47,7 @@ export const uiSetStreamQuerySchema = z.object({
     .describe('Undo custom stream filter and restore the route default WQL query.'),
 });
 
-export const uiEditorDraftSchema = z.object({
+export const uiEditorDraftSchema = z.strictObject({
   operation: z
     .enum(['read', 'replace', 'append', 'undo'])
     .describe('Read live editor buffer, replace document content, append Markdown/workout block, or undo last edit.'),
@@ -61,7 +61,7 @@ export const uiEditorDraftSchema = z.object({
     .describe('Flush and persist the draft to storage immediately after applying the edit (default false).'),
 });
 
-export const uiStartLiveWorkoutSchema = z.object({
+export const uiStartLiveWorkoutSchema = z.strictObject({
   blockId: z
     .string()
     .optional()
@@ -72,7 +72,7 @@ export const uiStartLiveWorkoutSchema = z.object({
     .describe('Automatically start the timer after mounting the workout clock (default true).'),
 });
 
-export const uiClockControlSchema = z.object({
+export const uiClockControlSchema = z.strictObject({
   command: z
     .enum([
       'next',
@@ -106,7 +106,7 @@ export const uiClockControlSchema = z.object({
   index: z.number().int().min(0).optional().describe('Zero-based alternative index for choice-select.'),
 });
 
-export const uiPreferencesSchema = z.object({
+export const uiPreferencesSchema = z.strictObject({
   action: z
     .enum(['get', 'set'])
     .describe('Read current Playground UI preferences ("get") or update preferences ("set").'),
@@ -136,7 +136,7 @@ export const uiPreferencesSchema = z.object({
     .describe('Open or close the secondary L3 context drawer on mobile/tablet.'),
 });
 
-export const uiSetExplorerQuerySchema = z.object({
+export const uiSetExplorerQuerySchema = z.strictObject({
   query: z
     .string()
     .optional()

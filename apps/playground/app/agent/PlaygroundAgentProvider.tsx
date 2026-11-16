@@ -23,6 +23,12 @@ import {
   sharedCastSessionManager,
 } from '@/hooks/useCastSignaling';
 import { invalidateSeedContent } from '@/services/content/seedContent';
+import { setFeedSubscribed, setNotebookSubscribed } from '@/services/feed/feedSubscriptions';
+import {
+  deleteFeedSource,
+  syncFeedSource,
+  unsubscribeFeedSource,
+} from '@/services/feed/feedSync';
 import { useFeedImportPending, useFeedReadiness } from '@/services/feed/feedReadiness';
 import { refreshPageSources } from '@/services/queryService';
 import { storageService } from '@/services/storage';
@@ -197,6 +203,33 @@ const DomainWebMcpToolRegistration: React.FC<{ spec: AnyAgentToolSpec }> = ({ sp
       const ctx: AgentDomainContext = {
         storage: storageService.storage,
         baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
+        feedLifecycle: {
+          subscribe: async (sourceId, opts) => {
+            setFeedSubscribed(sourceId, true);
+            if (opts?.notebookIds?.length) {
+              for (const nbId of opts.notebookIds) {
+                setNotebookSubscribed(sourceId, nbId, true);
+              }
+            }
+            const outcome = await syncFeedSource(sourceId, {
+              notebookIds: opts?.notebookIds,
+            });
+            return {
+              sourceId,
+              subscribed: true,
+              notebookIds: opts?.notebookIds ?? null,
+              synced: outcome.status !== 'error',
+            };
+          },
+          unsubscribe: async (sourceId) => {
+            const { deleted } = await unsubscribeFeedSource(sourceId);
+            return { sourceId, unsubscribed: true, deletedNotes: deleted };
+          },
+          delete: async (sourceId) => {
+            const { deleted } = await deleteFeedSource(sourceId);
+            return { sourceId, deleted: true, deletedNotes: deleted };
+          },
+        },
         confirmDestructive: (req) => requestAgentConfirmation(req, options),
         onMutated: async () => {
           invalidateSeedContent();

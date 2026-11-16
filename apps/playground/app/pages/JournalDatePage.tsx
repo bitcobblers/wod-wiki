@@ -18,6 +18,10 @@ import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { Button } from '@/components/atoms/primitives/button'
 import { sessionQueryInsert, sessionQueryWql } from '@bitcobblers/wod-wiki-ui/extensions';
 import { useNotePageNav, wirePageIndexLinks, type NoteHelpfulAction } from './shared/useNotePageNav';
+import { buildNoteHelpfulActionsForEntry, useNoteActions } from './shared/useNoteActions';
+import { NoteCardActions } from './shared/NoteCardActions';
+import { PublicationPill } from '@/components/molecules/PublicationPill';
+import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 import { canGoBack, extractPageIndex, mapIndexToL3, appendTimerBlock } from './shared/pageUtils';
 import type { NavItemL3 } from '../nav/navTypes';
 import { useNav } from '../nav/NavContext';
@@ -233,6 +237,59 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   }), []);
   const singleNote = notes !== null && notes.length === 1 ? notes[0] : null;
   const results = singleNote ? resultsByNote[singleNote.id] : undefined;
+  const [actionTargetNote, setActionTargetNote] = useState<HistoryRecord | null>(null);
+  const contentProvider = useMemo(() => new IndexedDBContentProvider(), []);
+  const activeActionNote = singleNote ?? actionTargetNote;
+
+  const noteActions = useNoteActions({
+    entry: activeActionNote,
+    isReadOnly: false,
+    deleteRedirectTo: dayPath(journalDate),
+    provider: contentProvider,
+    onMutateContent: (note, nextContent) => handleNoteContentChange(note.id, nextContent),
+    onUpdated: () => {
+      journalNotes.listByDate(journalDate).then(setNotes).catch(() => {});
+    },
+    onDeleted: (deletedId) => {
+      setActionTargetNote(null);
+      setNotes((prev) => (prev ? prev.filter((n) => n.id !== deletedId) : prev));
+    },
+  });
+
+  const buildCardActions = useCallback(
+    (note: HistoryRecord): NoteHelpfulAction[] =>
+      buildNoteHelpfulActionsForEntry({
+        entry: note,
+        liveContent: note.rawContent,
+        isReadOnly: false,
+        copied: noteActions.copied && activeActionNote?.id === note.id,
+        deletingNote: noteActions.deletingNote && activeActionNote?.id === note.id,
+        onMutateContent: (target, nextContent) => handleNoteContentChange(target.id, nextContent),
+        onOpenPromotion: (target) => {
+          setActionTargetNote(target);
+          noteActions.setPromotionOpen(true);
+        },
+        onOpenPlacement: (target, mode) => {
+          setActionTargetNote(target);
+          noteActions.setPlacement(mode);
+        },
+        onCopyLink: (target) => {
+          setActionTargetNote(target);
+          noteActions.handleCopyLink(target);
+        },
+        onRequestDelete: (target) => {
+          setActionTargetNote(target);
+          noteActions.setConfirmDeleteOpen(true);
+        },
+        provider: contentProvider,
+      }),
+    [
+      activeActionNote?.id,
+      contentProvider,
+      handleNoteContentChange,
+      noteActions,
+    ],
+  );
 
   const startOutlineRun = useCallback(async (noteId: string, block: ScriptBlock) => {
     try {
@@ -248,24 +305,13 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (singleNote) void startOutlineRun(singleNote.id, block);
   }, [singleNote, startOutlineRun]);
 
-  const singleHelpfulActions = useMemo<NoteHelpfulAction[]>(() => {
-    if (!singleNote) return [];
-    return [
-      {
-        id: 'add-timer',
-        label: 'Add timer',
-        onRun: () => handleNoteContentChange(singleNote.id, appendTimerBlock(singleNote.rawContent)),
-      },
-    ];
-  }, [singleNote, handleNoteContentChange]);
-
   useNotePageNav({
     content: singleNote?.rawContent ?? '',
     scriptBlocks: singleNote ? (blocksByNote[singleNote.id] ?? []) : [],
     onStartWorkout: handleOutlineRun,
     results,
     noteId: singleNote?.id,
-    helpfulActions: singleHelpfulActions,
+    helpfulActions: singleNote ? noteActions.helpfulActions : [],
     enabled: Boolean(singleNote),
   });
 
@@ -414,7 +460,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
             </div>
           ) : notes.length === 1 ? (
             <div className="space-y-2">
-              <div className="flex items-center justify-between border-b border-border/40 pb-2">
+              <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
                 <Link
                   to={notePath(notes[0].id)}
                   className="text-sm font-semibold hover:underline text-foreground"
@@ -422,6 +468,28 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
                 >
                   {notes[0].title || 'Untitled note'}
                 </Link>
+                <div className="flex items-center gap-2">
+                  <PublicationPill
+                    noteId={notes[0].id}
+                    notebookId={notes[0].notebookId}
+                    sessions={resultsByNote[notes[0].id]}
+                    isReadOnlyFeedNote={false}
+                    open={noteActions.promotionOpen && activeActionNote?.id === notes[0].id}
+                    onOpenChange={(open) => {
+                      if (open) setActionTargetNote(notes[0]);
+                      noteActions.setPromotionOpen(open);
+                    }}
+                    onCloneRequest={() => {
+                      setActionTargetNote(notes[0]);
+                      noteActions.setPlacement('clone');
+                    }}
+                  />
+                  <NoteCardActions
+                    noteId={notes[0].id}
+                    noteTitle={notes[0].title}
+                    actions={buildCardActions(notes[0])}
+                  />
+                </div>
               </div>
               <SavedNoteEditor
                 key={notes[0].id}
@@ -440,13 +508,35 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
             <div className="space-y-6">
               {notes.map((note, index) => (
                 <div key={note.id} id={`note-${note.id}`} className="rounded-lg border border-border/60 p-4 space-y-2">
-                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                  <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
                     <Link
                       to={notePath(note.id)}
                       className="text-sm font-semibold hover:underline text-foreground"
                     >
                       {note.title || `Note ${index + 1}`}
                     </Link>
+                    <div className="flex items-center gap-2">
+                      <PublicationPill
+                        noteId={note.id}
+                        notebookId={note.notebookId}
+                        sessions={resultsByNote[note.id]}
+                        isReadOnlyFeedNote={false}
+                        open={noteActions.promotionOpen && activeActionNote?.id === note.id}
+                        onOpenChange={(open) => {
+                          if (open) setActionTargetNote(note);
+                          noteActions.setPromotionOpen(open);
+                        }}
+                        onCloneRequest={() => {
+                          setActionTargetNote(note);
+                          noteActions.setPlacement('clone');
+                        }}
+                      />
+                      <NoteCardActions
+                        noteId={note.id}
+                        noteTitle={note.title || `Note ${index + 1}`}
+                        actions={buildCardActions(note)}
+                      />
+                    </div>
                   </div>
                   <SavedNoteEditor
                     entry={note}
@@ -466,6 +556,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
       </div>
           }
       />
+      {noteActions.dialogs}
       <CreateJournalNoteDialog
         open={createOpen}
         onOpenChange={setCreateOpen}

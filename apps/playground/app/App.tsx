@@ -17,7 +17,7 @@ import { buildAppNavTree } from './nav/appNavTree'
 import { recordRecentVisit } from './nav/panels/ConditionsNavPanel'
 import { useCanvasRoutes } from './canvas/canvasRoutes'
 import { AppContent } from './AppContent'
-import { ROUTE_PATTERNS } from './lib/routes'
+import { LEGACY_REDIRECT_PATTERNS, ROUTE_PATTERNS } from './lib/routes'
 import {
   PlanRedirect,
   TrackerRedirect,
@@ -193,15 +193,15 @@ export function App() {
                   <Route path="/settings/appearance" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsProfile} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Retired /settings/data split into database + sync (2026-10). */}
-                  <Route path={ROUTE_PATTERNS.settingsData} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
+                  <Route path={LEGACY_REDIRECT_PATTERNS.settingsData} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
                   {/* Retired /settings/database renamed to /settings/storage (2026-10). */}
-                  <Route path={ROUTE_PATTERNS.settingsDatabase} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
+                  <Route path={LEGACY_REDIRECT_PATTERNS.settingsDatabase} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
                   <Route path={ROUTE_PATTERNS.settingsStorage} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsSync} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path="/settings/system" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   {/* Retired /settings/queries — per-surface query config now lives on
                       the pages themselves (each page's own query settings). */}
-                  <Route path={ROUTE_PATTERNS.settingsQueries} element={<Navigate to={ROUTE_PATTERNS.journal} replace />} />
+                  <Route path={LEGACY_REDIRECT_PATTERNS.settingsQueries} element={<Navigate to={ROUTE_PATTERNS.journal} replace />} />
                   <Route path={ROUTE_PATTERNS.settingsTags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path={ROUTE_PATTERNS.settingsSoundProfiles} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
                   <Route path="/settings/library/calcs" element={<div className="p-6"><CalcAuthoringPanel /></div>} />

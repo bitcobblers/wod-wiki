@@ -473,8 +473,21 @@ export function createHandler(
       }
       if (db && path === '/.well-known/agent-capabilities.json' && method === 'GET') {
         const res = await staticResponse(distRoot, method, path);
-        if (res.status === 200) return res;
-        return json(exportAgentCapabilitiesManifest(), 200);
+        if (res.status === 200) {
+          try {
+            const parsed = (await res.json()) as Record<string, unknown>;
+            const surfaces = (parsed.surfaces ?? {}) as Record<string, unknown>;
+            const mcp = (surfaces.mcp ?? {}) as Record<string, unknown>;
+            delete mcp.deploymentNote;
+            mcp.httpEndpoint = '/api/mcp';
+            surfaces.mcp = mcp;
+            parsed.surfaces = surfaces;
+            return json(parsed, 200);
+          } catch {
+            // Fall through to live manifest export if static JSON is unreadable
+          }
+        }
+        return json(exportAgentCapabilitiesManifest({ deploymentTarget: 'server' }), 200);
       }
       if (db) {
         const feedAsset = isPublishedFeedAssetPath(path);

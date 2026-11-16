@@ -54,7 +54,7 @@ function applyCollectibleOverrides(
   return updated;
 }
 
-const sessionRunHeadlessInputSchema = z.object({
+const sessionRunHeadlessInputSchema = z.strictObject({
   noteId: z
     .string()
     .optional()
@@ -243,7 +243,7 @@ export const wodSessionRunHeadlessTool = defineAgentTool({
   },
 });
 
-const sessionListInputSchema = z.object({
+const sessionListInputSchema = z.strictObject({
   noteId: z.string().optional().describe('Filter Sessions by owning Note ID.'),
   completedOnly: z.boolean().optional().describe('Filter to completed Sessions only.'),
   limit: z.number().int().min(1).max(200).optional().describe('Max Sessions to return (default 50).'),
@@ -310,7 +310,7 @@ export const wodSessionListTool = defineAgentTool({
   },
 });
 
-const sessionGetInputSchema = z.object({
+const sessionGetInputSchema = z.strictObject({
   sessionId: z.string().min(1).describe('Session ID to inspect.'),
 });
 
@@ -357,7 +357,7 @@ export const wodSessionGetTool = defineAgentTool({
   },
 });
 
-const sessionDeleteInputSchema = z.object({
+const sessionDeleteInputSchema = z.strictObject({
   sessionId: z.string().min(1).describe('Session ID to delete.'),
   confirmId: z
     .string()

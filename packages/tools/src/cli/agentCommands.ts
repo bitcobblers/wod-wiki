@@ -639,10 +639,22 @@ export async function runAgentNounVerbCommand(env: AgentCliExecutionEnv): Promis
       }
 
       if (noun === 'feed') {
-        const action = (verb as 'list' | 'status' | 'publish' | 'import-bundle' | undefined) ?? 'list';
+        const action =
+          (verb as
+            | 'list'
+            | 'status'
+            | 'publish'
+            | 'import-bundle'
+            | 'subscribe'
+            | 'unsubscribe'
+            | 'delete'
+            | undefined) ?? 'list';
+        const sourceId = parsed.id ?? parsed.positional[0];
         const out = await wodFeedManageTool.execute(
           {
             action,
+            sourceId,
+            confirmId: parsed.yes,
             notebookSlug: parsed.notebook,
             name: parsed.title,
             description: parsed.description,

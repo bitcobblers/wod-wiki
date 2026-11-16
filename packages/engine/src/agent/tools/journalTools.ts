@@ -8,7 +8,7 @@ import {
 } from '../helpers';
 import { defineAgentTool } from '../types';
 
-const journalDayInputSchema = z.object({
+const journalDayInputSchema = z.strictObject({
   date: z
     .string()
     .optional()
@@ -120,7 +120,7 @@ export const wodJournalDayTool = defineAgentTool({
   },
 });
 
-const journalAddInputSchema = z.object({
+const journalAddInputSchema = z.strictObject({
   date: z
     .string()
     .optional()

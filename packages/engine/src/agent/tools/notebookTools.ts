@@ -24,7 +24,7 @@ function isLandingNote(note: Note): boolean {
 
 const RESERVED_SLUGS = new Set(BUILTIN_NOTEBOOKS.map((b) => b.slug));
 
-const notebookListInputSchema = z.object({
+const notebookListInputSchema = z.strictObject({
   origin: z
     .enum(['all', 'default', 'user', 'feed'])
     .optional()
@@ -140,7 +140,7 @@ export const wodNotebookListTool = defineAgentTool({
   },
 });
 
-const notebookSaveInputSchema = z.object({
+const notebookSaveInputSchema = z.strictObject({
   action: z
     .enum(['create', 'update', 'promote', 'detach', 'set-public'])
     .describe('Operation to perform on a user Notebook.'),
@@ -278,7 +278,7 @@ export const wodNotebookSaveTool = defineAgentTool({
   },
 });
 
-const notebookDeleteInputSchema = z.object({
+const notebookDeleteInputSchema = z.strictObject({
   notebookId: z.string().min(1).describe('User Notebook ID or slug to delete (member Notes stay safe in notebook/journal).'),
   confirmId: z
     .string()

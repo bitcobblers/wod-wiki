@@ -7,7 +7,7 @@ import {
 } from '../../notebook/propertyInheritance';
 import { defineAgentTool } from '../types';
 
-const catalogLookupInputSchema = z.object({
+const catalogLookupInputSchema = z.strictObject({
   kind: z
     .enum(['effort', 'equipment', 'tag', 'tag-type'])
     .describe('Catalog family to search or inspect.'),
@@ -135,7 +135,7 @@ export const wodCatalogLookupTool = defineAgentTool({
   },
 });
 
-const catalogUpsertInputSchema = z.object({
+const catalogUpsertInputSchema = z.strictObject({
   kind: z
     .enum(['effort', 'equipment', 'tag', 'tag-type'])
     .describe('Property definition family to create or override.'),

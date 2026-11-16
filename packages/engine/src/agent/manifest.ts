@@ -96,9 +96,10 @@ export interface AgentCapabilitiesManifest {
       library: '@mcp-b/react-webmcp';
     };
     mcp: {
-      httpEndpoint: string;
+      httpEndpoint: string | null;
       stdioCommand: string;
       sdk: '@modelcontextprotocol/sdk';
+      deploymentNote?: string;
     };
     cli: {
       binary: string;
@@ -405,7 +406,9 @@ export function zodSchemaToJsonSchema(schema: z.ZodType): Record<string, unknown
 
 export function exportAgentCapabilitiesManifest(options?: {
   uiTools?: AgentUiToolManifestEntry[];
+  deploymentTarget?: 'static' | 'server';
 }): AgentCapabilitiesManifest {
+  const isStatic = options?.deploymentTarget === 'static';
   return {
     schemaVersion: '1.0.0',
     name: 'WOD Wiki Agent Surface',
@@ -417,11 +420,18 @@ export function exportAgentCapabilitiesManifest(options?: {
         globalNamespace: 'navigator.modelContext',
         library: '@mcp-b/react-webmcp',
       },
-      mcp: {
-        httpEndpoint: '/api/mcp',
-        stdioCommand: 'wod mcp',
-        sdk: '@modelcontextprotocol/sdk',
-      },
+      mcp: isStatic
+        ? {
+            httpEndpoint: null,
+            stdioCommand: 'wod mcp',
+            sdk: '@modelcontextprotocol/sdk',
+            deploymentNote: 'HTTP /api/mcp is only mounted on self-hosted `wod server` deployments, not on static hosting.',
+          }
+        : {
+            httpEndpoint: '/api/mcp',
+            stdioCommand: 'wod mcp',
+            sdk: '@modelcontextprotocol/sdk',
+          },
       cli: {
         binary: 'wod',
         jsonFlag: '--json',

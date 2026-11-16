@@ -579,6 +579,7 @@ export * from './feed/landing';
 export * from './feed/tree';
 export * from './feed/publisher';
 export * from './feed/ingestor';
+export * from './feed/lifecycle';
 export * from './notebook/membership';
 export * from './notebook/sessionIntake';
 export * from './notebook/propertyInheritance';

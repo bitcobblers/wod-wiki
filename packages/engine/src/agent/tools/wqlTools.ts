@@ -14,7 +14,7 @@ import {
 import { createQueryServiceForStorage } from '../helpers';
 import { defineAgentTool } from './../types';
 
-const validateWqlInputSchema = z.object({
+const validateWqlInputSchema = z.strictObject({
   query: z.string().describe('WQL query string to validate and inspect (e.g. ":note{notebook:journal} last 7d" or "sum:volume by {effort}").'),
   targetHint: z
     .string()
@@ -66,7 +66,7 @@ export const wodValidateWqlTool = defineAgentTool({
   },
 });
 
-const queryWqlInputSchema = z.object({
+const queryWqlInputSchema = z.strictObject({
   query: z
     .string()
     .min(1)

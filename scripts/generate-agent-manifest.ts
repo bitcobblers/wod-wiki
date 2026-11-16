@@ -47,7 +47,7 @@ function writeOrCheck(relPath: string, content: string): void {
 }
 
 const uiTools = exportPlaygroundUiToolsManifest();
-const manifest = exportAgentCapabilitiesManifest({ uiTools });
+const manifest = exportAgentCapabilitiesManifest({ uiTools, deploymentTarget: 'static' });
 
 const routeSummaryLines = Object.entries(ROUTE_PATTERNS)
   .map(([key, pattern]) => `- \`${pattern}\` (${key})`)
@@ -59,7 +59,7 @@ const llmsTxt = `# WOD Wiki
 
 WOD Wiki exposes identical structured capabilities across three agent surfaces:
 1. **Browser WebMCP (\`navigator.modelContext\`)**: ${manifest.domainTools.length} portable domain tools + ${(manifest.uiTools ?? []).length} live React UI/Clock tools registered dynamically via \`@mcp-b/react-webmcp\`.
-2. **HTTP & Stdio MCP Server (\`/api/mcp\` and \`wod mcp\`)**: Official \`@modelcontextprotocol/sdk\` server exposing all ${manifest.domainTools.length} domain tools, \`wod://*\` resources, and guided prompts.
+2. **Stdio & Self-Hosted MCP Server (\`wod mcp\`; HTTP \`/api/mcp\` on self-hosted \`wod server\` only)**: Official \`@modelcontextprotocol/sdk\` server exposing all ${manifest.domainTools.length} domain tools, \`wod://*\` resources, and guided prompts.
 3. **Local CLI (\`wod --json\`)**: Non-interactive CLI with JSON envelopes, noun-verb parity, and exit code \`4\` confirmation gates for Tier 2 destructive mutations.
 
 ## WebMCP Invocation Pattern
@@ -107,7 +107,7 @@ const wqlRef = buildWqlReferenceObject();
 
 const llmsFullTxt = `# WOD Wiki — Complete Agent, Language & Tool Reference
 
-> Tri-surface reference for Browser WebMCP (\`navigator.modelContext\`), HTTP/Stdio MCP (\`/api/mcp\` & \`wod mcp\`), and CLI (\`wod --json\`).
+> Tri-surface reference for Browser WebMCP (\`navigator.modelContext\`), Stdio/Self-Hosted MCP (\`wod mcp\`; HTTP \`/api/mcp\` on \`wod server\` only), and CLI (\`wod --json\`).
 
 ${WHITEBOARD_SCRIPT_REFERENCE_MARKDOWN.trim()}
 

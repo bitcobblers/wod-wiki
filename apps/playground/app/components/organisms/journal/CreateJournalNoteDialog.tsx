@@ -11,7 +11,13 @@ import {
 import { EditorDialog, WqlComposer } from '@bitcobblers/wod-wiki-ui'
 import { effortToDocument, tagRecordToDocument } from '@bitcobblers/wod-wiki-lang'
 import type { Tag } from '@bitcobblers/wod-wiki-core'
+import * as Headless from '@headlessui/react'
 import { Button } from '@/components/atoms/primitives/button'
+import {
+  ComboboxDescription,
+  ComboboxLabel,
+  ComboboxOption,
+} from '@/components/atoms/primitives/combobox'
 import { TEST_IDS } from '@/lib/testIds'
 import { storageService } from '@/services/storage'
 import { notebookService } from '@/services/NotebookService'
@@ -146,6 +152,7 @@ export function CreateJournalNoteDialog({
 
   // Unified template selection: '' = Blank, 'nb:<id>' = notebook note, 'src:<groupId>::<path>' = feed workout
   const [templateKey, setTemplateKey] = useState('')
+  const [templateQuery, setTemplateQuery] = useState('')
   const [wqlScope, setWqlScope] = useState('')
   const [notebookNotes, setNotebookNotes] = useState<NotebookNoteChoice[] | null>(null)
   const [sources, setSources] = useState<SourceState | null>(null)
@@ -260,6 +267,72 @@ export function CreateJournalNoteDialog({
     }
     return null
   }, [templateKey, notebookNotes, sources])
+
+  interface TemplateOption {
+    key: string
+    label: string
+    group: string
+    isTemplateTagged?: boolean
+  }
+
+  const allTemplateOptions = useMemo<TemplateOption[]>(() => {
+    const blank: TemplateOption = { key: '', label: 'Blank note', group: 'Default' }
+    const userOptions: TemplateOption[] = [...(notebookNotes ?? [])]
+      .sort((a, b) => (a.title || a.id).localeCompare(b.title || b.id))
+      .map(n => ({
+        key: `nb:${n.id}`,
+        label: n.title || n.id,
+        group: 'Your Notebook Notes',
+        isTemplateTagged: n.tags.some(t => t.toLowerCase() === 'template'),
+      }))
+
+    const sourceOptions: TemplateOption[] = []
+    for (const group of sources?.notebooks ?? []) {
+      const sortedItems = [...group.items].sort((a, b) => a.name.localeCompare(b.name))
+      for (const item of sortedItems) {
+        sourceOptions.push({
+          key: `src:${group.id}::${item.path}`,
+          label: item.date ? `${item.name} — ${item.date}` : item.name,
+          group: group.name,
+        })
+      }
+    }
+    return [blank, ...userOptions, ...sourceOptions]
+  }, [notebookNotes, sources])
+
+  const selectedTemplateOption = useMemo(
+    () => allTemplateOptions.find(opt => opt.key === templateKey) ?? allTemplateOptions[0]!,
+    [allTemplateOptions, templateKey],
+  )
+
+  const { visibleTemplateOptions, truncatedMatches } = useMemo(() => {
+    const q = templateQuery.trim().toLowerCase()
+    if (!q) {
+      // Curated shortlist when unsearched: Blank + user/template-tagged notes + up to 12 corpus items (capped at 30).
+      const blank = allTemplateOptions[0]!
+      const userAndTagged = allTemplateOptions
+        .slice(1)
+        .filter(o => o.group === 'Your Notebook Notes' || o.isTemplateTagged)
+        .slice(0, 17)
+      const seen = new Set([blank.key, ...userAndTagged.map(o => o.key)])
+      const featured = allTemplateOptions
+        .slice(1)
+        .filter(o => !seen.has(o.key))
+        .slice(0, Math.max(0, 30 - 1 - userAndTagged.length))
+      return {
+        visibleTemplateOptions: [blank, ...userAndTagged, ...featured],
+        truncatedMatches: Math.max(0, allTemplateOptions.length - (1 + userAndTagged.length + featured.length)),
+      }
+    }
+    const matches = allTemplateOptions.filter(
+      opt => opt.label.toLowerCase().includes(q) || opt.group.toLowerCase().includes(q),
+    )
+    const MAX_RESULTS = 50
+    return {
+      visibleTemplateOptions: matches.slice(0, MAX_RESULTS),
+      truncatedMatches: Math.max(0, matches.length - MAX_RESULTS),
+    }
+  }, [allTemplateOptions, templateQuery])
 
   const dateParsed = parseJournalDate(date)
   const dateInvalid = supportsDateAndTarget && date !== '' && !dateParsed
@@ -662,42 +735,65 @@ export function CreateJournalNoteDialog({
             </div>
           )}
 
-          {/* 3. Unified "Start from" template selector for Note & Playground */}
+          {/* 3. Unified searchable "Start from" template selector for Note & Playground */}
           {supportsTemplates && (
             <div className="flex flex-col gap-1.5">
               <label htmlFor="journal-create-template" className="text-xs font-medium text-muted-foreground">
                 Start from <span className="font-normal text-muted-foreground/80">(optional)</span>
               </label>
-              <select
-                id="journal-create-template"
-                value={templateKey}
-                onChange={e => setTemplateKey(e.target.value)}
+              <Headless.Combobox
+                value={selectedTemplateOption}
+                onChange={(opt) => setTemplateKey(opt?.key ?? '')}
+                onClose={() => setTemplateQuery('')}
                 disabled={creating}
-                className={fieldClass}
-                data-testid="journal-create-template"
               >
-                <option value="">Blank note</option>
-                {notebookNotes && notebookNotes.length > 0 && (
-                  <optgroup label="Your Notebook Notes">
-                    {notebookNotes.map(n => (
-                      <option key={n.id} value={`nb:${n.id}`}>
-                        {n.title || n.id}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {sources?.notebooks.map(group =>
-                  group.items.length > 0 ? (
-                    <optgroup key={group.id} label={group.name}>
-                      {group.items.map(item => (
-                        <option key={item.path} value={`src:${group.id}::${item.path}`}>
-                          {item.date ? `${item.name} — ${item.date}` : item.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null,
-                )}
-              </select>
+                <div className="relative">
+                  <Headless.ComboboxInput
+                    id="journal-create-template"
+                    aria-label="Start from template"
+                    placeholder="Blank note — type to search templates…"
+                    displayValue={(opt: TemplateOption | null) => opt?.label ?? 'Blank note'}
+                    onChange={(e) => setTemplateQuery(e.target.value)}
+                    className={`${fieldClass} pr-8`}
+                    data-testid="journal-create-template"
+                  />
+                  <Headless.ComboboxButton
+                    className="absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground hover:text-foreground"
+                    aria-label="Toggle template options"
+                  >
+                    <svg className="size-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M5.75 10.75L8 13L10.25 10.75" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M10.25 5.25L8 3L5.75 5.25" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </Headless.ComboboxButton>
+                  <Headless.ComboboxOptions
+                    className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg focus:outline-none"
+                    data-testid="journal-create-template-options"
+                  >
+                    {visibleTemplateOptions.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">
+                        No matching templates.
+                      </div>
+                    ) : (
+                      visibleTemplateOptions.map((opt) => (
+                        <ComboboxOption key={opt.key || '__blank__'} value={opt}>
+                          <ComboboxLabel>{opt.label}</ComboboxLabel>
+                          {opt.group !== 'Default' && (
+                            <ComboboxDescription>{opt.group}</ComboboxDescription>
+                          )}
+                        </ComboboxOption>
+                      ))
+                    )}
+                    {truncatedMatches > 0 && (
+                      <div className="px-3 py-1.5 text-[11px] text-muted-foreground border-t border-border/40">
+                        {templateQuery.trim()
+                          ? `+${truncatedMatches} more matches — keep typing to refine`
+                          : `Showing curated shortlist (${allTemplateOptions.length} total — type to search all)`}
+                      </div>
+                    )}
+                  </Headless.ComboboxOptions>
+                </div>
+              </Headless.Combobox>
             </div>
           )}
 

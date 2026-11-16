@@ -22,7 +22,7 @@ function collectCollectibles(node: StatementNode, out: Array<{ id?: number | str
   return out;
 }
 
-const parseScriptInputSchema = z.object({
+const parseScriptInputSchema = z.strictObject({
   source: z
     .string()
     .min(1)

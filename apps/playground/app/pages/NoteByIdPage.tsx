@@ -1,16 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Trash2 } from 'lucide-react'
 import { v7 as uuidv7 } from 'uuid'
 import { Button } from '@/components/atoms/primitives/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/atoms/primitives/dialog'
 import { CalendarCard } from '@/components/atoms/CalendarCard'
 import { JournalPageShell } from '@/panels/page-shells'
 import { NoteEditor, type EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor'
@@ -22,12 +13,10 @@ import { storageService } from '@/services/storage'
 import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { queryService, refreshPageSources } from '@/services/queryService'
 import { dayPath, notePath, pagePath, ROUTE_PATTERNS, runPath } from '../lib/routes'
-import { journalNotes } from '../services/journalNotes'
 import { appendWidget, notebookOriginOfItem, resolveEntityScope } from '@bitcobblers/wod-wiki-wql'
 import { isNoteEditable, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core'
 import { resolveNotePropertyStack } from '@/app/editor/runtimeTimerModel'
 import { WidgetComposerDialog } from '../views/dashboards/WidgetComposerDialog'
-import { NotePlacementDialog, type NotePlacementMode } from '../components/organisms/journal/NotePlacementDialog'
 import { slugifyRoute } from '../components/organisms/journal/CreateJournalNoteDialog'
 import { localDateKey } from '@/lib/dateFormat'
 import type { HistoryRecord } from '@/types/history'
@@ -37,10 +26,9 @@ import { pendingRuntimes } from '../runtimeStore'
 import { captureRun } from '@/services/runCapture';
 import type { ScriptBlock } from '@/components/Editor/types'
 import { useNotePageNav } from './shared/useNotePageNav'
-import { appendTimerBlock } from './shared/pageUtils'
+import { useNoteActions } from './shared/useNoteActions'
 import { PageActions } from './shared/PageActions'
 import { PublicationPill } from '@/components/molecules/PublicationPill'
-import { exportNote } from '@/services/ExportImportService'
 import {
   NoteContextNav,
   noteOwnership,
@@ -76,28 +64,15 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
       || !isNoteEditable(entry, notebookOriginOfItem(entry))
     ))
   // saveError is managed by useNoteDraft
-  const [placement, setPlacement] = useState<NotePlacementMode | null>(null)
   const [editingPageSlug, setEditingPageSlug] = useState(false)
   const [pageSlugInput, setPageSlugInput] = useState('')
   const [savingPageSlug, setSavingPageSlug] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [widgetComposerOpen, setWidgetComposerOpen] = useState(false)
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
-  const [deletingNote, setDeletingNote] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [sourceEntry, setSourceEntry] = useState<HistoryRecord | null>(null)
-  const handleCopyLink = useCallback(() => {
-    // ponytail: navigator.clipboard only; fallback textarea omitted for modern browsers.
-    void navigator.clipboard?.writeText(window.location.href).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    })
-  }, [])
   // Page-source datasets (@session/@today) populate before the first child
   // query block evaluates; a new page context re-populates (@today may have
   // changed since the previous page loaded).
   const sourcesReady = usePageSourcesReady()
-  const [promotionOpen, setPromotionOpen] = useState(false)
   useEffect(() => {
     void refreshPageSources().catch(() => {
       // Failure stays on the cached promise — child queries surface it.
@@ -108,8 +83,6 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     let cancelled = false
     setEntry(null)
     setMissing(false)
-    setConfirmDeleteOpen(false)
-    setDeleteError(null)
     // saveError handled in draft
     // Await any in-flight draft flush for this noteId (e.g. Ctrl+S / unmount right before Back).
     waitForPendingNoteSave(noteId)
@@ -215,24 +188,33 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     [entry, draft.captureForRun, navigate],
   );
 
-  const handleConfirmDelete = useCallback(async () => {
-    if (!entry || isReadOnly || deletingNote) return
-    setDeletingNote(true)
-    setDeleteError(null)
-    const destination =
+  const noteActions = useNoteActions({
+    entry,
+    liveContent: draft.content,
+    isReadOnly,
+    deleteRedirectTo:
       ownership.up?.to ??
-      (entry.journalDate ? dayPath(entry.journalDate) : ROUTE_PATTERNS.journal)
-    try {
-      await waitForPendingNoteSave(entry.id)
-      await journalNotes.delete(entry.id)
-      setConfirmDeleteOpen(false)
-      navigate(destination, { replace: true })
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete note.')
-    } finally {
-      setDeletingNote(false)
-    }
-  }, [deletingNote, entry, isReadOnly, navigate, ownership.up])
+      (entry?.journalDate ? dayPath(entry.journalDate) : ROUTE_PATTERNS.journal),
+    provider: contentProvider,
+    onMutateContent: (_note, nextContent) => draft.onSourceMutate(nextContent),
+    onEditPageSlug: (target) => {
+      setPageSlugInput(target.slug || slugifyRoute(target.title) || `page-${target.id.slice(0, 8)}`)
+      setEditingPageSlug(true)
+    },
+    onAddWidget: () => setWidgetComposerOpen(true),
+    onUpdated: (updated) =>
+      setEntry((prev) =>
+        prev && prev.id === updated.id
+          ? {
+              ...prev,
+              journalDate: updated.journalDate,
+              slug: updated.slug,
+              sourceId: updated.sourceId,
+              placements: updated.placements,
+            }
+          : prev,
+      ),
+  })
 
   const noteScope = useMemo(
     () => (entry ? resolveEntityScope({ noteId: entry.id, label: entry.title, rawContent: draft.content }) : null),
@@ -249,62 +231,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     onStartWorkout: handleStartWorkout,
     results,
     noteId: entry?.id,
-    helpfulActions: entry
-      ? [
-          ...(!isReadOnly
-            ? [
-                {
-                  id: 'upgrade-to-page',
-                  label: entry.slug ? 'Edit page route' : 'Upgrade to Page',
-                  onRun: () => {
-                    setPageSlugInput(entry.slug || slugifyRoute(entry.title) || `page-${entry.id.slice(0, 8)}`)
-                    setEditingPageSlug(true)
-                  },
-                },
-                {
-                  id: 'add-widget',
-                  label: 'Add widget',
-                  onRun: () => setWidgetComposerOpen(true),
-                },
-              ]
-            : []),
-          {
-            id: 'export-md',
-            label: 'Export Note (.md)',
-            onRun: () => { void exportNote(entry, contentProvider, { format: 'md' }) },
-          },
-          {
-            id: 'export-jsonl',
-            label: 'Export Session Data (.jsonl)',
-            onRun: () => { void exportNote(entry, contentProvider, { format: 'jsonl' }) },
-          },
-          {
-            id: 'export-csv',
-            label: 'Export Session Data (.csv)',
-            onRun: () => { void exportNote(entry, contentProvider, { format: 'csv' }) },
-          },
-          { id: 'promote-notebooks', label: 'Notebooks & Promotion', onRun: () => setPromotionOpen(true) },
-          { id: 'placements', label: 'Note placements', onRun: () => setPlacement('relationships') },
-          { id: 'add-timer', label: 'Add timer', onRun: () => draft.onSourceMutate(appendTimerBlock(draft.content)) },
-          { id: 'clone', label: 'Clone', onRun: () => setPlacement('clone') },
-          { id: 'copy-link', label: copied ? 'Copied' : 'Copy link', onRun: handleCopyLink },
-          ...(!isReadOnly
-            ? [
-                {
-                  id: 'delete-note',
-                  label: 'Delete note',
-                  icon: Trash2,
-                  disabled: deletingNote,
-                  testId: 'l3-delete-note',
-                  onRun: () => {
-                    setDeleteError(null)
-                    setConfirmDeleteOpen(true)
-                  },
-                },
-              ]
-            : []),
-        ]
-      : [],
+    helpfulActions: noteActions.helpfulActions,
   });
   const placementRevision = entry
     ? `${entry.sourceRevision ?? 0}:${(entry.placements ?? [])
@@ -377,9 +304,9 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                   notebookId={entry.notebookId}
                   sessions={results}
                   isReadOnlyFeedNote={isReadOnly}
-                  open={promotionOpen}
-                  onOpenChange={setPromotionOpen}
-                  onCloneRequest={() => setPlacement('clone')}
+                  open={noteActions.promotionOpen}
+                  onOpenChange={noteActions.setPromotionOpen}
+                  onCloneRequest={() => noteActions.setPlacement('clone')}
                 />
                 {entry.journalDate && entry.journalDate !== entry.title && (
                     <Link to={dayPath(entry.journalDate)} className="underline-offset-2 hover:underline">
@@ -560,31 +487,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
             </div>
           }
         />
-        {placement !== null && (
-          <NotePlacementDialog
-            open
-            onOpenChange={(open) => {
-              if (!open) setPlacement(null)
-            }}
-            entry={entry}
-            mode={placement}
-            provider={contentProvider}
-            onSaved={(updated) =>
-              setEntry((prev) =>
-                prev && prev.id === updated.id
-                  ? {
-                      ...prev,
-                      journalDate: updated.journalDate,
-                      slug: updated.slug,
-                      sourceId: updated.sourceId,
-                      placements: updated.placements,
-                    }
-                  : prev,
-              )
-            }
-            onCloned={(created) => navigate(`${notePath(created.id)}?edit=1`)}
-          />
-        )}
+        {noteActions.dialogs}
         <WidgetComposerDialog
           open={widgetComposerOpen}
           onClose={() => setWidgetComposerOpen(false)}
@@ -597,55 +500,6 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
             draft.onSourceMutate(appendWidget(draft.content, spec))
           }}
         />
-        <Dialog
-          open={confirmDeleteOpen}
-          onOpenChange={(open) => {
-            if (!deletingNote) {
-              setConfirmDeleteOpen(open)
-              if (!open) setDeleteError(null)
-            }
-          }}
-        >
-          <DialogContent data-testid="note-delete-dialog">
-            <DialogHeader>
-              <DialogTitle>Delete note?</DialogTitle>
-              <DialogDescription>
-                Permanently delete &ldquo;{entry.title || 'Untitled note'}&rdquo;? This cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            {deleteError && (
-              <p role="alert" className="text-sm text-destructive">
-                {deleteError}
-              </p>
-            )}
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={deletingNote}
-                onClick={() => {
-                  setConfirmDeleteOpen(false)
-                  setDeleteError(null)
-                }}
-                data-testid="note-delete-cancel"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={deletingNote}
-                aria-busy={deletingNote}
-                onClick={() => {
-                  void handleConfirmDelete()
-                }}
-                data-testid="note-delete-confirm"
-              >
-                {deletingNote ? 'Deleting…' : 'Delete note'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </>
     )
   }

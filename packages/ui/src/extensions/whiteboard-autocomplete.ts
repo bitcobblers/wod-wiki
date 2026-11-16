@@ -64,17 +64,17 @@ const FENCE_TAGS: Completion[] = [
   },
 ];
 
-const SLASH_COMMANDS: Completion[] = [
+export const SLASH_COMMANDS: Completion[] = [
   {
     label: "/time",
-    detail: "Timer workout block",
+    detail: "Timer block (```time fence)",
     type: "keyword",
     apply: snippet("```time\n${10:00 Run}\n```"),
     boost: 95,
   },
   {
     label: "/wod",
-    detail: "Timer workout block",
+    detail: "Alias for /time (```time fence)",
     type: "keyword",
     apply: snippet("```time\n${10:00 Run}\n```"),
     boost: 94,

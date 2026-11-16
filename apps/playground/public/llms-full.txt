@@ -1,6 +1,6 @@
 # WOD Wiki — Complete Agent, Language & Tool Reference
 
-> Tri-surface reference for Browser WebMCP (`navigator.modelContext`), HTTP/Stdio MCP (`/api/mcp` & `wod mcp`), and CLI (`wod --json`).
+> Tri-surface reference for Browser WebMCP (`navigator.modelContext`), Stdio/Self-Hosted MCP (`wod mcp`; HTTP `/api/mcp` on `wod server` only), and CLI (`wod --json`).
 
 # Whiteboard Language Reference
 
@@ -971,8 +971,8 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
 
 ### `wod_feed_manage` (Tier 1 — feed)
 - **Title**: Manage Feeds & Portability
-- **Description**: Inspect installed Seed/Feed sources (`list`), check unpublished public Notebook changes (`status`), compile and publish public Notebooks (`publish`), or import portable Markdown + JSONL/CSV files (`import-bundle`).
-- **CLI Equivalent**: `wod feed <list|status|publish> --json`
+- **Description**: Inspect installed Seed/Feed sources (`list`), check unpublished public Notebook changes (`status`), compile and publish public Notebooks (`publish`), import portable Markdown + JSONL/CSV files (`import-bundle`), or subscribe/unsubscribe/delete a Feed source.
+- **CLI Equivalent**: `wod feed <list|status|publish|subscribe|unsubscribe|delete> --json`
 - **Input Schema**:
 ```json
 {
@@ -985,16 +985,41 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
         "list",
         "status",
         "publish",
-        "import-bundle"
+        "import-bundle",
+        "subscribe",
+        "unsubscribe",
+        "delete"
       ],
       "description": "Feed or portability operation to run."
+    },
+    "sourceId": {
+      "description": "Target Feed source ID when action is \"subscribe\", \"unsubscribe\", or \"delete\".",
+      "type": "string",
+      "minLength": 1
+    },
+    "notebookIds": {
+      "description": "Optional subset of Notebook IDs when action=\"subscribe\".",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "url": {
+      "description": "Optional Feed manifest URL when subscribing to a custom source.",
+      "type": "string",
+      "minLength": 1
+    },
+    "confirmId": {
+      "description": "Confirmation token (must match sourceId) for non-interactive unsubscribe/delete calls.",
+      "type": "string"
     },
     "notebookSlug": {
       "description": "Optional Notebook slug filter when publishing.",
       "type": "string"
     },
     "name": {
-      "description": "Optional Feed display name when publishing.",
+      "description": "Optional Feed display name when publishing or subscribing.",
       "type": "string"
     },
     "description": {
