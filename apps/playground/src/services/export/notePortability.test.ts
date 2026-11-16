@@ -235,7 +235,7 @@ describe('Canonical Markdown + JSONL/CSV Portability & Feed Repository Export', 
     const { importFromZip, EmptyBundleError } = await import('../ExportImportService');
     const emptyTree = new ZipFeedTree();
     await emptyTree.writeText('some/stray-note.txt', 'hello');
-    const emptyZip = new File([await emptyTree.toUint8Array()], 'stray.zip', { type: 'application/zip' });
+    const emptyZip = new File([await emptyTree.toBlob()], 'stray.zip', { type: 'application/zip' });
     await expect(importFromZip(emptyZip, {} as never)).rejects.toBeInstanceOf(EmptyBundleError);
   });
 });
