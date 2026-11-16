@@ -1,71 +1,131 @@
-name: Push Build Diff
+name: Push Build Summary
 
-# Generates a git diff between the last released version tag on main and the
-# current build commit, connects to the tailnet via Tailscale, and uploads the
-# diff to s3://build-changes/{date}-{commitid}/{released-commit-id}-{build-commit-id}.diff.
+# Generates a build summary (build-summary.md + build-summary.json) comparing
+# the built commit against the last released version tag on main, including run
+# job statuses, release & built commit details, ready-to-run git diff commands,
+# and identified testing scope. Connects to the tailnet via Tailscale and uploads
+# both files to s3://build-changes/{date}-{commitid}/.
+# Produces the same output structure for both passed and failed builds.
 # Intended to be called from main.yml on main builds only.
 
 on:
   workflow_call:
+    inputs:
+      version:
+        description: Computed build version
+        required: false
+        type: string
+        default: ''
+      tag:
+        description: Computed release tag
+        required: false
+        type: string
+        default: ''
+      slug:
+        description: Branch slug
+        required: false
+        type: string
+        default: 'main'
+      bundle-hash:
+        description: Playground bundle hash
+        required: false
+        type: string
+        default: ''
+      slug-result:
+        description: Result of slug job
+        required: false
+        type: string
+        default: 'unknown'
+      build-verify-result:
+        description: Result of build-verify job
+        required: false
+        type: string
+        default: 'unknown'
+      packages-status:
+        description: Status of packages verification
+        required: false
+        type: string
+        default: 'unknown'
+      playground-status:
+        description: Status of playground verification
+        required: false
+        type: string
+        default: 'unknown'
+      storybook-status:
+        description: Status of storybook verification
+        required: false
+        type: string
+        default: 'unknown'
+      deploy-playground-result:
+        description: Result of deploy-playground job
+        required: false
+        type: string
+        default: 'unknown'
+      deploy-storybook-result:
+        description: Result of deploy-storybook job
+        required: false
+        type: string
+        default: 'unknown'
+      deploy-ontology-result:
+        description: Result of deploy-ontology job
+        required: false
+        type: string
+        default: 'unknown'
     outputs:
+      summary-path:
+        description: S3 object path of the uploaded build-summary.md
+        value: ${{ jobs.push-diff.outputs.summary-path }}
+      summary-json-path:
+        description: S3 object path of the uploaded build-summary.json
+        value: ${{ jobs.push-diff.outputs.summary-json-path }}
       diff-path:
-        description: S3 object path of the uploaded diff
-        value: ${{ jobs.push-diff.outputs.diff-path }}
+        description: Alias for summary-path (backwards compatibility)
+        value: ${{ jobs.push-diff.outputs.summary-path }}
+      overall-status:
+        description: Computed overall build status (passed or failed)
+        value: ${{ jobs.push-diff.outputs.overall-status }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   push-diff:
-    name: Diff vs Last Release -> Tailscale S3
+    name: Build Summary -> Tailscale S3
     runs-on: ubuntu-22.04
     outputs:
-      diff-path: ${{ steps.diff.outputs.s3-path }}
+      summary-path: ${{ steps.summary.outputs.s3-path }}
+      summary-json-path: ${{ steps.summary.outputs.s3-json-path }}
+      overall-status: ${{ steps.summary.outputs.overall-status }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Generate diff against last released version
-        id: diff
+      - name: Generate build summary
+        id: summary
+        env:
+          BUILD_VERSION: ${{ inputs.version }}
+          BUILD_TAG: ${{ inputs.tag }}
+          BUILD_SLUG: ${{ inputs.slug }}
+          BUNDLE_HASH: ${{ inputs.bundle-hash }}
+          SLUG_RESULT: ${{ inputs.slug-result }}
+          BUILD_VERIFY_RESULT: ${{ inputs.build-verify-result }}
+          PACKAGES_STATUS: ${{ inputs.packages-status }}
+          PLAYGROUND_STATUS: ${{ inputs.playground-status }}
+          STORYBOOK_STATUS: ${{ inputs.storybook-status }}
+          DEPLOY_PLAYGROUND_RESULT: ${{ inputs.deploy-playground-result }}
+          DEPLOY_STORYBOOK_RESULT: ${{ inputs.deploy-storybook-result }}
+          DEPLOY_ONTOLOGY_RESULT: ${{ inputs.deploy-ontology-result }}
         run: |
           set -euo pipefail
-
-          LATEST_TAG=$(git for-each-ref refs/tags \
-            --sort=-v:refname \
-            --format '%(refname:short)' \
-            | grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$' \
-            | head -1 || true)
-
-          if [ -n "$LATEST_TAG" ]; then
-            RELEASED_SHA=$(git rev-list -n 1 "$LATEST_TAG")
-            echo "Comparing against latest release tag: $LATEST_TAG ($RELEASED_SHA)"
-          else
-            RELEASED_SHA=$(git rev-list --max-parents=0 HEAD | tail -n 1)
-            echo "No release tag found; comparing against root commit: $RELEASED_SHA"
-          fi
-
-          RELEASED_COMMIT_ID=$(git rev-parse --short=7 "$RELEASED_SHA")
-          BUILD_COMMIT_ID=$(git rev-parse --short=7 HEAD)
-          BUILD_DATE=$(date -u +%Y-%m-%d)
-
-          FOLDER="${BUILD_DATE}-${BUILD_COMMIT_ID}"
-          DIFF_FILE="${RELEASED_COMMIT_ID}-${BUILD_COMMIT_ID}.diff"
-          S3_PATH="s3://build-changes/${FOLDER}/${DIFF_FILE}"
-
-          git diff "${RELEASED_SHA}..HEAD" > "${DIFF_FILE}"
-
-          echo "folder=${FOLDER}" >> "$GITHUB_OUTPUT"
-          echo "file=${DIFF_FILE}" >> "$GITHUB_OUTPUT"
-          echo "s3-path=${S3_PATH}" >> "$GITHUB_OUTPUT"
-          echo "Generated ${DIFF_FILE} ($(wc -c < "${DIFF_FILE}") bytes) -> ${S3_PATH}"
+          node scripts/generate-build-summary.mjs --out-dir build-summary
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@v3
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
 
-      - name: Upload diff to build-changes bucket
+      - name: Upload build summary to build-changes bucket
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.FILES_S3_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.FILES_S3_SECRET_ACCESS_KEY }}
@@ -74,6 +134,9 @@ jobs:
         run: |
           set -euo pipefail
           aws configure set default.s3.addressing_style path
-          aws s3 cp "${{ steps.diff.outputs.file }}" \
-            "${{ steps.diff.outputs.s3-path }}" \
+          aws s3 cp "${{ steps.summary.outputs.summary-md }}" \
+            "${{ steps.summary.outputs.s3-path }}" \
+            --endpoint-url "${FILES_S3_ENDPOINT}"
+          aws s3 cp "${{ steps.summary.outputs.summary-json }}" \
+            "${{ steps.summary.outputs.s3-json-path }}" \
             --endpoint-url "${FILES_S3_ENDPOINT}"

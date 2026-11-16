@@ -118,28 +118,51 @@ jobs:
       slug: ${{ needs.slug.outputs.slug }}
 
   push-build-diff:
-    name: Push Build Diff -> Tailscale S3
+    name: Push Build Summary -> Tailscale S3
+    if: always()
     needs: [slug, build-verify, deploy-playground, deploy-storybook, deploy-ontology]
     uses: ./.github/workflows/_push-build-diff.yml
     secrets: inherit
+    with:
+      version: ${{ needs.slug.outputs.version }}
+      tag: ${{ needs.slug.outputs.tag }}
+      slug: ${{ needs.slug.outputs.slug || 'main' }}
+      bundle-hash: ${{ needs.deploy-playground.outputs.bundle-hash }}
+      slug-result: ${{ needs.slug.result }}
+      build-verify-result: ${{ needs.build-verify.result }}
+      packages-status: ${{ needs.build-verify.outputs.packages-status }}
+      playground-status: ${{ needs.build-verify.outputs.playground-status }}
+      storybook-status: ${{ needs.build-verify.outputs.storybook-status }}
+      deploy-playground-result: ${{ needs.deploy-playground.result }}
+      deploy-storybook-result: ${{ needs.deploy-storybook.result }}
+      deploy-ontology-result: ${{ needs.deploy-ontology.result }}
 
   summary:
     name: Staging Summary
+    if: always()
     runs-on: ubuntu-22.04
     needs: [slug, build-verify, deploy-playground, deploy-storybook, deploy-ontology, push-build-diff]
     steps:
       - name: Write staging summary
         run: |
           cat <<EOF >> "$GITHUB_STEP_SUMMARY"
-          ## Main staging build complete
+          ## Main staging build (${{ needs.push-build-diff.outputs.overall-status || 'unknown' }})
 
           - Version: \`${{ needs.slug.outputs.version }}\` (\`${{ needs.slug.outputs.tag }}\`)
           - Commit: \`${{ github.sha }}\`
           - Playground S3 staging: https://main.preview.wod.wiki
           - Storybook S3 staging: https://main.story.wod.wiki
           - Bundle hash: \`${{ needs.deploy-playground.outputs.bundle-hash }}\`
-          - Build diff: \`${{ needs.push-build-diff.outputs.diff-path }}\`
+          - Build summary (Markdown): \`${{ needs.push-build-diff.outputs.summary-path }}\`
+          - Build summary (JSON): \`${{ needs.push-build-diff.outputs.summary-json-path }}\`
           - Artifacts uploaded: \`packages-dist\`, \`playground-dist\`
+
+          ### Job Results
+          - \`slug\`: \`${{ needs.slug.result }}\`
+          - \`build-verify\`: \`${{ needs.build-verify.result }}\` (packages=\`${{ needs.build-verify.outputs.packages-status }}\`, playground=\`${{ needs.build-verify.outputs.playground-status }}\`, storybook=\`${{ needs.build-verify.outputs.storybook-status }}\`)
+          - \`deploy-playground\`: \`${{ needs.deploy-playground.result }}\`
+          - \`deploy-storybook\`: \`${{ needs.deploy-storybook.result }}\`
+          - \`deploy-ontology\`: \`${{ needs.deploy-ontology.result }}\`
 
           > External E2E testing can now run against the S3 staging URLs.
           > Tag this commit \`prod\` when E2E passes to trigger \`deploy-prod.yml\` (GitHub Pages + npm + release).
