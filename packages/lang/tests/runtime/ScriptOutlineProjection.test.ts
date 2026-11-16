@@ -76,4 +76,12 @@ describe('ScriptOutlineProjection alongside lazy JIT compilation', () => {
     expect(parensNodes[0]?.label).toBe(plainNodes[0]?.label);
     expect(parensNodes[0]?.label).not.toContain('Rounds');
   });
+
+  it('WW-079: deduplicates repeated effort labels in outline lines', () => {
+    const { runtime } = boot('20:00 AMRAP\n  5 Pullups\n  10 Pushups');
+    const nodes = projectScriptOutline(runtime);
+    const pullups = nodes.find((n) => n.label.includes('Pullups'));
+    expect(pullups).toBeDefined();
+    expect(pullups?.label).not.toMatch(/Pullups\s+Pullups/i);
+  });
 });

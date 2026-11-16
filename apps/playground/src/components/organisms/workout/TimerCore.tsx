@@ -105,20 +105,6 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
 
   return (
     <div className="relative flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden text-center">
-      <style>{`
-        @keyframes timer-surface-flash-fade {
-          0%   { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
-          70%  { opacity: 1; transform: translate(-50%, -100%) translateY(-4px); }
-          100% { opacity: 0; transform: translate(-50%, -100%) translateY(-8px); }
-        }
-        .timer-surface-flash {
-          animation: timer-surface-flash-fade 3s ease-out forwards;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .timer-surface-flash { animation: none; }
-        }
-      `}</style>
-
       <SkipFlash model={model} />
 
       {/* Centered group — prototype tiers 1/2 read label, clock and chips as

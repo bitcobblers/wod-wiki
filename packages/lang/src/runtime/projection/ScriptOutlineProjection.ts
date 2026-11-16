@@ -21,16 +21,24 @@ export interface ScriptOutlineNode {
 }
 
 function formatStatementLabel(statement: ICodeStatement): string {
-  const presented = metricPresentation
+  const labels = metricPresentation
     .presentGroup(
       [...statement.metrics].filter((m) => m.type !== MetricType.Hint),
       'timer-subtitle',
     )
     .filter((t) => t.visible)
-    .map((t) => t.label)
-    .filter(Boolean)
-    .join(' ')
-    .trim();
+    .map((t) => t.label.trim())
+    .filter(Boolean);
+
+  // Deduplicate repeated effort/action labels (WW-079, e.g. "5 Pullups Pullups").
+  const deduped: string[] = [];
+  for (const label of labels) {
+    const lower = label.toLowerCase();
+    const prev = deduped[deduped.length - 1]?.toLowerCase();
+    if (prev && (prev === lower || prev.endsWith(` ${lower}`))) continue;
+    deduped.push(label);
+  }
+  const presented = deduped.join(' ').trim();
   return presented || statement.text?.trim() || 'Step';
 }
 

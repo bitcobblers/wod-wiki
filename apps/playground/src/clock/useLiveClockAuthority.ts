@@ -136,7 +136,7 @@ export function useLiveClockAuthority({
   const phase: ClockPhase =
     status === 'completed'
       ? 'review'
-      : status === 'idle' && (!runtime || isWaitingToStart)
+      : isWaitingToStart || (status === 'idle' && !runtime)
         ? 'ready'
         : 'live';
   const canNext = status === 'running' || status === 'idle';

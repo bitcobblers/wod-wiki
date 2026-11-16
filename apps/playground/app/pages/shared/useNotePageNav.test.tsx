@@ -11,7 +11,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { NavContext, NavProvider, useNav, initialNavState, type AnalyticsNavControls, type L3ActionItem } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
-import { useNotePageNav } from './useNotePageNav';
+import { useNotePageNav, wirePageIndexLinks } from './useNotePageNav';
 import { NoteContextNav } from './noteContextLinks';
 import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown';
 import type { ScriptBlock } from '@/components/Editor/types';
@@ -152,6 +152,17 @@ describe('useNotePageNav — log link gating', () => {
     );
     captured.find(l => l.type === 'time')?.onRun?.();
     expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('WW-069: does not fall back to scriptBlocks[0] when a time link line misses', () => {
+    const onStart = mock(() => {});
+    const links = wirePageIndexLinks(
+      [{ id: 'time-line-99', label: 'Workout 2', type: 'time' }],
+      [block(2)],
+      onStart,
+    );
+    links[0]?.onRun?.();
+    expect(onStart).not.toHaveBeenCalled();
   });
   it('attaches onEditNote with edit runIcon to the note header item', () => {
     const onEdit = mock(() => {});

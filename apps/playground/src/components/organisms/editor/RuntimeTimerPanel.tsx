@@ -395,7 +395,10 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     // ── Output counting ─────────────────────────────────────────────
     const unsubOutput = rt.subscribeToOutput(
       (output: IOutputStatement) => {
-        if (output.outputType === "segment" || output.outputType === "milestone") {
+        if (
+          (output.outputType === "segment" || output.outputType === "milestone") &&
+          output.sourceBlockKey !== "waiting-to-start"
+        ) {
           // Synchronous first-output signal: Next-driven runs never flip to
           // 'running', so this is what stops a fast Exit/Stop discarding them.
           if (!hasFiredRunStartedRef.current) {
@@ -635,13 +638,20 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   }, [execution.status, execution.elapsedTime, createdAt, handleComplete, castTransport, runtime]);
 
   // Halt + report shared by Stop and host-driven stops; a stack drained
-  // before the halt is a natural finish, not a partial.
+  // before the halt is a natural finish, not a partial. Exiting at the
+  // Ready-to-Start gate before any work starts is a no-op close (WW-052).
   const stopAndReport = useCallback(() => {
+    const hasStarted =
+      execution.status === 'running' ||
+      execution.status === 'paused' ||
+      hasFiredRunStartedRef.current ||
+      outputCount > 0;
     const completedBeforeHalt = runtime ? runtime.stack.count === 0 : false;
     execution.stop();
+    if (!hasStarted) return;
     runtime?.handle({ name: 'abort', timestamp: runtime.clock.currentDate, data: {} });
     handleComplete(completedBeforeHalt);
-  }, [runtime, execution, handleComplete]);
+  }, [runtime, execution, handleComplete, outputCount]);
 
   const handleStop = useCallback(() => {
     explicitEndRef.current = true;
@@ -777,8 +787,13 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
       next: handleNext,
       start: handleStart,
       playback: () => {
-        if (execution.status === 'running') execution.pause();
-        else execution.start();
+        if (execution.status === 'running') {
+          execution.pause();
+        } else if (execution.status === 'idle' || runtime?.stack.current?.blockType === 'WaitingToStart') {
+          handleStart();
+        } else {
+          execution.start();
+        }
       },
       stop: handleStop,
       dismiss: onClose,
@@ -846,8 +861,13 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
           execution={execution}
           outputCount={outputCount}
           createdAt={createdAt}
-          handleStart={handleStart}
-          handleStop={() => { dispatchClock({ kind: 'stop-request' }); }}
+          handleStart={() => {
+            const cmd = clockSnapshot?.phase === 'ready' ? ({ kind: 'ready-start' } as const) : ({ kind: 'playback' } as const);
+            if (!dispatchClock(cmd)) handleStart();
+          }}
+          handleStop={() => {
+            if (!dispatchClock({ kind: 'stop-request' })) handleStop();
+          }}
           handleNext={handleNext}
           commandBoard={clockSnapshot ? <ClockCommandBoard snapshot={clockSnapshot} dispatch={dispatchClock} /> : null}
           notice={!isLiveRun ? <HaltedRunNotice noteId={noteId} /> : null}

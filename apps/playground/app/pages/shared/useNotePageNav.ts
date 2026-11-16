@@ -132,10 +132,10 @@ export function wirePageIndexLinks(
       ...badge,
       onRun: () => {
         // Re-resolve at click time in case `scriptBlocks` changed.
-        // Falls back to `scriptBlocks[0]` to preserve prior behavior of all
-        // parser has produced a precise match still runs *something*.
+        // Never fall back to `scriptBlocks[0]` on a line-resolution miss —
+        // running the wrong workout block is worse than a no-op (WW-069).
         const resolvedBlock =
-          block || scriptBlocks.find(b => b.startLine + 1 === lineNum) || scriptBlocks[0]
+          block || scriptBlocks.find(b => b.startLine + 1 === lineNum)
         if (resolvedBlock) onStartWorkout(resolvedBlock)
       },
     }

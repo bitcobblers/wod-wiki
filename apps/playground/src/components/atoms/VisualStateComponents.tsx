@@ -219,17 +219,16 @@ const StackBlockItem: React.FC<{
 
                         <div className="flex items-center flex-wrap gap-1.5 mt-1.5 min-w-0">
                             {leafChips.map((token, idx) => token.renderKind === 'comment' ? (
-                                <span key={idx} className="text-[11.5px] italic text-muted-foreground select-text" title={token.tooltip}>
+                                <span key={idx} className="text-[11.5px] italic text-muted-foreground select-text">
                                     {token.label}
                                 </span>
                             ) : (
                                 <span
                                     key={idx}
                                     className={cn(
-                                        "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11.5px] font-bold tabular-nums cursor-help transition-colors",
+                                        "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11.5px] font-bold tabular-nums transition-colors",
                                         token.colorClasses
                                     )}
-                                    title={token.tooltip}
                                 >
                                     {token.icon && <span className="text-[11px] leading-none">{token.icon}</span>}
                                     {token.label}

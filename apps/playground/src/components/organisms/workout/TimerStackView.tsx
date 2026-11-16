@@ -297,22 +297,6 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
-            <style>{`
-                @keyframes skip-flash-fade {
-                    0%   { opacity: 1; transform: translateY(0); }
-                    70%  { opacity: 1; transform: translateY(-4px); }
-                    100% { opacity: 0; transform: translateY(-8px); }
-                }
-                .animate-skip-flash {
-                    animation: skip-flash-fade 3s ease-out forwards;
-                }
-                @media (prefers-reduced-motion: reduce) {
-                    .animate-skip-flash {
-                        animation: none;
-                    }
-                }
-            `}</style>
-
             {/* Main Content Area */}
             <div className={`flex-1 min-h-0 flex flex-col items-center justify-center overflow-hidden ${dense ? 'px-4 py-1' : 'p-4'} ${tight ? 'min-w-0' : ''}`}>
 

@@ -179,9 +179,25 @@ export function MarkdownCanvasPage({
   } = useCanvasEditorSource({ initialSource, initialSourceKey, contentOverride })
   const wodFilesRef = useRef(wodFiles)
   wodFilesRef.current = wodFiles
+  const editorViewRef = useRef<{ state: { selection: { main: { head: number } }; doc: { lineAt: (pos: number) => { number: number } } } } | null>(null)
+  const handleViewCreated = useCallback((view: Parameters<typeof setEditorView>[0]) => {
+    editorViewRef.current = view
+    setEditorView(view)
+  }, [setEditorView])
 
-  // Runtime hook
-  const getBlock = useCallback(() => scriptBlocksRef.current[0] ?? null, [])
+  // Runtime hook — resolve the block at the active cursor line when available,
+  // rather than unconditionally picking block 0 (WW-069).
+  const getBlock = useCallback(() => {
+    const blocks = scriptBlocksRef.current
+    const view = editorViewRef.current
+    if (view && blocks.length > 1) {
+      const head = view.state.selection.main.head
+      const cursorLine = view.state.doc.lineAt(head).number - 1
+      const atCursor = blocks.find((b) => cursorLine >= b.startLine && cursorLine <= b.endLine)
+      if (atCursor) return atCursor
+    }
+    return blocks[0] ?? null
+  }, [])
   const runtime = useCanvasRuntime({ getBlock, getContent: getSource, title: page.frontmatter.title })
   const { startRun, closeRun, handleWorkoutComplete, resetRun, resetRequested, fullscreen, runState, completedResults } = runtime
 
@@ -413,18 +429,18 @@ export function MarkdownCanvasPage({
   useEffect(() => {
     onPanelActionsReadyRef.current?.({
       run: () => {
-        const block = scriptBlocksRef.current[0] ?? null
+        const block = getBlock()
         if (block) startRun(block)
       },
       reset: () => { void resetRun() },
       results: () => {},
       fullscreen: () => {
-        const block = scriptBlocksRef.current[0] ?? null
+        const block = getBlock()
         if (block) startRun(block)
       },
       getSource,
     })
-  }, [startRun, resetRun, getSource])
+  }, [getBlock, startRun, resetRun, getSource])
 
   // Commands for InlineCommandBar on wod blocks
   const canvasCommands = useMemo<ScriptCommand[]>(() => [
@@ -510,7 +526,7 @@ export function MarkdownCanvasPage({
       theme={theme}
       commands={canvasCommands}
       onBlocksChange={handleBlocksChange}
-      onViewCreated={setEditorView}
+      onViewCreated={handleViewCreated}
       panelTitle={panelTitle}
       panelSubtitle={panelSubtitle}
       panelThemeClass={activePanelTheme.panel}

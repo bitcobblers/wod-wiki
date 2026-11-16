@@ -333,6 +333,64 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
         </button>
       </div>
 
+      {mode === 'keypad' && entry === null && snapshot.phase !== 'review' && (
+        <div
+          role="group"
+          aria-label="Numeric keypad"
+          className="border-t border-border/60 px-3 py-2"
+        >
+          {snapshot.reps.length > 0 && snapshot.selectedOccurrenceId ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const).map((digit) => (
+                <button
+                  key={digit}
+                  type="button"
+                  onClick={() => {
+                    if (draft.length < 5) writeClockDraft(draft + digit);
+                  }}
+                  {...focus(`board-keypad-${digit}`)}
+                  className="h-9 min-w-9 flex-1 rounded-md border border-border bg-muted/40 font-mono text-sm font-semibold hover:bg-accent active:scale-95"
+                >
+                  {digit}
+                </button>
+              ))}
+              <button
+                type="button"
+                aria-label="Backspace"
+                disabled={draft.length === 0}
+                onClick={() => writeClockDraft(draft.slice(0, -1))}
+                {...focus('board-keypad-back')}
+                className="h-9 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-accent disabled:opacity-40"
+              >
+                ⌫
+              </button>
+              <button
+                type="button"
+                aria-label="Set reps"
+                disabled={draft.length === 0}
+                onClick={() => {
+                  const value = Number.parseInt(draft, 10);
+                  if (!Number.isSafeInteger(value) || value < 0) return;
+                  if (dispatch({ kind: 'reps-set', occurrenceId: snapshot.selectedOccurrenceId!, value })) {
+                    writeClockDraft('');
+                  }
+                }}
+                {...focus('board-keypad-set')}
+                className="h-9 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
+              >
+                Set
+              </button>
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">
+              {snapshot.reps.length > 1
+                ? 'Select a movement above to enter reps.'
+                : 'No rep movements active for keypad entry.'}
+            </p>
+          )}
+        </div>
+      )}
+
       {entry !== null && (
         <div
           data-testid={TEST_IDS.CLOCK_ENTRY_OVERLAY}

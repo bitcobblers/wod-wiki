@@ -384,4 +384,72 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
     const rt = useActiveRunStore.getState().runtime;
     expect(rt?.stack.current?.blockType).not.toBe('WaitingToStart');
   });
+
+  it('WW-085: pressing "/" at the WaitingToStart gate pops WaitingToStart and renders no inline <style> tags', async () => {
+    const { container } = render(
+      <RuntimeTimerPanel
+        block={makeBlock('10:00 AMRAP\n  5 Pullups\n  10 Pushups')}
+        resultId="sess-ww085-slash"
+        noteId="note-ww085-slash"
+        autoStart={true}
+        onClose={() => {}}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(useActiveRunStore.getState().runtime?.stack.current?.blockType).toBe('WaitingToStart');
+    });
+    expect(container.querySelectorAll('style').length).toBe(0);
+
+    fireEvent.keyDown(window, { key: '/' });
+
+    await waitFor(() => {
+      expect(useActiveRunStore.getState().execution.status).toBe('running');
+    });
+    expect(useActiveRunStore.getState().runtime?.stack.current?.blockType).not.toBe('WaitingToStart');
+  });
+
+  it('WW-052: clicking Stop at the WaitingToStart gate closes without calling onComplete', async () => {
+    const onClose = vi.fn();
+    const onComplete = vi.fn();
+    render(
+      <RuntimeTimerPanel
+        block={makeBlock('10:00 AMRAP\n  5 Pullups')}
+        resultId="sess-ww052-gate"
+        noteId="note-ww052-gate"
+        autoStart={true}
+        onClose={onClose}
+        onComplete={onComplete}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(useActiveRunStore.getState().runtime?.stack.current?.blockType).toBe('WaitingToStart');
+    });
+
+    fireEvent.click(screen.getByTestId(TEST_IDS.TIMER_STOP_SESSION));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('WW-067: toggling Keypad in ClockCommandBoard renders the numeric keypad group', async () => {
+    render(
+      <RuntimeTimerPanel
+        block={makeBlock('10:00 AMRAP\n  5 Pullups')}
+        resultId="sess-ww067-keypad"
+        noteId="note-ww067-keypad"
+        autoStart={true}
+        onClose={() => {}}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId(TEST_IDS.CLOCK_KEY_MODE_TOGGLE)).toBeDefined();
+    });
+
+    const keypadBtn = screen.getByRole('button', { name: 'Keypad' });
+    fireEvent.click(keypadBtn);
+    expect(keypadBtn.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('group', { name: 'Numeric keypad' })).toBeDefined();
+  });
 });
