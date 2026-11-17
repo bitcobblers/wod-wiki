@@ -199,15 +199,21 @@ class GraphStore {
 
 function loadStore(): GraphStore {
   const store = new GraphStore();
+  const seen = new Set<string>();
   const files = [
     path.join(GENERATED_DIR, 'code-graph.ttl'),
     path.join(GENERATED_DIR, 'qa-instances.ttl'),
     path.join(GENERATED_DIR, 'bridge-instances.ttl'),
-    path.join(REPO_ROOT, 'ontology/qa/qa-snapshot.ttl'),
   ];
   for (const file of files) {
     if (fs.existsSync(file)) {
-      store.addAll(parseGeneratedTtl(file));
+      const deduped = parseGeneratedTtl(file).filter((t) => {
+        const k = `${t.s}\0${t.p}\0${t.o}\0${t.isLiteral ? '1' : '0'}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      store.addAll(deduped);
     }
   }
   return store;
@@ -296,7 +302,7 @@ function getJourneyView(store: GraphStore, jIri: string): JourneyView {
   const issues = [...issueIriSet].map((iIri) => ({
     id: store.val(iIri, 'qa:issueId') ?? iIri.split('/').pop() ?? iIri,
     title: store.val(iIri, 'rdfs:label') ?? iIri,
-    severity: store.val(iIri, 'qa:severity'),
+    severity: store.val(iIri, 'qa:issueSeverity') ?? store.val(iIri, 'qa:severity'),
     rootCauses: store.vals(iIri, 'bridge:rootCause').map((rc) => store.val(rc, 'code:filePath') ?? store.val(rc, 'code:scipId') ?? rc),
   }));
 
@@ -899,8 +905,8 @@ function queryByIssue(store: GraphStore, issueQuery: string, jsonMode: boolean) 
   const results = matches.map((iIri) => {
     const id = store.val(iIri, 'qa:issueId') ?? iIri.split('/').pop() ?? iIri;
     const title = store.val(iIri, 'rdfs:label') ?? id;
-    const severity = store.val(iIri, 'qa:severity') ?? '';
-    const status = store.val(iIri, 'qa:status') ?? '';
+    const severity = store.val(iIri, 'qa:issueSeverity') ?? store.val(iIri, 'qa:severity') ?? '';
+    const status = store.val(iIri, 'qa:issueStatus') ?? store.val(iIri, 'qa:status') ?? '';
     const firstSeenRun = store.val(iIri, 'qa:firstSeenRun')?.split('/').pop();
     const lastSeenRun = store.val(iIri, 'qa:lastSeenRun')?.split('/').pop();
     const affects = store.vals(iIri, 'qa:affects').map((d) => d.split('/').pop() ?? d);
