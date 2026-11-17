@@ -34,8 +34,8 @@ export async function gzipBase64(text: string): Promise<string> {
       const cs = new CompressionStream('gzip');
       const writer = cs.writable.getWriter();
       const reader = cs.readable.getReader();
-      writer.write(bytes);
-      writer.close();
+      void writer.write(bytes);
+      void writer.close();
 
       const chunks: Uint8Array[] = [];
       for (;;) {

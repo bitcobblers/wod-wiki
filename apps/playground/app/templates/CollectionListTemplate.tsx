@@ -99,7 +99,7 @@ export function CollectionListTemplate<TQuery, TRecord, TItem>({
       }
     }
 
-    runLoad();
+    void runLoad();
 
     return () => {
       isCancelled = true;

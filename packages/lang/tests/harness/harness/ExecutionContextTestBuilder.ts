@@ -55,10 +55,10 @@ interface EventHandlerConfig {
  * ```
  */
 export class ExecutionContextTestBuilder {
-  private _config: HarnessConfig = {};
-  private _jitMatchers: JitMatcherConfig[] = [];
-  private _initialBlocks: IRuntimeBlock[] = [];
-  private _eventHandlers: EventHandlerConfig[] = [];
+  private readonly _config: HarnessConfig = {};
+  private readonly _jitMatchers: JitMatcherConfig[] = [];
+  private readonly _initialBlocks: IRuntimeBlock[] = [];
+  private readonly _eventHandlers: EventHandlerConfig[] = [];
   private _defaultBlock?: IRuntimeBlock;
 
   /**

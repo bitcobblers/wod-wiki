@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import { IndexedDBNotePersistence } from '@/services/persistence';
 import { StorageService } from '@/services/storage/StorageService';

@@ -118,10 +118,10 @@ function isStreamQueryService(value: unknown): value is StreamQueryService {
 }
 
 export class StreamQueryEngine {
-  private customService?: StreamQueryService;
-  private noteTitleResolver?: (noteId: string) => Promise<string | undefined> | string | undefined;
-  private noteTagsResolver?: (noteId: string) => Promise<string[]> | string[];
-  private noteBlockInfo: boolean;
+  private readonly customService?: StreamQueryService;
+  private readonly noteTitleResolver?: (noteId: string) => Promise<string | undefined> | string | undefined;
+  private readonly noteTagsResolver?: (noteId: string) => Promise<string[]> | string[];
+  private readonly noteBlockInfo: boolean;
 
   constructor(serviceOrOptions?: StreamQueryService | StreamQueryEngineOptions) {
     if (isStreamQueryService(serviceOrOptions)) {

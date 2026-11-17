@@ -11,7 +11,7 @@
  * dynamic specifiers stay external in the CLI bundle.
  */
 
-import type { EventRecord } from '@bitcobblers/wod-wiki-core';
+import type { BlockEffort, EventRecord, NoteTag, Tag } from '@bitcobblers/wod-wiki-core';
 import type { IStorage, KeyDTO, Note, Session } from '@bitcobblers/wod-wiki-storage';
 import type { RangeDTO, StoreDef } from '@bitcobblers/wod-wiki-storage';
 import type {
@@ -360,12 +360,22 @@ export function sqliteEffortStore(db: Database): EffortQueryStore {
 }
 
 /** Generic by-index reader over a store table — the QueryService seam shape. */
-export interface IndexStore { getAllFromIndex(index: string, key: string): Promise<unknown[]> }
+export interface IndexStore<T = unknown> { getAllFromIndex(index: string, key: string): Promise<T[]> }
+
+interface SqliteIndexStoreMap {
+  block_efforts: BlockEffort;
+  tags: Tag;
+  note_tags: NoteTag;
+}
 
 /** Indexed reads over `block_efforts` / `tags` / `note_tags` rows. */
-export function sqliteIndexStore(db: Database, store: 'block_efforts' | 'tags' | 'note_tags'): IndexStore {
+export function sqliteIndexStore<K extends keyof SqliteIndexStoreMap>(
+  db: Database,
+  store: K,
+): IndexStore<SqliteIndexStoreMap[K]> {
   return {
-    getAllFromIndex: async (index, key) => rowsByIndex(await loadSql(), db, store, index, key),
+    getAllFromIndex: async (index, key) =>
+      (await rowsByIndex(await loadSql(), db, store, index, key)) as SqliteIndexStoreMap[K][],
   };
 }
 

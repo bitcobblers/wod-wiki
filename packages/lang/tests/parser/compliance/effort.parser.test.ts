@@ -4,7 +4,7 @@
  * Tests the parser's ability to produce correct CodeStatement trees
  * for effort-based whiteboard language constructs.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it } from 'vitest';
 import { parse } from '@wod-wiki/lang-harness/parser-test-utils';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 

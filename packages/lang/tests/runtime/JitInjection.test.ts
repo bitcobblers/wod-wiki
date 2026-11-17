@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock , vi} from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JitCompiler } from '../../src/runtime/compiler/JitCompiler';
 import { IScriptRuntime } from '../../src/runtime/contracts/IScriptRuntime';
 import { IRuntimeBlock } from '../../src/runtime/contracts/IRuntimeBlock';
@@ -13,10 +13,10 @@ class MockStrategy implements IRuntimeBlockStrategy {
     priority = 100;
     capturedNodes: ICodeStatement[] = [];
 
-    match(nodes: ICodeStatement[], runtime: IScriptRuntime): boolean {
+    match(_nodes: ICodeStatement[], _runtime: IScriptRuntime): boolean {
         return true;
     }
-    apply(builder: BlockBuilder, nodes: ICodeStatement[], runtime: IScriptRuntime): void {
+    apply(builder: BlockBuilder, nodes: ICodeStatement[], _runtime: IScriptRuntime): void {
         this.capturedNodes = nodes;
         builder.setBlockType("MockBlock");
         // Must provide context and key to build successfully

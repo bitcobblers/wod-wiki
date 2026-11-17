@@ -99,7 +99,7 @@ export function usePlaygroundRun({
     async (document: string, block: ScriptBlock, meta: PlaygroundRunMeta): Promise<PlaygroundRun> => {
       // Synchronous gates BEFORE any await — concurrent starts are refused,
       // never double-minting snapshots or overwriting the identity.
-      if (startAttemptRef.current) throw new Error('A workout is already starting.')
+      if (startAttemptRef.current !== null) throw new Error('A workout is already starting.')
       if (runRef.current && !recordedRef.current) throw new Error('A workout is already running.')
       if (pendingRef.current) throw new Error('Previous workout results are not saved yet.')
       const attempt = (async () => {
@@ -136,7 +136,7 @@ export function usePlaygroundRun({
 
   const finalize = useCallback(
     async (results: Sessions, completed: boolean): Promise<void> => {
-      if (startAttemptRef.current) {
+      if (startAttemptRef.current !== null) {
         try {
           await startAttemptRef.current
         } catch {
@@ -148,7 +148,7 @@ export function usePlaygroundRun({
       if (!identity || recordedRef.current) return
       // Single-flight: a concurrent caller awaits the SAME in-flight write
       // instead of silently succeeding or double-recording.
-      if (saveAttemptRef.current) return saveAttemptRef.current
+      if (saveAttemptRef.current !== null) return saveAttemptRef.current
       // A retry must preserve the FIRST failed snapshot — newer caller args
       // (e.g. empty outputs from a disposed runtime) never overwrite it.
       const captured = pendingRef.current ?? { results, completed }
@@ -182,14 +182,14 @@ export function usePlaygroundRun({
 
   /** Drains any in-flight start/save so reset/end never race a live attempt. */
   const drainAttempts = useCallback(async () => {
-    if (startAttemptRef.current) {
+    if (startAttemptRef.current !== null) {
       try {
         await startAttemptRef.current
       } catch {
         // A failed start leaves nothing behind to reset or end.
       }
     }
-    if (saveAttemptRef.current) await saveAttemptRef.current
+    if (saveAttemptRef.current !== null) await saveAttemptRef.current
   }, [])
 
   const reset = useCallback(

@@ -58,15 +58,15 @@ export const AggregateTimeseries: Story = {
     const canvas = within(canvasElement);
     const root = canvas.getByTestId('query-block-story');
     await expect(root).toBeVisible();
-    await waitFor(() => {
-      expect(canvas.queryByText('Loading…')).toBeNull();
+    await waitFor(async () => {
+      await expect(canvas.queryByText('Loading…')).toBeNull();
     });
-    expect(canvas.queryByText(/query execution error/i)).toBeNull();
-    expect(canvas.queryByText(/no data for this range/i)).toBeNull();
-    await waitFor(() => {
+    await expect(canvas.queryByText(/query execution error/i)).toBeNull();
+    await expect(canvas.queryByText(/no data for this range/i)).toBeNull();
+    await waitFor(async () => {
       const svg = root.querySelector('svg.recharts-surface');
-      expect(svg).not.toBeNull();
-      expect(svg).toBeVisible();
+      await expect(svg).not.toBeNull();
+      await expect(svg).toBeVisible();
     });
   },
 };
@@ -101,11 +101,11 @@ export const TableQueryInlay: Story = {
     const canvas = within(canvasElement);
     const root = canvas.getByTestId('query-block-story');
     await expect(root).toBeVisible();
-    await waitFor(() => {
-      expect(canvas.queryByText('Loading…')).toBeNull();
+    await waitFor(async () => {
+      await expect(canvas.queryByText('Loading…')).toBeNull();
     });
     const table = await canvas.findByTestId('tabular-table');
     await expect(table).toBeVisible();
-    expect(table.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
+    await expect(table.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
   },
 };

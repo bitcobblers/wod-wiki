@@ -67,7 +67,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
             }
         };
 
-        loadEntries();
+        void loadEntries();
     }, [open, provider]);
 
     // Compute entry dates for calendar highlighting
@@ -109,7 +109,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
             setOpen(false);
 
             // Navigate to the note in plan mode
-            navigate(planPath(toShortId(noteId)));
+            void navigate(planPath(toShortId(noteId)));
         } catch (err) {
             console.error('Failed to add block to note:', err);
         }
@@ -140,7 +140,7 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
             setOpen(false);
 
             // Navigate to the new note in plan mode
-            navigate(planPath(toShortId(newEntry.id)));
+            void navigate(planPath(toShortId(newEntry.id)));
         } catch (err) {
             console.error('Failed to create new note from block:', err);
         }

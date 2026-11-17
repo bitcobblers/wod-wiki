@@ -266,13 +266,13 @@ const ReceiverApp: React.FC = () => {
     ),
     onFocusChanged: useCallback(() => {
       wakeRemoteControls();
-      audioService.playSound('click', 0.3);
+      void audioService.playSound('click', 0.3);
     }, [wakeRemoteControls]),
     onSelect: useCallback(
       (elementId: string, element: HTMLElement) => {
         flash();
         wakeRemoteControls();
-        audioService.playSound('select', 0.5);
+        void audioService.playSound('select', 0.5);
 
         if (elementId.startsWith('preview-block-')) {
           const index = Number(elementId.slice('preview-block-'.length));
@@ -429,7 +429,7 @@ const ReceiverApp: React.FC = () => {
     const handleGlobalClick = (e: MouseEvent) => {
       const target = e.target;
       if (target instanceof HTMLElement && target.closest('button')) {
-        audioService.playSound('click', 0.5);
+        void audioService.playSound('click', 0.5);
       }
     };
     window.addEventListener('click', handleGlobalClick, true);

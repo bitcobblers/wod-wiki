@@ -116,7 +116,7 @@ export function NotebookDatePage({ slug, date }: NotebookDatePageProps) {
       type: 'note',
     })
     await notebookService.moveNote(created.id, slug)
-    navigate(notePath(created.id))
+    void navigate(notePath(created.id))
   }, [date, slug, navigate])
   const { setL3Items, setL3Actions } = useNav()
   useEffect(() => {

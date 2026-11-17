@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AnalyticsDataPoint, EventRecord } from '@bitcobblers/wod-wiki-core';
+import type { EventRecord } from '@bitcobblers/wod-wiki-core';
 import { QueryService, type EventStore } from '../src/QueryService';
 import { resolveContextualPath, type ContextualAssignment } from '../src/context';
 

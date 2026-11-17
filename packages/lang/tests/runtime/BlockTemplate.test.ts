@@ -17,7 +17,7 @@ import { describe, it, expect } from 'vitest';
 import { BlockKey } from '@bitcobblers/wod-wiki-core';
 import { CodeStatement, ParsedCodeStatement } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
-import { MetricType, IMetric, MetricOrigin } from '@bitcobblers/wod-wiki-core';
+import { MetricType, IMetric } from '@bitcobblers/wod-wiki-core';
 import { CodeMetadata } from '@bitcobblers/wod-wiki-core';
 import { BlockBuilder } from '../../src/runtime/compiler/BlockBuilder';
 import { compose } from '../../src/runtime/compiler/BlockTemplateComposer';
@@ -25,12 +25,6 @@ import type { BlockTemplate } from '../../src/runtime/compiler/BlockTemplate';
 import { PassthroughMetricDistributor } from '../../src/runtime/impl/PassthroughMetricDistributor';
 import { BlockContext } from '../../src/runtime/BlockContext';
 import { LabelComposer } from '../../src/runtime/compiler/utils/LabelComposer';
-import {
-    CountdownTimerBehavior,
-    CountupTimerBehavior,
-    ChildSelectionBehavior,
-    LabelingBehavior,
-} from '../../src/runtime/behaviors';
 
 class MockRuntime {
     now = new Date('2024-01-01T00:00:00Z');
@@ -58,7 +52,7 @@ class MockRuntime {
     notifyError(_e: any) { /* no-op */ }
     subscribeToErrors(_l: any) { return () => {}; }
     getErrors() { return []; }
-    private _stackObservers = new Set<any>();
+    private readonly _stackObservers = new Set<any>();
     subscribeToStack(_l: any) { return () => {}; }
     notifyStackSettled() { /* no-op */ }
     get stackObservers() { return this._stackObservers; }
@@ -77,15 +71,6 @@ function buildTimerMetric(durationMs: number, direction: 'up' | 'down' = 'down')
 function buildRoundsMetric(value: number): IMetric {
     return {
         type: MetricType.Rounds,
-        value,
-        origin: 'compiler' as any,
-        image: String(value),
-    } as any;
-}
-
-function buildRepMetric(value: number): IMetric {
-    return {
-        type: MetricType.Rep,
         value,
         origin: 'compiler' as any,
         image: String(value),

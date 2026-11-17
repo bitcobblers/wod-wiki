@@ -103,6 +103,6 @@ title: Helen Benchmark
     fireEvent.click(screen.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE));
     expect(await screen.findByTestId(TEST_IDS.CLOCK_STOP_CONFIRM)).toBeDefined();
     expect(screen.queryByTestId('stop-confirm')).toBeNull();
-    host.cleanup();
+    await host.cleanup();
   });
 });

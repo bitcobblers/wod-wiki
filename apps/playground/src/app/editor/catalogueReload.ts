@@ -18,7 +18,7 @@ import { subscribeAppEffortRegistry } from '@/services/effortRegistry';
 import { subscribeAppEquipmentRegistry } from '@/services/equipmentRegistry';
 
 /** Dispatched when a reference catalogue changed and the editor must redraw. */
-export const catalogueReload = StateEffect.define<null>();
+export const catalogueReload = StateEffect.define();
 
 /**
  * Redraw the editor's marks when a catalogue changes.

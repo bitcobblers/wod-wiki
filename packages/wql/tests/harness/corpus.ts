@@ -12,7 +12,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { EventRecord } from '@bitcobblers/wod-wiki-core';
 import type { NoteQueryStore, EventStore } from '../../src/stores';
 import { parseCorpusJournal, type CorpusJournal } from '../../fixtures/corpus/journal';
 export type { CorpusJournal } from '../../fixtures/corpus/journal';

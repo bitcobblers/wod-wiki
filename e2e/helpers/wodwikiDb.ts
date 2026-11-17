@@ -320,7 +320,7 @@ export async function getNotePlacements(page: Page, noteId: string): Promise<Not
       };
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
-      return promise;
+      return await promise;
     } finally { db.close(); }
   }, { dbName: WOD_DB, noteId });
 }

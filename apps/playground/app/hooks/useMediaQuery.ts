@@ -15,7 +15,9 @@ export function useMediaQuery(query: string): boolean {
       mq.addEventListener('change', onChange)
       return () => mq.removeEventListener('change', onChange)
     } else {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- legacy Safari <14 MediaQueryList fallback
       mq.addListener(onChange)
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- legacy Safari <14 MediaQueryList fallback
       return () => mq.removeListener(onChange)
     }
   }, [query])

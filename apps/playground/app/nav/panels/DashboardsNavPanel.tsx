@@ -45,7 +45,7 @@ export function DashboardsNavPanel({ itemsOverride, ..._props }: NavPanelProps &
       const note = await dashboardNotes.createDashboard();
       const { meta } = parseFrontmatter(note.rawContent);
       const slug = typeof meta.slug === 'string' && meta.slug ? meta.slug : note.id;
-      navigate(dashboardViewPath(slug));
+      void navigate(dashboardViewPath(slug));
       closeDrawer();
     } finally {
       setCreating(false);
@@ -74,7 +74,7 @@ export function DashboardsNavPanel({ itemsOverride, ..._props }: NavPanelProps &
         label="Explorer"
         active={onExplorer}
         onClick={() => {
-          navigate(dashboardsPath());
+          void navigate(dashboardsPath());
           closeDrawer();
         }}
       />
@@ -91,7 +91,7 @@ export function DashboardsNavPanel({ itemsOverride, ..._props }: NavPanelProps &
               title={ex.question}
               active={sameWql(activeQ, ex.query)}
               onClick={() => {
-                navigate(analyticsExplorerPath({ q: ex.query }));
+                void navigate(analyticsExplorerPath({ q: ex.query }));
                 closeDrawer();
               }}
             />
@@ -127,7 +127,7 @@ export function DashboardsNavPanel({ itemsOverride, ..._props }: NavPanelProps &
                   active={isDashboardActive(d.slug)}
                   testId={`dashboard-nav-item-${d.slug}`}
                   onClick={() => {
-                    navigate(dashboardViewPath(d.slug));
+                    void navigate(dashboardViewPath(d.slug));
                     closeDrawer();
                   }}
                 />
@@ -148,7 +148,7 @@ export function DashboardsNavPanel({ itemsOverride, ..._props }: NavPanelProps &
                   active={isDashboardActive(d.slug)}
                   testId={`dashboard-nav-item-${d.slug}`}
                   onClick={() => {
-                    navigate(dashboardViewPath(d.slug));
+                    void navigate(dashboardViewPath(d.slug));
                     closeDrawer();
                   }}
                 />

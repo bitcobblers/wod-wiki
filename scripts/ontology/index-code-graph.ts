@@ -912,7 +912,6 @@ export async function buildUnifiedGraph() {
   for (const absFile of storageFiles) {
     const rel = path.relative(REPO_ROOT, absFile).replace(/\\/g, '/');
     if (!rel.includes('storage-conformance') && !rel.includes('conformance')) continue;
-    const content = fs.readFileSync(absFile, 'utf8');
     const sIri = suiteIri(rel);
     const label = path.basename(rel, path.extname(rel));
     suiteCount++;

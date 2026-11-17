@@ -210,7 +210,6 @@ describe('serialize (C6 structured interface)', () => {
     const AGG_KEYS = ['tags', 'discipline', 'effort', 'intensity', 'grade'] as const;
     const SOURCES = ['journal', 'feeds', 'guides', 'playground', 'collection:crossfit-girls'];
     const METRICS = ['totalVolume', 'tis', 'calc.acwr', 'maxHeartRate'];
-    const DIMS = ['week', 'day', 'session', 'round', 'effort'];
     const DATES = ['2026-01-01', '2026-03-31', '2025-11-30'];
     const THRESHOLDS = [0, 5, 5000, 1234.5, 0.25];
 

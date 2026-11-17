@@ -21,19 +21,6 @@ interface Triple {
   isLiteral: boolean;
 }
 
-const PREFIX_MAP: Record<string, string> = {
-  'wod:': 'https://wod.wiki/ontology#',
-  'ufo:': 'https://wod.wiki/ontology/patterns#',
-  'qa:': 'https://wod.wiki/ontology/qa#',
-  'code:': 'https://wod.wiki/ontology/code#',
-  'bridge:': 'https://wod.wiki/ontology/bridge#',
-  'owl:': 'http://www.w3.org/2002/07/owl#',
-  'rdf:': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
-  'rdfs:': 'http://www.w3.org/2000/01/rdf-schema#',
-  'xsd:': 'http://www.w3.org/2001/XMLSchema#',
-  'prov:': 'http://www.w3.org/ns/prov#',
-};
-
 function expandTerm(tok: string): string {
   if (tok === 'a') return 'rdf:type';
   if (tok.startsWith('<') && tok.endsWith('>')) return tok.slice(1, -1);

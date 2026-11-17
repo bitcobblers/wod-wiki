@@ -93,10 +93,11 @@ export const DatesTagsSection: React.FC<DatesTagsSectionProps> = ({
   };
 
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still reports keyCode 229 after compositionend.
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleAddTag();
+      void handleAddTag();
     } else if (e.key === 'Escape') {
       setTagInput('');
       setIsTagInputVisible(false);

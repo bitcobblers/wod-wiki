@@ -45,7 +45,7 @@ export interface ControlsConfig {
  * ```
  */
 export class ButtonBehavior implements IRuntimeBehavior {
-    constructor(private config: ControlsConfig) { }
+    constructor(private readonly config: ControlsConfig) { }
 
     onMount(ctx: IBehaviorContext): IRuntimeAction[] {
         // Create action metrics for each button

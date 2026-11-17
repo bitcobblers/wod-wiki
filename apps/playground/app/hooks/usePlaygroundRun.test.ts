@@ -6,7 +6,7 @@
  * exactly once, reset retains partial + snapshot, and failed saves never lose
  * outputs or allow replacement runs.
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';

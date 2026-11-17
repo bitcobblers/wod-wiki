@@ -87,10 +87,10 @@ describe('useExplorerQueryState', () => {
 
     // Both edits collapsed into one scratch entry: a single Back reaches the
     // pristine landing (restore semantics), a second leaves the explorer.
-    act(() => capturedNavigate(-1))
+    act(() => { void capturedNavigate(-1) })
     await waitFor(() => expect(draft()).toBe(DEFAULT_EXPLORER_QUERY))
     expect(submitted()).toBe('')
-    act(() => capturedNavigate(-1))
+    act(() => { void capturedNavigate(-1) })
     await waitFor(() => expect(screen.getByTestId('pathname').textContent).toBe('/elsewhere'))
   })
 
@@ -106,7 +106,7 @@ describe('useExplorerQueryState', () => {
     // The checkpoint converts the scratch entry in place: the URL is unchanged…
     expect(qParam()).toBe('sum:tis{}')
     // …and Back reaches the pristine landing instead of a junk draft entry.
-    act(() => capturedNavigate(-1))
+    act(() => { void capturedNavigate(-1) })
     await waitFor(() => expect(draft()).toBe(DEFAULT_EXPLORER_QUERY))
     expect(submitted()).toBe('')
   })
@@ -151,13 +151,13 @@ describe('useExplorerQueryState', () => {
     // Forward scratch spell collapsed on submit: Back lands on the A checkpoint…
     act(() => captured.submit())
     await waitFor(() => expect(submitted()).toBe('sum:tis{}'))
-    act(() => capturedNavigate(-1))
+    act(() => { void capturedNavigate(-1) })
     await waitFor(() => expect(draft()).toBe('sum:sessionLoad{}'))
     // …and popstate re-submits the restored query (legacy behavior).
     await waitFor(() => expect(submitted()).toBe('sum:sessionLoad{}'))
 
     // Forward returns to the B checkpoint and re-runs it.
-    act(() => capturedNavigate(1))
+    act(() => { void capturedNavigate(1) })
     await waitFor(() => expect(draft()).toBe('sum:tis{}'))
     await waitFor(() => expect(submitted()).toBe('sum:tis{}'))
   })
@@ -174,7 +174,7 @@ describe('useExplorerQueryState', () => {
     // Edit but never run, then go back: the checkpoint is one entry behind.
     act(() => captured.setDraft('sum:tis{}'))
     await waitFor(() => expect(qParam()).toBe('sum:tis{}'))
-    act(() => capturedNavigate(-1))
+    act(() => { void capturedNavigate(-1) })
     await waitFor(() => expect(draft()).toBe('sum:sessionLoad{}'))
     await waitFor(() => expect(submitted()).toBe('sum:sessionLoad{}'))
   })
@@ -187,7 +187,7 @@ describe('useExplorerQueryState', () => {
     expect(qParam()).toBe(AGG)
 
     // Replace semantics: back leaves the page instead of undoing the range change.
-    act(() => capturedNavigate(-1))
+    act(() => { void capturedNavigate(-1) })
     await waitFor(() => expect(screen.getByTestId('pathname').textContent).toBe('/elsewhere'))
   })
 

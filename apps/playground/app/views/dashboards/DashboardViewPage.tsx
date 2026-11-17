@@ -173,7 +173,7 @@ export function DashboardViewPage() {
     await dashboardNotes.deleteDashboard(source.noteId);
     notifyDashboardsChanged();
     setConfirmDeleteOpen(false);
-    navigate(dashboardsPath());
+    void navigate(dashboardsPath());
   }, [source, navigate]);
   const handleClone = useCallback(async () => {
     if (!source || source.editable) return;

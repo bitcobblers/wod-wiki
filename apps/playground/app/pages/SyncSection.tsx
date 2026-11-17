@@ -15,7 +15,7 @@ import { Input } from '@/components/atoms/primitives/input'
 import { deleteFeedSource, readFeedStatus, runFeedSync, subscribeFeedUpdates, syncFeedSource, unsubscribeFeedSource, type FeedSourceStatus, type FeedStatus, type FeedSyncOutcome, type FeedSyncProgress } from '@/services/feed/feedSync'
 import type { FeedImportProgress } from '@/services/feed/FeedImporter'
 import { addCustomFeedSource, type CustomFeedSource } from '@/services/feed/feedSources'
-import { getFeedSubscriptionMode, isNotebookSubscribed, isFeedAutoSync, setNotebookSubscribed, setFeedAutoSync, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
+import { getFeedSubscriptionMode, isFeedAutoSync, setNotebookSubscribed, setFeedAutoSync, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
 import { ProgressBar } from '../components/atoms/ProgressBar'
 import { toast } from '@/hooks/use-toast'
 import { formatDateTimeMediumShort } from '@/lib/dateFormat'
@@ -77,7 +77,7 @@ function progressLabel(event: FeedSyncProgress): string {
  *  /settings/sync and the /notebooks manager drawer. Identity (origin, counts,
  *  size, versions, last check/sync, subscription) comes from readFeedStatus;
  *  lifecycle actions ride the shared feed service contract. */
-function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscribe, onDelete, onAutoSync, onToggleNotebook, subscribedOnly }: {
+function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscribe, onDelete, onAutoSync, onToggleNotebook: _onToggleNotebook, subscribedOnly }: {
   source: FeedSourceStatus
   /** This source's sync is the one in flight — spin its button. */
   running: boolean
@@ -97,7 +97,7 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
   const allNotebooks = source.notebooks.filter(notebook => notebook.id !== source.id)
   const subMode = getFeedSubscriptionMode(source.id)
   const subscribedCount = allNotebooks.filter(notebook => notebook.subscribed).length
-  const notebooks = subscribedOnly
+  const _notebooks = subscribedOnly
     ? allNotebooks.filter(notebook => notebook.subscribed)
     : allNotebooks
   const core = source.autoImport

@@ -40,7 +40,7 @@ export interface CountupTimerConfig {
 export class CountupTimerBehavior implements IRuntimeBehavior {
     constructor(public readonly config: CountupTimerConfig = {}) { }
 
-    private subscriptions: Unsubscribe[] = [];
+    private readonly subscriptions: Unsubscribe[] = [];
     private isPaused = false;
     private firstNextSeen = false;
 

@@ -279,7 +279,7 @@ function parseYamlWindow(raw: string): { window?: QueryWindow; error?: string } 
   const clean = unquoteYaml(raw).trim();
   if (!clean || clean.toLowerCase() === 'all') return {};
   if (clean.startsWith('$') && clean.length > 1) {
-    const m = /^\$([a-zA-Z_][\w-]*)(?:\s*([dw]))?$/i.exec(clean);
+    const m = /^\$([a-z_][\w-]*)(?:\s*([dw]))?$/i.exec(clean);
     if (m) {
       return {
         window: {
@@ -290,7 +290,7 @@ function parseYamlWindow(raw: string): { window?: QueryWindow; error?: string } 
       };
     }
   }
-  const relParam = /^last\s+\$([a-zA-Z_][\w-]*)(?:\s*([dw]))?$/i.exec(clean);
+  const relParam = /^last\s+\$([a-z_][\w-]*)(?:\s*([dw]))?$/i.exec(clean);
   if (relParam) {
     return {
       window: {

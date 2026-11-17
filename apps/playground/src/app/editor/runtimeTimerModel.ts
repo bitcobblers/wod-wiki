@@ -30,7 +30,7 @@ import type { ScriptBlock, Sessions } from '@/components/Editor/types';
 import { toStoredOutputStatement } from '@/components/Editor/types';
 
 const factory = runtimeFactory;
-const preparedBlocks = new WeakSet<object>();
+const preparedBlocks = new WeakSet();
 
 export function prepareRuntimeBlock(block: ScriptBlock): ScriptBlock & { statements: NonNullable<ScriptBlock['statements']> } {
   // Parse at Run time, not only at editor render time. The tag catalogue can

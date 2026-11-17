@@ -168,7 +168,7 @@ export class ClimbDialect implements IDialect {
       const current = metricText(metric);
       const next = metricText(metrics[index + 1] as IMetric);
 
-      const vScale = current.match(/\bV(\d{1,2})(?:[-+])?\b/i);
+      const vScale = current.match(/\bV(\d{1,2})[-+]?\b/i);
       if (vScale) {
         const gradeNumber = Number(vScale[1]);
         return { raw: vScale[0].toUpperCase(), system: 'v-scale', normalizedRank: gradeNumber };
@@ -187,7 +187,7 @@ export class ClimbDialect implements IDialect {
         return { raw: ydsInline[0], system: 'yds', normalizedRank: this.ydsRank(ydsInline[0]) };
       }
 
-      const fontInline = current.match(/\b([3-9][ABC](?:\+)?)\b/);
+      const fontInline = current.match(/\b([3-9][ABC]\+?)\b/);
       if (fontInline) return { raw: fontInline[1], system: 'font' };
 
       if (typeof metric.value === 'number' && metric.value >= 3 && metric.value <= 9) {
@@ -195,7 +195,7 @@ export class ClimbDialect implements IDialect {
         if (suffix) return { raw: `${metric.value}${suffix}`, system: 'font' };
       }
 
-      const frenchInline = current.match(/\b([3-9][abc](?:\+)?)\b/);
+      const frenchInline = current.match(/\b([3-9][abc]\+?)\b/);
       if (frenchInline) return { raw: frenchInline[1], system: 'french' };
     }
 

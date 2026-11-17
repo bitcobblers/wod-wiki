@@ -226,14 +226,12 @@ function computeFocusState(
 
   let focus: CursorFocusState | null = null;
   let stmt: ICodeStatement | null = null;
-  let statementIndex = -1;
-  let statements: ICodeStatement[] | null = null;
 
   if (cursorSection) {
     const docLine = state.doc.line(cursorLine);
-    statements = parseStatements(cursorSection, state);
+    const statements = parseStatements(cursorSection, state);
     const lineInContent = cursorLine - cursorSection.startLine;
-    statementIndex = statements?.findIndex(s => s.meta?.line === lineInContent && s.metrics.some(metric => {
+    let statementIndex = statements?.findIndex(s => s.meta?.line === lineInContent && s.metrics.some(metric => {
       const meta = s.metricMeta.get(metric);
       const offset = head - (cursorSection.contentFrom ?? 0);
       return meta && offset >= meta.startOffset && offset <= meta.endOffset;

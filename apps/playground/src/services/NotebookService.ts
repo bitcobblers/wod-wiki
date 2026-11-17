@@ -40,7 +40,7 @@ export const CUSTOM_NOTEBOOK_ID = 'notebook/custom';
 /** Always-present notebook slugs (app-owned; user CRUD is refused). */
 const RESERVED_SLUGS: ReadonlySet<string> = new Set(BUILTIN_NOTEBOOKS.map((n) => n.slug));
 export class NotebookService {
-    constructor(private store: StorageService = storageService) {}
+    constructor(private readonly store: StorageService = storageService) {}
 
     // Invariant: mutations are serialized — an op reads committed state only after the previous op's save landed.
     private tail: Promise<unknown> = Promise.resolve();

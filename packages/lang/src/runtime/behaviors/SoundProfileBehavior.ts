@@ -46,7 +46,7 @@ export class SoundProfileBehavior implements IRuntimeBehavior {
     private readonly fired = new Set<number>();
     private durationMs: number | undefined;
 
-    constructor(private config: SoundProfileBehaviorConfig) { }
+    constructor(private readonly config: SoundProfileBehaviorConfig) { }
 
     onMount(ctx: IBehaviorContext): IRuntimeAction[] {
         const timer = readTimer(ctx);
@@ -96,6 +96,7 @@ export class SoundProfileBehavior implements IRuntimeBehavior {
     /**
      * Fire every rule whose trigger point has been reached.
      *
+     * @param ctx active behavior context
      * @param elapsed milliseconds elapsed on the block's timer
      * @param durationMs the block's total duration
      * @param ending whether the block is ending — a rule anchored to the end

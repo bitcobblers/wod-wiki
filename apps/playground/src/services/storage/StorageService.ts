@@ -112,9 +112,11 @@ export const DEFAULT_TAG_TYPES: Array<Omit<TagTypeRecord, 'createdAt'>> = [
 
 export class StorageService implements NotePersistenceStorage {
   /**
+   * @param storage backing storage implementation.
    * @param scopedTx true on instances created by {@link withTransaction} —
    *   they route every call through the enclosing transaction and must not
    *   expose the remote queryDomain capability (stale remote reads).
+   * @param txCatalogState optional shared catalog-dirty tracker for nested transactions.
    */
   constructor(
     readonly storage: IStorage,

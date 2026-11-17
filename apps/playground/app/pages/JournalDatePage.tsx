@@ -28,7 +28,6 @@ import { useNav } from '../nav/NavContext';
 import { SavedNoteEditor } from './shared/SavedNoteEditor';
 import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
 import type { ParkedRun, PendingRuntime } from '../runtimeStore';
-import { sectionField } from '@bitcobblers/wod-wiki-ui/extensions';
 import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import { setSurfaceBusy } from '@/agent/surfaceBridges';
 import { feedProgressLabel } from '@/services/feed/feedProgress';
@@ -51,7 +50,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   const [isTimerOpen, setIsTimerOpen] = useState(false);
   const [timerBlock, setTimerBlock] = useState<ScriptBlock | null>(null);
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
-  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  const [_activeNoteId, setActiveNoteId] = useState<string | null>(null);
   // A run that is still alive from a previous visit to this date: the user
   // navigated away mid-workout and the runtime was parked (not disposed),
   // so the clock kept running. Re-bound on return.
@@ -91,7 +90,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   }, []);
   const editorViewsRef = useRef<Map<string, EditorView>>(new Map());
   const editorViewRef = useRef<EditorView | null>(null);
-  const [editorView, setEditorView] = useState<EditorView | null>(null);
+  const [_editorView, setEditorView] = useState<EditorView | null>(null);
   const handleViewCreatedForNote = useCallback((noteId: string, view: EditorView) => {
     editorViewsRef.current.set(noteId, view);
     if (!editorViewRef.current) {
@@ -298,7 +297,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
       const runtimeId = uuidv7();
       const captured = await start(block, runtimeId);
       pendingRuntimes.set(runtimeId, { noteId, block: captured.block, captured, returnTo: dayPath(journalDate) });
-      navigate(runPath(runtimeId));
+      void navigate(runPath(runtimeId));
     } catch (error) { setRunError(error instanceof Error ? error.message : String(error)); }
   }, [journalDate, navigate]);
   const handleOutlineRun = useCallback((block: ScriptBlock) => {
@@ -391,7 +390,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
 
   const handleCreated = (created: HistoryRecord) => {
     journalNotes.listByDate(journalDate).then(setNotes).catch(() => {});
-    navigate(notePath(created.id));
+    void navigate(notePath(created.id));
   };
 
   return (

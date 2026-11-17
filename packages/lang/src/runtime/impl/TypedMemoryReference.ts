@@ -18,7 +18,7 @@ import type { RuntimeStackLogger } from '../contracts/IRuntimeOptions';
 
 export class TypedMemoryReference<T> implements IMemoryReference {
     public id: string = uuidv7();
-    private _subscriptions: IMemorySubscription<T>[] = [];
+    private readonly _subscriptions: IMemorySubscription<T>[] = [];
 
     constructor(
         private readonly _memory: IRuntimeMemory,

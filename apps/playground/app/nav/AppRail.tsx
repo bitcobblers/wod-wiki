@@ -23,7 +23,7 @@ import { useCloseNavigationDrawer } from './NavigationDrawerContext'
 import type { NavItem, NavActionDeps } from './navTypes'
 import { APP_VERSION } from '../lib/appVersion'
 
-export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate?: () => void }) {
+export function AppRail({ onSearch, onCreate: _onCreate }: { onSearch: () => void; onCreate?: () => void }) {
   const { tree, navState, dispatch } = useNav()
   const navigate = useNavigate()
   const location = useLocation()
@@ -33,7 +33,9 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
   const closeDrawer = useCloseNavigationDrawer()
 
   const deps: NavActionDeps = {
-    navigate: (to, opts) => navigate(to, { replace: opts?.replace }),
+    navigate: (to, opts) => {
+      void navigate(to, { replace: opts?.replace })
+    },
     setQueryParam: () => {},
     scrollToSection: () => {},
   }
@@ -48,7 +50,6 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
       item.id !== 'buy-me-a-coffee',
   )
   const isSettingsActive = location.pathname.startsWith('/settings')
-  const isHomeActive = location.pathname === '/' || location.pathname === ''
   // ponytail: fixed 56px rail keeps labels in tooltips/screen-readers; add persistent labels when rail widens to 72px+.
   const TOOLTIP_CLASS =
     'pointer-events-none absolute left-full top-1/2 -translate-y-1/2 z-50 ml-2 w-max rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground opacity-0 shadow-md transition-opacity group-focus-within:opacity-100 group-hover:opacity-100'
@@ -59,7 +60,7 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
       <button
         onClick={() => {
           closeDrawer()
-          navigate('/')
+          void navigate('/')
         }}
         title="Wod Wiki home"
         aria-label="Wod Wiki home"
@@ -147,7 +148,7 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
         type="button"
         onClick={() => {
           closeDrawer()
-          navigate('/settings/profile')
+          void navigate('/settings/profile')
         }}
         title="Profile"
         aria-label="Profile"
@@ -174,7 +175,7 @@ export function AppRail({ onSearch, onCreate }: { onSearch: () => void; onCreate
         type="button"
         onClick={() => {
           closeDrawer()
-          navigate('/settings/appearance')
+          void navigate('/settings/appearance')
         }}
         title="Settings"
         aria-label="Settings"

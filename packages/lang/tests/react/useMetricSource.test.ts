@@ -132,7 +132,6 @@ describe("Phase 4: Fragment Source Access from Blocks", () => {
             expect(locations[0].metrics).toHaveLength(3);
 
             const parserFrags = locations[0].metrics.filter(f => f.origin === 'parser');
-            const runtimeFrags = locations[0].metrics.filter(f => f.origin === 'runtime');
             expect(parserFrags).toHaveLength(2); // parserTimer + actionFrag are both parser origin
             // Actually both parserTimer and actionFrag are 'parser' origin
         });

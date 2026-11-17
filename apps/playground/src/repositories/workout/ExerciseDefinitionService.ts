@@ -11,7 +11,7 @@ import type { Exercise } from '../../exercise';
  */
 export class ExerciseDefinitionService {
   private static instance: ExerciseDefinitionService;
-  private definitions: Map<string, Exercise> = new Map();
+  private readonly definitions: Map<string, Exercise> = new Map();
 
   private constructor(exercises?: Exercise[]) {
     if (exercises) {

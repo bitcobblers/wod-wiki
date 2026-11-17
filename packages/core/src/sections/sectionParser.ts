@@ -109,7 +109,7 @@ export function parseDocumentSections(content: string, options: SectionRecogniti
       const names = options.registeredWidgets ?? KNOWN_SECTION_WIDGETS;
       const knownWidget = widget && ('has' in names ? names.has(widget[1]) : names.includes(widget[1]));
       const widgetChartMatch = marker[0] === '`' && !knownWidget
-        ? tag.match(/^widget:([a-zA-Z-]+)(?:-(?:full|\d+))?(?:\s+.*)?$/i)
+        ? tag.match(/^widget:([a-z-]+)(?:-(?:full|\d+))?(?:\s+.*)?$/i)
         : null;
       const isWidgetChart = Boolean(widgetChartMatch && KNOWN_QUERY_WIDGET_TYPES[widgetChartMatch[1].toLowerCase()]);
       const query = marker[0] === '`'
@@ -159,7 +159,7 @@ export function parseDocumentSections(content: string, options: SectionRecogniti
     if (embed) {
       const section = make('embed', line, line);
       const isImage = !!embed[1];
-      section.embed = { type: isImage ? 'image' : /(?:youtube\.com|youtu\.be)/i.test(embed[3]) ? 'youtube' : 'link', label: embed[2], url: embed[3], isImage };
+      section.embed = { type: isImage ? 'image' : /youtube\.com|youtu\.be/i.test(embed[3]) ? 'youtube' : 'link', label: embed[2], url: embed[3], isImage };
       sections.push(section);
       line++;
       continue;

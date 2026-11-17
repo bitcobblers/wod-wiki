@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, mock } from 'bun:test';
 import type { ReactNode } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { NuqsAdapter } from 'nuqs/adapters/react-router';
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import { SecondaryNav } from '../SecondaryNav';
 import { NavContext, initialNavState } from '../NavContext';
 import type { NavItemL3, NavState } from '../navTypes';
@@ -124,8 +124,8 @@ describe('SecondaryNav on home page', () => {
   });
 
   it('renders date window picker, group by options, and on this page when stream controls are active', () => {
-    const onToggleGroupDim = mock((dim: string) => {});
-    const onQueryChange = mock((q: string) => {});
+    const onToggleGroupDim = mock((_dim: string) => {});
+    const onQueryChange = mock((_q: string) => {});
     render(
       <MemoryRouter initialEntries={['/journal']}>
         <NuqsAdapter>

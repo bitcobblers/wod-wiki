@@ -22,7 +22,6 @@ import {
   buildMonthAgenda,
   buildMonthGrid,
   densityLevel,
-  monthLabel,
   shortMonthLabel,
   WEEKDAY_SHORT,
   type CalendarDay,

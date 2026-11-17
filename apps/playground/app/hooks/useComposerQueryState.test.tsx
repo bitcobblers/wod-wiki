@@ -77,10 +77,10 @@ describe('useComposerQueryState', () => {
 
     // The burst is one scratch entry: a single Back reaches the pristine
     // landing, a second leaves the page.
-    act(() => capturedNavigate(-1))
+    act(() => { void capturedNavigate(-1) })
     await waitFor(() => expect(query()).toBe(DEFAULT_QUERY))
     expect(qParam()).toBe('')
-    act(() => capturedNavigate(-1))
+    act(() => { void capturedNavigate(-1) })
     await waitFor(() => expect(pathname()).toBe('/elsewhere'))
   })
 
@@ -89,18 +89,18 @@ describe('useComposerQueryState', () => {
 
     act(() => captured.setQuery(':note{tags:strength}'))
     await waitFor(() => expect(qParam()).toBe(':note{tags:strength}'))
-    act(() => capturedNavigate(-1))
+    act(() => { void capturedNavigate(-1) })
     await waitFor(() => expect(query()).toBe(DEFAULT_QUERY))
 
     // Forward lands on the scratch entry as an external restore.
-    act(() => capturedNavigate(1))
+    act(() => { void capturedNavigate(1) })
     await waitFor(() => expect(query()).toBe(':note{tags:strength}'))
 
     // The restored entry is committed: editing pushes a NEW entry, so Back
     // returns to the restored query rather than leaving the page.
     act(() => captured.setQuery(':note{tags:x}'))
     await waitFor(() => expect(qParam()).toBe(':note{tags:x}'))
-    act(() => capturedNavigate(-1))
+    act(() => { void capturedNavigate(-1) })
     await waitFor(() => expect(query()).toBe(':note{tags:strength}'))
   })
 

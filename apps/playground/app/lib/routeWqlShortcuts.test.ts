@@ -33,7 +33,6 @@ import {
 } from './routeWqlShortcuts'
 
 const SC: WqlShortcut = { id: 'strength-month', label: 'Strength this month', icon: 'dumbbell', wql: ':note{tags:strength} by {week}' }
-const LANDING = ':note{} last 4w'
 const CTX = { pathname: '/journal', query: '' }
 
 function storeOn(backend: StorageBackend) {

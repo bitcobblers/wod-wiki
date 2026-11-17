@@ -240,7 +240,7 @@ describe('boot orchestrator (startFeedBootstrap)', () => {
     // Drain the bootstrap's microtask chain (every storage/sync hop resolves
     // synchronously-created promises) until it parks on the held canvas
     // fetch — no wall-clock timers involved.
-    for (let i = 0; i < 2000 && getFeedReadiness() !== 'preparing'; i++) await null;
+    for (let i = 0; i < 2000 && getFeedReadiness() !== 'preparing'; i++) await Promise.resolve();
     expect(getFeedReadiness()).toBe('preparing');
     heldCanvas.resolve(await coreSrc.fetchChunk('chunks/canvas.json'));
     await done;

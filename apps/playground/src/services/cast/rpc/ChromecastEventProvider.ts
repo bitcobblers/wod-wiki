@@ -16,7 +16,7 @@ import type { RpcMessage } from './RpcMessages';
  *   (not commonly used browser→receiver, but available for symmetry).
  */
 export class ChromecastEventProvider implements IRuntimeEventProvider {
-    private handlers = new Set<(event: IEvent) => void>();
+    private readonly handlers = new Set<(event: IEvent) => void>();
     private transportUnsub: (() => void) | null = null;
     private disposed = false;
 

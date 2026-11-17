@@ -15,15 +15,32 @@ function getGitSha(): string {
   }
 }
 
-function parseArgs(): { version?: string; bump?: 'patch' | 'minor' | 'major'; prerelease?: string | boolean } {
+type SemverBump = 'patch' | 'minor' | 'major';
+
+interface PackageManifest extends Record<string, unknown> {
+  version?: string;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+}
+
+function isSemverBump(value: string): value is SemverBump {
+  return value === 'patch' || value === 'minor' || value === 'major';
+}
+
+function parseArgs(): { version?: string; bump?: SemverBump; prerelease?: string | boolean } {
   const args = process.argv.slice(2);
-  const parsed: { version?: string; bump?: 'patch' | 'minor' | 'major'; prerelease?: string | boolean } = {};
+  const parsed: { version?: string; bump?: SemverBump; prerelease?: string | boolean } = {};
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--version' && args[i + 1]) {
       parsed.version = args[++i];
     } else if (args[i] === '--bump' && args[i + 1]) {
-      parsed.bump = args[++i] as any;
+      const next = args[++i];
+      if (!isSemverBump(next)) {
+        throw new Error(`Invalid --bump value: ${next} (expected patch, minor, or major)`);
+      }
+      parsed.bump = next;
     } else if (args[i] === '--prerelease') {
       if (args[i + 1] && !args[i + 1].startsWith('--')) {
         parsed.prerelease = args[++i];
@@ -58,7 +75,7 @@ function bumpSemver(base: string, bump: 'patch' | 'minor' | 'major'): string {
 
 const rootDir = path.resolve(__dirname, '..');
 const rootPkgPath = path.join(rootDir, 'package.json');
-const rootPkg = JSON.parse(fs.readFileSync(rootPkgPath, 'utf-8'));
+const rootPkg = JSON.parse(fs.readFileSync(rootPkgPath, 'utf-8')) as PackageManifest;
 
 const cliArgs = parseArgs();
 const gitSha = getGitSha();
@@ -97,14 +114,15 @@ for (const pkgDir of pkgDirs) {
   const pPath = path.join(pkgDir, 'package.json');
   if (!fs.existsSync(pPath)) continue;
 
-  const pkgJson = JSON.parse(fs.readFileSync(pPath, 'utf-8'));
+  const pkgJson = JSON.parse(fs.readFileSync(pPath, 'utf-8')) as PackageManifest;
   pkgJson.version = targetVersion;
 
-  for (const depType of ['dependencies', 'devDependencies', 'peerDependencies']) {
-    if (pkgJson[depType]) {
-      for (const depName of Object.keys(pkgJson[depType])) {
+  for (const depType of ['dependencies', 'devDependencies', 'peerDependencies'] as const) {
+    const deps = pkgJson[depType];
+    if (deps) {
+      for (const depName of Object.keys(deps)) {
         if (depName.startsWith('@bitcobblers/wod-wiki-')) {
-          pkgJson[depType][depName] = `^${targetVersion}`;
+          deps[depName] = `^${targetVersion}`;
         }
       }
     }

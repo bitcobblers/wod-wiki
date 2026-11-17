@@ -874,7 +874,7 @@ export function buildViewer() {
     const host = window.location.hostname || '';
     let mode = state.env;
     if (mode === 'auto') {
-      const m = host.match(/^([a-z0-9-]+)\.(preview|story|e2e|ontology)\.wod\.wiki$/i);
+      const m = host.match(/^([a-z0-9-]+)\\.(preview|story|e2e|ontology)\\.wod\\.wiki$/i);
       if (m) {
         const slug = m[1];
         return {
@@ -884,7 +884,7 @@ export function buildViewer() {
           qa
         };
       }
-      if (/^(?:www\.|story\.|e2e\.|ontology\.)?wod\.wiki$/i.test(host)) {
+      if (/^(?:www\\.|story\\.|e2e\\.|ontology\\.)?wod\\.wiki$/i.test(host)) {
         mode = 'prod';
       } else {
         mode = 'main';

@@ -36,7 +36,7 @@ import type { TestableBlockConfig } from '../contracts/ITestableBlockConfig';
  * ```
  */
 export class RuntimeBuilder {
-    private options: IRuntimeOptions = { ...DEFAULT_RUNTIME_OPTIONS };
+    private readonly options: IRuntimeOptions = { ...DEFAULT_RUNTIME_OPTIONS };
     private nowProvider: INowProvider = wallClockNow;
 
     constructor(

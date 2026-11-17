@@ -133,6 +133,7 @@ export const ClockKeyCheckDialog: React.FC<{
         }
         return [
           ...prev.slice(-7),
+          // eslint-disable-next-line @typescript-eslint/no-deprecated -- Key check diagnostic table records raw hardware/TV remote keyCode.
           { key: e.key, code: e.code, location: e.location, keyCode: e.keyCode, repeat: e.repeat, count: 1 },
         ];
       });

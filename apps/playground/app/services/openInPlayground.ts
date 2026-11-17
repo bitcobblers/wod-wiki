@@ -40,7 +40,7 @@ export async function openBlockInPlayground(
   const url = await buildZipUrl(block, window.location.pathname)
   // Extract just the path+query so we navigate within the SPA router
   const { pathname, search } = new URL(url)
-  navigate(`${pathname}${search}`)
+  void navigate(`${pathname}${search}`)
 }
 /**
  * Open the /load?zip= URL for the time/log block in a new browser tab.
@@ -68,7 +68,7 @@ export async function buildHomeShareUrl(block: ScriptBlock): Promise<string> {
  * toast confirmation. The recipient opens the workout directly on the home page.
  */
 export function shareBlock(block: ScriptBlock): void {
-  buildHomeShareUrl(block).then(url => {
+  void buildHomeShareUrl(block).then(url => {
     navigator.clipboard.writeText(url).then(() => {
       toast({
         title: 'Link copied',

@@ -99,8 +99,8 @@ const linkHoverTooltip = hoverTooltip(
 
 const ctrlClickPlugin = ViewPlugin.fromClass(
   class {
-    private handler: (e: MouseEvent) => void;
-    private view: EditorView;
+    private readonly handler: (e: MouseEvent) => void;
+    private readonly view: EditorView;
 
     constructor(view: EditorView) {
       this.view = view;

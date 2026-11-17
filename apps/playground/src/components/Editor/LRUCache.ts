@@ -5,8 +5,8 @@
  * Uses Map to maintain insertion order and efficiently move items to end on access.
  */
 export class LRUCache<K, V> {
-  private cache: Map<K, V>;
-  private maxSize: number;
+  private readonly cache: Map<K, V>;
+  private readonly maxSize: number;
 
   /**
    * Create a new LRU cache

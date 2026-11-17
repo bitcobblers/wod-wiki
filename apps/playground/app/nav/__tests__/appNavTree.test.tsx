@@ -348,7 +348,7 @@ describe('appNavTree - Settings navigation', () => {
   it('activates appropriate L2 child based on route', () => {
     const tree = buildAppNavTree(() => {})
     const settings = tree.find(item => item.id === 'settings')!
-    const [profile, feeds, appearance, tags, soundProfiles, sync, storage, system] = settings.children!
+    const [profile, _feeds, appearance, tags, soundProfiles, sync, storage, system] = settings.children!
 
     expect(appearance.isActive!(mockLocation('/settings'))).toBe(true)
     expect(appearance.isActive!(mockLocation('/settings/appearance'))).toBe(true)

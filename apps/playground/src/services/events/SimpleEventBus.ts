@@ -7,7 +7,7 @@ import type { IServiceEventBus } from './IServiceEventBus';
  * wrappers around this class.  The runtime EventBus remains separate.
  */
 export class SimpleEventBus<T> implements IServiceEventBus<T> {
-  private listeners = new Set<(event: T) => void>();
+  private readonly listeners = new Set<(event: T) => void>();
 
   emit(event: T): void {
     this.listeners.forEach(fn => {

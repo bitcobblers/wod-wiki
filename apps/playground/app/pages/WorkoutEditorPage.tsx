@@ -100,7 +100,7 @@ export function WorkoutEditorPage({
           const captured = await captureRun({ noteId: entryId ?? noteId, rawContent: content, blocks: noteBlocks, expectedSourceRevision: committedSourceRevision(), metadata: { title: name }, noteType: 'playground' }, block, runtimeId);
           onSaved({ rawContent: captured.note.rawContent, blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision });
           pendingRuntimes.set(runtimeId, { block: captured.block, noteId: captured.session.noteId, captured });
-          navigate(runPath(runtimeId));
+          void navigate(runPath(runtimeId));
         } catch (error) {
           toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
         }
@@ -119,7 +119,7 @@ export function WorkoutEditorPage({
         const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
         if (!occurrence) throw new Error('The saved journal workout is unavailable.');
         pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: journalNote.id })
-        navigate(dayAutoStartPath(journalNote.journalDate ?? '', runtimeId))
+        void navigate(dayAutoStartPath(journalNote.journalDate ?? '', runtimeId))
       } catch (error) {
         toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
@@ -151,7 +151,7 @@ export function WorkoutEditorPage({
         })
         return
       }
-      navigate(dayPath(journalDate))
+      void navigate(dayPath(journalDate))
       const journalRoute = dayPath(journalDate)
       toast({
         title: `Added to ${dateLabel}`,
@@ -168,16 +168,18 @@ export function WorkoutEditorPage({
   )
 
   const commands = useScriptBlockCommands('notebook-readonly', {
-    onPlay: handleStartWorkout,
+    onPlay: (block) => {
+      void handleStartWorkout(block)
+    },
     onShare: shareBlock,
-    onAddToToday: hidePlanningCommands ? undefined : (block) => handleScheduleBlock(block, new Date()),
+    onAddToToday: hidePlanningCommands ? undefined : (block) => { void handleScheduleBlock(block, new Date()) },
     onSchedule: hidePlanningCommands ? undefined : setPendingScheduleBlock,
-    onOpenInPlayground: (block) => openBlockInPlayground(block, navigate),
+    onOpenInPlayground: (block) => { void openBlockInPlayground(block, navigate) },
   })
 
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([])
   const handleEditNote = useCallback(() => {
-    navigate(notePath(noteId))
+    void navigate(notePath(noteId))
   }, [navigate, noteId])
   // Whiteboard notebook-member L3: Add to today, Plan, Open in playground
   // after the outline — page-level shortcuts over the first runnable block
@@ -196,13 +198,15 @@ export function WorkoutEditorPage({
         { id: 'add-to-today', label: 'Add to today', onRun: () => void handleScheduleBlock(firstWodBlock, new Date()) },
         { id: 'plan', label: 'Plan for a date', onRun: () => setPendingScheduleBlock(firstWodBlock) },
       ]),
-      { id: 'open-in-playground', label: 'Open in playground', onRun: () => openBlockInPlayground(firstWodBlock, navigate) },
+      { id: 'open-in-playground', label: 'Open in playground', onRun: () => void openBlockInPlayground(firstWodBlock, navigate) },
     ]
   }, [firstWodBlock, content, hidePlanningCommands, handleScheduleBlock, navigate, onChange])
   useNotePageNav({
     content,
     scriptBlocks,
-    onStartWorkout: handleStartWorkout,
+    onStartWorkout: (block) => {
+      void handleStartWorkout(block)
+    },
     onEditNote: isNotebookItem ? handleEditNote : undefined,
     noteId: entryId ?? noteId,
     helpfulActions,
@@ -279,7 +283,7 @@ export function WorkoutEditorPage({
             <CalendarCard
               selectedDate={null}
               onDateSelect={(date) => {
-                if (date) handleScheduleBlock(pendingScheduleBlock, date)
+                if (date) void handleScheduleBlock(pendingScheduleBlock, date)
                 setPendingScheduleBlock(null)
               }}
             />

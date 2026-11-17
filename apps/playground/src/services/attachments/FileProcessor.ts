@@ -4,7 +4,7 @@ import { gpxAttachmentStrategy } from './GpxAttachmentStrategy';
 import { jsonAttachmentStrategy } from './JsonAttachmentStrategy';
 
 export class FileProcessor {
-  private strategies: IAttachmentStrategy[];
+  private readonly strategies: IAttachmentStrategy[];
 
   constructor(strategies: IAttachmentStrategy[] = [gpxAttachmentStrategy, jsonAttachmentStrategy, defaultAttachmentStrategy]) {
     this.strategies = strategies;

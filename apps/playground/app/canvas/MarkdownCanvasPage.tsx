@@ -99,7 +99,7 @@ export function MarkdownCanvasPage({
         onSelect(item)
         return
       }
-      navigate(notebookItemPath(item.category, item.name))
+      void navigate(notebookItemPath(item.category, item.name))
     },
     [navigate, onSelect],
   )
@@ -198,7 +198,11 @@ export function MarkdownCanvasPage({
     }
     return blocks[0] ?? null
   }, [])
-  const runtime = useCanvasRuntime({ getBlock, getContent: getSource, title: page.frontmatter.title })
+  const runtime = useCanvasRuntime({
+    getBlock,
+    getContent: getSource,
+    title: typeof page.frontmatter.title === 'string' ? page.frontmatter.title : undefined,
+  })
   const { startRun, closeRun, handleWorkoutComplete, resetRun, resetRequested, fullscreen, runState, completedResults } = runtime
 
   // Reset-to-example: archive first (partial + fresh reset snapshot of the
@@ -322,16 +326,18 @@ export function MarkdownCanvasPage({
   const [notebookQuery] = useQueryState('q', { defaultValue: '', shallow: true })
 
   const deps = useMemo<NavActionDeps>(() => ({
-    navigate: (to: string, opts?: { replace?: boolean }) => navigate(to, { replace: opts?.replace }),
+    navigate: (to: string, opts?: { replace?: boolean }) => {
+      void navigate(to, { replace: opts?.replace })
+    },
     setQueryParam: (params: Record<string, string | null>, replace?: boolean) => {
       const h = params['h']
-      if (h !== undefined) setHeadingParam(h, { history: replace ? 'replace' : 'push' })
+      if (h !== undefined) void setHeadingParam(h, { history: replace ? 'replace' : 'push' })
     },
     swapSource: (source: string) => swapSource(resolveSource(source, wodFilesRef.current), source),
     setPanelState: (state: 'note' | 'track' | 'review') => {
       if (state === 'track') {
         const block = getBlock()
-        if (block) startRun(block)
+        if (block) void startRun(block)
       }
     },
   }), [navigate, swapSource, setHeadingParam, getBlock, startRun])
@@ -343,7 +349,7 @@ export function MarkdownCanvasPage({
   // activated — same contract as the old per-section IO tracking, so source
   // ownership, titles, and the ?h= deep link stay in the host.
   const activateGuideSection = useCallback((section: CanvasSection) => {
-    setHeadingParam(section.id, { history: 'replace' })
+    void setHeadingParam(section.id, { history: 'replace' })
     activateSection(section)
   }, [activateSection, setHeadingParam])
 
@@ -380,7 +386,7 @@ export function MarkdownCanvasPage({
     onChange: (id) => {
       const section = contentSections.find((s) => s.id === id)
       if (!section) return
-      setHeadingParam(id, { history: 'replace' })
+      void setHeadingParam(id, { history: 'replace' })
       activateSection(section)
     },
   })
@@ -430,13 +436,13 @@ export function MarkdownCanvasPage({
     onPanelActionsReadyRef.current?.({
       run: () => {
         const block = getBlock()
-        if (block) startRun(block)
+        if (block) void startRun(block)
       },
       reset: () => { void resetRun() },
       results: () => {},
       fullscreen: () => {
         const block = getBlock()
-        if (block) startRun(block)
+        if (block) void startRun(block)
       },
       getSource,
     })
@@ -450,7 +456,7 @@ export function MarkdownCanvasPage({
       icon: <Play className="h-3 w-3 fill-current" />,
       primary: true,
       onClick: (block) => {
-        startRun(block)
+        void startRun(block)
       },
     },
   ], [startRun])

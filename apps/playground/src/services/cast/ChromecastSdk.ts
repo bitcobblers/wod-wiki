@@ -55,7 +55,7 @@ type SdkListener = (...args: unknown[]) => void;
 
 class ChromecastSdkClass {
     private state: CastSdkState = 'not-loaded';
-    private listeners: Map<SdkEventName, SdkListener[]> = new Map();
+    private readonly listeners: Map<SdkEventName, SdkListener[]> = new Map();
     private loadPromise: Promise<void> | null = null;
     private appId: string | null = null;
 

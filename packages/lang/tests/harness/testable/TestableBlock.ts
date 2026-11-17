@@ -81,8 +81,8 @@ class TestableBlockKey extends BlockKey {
  */
 export class TestableBlock implements IRuntimeBlock {
   private _calls: MethodCall[] = [];
-  private _config: Required<TestableBlockConfig>;
-  private _testKey: BlockKey;
+  private readonly _config: Required<TestableBlockConfig>;
+  private readonly _testKey: BlockKey;
 
   constructor(
     private readonly _wrapped: IRuntimeBlock,

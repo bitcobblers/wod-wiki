@@ -9,8 +9,7 @@ import { describe, expect, it } from 'bun:test';
 import { resolveCompletionTargets } from './workoutCompletion';
 import type { ScriptBlock } from '@/components/Editor/types';
 
-const boundary = (line: number): string => `note-line-${line}`;
-const resolveNoteUuid = (line: number): string => {
+const resolveNoteUuid = (_line: number): string => {
   // Single-note page: every line maps to 'note-a'.
   return 'note-a';
 };

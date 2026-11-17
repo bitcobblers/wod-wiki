@@ -54,7 +54,7 @@ export interface ReceiverSessionDeps {
 
 const defaultDeps: ReceiverSessionDeps = {
   now: wallClockNow,
-  playAudio: (name, volume) => audioService.playSound(name, volume),
+  playAudio: (name, volume) => { void audioService.playSound(name, volume); },
   setAudioEnabled: (enabled) => audioService.setEnabled(enabled),
 };
 

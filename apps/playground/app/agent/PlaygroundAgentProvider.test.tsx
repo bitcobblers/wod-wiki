@@ -3,7 +3,7 @@
  * `modelContext.executeTool` call shapes agents actually use, so arguments
  * reach tool handlers instead of being defaulted to `{}` by the polyfill.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { renderWithPlaygroundHost, type PlaygroundRenderResult } from '@/testing/host';
 import { PlaygroundAgentProvider, installModelContextExecuteToolAdapter } from './PlaygroundAgentProvider';
 

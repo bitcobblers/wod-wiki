@@ -16,7 +16,7 @@ import type { EditorView } from '@codemirror/view';
 export abstract class BaseNotePage {
   readonly page: Page;
 
-  constructor(page: Page) {
+  protected constructor(page: Page) {
     this.page = page;
   }
 

@@ -25,7 +25,7 @@
  * that page's own query settings, not here.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type SyntheticEvent } from 'react'
 import { useLocation } from 'react-router-dom'
 import { clearWebMcpToolLogs, useWebMcpInspectorState } from '../agent/toolLogStore'
 import {
@@ -696,10 +696,10 @@ function TagsSettingsSection() {
   }, [])
 
   useEffect(() => {
-    reload()
+    void reload()
   }, [reload])
 
-  const handleAddType = async (e: React.FormEvent) => {
+  const handleAddType = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     const name = newTypeName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-')
     const label = newTypeLabel.trim()

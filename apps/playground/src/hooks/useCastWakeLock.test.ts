@@ -78,7 +78,9 @@ describe('useCastWakeLock', () => {
 
     it('re-acquires after a browser-initiated release while still casting', async () => {
         const fake = installFakeWakeLock();
-        act(() => renderHook(() => useCastWakeLock(true)));
+        act(() => {
+            renderHook(() => useCastWakeLock(true));
+        });
         await waitFor(() => expect(fake.requests).toBe(1));
 
         // Browser hides the tab → auto-release fires → sentinel ref clears.

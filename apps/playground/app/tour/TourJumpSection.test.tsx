@@ -269,7 +269,7 @@ describe('TourJumpSection', () => {
     await waitFor(() => {
       expect(screen.getByText('Importing')).toBeTruthy()
     })
-    const other = screen.getByTestId('feed-card-legends-of-kettlebell-import') as HTMLButtonElement
+    screen.getByTestId('feed-card-legends-of-kettlebell-import')
   })
 
   it('mobile renders the same cards in one alternating row', () => {

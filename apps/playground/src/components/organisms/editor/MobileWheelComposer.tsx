@@ -13,14 +13,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { EditorView } from "@codemirror/view";
 import { indentMore, indentLess } from "@codemirror/commands";
 import {
-  CaretLeft,
-  CaretRight,
-  Check,
-  Keyboard,
-  Plus,
-  SlidersHorizontal,
-  TextIndent,
-  TextOutdent,
+  CaretLeftIcon,
+  CaretRightIcon,
+  CheckIcon,
+  KeyboardIcon,
+  PlusIcon,
+  SlidersHorizontalIcon,
+  TextIndentIcon,
+  TextOutdentIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import {
@@ -521,7 +521,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             onClick={handleReturnToWheel}
             className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[4px] border border-border bg-background text-foreground text-xs font-medium hover:bg-muted transition-colors"
           >
-            <SlidersHorizontal weight="bold" className="h-3.5 w-3.5" />
+            <SlidersHorizontalIcon weight="bold" className="h-3.5 w-3.5" />
             <span>Wheel</span>
           </button>
           <button
@@ -531,7 +531,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             aria-label="Indent line"
             className="inline-flex items-center justify-center h-7 w-7 rounded-[4px] border border-border bg-background text-foreground hover:bg-muted transition-colors"
           >
-            <TextIndent weight="bold" className="h-3.5 w-3.5" />
+            <TextIndentIcon weight="bold" className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
@@ -539,7 +539,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             onClick={handleInsertNewLine}
             className="inline-flex items-center gap-1 h-7 px-2 rounded-[4px] border border-border bg-background text-foreground text-xs font-medium hover:bg-muted transition-colors"
           >
-            <Plus weight="bold" className="h-3 w-3" />
+            <PlusIcon weight="bold" className="h-3 w-3" />
             <span>Line</span>
           </button>
         </div>
@@ -551,7 +551,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
           onClick={handleDone}
           className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] bg-foreground text-background text-xs font-medium"
         >
-          <Check weight="bold" className="h-3.5 w-3.5" />
+          <CheckIcon weight="bold" className="h-3.5 w-3.5" />
           <span>Done</span>
         </button>
       </div>
@@ -593,7 +593,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             onClick={() => stepSlot(-1)}
             className="inline-flex items-center justify-center h-7 w-7 rounded-[4px] border border-border bg-background text-foreground disabled:opacity-35 hover:bg-muted transition-colors"
           >
-            <CaretLeft weight="bold" className="h-3.5 w-3.5" />
+            <CaretLeftIcon weight="bold" className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
@@ -603,7 +603,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             onClick={() => stepSlot(1)}
             className="inline-flex items-center justify-center h-7 w-7 rounded-[4px] border border-border bg-background text-foreground disabled:opacity-35 hover:bg-muted transition-colors"
           >
-            <CaretRight weight="bold" className="h-3.5 w-3.5" />
+            <CaretRightIcon weight="bold" className="h-3.5 w-3.5" />
           </button>
 
           <button
@@ -612,7 +612,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             onClick={handleInsertNewLine}
             className="inline-flex items-center gap-1 h-7 px-2 rounded-[4px] border border-border bg-background text-foreground text-xs font-medium hover:bg-muted transition-colors"
           >
-            <Plus weight="bold" className="h-3 w-3" />
+            <PlusIcon weight="bold" className="h-3 w-3" />
             <span>Line</span>
           </button>
 
@@ -622,7 +622,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             onClick={() => indentLess(view)}
             className="inline-flex items-center justify-center h-7 w-7 rounded-[4px] border border-border bg-background text-foreground hover:bg-muted transition-colors"
           >
-            <TextOutdent weight="bold" className="h-3.5 w-3.5" />
+            <TextOutdentIcon weight="bold" className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
@@ -630,7 +630,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             onClick={() => indentMore(view)}
             className="inline-flex items-center justify-center h-7 w-7 rounded-[4px] border border-border bg-background text-foreground hover:bg-muted transition-colors"
           >
-            <TextIndent weight="bold" className="h-3.5 w-3.5" />
+            <TextIndentIcon weight="bold" className="h-3.5 w-3.5" />
           </button>
         </div>
 
@@ -641,7 +641,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             onClick={handleEnterTypingMode}
             className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] border border-border bg-background text-foreground text-xs font-medium hover:bg-muted transition-colors"
           >
-            <Keyboard weight="bold" className="h-3.5 w-3.5" />
+            <KeyboardIcon weight="bold" className="h-3.5 w-3.5" />
             <span>Type</span>
           </button>
           <button
@@ -650,7 +650,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             onClick={handleDone}
             className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] bg-foreground text-background text-xs font-medium"
           >
-            <Check weight="bold" className="h-3.5 w-3.5" />
+            <CheckIcon weight="bold" className="h-3.5 w-3.5" />
             <span>Done</span>
           </button>
         </div>

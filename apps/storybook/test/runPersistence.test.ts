@@ -27,7 +27,6 @@ vi.mock('@/components/Editor/types', () => ({
 }));
 
 import { storageService } from '@/services/storage';
-import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 import { captureRun } from '@/services/runCapture';
 import { playgroundRecorder } from '@/services/resultRecorder';
 import { completeWorkbenchRun, prepareWorkbenchRun, workbenchRunNoteId } from '../src/workbench/runPersistence';

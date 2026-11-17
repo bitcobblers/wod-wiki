@@ -6,14 +6,12 @@
  * Validates that multiple dialects can attach hints to the same statement and that
  * selective dialect stacks produce the expected partial output.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it } from 'vitest';
 import { parse } from '@wod-wiki/lang-harness/parser-test-utils';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import { UnitsDialect } from '@bitcobblers/wod-wiki-engine';
 import { CardioDialect } from '@bitcobblers/wod-wiki-engine';
-import { FenceDialect } from '@bitcobblers/wod-wiki-engine';
 import { CrossFitDialect } from '@bitcobblers/wod-wiki-engine';
-import { YogaDialect } from '@bitcobblers/wod-wiki-engine';
 
 // ── Full Stack ────────────────────────────────────────────────────
 

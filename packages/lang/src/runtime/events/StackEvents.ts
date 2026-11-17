@@ -9,7 +9,7 @@ abstract class BaseStackEvent implements IEvent {
   readonly timestamp: Date;
   readonly data: { blocks: readonly IRuntimeBlock[] };
 
-  constructor(blocks: readonly IRuntimeBlock[], now: INowProvider = wallClockNow) {
+  protected constructor(blocks: readonly IRuntimeBlock[], now: INowProvider = wallClockNow) {
     this.timestamp = now.now();
     this.data = { blocks };
   }

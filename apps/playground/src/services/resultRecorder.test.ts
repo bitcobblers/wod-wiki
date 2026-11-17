@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { createResultRecorder, onResultSaved } from './resultRecorder';
 import type { Session } from '@/types/storage';
 import type { Sessions } from '@/components/Editor/types';

@@ -90,7 +90,7 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction, de
       origin: 'playground',
       returnTo: entryOpenHref(entry),
     })
-    navigate(runPath(runtimeId))
+    void navigate(runPath(runtimeId))
     return
   }
 
@@ -107,5 +107,5 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction, de
   const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
   if (!occurrence) throw new Error('The saved journal workout is unavailable.');
   pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: journalNote.id })
-  navigate(dayAutoStartPath(journalNote.journalDate ?? '', runtimeId))
+  void navigate(dayAutoStartPath(journalNote.journalDate ?? '', runtimeId))
 }

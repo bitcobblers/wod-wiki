@@ -28,7 +28,7 @@ export interface PlanPanelProps {
   readOnly?: boolean;
   /** @deprecated Ignored — content provider not needed by NoteEditor */
   provider?: unknown;
-  /** @deprecated Ignored */
+  /** Note ID forwarded to NoteEditor and BlockHistory */
   sourceNoteId?: string;
 }
 

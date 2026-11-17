@@ -19,8 +19,8 @@ export class ExerciseIndexManager {
   private static instance: ExerciseIndexManager | null = null;
 
   private index: ExercisePathIndex | null = null;
-  private exerciseCache: LRUCache<string, Exercise>;
-  private loadingPromises: Map<string, Promise<Exercise>>;
+  private readonly exerciseCache: LRUCache<string, Exercise>;
+  private readonly loadingPromises: Map<string, Promise<Exercise>>;
   private provider: ExerciseDataProvider | null = null;
 
   private readonly CACHE_KEY = 'wod-wiki-exercise-index';

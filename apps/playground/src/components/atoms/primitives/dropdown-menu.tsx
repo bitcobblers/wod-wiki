@@ -353,7 +353,7 @@ export const DropdownMenuItem = React.forwardRef<HTMLDivElement, DropdownMenuIte
         if (typeof forwardedRef === "function") {
           forwardedRef(node)
         } else if (forwardedRef) {
-          ;(forwardedRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+          ;(forwardedRef as React.RefObject<HTMLDivElement | null>).current = node
         }
       },
       [forwardedRef]

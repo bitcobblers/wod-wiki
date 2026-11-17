@@ -99,7 +99,7 @@ function SaveFlow({
             ? dashboardSlug(meta.slug)
             : dashboardSlug(title)
         close()
-        navigate(dashboardViewPath(resolvedSlug))
+        void navigate(dashboardViewPath(resolvedSlug))
       } else {
         // Fresh read at write time — the note may have changed since the
         // catalog listed it; appendWidget never targets stale content.
@@ -107,7 +107,7 @@ function SaveFlow({
         await journalNotes.update(note, appendWidget(note.rawContent, widget))
         notifyDashboardsChanged()
         close()
-        navigate(dashboardViewPath(destination))
+        void navigate(dashboardViewPath(destination))
       }
     } catch (err) {
       // Storage failure stays on screen — the dialog stays open with the

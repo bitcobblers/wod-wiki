@@ -11,17 +11,17 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { EditorView } from "@codemirror/view";
 import { completionStatus } from "@codemirror/autocomplete";
 import {
-  ArrowsClockwise,
-  ArrowUpRight,
-  Barbell,
-  Hash,
-  Lightning,
-  Ruler,
-  Scales,
-  Tag,
-  Timer,
-  Toolbox,
-  WarningCircle,
+  ArrowsClockwiseIcon,
+  ArrowUpRightIcon,
+  BarbellIcon,
+  HashIcon,
+  LightningIcon,
+  RulerIcon,
+  ScalesIcon,
+  TagIcon,
+  TimerIcon,
+  ToolboxIcon,
+  WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { MetricType } from "@bitcobblers/wod-wiki-engine";
 import type { IMetric } from "@bitcobblers/wod-wiki-engine";
@@ -55,63 +55,63 @@ interface MetricStyle {
 const METRIC_STYLES: Partial<Record<string, MetricStyle>> = {
   [MetricType.Duration]: {
     label: "Timer",
-    Icon: Timer,
+    Icon: TimerIcon,
     textClass: "text-metric-time",
     bgClass: "bg-metric-time/10",
     borderClass: "border-metric-time/30",
   },
   [MetricType.Rep]: {
     label: "Reps",
-    Icon: Hash,
+    Icon: HashIcon,
     textClass: "text-metric-rep",
     bgClass: "bg-metric-rep/10",
     borderClass: "border-metric-rep/30",
   },
   [MetricType.Effort]: {
     label: "Exercise",
-    Icon: Barbell,
+    Icon: BarbellIcon,
     textClass: "text-metric-effort",
     bgClass: "bg-metric-effort/10",
     borderClass: "border-metric-effort/30",
   },
   [MetricType.Rounds]: {
     label: "Rounds",
-    Icon: ArrowsClockwise,
+    Icon: ArrowsClockwiseIcon,
     textClass: "text-metric-rounds",
     bgClass: "bg-metric-rounds/10",
     borderClass: "border-metric-rounds/30",
   },
   [MetricType.Distance]: {
     label: "Distance",
-    Icon: Ruler,
+    Icon: RulerIcon,
     textClass: "text-metric-distance",
     bgClass: "bg-metric-distance/10",
     borderClass: "border-metric-distance/30",
   },
   [MetricType.Resistance]: {
     label: "Weight",
-    Icon: Scales,
+    Icon: ScalesIcon,
     textClass: "text-metric-resistance",
     bgClass: "bg-metric-resistance/10",
     borderClass: "border-metric-resistance/30",
   },
   [MetricType.Equipment]: {
     label: "Equipment",
-    Icon: Toolbox,
+    Icon: ToolboxIcon,
     textClass: "text-metric-equipment",
     bgClass: "bg-metric-equipment/10",
     borderClass: "border-metric-equipment/30",
   },
   [MetricType.Action]: {
     label: "Action",
-    Icon: Lightning,
+    Icon: LightningIcon,
     textClass: "text-metric-action",
     bgClass: "bg-metric-action/10",
     borderClass: "border-metric-action/30",
   },
   [MetricType.Label]: {
     label: "Label",
-    Icon: Tag,
+    Icon: TagIcon,
     textClass: "text-muted-foreground",
     bgClass: "bg-muted/40",
     borderClass: "border-border",
@@ -468,9 +468,9 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
       void changeRefSource(kind);
       return;
     }
-    import("@/components/Editor/services/statementBuilderFlow").then(
+    void import("@/components/Editor/services/statementBuilderFlow").then(
       ({ runStatementBuilderFlow }) => {
-        runStatementBuilderFlow(focus, view, segment);
+        void runStatementBuilderFlow(focus, view, segment);
       },
     );
   };
@@ -515,7 +515,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
             const isFocusedRef =
               (ref.kind === "effort" && focus.focusedMetric?.type === MetricType.Effort) ||
               (ref.kind === "equipment" && focus.focusedMetric?.type === MetricType.Equipment);
-            const RefIcon = ref.kind === "effort" ? Barbell : Toolbox;
+            const RefIcon = ref.kind === "effort" ? BarbellIcon : ToolboxIcon;
             return (
               <span
                 key={`${ref.kind}:${ref.slug}`}
@@ -540,7 +540,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                     className="opacity-70 hover:opacity-100 ml-0.5 inline-flex items-center"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <ArrowUpRight weight="bold" className="h-2.5 w-2.5" />
+                    <ArrowUpRightIcon weight="bold" className="h-2.5 w-2.5" />
                   </a>
                 )}
               </span>
@@ -565,7 +565,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                   className="opacity-70 hover:opacity-100 ml-0.5 inline-flex items-center"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <ArrowUpRight weight="bold" className="h-2.5 w-2.5" />
+                  <ArrowUpRightIcon weight="bold" className="h-2.5 w-2.5" />
                 </a>
               )}
             </span>
@@ -577,7 +577,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
               title="Reference JSON on this line does not parse — fix it in the raw text."
               className="pointer-events-auto inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border text-[11px] font-medium bg-destructive/10 text-destructive border-destructive/30"
             >
-              <WarningCircle weight="bold" className="h-3 w-3 shrink-0" />
+              <WarningCircleIcon weight="bold" className="h-3 w-3 shrink-0" />
               <span>Malformed reference JSON</span>
             </span>
           )}

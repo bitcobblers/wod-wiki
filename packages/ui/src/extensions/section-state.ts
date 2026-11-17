@@ -52,7 +52,7 @@ export interface SectionState {
 
 export const sectionIdentity = Facet.define<SectionIdentity, SectionIdentity | undefined>({ combine: values => values[0] });
 export const registeredSectionWidgets = Facet.define<readonly string[], readonly string[] | undefined>({ combine: values => values.length ? values.flat() : undefined });
-export const forceSectionParse = StateEffect.define<null>();
+export const forceSectionParse = StateEffect.define();
 export const sectionSaved = StateEffect.define<SectionIdentity>();
 export const sectionRestore = StateEffect.define<SectionIdentity & { rawContent: string }>();
 /** Destination offsets refer to the new CodeMirror document. Only explicit moves retain an ID. */

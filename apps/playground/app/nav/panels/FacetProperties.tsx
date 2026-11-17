@@ -27,7 +27,7 @@
  * engine-supported keys and current result-backed options.
  */
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 import clsx from 'clsx'
@@ -96,10 +96,14 @@ async function loadTagMembership(): Promise<TagMembership> {
 
 /** Push a query-only navigation: every selection is its own history entry;
  *  unrelated URL params ride along untouched. */
-export function navigateToQuery(location: Location, navigate: (to: string) => void, wql: string): void {
+export function navigateToQuery(
+  location: Location,
+  navigate: (to: string) => void | Promise<void>,
+  wql: string,
+): void {
   const params = new URLSearchParams(location.search)
   params.set('q', wql)
-  navigate(`${location.pathname}?${params.toString()}`)
+  void navigate(`${location.pathname}?${params.toString()}`)
 }
 
 /**
@@ -476,7 +480,7 @@ function FreeformRow({
 }) {
   const [text, setText] = useState('')
   const closeNavigationDrawer = useCloseNavigationDrawer()
-  const submit = (event: FormEvent) => {
+  const submit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault()
     const value = text.trim()
     if (!value) return

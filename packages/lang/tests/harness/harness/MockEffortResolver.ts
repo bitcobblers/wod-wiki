@@ -25,7 +25,7 @@ import { DEFAULT_RESOLVER_OPTIONS } from '@bitcobblers/wod-wiki-lang';
  * ```
  */
 export class MockEffortResolver implements IEffortResolver {
-  private efforts = new Map<string, IEffort>();
+  private readonly efforts = new Map<string, IEffort>();
   private options: Required<EffortResolverOptions>;
 
   constructor(options?: EffortResolverOptions) {

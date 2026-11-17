@@ -19,9 +19,9 @@ class MockTransport implements IRpcTransport {
     connectCalls = 0;
     disposeCalls = 0;
 
-    private connectedHandlers = new Set<() => void>();
-    private disconnectedHandlers = new Set<() => void>();
-    private messageHandlers = new Set<(message: RpcMessage) => void>();
+    private readonly connectedHandlers = new Set<() => void>();
+    private readonly disconnectedHandlers = new Set<() => void>();
+    private readonly messageHandlers = new Set<(message: RpcMessage) => void>();
 
     constructor(needsClockSync: boolean = false) {
         this._needsClockSync = needsClockSync;

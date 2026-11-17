@@ -66,14 +66,14 @@ export interface CapturedEvent {
  */
 export class BehaviorTestHarness {
   private _clock: ReturnType<typeof createMockClock>;
-  private _memory: RuntimeMemory;
-  private _stack: RuntimeStack;
-  private _eventBus: EventBus;
+  private readonly _memory: RuntimeMemory;
+  private readonly _stack: RuntimeStack;
+  private readonly _eventBus: EventBus;
   private _mockRuntime: IScriptRuntime;
 
   private _capturedActions: CapturedAction[] = [];
   private _capturedEvents: CapturedEvent[] = [];
-  private _handleSpy: EventSpy;
+  private readonly _handleSpy: EventSpy;
   private _iteration = 0;
   private readonly _maxIterations = 20;
   private _actionStack: IRuntimeAction[] = [];

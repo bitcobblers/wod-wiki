@@ -72,7 +72,7 @@ export function useResolvedMenu(spec: MenuSpec | undefined): MenuEntry[] {
       return
     }
     let cancelled = false
-    Promise.all(current.map(e => (e.kind === 'wql' ? resolveWql(e) : Promise.resolve(e)))).then(
+    void Promise.all(current.map(e => (e.kind === 'wql' ? resolveWql(e) : Promise.resolve(e)))).then(
       settled => {
         if (!cancelled) setResolved(settled)
       },
@@ -217,7 +217,7 @@ export function MenuList({
 
   const activateFilter = (to: string) => {
     closeDrawer()
-    navigate(to)
+    void navigate(to)
   }
   return (
     <div className="flex flex-col gap-0.5">

@@ -131,7 +131,7 @@ export const InteractiveEntryRow: Story = {
 
     // Parity gate: keyboard navigation focuses row and actions can be triggered
     await userEvent.tab();
-    expect(document.activeElement).toBe(row);
+    await expect(document.activeElement).toBe(row);
 
     const addBtn = canvas.queryByTestId('action-add');
     if (addBtn) {

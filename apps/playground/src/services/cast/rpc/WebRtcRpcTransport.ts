@@ -48,14 +48,14 @@ export type OfferRetryTimer = number;
 // ── Transport ───────────────────────────────────────────────────────────────
 
 export class WebRtcRpcTransport implements IRpcTransport {
-    private pc: RTCPeerConnection;
+    private readonly pc: RTCPeerConnection;
     private dc: RTCDataChannel | null = null;
     private signalUnsub: (() => void) | null = null;
     private disposed = false;
 
-    private messageHandlers = new Set<(message: RpcMessage) => void>();
-    private connectedHandlers = new Set<() => void>();
-    private disconnectedHandlers = new Set<() => void>();
+    private readonly messageHandlers = new Set<(message: RpcMessage) => void>();
+    private readonly connectedHandlers = new Set<() => void>();
+    private readonly disconnectedHandlers = new Set<() => void>();
 
     // Queuing for signals to ensure sequential processing
     private signalQueue: Promise<void> = Promise.resolve();

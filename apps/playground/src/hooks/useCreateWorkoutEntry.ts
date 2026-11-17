@@ -72,7 +72,7 @@ export function useCreateWorkoutEntry({
       setContent(newEntry.rawContent);
 
       // Navigate to plan view using unique URL
-      navigate(planPath(newEntry.id));
+      void navigate(planPath(newEntry.id));
     } catch (error) {
       console.error('Failed to create new workout entry:', error);
     }

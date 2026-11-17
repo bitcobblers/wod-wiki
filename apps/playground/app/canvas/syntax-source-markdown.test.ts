@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
 
 import { MdTimerRuntime } from '@bitcobblers/wod-wiki-engine'
 import { TestScript, assertions } from '@wod-wiki/lang-harness/script'

@@ -1,5 +1,5 @@
 /** HttpFeedSource — URL building, no-cache manifest, shape validation, error paths. */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { HttpFeedSource } from './HttpFeedSource';
 import { SEED_SCHEMA } from '@/types/seed';
 

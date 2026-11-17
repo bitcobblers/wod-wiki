@@ -978,7 +978,7 @@ export async function cliMain(
     if (parsed.subcommand === 'run') {
       if (parsed.noteId && !parsed.target) {
         const { runAgentNounVerbCommand } = await import('./agentCommands');
-        return runAgentNounVerbCommand({
+        return await runAgentNounVerbCommand({
           parsed: { ...parsed, subcommand: 'session', target: 'run', target2: parsed.noteId },
           resolveDbConfig: cliDb,
           readStdin: getStdin,
@@ -1488,7 +1488,7 @@ export async function cliMain(
 
     if (parsed.subcommand === 'mcp') {
       const { runMcpStdio } = await import('./mcp');
-      return runMcpStdio({
+      return await runMcpStdio({
         database: parsed.serverUrl ? undefined : cliDb(),
         serverUrl: parsed.serverUrl,
         readonly: parsed.mcpReadonly === true || cliEnv().WOD_MCP_READONLY === '1',
@@ -1508,7 +1508,7 @@ export async function cliMain(
       parsed.subcommand === 'doctor'
     ) {
       const { runAgentNounVerbCommand } = await import('./agentCommands');
-      return runAgentNounVerbCommand({
+      return await runAgentNounVerbCommand({
         parsed,
         resolveDbConfig: cliDb,
         readStdin: getStdin,

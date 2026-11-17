@@ -14,7 +14,9 @@ export function commandToListItem(cmd: Command): IListItem<Command> {
 }
 
 export function paletteResultToListItem(
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Legacy adapter kept until CommandPaletteResult callers are removed.
   result: CommandPaletteResult,
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- Legacy adapter kept until CommandPaletteResult callers are removed.
 ): IListItem<CommandPaletteResult> {
   return {
     id: result.id,

@@ -33,7 +33,7 @@ import { MemoryAllocateEvent, MemorySetEvent, MemoryReleaseEvent } from './event
 export class BlockContext implements IBlockContext {
     private _references: IMemoryReference[] = [];
     private _released = false;
-    private _memory: IRuntimeMemory;
+    private readonly _memory: IRuntimeMemory;
 
     constructor(
         private readonly runtime: IRuntimeContext,

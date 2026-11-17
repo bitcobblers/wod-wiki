@@ -226,7 +226,7 @@ const CommandPill: React.FC<{
       id: cmd.id,
       label: cmd.label,
       icon: PrimaryIcon,
-      action: { type: "call", handler: () => cmd.onClick(block) },
+      action: { type: "call", handler: () => { void cmd.onClick(block); } },
     }),
     [cmd, block, PrimaryIcon],
   );
@@ -236,7 +236,7 @@ const CommandPill: React.FC<{
       id: `${cmd.id}-split`,
       label: "Copy link",
       icon: SplitIcon,
-      action: { type: "call", handler: handleSplitAction },
+      action: { type: "call", handler: () => { void handleSplitAction(); } },
     }),
     [cmd.id, SplitIcon, handleSplitAction],
   );
@@ -257,7 +257,7 @@ const CommandPill: React.FC<{
         title={cmd.label}
         aria-label={cmd.label}
         data-testid={cmd.id === "run" || cmd.id === "play" ? TEST_IDS.EDITOR_START_WORKOUT : undefined}
-        onClick={(e) => { stopEvent(e); cmd.onClick(block); }}
+        onClick={(e) => { stopEvent(e); void cmd.onClick(block); }}
         onMouseDown={stopEvent}
         onPointerDown={stopEvent}
       >

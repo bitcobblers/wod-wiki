@@ -78,7 +78,7 @@ export function useScriptBlockResults(
       }
     }
 
-    fetchResults();
+    void fetchResults();
 
     return () => { cancelled = true; };
   }, [noteId, sectionId, extendedResultsOverride, contentId]);

@@ -6,8 +6,8 @@ import { IRuntimeAction } from '../contracts/IRuntimeAction';
 import { ThrowError } from '../actions/ThrowError';
 
 export class NextEventHandler implements IEventHandler {
-  private _id: string;
-  private _name: string;
+  private readonly _id: string;
+  private readonly _name: string;
 
   constructor(id: string) {
     this._id = id;

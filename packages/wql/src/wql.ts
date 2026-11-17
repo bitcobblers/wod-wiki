@@ -489,7 +489,7 @@ function parseSingleQuery(raw: string): AnyParsedQuery {
  */
 export function parseQuery(raw: string): AnyParsedQuery {
   const trimmed = raw.trimStart();
-  if (/^rows(?=[:{]|\s|$)/.test(trimmed)) {
+  if (/^rows(?=[:{\s]|$)/.test(trimmed)) {
     return {
       family: 'find',
       raw,

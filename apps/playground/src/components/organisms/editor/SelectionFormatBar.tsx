@@ -15,12 +15,12 @@ import {
   toggleInlineMarkdown,
 } from "@bitcobblers/wod-wiki-ui/extensions";
 import {
-  Code,
-  LinkSimple,
-  TextB,
-  TextItalic,
-  TextStrikethrough,
-  Timer,
+  CodeIcon,
+  LinkSimpleIcon,
+  TextBIcon,
+  TextItalicIcon,
+  TextStrikethroughIcon,
+  TimerIcon,
 } from "@phosphor-icons/react";
 
 export interface SelectionFormatBarProps {
@@ -99,7 +99,7 @@ export const SelectionFormatBar: React.FC<SelectionFormatBarProps> = ({
     {
       id: "bold",
       label: "Bold (Ctrl+B)",
-      Icon: TextB,
+      Icon: TextBIcon,
       run: () => {
         toggleInlineMarkdown(view, "**");
         view.focus();
@@ -108,7 +108,7 @@ export const SelectionFormatBar: React.FC<SelectionFormatBarProps> = ({
     {
       id: "italic",
       label: "Italic (Ctrl+I)",
-      Icon: TextItalic,
+      Icon: TextItalicIcon,
       run: () => {
         toggleInlineMarkdown(view, "*");
         view.focus();
@@ -117,7 +117,7 @@ export const SelectionFormatBar: React.FC<SelectionFormatBarProps> = ({
     {
       id: "strike",
       label: "Strikethrough",
-      Icon: TextStrikethrough,
+      Icon: TextStrikethroughIcon,
       run: () => {
         toggleInlineMarkdown(view, "~~");
         view.focus();
@@ -126,7 +126,7 @@ export const SelectionFormatBar: React.FC<SelectionFormatBarProps> = ({
     {
       id: "code",
       label: "Inline code (Ctrl+E)",
-      Icon: Code,
+      Icon: CodeIcon,
       run: () => {
         toggleInlineMarkdown(view, "`");
         view.focus();
@@ -135,7 +135,7 @@ export const SelectionFormatBar: React.FC<SelectionFormatBarProps> = ({
     {
       id: "link",
       label: "Insert link (Ctrl+K)",
-      Icon: LinkSimple,
+      Icon: LinkSimpleIcon,
       run: () => {
         insertMarkdownLinkCommand(view);
         view.focus();
@@ -144,7 +144,7 @@ export const SelectionFormatBar: React.FC<SelectionFormatBarProps> = ({
     {
       id: "timer",
       label: "Wrap in timer block",
-      Icon: Timer,
+      Icon: TimerIcon,
       run: wrapSelectionAsTimeFence,
     },
   ];

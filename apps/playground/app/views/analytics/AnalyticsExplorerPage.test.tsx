@@ -7,7 +7,6 @@ import { queryService } from '@/services/queryService';
 import * as sampleModule from '@/services/analytics/sample';
 import { dashboardNotes } from '../../services/dashboardNotes';
 import { journalNotes } from '../../services/journalNotes';
-import { storageService } from '@/services/storage';
 
 function resultOf(raw: string): QueryResult {
   return {
@@ -72,7 +71,7 @@ let updateImpl = async (id: string, rawContent: string) => {
 import { AnalyticsExplorerPage } from './AnalyticsExplorerPage';
 import { NavProvider } from '../../nav/NavContext';
 import { SecondaryNav } from '../../nav/SecondaryNav';
-import { NuqsAdapter } from 'nuqs/adapters/react-router';
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 
 afterEach(cleanup);
 afterEach(() => mock.restore());
@@ -422,13 +421,13 @@ describe('AnalyticsExplorerPage', () => {
 
     // The L2 panel's example row pushes the second example as a URL — same
     // history shape the promoted examples produce.
-    capturedNavigate(`/dashboards?q=${encodeURIComponent('avg:tis{effort:thruster} by {week}')}`);
+    void capturedNavigate(`/dashboards?q=${encodeURIComponent('avg:tis{effort:thruster} by {week}')}`);
     await waitFor(() => expect(screen.getByTestId('token-slot-metric').textContent).toContain('tis'));
 
     const runsBeforeBack = pageRuns().length;
 
     // Back restores the previous composer state…
-    capturedNavigate(-1);
+    void capturedNavigate(-1);
     await waitFor(() => expect(screen.getByTestId('token-slot-metric').textContent).toContain('totalVolume'));
     expect(screen.getByTestId('token-slot-discipline').textContent).toContain('strength');
 

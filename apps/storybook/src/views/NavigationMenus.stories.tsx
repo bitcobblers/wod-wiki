@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, fn, userEvent, within } from 'storybook/test';
-import { NuqsAdapter } from 'nuqs/adapters/react-router';
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import { BookOpen, Dumbbell, Flame } from 'lucide-react';
 import { SidebarLayout } from '@/templates/SidebarLayout';
 import { Navbar } from '@/components/organisms/layout/Navbar';

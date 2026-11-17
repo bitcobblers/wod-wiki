@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
@@ -163,7 +163,7 @@ export function NotePromotionSheet({
     }
   };
 
-  const handleCreateAndPromote = async (e: FormEvent) => {
+  const handleCreateAndPromote = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     const trimmed = newNotebookName.trim();
     if (!trimmed || busy || isReadOnlyFeedNote) return;

@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test'
 import { render, screen, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
-import { NuqsAdapter } from 'nuqs/adapters/react-router'
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
 
 import { parseQuery, isFindQuery, type AnyParsedQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-wql'
 

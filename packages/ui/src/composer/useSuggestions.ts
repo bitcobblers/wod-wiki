@@ -27,7 +27,7 @@ export function useSuggestions(type: string): ClauseSuggestions {
     }
     let cancelled = false;
     setLoading(true);
-    loadSuggestions(type).then((result) => {
+    void loadSuggestions(type).then((result) => {
       if (cancelled) return;
       setItems(result);
       setLoading(false);

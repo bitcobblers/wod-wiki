@@ -18,6 +18,7 @@
 
 import http from 'node:http';
 import { Readable } from 'node:stream';
+import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { openCliDb, nodeFs, nodePath } from './db';
 import type { CliDatabaseConfig } from './config';
 import type { CliDb } from './db';
@@ -67,27 +68,29 @@ function startHttpServer(
 
   // ponytail: node:http adapter streams Web Request/Response in pure Node (v18+) without express/fastify dependencies
   const { promise, resolve, reject } = withResolvers<HttpServerLike>();
-  const server = http.createServer(async (req, res) => {
-    try {
-      const url = new URL(req.url || '/', `http://${req.headers.host || `${host}:${port}`}`);
-      const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
-      const webReq = new Request(url, {
-        method: req.method,
-        headers: req.headers as Record<string, string>,
-        body: hasBody ? (Readable.toWeb(req) as unknown as BodyInit) : null,
-        ...(hasBody ? { duplex: 'half' } : {}),
-      } as RequestInit);
-      const webRes = await handler(webReq);
-      res.writeHead(webRes.status, Object.fromEntries(webRes.headers.entries()));
-      if (webRes.body) {
-        Readable.fromWeb(webRes.body as any).pipe(res);
-      } else {
-        res.end();
+  const server = http.createServer((req, res) => {
+    void (async () => {
+      try {
+        const url = new URL(req.url || '/', `http://${req.headers.host || `${host}:${port}`}`);
+        const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
+        const webReq = new Request(url, {
+          method: req.method,
+          headers: req.headers as Record<string, string>,
+          body: hasBody ? (Readable.toWeb(req) as unknown as BodyInit) : null,
+          ...(hasBody ? { duplex: 'half' } : {}),
+        } as RequestInit);
+        const webRes = await handler(webReq);
+        res.writeHead(webRes.status, Object.fromEntries(webRes.headers.entries()));
+        if (webRes.body) {
+          Readable.fromWeb(webRes.body as unknown as WebReadableStream).pipe(res);
+        } else {
+          res.end();
+        }
+      } catch {
+        res.statusCode = 500;
+        res.end('internal server error');
       }
-    } catch {
-      res.statusCode = 500;
-      res.end('internal server error');
-    }
+    })();
   });
 
   server.once('error', reject);

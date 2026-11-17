@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { SnapshotClock, createMockClock } from '@bitcobblers/wod-wiki-engine';
+import { SnapshotClock } from '@bitcobblers/wod-wiki-engine';
 import { BehaviorTestHarness, MockBlock } from '@wod-wiki/lang-harness/harness';
 import { IRuntimeBehavior } from '@bitcobblers/wod-wiki-engine';
 import { IBehaviorContext } from '@bitcobblers/wod-wiki-engine';

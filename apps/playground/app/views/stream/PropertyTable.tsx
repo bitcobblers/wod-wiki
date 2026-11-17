@@ -61,7 +61,7 @@ export function PropertyTable({
     if (onRowClick) {
       onRowClick(entry)
     } else {
-      navigate(entryOpenHref(entry))
+      void navigate(entryOpenHref(entry))
     }
   }
   const [sortFieldId, setSortFieldId] = useState<string | null>(null)

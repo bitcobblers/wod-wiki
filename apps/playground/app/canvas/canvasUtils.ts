@@ -43,7 +43,7 @@ export function resolveSource(dslPath: string, wodFiles: Record<string, string>)
     if (hit !== null) return hit
   }
 
-  let logical = dslPath
+  let logical: string
   if (dslPath.startsWith('wods/examples/')) {
     logical = 'markdown/canvas/' + dslPath.replace(/^wods\/examples\//, '')
   } else if (dslPath.startsWith('wods/')) {

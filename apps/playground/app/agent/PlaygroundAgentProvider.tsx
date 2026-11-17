@@ -461,7 +461,7 @@ export const PlaygroundAgentProvider: React.FC = () => {
     async execute(args) {
       const started = performance.now();
       const normalized = args.path.startsWith('/') ? args.path : `/${args.path}`;
-      navigate(normalized, { replace: args.replace === true });
+      void navigate(normalized, { replace: args.replace === true });
       await waitForUiCommit();
       const out = {
         navigatedTo: normalized,

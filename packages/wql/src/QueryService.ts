@@ -76,6 +76,10 @@ import type {
   NoteQueryStore,
   BlockQueryStore,
   EffortQueryStore,
+  BlockEffortQueryStore,
+  BlockEquipmentQueryStore,
+  TagQueryStore,
+  NoteTagQueryStore,
   IEffort,
   QueryServiceStores,
   FeedCatalogQueryStore,
@@ -516,7 +520,7 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
   for (const filter of filters) {
     const literal = !filter.negate && filter.values.every((v) => !v.wildcard);
     const values = literal ? filter.values.map((v) => v.value) : [];
-    if (filter.key === 'source' && literal && filter.values.every((v) => DOMAIN_SOURCE_KINDS[v.value] === true)) {
+    if (filter.key === 'source' && literal && filter.values.every((v) => DOMAIN_SOURCE_KINDS[v.value])) {
       selection.push({ field: 'source', values });
       continue;
     }
@@ -549,7 +553,7 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
     residual = true;
   }
   if (plane === 'note' && sourceScope?.length) {
-    if (sourceScope.every((v) => DOMAIN_SOURCE_KINDS[v] === true)) {
+    if (sourceScope.every((v) => DOMAIN_SOURCE_KINDS[v])) {
       selection.push({ field: 'source', values: sourceScope });
     } else {
       // `journal`/`all` need the resolver's shape exclusions — the wire's
@@ -1194,16 +1198,16 @@ export class QueryService {
 
   // Optional storage seam properties for block_efforts, block_equipment, and typed tag resolution.
   // Injected by the app adapter (`services/queryService.ts`); tests can supply fakes.
-  private blockEffortsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+  private readonly blockEffortsStore: BlockEffortQueryStore = {
     getAllFromIndex: async () => [],
   };
-  private blockEquipmentStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+  private readonly blockEquipmentStore: BlockEquipmentQueryStore = {
     getAllFromIndex: async () => [],
   };
-  private tagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]>; getAll?(): Promise<any[]> } = {
+  private readonly tagsStore: TagQueryStore = {
     getAllFromIndex: async () => [],
   };
-  private noteTagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+  private readonly noteTagsStore: NoteTagQueryStore = {
     getAllFromIndex: async () => [],
   };
 
@@ -2634,7 +2638,7 @@ export class QueryService {
       preferred: options.preferredUnit,
     });
     const targetUnit = unitResolution.unit;
-    const shouldConvert = unitResolution.convert === true;
+    const shouldConvert = unitResolution.convert;
     const seriesError = unitResolution.error;
 
     // Stage 3+4: GROUP + AGGREGATE per bucket. Group identity (ticket 16)
@@ -2932,13 +2936,14 @@ export class QueryService {
           await Promise.all(noteIds.map(async (id) => noteTags.set(id, await this.noteStore.getNoteTagLabels(id))));
         }
         if (needsTypedTags && this.tagsStore.getAll) {
-          const allTags = (await this.tagsStore.getAll()) as Array<{ id: string; label: string; type?: string }>;
+          const allTags = await this.tagsStore.getAll();
           const tagById = new Map(allTags.map((t) => [t.id, t]));
           await Promise.all(
             noteIds.map(async (id) => {
-              const links = (await this.noteTagsStore.getAllFromIndex('by-note', id)) as Array<{ tagId: string }>;
+              const links = await this.noteTagsStore.getAllFromIndex('by-note', id);
               const byType = new Map<string, string[]>();
               for (const link of links) {
+                if (!link.tagId) continue;
                 const tag = tagById.get(link.tagId);
                 if (!tag?.type) continue;
                 const list = byType.get(tag.type);
@@ -2971,7 +2976,9 @@ export class QueryService {
     const typedTag = tags.find(t => t.type === type);
     if (typedTag) {
       const links = await this.noteTagsStore.getAllFromIndex('by-tag', typedTag.id);
-      for (const link of links) out.add(link.noteId);
+      for (const link of links) {
+        if (link.noteId) out.add(link.noteId);
+      }
     }
     if (type === 'equipment') {
       const slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

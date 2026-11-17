@@ -5,7 +5,7 @@
  * checkpoint-ownership removal (never catalog/slug matching), Import Once
  * subscription pinning, and removal failure propagation.
  */
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
 import { emptySeedMeta, seedMetaKey } from '@/types/seed';
 import { InMemoryFeedStorage } from './FeedImportStorage';

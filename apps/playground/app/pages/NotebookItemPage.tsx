@@ -114,7 +114,7 @@ export function NotebookItemPage({
         const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
         if (!occurrence) throw new Error('The saved journal workout is unavailable.');
         pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: journalNote.id });
-        navigate(dayAutoStartPath(journalNote.journalDate ?? '', runtimeId));
+        void navigate(dayAutoStartPath(journalNote.journalDate ?? '', runtimeId));
       } catch (error) {
         toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
@@ -163,7 +163,7 @@ export function NotebookItemPage({
         wodContent: block.content,
         date: date,
       });
-      navigate(dayPath(dateKey));
+      void navigate(dayPath(dateKey));
       toast({
         title: 'Scheduled',
         description: `Added to journal for ${dateKey}`,
@@ -193,7 +193,7 @@ export function NotebookItemPage({
       ...actions,
       { id: 'add-to-today', label: 'Add to today', onRun: () => void handleAddToToday(firstWodBlock) },
       { id: 'plan', label: 'Plan for a date', onRun: () => setPendingScheduleBlock(firstWodBlock) },
-      { id: 'open-in-playground', label: 'Open in playground', onRun: () => openBlockInPlayground(firstWodBlock, navigate) },
+      { id: 'open-in-playground', label: 'Open in playground', onRun: () => void openBlockInPlayground(firstWodBlock, navigate) },
     ];
   }, [firstWodBlock, content, handleAddToToday, navigate, onChange]);
 
@@ -205,7 +205,9 @@ export function NotebookItemPage({
   useNotePageNav({
     content,
     scriptBlocks,
-    onStartWorkout: handleStartWorkout,
+    onStartWorkout: (block) => {
+      void handleStartWorkout(block);
+    },
     noteId: corpusId,
     helpfulActions: itemHelpfulActions,
   });
@@ -219,11 +221,17 @@ export function NotebookItemPage({
   });
 
   const commands = useScriptBlockCommands('notebook-readonly', {
-    onPlay: handleStartWorkout,
+    onPlay: (block) => {
+      void handleStartWorkout(block);
+    },
     onShare: shareBlock,
-    onAddToToday: handleAddToToday,
+    onAddToToday: (block) => {
+      void handleAddToToday(block);
+    },
     onSchedule: setPendingScheduleBlock,
-    onOpenInPlayground: (block) => openBlockInPlayground(block, navigate),
+    onOpenInPlayground: (block) => {
+      void openBlockInPlayground(block, navigate);
+    },
   });
 
   return (
@@ -274,7 +282,7 @@ export function NotebookItemPage({
             <CalendarCard
               selectedDate={null}
               onDateSelect={(date) => {
-                handleScheduleBlock(pendingScheduleBlock, date)
+                void handleScheduleBlock(pendingScheduleBlock, date)
                 setPendingScheduleBlock(null)
               }}
             />

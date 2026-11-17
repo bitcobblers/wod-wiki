@@ -6,15 +6,15 @@ import { IEvent } from '../../contracts/events/IEvent';
 import { HandlerScope } from '../../contracts/events/IEventBus';
 
 export class SubscribeEventAction implements IRuntimeAction {
-    private _type = 'subscribe-event';
+    private readonly _type = 'subscribe-event';
 
     constructor(
-        private eventName: string,
-        private handlerId: string,
-        private ownerId: string,
-        private handlerFn: (event: IEvent, runtime: IRuntimeContext) => IRuntimeAction[],
+        private readonly eventName: string,
+        private readonly handlerId: string,
+        private readonly ownerId: string,
+        private readonly handlerFn: (event: IEvent, runtime: IRuntimeContext) => IRuntimeAction[],
         /** Handler scope. Default: 'active' (only fires when owner is current block) */
-        private scope: HandlerScope = 'active'
+        private readonly scope: HandlerScope = 'active'
     ) { }
 
     get type(): string {
@@ -37,10 +37,10 @@ export class SubscribeEventAction implements IRuntimeAction {
 }
 
 export class UnsubscribeEventAction implements IRuntimeAction {
-    private _type = 'unsubscribe-event';
+    private readonly _type = 'unsubscribe-event';
 
     constructor(
-        private handlerId: string
+        private readonly handlerId: string
     ) { }
 
     get type(): string {

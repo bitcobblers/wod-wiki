@@ -21,12 +21,12 @@ export class ExerciseSearchEngine {
   private debounceTimeout: NodeJS.Timeout | null = null;
   private lastQuery: string = '';
   private lastResults: ExercisePathEntry[] = [];
-  private searchCache: Map<string, ExercisePathEntry[]> = new Map();
+  private readonly searchCache: Map<string, ExercisePathEntry[]> = new Map();
   
   private readonly DEBOUNCE_DELAY = 150; // ms
   private readonly DEFAULT_LIMIT = 50;
 
-  constructor(private indexManager: ExerciseIndexManager) {}
+  constructor(private readonly indexManager: ExerciseIndexManager) {}
 
   /**
    * Search for exercises with debouncing
@@ -45,11 +45,14 @@ export class ExerciseSearchEngine {
     }
 
     // Set new timeout
-    this.debounceTimeout = setTimeout(async () => {
+    const runSearch = async () => {
       const results = await this.performSearch(query, options);
       this.lastQuery = query;
       this.lastResults = results;
       callback(results);
+    };
+    this.debounceTimeout = setTimeout(() => {
+      void runSearch();
     }, this.DEBOUNCE_DELAY);
   }
 

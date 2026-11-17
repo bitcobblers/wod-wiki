@@ -12,7 +12,7 @@
  *   destination, or nothing changes,
  * - the note itself is never cloned or deleted by a placement change.
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 
 import { InMemoryStorage } from './InMemoryStorage';
 import { StorageService } from './StorageService';

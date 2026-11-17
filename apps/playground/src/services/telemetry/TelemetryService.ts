@@ -43,12 +43,12 @@ const CONSENT_KEY = 'wodwiki.telemetry.consent';
 
 export class TelemetryService {
   readonly events = new SimpleEventBus<TelemetryEvent>();
-  private consentListeners = new Set<(consent: boolean) => void>();
-  private storage?: Storage;
+  private readonly consentListeners = new Set<(consent: boolean) => void>();
+  private readonly storage?: Storage;
   private forwarder?: TelemetryForwarder;
-  private idb?: IDBFactory;
-  private sink?: (event: TelemetryEvent) => Promise<void>;
-  private load?: () => Promise<TelemetryEvent[]>;
+  private readonly idb?: IDBFactory;
+  private readonly sink?: (event: TelemetryEvent) => Promise<void>;
+  private readonly load?: () => Promise<TelemetryEvent[]>;
   private dbPromise?: Promise<IDBDatabase | null>;
   private _consent: boolean;
 

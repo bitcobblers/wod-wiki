@@ -16,7 +16,7 @@ export type RuntimeMemoryLocation = {
  */
 export class RuntimeMemory implements IRuntimeMemory {
     // Linear storage for memory locations
-    private _references: RuntimeMemoryLocation[] = [];
+    private readonly _references: RuntimeMemoryLocation[] = [];
 
     // Allocates a new memory location and returns a reference to it.
     allocate<T>(type: string, ownerId: string, initialValue?: T, visibility: 'public' | 'private' | 'inherited' = 'private'): TypedMemoryReference<T> {

@@ -9,9 +9,8 @@
  */
 import { createClient } from '@libsql/client';
 import { SqlStorage, libsqlDatabase } from '@bitcobblers/wod-wiki-storage/sql';
-import type { IStorageTransaction, KeyDTO, RangeDTO, StoreName, StoreType } from '@bitcobblers/wod-wiki-storage';
+import type { IStorageTransaction, StoreType } from '@bitcobblers/wod-wiki-storage';
 import {
-  buildDomainWorld,
   buildPropertyNote,
   buildTestNote,
   type BuiltPropertyNote,
@@ -60,16 +59,12 @@ import {
   type BlockEffort,
   type BlockEquipment,
   type BlockIndexRow,
-  type BlockQueryStore,
   type BlockRevision,
-  type EffortQueryStore,
   type EntityScopeDescriptor,
   type EventRecord,
-  type EventStore,
   type IOutputStatement,
   type Note,
   type NoteProvenance,
-  type NoteQueryStore,
   type NotebookLink,
   type NoteTag,
   type Page,
@@ -80,7 +75,6 @@ import {
   type PublishFeedReport,
   type QueryOptions,
   type QueryResult,
-  type QueryServiceStores,
   type ResolveEntityScopeInput,
   type ResolvedUpstreamProvenance,
   type ResultOrigin,
@@ -180,13 +174,6 @@ export interface QueryWqlOptions extends QueryOptions {
 
 /** Deterministic journal epoch for harness runs that omit `startedAt`. */
 export const HARNESS_EPOCH = 1_735_689_600_000; // 2025-01-01T00:00:00Z
-
-/** One note's hydration relations — structurally the storage relation slice. */
-interface HarnessRelationBundle {
-  tags: ReadonlyArray<{ label: string; type?: string }>;
-  links: PageNote[];
-  pages: Page[];
-}
 
 /** Persistable slice of a `DomainWorld` — every row family the fixtures produce. */
 interface WorldRowSlice {

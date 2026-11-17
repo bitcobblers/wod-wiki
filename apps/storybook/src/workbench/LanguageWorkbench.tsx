@@ -1036,7 +1036,7 @@ export function SessionOutputsTable({
       return;
     }
 
-    const t = setTimeout(async () => {
+    const runWqlQuery = async () => {
       try {
         const parsed = parseQuery(filterText);
         if (parsed.error) {
@@ -1078,6 +1078,10 @@ export function SessionOutputsTable({
         setWqlError(e instanceof Error ? e.message : String(e));
         setWqlResult(null);
       }
+    };
+
+    const t = setTimeout(() => {
+      void runWqlQuery();
     }, 250);
 
     return () => clearTimeout(t);
@@ -1771,7 +1775,7 @@ export function DashboardQueryCard({
 
 
   useEffect(() => {
-    const t = setTimeout(async () => {
+    const runSegmentQuery = async () => {
       try {
         const parsed = parseQuery(segment.query);
         if (parsed.error) {
@@ -1808,6 +1812,10 @@ export function DashboardQueryCard({
         setError(e instanceof Error ? e.message : String(e));
         setResult(undefined);
       }
+    };
+
+    const t = setTimeout(() => {
+      void runSegmentQuery();
     }, 250);
 
     return () => clearTimeout(t);

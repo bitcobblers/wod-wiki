@@ -99,7 +99,7 @@ export const CanvasProsePanel: React.FC<CanvasProsePanelProps> = ({
   runState,
   deps,
   handleExampleSelect,
-  hasWorkoutsTag,
+  hasWorkoutsTag: _hasWorkoutsTag,
   hasViewDef,
   chapters = [],
   challengeQuests = [],

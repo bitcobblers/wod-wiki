@@ -9,7 +9,7 @@ import { RuntimeLogger } from "../../RuntimeLogger";
  * Used by behaviors to add child blocks for execution.
  */
 export class PushBlockAction implements IRuntimeAction {
-    private _type = 'push-block';
+    private readonly _type = 'push-block';
 
     constructor(public readonly block: IRuntimeBlock, private readonly options: BlockLifecycleOptions = {}) { }
 

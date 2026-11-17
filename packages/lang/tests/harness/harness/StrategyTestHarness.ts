@@ -67,7 +67,7 @@ export class AppliedStrategy {
 export class StrategyTestHarness {
     private strategy?: IRuntimeBlockStrategy;
     private statements: ICodeStatement[] = [];
-    private runtime: IScriptRuntime;
+    private readonly runtime: IScriptRuntime;
 
     constructor(runtime?: IScriptRuntime) {
         this.runtime = runtime ?? stubRuntime();

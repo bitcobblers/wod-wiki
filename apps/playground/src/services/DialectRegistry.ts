@@ -7,7 +7,7 @@ import { IDialect, DialectAnalysis } from '@bitcobblers/wod-wiki-engine';
  * can add semantic hints to statements before JIT compilation.
  */
 export class DialectRegistry {
-  private dialects: Map<string, IDialect> = new Map();
+  private readonly dialects: Map<string, IDialect> = new Map();
 
   /**
    * Register a dialect for processing

@@ -27,7 +27,6 @@ import { migrateLegacyCatalogFilter } from './legacyWql'
 import { LocalStore } from '@/services/storage/LocalStore'
 import { remotePrefsMode, metaDeletePrefs, metaPrefBackend, metaSetPref } from '@/services/storage/metaStore'
 import {
-  GROUP_BY_DIMENSION_IDS,
   normalizeGroupByFavorites,
 } from './groupByOptions'
 

@@ -59,7 +59,7 @@ export interface BlockMatcher {
  */
 export class MockJitCompiler extends JitCompiler {
   private _compileCalls: CompileCall[] = [];
-  private _matchers: BlockMatcher[] = [];
+  private readonly _matchers: BlockMatcher[] = [];
   private _defaultBlock?: IRuntimeBlock;
 
   constructor(strategies: IRuntimeBlockStrategy[] = []) {

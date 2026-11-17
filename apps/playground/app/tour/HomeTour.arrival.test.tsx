@@ -21,7 +21,7 @@ import { useEffect, type ReactElement } from 'react'
 import { beforeEach, afterEach, describe, expect, it } from 'bun:test'
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { NuqsAdapter } from 'nuqs/adapters/react-router'
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
 import type { Quest } from '../canvas/parseCanvasMarkdown'
 import type { ScriptBlock } from '@/components/Editor/types'
 import { HomeTour } from './HomeTour'
@@ -96,7 +96,7 @@ describe('HomeTour arrival & hero-reset contract', () => {
     window.localStorage.clear()
 
     class MockIntersectionObserver {
-      constructor(private callback: IOCallback) {}
+      constructor(private readonly callback: IOCallback) {}
       observe(target: Element) {
         ioCallbacks.push({ callback: this.callback, target })
       }

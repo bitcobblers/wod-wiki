@@ -81,7 +81,7 @@ export function usePageScrollSync(currentNavLinks: PageNavLink[]): UsePageScroll
       const content = view.state.doc.toString()
       const lines = content.split('\n')
 
-      let lineIdx = -1
+      let lineIdx: number
 
       // Line-anchored outline ids — one per fence family (time/log workout
       // blocks, query widgets, custom widgets). `<tag>-line-N` is 1-based.

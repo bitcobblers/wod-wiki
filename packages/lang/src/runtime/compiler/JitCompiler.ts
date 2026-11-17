@@ -14,10 +14,10 @@ import type { IPromotionResolver } from "./contracts/IPromotionResolver";
  * Coordinates strategy application to build composed RuntimeBlocks.
  */
 export class JitCompiler implements IJitCompiler {
-  private _promotionResolver: IPromotionResolver;
+  private readonly _promotionResolver: IPromotionResolver;
 
   constructor(
-    private strategies: IRuntimeBlockStrategy[] = [],
+    private readonly strategies: IRuntimeBlockStrategy[] = [],
     promotionResolver?: IPromotionResolver
   ) {
     this._promotionResolver = promotionResolver ?? new PromotionResolver();

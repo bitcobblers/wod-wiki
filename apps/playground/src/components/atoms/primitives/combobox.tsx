@@ -200,7 +200,7 @@ export function ComboboxOption<T>({
 }
 
 export function ComboboxLabel({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) {
-  return <Headless.ComboboxLabel as="span" {...props} className={cn(className, 'ml-2.5 truncate first:ml-0 sm:ml-2 sm:first:ml-0')} />
+  return <Headless.Label as="span" {...props} className={cn(className, 'ml-2.5 truncate first:ml-0 sm:ml-2 sm:first:ml-0')} />
 }
 
 export function ComboboxDescription({ className, children, ...props }: React.ComponentPropsWithoutRef<'span'>) {

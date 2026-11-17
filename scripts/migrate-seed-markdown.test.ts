@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { migrateMarkdownContent } from './migrate-seed-markdown';
 
-test('flattens baseAttributes into Property Note keys and prepends type: effort', () => {
+void test('flattens baseAttributes into Property Note keys and prepends type: effort', () => {
   const before = [
     '---',
     'id: effort-bundled-thruster',
@@ -44,7 +44,7 @@ test('flattens baseAttributes into Property Note keys and prepends type: effort'
   assert.equal(after, expected);
 });
 
-test('handles disciplineFactor and replaces non-canonical weightlifting with strength', () => {
+void test('handles disciplineFactor and replaces non-canonical weightlifting with strength', () => {
   const before = [
     '---',
     'id: effort-snatch',
@@ -68,7 +68,7 @@ test('handles disciplineFactor and replaces non-canonical weightlifting with str
   assert.doesNotMatch(after, /baseAttributes:/);
 });
 
-test('is idempotent when run on already-migrated markdown', () => {
+void test('is idempotent when run on already-migrated markdown', () => {
   const migrated = [
     '---',
     'type: effort',
@@ -88,7 +88,7 @@ test('is idempotent when run on already-migrated markdown', () => {
   assert.equal(reRun, migrated);
 });
 
-test('leaves non-effort files and files without frontmatter untouched', () => {
+void test('leaves non-effort files and files without frontmatter untouched', () => {
   const noFm = '# Just a markdown note\nWithout frontmatter.';
   assert.equal(migrateMarkdownContent(noFm, 'markdown/notes/test.md'), noFm);
 

@@ -112,7 +112,7 @@ const inFlightBackfills = new WeakMap<IStorage, Promise<void>>();
  */
 export function startFieldCatalogBackfill(storageInstance: IStorage = storage): Promise<void> {
     const existing = inFlightBackfills.get(storageInstance);
-    if (existing) return existing;
+    if (existing !== undefined) return existing;
 
     const run = (async () => {
         try {

@@ -73,7 +73,7 @@ export class IndexedDBFeedImportStorage implements FeedImportStorage {
     return migrateNotebookVocabulary(this.storageInstance);
   }
   async removeSourceContent(meta: SeedMetaRecord): Promise<number> {
-    return await this.storageInstance.transaction(
+    return this.storageInstance.transaction(
       ['notes', 'attachments', 'tags', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'efforts', 'equipment', 'property_overrides', 'meta'],
       'readwrite',
       async (tx) => {

@@ -7,7 +7,7 @@ afterEach(cleanup)
 describe('WqlWindowPicker', () => {
   it('renders current window label and opens dropdown on click', () => {
     let currentQuery = ':note{tags:pr} last 4w'
-    const { rerender } = render(
+    render(
       <WqlWindowPicker
         query={currentQuery}
         onQueryChange={(w) => { currentQuery = w }}

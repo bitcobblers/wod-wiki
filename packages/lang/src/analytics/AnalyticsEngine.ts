@@ -8,9 +8,9 @@ import { ProjectionResult } from './ProjectionResult';
 import { wallClockNow, type INowProvider } from '../runtime/INowProvider';
 
 export class AnalyticsEngine implements IAnalyticsEngine {
-  private realtimeProcessors: IRealtimeProcessor[] = [];
-  private summaryProcessors: ISummaryProcessor[] = [];
-  private outputHistory: IOutputStatement[] = [];
+  private readonly realtimeProcessors: IRealtimeProcessor[] = [];
+  private readonly summaryProcessors: ISummaryProcessor[] = [];
+  private readonly outputHistory: IOutputStatement[] = [];
   /** Emits a live 'analytics' snapshot per segment so the UI updates in real time. */
   private _onLiveOutput?: (outputs: IOutputStatement[]) => void;
   private _liveProjections: ProjectionResult[] = [];

@@ -97,7 +97,7 @@ export function useEquipmentLinks(slug: string | undefined): EquipmentLinksResul
       const usedBy = await storageService.getEquipmentUsage(slug!);
       if (!cancelled) setLinks({ efforts, usedBy });
     }
-    load();
+    void load();
     return () => { cancelled = true; };
   }, [slug, isReady, effortsReady, effortRevision, registry, effortRegistry]);
 

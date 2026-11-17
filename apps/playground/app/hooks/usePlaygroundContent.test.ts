@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { usePlaygroundContent, LOAD_TIMEOUT_MS } from './usePlaygroundContent';
 import type { NoteBlock } from '@/types/storage';
@@ -43,7 +43,7 @@ describe('usePlaygroundContent', () => {
     getPageOverride = () => new Promise<SavedPage | undefined>(() => {});
     vi.useFakeTimers();
     const { result } = renderHook(() => usePlaygroundContent({ category: 'girls', name: 'ghost', mdContent: 'bundled' }, fakeDeps));
-    act(() => vi.advanceTimersByTime(LOAD_TIMEOUT_MS));
+    act(() => { vi.advanceTimersByTime(LOAD_TIMEOUT_MS); });
     expect(result.current.loading).toBe(false);
     expect(result.current.content).toBe('bundled');
     expect(result.current.error).toBeInstanceOf(Error);

@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { NuqsAdapter } from 'nuqs/adapters/react-router';
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import { LoadZipPage } from './LoadZipPage';
 import * as ExportImportService from '@/services/ExportImportService';
 import * as toastModule from '@/hooks/use-toast';

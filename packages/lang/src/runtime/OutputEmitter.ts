@@ -60,7 +60,7 @@ import type { Unsubscribe } from './contracts/IRuntimeStack';
  */
 export class OutputEmitter {
     private _outputStatements: IOutputStatement[] = [];
-    private _outputListeners: Set<OutputListener> = new Set();
+    private readonly _outputListeners: Set<OutputListener> = new Set();
     private _analyticsEngine: IAnalyticsEngine | null = null;
     /** Session-scoped latch: summary outputs are appended once per session. */
     private _analyticsFinalized = false;

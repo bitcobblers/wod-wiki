@@ -31,7 +31,9 @@ export interface CommandStrategy {
   placeholder?: string;
   initialInputValue?: string;
   renderHeader?: () => React.ReactNode;
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Legacy CommandStrategy contract references CommandPaletteResult until removal.
   getResults: (query: string) => CommandPaletteResult[] | Promise<CommandPaletteResult[]>;
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Legacy CommandStrategy contract references CommandPaletteResult until removal.
   onSelect: (result: CommandPaletteResult) => void;
   getCommands?: () => Command[];
   handleInput?: (text: string) => boolean | Promise<boolean>;

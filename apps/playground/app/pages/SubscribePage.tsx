@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useState, useSyncExternalStore, type SyntheticEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { CloudDownload, ExternalLink, Loader2, Rss } from 'lucide-react';
 import { Button } from '@/components/atoms/primitives/button';
@@ -84,7 +84,7 @@ export function SubscribePage() {
           });
           return;
         }
-        navigate(`${ROUTE_PATTERNS.notebooks}?q=:notebook{feed:${feed.id}}`);
+        void navigate(`${ROUTE_PATTERNS.notebooks}?q=:notebook{feed:${feed.id}}`);
       } finally {
         setBusyId(null);
       }
@@ -92,7 +92,7 @@ export function SubscribePage() {
     [busyId, navigate],
   );
 
-  const handleUrlSubmit = (event: React.FormEvent) => {
+  const handleUrlSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     const next = urlInput.trim();
     if (!next) return;

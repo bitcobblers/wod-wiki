@@ -40,7 +40,8 @@ test.describe(`Receiver — Entry Point (${APP_BASE})`, () => {
     page.on('pageerror', (error) => errors.push(error.message));
 
     await page.goto(`${APP_BASE}/receiver-rpc.html`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(2000);
+    await expect(page.locator('#root').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=/Wod.Wiki/i').first()).toBeVisible();
 
     const criticalErrors = errors.filter((err) => {
       const lower = err.toLowerCase();

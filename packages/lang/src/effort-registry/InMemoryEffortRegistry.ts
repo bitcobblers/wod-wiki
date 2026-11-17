@@ -12,8 +12,8 @@ import { normalizeForFuzzy } from './fuzzyMatch';
  * - Bundled seed fallback
  */
 export class InMemoryEffortRegistry implements IEffortRegistry {
-  private efforts = new Map<string, IEffort>();
-  private sourceFilter: EffortRegistrySource | null = null;
+  private readonly efforts = new Map<string, IEffort>();
+  private readonly sourceFilter: EffortRegistrySource | null = null;
   private initialized = false;
   constructor(sourceFilter?: EffortRegistrySource) {
     this.sourceFilter = sourceFilter ?? null;

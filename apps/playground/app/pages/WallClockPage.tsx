@@ -152,20 +152,20 @@ export function WallClockPage() {
   )
 
   const handleClose = useCallback(() => {
-    if (!pending) { navigate('/'); return }
+    if (!pending) { void navigate('/'); return }
     // A completed run's review/queue has been dismissed — the deferred
     // destination is the session detail page.
     if (completedRef.current) {
-      navigate(sessionDetailPath(runtimeId), { replace: true })
+      void navigate(sessionDetailPath(runtimeId), { replace: true })
       return
     }
     if (pending.returnTo) {
-      navigate(pending.returnTo, { replace: true })
+      void navigate(pending.returnTo, { replace: true })
       return
     }
     // Route back to the note via the typed NoteRef — the kind→path rule lives
     // in noteRefToPath, not an ad-hoc noteId.split('/') switch here.
-    navigate(noteRefToPath(parseNoteId(pending.noteId)), { replace: true })
+    void navigate(noteRefToPath(parseNoteId(pending.noteId)), { replace: true })
   }, [runtimeId, pending, navigate])
 
   if (coldLoading) {

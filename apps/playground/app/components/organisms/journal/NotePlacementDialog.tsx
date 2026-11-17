@@ -13,7 +13,7 @@
  * here.
  */
 
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type SyntheticEvent } from 'react'
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
 import { Button } from '@/components/atoms/primitives/button'
 import { TEST_IDS } from '@/lib/testIds'
@@ -191,7 +191,7 @@ export function NotePlacementDialog({
     if (!target) return
     await runPlacementChange(() => provider.moveRecordPlacement(entry.id, fromPlacement.pageId, target))
   }
-  const handleSubmit = async (event: FormEvent) => {
+  const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (inFlight.current) return
     inFlight.current = true

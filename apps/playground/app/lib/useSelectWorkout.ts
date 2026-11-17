@@ -14,9 +14,9 @@ export function useSelectWorkout(): (item: SelectWorkoutItem) => void {
   return useCallback(
     (item: SelectWorkoutItem) => {
       if (item.name === 'Home') {
-        navigate(ROUTE_PATTERNS.home)
+        void navigate(ROUTE_PATTERNS.home)
       } else {
-        navigate(notebookItemPath(item.category ?? 'General', item.name))
+        void navigate(notebookItemPath(item.category ?? 'General', item.name))
       }
     },
     [navigate],

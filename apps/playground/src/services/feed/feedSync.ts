@@ -288,7 +288,7 @@ async function runFeedSyncViaWorker(
   deps: FeedSyncDeps,
   owner: string,
 ): Promise<FeedSyncOutcome | null> {
-  return await new Promise<FeedSyncOutcome | null>((resolve) => {
+  return new Promise<FeedSyncOutcome | null>((resolve) => {
     let worker: Worker;
     try {
       worker = new Worker(new URL('./feedSync.worker.ts', import.meta.url), { type: 'module' });
@@ -1003,7 +1003,7 @@ export async function adoptLegacyFeedCheckpoints(deps: Pick<FeedSyncDeps, 'stora
  */
 export async function adoptFeedProvenance(deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<number> {
   const storage = deps.storage ?? mainThreadFeedImportStorage();
-  return await storage.backfillFeedProvenance();
+  return storage.backfillFeedProvenance();
 }
 
 /**
@@ -1016,7 +1016,7 @@ export async function adoptFeedProvenance(deps: Pick<FeedSyncDeps, 'storage'> = 
  */
 export async function adoptNotebookVocabulary(deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<number> {
   const storage = deps.storage ?? mainThreadFeedImportStorage();
-  return await storage.migrateNotebookVocabulary();
+  return storage.migrateNotebookVocabulary();
 }
 
 /**

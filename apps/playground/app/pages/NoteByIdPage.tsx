@@ -4,8 +4,8 @@ import { v7 as uuidv7 } from 'uuid'
 import { Button } from '@/components/atoms/primitives/button'
 import { CalendarCard } from '@/components/atoms/CalendarCard'
 import { JournalPageShell } from '@/panels/page-shells'
-import { NoteEditor, type EditorIdentitySnapshot } from '@/components/organisms/editor/NoteEditor'
-import { BlockHistory, revertBlock } from '@/components/organisms/editor/BlockHistory'
+import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
+import { BlockHistory } from '@/components/organisms/editor/BlockHistory'
 import { useNoteDraft, waitForPendingNoteSave } from '../hooks/useNoteDraft'
 import { useNoteL1Zone } from '../nav/NavContext'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
@@ -14,7 +14,7 @@ import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { queryService, refreshPageSources } from '@/services/queryService'
 import { dayPath, notePath, pagePath, ROUTE_PATTERNS, runPath } from '../lib/routes'
 import { appendWidget, notebookOriginOfItem, resolveEntityScope } from '@bitcobblers/wod-wiki-wql'
-import { isNoteEditable, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core'
+import { isNoteEditable } from '@bitcobblers/wod-wiki-core'
 import { resolveNotePropertyStack } from '@/app/editor/runtimeTimerModel'
 import { WidgetComposerDialog } from '../views/dashboards/WidgetComposerDialog'
 import { slugifyRoute } from '../components/organisms/journal/CreateJournalNoteDialog'
@@ -23,7 +23,6 @@ import type { HistoryRecord } from '@/types/history'
 import type { Session } from '@/types/storage'
 import { onResultSaved } from '@/services/resultRecorder'
 import { pendingRuntimes } from '../runtimeStore'
-import { captureRun } from '@/services/runCapture';
 import type { ScriptBlock } from '@/components/Editor/types'
 import { useNotePageNav } from './shared/useNotePageNav'
 import { useNoteActions } from './shared/useNoteActions'
@@ -180,7 +179,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
         const captured = await draft.captureForRun(block, uuidv7());
         const targetNoteId = captured.note.id;
         pendingRuntimes.set(captured.session.id, { block: captured.block, noteId: targetNoteId, captured, returnTo: notePath(targetNoteId) });
-        navigate(runPath(captured.session.id));
+        void navigate(runPath(captured.session.id));
       } catch {
         // error is tracked and rendered by draft.saveError
       }
@@ -228,7 +227,9 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   useNotePageNav({
     content: draft.content,
     scriptBlocks,
-    onStartWorkout: handleStartWorkout,
+    onStartWorkout: (block) => {
+      void handleStartWorkout(block);
+    },
     results,
     noteId: entry?.id,
     helpfulActions: noteActions.helpfulActions,

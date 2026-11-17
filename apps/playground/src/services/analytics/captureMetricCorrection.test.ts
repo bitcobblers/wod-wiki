@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
 import { StorageService } from '@/services/storage/StorageService';
 import { InMemoryStorage } from '@/services/storage/InMemoryStorage';

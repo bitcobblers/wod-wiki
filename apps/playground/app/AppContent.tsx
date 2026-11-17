@@ -5,7 +5,7 @@
  * classification stays in lib/routeView (see docs/adr/app-route-view.md).
  */
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import type { MutableRefObject, ReactNode } from 'react'
+import type { RefObject, ReactNode } from 'react'
 import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import { SidebarLayout } from '@/templates/SidebarLayout'
 import { Navbar } from '@/components/organisms/layout/Navbar'
@@ -71,7 +71,7 @@ import { appendTimerBlock } from './pages/shared/pageUtils'
 import { useSeedContent } from '@/services/content/seedContent'
 import { SessionSource } from '@/components/organisms/review/SessionSource';
 
-export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefObject<() => void> }) {
+export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<() => void> }) {
   const navigate = useNavigate()
   const location = useLocation()
   const routeParams = useParams()
@@ -156,7 +156,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       params.delete('new')
       params.delete('mode')
       const search = params.toString() ? `?${params.toString()}` : ''
-      navigate(`${location.pathname}${search}`, { replace: true })
+      void navigate(`${location.pathname}${search}`, { replace: true })
     }
   }, [location.pathname, location.search, openJournalCreate, navigate])
   const canvasWorkout = view.page === 'canvas'
@@ -165,7 +165,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   const handleCanvasAddTimer = useCallback(async () => {
     if (!canvasWorkout) return
     const pageId = await createPlaygroundPage(appendTimerBlock(canvasWorkout))
-    navigate(playgroundPath(pageId))
+    void navigate(playgroundPath(pageId))
   }, [canvasWorkout, navigate])
   useEffect(() => {
     if (!view.shell.withIndex || currentNavLinks.length === 0) return
@@ -194,7 +194,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
     }
   }, [])
   const openSearchPalette = useCallback(() => {
-    usePaletteStore.getState().open({
+    void usePaletteStore.getState().open({
       wql: {
         initialQuery: streamDraftRef.current() ?? searchPaletteQuery(),
         execute: paletteExecute,
@@ -211,7 +211,9 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
       ],
     }).then(result => {
       if (result.dismissed) return
-      navigatePaletteResult(result.item, navigate)
+      navigatePaletteResult(result.item, (to) => {
+        void navigate(to)
+      })
     })
   }, [navigate, canvasRouteList])
 

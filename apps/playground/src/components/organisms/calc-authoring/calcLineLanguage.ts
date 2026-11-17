@@ -30,7 +30,7 @@ const ATOMS = new Set<string>([
   ...LOOKUP_TABLES.map((t) => t.name),
 ]);
 
-const NUMBER_RE = /^\d*\.?\d+(?:d)?/;
+const NUMBER_RE = /^\d*\.?\d+d?/;
 const IDENT_RE = /^[A-Za-z_][\w.]*/;
 
 const parser: StreamParser<unknown> = {

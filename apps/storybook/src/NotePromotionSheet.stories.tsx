@@ -145,15 +145,15 @@ export const ReadOnlyFeedNoteClonePrompt: Story = {
     const sheet = await body.findByTestId('publication-pill-popover');
     // Read-only upstream notice replaces membership controls entirely
     const cloneButton = await within(sheet).findByTestId('promotion-clone-readonly-btn');
-    expect(within(sheet).queryByTestId('promotion-new-notebook-input')).toBeNull();
+    await expect(within(sheet).queryByTestId('promotion-new-notebook-input')).toBeNull();
     await expect(
       within(sheet).getByText('No recorded Sessions yet. Sessions stay private unless opted in.'),
     ).toBeVisible();
     await userEvent.click(cloneButton);
-    await waitFor(() => {
-      expect(body.queryByTestId('publication-pill-popover')).toBeNull();
+    await waitFor(async () => {
+      await expect(body.queryByTestId('publication-pill-popover')).toBeNull();
     });
-    expect(within(canvasElement).getByTestId('promotion-clone-requested')).toBeVisible();
+    await expect(within(canvasElement).getByTestId('promotion-clone-requested')).toBeVisible();
   },
 };
 
@@ -174,30 +174,30 @@ export const PromoteToPublishedNoteWithData: Story = {
     const publicToggle = await body.findByTestId('publication-notebook-public-toggle');
     await waitFor(() => expect(publicToggle).toBeEnabled());
     await waitFor(async () => {
-      expect((await getNotePublicationSummary(storage, NOTE_ID)).visibility).toBe('Private');
+      await expect((await getNotePublicationSummary(storage, NOTE_ID)).visibility).toBe('Private');
     });
 
     // 2. Toggle the Notebook public → 'Published Note'
     await userEvent.click(publicToggle);
-    await waitFor(() => {
-      expect(within(sheet).getByText(visibilityHeader('Published Note'))).toBeVisible();
+    await waitFor(async () => {
+      await expect(within(sheet).getByText(visibilityHeader('Published Note'))).toBeVisible();
     });
     await waitFor(async () => {
       const live = await getNotePublicationSummary(storage, NOTE_ID);
-      expect(live.visibility).toBe('Published Note');
-      expect(live.notebookPublic).toBe(true);
+      await expect(live.visibility).toBe('Published Note');
+      await expect(live.notebookPublic).toBe(true);
     });
 
     // 3. Opt the recorded Session in → 'Published Note + Data'
     await waitFor(() => expect(body.getByTestId(`publication-session-toggle-${SESSION_ID}`)).toBeEnabled());
     await userEvent.click(body.getByTestId(`publication-session-toggle-${SESSION_ID}`));
-    await waitFor(() => {
-      expect(within(sheet).getByText(visibilityHeader('Published Note + Data'))).toBeVisible();
+    await waitFor(async () => {
+      await expect(within(sheet).getByText(visibilityHeader('Published Note + Data'))).toBeVisible();
     });
     await waitFor(async () => {
       const live = await getNotePublicationSummary(storage, NOTE_ID);
-      expect(live.visibility).toBe('Published Note + Data');
-      expect(live.publicSessions).toBe(1);
+      await expect(live.visibility).toBe('Published Note + Data');
+      await expect(live.publicSessions).toBe(1);
     });
     await expect(body.getByTestId('publication-notebook-public-toggle')).toBeChecked();
     await expect(body.getByTestId(`publication-session-toggle-${SESSION_ID}`)).toBeChecked();

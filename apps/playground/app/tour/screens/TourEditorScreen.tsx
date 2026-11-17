@@ -190,7 +190,7 @@ export const TourEditorScreen: React.FC<TourEditorScreenProps> = ({
       label: 'Playground',
       icon: <ExternalLink className="h-3 w-3" />,
       onClick: (block) => {
-        openBlockInPlaygroundNewTab(block)
+        void openBlockInPlaygroundNewTab(block)
       },
       splitIcon: <Copy className="h-3 w-3" />,
       splitSuccessIcon: <Check className="h-3 w-3 text-emerald-500" />,

@@ -18,6 +18,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from 'react'
 import type { RingTargetKey } from './tourConstants'
 
@@ -27,7 +28,7 @@ export type RingRegistry = Record<RingTargetKey, HTMLElement | null>
 
 export interface RingTargetsContextValue {
   register: (key: RingTargetKey, el: HTMLElement | null) => void
-  registry: React.MutableRefObject<RingRegistry>
+  registry: RefObject<RingRegistry>
   /** Bumps when any registration changes so the ring re-measures. */
   version: number
 }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { NuqsAdapter } from 'nuqs/adapters/react-router';
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import { PageDownloadAction } from './PageToolbar';
 import { SidebarLayout } from '@/templates/SidebarLayout';
 import { StickyPageHeader } from '@/panels/page-shells';

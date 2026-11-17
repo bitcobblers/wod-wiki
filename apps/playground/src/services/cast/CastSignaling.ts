@@ -25,7 +25,7 @@ import type { ISignaling } from './rpc/WebRtcRpcTransport';
  * WebRTC signaling payloads with the receiver over the Cast message bus.
  */
 export class SenderCastSignaling implements ISignaling {
-  private listeners = new Set<(signal: WebRTCSignalMessage) => void>();
+  private readonly listeners = new Set<(signal: WebRTCSignalMessage) => void>();
   private boundListener: CastMessageListener | null = null;
 
   /**
@@ -89,7 +89,7 @@ export class SenderCastSignaling implements ISignaling {
  * messages from the sender and respond back.
  */
 export class ReceiverCastSignaling implements ISignaling {
-  private listeners = new Set<(signal: WebRTCSignalMessage) => void>();
+  private readonly listeners = new Set<(signal: WebRTCSignalMessage) => void>();
   private senderId: string | null = null;
   private boundListener: CastReceiverMessageListener | null = null;
 

@@ -8,7 +8,7 @@ abstract class BaseMemoryEvent implements IEvent {
   abstract readonly name: string;
   readonly timestamp: Date;
 
-  constructor(now: INowProvider = wallClockNow) {
+  protected constructor(now: INowProvider = wallClockNow) {
     this.timestamp = now.now();
   }
 }

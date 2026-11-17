@@ -658,7 +658,7 @@ async function copyNative(
     } finally {
       await closeQuietly(copyDb);
     }
-    return finishCopy(kind, mgmt, args, io, now, copy, after);
+    return await finishCopy(kind, mgmt, args, io, now, copy, after);
   } finally {
     await closeQuietly(sourceDb);
   }

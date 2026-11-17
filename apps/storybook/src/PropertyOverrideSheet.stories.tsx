@@ -56,12 +56,12 @@ export const PersonalRuntimeScope: Story = {
     const sheet = await body.findByTestId('property-override-sheet');
     await expect(within(sheet).getByText('Override Snatch')).toBeVisible();
     // Seeded `notebook/custom` override marks the personal runtime row Active
-    await waitFor(() => {
-      expect(body.getByTestId('override-target-notebook/custom')).toHaveTextContent('Active');
+    await waitFor(async () => {
+      await expect(body.getByTestId('override-target-notebook/custom')).toHaveTextContent('Active');
     });
     // Writable user notebook `Barbell Club` is offered; read-only subscribed feed notebook `olympic-lifting` is excluded
     await expect(body.findByTestId('override-target-notebook/barbell-club')).resolves.not.toHaveTextContent('Overridden');
-    expect(body.queryByTestId('override-target-notebook/olympic-lifting')).toBeNull();
+    await expect(body.queryByTestId('override-target-notebook/olympic-lifting')).toBeNull();
   },
 };
 
@@ -97,13 +97,13 @@ export const SelectUserNotebookScope: Story = {
     await storyActions.selectOverrideScope(body, 'notebook/barbell-club');
 
     // Saved target reported to the host...
-    await waitFor(() => {
-      expect(within(canvasElement).getByTestId('override-saved-target')).toHaveTextContent('notebook/barbell-club');
+    await waitFor(async () => {
+      await expect(within(canvasElement).getByTestId('override-saved-target')).toHaveTextContent('notebook/barbell-club');
     });
     // ...and the scoped override row persisted in the story's storage plane
     await waitFor(async () => {
       const overrides = await listScopedPropertyOverrides(storage, { kind: 'effort', slug: 'snatch' });
-      expect(overrides).toEqual(
+      await expect(overrides).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             notebookId: 'notebook/barbell-club',

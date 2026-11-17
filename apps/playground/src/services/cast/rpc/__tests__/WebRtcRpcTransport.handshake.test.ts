@@ -16,7 +16,7 @@
  *      gathered — the key diagnostic for "stays on connecting".
  */
 
-import { describe, it, expect, beforeEach, jest } from 'bun:test';
+import { describe, it, expect, beforeEach, vi as jest } from 'vitest';
 import { WebRtcRpcTransport, type ISignaling } from '../WebRtcRpcTransport';
 import type { WebRTCSignalMessage } from '@/types/cast/messages';
 
