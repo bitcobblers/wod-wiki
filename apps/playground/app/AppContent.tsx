@@ -218,7 +218,9 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: MutableRefO
   // Keep the parent's searchHandlerRef up-to-date so the nav tree CallAction always
   // fires the latest callback (workoutItems may change after initial mount).
   useEffect(() => {
-    searchHandlerRef.current = openSearchPalette
+    if (searchHandlerRef) {
+      searchHandlerRef.current = openSearchPalette
+    }
   }, [openSearchPalette, searchHandlerRef])
 
   // Keyboard shortcut: Ctrl/Cmd+/ opens global search (the one search chord).

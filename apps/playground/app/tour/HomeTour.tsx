@@ -271,6 +271,70 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
   const [whyShrunk, setWhyShrunk] = useState(false)
   const whyShrunkRef = useRef(whyShrunk)
   whyShrunkRef.current = whyShrunk
+  const whyWrapRef = useRef<HTMLDivElement | null>(null)
+  const pendingCollapseCleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    return () => {
+      pendingCollapseCleanupRef.current?.()
+      pendingCollapseCleanupRef.current = null
+    }
+  }, [])
+
+  const runAfterWhyCollapse = useCallback((cb: () => void) => {
+    pendingCollapseCleanupRef.current?.()
+    pendingCollapseCleanupRef.current = null
+
+    let done = false
+    let rafId = 0
+    let timerId = 0
+    const wrap = whyWrapRef.current
+
+    const onTransitionEnd = (event: TransitionEvent) => {
+      if (event.target !== wrap) return
+      if (!wrap || wrap.getBoundingClientRect().height <= 1) {
+        finish()
+      }
+    }
+
+    const cleanup = () => {
+      done = true
+      if (rafId) cancelAnimationFrame(rafId)
+      if (timerId) window.clearTimeout(timerId)
+      wrap?.removeEventListener('transitionend', onTransitionEnd)
+      if (pendingCollapseCleanupRef.current === cleanup) {
+        pendingCollapseCleanupRef.current = null
+      }
+    }
+
+    const finish = () => {
+      if (done) return
+      done = true
+      cleanup()
+      cb()
+    }
+
+    pendingCollapseCleanupRef.current = cleanup
+
+    const waitForCollapse = () => {
+      if (done) return
+      if (prefersReducedMotion || !wrap || wrap.getBoundingClientRect().height <= 1) {
+        finish()
+        return
+      }
+      wrap.addEventListener('transitionend', onTransitionEnd)
+      timerId = window.setTimeout(finish, 350)
+    }
+
+    if (typeof requestAnimationFrame === 'function') {
+      rafId = requestAnimationFrame(() => {
+        rafId = 0
+        waitForCollapse()
+      })
+    } else {
+      waitForCollapse()
+    }
+  }, [prefersReducedMotion])
 
   // Park the editor section right under the sticky header (same math as
   // scrollInsightsIntoView).
@@ -286,11 +350,15 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
   // collapse transition (~300ms) has settled the layout beneath it.
   const handleWhyWatched = useCallback(() => {
     setWhyShrunk(true)
-    window.setTimeout(scrollEditorIntoView, 350)
-  }, [scrollEditorIntoView])
+    runAfterWhyCollapse(scrollEditorIntoView)
+  }, [runAfterWhyCollapse, scrollEditorIntoView])
 
   // Watch again: re-expand the pitch and return to the top of the page.
   const handleWatchAgain = useCallback(() => {
+    if (pendingCollapseCleanupRef.current) {
+      pendingCollapseCleanupRef.current()
+      pendingCollapseCleanupRef.current = null
+    }
     setWhyShrunk(false)
     window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
   }, [prefersReducedMotion])
@@ -329,6 +397,10 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
   // the runtime (the same stop path as the re-entry contract), ready for
   // another run.
   const handleBackToEditor = useCallback(() => {
+    if (pendingCollapseCleanupRef.current) {
+      pendingCollapseCleanupRef.current()
+      pendingCollapseCleanupRef.current = null
+    }
     resetEditorToArrival()
     const el = document.getElementById('tour-section-editor')
     const sentinel = heroRef.current
@@ -440,13 +512,11 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
       const target = Math.max(0, el.getBoundingClientRect().top + window.scrollY - headerBottom)
       window.scrollTo({ top: target, behavior: prefersReducedMotion ? 'auto' : 'smooth' })
     }
-    if (whyShrunkRef.current) {
-      glide()
-      return
+    if (!whyShrunkRef.current) {
+      setWhyShrunk(true)
     }
-    setWhyShrunk(true)
-    window.setTimeout(glide, 350)
-  }, [prefersReducedMotion])
+    runAfterWhyCollapse(glide)
+  }, [prefersReducedMotion, runAfterWhyCollapse])
 
   // Stop click / natural completion: the fullscreen panel reports partial or
   // completed results; finalize records them against the run's note exactly
@@ -616,6 +686,7 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
   // the same stage contract in both form factors.
   const whyVideoBlock = (
     <div
+      ref={whyWrapRef}
       id="tour-why-video-wrap"
       aria-hidden={whyShrunk}
       className={cn(

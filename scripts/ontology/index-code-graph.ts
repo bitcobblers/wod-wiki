@@ -20,6 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import { TEST_IDS } from '../../apps/playground/src/lib/testIds';
 import { ROUTE_PATTERNS } from '../../apps/playground/src/lib/routes';
+import { exportPlaygroundUiToolsManifest } from '../../apps/playground/app/agent/uiToolSpecs';
 
 interface ExtractedTool {
   name: string;
@@ -28,6 +29,8 @@ interface ExtractedTool {
   tier: number;
   cliEquivalent: string;
   relPath: string;
+  mountScope?: string;
+  isUiTool: boolean;
 }
 
 function extractAgentTools(): ExtractedTool[] {
@@ -54,11 +57,32 @@ function extractAgentTools(): ExtractedTool[] {
           tier: Number(tier),
           cliEquivalent: cliEquivalent ?? `wod ${name.replace(/^wod_/, '').replace(/_/g, ' ')} --json`,
           relPath: rel,
+          isUiTool: false,
         });
       }
     }
   }
   return tools;
+}
+
+function extractUiAgentTools(): ExtractedTool[] {
+  try {
+    const manifest = exportPlaygroundUiToolsManifest();
+    const relPath = 'apps/playground/app/agent/uiToolSpecs.ts';
+    return manifest.map((tool) => ({
+      name: tool.name,
+      title: tool.title,
+      domain: 'ui',
+      tier: typeof tool.tier === 'number' ? tool.tier : 1,
+      cliEquivalent: `playwright:${tool.name}`,
+      relPath,
+      mountScope: tool.mountScope,
+      isUiTool: true,
+    }));
+  } catch (err) {
+    console.warn('Warning: failed to extract UI agent tools:', err);
+    return [];
+  }
 }
 
 const REPO_ROOT = path.resolve(import.meta.dir, '../..');
@@ -108,6 +132,10 @@ function routeIri(pattern: string): string {
 
 function toolIri(name: string): string {
   return `<https://wod.wiki/code/tool/${encodeSegment(name)}>`;
+}
+
+function suiteIri(relPath: string): string {
+  return `<https://wod.wiki/qa/suite/${encodeSegment(relPath)}>`;
 }
 
 function storyIri(storyId: string): string {
@@ -465,8 +493,12 @@ export async function buildUnifiedGraph() {
     );
   }
 
-  // 4. Index WebMCP / Domain Agent Tools
-  const agentTools = extractAgentTools();
+  // 4. Index WebMCP / Domain Agent Tools & UI WebMCP Tools
+  const domainTools = extractAgentTools();
+  const uiTools = extractUiAgentTools();
+  const agentTools = [...domainTools, ...uiTools];
+  const allToolNames = new Map(agentTools.map((t) => [t.name, toolIri(t.name)]));
+
   for (const tool of agentTools) {
     const wIri = toolIri(tool.name);
     codeLines.push(
@@ -476,6 +508,8 @@ export async function buildUnifiedGraph() {
       `    code:toolTitle "${esc(tool.title)}" ;`,
       `    code:toolDomain "${esc(tool.domain)}" ;`,
       `    code:toolTier ${tool.tier} ;`,
+      `    code:isUiTool ${tool.isUiTool} ;`,
+      ...(tool.mountScope ? [`    code:mountScope "${esc(tool.mountScope)}" ;`] : []),
       `    code:cliEquivalent "${esc(tool.cliEquivalent)}" ;`,
       `    code:definedIn ${fileIri(tool.relPath)} .`,
       '',
@@ -619,6 +653,8 @@ export async function buildUnifiedGraph() {
       qaLines.push(
         `${stIri} a qa:StoryTest ;`,
         `    rdfs:label "${esc(storyTitle + ' / ' + exportName)}" ;`,
+        `    qa:tier "T2" ;`,
+        `    qa:seam "T2b-story" ;`,
         `    qa:hasPlayTest ${hasPlay ? 'true' : 'false'} ;`,
         `    qa:hasStep ${stBeats.map((b) => storyBeatIri(storyId, b.name)).join(', ')} .`,
         '',
@@ -702,6 +738,8 @@ export async function buildUnifiedGraph() {
     qaLines.push(
       `${jIri} a qa:Journey ;`,
       `    rdfs:label "${esc(parsed.id + ': ' + parsed.title)}" ;`,
+      `    qa:tier "T3" ;`,
+      `    qa:seam "T3-journey" ;`,
       `    qa:journeyId "${esc(parsed.id)}" ;`,
       `    qa:journeyTitle "${esc(parsed.title)}" ;`,
       `    qa:slug "${esc(parsed.slug)}" ;`,
@@ -768,6 +806,18 @@ export async function buildUnifiedGraph() {
           bridgeLines.push(`${jIri} bridge:testId ${testIdIri(cur)} .`);
         }
       }
+      for (const [toolName, tIri] of allToolNames) {
+        if (pwContent.includes(toolName)) {
+          bridgeLines.push(`${jIri} bridge:webMcpTool ${tIri} .`);
+        }
+      }
+    }
+
+    const specRaw = fs.readFileSync(absSpec, 'utf8');
+    for (const [toolName, tIri] of allToolNames) {
+      if (specRaw.includes(toolName)) {
+        bridgeLines.push(`${jIri} bridge:webMcpTool ${tIri} .`);
+      }
     }
 
     for (const r of parsed.routes) {
@@ -807,6 +857,133 @@ export async function buildUnifiedGraph() {
           bridgeLines.push(`${jIri} bridge:story ${storyIri(st.id)} .`);
           qaLines.push(`${storyTestIri(st.id)} qa:verifiesJourney ${jIri} .`);
         }
+      }
+    }
+  }
+
+  // 5b. Index Multi-Tier Verification Suites (qa:FixtureTableSuite, qa:StorageConformanceSuite, qa:DomainScenarioSuite, qa:HostSuite)
+  let suiteCount = 0;
+
+  // Tier 1a: qa:FixtureTableSuite (Markdown parser & WQL scenario tables)
+  const fixtureDirs = [
+    path.join(REPO_ROOT, 'packages/wql/tests/fixtures/scenarios'),
+    path.join(REPO_ROOT, 'packages/lang/tests/fixtures'),
+  ];
+  const fixtureFiles: string[] = [];
+  for (const fdir of fixtureDirs) {
+    walkFiles(fdir, new Set(['.md']), fixtureFiles);
+  }
+  for (const absFixture of fixtureFiles) {
+    const rel = path.relative(REPO_ROOT, absFixture).replace(/\\/g, '/');
+    const content = fs.readFileSync(absFixture, 'utf8');
+    const sIri = suiteIri(rel);
+    const label = path.basename(rel, '.md');
+    suiteCount++;
+    qaLines.push(
+      `${sIri} a qa:FixtureTableSuite ;`,
+      `    rdfs:label "${esc(label)}" ;`,
+      `    qa:suitePath "${esc(rel)}" ;`,
+      `    qa:tier "T1" ;`,
+      `    qa:seam "T1a-compute" ;`,
+      `    qa:inDomain ${domainIri('runtime')} .`,
+      '',
+    );
+    bridgeLines.push(`${sIri} bridge:touches ${fileIri(rel)} .`);
+    for (const hint of DOMAIN_CLASS_HINTS) {
+      if (hint.pattern.test(content)) {
+        bridgeLines.push(`${sIri} bridge:seedNoun ${hint.wodClass} .`);
+      }
+    }
+  }
+
+  // Tier 1b: qa:StorageConformanceSuite (parameterized IStorage conformance tests)
+  const storageFiles: string[] = [];
+  walkFiles(path.join(REPO_ROOT, 'packages/storage/tests'), new Set(['.ts', '.tsx']), storageFiles);
+  for (const absFile of storageFiles) {
+    const rel = path.relative(REPO_ROOT, absFile).replace(/\\/g, '/');
+    if (!rel.includes('storage-conformance') && !rel.includes('conformance')) continue;
+    const content = fs.readFileSync(absFile, 'utf8');
+    const sIri = suiteIri(rel);
+    const label = path.basename(rel, path.extname(rel));
+    suiteCount++;
+    qaLines.push(
+      `${sIri} a qa:StorageConformanceSuite ;`,
+      `    rdfs:label "${esc(label)}" ;`,
+      `    qa:suitePath "${esc(rel)}" ;`,
+      `    qa:tier "T1" ;`,
+      `    qa:seam "T1b-storage" ;`,
+      `    qa:inDomain ${domainIri('journal')} .`,
+      '',
+    );
+    bridgeLines.push(`${sIri} bridge:touches ${fileIri(rel)} .`);
+    for (const noun of ['wod:Note', 'wod:Notebook', 'wod:Page', 'wod:Session', 'wod:Effort', 'wod:Equipment', 'wod:Tag']) {
+      bridgeLines.push(`${sIri} bridge:seedNoun ${noun} .`);
+    }
+  }
+
+  // Tier 1c: qa:DomainScenarioSuite (headless business-language domain tests)
+  const domainTestFiles: string[] = [];
+  walkFiles(path.join(REPO_ROOT, 'packages/engine/tests/domain'), new Set(['.ts']), domainTestFiles);
+  for (const absFile of domainTestFiles) {
+    if (!absFile.endsWith('.domain.test.ts')) continue;
+    const rel = path.relative(REPO_ROOT, absFile).replace(/\\/g, '/');
+    const content = fs.readFileSync(absFile, 'utf8');
+    const sIri = suiteIri(rel);
+    const label = path.basename(rel, '.domain.test.ts');
+    suiteCount++;
+    qaLines.push(
+      `${sIri} a qa:DomainScenarioSuite ;`,
+      `    rdfs:label "${esc(label)}" ;`,
+      `    qa:suitePath "${esc(rel)}" ;`,
+      `    qa:tier "T1" ;`,
+      `    qa:seam "T1c-domain" ;`,
+      `    qa:inDomain ${domainIri('journal')} .`,
+      '',
+    );
+    bridgeLines.push(`${sIri} bridge:touches ${fileIri(rel)} .`);
+    for (const hint of DOMAIN_CLASS_HINTS) {
+      if (hint.pattern.test(content)) {
+        bridgeLines.push(`${sIri} bridge:seedNoun ${hint.wodClass} .`);
+      }
+    }
+  }
+
+  // Tier 2a: qa:HostSuite (Playground host route & state tests)
+  const hostCandidates: string[] = [];
+  walkFiles(path.join(REPO_ROOT, 'apps/playground'), new Set(['.ts', '.tsx']), hostCandidates);
+  for (const absFile of hostCandidates) {
+    const rel = path.relative(REPO_ROOT, absFile).replace(/\\/g, '/');
+    if (!/\.(test|spec)\.(ts|tsx)$/.test(rel)) continue;
+    const content = fs.readFileSync(absFile, 'utf8');
+    if (!content.includes('@/testing/host') && !content.includes('setupPlaygroundTestHost') && !content.includes('renderWithPlaygroundHost')) {
+      continue;
+    }
+    const sIri = suiteIri(rel);
+    const label = path.basename(rel).replace(/\.(test|spec)\.(tsx?)/, '');
+    suiteCount++;
+    qaLines.push(
+      `${sIri} a qa:HostSuite ;`,
+      `    rdfs:label "${esc(label)}" ;`,
+      `    qa:suitePath "${esc(rel)}" ;`,
+      `    qa:tier "T2" ;`,
+      `    qa:seam "T2a-host" ;`,
+      `    qa:inDomain ${domainIri('journal')} .`,
+      '',
+    );
+    bridgeLines.push(`${sIri} bridge:touches ${fileIri(rel)} .`);
+    for (const hint of DOMAIN_CLASS_HINTS) {
+      if (hint.pattern.test(content)) {
+        bridgeLines.push(`${sIri} bridge:seedNoun ${hint.wodClass} .`);
+      }
+    }
+    for (const r of knownRoutes) {
+      if (content.includes(`'${r}'`) || content.includes(`"${r}"`)) {
+        bridgeLines.push(`${sIri} bridge:route ${routeIri(r)} .`);
+      }
+    }
+    for (const [toolName, tIri] of allToolNames) {
+      if (content.includes(toolName)) {
+        bridgeLines.push(`${sIri} bridge:webMcpTool ${tIri} .`);
       }
     }
   }
@@ -915,6 +1092,8 @@ export async function buildUnifiedGraph() {
       qaLines.push(
         `${jIri} a qa:Journey ;`,
         `    rdfs:label "${esc(label)}" ;`,
+        `    qa:tier "T3" ;`,
+        `    qa:seam "T3-journey" ;`,
         `    qa:journeyId "${esc(propId)}" ;`,
         `    qa:journeyTitle "${esc(label)}" ;`,
         `    qa:slug "${esc(key)}" ;`,
@@ -1088,7 +1267,7 @@ export async function buildUnifiedGraph() {
   fs.writeFileSync(trigOut, trigParts.join('\n'), 'utf8');
 
   console.log(
-    `Indexed code+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${knownRoutes.size} routes, ${agentTools.length} WebMCP tools, ${indexedStories.length} stories, ${domains.size} domains, ${journeyById.size + proposedCount} journeys (${journeyById.size} authored, ${proposedCount} proposed), ${runCount} runs, ${issueCount} issues, ${rootCauseCount} rootCause edges.`,
+    `Indexed code+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${knownRoutes.size} routes, ${agentTools.length} WebMCP tools (${uiTools.length} UI), ${suiteCount} verification suites, ${indexedStories.length} stories, ${domains.size} domains, ${journeyById.size + proposedCount} journeys (${journeyById.size} authored, ${proposedCount} proposed), ${runCount} runs, ${issueCount} issues, ${rootCauseCount} rootCause edges.`,
   );
   console.log(
     `Wrote:\n  - ${path.relative(REPO_ROOT, codeOut)}\n  - ${path.relative(REPO_ROOT, qaOut)}\n  - ${path.relative(REPO_ROOT, bridgeOut)}\n  - ${path.relative(REPO_ROOT, trigOut)}`,

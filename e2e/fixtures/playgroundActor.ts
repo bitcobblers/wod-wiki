@@ -145,6 +145,34 @@ async function ensureAppOriginReady(page: Page): Promise<void> {
   }
 }
 
+async function waitForMainReady(page: Page, timeout = 20_000): Promise<void> {
+  await expect(page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready', { timeout });
+}
+
+async function waitForRouteReady(page: Page, pathnamePattern: RegExp, timeout = 20_000): Promise<void> {
+  await expect(page).toHaveURL((url) => pathnamePattern.test(url.pathname), { timeout });
+  await expect
+    .poll(
+      async () => {
+        const raw = await page.locator('#agent-view-state').textContent().catch(() => null);
+        if (!raw) return null;
+        try {
+          const parsed = JSON.parse(raw) as { status?: string; route?: { pathname?: string } };
+          if (parsed.status !== 'ready') return null;
+          return parsed.route?.pathname ?? null;
+        } catch {
+          return null;
+        }
+      },
+      {
+        timeout,
+        message: `Expected #agent-view-state to commit route matching ${pathnamePattern} with status "ready"`,
+      },
+    )
+    .toMatch(pathnamePattern);
+  await waitForMainReady(page, timeout);
+}
+
 export const test = base.extend<{ app: PlaygroundTestActor }>({
   app: async ({ page }, use, testInfo) => {
     const pageErrors: string[] = [];
@@ -506,6 +534,7 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
         async openLibrary(query?: string): Promise<void> {
           const url = query ? `/notebooks?q=${encodeURIComponent(query)}` : '/notebooks';
           await gotoFeedSurface(page, url);
+          await waitForMainReady(page);
         },
 
         async openNotebook(slug: string, target?: string): Promise<void> {
@@ -515,6 +544,7 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
         },
 
         async create(name: string, description?: string): Promise<void> {
+          await waitForMainReady(page);
           await page.getByTestId(TEST_IDS.NOTEBOOKS_CREATE_BUTTON).click();
           const dialog = page.locator('[role="dialog"]');
           await dialog.getByPlaceholder('e.g., Morning Routines').fill(name);
@@ -523,7 +553,7 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
             if ((await descInput.count()) > 0) await descInput.fill(description);
           }
           await dialog.getByRole('button', { name: 'Create' }).click();
-          await expect(page).toHaveURL(/\/notebook\//);
+          await waitForRouteReady(page, /^\/notebook\//);
         },
 
         async rename(slug: string, newName: string): Promise<void> {
@@ -666,6 +696,7 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
 
         async queryStream(route: string, wql: string): Promise<void> {
           await gotoFeedSurface(page, `${route}?q=${encodeURIComponent(wql)}`);
+          await waitForMainReady(page);
         },
 
         async fillStreamQueryBar(wql: string): Promise<void> {
@@ -687,10 +718,12 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
         },
 
         async expectStreamContains(text: string): Promise<void> {
+          await waitForMainReady(page);
           await expect(page.getByTestId(TEST_IDS.STREAM_VIEW)).toContainText(text);
         },
 
         async expectStreamExcludes(text: string): Promise<void> {
+          await waitForMainReady(page);
           await expect(page.getByTestId(TEST_IDS.STREAM_VIEW)).not.toContainText(text);
         },
       },

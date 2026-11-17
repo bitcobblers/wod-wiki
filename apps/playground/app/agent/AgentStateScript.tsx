@@ -11,7 +11,50 @@ import { useFeedImportPending, useFeedReadiness } from '@/services/feed/feedRead
 import { useStreamResults } from '../views/stream/streamResults';
 
 function safeJsonForScriptTag(value: unknown): string {
-  return JSON.stringify(value).replace(/<\//g, '<\\/').replace(/<!--/g, '<\\!--');
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+export interface AgentViewState {
+  schemaVersion: string;
+  hydrated: boolean;
+  status: 'loading' | 'ready';
+  feedReadiness: string;
+  importPending: boolean;
+  route: {
+    pathname: string;
+    search: string;
+    hash: string;
+  };
+  stream: {
+    route: string;
+    query: string;
+    defaultQuery: string;
+    layout: string;
+    availableLayouts: string[];
+    groupBy: string | null;
+    loading: boolean;
+    totalUnbatchedCount: number | null;
+    sampleEntries: Array<{
+      id: string;
+      title: string;
+      date: string | null;
+      notebookId: string | null;
+    }>;
+  } | null;
+  explorer: {
+    draft: unknown;
+    submitted: unknown;
+    weeks: unknown;
+    loading: boolean;
+    saveReady: boolean;
+  } | null;
+  editor: {
+    noteId: string | null;
+    readonly: boolean;
+    sourceRevision: number | null;
+    workoutBlockIds: string[];
+  } | null;
+  clock: unknown;
 }
 
 /**

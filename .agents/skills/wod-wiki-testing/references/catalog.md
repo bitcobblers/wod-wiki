@@ -1,6 +1,6 @@
 # WOD Wiki Test Module & Readiness Catalog
 
-Copy-ready imports, shared builders, actor signatures, and DOM readiness contracts across all three tiers.
+Copy-ready imports, shared builders, actor signatures, and DOM readiness contracts across the Nested Tiers (T0 contract, T1a/T1b/T1c domain, T2a/T2b host/story, and T3 journey).
 
 ## 1. Canonical Domain Builders (`@bitcobblers/wod-wiki-core/testing`)
 

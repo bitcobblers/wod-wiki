@@ -10,8 +10,8 @@ Canonical guide for translating a Level-1 Markdown journey (`e2e/specs/<domain>/
    - Canonical domain folders: `journal` (`JRN`), `notebooks` (`NTB`), `runtime` (`RUN`), `properties` (`PRP`), `analytics` (`ANL`), `feeds` (`FED`).
    - If an authored journey already owns the target routes and persona flow, append a new `### Scenario N:` to that `.md` + `.e2e.ts` pair instead of creating a parallel spec file.
 2. **Enforce Test Pyramid boundaries**:
-   - Pure Whiteboard Script grammar, dialect units, or `Metric Shake-Out Queue` equations -> Tier 1 (`packages/lang/tests/fixtures/` or `packages/engine/tests/domain/`).
-   - Static settings toggles, isolated form validation, or route-to-title tables -> Tier 2 (`apps/storybook/src/` or `apps/playground/src/testing/host.tsx`).
+   - Pure Whiteboard Script grammar, dialect units, or `Metric Shake-Out Queue` equations -> Tier 1 (Tier 1a compute fixtures in `packages/lang/tests/fixtures/` or Tier 1c domain scenarios in `packages/engine/tests/domain/`).
+   - Static settings toggles, isolated form validation, or route-to-title tables -> Tier 2 (Tier 2a in-memory host in `apps/playground/src/testing/host.tsx` or Tier 2b Storybook stories in `apps/storybook/src/`).
    - Reserve Tier 3 Playwright for multi-route state handoffs, unload/reload IndexedDB persistence, Web Worker `Feed` syncs, live timer/clock sessions, and responsive layout gates.
 
 ---

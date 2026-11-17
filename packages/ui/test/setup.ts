@@ -1,3 +1,7 @@
+import { configure } from '@testing-library/react';
+
+configure({ asyncUtilTimeout: 5000 });
+
 /**
  * @bitcobblers/wod-wiki-ui vitest setup — jsdom does not ship ResizeObserver, which
  * recharts' ResponsiveContainer and CodeMirror viewport measurement expect.

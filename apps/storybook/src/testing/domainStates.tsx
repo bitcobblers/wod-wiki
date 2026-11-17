@@ -281,13 +281,20 @@ export function StoryDomainStateProvider({
   spec,
   route,
   routePath,
+  theme,
   children,
 }: {
   spec: StoryDomainStateSpec;
   route?: string;
   routePath?: string;
+  theme?: 'light' | 'dark' | 'system';
   children: ReactNode;
 }): ReactElement {
+  const resolvedTheme =
+    theme ??
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+      ? 'dark'
+      : 'light');
   const [readyStorage, setReadyStorage] = useState<IStorage | null>(null);
   const [version, setVersion] = useState(0);
 
@@ -317,7 +324,7 @@ export function StoryDomainStateProvider({
 
   return (
     <StaticDatabaseProvider dataVersion={version}>
-      <PlaygroundProviderTree route={route} routePath={routePath}>
+      <PlaygroundProviderTree route={route} routePath={routePath} theme={resolvedTheme}>
         {children}
       </PlaygroundProviderTree>
     </StaticDatabaseProvider>

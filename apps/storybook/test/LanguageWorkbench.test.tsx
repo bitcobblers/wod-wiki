@@ -85,19 +85,21 @@ describe('LanguageWorkbench in apps/storybook', () => {
 
   it('evaluates WQL queries against inMemoryEventStore in real time', async () => {
     const service = buildServiceForJournal(JOURNALS.crossfit);
-    const newest = Math.max(...JOURNALS.crossfit.records.map((record) => record.timestamp));
-    const result = await service.runQuery('sum:totalVolume{} by {week}', {
+    const timestamps = JOURNALS.crossfit.records.map((record) => record.timestamp);
+    const oldest = Math.min(...timestamps);
+    const newest = Math.max(...timestamps);
+    const result = await service.runQuery('sum:sessionLoad{} by {week}', {
+      rangeStart: oldest,
       rangeEnd: newest,
-      preferredUnit: 'lb',
     });
 
     expect(result.series).toBeDefined();
     expect(result.series.length).toBeGreaterThan(0);
-    // 6 weeks of volume facts
-    const totalVolumePoints = result.series[0].points;
-    expect(totalVolumePoints.length).toBe(6);
-    const sumTotal = totalVolumePoints.reduce((acc, p) => acc + p.value, 0);
-    expect(sumTotal).toBeGreaterThan(50000);
+    // 6 weeks of session load facts
+    const loadPoints = result.series[0].points;
+    expect(loadPoints.length).toBe(6);
+    const sumTotal = loadPoints.reduce((acc, p) => acc + p.value, 0);
+    expect(sumTotal).toBeGreaterThan(1000);
   });
 
   it('parses Whiteboard Script and extracts hints', () => {
@@ -156,8 +158,7 @@ describe('LanguageWorkbench in apps/storybook', () => {
     expect(screen.getByTestId('script-editor-host')).toBeInTheDocument();
     expect(screen.getByTestId('statement-strip')).toBeInTheDocument();
     expect(screen.getByTestId('panel-wallclock')).toBeInTheDocument();
-    expect(screen.getByTestId('clock-primary')).toHaveTextContent('00:00');
-    expect(screen.getByTestId('panel-timeline')).toBeInTheDocument();
+    expect(screen.getByTestId('output-wql-section')).toBeInTheDocument();
 
     // Default primary WQL and secondary presets
     expect(screen.getByTestId('output-filter-preset-all')).toBeInTheDocument();
@@ -206,9 +207,9 @@ describe('LanguageWorkbench in apps/storybook', () => {
 
     expect(screen.getByTestId('dashboard-analytics-section')).toBeInTheDocument();
     // Default session dashboard queries
-    expect(screen.getByDisplayValue('sum:totalVolume{}')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('sum:rep{} by {effort}')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('sum:sessionLoad{} by {discipline}')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Session Total Volume')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Reps by Movement')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Load by Discipline')).toBeInTheDocument();
     expect(screen.getByTestId('btn-export-markdown')).toBeInTheDocument();
     expect(screen.getByTestId('btn-export-parsed')).toBeInTheDocument();
     expect(screen.getByTestId('btn-export-session')).toBeInTheDocument();

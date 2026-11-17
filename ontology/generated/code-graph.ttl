@@ -2207,21 +2207,13 @@
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/helpers.ts> ;
     code:lineHint 90 .
 
-<https://wod.wiki/code/symbol/packages/engine/src/agent/helpers.ts#buildQueryServiceStoresFromStorage> a code:Symbol ;
-    rdfs:label "buildQueryServiceStoresFromStorage" ;
-    code:symbolName "buildQueryServiceStoresFromStorage" ;
-    code:scipId "packages/engine/src/agent/helpers.ts#buildQueryServiceStoresFromStorage" ;
-    code:symbolKind "function" ;
-    code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/helpers.ts> ;
-    code:lineHint 109 .
-
 <https://wod.wiki/code/symbol/packages/engine/src/agent/helpers.ts#createQueryServiceForStorage> a code:Symbol ;
     rdfs:label "createQueryServiceForStorage" ;
     code:symbolName "createQueryServiceForStorage" ;
     code:scipId "packages/engine/src/agent/helpers.ts#createQueryServiceForStorage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/helpers.ts> ;
-    code:lineHint 308 .
+    code:lineHint 105 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/helpers.ts#UpsertNoteInStorageInput> a code:Symbol ;
     rdfs:label "UpsertNoteInStorageInput" ;
@@ -2229,7 +2221,7 @@
     code:scipId "packages/engine/src/agent/helpers.ts#UpsertNoteInStorageInput" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/helpers.ts> ;
-    code:lineHint 312 .
+    code:lineHint 109 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/helpers.ts#UpsertNoteInStorageResult> a code:Symbol ;
     rdfs:label "UpsertNoteInStorageResult" ;
@@ -2237,7 +2229,7 @@
     code:scipId "packages/engine/src/agent/helpers.ts#UpsertNoteInStorageResult" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/helpers.ts> ;
-    code:lineHint 324 .
+    code:lineHint 121 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/helpers.ts#upsertNoteInStorage> a code:Symbol ;
     rdfs:label "upsertNoteInStorage" ;
@@ -2245,7 +2237,7 @@
     code:scipId "packages/engine/src/agent/helpers.ts#upsertNoteInStorage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/helpers.ts> ;
-    code:lineHint 355 .
+    code:lineHint 152 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/helpers.ts#deleteNoteFromStorage> a code:Symbol ;
     rdfs:label "deleteNoteFromStorage" ;
@@ -2253,7 +2245,7 @@
     code:scipId "packages/engine/src/agent/helpers.ts#deleteNoteFromStorage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/helpers.ts> ;
-    code:lineHint 693 .
+    code:lineHint 490 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/helpers.ts#deleteSessionFromStorage> a code:Symbol ;
     rdfs:label "deleteSessionFromStorage" ;
@@ -2261,7 +2253,7 @@
     code:scipId "packages/engine/src/agent/helpers.ts#deleteSessionFromStorage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/helpers.ts> ;
-    code:lineHint 746 .
+    code:lineHint 543 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/helpers.ts#noteDeepLink> a code:Symbol ;
     rdfs:label "noteDeepLink" ;
@@ -2269,7 +2261,7 @@
     code:scipId "packages/engine/src/agent/helpers.ts#noteDeepLink" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/helpers.ts> ;
-    code:lineHint 771 .
+    code:lineHint 568 .
 
 <https://wod.wiki/code/file/packages/engine/src/agent/index.ts> a code:File ;
     rdfs:label "index.ts" ;
@@ -2337,7 +2329,7 @@
     code:scipId "packages/engine/src/agent/manifest.ts#WHITEBOARD_SCRIPT_REFERENCE_MARKDOWN" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/manifest.ts> ;
-    code:lineHint 125 .
+    code:lineHint 126 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/manifest.ts#buildWqlReferenceObject> a code:Symbol ;
     rdfs:label "buildWqlReferenceObject" ;
@@ -2345,7 +2337,7 @@
     code:scipId "packages/engine/src/agent/manifest.ts#buildWqlReferenceObject" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/manifest.ts> ;
-    code:lineHint 146 .
+    code:lineHint 147 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/manifest.ts#AGENT_STATIC_RESOURCES> a code:Symbol ;
     rdfs:label "AGENT_STATIC_RESOURCES" ;
@@ -2353,7 +2345,7 @@
     code:scipId "packages/engine/src/agent/manifest.ts#AGENT_STATIC_RESOURCES" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/manifest.ts> ;
-    code:lineHint 185 .
+    code:lineHint 186 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/manifest.ts#AGENT_RESOURCE_TEMPLATES> a code:Symbol ;
     rdfs:label "AGENT_RESOURCE_TEMPLATES" ;
@@ -2361,7 +2353,7 @@
     code:scipId "packages/engine/src/agent/manifest.ts#AGENT_RESOURCE_TEMPLATES" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/manifest.ts> ;
-    code:lineHint 206 .
+    code:lineHint 207 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/manifest.ts#AGENT_PROMPTS> a code:Symbol ;
     rdfs:label "AGENT_PROMPTS" ;
@@ -2369,7 +2361,7 @@
     code:scipId "packages/engine/src/agent/manifest.ts#AGENT_PROMPTS" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/manifest.ts> ;
-    code:lineHint 227 .
+    code:lineHint 228 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/manifest.ts#readAgentResource> a code:Symbol ;
     rdfs:label "readAgentResource" ;
@@ -2377,7 +2369,7 @@
     code:scipId "packages/engine/src/agent/manifest.ts#readAgentResource" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/manifest.ts> ;
-    code:lineHint 276 .
+    code:lineHint 277 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/manifest.ts#renderAgentPrompt> a code:Symbol ;
     rdfs:label "renderAgentPrompt" ;
@@ -2385,7 +2377,7 @@
     code:scipId "packages/engine/src/agent/manifest.ts#renderAgentPrompt" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/manifest.ts> ;
-    code:lineHint 335 .
+    code:lineHint 336 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/manifest.ts#zodSchemaToJsonSchema> a code:Symbol ;
     rdfs:label "zodSchemaToJsonSchema" ;
@@ -2393,7 +2385,7 @@
     code:scipId "packages/engine/src/agent/manifest.ts#zodSchemaToJsonSchema" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/manifest.ts> ;
-    code:lineHint 402 .
+    code:lineHint 403 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/manifest.ts#exportAgentCapabilitiesManifest> a code:Symbol ;
     rdfs:label "exportAgentCapabilitiesManifest" ;
@@ -2401,7 +2393,7 @@
     code:scipId "packages/engine/src/agent/manifest.ts#exportAgentCapabilitiesManifest" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/manifest.ts> ;
-    code:lineHint 406 .
+    code:lineHint 407 .
 
 <https://wod.wiki/code/file/packages/engine/src/agent/tools/catalogTools.ts> a code:File ;
     rdfs:label "catalogTools.ts" ;
@@ -2445,7 +2437,7 @@
     code:scipId "packages/engine/src/agent/tools/feedTools.ts#wodFeedManageTool" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/feedTools.ts> ;
-    code:lineHint 32 .
+    code:lineHint 56 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/feedTools.ts#wodExportBundleTool> a code:Symbol ;
     rdfs:label "wodExportBundleTool" ;
@@ -2453,7 +2445,7 @@
     code:scipId "packages/engine/src/agent/tools/feedTools.ts#wodExportBundleTool" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/feedTools.ts> ;
-    code:lineHint 144 .
+    code:lineHint 271 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/feedTools.ts#wodResetStorageTool> a code:Symbol ;
     rdfs:label "wodResetStorageTool" ;
@@ -2461,7 +2453,7 @@
     code:scipId "packages/engine/src/agent/tools/feedTools.ts#wodResetStorageTool" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/feedTools.ts> ;
-    code:lineHint 179 .
+    code:lineHint 306 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/feedTools.ts#FEED_AGENT_TOOLS> a code:Symbol ;
     rdfs:label "FEED_AGENT_TOOLS" ;
@@ -2469,7 +2461,7 @@
     code:scipId "packages/engine/src/agent/tools/feedTools.ts#FEED_AGENT_TOOLS" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/feedTools.ts> ;
-    code:lineHint 211 .
+    code:lineHint 338 .
 
 <https://wod.wiki/code/file/packages/engine/src/agent/tools/journalTools.ts> a code:File ;
     rdfs:label "journalTools.ts" ;
@@ -2559,7 +2551,7 @@
     code:scipId "packages/engine/src/agent/tools/noteTools.ts#wodNoteGetTool" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> ;
-    code:lineHint 130 .
+    code:lineHint 139 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/noteTools.ts#wodNoteUpsertTool> a code:Symbol ;
     rdfs:label "wodNoteUpsertTool" ;
@@ -2567,7 +2559,7 @@
     code:scipId "packages/engine/src/agent/tools/noteTools.ts#wodNoteUpsertTool" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> ;
-    code:lineHint 239 .
+    code:lineHint 248 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/noteTools.ts#wodNoteCloneTool> a code:Symbol ;
     rdfs:label "wodNoteCloneTool" ;
@@ -2575,7 +2567,7 @@
     code:scipId "packages/engine/src/agent/tools/noteTools.ts#wodNoteCloneTool" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> ;
-    code:lineHint 305 .
+    code:lineHint 314 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/noteTools.ts#wodNoteDeleteTool> a code:Symbol ;
     rdfs:label "wodNoteDeleteTool" ;
@@ -2583,7 +2575,7 @@
     code:scipId "packages/engine/src/agent/tools/noteTools.ts#wodNoteDeleteTool" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> ;
-    code:lineHint 380 .
+    code:lineHint 389 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/tools/noteTools.ts#NOTE_AGENT_TOOLS> a code:Symbol ;
     rdfs:label "NOTE_AGENT_TOOLS" ;
@@ -2591,7 +2583,7 @@
     code:scipId "packages/engine/src/agent/tools/noteTools.ts#NOTE_AGENT_TOOLS" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> ;
-    code:lineHint 427 .
+    code:lineHint 436 .
 
 <https://wod.wiki/code/file/packages/engine/src/agent/tools/scriptTools.ts> a code:File ;
     rdfs:label "scriptTools.ts" ;
@@ -2737,13 +2729,21 @@
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/types.ts> ;
     code:lineHint 32 .
 
+<https://wod.wiki/code/symbol/packages/engine/src/agent/types.ts#AgentFeedLifecycleAdapter> a code:Symbol ;
+    rdfs:label "AgentFeedLifecycleAdapter" ;
+    code:symbolName "AgentFeedLifecycleAdapter" ;
+    code:scipId "packages/engine/src/agent/types.ts#AgentFeedLifecycleAdapter" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/types.ts> ;
+    code:lineHint 48 .
+
 <https://wod.wiki/code/symbol/packages/engine/src/agent/types.ts#AgentDomainContext> a code:Symbol ;
     rdfs:label "AgentDomainContext" ;
     code:symbolName "AgentDomainContext" ;
     code:scipId "packages/engine/src/agent/types.ts#AgentDomainContext" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/types.ts> ;
-    code:lineHint 48 .
+    code:lineHint 57 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/types.ts#AgentToolSpec> a code:Symbol ;
     rdfs:label "AgentToolSpec" ;
@@ -2751,7 +2751,7 @@
     code:scipId "packages/engine/src/agent/types.ts#AgentToolSpec" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/types.ts> ;
-    code:lineHint 60 .
+    code:lineHint 71 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/types.ts#defineAgentTool> a code:Symbol ;
     rdfs:label "defineAgentTool" ;
@@ -2759,7 +2759,7 @@
     code:scipId "packages/engine/src/agent/types.ts#defineAgentTool" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/types.ts> ;
-    code:lineHint 76 .
+    code:lineHint 87 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/agent/types.ts#requireDestructiveConfirmation> a code:Symbol ;
     rdfs:label "requireDestructiveConfirmation" ;
@@ -2767,7 +2767,7 @@
     code:scipId "packages/engine/src/agent/types.ts#requireDestructiveConfirmation" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/types.ts> ;
-    code:lineHint 82 .
+    code:lineHint 93 .
 
 <https://wod.wiki/code/file/packages/engine/src/exchange.ts> a code:File ;
     rdfs:label "exchange.ts" ;
@@ -3091,6 +3091,76 @@
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/landing.ts> ;
     code:lineHint 67 .
 
+<https://wod.wiki/code/file/packages/engine/src/feed/lifecycle.ts> a code:File ;
+    rdfs:label "lifecycle.ts" ;
+    code:filePath "packages/engine/src/feed/lifecycle.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/packages/engine/src/feed/lifecycle.ts#FEED_SUBSCRIPTIONS_META_KEY> a code:Symbol ;
+    rdfs:label "FEED_SUBSCRIPTIONS_META_KEY" ;
+    code:symbolName "FEED_SUBSCRIPTIONS_META_KEY" ;
+    code:scipId "packages/engine/src/feed/lifecycle.ts#FEED_SUBSCRIPTIONS_META_KEY" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/lifecycle.ts> ;
+    code:lineHint 5 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/feed/lifecycle.ts#FeedSubscriptionEntry> a code:Symbol ;
+    rdfs:label "FeedSubscriptionEntry" ;
+    code:symbolName "FeedSubscriptionEntry" ;
+    code:scipId "packages/engine/src/feed/lifecycle.ts#FeedSubscriptionEntry" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/lifecycle.ts> ;
+    code:lineHint 7 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/feed/lifecycle.ts#FeedSubscriptionsMetaRecord> a code:Symbol ;
+    rdfs:label "FeedSubscriptionsMetaRecord" ;
+    code:symbolName "FeedSubscriptionsMetaRecord" ;
+    code:scipId "packages/engine/src/feed/lifecycle.ts#FeedSubscriptionsMetaRecord" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/lifecycle.ts> ;
+    code:lineHint 16 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/feed/lifecycle.ts#removeSeedSourceContent> a code:Symbol ;
+    rdfs:label "removeSeedSourceContent" ;
+    code:symbolName "removeSeedSourceContent" ;
+    code:scipId "packages/engine/src/feed/lifecycle.ts#removeSeedSourceContent" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/lifecycle.ts> ;
+    code:lineHint 27 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/feed/lifecycle.ts#listFeedSubscriptionsHeadless> a code:Symbol ;
+    rdfs:label "listFeedSubscriptionsHeadless" ;
+    code:symbolName "listFeedSubscriptionsHeadless" ;
+    code:scipId "packages/engine/src/feed/lifecycle.ts#listFeedSubscriptionsHeadless" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/lifecycle.ts> ;
+    code:lineHint 220 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/feed/lifecycle.ts#subscribeFeedSourceHeadless> a code:Symbol ;
+    rdfs:label "subscribeFeedSourceHeadless" ;
+    code:symbolName "subscribeFeedSourceHeadless" ;
+    code:scipId "packages/engine/src/feed/lifecycle.ts#subscribeFeedSourceHeadless" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/lifecycle.ts> ;
+    code:lineHint 226 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/feed/lifecycle.ts#unsubscribeFeedSourceHeadless> a code:Symbol ;
+    rdfs:label "unsubscribeFeedSourceHeadless" ;
+    code:symbolName "unsubscribeFeedSourceHeadless" ;
+    code:scipId "packages/engine/src/feed/lifecycle.ts#unsubscribeFeedSourceHeadless" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/lifecycle.ts> ;
+    code:lineHint 243 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/feed/lifecycle.ts#deleteFeedSourceHeadless> a code:Symbol ;
+    rdfs:label "deleteFeedSourceHeadless" ;
+    code:symbolName "deleteFeedSourceHeadless" ;
+    code:scipId "packages/engine/src/feed/lifecycle.ts#deleteFeedSourceHeadless" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/lifecycle.ts> ;
+    code:lineHint 260 .
+
 <https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> a code:File ;
     rdfs:label "publisher.ts" ;
     code:filePath "packages/engine/src/feed/publisher.ts" ;
@@ -3127,7 +3197,7 @@
     code:scipId "packages/engine/src/feed/publisher.ts#PublishFeedReport" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> ;
-    code:lineHint 102 .
+    code:lineHint 104 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/feed/publisher.ts#UnpublishedFeedStatus> a code:Symbol ;
     rdfs:label "UnpublishedFeedStatus" ;
@@ -3135,7 +3205,15 @@
     code:scipId "packages/engine/src/feed/publisher.ts#UnpublishedFeedStatus" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> ;
-    code:lineHint 110 .
+    code:lineHint 112 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/feed/publisher.ts#recordPublishedFeedCheckpoint> a code:Symbol ;
+    rdfs:label "recordPublishedFeedCheckpoint" ;
+    code:symbolName "recordPublishedFeedCheckpoint" ;
+    code:scipId "packages/engine/src/feed/publisher.ts#recordPublishedFeedCheckpoint" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> ;
+    code:lineHint 545 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/feed/publisher.ts#publishFeedFromStorage> a code:Symbol ;
     rdfs:label "publishFeedFromStorage" ;
@@ -3143,7 +3221,7 @@
     code:scipId "packages/engine/src/feed/publisher.ts#publishFeedFromStorage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> ;
-    code:lineHint 542 .
+    code:lineHint 563 .
 
 <https://wod.wiki/code/symbol/packages/engine/src/feed/publisher.ts#checkUnpublishedFeedChanges> a code:Symbol ;
     rdfs:label "checkUnpublishedFeedChanges" ;
@@ -3151,7 +3229,7 @@
     code:scipId "packages/engine/src/feed/publisher.ts#checkUnpublishedFeedChanges" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/feed/publisher.ts> ;
-    code:lineHint 906 .
+    code:lineHint 921 .
 
 <https://wod.wiki/code/file/packages/engine/src/feed/qr.ts> a code:File ;
     rdfs:label "qr.ts" ;
@@ -3711,6 +3789,98 @@
     code:packageName "packages/engine" ;
     code:isTestFile false .
 
+<https://wod.wiki/code/file/packages/engine/src/sample/index.ts> a code:File ;
+    rdfs:label "index.ts" ;
+    code:filePath "packages/engine/src/sample/index.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/file/packages/engine/src/sample/sampleCorpus.ts> a code:File ;
+    rdfs:label "sampleCorpus.ts" ;
+    code:filePath "packages/engine/src/sample/sampleCorpus.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/packages/engine/src/sample/sampleCorpus.ts#SAMPLE_TAG> a code:Symbol ;
+    rdfs:label "SAMPLE_TAG" ;
+    code:symbolName "SAMPLE_TAG" ;
+    code:scipId "packages/engine/src/sample/sampleCorpus.ts#SAMPLE_TAG" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/sample/sampleCorpus.ts> ;
+    code:lineHint 29 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/sample/sampleCorpus.ts#round1> a code:Symbol ;
+    rdfs:label "round1" ;
+    code:symbolName "round1" ;
+    code:scipId "packages/engine/src/sample/sampleCorpus.ts#round1" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/sample/sampleCorpus.ts> ;
+    code:lineHint 34 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/sample/sampleCorpus.ts#SampleMovement> a code:Symbol ;
+    rdfs:label "SampleMovement" ;
+    code:symbolName "SampleMovement" ;
+    code:scipId "packages/engine/src/sample/sampleCorpus.ts#SampleMovement" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/sample/sampleCorpus.ts> ;
+    code:lineHint 38 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/sample/sampleCorpus.ts#SampleWorkoutType> a code:Symbol ;
+    rdfs:label "SampleWorkoutType" ;
+    code:symbolName "SampleWorkoutType" ;
+    code:scipId "packages/engine/src/sample/sampleCorpus.ts#SampleWorkoutType" ;
+    code:symbolKind "type" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/sample/sampleCorpus.ts> ;
+    code:lineHint 49 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/sample/sampleCorpus.ts#SampleSession> a code:Symbol ;
+    rdfs:label "SampleSession" ;
+    code:symbolName "SampleSession" ;
+    code:scipId "packages/engine/src/sample/sampleCorpus.ts#SampleSession" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/sample/sampleCorpus.ts> ;
+    code:lineHint 59 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/sample/sampleCorpus.ts#SampleBundle> a code:Symbol ;
+    rdfs:label "SampleBundle" ;
+    code:symbolName "SampleBundle" ;
+    code:scipId "packages/engine/src/sample/sampleCorpus.ts#SampleBundle" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/sample/sampleCorpus.ts> ;
+    code:lineHint 69 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/sample/sampleCorpus.ts#generateSampleSessions> a code:Symbol ;
+    rdfs:label "generateSampleSessions" ;
+    code:symbolName "generateSampleSessions" ;
+    code:scipId "packages/engine/src/sample/sampleCorpus.ts#generateSampleSessions" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/sample/sampleCorpus.ts> ;
+    code:lineHint 250 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/sample/sampleCorpus.ts#buildSessionLogs> a code:Symbol ;
+    rdfs:label "buildSessionLogs" ;
+    code:symbolName "buildSessionLogs" ;
+    code:scipId "packages/engine/src/sample/sampleCorpus.ts#buildSessionLogs" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/sample/sampleCorpus.ts> ;
+    code:lineHint 282 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/sample/sampleCorpus.ts#buildSampleBundle> a code:Symbol ;
+    rdfs:label "buildSampleBundle" ;
+    code:symbolName "buildSampleBundle" ;
+    code:scipId "packages/engine/src/sample/sampleCorpus.ts#buildSampleBundle" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/sample/sampleCorpus.ts> ;
+    code:lineHint 458 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/sample/sampleCorpus.ts#buildSampleWorld> a code:Symbol ;
+    rdfs:label "buildSampleWorld" ;
+    code:symbolName "buildSampleWorld" ;
+    code:scipId "packages/engine/src/sample/sampleCorpus.ts#buildSampleWorld" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/sample/sampleCorpus.ts> ;
+    code:lineHint 519 .
+
 <https://wod.wiki/code/file/packages/engine/src/seed/contract.ts> a code:File ;
     rdfs:label "contract.ts" ;
     code:filePath "packages/engine/src/seed/contract.ts" ;
@@ -4045,6 +4215,64 @@
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/seed/validation.ts> ;
     code:lineHint 161 .
 
+<https://wod.wiki/code/file/packages/engine/src/storage/index.ts> a code:File ;
+    rdfs:label "index.ts" ;
+    code:filePath "packages/engine/src/storage/index.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/file/packages/engine/src/storage/persistDomainWorld.ts> a code:File ;
+    rdfs:label "persistDomainWorld.ts" ;
+    code:filePath "packages/engine/src/storage/persistDomainWorld.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/packages/engine/src/storage/persistDomainWorld.ts#PERSIST_WORLD_STORES> a code:Symbol ;
+    rdfs:label "PERSIST_WORLD_STORES" ;
+    code:symbolName "PERSIST_WORLD_STORES" ;
+    code:scipId "packages/engine/src/storage/persistDomainWorld.ts#PERSIST_WORLD_STORES" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/storage/persistDomainWorld.ts> ;
+    code:lineHint 11 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/storage/persistDomainWorld.ts#persistDomainWorld> a code:Symbol ;
+    rdfs:label "persistDomainWorld" ;
+    code:symbolName "persistDomainWorld" ;
+    code:scipId "packages/engine/src/storage/persistDomainWorld.ts#persistDomainWorld" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/storage/persistDomainWorld.ts> ;
+    code:lineHint 34 .
+
+<https://wod.wiki/code/file/packages/engine/src/storage/queryServiceStores.ts> a code:File ;
+    rdfs:label "queryServiceStores.ts" ;
+    code:filePath "packages/engine/src/storage/queryServiceStores.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/packages/engine/src/storage/queryServiceStores.ts#DatasetStore> a code:Symbol ;
+    rdfs:label "DatasetStore" ;
+    code:symbolName "DatasetStore" ;
+    code:scipId "packages/engine/src/storage/queryServiceStores.ts#DatasetStore" ;
+    code:symbolKind "type" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/storage/queryServiceStores.ts> ;
+    code:lineHint 27 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/storage/queryServiceStores.ts#BuildQueryServiceStoresOptions> a code:Symbol ;
+    rdfs:label "BuildQueryServiceStoresOptions" ;
+    code:symbolName "BuildQueryServiceStoresOptions" ;
+    code:scipId "packages/engine/src/storage/queryServiceStores.ts#BuildQueryServiceStoresOptions" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/storage/queryServiceStores.ts> ;
+    code:lineHint 31 .
+
+<https://wod.wiki/code/symbol/packages/engine/src/storage/queryServiceStores.ts#buildQueryServiceStoresFromStorage> a code:Symbol ;
+    rdfs:label "buildQueryServiceStoresFromStorage" ;
+    code:symbolName "buildQueryServiceStoresFromStorage" ;
+    code:scipId "packages/engine/src/storage/queryServiceStores.ts#buildQueryServiceStoresFromStorage" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/engine/src/storage/queryServiceStores.ts> ;
+    code:lineHint 43 .
+
 <https://wod.wiki/code/file/packages/engine/src/store.ts> a code:File ;
     rdfs:label "store.ts" ;
     code:filePath "packages/engine/src/store.ts" ;
@@ -4103,6 +4331,18 @@
     code:packageName "packages/engine" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/engine/tests/agent/qaFixesParity.test.ts> a code:File ;
+    rdfs:label "qaFixesParity.test.ts" ;
+    code:filePath "packages/engine/tests/agent/qaFixesParity.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/all-wods.domain.test.ts> a code:File ;
+    rdfs:label "all-wods.domain.test.ts" ;
+    code:filePath "packages/engine/tests/domain/all-wods.domain.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/engine/tests/domain/entity-scope-and-wql-storage.domain.test.ts> a code:File ;
     rdfs:label "entity-scope-and-wql-storage.domain.test.ts" ;
     code:filePath "packages/engine/tests/domain/entity-scope-and-wql-storage.domain.test.ts" ;
@@ -4124,6 +4364,12 @@
 <https://wod.wiki/code/file/packages/engine/tests/domain/property-notes-and-shakeout.domain.test.ts> a code:File ;
     rdfs:label "property-notes-and-shakeout.domain.test.ts" ;
     code:filePath "packages/engine/tests/domain/property-notes-and-shakeout.domain.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/sample-corpus-and-dashboards.domain.test.ts> a code:File ;
+    rdfs:label "sample-corpus-and-dashboards.domain.test.ts" ;
+    code:filePath "packages/engine/tests/domain/sample-corpus-and-dashboards.domain.test.ts" ;
     code:packageName "packages/engine" ;
     code:isTestFile true .
 
@@ -4163,7 +4409,7 @@
     code:scipId "packages/engine/tests/harness/DomainScenarioHarness.ts#SessionRunInput" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/tests/harness/DomainScenarioHarness.ts> ;
-    code:lineHint 97 .
+    code:lineHint 101 .
 
 <https://wod.wiki/code/symbol/packages/engine/tests/harness/DomainScenarioHarness.ts#SessionRunResult> a code:Symbol ;
     rdfs:label "SessionRunResult" ;
@@ -4171,7 +4417,7 @@
     code:scipId "packages/engine/tests/harness/DomainScenarioHarness.ts#SessionRunResult" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/tests/harness/DomainScenarioHarness.ts> ;
-    code:lineHint 114 .
+    code:lineHint 118 .
 
 <https://wod.wiki/code/symbol/packages/engine/tests/harness/DomainScenarioHarness.ts#PromoteNoteInput> a code:Symbol ;
     rdfs:label "PromoteNoteInput" ;
@@ -4179,7 +4425,7 @@
     code:scipId "packages/engine/tests/harness/DomainScenarioHarness.ts#PromoteNoteInput" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/tests/harness/DomainScenarioHarness.ts> ;
-    code:lineHint 127 .
+    code:lineHint 131 .
 
 <https://wod.wiki/code/symbol/packages/engine/tests/harness/DomainScenarioHarness.ts#ShakeOutLayerName> a code:Symbol ;
     rdfs:label "ShakeOutLayerName" ;
@@ -4187,7 +4433,7 @@
     code:scipId "packages/engine/tests/harness/DomainScenarioHarness.ts#ShakeOutLayerName" ;
     code:symbolKind "type" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/tests/harness/DomainScenarioHarness.ts> ;
-    code:lineHint 134 .
+    code:lineHint 138 .
 
 <https://wod.wiki/code/symbol/packages/engine/tests/harness/DomainScenarioHarness.ts#ShakeOutSourceInput> a code:Symbol ;
     rdfs:label "ShakeOutSourceInput" ;
@@ -4195,7 +4441,7 @@
     code:scipId "packages/engine/tests/harness/DomainScenarioHarness.ts#ShakeOutSourceInput" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/tests/harness/DomainScenarioHarness.ts> ;
-    code:lineHint 136 .
+    code:lineHint 140 .
 
 <https://wod.wiki/code/symbol/packages/engine/tests/harness/DomainScenarioHarness.ts#ShakeOutScenarioInput> a code:Symbol ;
     rdfs:label "ShakeOutScenarioInput" ;
@@ -4203,7 +4449,7 @@
     code:scipId "packages/engine/tests/harness/DomainScenarioHarness.ts#ShakeOutScenarioInput" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/tests/harness/DomainScenarioHarness.ts> ;
-    code:lineHint 143 .
+    code:lineHint 147 .
 
 <https://wod.wiki/code/symbol/packages/engine/tests/harness/DomainScenarioHarness.ts#ShakeOutScenarioResult> a code:Symbol ;
     rdfs:label "ShakeOutScenarioResult" ;
@@ -4211,7 +4457,7 @@
     code:scipId "packages/engine/tests/harness/DomainScenarioHarness.ts#ShakeOutScenarioResult" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/tests/harness/DomainScenarioHarness.ts> ;
-    code:lineHint 158 .
+    code:lineHint 162 .
 
 <https://wod.wiki/code/symbol/packages/engine/tests/harness/DomainScenarioHarness.ts#BlockMetricSummary> a code:Symbol ;
     rdfs:label "BlockMetricSummary" ;
@@ -4219,7 +4465,7 @@
     code:scipId "packages/engine/tests/harness/DomainScenarioHarness.ts#BlockMetricSummary" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/tests/harness/DomainScenarioHarness.ts> ;
-    code:lineHint 166 .
+    code:lineHint 170 .
 
 <https://wod.wiki/code/symbol/packages/engine/tests/harness/DomainScenarioHarness.ts#QueryWqlOptions> a code:Symbol ;
     rdfs:label "QueryWqlOptions" ;
@@ -4227,7 +4473,7 @@
     code:scipId "packages/engine/tests/harness/DomainScenarioHarness.ts#QueryWqlOptions" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/tests/harness/DomainScenarioHarness.ts> ;
-    code:lineHint 171 .
+    code:lineHint 175 .
 
 <https://wod.wiki/code/symbol/packages/engine/tests/harness/DomainScenarioHarness.ts#HARNESS_EPOCH> a code:Symbol ;
     rdfs:label "HARNESS_EPOCH" ;
@@ -4235,7 +4481,7 @@
     code:scipId "packages/engine/tests/harness/DomainScenarioHarness.ts#HARNESS_EPOCH" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/tests/harness/DomainScenarioHarness.ts> ;
-    code:lineHint 178 .
+    code:lineHint 182 .
 
 <https://wod.wiki/code/symbol/packages/engine/tests/harness/DomainScenarioHarness.ts#DomainScenarioHarness> a code:Symbol ;
     rdfs:label "DomainScenarioHarness" ;
@@ -4243,7 +4489,7 @@
     code:scipId "packages/engine/tests/harness/DomainScenarioHarness.ts#DomainScenarioHarness" ;
     code:symbolKind "class" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/tests/harness/DomainScenarioHarness.ts> ;
-    code:lineHint 207 .
+    code:lineHint 211 .
 
 <https://wod.wiki/code/file/packages/engine/tests/index.test.ts> a code:File ;
     rdfs:label "index.test.ts" ;
@@ -10997,7 +11243,7 @@
     code:scipId "packages/lang/src/runtime/projection/ScriptOutlineProjection.ts#synthesizeWorkoutFormat" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/lang/src/runtime/projection/ScriptOutlineProjection.ts> ;
-    code:lineHint 37 .
+    code:lineHint 45 .
 
 <https://wod.wiki/code/symbol/packages/lang/src/runtime/projection/ScriptOutlineProjection.ts#projectScriptOutline> a code:Symbol ;
     rdfs:label "projectScriptOutline" ;
@@ -11005,7 +11251,7 @@
     code:scipId "packages/lang/src/runtime/projection/ScriptOutlineProjection.ts#projectScriptOutline" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/lang/src/runtime/projection/ScriptOutlineProjection.ts> ;
-    code:lineHint 64 .
+    code:lineHint 72 .
 
 <https://wod.wiki/code/file/packages/lang/src/runtime/projection/SessionClockProjection.ts> a code:File ;
     rdfs:label "SessionClockProjection.ts" ;
@@ -12367,6 +12613,100 @@
     code:packageName "packages/lang" ;
     code:isTestFile false .
 
+<https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> a code:File ;
+    rdfs:label "compliance-helpers.ts" ;
+    code:filePath "packages/lang/tests/harness/compliance-helpers.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/compliance-helpers.ts#currentBlockType> a code:Symbol ;
+    rdfs:label "currentBlockType" ;
+    code:symbolName "currentBlockType" ;
+    code:scipId "packages/lang/tests/harness/compliance-helpers.ts#currentBlockType" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> ;
+    code:lineHint 26 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/compliance-helpers.ts#blockDisplayMetrics> a code:Symbol ;
+    rdfs:label "blockDisplayMetrics" ;
+    code:symbolName "blockDisplayMetrics" ;
+    code:scipId "packages/lang/tests/harness/compliance-helpers.ts#blockDisplayMetrics" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> ;
+    code:lineHint 33 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/compliance-helpers.ts#blockHasDisplayMetric> a code:Symbol ;
+    rdfs:label "blockHasDisplayMetric" ;
+    code:symbolName "blockHasDisplayMetric" ;
+    code:scipId "packages/lang/tests/harness/compliance-helpers.ts#blockHasDisplayMetric" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> ;
+    code:lineHint 42 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/compliance-helpers.ts#stackHasMetric> a code:Symbol ;
+    rdfs:label "stackHasMetric" ;
+    code:symbolName "stackHasMetric" ;
+    code:scipId "packages/lang/tests/harness/compliance-helpers.ts#stackHasMetric" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> ;
+    code:lineHint 54 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/compliance-helpers.ts#anyOutputHasMetric> a code:Symbol ;
+    rdfs:label "anyOutputHasMetric" ;
+    code:symbolName "anyOutputHasMetric" ;
+    code:scipId "packages/lang/tests/harness/compliance-helpers.ts#anyOutputHasMetric" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> ;
+    code:lineHint 64 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/compliance-helpers.ts#getRoundState> a code:Symbol ;
+    rdfs:label "getRoundState" ;
+    code:symbolName "getRoundState" ;
+    code:scipId "packages/lang/tests/harness/compliance-helpers.ts#getRoundState" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> ;
+    code:lineHint 74 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/compliance-helpers.ts#systemPopValues> a code:Symbol ;
+    rdfs:label "systemPopValues" ;
+    code:symbolName "systemPopValues" ;
+    code:scipId "packages/lang/tests/harness/compliance-helpers.ts#systemPopValues" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> ;
+    code:lineHint 83 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/compliance-helpers.ts#anySystemPopHasReason> a code:Symbol ;
+    rdfs:label "anySystemPopHasReason" ;
+    code:symbolName "anySystemPopHasReason" ;
+    code:scipId "packages/lang/tests/harness/compliance-helpers.ts#anySystemPopHasReason" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> ;
+    code:lineHint 96 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/compliance-helpers.ts#currentBlockTypeAsync> a code:Symbol ;
+    rdfs:label "currentBlockTypeAsync" ;
+    code:symbolName "currentBlockTypeAsync" ;
+    code:scipId "packages/lang/tests/harness/compliance-helpers.ts#currentBlockTypeAsync" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> ;
+    code:lineHint 113 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/compliance-helpers.ts#currentTimerElapsedMs> a code:Symbol ;
+    rdfs:label "currentTimerElapsedMs" ;
+    code:symbolName "currentTimerElapsedMs" ;
+    code:scipId "packages/lang/tests/harness/compliance-helpers.ts#currentTimerElapsedMs" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> ;
+    code:lineHint 121 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/compliance-helpers.ts#isTimerPaused> a code:Symbol ;
+    rdfs:label "isTimerPaused" ;
+    code:symbolName "isTimerPaused" ;
+    code:scipId "packages/lang/tests/harness/compliance-helpers.ts#isTimerPaused" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/compliance-helpers.ts> ;
+    code:lineHint 134 .
+
 <https://wod.wiki/code/file/packages/lang/tests/harness/components/index.ts> a code:File ;
     rdfs:label "index.ts" ;
     code:filePath "packages/lang/tests/harness/components/index.ts" ;
@@ -12824,6 +13164,92 @@
     code:filePath "packages/lang/tests/harness/index.ts" ;
     code:packageName "packages/lang" ;
     code:isTestFile false .
+
+<https://wod.wiki/code/file/packages/lang/tests/harness/parser-test-utils.ts> a code:File ;
+    rdfs:label "parser-test-utils.ts" ;
+    code:filePath "packages/lang/tests/harness/parser-test-utils.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/parser-test-utils.ts#DialectRegistry> a code:Symbol ;
+    rdfs:label "DialectRegistry" ;
+    code:symbolName "DialectRegistry" ;
+    code:scipId "packages/lang/tests/harness/parser-test-utils.ts#DialectRegistry" ;
+    code:symbolKind "class" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/parser-test-utils.ts> ;
+    code:lineHint 20 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/parser-test-utils.ts#ALL_DIALECTS> a code:Symbol ;
+    rdfs:label "ALL_DIALECTS" ;
+    code:symbolName "ALL_DIALECTS" ;
+    code:scipId "packages/lang/tests/harness/parser-test-utils.ts#ALL_DIALECTS" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/parser-test-utils.ts> ;
+    code:lineHint 66 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/parser-test-utils.ts#ParserTestOptions> a code:Symbol ;
+    rdfs:label "ParserTestOptions" ;
+    code:symbolName "ParserTestOptions" ;
+    code:scipId "packages/lang/tests/harness/parser-test-utils.ts#ParserTestOptions" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/parser-test-utils.ts> ;
+    code:lineHint 85 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/parser-test-utils.ts#ParserTestContext> a code:Symbol ;
+    rdfs:label "ParserTestContext" ;
+    code:symbolName "ParserTestContext" ;
+    code:scipId "packages/lang/tests/harness/parser-test-utils.ts#ParserTestContext" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/parser-test-utils.ts> ;
+    code:lineHint 96 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/parser-test-utils.ts#createParserContext> a code:Symbol ;
+    rdfs:label "createParserContext" ;
+    code:symbolName "createParserContext" ;
+    code:scipId "packages/lang/tests/harness/parser-test-utils.ts#createParserContext" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/parser-test-utils.ts> ;
+    code:lineHint 115 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/parser-test-utils.ts#createParserContextFromScript> a code:Symbol ;
+    rdfs:label "createParserContextFromScript" ;
+    code:symbolName "createParserContextFromScript" ;
+    code:scipId "packages/lang/tests/harness/parser-test-utils.ts#createParserContextFromScript" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/parser-test-utils.ts> ;
+    code:lineHint 144 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/parser-test-utils.ts#StatementAssertions> a code:Symbol ;
+    rdfs:label "StatementAssertions" ;
+    code:symbolName "StatementAssertions" ;
+    code:scipId "packages/lang/tests/harness/parser-test-utils.ts#StatementAssertions" ;
+    code:symbolKind "class" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/parser-test-utils.ts> ;
+    code:lineHint 170 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/parser-test-utils.ts#TreeAssertions> a code:Symbol ;
+    rdfs:label "TreeAssertions" ;
+    code:symbolName "TreeAssertions" ;
+    code:scipId "packages/lang/tests/harness/parser-test-utils.ts#TreeAssertions" ;
+    code:symbolKind "class" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/parser-test-utils.ts> ;
+    code:lineHint 425 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/parser-test-utils.ts#parse> a code:Symbol ;
+    rdfs:label "parse" ;
+    code:symbolName "parse" ;
+    code:scipId "packages/lang/tests/harness/parser-test-utils.ts#parse" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/parser-test-utils.ts> ;
+    code:lineHint 540 .
+
+<https://wod.wiki/code/symbol/packages/lang/tests/harness/parser-test-utils.ts#parseFromScript> a code:Symbol ;
+    rdfs:label "parseFromScript" ;
+    code:symbolName "parseFromScript" ;
+    code:scipId "packages/lang/tests/harness/parser-test-utils.ts#parseFromScript" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/packages/lang/tests/harness/parser-test-utils.ts> ;
+    code:lineHint 552 .
 
 <https://wod.wiki/code/file/packages/lang/tests/harness/parserFixture/comparator.test.ts> a code:File ;
     rdfs:label "comparator.test.ts" ;
@@ -13589,9 +14015,93 @@
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/cross-dialect-interaction.parser.test.ts> a code:File ;
+    rdfs:label "cross-dialect-interaction.parser.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/cross-dialect-interaction.parser.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/dialect-hints.parser.test.ts> a code:File ;
+    rdfs:label "dialect-hints.parser.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/dialect-hints.parser.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/effort.parser.test.ts> a code:File ;
+    rdfs:label "effort.parser.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/effort.parser.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/error-recovery.parser.test.ts> a code:File ;
+    rdfs:label "error-recovery.parser.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/error-recovery.parser.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/harness-smoke.parser.test.ts> a code:File ;
+    rdfs:label "harness-smoke.parser.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/harness-smoke.parser.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/metric-boundaries.parser.test.ts> a code:File ;
+    rdfs:label "metric-boundaries.parser.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/metric-boundaries.parser.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/metrics-edge-cases.parser.test.ts> a code:File ;
+    rdfs:label "metrics-edge-cases.parser.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/metrics-edge-cases.parser.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/parse-then-run.integration.test.ts> a code:File ;
+    rdfs:label "parse-then-run.integration.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/parse-then-run.integration.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/rounds-and-structure.parser.test.ts> a code:File ;
+    rdfs:label "rounds-and-structure.parser.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/rounds-and-structure.parser.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/timer-patterns-advanced.parse-then-run.integration.test.ts> a code:File ;
+    rdfs:label "timer-patterns-advanced.parse-then-run.integration.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/timer-patterns-advanced.parse-then-run.integration.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/timer-patterns.parse-then-run.integration.test.ts> a code:File ;
+    rdfs:label "timer-patterns.parse-then-run.integration.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/timer-patterns.parse-then-run.integration.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/compliance/timer.parser.test.ts> a code:File ;
+    rdfs:label "timer.parser.test.ts" ;
+    code:filePath "packages/lang/tests/parser/compliance/timer.parser.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/lang/tests/parser/inline-rounds-normalization.test.ts> a code:File ;
     rdfs:label "inline-rounds-normalization.test.ts" ;
     code:filePath "packages/lang/tests/parser/inline-rounds-normalization.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/lezer-tree-inspect.test.ts> a code:File ;
+    rdfs:label "lezer-tree-inspect.test.ts" ;
+    code:filePath "packages/lang/tests/parser/lezer-tree-inspect.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/lezer-whiteboardscript.test.ts> a code:File ;
+    rdfs:label "lezer-whiteboardscript.test.ts" ;
+    code:filePath "packages/lang/tests/parser/lezer-whiteboardscript.test.ts" ;
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
@@ -13613,6 +14123,12 @@
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/lang/tests/parser/parser-integration.test.ts> a code:File ;
+    rdfs:label "parser-integration.test.ts" ;
+    code:filePath "packages/lang/tests/parser/parser-integration.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/lang/tests/parser/reference-resolution.test.ts> a code:File ;
     rdfs:label "reference-resolution.test.ts" ;
     code:filePath "packages/lang/tests/parser/reference-resolution.test.ts" ;
@@ -13622,6 +14138,18 @@
 <https://wod.wiki/code/file/packages/lang/tests/parser/semantic-classifier.test.ts> a code:File ;
     rdfs:label "semantic-classifier.test.ts" ;
     code:filePath "packages/lang/tests/parser/semantic-classifier.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/statement-ids.test.ts> a code:File ;
+    rdfs:label "statement-ids.test.ts" ;
+    code:filePath "packages/lang/tests/parser/statement-ids.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/syntax_features.test.ts> a code:File ;
+    rdfs:label "syntax_features.test.ts" ;
+    code:filePath "packages/lang/tests/parser/syntax_features.test.ts" ;
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
@@ -13649,6 +14177,18 @@
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/lang/tests/parser/unit-flexibility.test.ts> a code:File ;
+    rdfs:label "unit-flexibility.test.ts" ;
+    code:filePath "packages/lang/tests/parser/unit-flexibility.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/parser/whiteboard-script-parsing.test.ts> a code:File ;
+    rdfs:label "whiteboard-script-parsing.test.ts" ;
+    code:filePath "packages/lang/tests/parser/whiteboard-script-parsing.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/lang/tests/parserFixtures.test.ts> a code:File ;
     rdfs:label "parserFixtures.test.ts" ;
     code:filePath "packages/lang/tests/parserFixtures.test.ts" ;
@@ -13658,6 +14198,18 @@
 <https://wod.wiki/code/file/packages/lang/tests/parseScript.test.ts> a code:File ;
     rdfs:label "parseScript.test.ts" ;
     code:filePath "packages/lang/tests/parseScript.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/perf/compiler-performance.test.ts> a code:File ;
+    rdfs:label "compiler-performance.test.ts" ;
+    code:filePath "packages/lang/tests/perf/compiler-performance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/perf/parser-performance.test.ts> a code:File ;
+    rdfs:label "parser-performance.test.ts" ;
+    code:filePath "packages/lang/tests/perf/parser-performance.test.ts" ;
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
@@ -13691,9 +14243,75 @@
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/lang/tests/runtime/AmrapLogicStrategy.integration.test.ts> a code:File ;
+    rdfs:label "AmrapLogicStrategy.integration.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/AmrapLogicStrategy.integration.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/lang/tests/runtime/AmrapLogicStrategy.test.ts> a code:File ;
     rdfs:label "AmrapLogicStrategy.test.ts" ;
     code:filePath "packages/lang/tests/runtime/AmrapLogicStrategy.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/blocks/amrap_child_rotation.test.ts> a code:File ;
+    rdfs:label "amrap_child_rotation.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/blocks/amrap_child_rotation.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/blocks/EffortBlock.test.ts> a code:File ;
+    rdfs:label "EffortBlock.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/blocks/EffortBlock.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/blocks/for_time_child_single_pass.test.ts> a code:File ;
+    rdfs:label "for_time_child_single_pass.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/blocks/for_time_child_single_pass.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/blocks/GroupBlock.test.ts> a code:File ;
+    rdfs:label "GroupBlock.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/blocks/GroupBlock.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/blocks/lifecycle-edge-cases.test.ts> a code:File ;
+    rdfs:label "lifecycle-edge-cases.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/blocks/lifecycle-edge-cases.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/blocks/root-block/RootBlock.basics.test.ts> a code:File ;
+    rdfs:label "RootBlock.basics.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/blocks/root-block/RootBlock.basics.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/blocks/root-block/RootBlock.children.test.ts> a code:File ;
+    rdfs:label "RootBlock.children.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/blocks/root-block/RootBlock.children.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/blocks/root-block/RootBlock.integration.test.ts> a code:File ;
+    rdfs:label "RootBlock.integration.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/blocks/root-block/RootBlock.integration.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/blocks/root-block/RootBlock.lifecycle.test.ts> a code:File ;
+    rdfs:label "RootBlock.lifecycle.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/blocks/root-block/RootBlock.lifecycle.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/blocks/TimerBlock.test.ts> a code:File ;
+    rdfs:label "TimerBlock.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/blocks/TimerBlock.test.ts" ;
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
@@ -13712,6 +14330,120 @@
 <https://wod.wiki/code/file/packages/lang/tests/runtime/ChoiceResolution.test.ts> a code:File ;
     rdfs:label "ChoiceResolution.test.ts" ;
     code:filePath "packages/lang/tests/runtime/ChoiceResolution.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/alternating-emom.compliance.test.ts> a code:File ;
+    rdfs:label "alternating-emom.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/alternating-emom.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/amrap.compliance.test.ts> a code:File ;
+    rdfs:label "amrap.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/amrap.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/collectible.compliance.test.ts> a code:File ;
+    rdfs:label "collectible.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/collectible.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/countup.compliance.test.ts> a code:File ;
+    rdfs:label "countup.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/countup.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/effort.compliance.test.ts> a code:File ;
+    rdfs:label "effort.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/effort.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/emom.compliance.test.ts> a code:File ;
+    rdfs:label "emom.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/emom.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/for-time.compliance.test.ts> a code:File ;
+    rdfs:label "for-time.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/for-time.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/metric-inheritance.compliance.test.ts> a code:File ;
+    rdfs:label "metric-inheritance.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/metric-inheritance.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/mixed-timers.compliance.test.ts> a code:File ;
+    rdfs:label "mixed-timers.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/mixed-timers.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/negative-scenarios.compliance.test.ts> a code:File ;
+    rdfs:label "negative-scenarios.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/negative-scenarios.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/post-mount-snapshot-invariant.compliance.test.ts> a code:File ;
+    rdfs:label "post-mount-snapshot-invariant.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/post-mount-snapshot-invariant.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/rest-overrun.compliance.test.ts> a code:File ;
+    rdfs:label "rest-overrun.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/rest-overrun.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/rest.compliance.test.ts> a code:File ;
+    rdfs:label "rest.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/rest.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/rounds.compliance.test.ts> a code:File ;
+    rdfs:label "rounds.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/rounds.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/session-lifecycle.compliance.test.ts> a code:File ;
+    rdfs:label "session-lifecycle.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/session-lifecycle.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/state-transitions.compliance.test.ts> a code:File ;
+    rdfs:label "state-transitions.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/state-transitions.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/tabata.compliance.test.ts> a code:File ;
+    rdfs:label "tabata.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/tabata.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/timer-state-transitions.compliance.test.ts> a code:File ;
+    rdfs:label "timer-state-transitions.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/timer-state-transitions.compliance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/compliance/timer.compliance.test.ts> a code:File ;
+    rdfs:label "timer.compliance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/compliance/timer.compliance.test.ts" ;
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
@@ -13763,6 +14495,78 @@
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/amrap.test.ts> a code:File ;
+    rdfs:label "amrap.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/amrap.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/clear-children.test.ts> a code:File ;
+    rdfs:label "clear-children.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/clear-children.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/countup-collectible.test.ts> a code:File ;
+    rdfs:label "countup-collectible.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/countup-collectible.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/emom.test.ts> a code:File ;
+    rdfs:label "emom.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/emom.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/fixed-round-loop.test.ts> a code:File ;
+    rdfs:label "fixed-round-loop.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/fixed-round-loop.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/for-time-rep-scheme.test.ts> a code:File ;
+    rdfs:label "for-time-rep-scheme.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/for-time-rep-scheme.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/for-time-single.test.ts> a code:File ;
+    rdfs:label "for-time-single.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/for-time-single.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/forced-timer.test.ts> a code:File ;
+    rdfs:label "forced-timer.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/forced-timer.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/grouped_statements.test.ts> a code:File ;
+    rdfs:label "grouped_statements.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/grouped_statements.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/loop-with-rest.test.ts> a code:File ;
+    rdfs:label "loop-with-rest.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/loop-with-rest.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/rep-scheme-inheritance.test.ts> a code:File ;
+    rdfs:label "rep-scheme-inheritance.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/rep-scheme-inheritance.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/jit/sequential-timers.test.ts> a code:File ;
+    rdfs:label "sequential-timers.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/jit/sequential-timers.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/lang/tests/runtime/JitComposition.test.ts> a code:File ;
     rdfs:label "JitComposition.test.ts" ;
     code:filePath "packages/lang/tests/runtime/JitComposition.test.ts" ;
@@ -13772,6 +14576,42 @@
 <https://wod.wiki/code/file/packages/lang/tests/runtime/JitInjection.test.ts> a code:File ;
     rdfs:label "JitInjection.test.ts" ;
     code:filePath "packages/lang/tests/runtime/JitInjection.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/lifecycle/ClockPropagation.test.ts> a code:File ;
+    rdfs:label "ClockPropagation.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/lifecycle/ClockPropagation.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/lifecycle/LifecyclePhases.test.ts> a code:File ;
+    rdfs:label "LifecyclePhases.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/lifecycle/LifecyclePhases.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/lifecycle/MountBehavior.test.ts> a code:File ;
+    rdfs:label "MountBehavior.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/lifecycle/MountBehavior.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/lifecycle/NextBehavior.test.ts> a code:File ;
+    rdfs:label "NextBehavior.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/lifecycle/NextBehavior.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/lifecycle/SnapshotClock.test.ts> a code:File ;
+    rdfs:label "SnapshotClock.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/lifecycle/SnapshotClock.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/runtime/lifecycle/UnmountBehavior.test.ts> a code:File ;
+    rdfs:label "UnmountBehavior.test.ts" ;
+    code:filePath "packages/lang/tests/runtime/lifecycle/UnmountBehavior.test.ts" ;
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
@@ -14252,6 +15092,28 @@
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/storage/src/membership.ts> ;
     code:lineHint 38 .
+
+<https://wod.wiki/code/file/packages/storage/src/memory.ts> a code:File ;
+    rdfs:label "memory.ts" ;
+    code:filePath "packages/storage/src/memory.ts" ;
+    code:packageName "packages/storage" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/packages/storage/src/memory.ts#InMemoryStore> a code:Symbol ;
+    rdfs:label "InMemoryStore" ;
+    code:symbolName "InMemoryStore" ;
+    code:scipId "packages/storage/src/memory.ts#InMemoryStore" ;
+    code:symbolKind "class" ;
+    code:definedIn <https://wod.wiki/code/file/packages/storage/src/memory.ts> ;
+    code:lineHint 30 .
+
+<https://wod.wiki/code/symbol/packages/storage/src/memory.ts#InMemoryStorage> a code:Symbol ;
+    rdfs:label "InMemoryStorage" ;
+    code:symbolName "InMemoryStorage" ;
+    code:scipId "packages/storage/src/memory.ts#InMemoryStorage" ;
+    code:symbolKind "class" ;
+    code:definedIn <https://wod.wiki/code/file/packages/storage/src/memory.ts> ;
+    code:lineHint 135 .
 
 <https://wod.wiki/code/file/packages/storage/src/overlay.ts> a code:File ;
     rdfs:label "overlay.ts" ;
@@ -15176,6 +16038,12 @@
     code:filePath "packages/storage/tests/sql-check.ts" ;
     code:packageName "packages/storage" ;
     code:isTestFile false .
+
+<https://wod.wiki/code/file/packages/storage/tests/storage-conformance.test.ts> a code:File ;
+    rdfs:label "storage-conformance.test.ts" ;
+    code:filePath "packages/storage/tests/storage-conformance.test.ts" ;
+    code:packageName "packages/storage" ;
+    code:isTestFile true .
 
 <https://wod.wiki/code/file/packages/storage/tsup.config.ts> a code:File ;
     rdfs:label "tsup.config.ts" ;
@@ -18743,11 +19611,25 @@
     code:definedIn <https://wod.wiki/code/file/packages/ui/src/extensions/theme.ts> ;
     code:lineHint 5 .
 
+<https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-autocomplete.test.ts> a code:File ;
+    rdfs:label "whiteboard-autocomplete.test.ts" ;
+    code:filePath "packages/ui/src/extensions/whiteboard-autocomplete.test.ts" ;
+    code:packageName "packages/ui" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-autocomplete.ts> a code:File ;
     rdfs:label "whiteboard-autocomplete.ts" ;
     code:filePath "packages/ui/src/extensions/whiteboard-autocomplete.ts" ;
     code:packageName "packages/ui" ;
     code:isTestFile false .
+
+<https://wod.wiki/code/symbol/packages/ui/src/extensions/whiteboard-autocomplete.ts#SLASH_COMMANDS> a code:Symbol ;
+    rdfs:label "SLASH_COMMANDS" ;
+    code:symbolName "SLASH_COMMANDS" ;
+    code:scipId "packages/ui/src/extensions/whiteboard-autocomplete.ts#SLASH_COMMANDS" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-autocomplete.ts> ;
+    code:lineHint 67 .
 
 <https://wod.wiki/code/symbol/packages/ui/src/extensions/whiteboard-autocomplete.ts#fenceCompletion> a code:Symbol ;
     rdfs:label "fenceCompletion" ;
@@ -19269,7 +20151,7 @@
     code:scipId "packages/ui/src/widgets/DashboardView.tsx#DashboardView" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/ui/src/widgets/DashboardView.tsx> ;
-    code:lineHint 112 .
+    code:lineHint 114 .
 
 <https://wod.wiki/code/file/packages/ui/src/widgets/GoalRings.tsx> a code:File ;
     rdfs:label "GoalRings.tsx" ;
@@ -22769,6 +23651,12 @@
     code:packageName "packages/wql" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/wql/tests/contract/wql-calc-seeds.test.ts> a code:File ;
+    rdfs:label "wql-calc-seeds.test.ts" ;
+    code:filePath "packages/wql/tests/contract/wql-calc-seeds.test.ts" ;
+    code:packageName "packages/wql" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/wql/tests/corpus.test.ts> a code:File ;
     rdfs:label "corpus.test.ts" ;
     code:filePath "packages/wql/tests/corpus.test.ts" ;
@@ -22972,6 +23860,12 @@
     code:filePath "packages/wql/tests/fixtures/scenarios/09-climb-recovery-load.md" ;
     code:packageName "packages/wql" ;
     code:isTestFile false .
+
+<https://wod.wiki/code/file/packages/wql/tests/grammar/wql-grammar.test.ts> a code:File ;
+    rdfs:label "wql-grammar.test.ts" ;
+    code:filePath "packages/wql/tests/grammar/wql-grammar.test.ts" ;
+    code:packageName "packages/wql" ;
+    code:isTestFile true .
 
 <https://wod.wiki/code/file/packages/wql/tests/harness/actionable.ts> a code:File ;
     rdfs:label "actionable.ts" ;
@@ -23446,7 +24340,7 @@
     code:scipId "apps/playground/app/agent/PlaygroundAgentProvider.tsx#installModelContextExecuteToolAdapter" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/PlaygroundAgentProvider.tsx> ;
-    code:lineHint 143 .
+    code:lineHint 149 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/agent/PlaygroundAgentProvider.tsx#PlaygroundAgentProvider> a code:Symbol ;
     rdfs:label "PlaygroundAgentProvider" ;
@@ -23454,7 +24348,7 @@
     code:scipId "apps/playground/app/agent/PlaygroundAgentProvider.tsx#PlaygroundAgentProvider" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/PlaygroundAgentProvider.tsx> ;
-    code:lineHint 243 .
+    code:lineHint 276 .
 
 <https://wod.wiki/code/file/apps/playground/app/agent/StreamAgentTools.tsx> a code:File ;
     rdfs:label "StreamAgentTools.tsx" ;
@@ -23658,7 +24552,7 @@
     code:scipId "apps/playground/app/AppContent.tsx#AppContent" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/AppContent.tsx> ;
-    code:lineHint 73 .
+    code:lineHint 74 .
 
 <https://wod.wiki/code/file/apps/playground/app/BootRecovery.tsx> a code:File ;
     rdfs:label "BootRecovery.tsx" ;
@@ -24113,6 +25007,12 @@
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/canvas/GuideRunwayGroups.tsx> ;
     code:lineHint 261 .
+
+<https://wod.wiki/code/file/apps/playground/app/canvas/home-feature-markdown.test.tsx> a code:File ;
+    rdfs:label "home-feature-markdown.test.tsx" ;
+    code:filePath "apps/playground/app/canvas/home-feature-markdown.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
 
 <https://wod.wiki/code/file/apps/playground/app/canvas/homeSlice.test.ts> a code:File ;
     rdfs:label "homeSlice.test.ts" ;
@@ -24631,6 +25531,12 @@
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/canvas/ScrollToast.tsx> ;
     code:lineHint 18 .
+
+<https://wod.wiki/code/file/apps/playground/app/canvas/syntax-source-markdown.test.ts> a code:File ;
+    rdfs:label "syntax-source-markdown.test.ts" ;
+    code:filePath "apps/playground/app/canvas/syntax-source-markdown.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
 
 <https://wod.wiki/code/file/apps/playground/app/canvas/useCanvasFormFactor.ts> a code:File ;
     rdfs:label "useCanvasFormFactor.ts" ;
@@ -25408,7 +26314,7 @@
     code:scipId "apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx#ResourceKind" ;
     code:symbolKind "type" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx> ;
-    code:lineHint 43 .
+    code:lineHint 49 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx#ComposerKind> a code:Symbol ;
     rdfs:label "ComposerKind" ;
@@ -25416,7 +26322,7 @@
     code:scipId "apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx#ComposerKind" ;
     code:symbolKind "type" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx> ;
-    code:lineHint 44 .
+    code:lineHint 50 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx#StartMode> a code:Symbol ;
     rdfs:label "StartMode" ;
@@ -25424,7 +26330,7 @@
     code:scipId "apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx#StartMode" ;
     code:symbolKind "type" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx> ;
-    code:lineHint 45 .
+    code:lineHint 51 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx#CreateJournalNoteDialogProps> a code:Symbol ;
     rdfs:label "CreateJournalNoteDialogProps" ;
@@ -25432,7 +26338,7 @@
     code:scipId "apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx#CreateJournalNoteDialogProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx> ;
-    code:lineHint 47 .
+    code:lineHint 53 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx#slugifyRoute> a code:Symbol ;
     rdfs:label "slugifyRoute" ;
@@ -25440,7 +26346,7 @@
     code:scipId "apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx#slugifyRoute" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx> ;
-    code:lineHint 81 .
+    code:lineHint 87 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx#CreateJournalNoteDialog> a code:Symbol ;
     rdfs:label "CreateJournalNoteDialog" ;
@@ -25448,7 +26354,7 @@
     code:scipId "apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx#CreateJournalNoteDialog" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx> ;
-    code:lineHint 110 .
+    code:lineHint 116 .
 
 <https://wod.wiki/code/file/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx> code:usesTestId <https://wod.wiki/code/testid/entry-create-cancel-btn> .
 <https://wod.wiki/code/file/apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx> code:usesTestId <https://wod.wiki/code/testid/entry-create-submit-btn> .
@@ -27405,6 +28311,12 @@
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/lib/DocumentTitleSync.tsx> ;
     code:lineHint 13 .
+
+<https://wod.wiki/code/file/apps/playground/app/lib/effort-routes.test.ts> a code:File ;
+    rdfs:label "effort-routes.test.ts" ;
+    code:filePath "apps/playground/app/lib/effort-routes.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
 
 <https://wod.wiki/code/file/apps/playground/app/lib/entryActions.test.ts> a code:File ;
     rdfs:label "entryActions.test.ts" ;
@@ -29792,7 +30704,7 @@
     code:scipId "apps/playground/app/pages/DataSection.tsx#DataSection" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/DataSection.tsx> ;
-    code:lineHint 635 .
+    code:lineHint 644 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> a code:File ;
     rdfs:label "EffortDetailPage.tsx" ;
@@ -29891,7 +30803,7 @@
     code:scipId "apps/playground/app/pages/JournalDatePage.tsx#JournalDatePage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> ;
-    code:lineHint 42 .
+    code:lineHint 46 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/JournalZipLoadPage.tsx> a code:File ;
     rdfs:label "JournalZipLoadPage.tsx" ;
@@ -29925,7 +30837,7 @@
     code:scipId "apps/playground/app/pages/LoadZipPage.tsx#LoadZipPage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> ;
-    code:lineHint 100 .
+    code:lineHint 109 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:usesTestId <https://wod.wiki/code/testid/load-zip-intake> .
 <https://wod.wiki/code/file/apps/playground/app/pages/LoadZipPage.tsx> code:usesTestId <https://wod.wiki/code/testid/bundle-file-input> .
@@ -30028,7 +30940,7 @@
     code:scipId "apps/playground/app/pages/NoteByIdPage.tsx#NoteByIdPageProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> ;
-    code:lineHint 53 .
+    code:lineHint 41 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/NoteByIdPage.tsx#NoteByIdPage> a code:Symbol ;
     rdfs:label "NoteByIdPage" ;
@@ -30036,7 +30948,7 @@
     code:scipId "apps/playground/app/pages/NoteByIdPage.tsx#NoteByIdPage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> ;
-    code:lineHint 66 .
+    code:lineHint 54 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/NotFoundPage.test.tsx> a code:File ;
     rdfs:label "NotFoundPage.test.tsx" ;
@@ -30264,6 +31176,28 @@
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteBoundaries.ts> ;
     code:lineHint 17 .
+
+<https://wod.wiki/code/file/apps/playground/app/pages/shared/NoteCardActions.tsx> a code:File ;
+    rdfs:label "NoteCardActions.tsx" ;
+    code:filePath "apps/playground/app/pages/shared/NoteCardActions.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/apps/playground/app/pages/shared/NoteCardActions.tsx#NoteCardActionsProps> a code:Symbol ;
+    rdfs:label "NoteCardActionsProps" ;
+    code:symbolName "NoteCardActionsProps" ;
+    code:scipId "apps/playground/app/pages/shared/NoteCardActions.tsx#NoteCardActionsProps" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/NoteCardActions.tsx> ;
+    code:lineHint 12 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/pages/shared/NoteCardActions.tsx#NoteCardActions> a code:Symbol ;
+    rdfs:label "NoteCardActions" ;
+    code:symbolName "NoteCardActions" ;
+    code:scipId "apps/playground/app/pages/shared/NoteCardActions.tsx#NoteCardActions" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/NoteCardActions.tsx> ;
+    code:lineHint 23 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.test.ts> a code:File ;
     rdfs:label "noteContextLinks.test.ts" ;
@@ -30725,6 +31659,36 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/useLiveNoteFacets.ts> ;
     code:lineHint 437 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/shared/useNoteActions.tsx> a code:File ;
+    rdfs:label "useNoteActions.tsx" ;
+    code:filePath "apps/playground/app/pages/shared/useNoteActions.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/apps/playground/app/pages/shared/useNoteActions.tsx#UseNoteActionsOptions> a code:Symbol ;
+    rdfs:label "UseNoteActionsOptions" ;
+    code:symbolName "UseNoteActionsOptions" ;
+    code:scipId "apps/playground/app/pages/shared/useNoteActions.tsx#UseNoteActionsOptions" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNoteActions.tsx> ;
+    code:lineHint 25 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/pages/shared/useNoteActions.tsx#buildNoteHelpfulActionsForEntry> a code:Symbol ;
+    rdfs:label "buildNoteHelpfulActionsForEntry" ;
+    code:symbolName "buildNoteHelpfulActionsForEntry" ;
+    code:scipId "apps/playground/app/pages/shared/useNoteActions.tsx#buildNoteHelpfulActionsForEntry" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNoteActions.tsx> ;
+    code:lineHint 50 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/pages/shared/useNoteActions.tsx#useNoteActions> a code:Symbol ;
+    rdfs:label "useNoteActions" ;
+    code:symbolName "useNoteActions" ;
+    code:scipId "apps/playground/app/pages/shared/useNoteActions.tsx#useNoteActions" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNoteActions.tsx> ;
+    code:lineHint 169 .
+
 <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNotePageNav.test.tsx> a code:File ;
     rdfs:label "useNotePageNav.test.tsx" ;
     code:filePath "apps/playground/app/pages/shared/useNotePageNav.test.tsx" ;
@@ -30846,7 +31810,7 @@
     code:scipId "apps/playground/app/pages/SyncSection.tsx#SyncSectionDeps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/SyncSection.tsx> ;
-    code:lineHint 368 .
+    code:lineHint 373 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/SyncSection.tsx#SyncSection> a code:Symbol ;
     rdfs:label "SyncSection" ;
@@ -30854,7 +31818,7 @@
     code:scipId "apps/playground/app/pages/SyncSection.tsx#SyncSection" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/SyncSection.tsx> ;
-    code:lineHint 375 .
+    code:lineHint 380 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/SyncSection.tsx> code:usesTestId <https://wod.wiki/code/testid/sync-subscribed-only-toggle> .
 <https://wod.wiki/code/file/apps/playground/app/pages/TagsPage.test.tsx> a code:File ;
@@ -33268,7 +34232,7 @@
     code:scipId "apps/playground/app/views/library/LibraryRow.tsx#LibraryRow" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/library/LibraryRow.tsx> ;
-    code:lineHint 97 .
+    code:lineHint 99 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/library/LibraryRow.tsx#MoveNotebookTarget> a code:Symbol ;
     rdfs:label "MoveNotebookTarget" ;
@@ -33276,7 +34240,7 @@
     code:scipId "apps/playground/app/views/library/LibraryRow.tsx#MoveNotebookTarget" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/library/LibraryRow.tsx> ;
-    code:lineHint 453 .
+    code:lineHint 461 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/library/LibraryRow.tsx#MoveToNotebookMenu> a code:Symbol ;
     rdfs:label "MoveToNotebookMenu" ;
@@ -33284,7 +34248,7 @@
     code:scipId "apps/playground/app/views/library/LibraryRow.tsx#MoveToNotebookMenu" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/library/LibraryRow.tsx> ;
-    code:lineHint 462 .
+    code:lineHint 470 .
 
 <https://wod.wiki/code/file/apps/playground/app/views/notebook-gallery/FeedCard.tsx> a code:File ;
     rdfs:label "FeedCard.tsx" ;
@@ -35410,6 +36374,12 @@
     code:packageName "apps/playground" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/apps/playground/src/components/atoms/AppVersion.test.tsx> a code:File ;
+    rdfs:label "AppVersion.test.tsx" ;
+    code:filePath "apps/playground/src/components/atoms/AppVersion.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/apps/playground/src/components/atoms/AppVersion.tsx> a code:File ;
     rdfs:label "AppVersion.tsx" ;
     code:filePath "apps/playground/src/components/atoms/AppVersion.tsx" ;
@@ -35595,6 +36565,12 @@
 <https://wod.wiki/code/file/apps/playground/src/components/atoms/primitives/__tests__/dropdown-menu.test.tsx> a code:File ;
     rdfs:label "dropdown-menu.test.tsx" ;
     code:filePath "apps/playground/src/components/atoms/primitives/__tests__/dropdown-menu.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/components/atoms/primitives/__tests__/touch-target-sizes.test.ts> a code:File ;
+    rdfs:label "touch-target-sizes.test.ts" ;
+    code:filePath "apps/playground/src/components/atoms/primitives/__tests__/touch-target-sizes.test.ts" ;
     code:packageName "apps/playground" ;
     code:isTestFile true .
 
@@ -36376,7 +37352,7 @@
     code:scipId "apps/playground/src/components/atoms/VisualStateComponents.tsx#getOutputsForHistoryBlock" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/atoms/VisualStateComponents.tsx> ;
-    code:lineHint 328 .
+    code:lineHint 327 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/components/atoms/VisualStateComponents.tsx#RuntimeStackView> a code:Symbol ;
     rdfs:label "RuntimeStackView" ;
@@ -36384,7 +37360,7 @@
     code:scipId "apps/playground/src/components/atoms/VisualStateComponents.tsx#RuntimeStackView" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/atoms/VisualStateComponents.tsx> ;
-    code:lineHint 343 .
+    code:lineHint 342 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/components/atoms/VisualStateComponents.tsx#LookaheadView> a code:Symbol ;
     rdfs:label "LookaheadView" ;
@@ -36392,7 +37368,7 @@
     code:scipId "apps/playground/src/components/atoms/VisualStateComponents.tsx#LookaheadView" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/atoms/VisualStateComponents.tsx> ;
-    code:lineHint 439 .
+    code:lineHint 438 .
 
 <https://wod.wiki/code/file/apps/playground/src/components/atoms/WhiteboardPlaygroundButton.tsx> a code:File ;
     rdfs:label "WhiteboardPlaygroundButton.tsx" ;
@@ -39872,7 +40848,7 @@
     code:scipId "apps/playground/src/components/organisms/workout/TimerCore.tsx#TimerControlsProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerCore.tsx> ;
-    code:lineHint 205 .
+    code:lineHint 191 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/workout/TimerCore.tsx#TimerControls> a code:Symbol ;
     rdfs:label "TimerControls" ;
@@ -39880,7 +40856,7 @@
     code:scipId "apps/playground/src/components/organisms/workout/TimerCore.tsx#TimerControls" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerCore.tsx> ;
-    code:lineHint 215 .
+    code:lineHint 201 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/workout/TimerCore.tsx#SwipeHandlers> a code:Symbol ;
     rdfs:label "SwipeHandlers" ;
@@ -39888,7 +40864,7 @@
     code:scipId "apps/playground/src/components/organisms/workout/TimerCore.tsx#SwipeHandlers" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerCore.tsx> ;
-    code:lineHint 329 .
+    code:lineHint 315 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/workout/TimerCore.tsx#useTimerSwipeGestures> a code:Symbol ;
     rdfs:label "useTimerSwipeGestures" ;
@@ -39896,7 +40872,7 @@
     code:scipId "apps/playground/src/components/organisms/workout/TimerCore.tsx#useTimerSwipeGestures" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerCore.tsx> ;
-    code:lineHint 335 .
+    code:lineHint 321 .
 
 <https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerCore.tsx> code:usesTestId <https://wod.wiki/code/testid/timer-display> .
 <https://wod.wiki/code/file/apps/playground/src/components/organisms/workout/TimerCore.tsx> code:usesTestId <https://wod.wiki/code/testid/timer-stop-session> .
@@ -41447,13 +42423,21 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
     code:lineHint 9 .
 
+<https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#LEGACY_REDIRECT_PATTERNS> a code:Symbol ;
+    rdfs:label "LEGACY_REDIRECT_PATTERNS" ;
+    code:symbolName "LEGACY_REDIRECT_PATTERNS" ;
+    code:scipId "apps/playground/src/lib/routes.ts#LEGACY_REDIRECT_PATTERNS" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
+    code:lineHint 85 .
+
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#playgroundPath> a code:Symbol ;
     rdfs:label "playgroundPath" ;
     code:symbolName "playgroundPath" ;
     code:scipId "apps/playground/src/lib/routes.ts#playgroundPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 88 .
+    code:lineHint 96 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#dayPath> a code:Symbol ;
     rdfs:label "dayPath" ;
@@ -41461,7 +42445,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#dayPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 93 .
+    code:lineHint 101 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#dayAutoStartPath> a code:Symbol ;
     rdfs:label "dayAutoStartPath" ;
@@ -41469,7 +42453,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#dayAutoStartPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 98 .
+    code:lineHint 106 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#notePath> a code:Symbol ;
     rdfs:label "notePath" ;
@@ -41477,7 +42461,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#notePath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 103 .
+    code:lineHint 111 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#planPath> a code:Symbol ;
     rdfs:label "planPath" ;
@@ -41485,7 +42469,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#planPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 108 .
+    code:lineHint 116 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#trackPath> a code:Symbol ;
     rdfs:label "trackPath" ;
@@ -41493,7 +42477,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#trackPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 113 .
+    code:lineHint 121 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#notebookPath> a code:Symbol ;
     rdfs:label "notebookPath" ;
@@ -41501,7 +42485,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#notebookPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 121 .
+    code:lineHint 129 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#notebookDatePath> a code:Symbol ;
     rdfs:label "notebookDatePath" ;
@@ -41509,7 +42493,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#notebookDatePath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 127 .
+    code:lineHint 135 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#notebookItemPath> a code:Symbol ;
     rdfs:label "notebookItemPath" ;
@@ -41517,7 +42501,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#notebookItemPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 132 .
+    code:lineHint 140 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#feedPath> a code:Symbol ;
     rdfs:label "feedPath" ;
@@ -41525,7 +42509,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#feedPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 137 .
+    code:lineHint 145 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#runPath> a code:Symbol ;
     rdfs:label "runPath" ;
@@ -41533,7 +42517,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#runPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 142 .
+    code:lineHint 150 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#PlaygroundLoadUrlOptions> a code:Symbol ;
     rdfs:label "PlaygroundLoadUrlOptions" ;
@@ -41541,7 +42525,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#PlaygroundLoadUrlOptions" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 146 .
+    code:lineHint 154 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#buildPlaygroundLoadUrl> a code:Symbol ;
     rdfs:label "buildPlaygroundLoadUrl" ;
@@ -41549,7 +42533,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#buildPlaygroundLoadUrl" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 151 .
+    code:lineHint 159 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#sessionsPath> a code:Symbol ;
     rdfs:label "sessionsPath" ;
@@ -41557,7 +42541,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#sessionsPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 156 .
+    code:lineHint 164 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#sessionDetailPath> a code:Symbol ;
     rdfs:label "sessionDetailPath" ;
@@ -41565,7 +42549,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#sessionDetailPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 161 .
+    code:lineHint 169 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#sessionDatePath> a code:Symbol ;
     rdfs:label "sessionDatePath" ;
@@ -41573,7 +42557,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#sessionDatePath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 166 .
+    code:lineHint 174 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#pagePath> a code:Symbol ;
     rdfs:label "pagePath" ;
@@ -41581,7 +42565,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#pagePath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 171 .
+    code:lineHint 179 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#playgroundsPath> a code:Symbol ;
     rdfs:label "playgroundsPath" ;
@@ -41589,7 +42573,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#playgroundsPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 176 .
+    code:lineHint 184 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#effortsPath> a code:Symbol ;
     rdfs:label "effortsPath" ;
@@ -41597,7 +42581,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#effortsPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 180 .
+    code:lineHint 188 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#equipmentPath> a code:Symbol ;
     rdfs:label "equipmentPath" ;
@@ -41605,7 +42589,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#equipmentPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 185 .
+    code:lineHint 193 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#tagCategoryPath> a code:Symbol ;
     rdfs:label "tagCategoryPath" ;
@@ -41613,7 +42597,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#tagCategoryPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 190 .
+    code:lineHint 198 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#tagPath> a code:Symbol ;
     rdfs:label "tagPath" ;
@@ -41621,7 +42605,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#tagPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 195 .
+    code:lineHint 203 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#analyticsExplorerPath> a code:Symbol ;
     rdfs:label "analyticsExplorerPath" ;
@@ -41629,7 +42613,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#analyticsExplorerPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 200 .
+    code:lineHint 208 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#dashboardsPath> a code:Symbol ;
     rdfs:label "dashboardsPath" ;
@@ -41637,7 +42621,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#dashboardsPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 209 .
+    code:lineHint 217 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#dashboardViewPath> a code:Symbol ;
     rdfs:label "dashboardViewPath" ;
@@ -41645,7 +42629,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#dashboardViewPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 214 .
+    code:lineHint 222 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#effortPath> a code:Symbol ;
     rdfs:label "effortPath" ;
@@ -41653,7 +42637,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#effortPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 219 .
+    code:lineHint 227 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#parseEffortRouteModifiers> a code:Symbol ;
     rdfs:label "parseEffortRouteModifiers" ;
@@ -41661,7 +42645,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#parseEffortRouteModifiers" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 240 .
+    code:lineHint 248 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#parseEffortRouteOptions> a code:Symbol ;
     rdfs:label "parseEffortRouteOptions" ;
@@ -41669,7 +42653,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#parseEffortRouteOptions" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 251 .
+    code:lineHint 259 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#settingsPath> a code:Symbol ;
     rdfs:label "settingsPath" ;
@@ -41677,7 +42661,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#settingsPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 266 .
+    code:lineHint 274 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#isPlaygroundNotePath> a code:Symbol ;
     rdfs:label "isPlaygroundNotePath" ;
@@ -41685,7 +42669,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#isPlaygroundNotePath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 274 .
+    code:lineHint 282 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#isDayPath> a code:Symbol ;
     rdfs:label "isDayPath" ;
@@ -41693,7 +42677,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#isDayPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 278 .
+    code:lineHint 286 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#isTrackerPath> a code:Symbol ;
     rdfs:label "isTrackerPath" ;
@@ -41701,7 +42685,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#isTrackerPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 282 .
+    code:lineHint 290 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#isNotebookItemPath> a code:Symbol ;
     rdfs:label "isNotebookItemPath" ;
@@ -41709,7 +42693,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#isNotebookItemPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 286 .
+    code:lineHint 294 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#isEffortsPath> a code:Symbol ;
     rdfs:label "isEffortsPath" ;
@@ -41717,7 +42701,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#isEffortsPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 290 .
+    code:lineHint 298 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#isEquipmentPath> a code:Symbol ;
     rdfs:label "isEquipmentPath" ;
@@ -41725,7 +42709,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#isEquipmentPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 294 .
+    code:lineHint 302 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#isEffortPath> a code:Symbol ;
     rdfs:label "isEffortPath" ;
@@ -41733,7 +42717,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#isEffortPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 298 .
+    code:lineHint 306 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#isAiFirstPath> a code:Symbol ;
     rdfs:label "isAiFirstPath" ;
@@ -41741,7 +42725,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#isAiFirstPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 302 .
+    code:lineHint 310 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#matchNotebookItem> a code:Symbol ;
     rdfs:label "matchNotebookItem" ;
@@ -41749,7 +42733,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#matchNotebookItem" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 306 .
+    code:lineHint 314 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/lib/routes.ts#matchFeedDetail> a code:Symbol ;
     rdfs:label "matchFeedDetail" ;
@@ -41757,7 +42741,7 @@
     code:scipId "apps/playground/src/lib/routes.ts#matchFeedDetail" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> ;
-    code:lineHint 311 .
+    code:lineHint 319 .
 
 <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> a code:File ;
     rdfs:label "testIds.ts" ;
@@ -42881,6 +43865,12 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/panels/preview-panel-chromecast.tsx> ;
     code:lineHint 18 .
 
+<https://wod.wiki/code/file/apps/playground/src/panels/review-panel-chromecast.test.ts> a code:File ;
+    rdfs:label "review-panel-chromecast.test.ts" ;
+    code:filePath "apps/playground/src/panels/review-panel-chromecast.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/apps/playground/src/panels/review-panel-chromecast.tsx> a code:File ;
     rdfs:label "review-panel-chromecast.tsx" ;
     code:filePath "apps/playground/src/panels/review-panel-chromecast.tsx" ;
@@ -43259,6 +44249,12 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/repositories/workout/ExerciseDefinitionService.ts> ;
     code:lineHint 12 .
 
+<https://wod.wiki/code/file/apps/playground/src/runtime/debug-sort.test.ts> a code:File ;
+    rdfs:label "debug-sort.test.ts" ;
+    code:filePath "apps/playground/src/runtime/debug-sort.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/apps/playground/src/services/__tests__/DialectRegistry.test.ts> a code:File ;
     rdfs:label "DialectRegistry.test.ts" ;
     code:filePath "apps/playground/src/services/__tests__/DialectRegistry.test.ts" ;
@@ -43324,6 +44320,12 @@
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/actuals.ts> ;
     code:lineHint 201 .
+
+<https://wod.wiki/code/file/apps/playground/src/services/analytics/analytics-contract.test.ts> a code:File ;
+    rdfs:label "analytics-contract.test.ts" ;
+    code:filePath "apps/playground/src/services/analytics/analytics-contract.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
 
 <https://wod.wiki/code/file/apps/playground/src/services/analytics/captureMetricCorrection.test.ts> a code:File ;
     rdfs:label "captureMetricCorrection.test.ts" ;
@@ -43429,6 +44431,12 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/analytics/captureSessionRpe.ts> ;
     code:lineHint 39 .
 
+<https://wod.wiki/code/file/apps/playground/src/services/analytics/effort-registry-crud-analytics.test.ts> a code:File ;
+    rdfs:label "effort-registry-crud-analytics.test.ts" ;
+    code:filePath "apps/playground/src/services/analytics/effort-registry-crud-analytics.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/apps/playground/src/services/analytics/pr/directionOfBetter.test.ts> a code:File ;
     rdfs:label "directionOfBetter.test.ts" ;
     code:filePath "apps/playground/src/services/analytics/pr/directionOfBetter.test.ts" ;
@@ -43508,6 +44516,12 @@
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/analytics/pr/prDetection.ts> ;
     code:lineHint 23 .
+
+<https://wod.wiki/code/file/apps/playground/src/services/analytics/processor-split-validation.test.ts> a code:File ;
+    rdfs:label "processor-split-validation.test.ts" ;
+    code:filePath "apps/playground/src/services/analytics/processor-split-validation.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
 
 <https://wod.wiki/code/file/apps/playground/src/services/analytics/sample.test.ts> a code:File ;
     rdfs:label "sample.test.ts" ;
@@ -44043,6 +45057,12 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/cast/adapters/ChromecastBackend.ts> ;
     code:lineHint 79 .
 
+<https://wod.wiki/code/file/apps/playground/src/services/cast/cast-roundtrip.test.ts> a code:File ;
+    rdfs:label "cast-roundtrip.test.ts" ;
+    code:filePath "apps/playground/src/services/cast/cast-roundtrip.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/apps/playground/src/services/cast/CastSignaling.ts> a code:File ;
     rdfs:label "CastSignaling.ts" ;
     code:filePath "apps/playground/src/services/cast/CastSignaling.ts" ;
@@ -44194,6 +45214,12 @@
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/cast/config.ts> ;
     code:lineHint 71 .
+
+<https://wod.wiki/code/file/apps/playground/src/services/cast/full-scale-integration.test.ts> a code:File ;
+    rdfs:label "full-scale-integration.test.ts" ;
+    code:filePath "apps/playground/src/services/cast/full-scale-integration.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
 
 <https://wod.wiki/code/file/apps/playground/src/services/cast/getCastBackend.ts> a code:File ;
     rdfs:label "getCastBackend.ts" ;
@@ -45507,7 +46533,31 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#NoteImportResult" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 48 .
+    code:lineHint 49 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#InvalidBundleError> a code:Symbol ;
+    rdfs:label "InvalidBundleError" ;
+    code:symbolName "InvalidBundleError" ;
+    code:scipId "apps/playground/src/services/ExportImportService.ts#InvalidBundleError" ;
+    code:symbolKind "class" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
+    code:lineHint 57 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#EmptyBundleError> a code:Symbol ;
+    rdfs:label "EmptyBundleError" ;
+    code:symbolName "EmptyBundleError" ;
+    code:scipId "apps/playground/src/services/ExportImportService.ts#EmptyBundleError" ;
+    code:symbolKind "class" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
+    code:lineHint 65 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#FeedExportError> a code:Symbol ;
+    rdfs:label "FeedExportError" ;
+    code:symbolName "FeedExportError" ;
+    code:scipId "apps/playground/src/services/ExportImportService.ts#FeedExportError" ;
+    code:symbolKind "class" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
+    code:lineHint 75 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#ParsedNoteEntry> a code:Symbol ;
     rdfs:label "ParsedNoteEntry" ;
@@ -45515,7 +46565,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#ParsedNoteEntry" ;
     code:symbolKind "type" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 55 .
+    code:lineHint 84 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#ZipFeedTree> a code:Symbol ;
     rdfs:label "ZipFeedTree" ;
@@ -45523,7 +46573,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#ZipFeedTree" ;
     code:symbolKind "class" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 64 .
+    code:lineHint 93 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#downloadBlob> a code:Symbol ;
     rdfs:label "downloadBlob" ;
@@ -45531,7 +46581,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#downloadBlob" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 124 .
+    code:lineHint 153 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#downloadTextFile> a code:Symbol ;
     rdfs:label "downloadTextFile" ;
@@ -45539,7 +46589,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#downloadTextFile" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 135 .
+    code:lineHint 164 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#pickFile> a code:Symbol ;
     rdfs:label "pickFile" ;
@@ -45547,7 +46597,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#pickFile" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 139 .
+    code:lineHint 168 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#createNoteFromMarkdown> a code:Symbol ;
     rdfs:label "createNoteFromMarkdown" ;
@@ -45555,7 +46605,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#createNoteFromMarkdown" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 172 .
+    code:lineHint 201 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#exportAllNotes> a code:Symbol ;
     rdfs:label "exportAllNotes" ;
@@ -45563,7 +46613,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#exportAllNotes" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 213 .
+    code:lineHint 242 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#exportNote> a code:Symbol ;
     rdfs:label "exportNote" ;
@@ -45571,7 +46621,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#exportNote" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 247 .
+    code:lineHint 276 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#importFromMarkdown> a code:Symbol ;
     rdfs:label "importFromMarkdown" ;
@@ -45579,7 +46629,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#importFromMarkdown" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 398 .
+    code:lineHint 427 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#importFromJsonl> a code:Symbol ;
     rdfs:label "importFromJsonl" ;
@@ -45587,7 +46637,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#importFromJsonl" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 421 .
+    code:lineHint 450 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#importFromCsv> a code:Symbol ;
     rdfs:label "importFromCsv" ;
@@ -45595,7 +46645,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#importFromCsv" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 435 .
+    code:lineHint 464 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#importFromZip> a code:Symbol ;
     rdfs:label "importFromZip" ;
@@ -45603,7 +46653,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#importFromZip" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 452 .
+    code:lineHint 481 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#OutboundFeedStatus> a code:Symbol ;
     rdfs:label "OutboundFeedStatus" ;
@@ -45611,7 +46661,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#OutboundFeedStatus" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 551 .
+    code:lineHint 589 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#getOutboundFeedStatus> a code:Symbol ;
     rdfs:label "getOutboundFeedStatus" ;
@@ -45619,7 +46669,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#getOutboundFeedStatus" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 556 .
+    code:lineHint 594 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#publishSelfHostedFeed> a code:Symbol ;
     rdfs:label "publishSelfHostedFeed" ;
@@ -45627,7 +46677,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#publishSelfHostedFeed" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 570 .
+    code:lineHint 608 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#exportFeedRepositoryZip> a code:Symbol ;
     rdfs:label "exportFeedRepositoryZip" ;
@@ -45635,7 +46685,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#exportFeedRepositoryZip" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 587 .
+    code:lineHint 653 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#supportsDirectoryPicker> a code:Symbol ;
     rdfs:label "supportsDirectoryPicker" ;
@@ -45643,7 +46693,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#supportsDirectoryPicker" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 606 .
+    code:lineHint 688 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/ExportImportService.ts#exportFeedRepositoryToDirectory> a code:Symbol ;
     rdfs:label "exportFeedRepositoryToDirectory" ;
@@ -45651,7 +46701,7 @@
     code:scipId "apps/playground/src/services/ExportImportService.ts#exportFeedRepositoryToDirectory" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/ExportImportService.ts> ;
-    code:lineHint 610 .
+    code:lineHint 692 .
 
 <https://wod.wiki/code/file/apps/playground/src/services/feed/feed-import-measure.ts> a code:File ;
     rdfs:label "feed-import-measure.ts" ;
@@ -46969,7 +48019,7 @@
     code:scipId "apps/playground/src/services/persistence/IndexedDBNotePersistence.ts#IndexedDBNotePersistence" ;
     code:symbolKind "class" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/persistence/IndexedDBNotePersistence.ts> ;
-    code:lineHint 129 .
+    code:lineHint 150 .
 
 <https://wod.wiki/code/file/apps/playground/src/services/persistence/INotePersistence.ts> a code:File ;
     rdfs:label "INotePersistence.ts" ;
@@ -47273,13 +48323,21 @@
     code:packageName "apps/playground" ;
     code:isTestFile false .
 
+<https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#RegistryEffortStore> a code:Symbol ;
+    rdfs:label "RegistryEffortStore" ;
+    code:symbolName "RegistryEffortStore" ;
+    code:scipId "apps/playground/src/services/queryService.ts#RegistryEffortStore" ;
+    code:symbolKind "class" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
+    code:lineHint 49 .
+
 <https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#indexedDbEventStore> a code:Symbol ;
     rdfs:label "indexedDbEventStore" ;
     code:symbolName "indexedDbEventStore" ;
     code:scipId "apps/playground/src/services/queryService.ts#indexedDbEventStore" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 48 .
+    code:lineHint 68 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#indexedDbNoteStore> a code:Symbol ;
     rdfs:label "indexedDbNoteStore" ;
@@ -47287,7 +48345,7 @@
     code:scipId "apps/playground/src/services/queryService.ts#indexedDbNoteStore" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 60 .
+    code:lineHint 69 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#indexedDbBlockStore> a code:Symbol ;
     rdfs:label "indexedDbBlockStore" ;
@@ -47295,15 +48353,7 @@
     code:scipId "apps/playground/src/services/queryService.ts#indexedDbBlockStore" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 78 .
-
-<https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#RegistryEffortStore> a code:Symbol ;
-    rdfs:label "RegistryEffortStore" ;
-    code:symbolName "RegistryEffortStore" ;
-    code:scipId "apps/playground/src/services/queryService.ts#RegistryEffortStore" ;
-    code:symbolKind "class" ;
-    code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 93 .
+    code:lineHint 70 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#pageSourceRegistry> a code:Symbol ;
     rdfs:label "pageSourceRegistry" ;
@@ -47311,7 +48361,7 @@
     code:scipId "apps/playground/src/services/queryService.ts#pageSourceRegistry" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 114 .
+    code:lineHint 83 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#ensurePageSources> a code:Symbol ;
     rdfs:label "ensurePageSources" ;
@@ -47319,7 +48369,7 @@
     code:scipId "apps/playground/src/services/queryService.ts#ensurePageSources" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 237 .
+    code:lineHint 206 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#refreshPageSources> a code:Symbol ;
     rdfs:label "refreshPageSources" ;
@@ -47327,7 +48377,7 @@
     code:scipId "apps/playground/src/services/queryService.ts#refreshPageSources" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 247 .
+    code:lineHint 216 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#sourcesReadySnapshot> a code:Symbol ;
     rdfs:label "sourcesReadySnapshot" ;
@@ -47335,7 +48385,7 @@
     code:scipId "apps/playground/src/services/queryService.ts#sourcesReadySnapshot" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 257 .
+    code:lineHint 226 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#subscribePageSourcesReady> a code:Symbol ;
     rdfs:label "subscribePageSourcesReady" ;
@@ -47343,7 +48393,7 @@
     code:scipId "apps/playground/src/services/queryService.ts#subscribePageSourcesReady" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 260 .
+    code:lineHint 229 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#createQueryService> a code:Symbol ;
     rdfs:label "createQueryService" ;
@@ -47351,7 +48401,7 @@
     code:scipId "apps/playground/src/services/queryService.ts#createQueryService" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 299 .
+    code:lineHint 268 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#queryService> a code:Symbol ;
     rdfs:label "queryService" ;
@@ -47359,7 +48409,7 @@
     code:scipId "apps/playground/src/services/queryService.ts#queryService" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 344 .
+    code:lineHint 285 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/services/queryService.ts#createPlaygroundQueryService> a code:Symbol ;
     rdfs:label "createPlaygroundQueryService" ;
@@ -47367,7 +48417,7 @@
     code:scipId "apps/playground/src/services/queryService.ts#createPlaygroundQueryService" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/queryService.ts> ;
-    code:lineHint 347 .
+    code:lineHint 288 .
 
 <https://wod.wiki/code/file/apps/playground/src/services/resultRecorder.test.ts> a code:File ;
     rdfs:label "resultRecorder.test.ts" ;
@@ -47537,6 +48587,24 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/runCapture.ts> ;
     code:lineHint 137 .
 
+<https://wod.wiki/code/file/apps/playground/src/services/sound/SoundBridge.test.tsx> a code:File ;
+    rdfs:label "SoundBridge.test.tsx" ;
+    code:filePath "apps/playground/src/services/sound/SoundBridge.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/services/sound/SoundProfileBehavior.test.ts> a code:File ;
+    rdfs:label "SoundProfileBehavior.test.ts" ;
+    code:filePath "apps/playground/src/services/sound/SoundProfileBehavior.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/services/sound/soundProfiles.test.ts> a code:File ;
+    rdfs:label "soundProfiles.test.ts" ;
+    code:filePath "apps/playground/src/services/sound/soundProfiles.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/apps/playground/src/services/sound/soundProfiles.ts> a code:File ;
     rdfs:label "soundProfiles.ts" ;
     code:filePath "apps/playground/src/services/sound/soundProfiles.ts" ;
@@ -47678,6 +48746,12 @@
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/sound/soundProfiles.ts> ;
     code:lineHint 281 .
+
+<https://wod.wiki/code/file/apps/playground/src/services/sound/SoundProfileSelection.test.ts> a code:File ;
+    rdfs:label "SoundProfileSelection.test.ts" ;
+    code:filePath "apps/playground/src/services/sound/SoundProfileSelection.test.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
 
 <https://wod.wiki/code/file/apps/playground/src/services/sound/soundTagNaming.ts> a code:File ;
     rdfs:label "soundTagNaming.ts" ;
@@ -47968,22 +49042,6 @@
     code:filePath "apps/playground/src/services/storage/InMemoryStorage.ts" ;
     code:packageName "apps/playground" ;
     code:isTestFile false .
-
-<https://wod.wiki/code/symbol/apps/playground/src/services/storage/InMemoryStorage.ts#InMemoryStore> a code:Symbol ;
-    rdfs:label "InMemoryStore" ;
-    code:symbolName "InMemoryStore" ;
-    code:scipId "apps/playground/src/services/storage/InMemoryStorage.ts#InMemoryStore" ;
-    code:symbolKind "class" ;
-    code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/storage/InMemoryStorage.ts> ;
-    code:lineHint 10 .
-
-<https://wod.wiki/code/symbol/apps/playground/src/services/storage/InMemoryStorage.ts#InMemoryStorage> a code:Symbol ;
-    rdfs:label "InMemoryStorage" ;
-    code:symbolName "InMemoryStorage" ;
-    code:scipId "apps/playground/src/services/storage/InMemoryStorage.ts#InMemoryStorage" ;
-    code:symbolKind "class" ;
-    code:definedIn <https://wod.wiki/code/file/apps/playground/src/services/storage/InMemoryStorage.ts> ;
-    code:lineHint 115 .
 
 <https://wod.wiki/code/file/apps/playground/src/services/storage/IStorage.ts> a code:File ;
     rdfs:label "IStorage.ts" ;
@@ -49033,6 +50091,42 @@
 <https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/mobile-nav-drawer> .
 <https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/mobile-nav-close> .
 <https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/mobile-nav-open> .
+<https://wod.wiki/code/file/apps/playground/src/testing/bun-test-shim.ts> a code:File ;
+    rdfs:label "bun-test-shim.ts" ;
+    code:filePath "apps/playground/src/testing/bun-test-shim.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/apps/playground/src/testing/bun-test-shim.ts#mock> a code:Symbol ;
+    rdfs:label "mock" ;
+    code:symbolName "mock" ;
+    code:scipId "apps/playground/src/testing/bun-test-shim.ts#mock" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/bun-test-shim.ts> ;
+    code:lineHint 19 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/testing/bun-test-shim.ts#spyOn> a code:Symbol ;
+    rdfs:label "spyOn" ;
+    code:symbolName "spyOn" ;
+    code:scipId "apps/playground/src/testing/bun-test-shim.ts#spyOn" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/bun-test-shim.ts> ;
+    code:lineHint 28 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/testing/bun-test-shim.ts#jest> a code:Symbol ;
+    rdfs:label "jest" ;
+    code:symbolName "jest" ;
+    code:scipId "apps/playground/src/testing/bun-test-shim.ts#jest" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/bun-test-shim.ts> ;
+    code:lineHint 29 .
+
+<https://wod.wiki/code/file/apps/playground/src/testing/harness/RuntimeTestBuilder.ts> a code:File ;
+    rdfs:label "RuntimeTestBuilder.ts" ;
+    code:filePath "apps/playground/src/testing/harness/RuntimeTestBuilder.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
 <https://wod.wiki/code/file/apps/playground/src/testing/host.test.tsx> a code:File ;
     rdfs:label "host.test.tsx" ;
     code:filePath "apps/playground/src/testing/host.test.tsx" ;
@@ -49051,7 +50145,7 @@
     code:scipId "apps/playground/src/testing/host.tsx#PlaygroundHostOptions" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/host.tsx> ;
-    code:lineHint 38 .
+    code:lineHint 35 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/testing/host.tsx#PlaygroundHostHandle> a code:Symbol ;
     rdfs:label "PlaygroundHostHandle" ;
@@ -49059,7 +50153,7 @@
     code:scipId "apps/playground/src/testing/host.tsx#PlaygroundHostHandle" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/host.tsx> ;
-    code:lineHint 47 .
+    code:lineHint 44 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/testing/host.tsx#hydratePlaygroundStorage> a code:Symbol ;
     rdfs:label "hydratePlaygroundStorage" ;
@@ -49067,7 +50161,7 @@
     code:scipId "apps/playground/src/testing/host.tsx#hydratePlaygroundStorage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/host.tsx> ;
-    code:lineHint 62 .
+    code:lineHint 59 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/testing/host.tsx#setupPlaygroundTestHost> a code:Symbol ;
     rdfs:label "setupPlaygroundTestHost" ;
@@ -49075,7 +50169,7 @@
     code:scipId "apps/playground/src/testing/host.tsx#setupPlaygroundTestHost" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/host.tsx> ;
-    code:lineHint 174 .
+    code:lineHint 69 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/testing/host.tsx#PlaygroundProviderTreeProps> a code:Symbol ;
     rdfs:label "PlaygroundProviderTreeProps" ;
@@ -49083,7 +50177,7 @@
     code:scipId "apps/playground/src/testing/host.tsx#PlaygroundProviderTreeProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/host.tsx> ;
-    code:lineHint 203 .
+    code:lineHint 98 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/testing/host.tsx#PlaygroundProviderTree> a code:Symbol ;
     rdfs:label "PlaygroundProviderTree" ;
@@ -49091,7 +50185,7 @@
     code:scipId "apps/playground/src/testing/host.tsx#PlaygroundProviderTree" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/host.tsx> ;
-    code:lineHint 221 .
+    code:lineHint 116 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/testing/host.tsx#PlaygroundRenderOptions> a code:Symbol ;
     rdfs:label "PlaygroundRenderOptions" ;
@@ -49099,7 +50193,7 @@
     code:scipId "apps/playground/src/testing/host.tsx#PlaygroundRenderOptions" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/host.tsx> ;
-    code:lineHint 278 .
+    code:lineHint 173 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/testing/host.tsx#PlaygroundRenderResult> a code:Symbol ;
     rdfs:label "PlaygroundRenderResult" ;
@@ -49107,7 +50201,7 @@
     code:scipId "apps/playground/src/testing/host.tsx#PlaygroundRenderResult" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/host.tsx> ;
-    code:lineHint 282 .
+    code:lineHint 177 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/testing/host.tsx#renderWithPlaygroundHost> a code:Symbol ;
     rdfs:label "renderWithPlaygroundHost" ;
@@ -49115,7 +50209,101 @@
     code:scipId "apps/playground/src/testing/host.tsx#renderWithPlaygroundHost" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/host.tsx> ;
-    code:lineHint 288 .
+    code:lineHint 183 .
+
+<https://wod.wiki/code/file/apps/playground/src/testing/index.ts> a code:File ;
+    rdfs:label "index.ts" ;
+    code:filePath "apps/playground/src/testing/index.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/file/apps/playground/src/testing/script/assertions.ts> a code:File ;
+    rdfs:label "assertions.ts" ;
+    code:filePath "apps/playground/src/testing/script/assertions.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/file/apps/playground/src/testing/script/compliance.ts> a code:File ;
+    rdfs:label "compliance.ts" ;
+    code:filePath "apps/playground/src/testing/script/compliance.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/apps/playground/src/testing/script/compliance.ts#ComplianceContext> a code:Symbol ;
+    rdfs:label "ComplianceContext" ;
+    code:symbolName "ComplianceContext" ;
+    code:scipId "apps/playground/src/testing/script/compliance.ts#ComplianceContext" ;
+    code:symbolKind "type" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/script/compliance.ts> ;
+    code:lineHint 4 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/testing/script/compliance.ts#describeCompliance> a code:Symbol ;
+    rdfs:label "describeCompliance" ;
+    code:symbolName "describeCompliance" ;
+    code:scipId "apps/playground/src/testing/script/compliance.ts#describeCompliance" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/script/compliance.ts> ;
+    code:lineHint 6 .
+
+<https://wod.wiki/code/file/apps/playground/src/testing/script/index.ts> a code:File ;
+    rdfs:label "index.ts" ;
+    code:filePath "apps/playground/src/testing/script/index.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/file/apps/playground/src/testing/script/ScriptState.ts> a code:File ;
+    rdfs:label "ScriptState.ts" ;
+    code:filePath "apps/playground/src/testing/script/ScriptState.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/file/apps/playground/src/testing/script/TestScript.ts> a code:File ;
+    rdfs:label "TestScript.ts" ;
+    code:filePath "apps/playground/src/testing/script/TestScript.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/apps/playground/src/testing/script/TestScript.ts#TestScript> a code:Symbol ;
+    rdfs:label "TestScript" ;
+    code:symbolName "TestScript" ;
+    code:scipId "apps/playground/src/testing/script/TestScript.ts#TestScript" ;
+    code:symbolKind "class" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/script/TestScript.ts> ;
+    code:lineHint 42 .
+
+<https://wod.wiki/code/file/apps/playground/src/testing/transport/FakeRpcTransport.ts> a code:File ;
+    rdfs:label "FakeRpcTransport.ts" ;
+    code:filePath "apps/playground/src/testing/transport/FakeRpcTransport.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/apps/playground/src/testing/transport/FakeRpcTransport.ts#FakeRpcTransport> a code:Symbol ;
+    rdfs:label "FakeRpcTransport" ;
+    code:symbolName "FakeRpcTransport" ;
+    code:scipId "apps/playground/src/testing/transport/FakeRpcTransport.ts#FakeRpcTransport" ;
+    code:symbolKind "class" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/transport/FakeRpcTransport.ts> ;
+    code:lineHint 10 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/testing/transport/FakeRpcTransport.ts#connectPair> a code:Symbol ;
+    rdfs:label "connectPair" ;
+    code:symbolName "connectPair" ;
+    code:scipId "apps/playground/src/testing/transport/FakeRpcTransport.ts#connectPair" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/testing/transport/FakeRpcTransport.ts> ;
+    code:lineHint 12 .
+
+<https://wod.wiki/code/file/apps/playground/src/testing/transport/index.ts> a code:File ;
+    rdfs:label "index.ts" ;
+    code:filePath "apps/playground/src/testing/transport/index.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/file/apps/playground/src/testing/vitest-setup.ts> a code:File ;
+    rdfs:label "vitest-setup.ts" ;
+    code:filePath "apps/playground/src/testing/vitest-setup.ts" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
 
 <https://wod.wiki/code/file/apps/playground/src/tools/ExerciseNameIndexer.ts> a code:File ;
     rdfs:label "ExerciseNameIndexer.ts" ;
@@ -52554,30 +53742,13 @@
     code:routePath "/settings/sound-profiles" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> .
 
-<https://wod.wiki/code/route/settings_data> a code:Route ;
-    rdfs:label "/settings/data" ;
-    code:routeName "settingsData" ;
-    code:routePath "/settings/data" ;
-    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> .
-
-<https://wod.wiki/code/route/settings_database> a code:Route ;
-    rdfs:label "/settings/database" ;
-    code:routeName "settingsDatabase" ;
-    code:routePath "/settings/database" ;
-    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> .
-
-<https://wod.wiki/code/route/settings_queries> a code:Route ;
-    rdfs:label "/settings/queries" ;
-    code:routeName "settingsQueries" ;
-    code:routePath "/settings/queries" ;
-    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/routes.ts> .
-
 <https://wod.wiki/code/tool/wod_catalog_lookup> a code:WebMcpTool ;
     rdfs:label "wod_catalog_lookup" ;
     code:toolName "wod_catalog_lookup" ;
     code:toolTitle "Lookup Efforts, Equipment & Tags" ;
     code:toolDomain "catalog" ;
     code:toolTier 0 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod catalog <efforts|equipment|tags> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/catalogTools.ts> .
 
@@ -52587,6 +53758,7 @@
     code:toolTitle "Save Effort, Equipment, or Tag Property Note" ;
     code:toolDomain "catalog" ;
     code:toolTier 1 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod catalog save <kind> <file|-> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/catalogTools.ts> .
 
@@ -52596,7 +53768,8 @@
     code:toolTitle "Manage Feeds & Portability" ;
     code:toolDomain "feed" ;
     code:toolTier 1 ;
-    code:cliEquivalent "wod feed <list|status|publish> --json" ;
+    code:isUiTool false ;
+    code:cliEquivalent "wod feed <list|status|publish|subscribe|unsubscribe|delete> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/feedTools.ts> .
 
 <https://wod.wiki/code/tool/wod_export_bundle> a code:WebMcpTool ;
@@ -52605,6 +53778,7 @@
     code:toolTitle "Export Portable Markdown & Telemetry Bundle" ;
     code:toolDomain "feed" ;
     code:toolTier 0 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod export note <id> -o -" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/feedTools.ts> .
 
@@ -52614,6 +53788,7 @@
     code:toolTitle "Wipe Storage Data" ;
     code:toolDomain "system" ;
     code:toolTier 2 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod reset --yes WIPE_STORAGE --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/feedTools.ts> .
 
@@ -52623,6 +53798,7 @@
     code:toolTitle "Get Journal Day" ;
     code:toolDomain "journal" ;
     code:toolTier 0 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod journal [today|YYYY-MM-DD] --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/journalTools.ts> .
 
@@ -52632,6 +53808,7 @@
     code:toolTitle "Add Workout to Journal Day" ;
     code:toolDomain "journal" ;
     code:toolTier 1 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod journal add <file|-> --date YYYY-MM-DD --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/journalTools.ts> .
 
@@ -52641,6 +53818,7 @@
     code:toolTitle "List Notes" ;
     code:toolDomain "note" ;
     code:toolTier 0 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod note list --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> .
 
@@ -52650,6 +53828,7 @@
     code:toolTitle "Get Note Details" ;
     code:toolDomain "note" ;
     code:toolTier 0 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod note get <noteId> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> .
 
@@ -52659,6 +53838,7 @@
     code:toolTitle "Create or Update Note" ;
     code:toolDomain "note" ;
     code:toolTier 1 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod note save <file|-> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> .
 
@@ -52668,6 +53848,7 @@
     code:toolTitle "Clone Note with Provenance" ;
     code:toolDomain "note" ;
     code:toolTier 1 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod note clone <sourceNoteId> --notebook <slug> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> .
 
@@ -52677,6 +53858,7 @@
     code:toolTitle "Delete Note" ;
     code:toolDomain "note" ;
     code:toolTier 2 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod note delete <noteId> --yes <noteId> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> .
 
@@ -52686,6 +53868,7 @@
     code:toolTitle "List Notebooks" ;
     code:toolDomain "notebook" ;
     code:toolTier 0 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod notebook list --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/notebookTools.ts> .
 
@@ -52695,6 +53878,7 @@
     code:toolTitle "Create, Update, or Promote Notebook" ;
     code:toolDomain "notebook" ;
     code:toolTier 1 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod notebook <create|update|promote> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/notebookTools.ts> .
 
@@ -52704,6 +53888,7 @@
     code:toolTitle "Delete User Notebook" ;
     code:toolDomain "notebook" ;
     code:toolTier 2 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod notebook delete <slug> --yes <slug> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/notebookTools.ts> .
 
@@ -52713,6 +53898,7 @@
     code:toolTitle "Parse Whiteboard Script" ;
     code:toolDomain "script" ;
     code:toolTier 0 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod parse - --no-save --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/scriptTools.ts> .
 
@@ -52722,6 +53908,7 @@
     code:toolTitle "Run Workout Session Headlessly" ;
     code:toolDomain "session" ;
     code:toolTier 1 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod run <file|--note id> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/sessionTools.ts> .
 
@@ -52731,6 +53918,7 @@
     code:toolTitle "List Recorded Sessions" ;
     code:toolDomain "session" ;
     code:toolTier 0 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod session list --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/sessionTools.ts> .
 
@@ -52740,6 +53928,7 @@
     code:toolTitle "Get Session Telemetry" ;
     code:toolDomain "session" ;
     code:toolTier 0 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod session get <sessionId> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/sessionTools.ts> .
 
@@ -52749,6 +53938,7 @@
     code:toolTitle "Delete Recorded Session" ;
     code:toolDomain "session" ;
     code:toolTier 2 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod session delete <sessionId> --yes <sessionId> --json" ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/sessionTools.ts> .
 
@@ -52758,6 +53948,7 @@
     code:toolTitle "Validate & Inspect WQL Query" ;
     code:toolDomain "wql" ;
     code:toolTier 0 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod query " ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/wqlTools.ts> .
 
@@ -52767,8 +53958,108 @@
     code:toolTitle "Execute WQL Query" ;
     code:toolDomain "wql" ;
     code:toolTier 0 ;
+    code:isUiTool false ;
     code:cliEquivalent "wod query " ;
     code:definedIn <https://wod.wiki/code/file/packages/engine/src/agent/tools/wqlTools.ts> .
+
+<https://wod.wiki/code/tool/ui_get_view_context> a code:WebMcpTool ;
+    rdfs:label "ui_get_view_context" ;
+    code:toolName "ui_get_view_context" ;
+    code:toolTitle "Get Active UI View Context" ;
+    code:toolDomain "ui" ;
+    code:toolTier 0 ;
+    code:isUiTool true ;
+    code:mountScope "always (Playground shell)" ;
+    code:cliEquivalent "playwright:ui_get_view_context" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> .
+
+<https://wod.wiki/code/tool/ui_navigate> a code:WebMcpTool ;
+    rdfs:label "ui_navigate" ;
+    code:toolName "ui_navigate" ;
+    code:toolTitle "Navigate Playground Route" ;
+    code:toolDomain "ui" ;
+    code:toolTier 1 ;
+    code:isUiTool true ;
+    code:mountScope "always (Playground shell)" ;
+    code:cliEquivalent "playwright:ui_navigate" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> .
+
+<https://wod.wiki/code/tool/ui_cast_control> a code:WebMcpTool ;
+    rdfs:label "ui_cast_control" ;
+    code:toolName "ui_cast_control" ;
+    code:toolTitle "Inspect or Disconnect Cast Session" ;
+    code:toolDomain "ui" ;
+    code:toolTier 1 ;
+    code:isUiTool true ;
+    code:mountScope "always (Playground shell)" ;
+    code:cliEquivalent "playwright:ui_cast_control" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> .
+
+<https://wod.wiki/code/tool/ui_set_stream_query> a code:WebMcpTool ;
+    rdfs:label "ui_set_stream_query" ;
+    code:toolName "ui_set_stream_query" ;
+    code:toolTitle "Set Live Stream WQL Query or Layout" ;
+    code:toolDomain "ui" ;
+    code:toolTier 1 ;
+    code:isUiTool true ;
+    code:mountScope "mounted stream routes (/journal, /notes, /notebooks, /sessions, /efforts, /tags, /feeds)" ;
+    code:cliEquivalent "playwright:ui_set_stream_query" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> .
+
+<https://wod.wiki/code/tool/ui_editor_draft> a code:WebMcpTool ;
+    rdfs:label "ui_editor_draft" ;
+    code:toolName "ui_editor_draft" ;
+    code:toolTitle "Read, Edit, or Undo Live Note Editor Buffer" ;
+    code:toolDomain "ui" ;
+    code:toolTier 1 ;
+    code:isUiTool true ;
+    code:mountScope "mounted Note / Journal / Playground editor surfaces" ;
+    code:cliEquivalent "playwright:ui_editor_draft" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> .
+
+<https://wod.wiki/code/tool/ui_start_live_workout> a code:WebMcpTool ;
+    rdfs:label "ui_start_live_workout" ;
+    code:toolName "ui_start_live_workout" ;
+    code:toolTitle "Start Live Interactive Workout Timer" ;
+    code:toolDomain "ui" ;
+    code:toolTier 1 ;
+    code:isUiTool true ;
+    code:mountScope "mounted Note / Journal / Playground editor surfaces" ;
+    code:cliEquivalent "playwright:ui_start_live_workout" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> .
+
+<https://wod.wiki/code/tool/ui_clock_control> a code:WebMcpTool ;
+    rdfs:label "ui_clock_control" ;
+    code:toolName "ui_clock_control" ;
+    code:toolTitle "Control Live Workout Clock" ;
+    code:toolDomain "ui" ;
+    code:toolTier 1 ;
+    code:isUiTool true ;
+    code:mountScope "mounted live workout timer (FullscreenTimer / RuntimeTimerPanel)" ;
+    code:cliEquivalent "playwright:ui_clock_control" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> .
+
+<https://wod.wiki/code/tool/ui_preferences> a code:WebMcpTool ;
+    rdfs:label "ui_preferences" ;
+    code:toolName "ui_preferences" ;
+    code:toolTitle "Get or Set Playground UI Preferences" ;
+    code:toolDomain "ui" ;
+    code:toolTier 1 ;
+    code:isUiTool true ;
+    code:mountScope "always (Playground shell)" ;
+    code:cliEquivalent "playwright:ui_preferences" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> .
+
+<https://wod.wiki/code/tool/ui_set_explorer_query> a code:WebMcpTool ;
+    rdfs:label "ui_set_explorer_query" ;
+    code:toolName "ui_set_explorer_query" ;
+    code:toolTitle "Set or Run Analytics Explorer WQL Query" ;
+    code:toolDomain "ui" ;
+    code:toolTier 1 ;
+    code:isUiTool true ;
+    code:mountScope "mounted Metric Explorer route (/dashboards)" ;
+    code:cliEquivalent "playwright:ui_set_explorer_query" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> .
 
 <https://wod.wiki/code/story/packages-ui-widgets-dashboardview--default> a code:Story ;
     rdfs:label "Packages/UI/Widgets/DashboardView / Default" ;

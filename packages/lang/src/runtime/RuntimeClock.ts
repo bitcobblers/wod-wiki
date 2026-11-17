@@ -197,7 +197,8 @@ export function createMockClock(initialTime: Date = new Date()): MockClock {
         now() { return currentTime; },
         nowMs() { return currentTime.getTime(); },
         get elapsed() {
-            return spans.reduce((total, span) => total + span.duration, 0);
+            const currentMs = currentTime.getTime();
+            return spans.reduce((total, span) => total + ((span.ended ?? currentMs) - span.started), 0);
         },
         get isRunning() {
             if (spans.length === 0) return false;

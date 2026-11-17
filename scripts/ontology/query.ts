@@ -199,8 +199,16 @@ class GraphStore {
 
 function loadStore(): GraphStore {
   const store = new GraphStore();
-  for (const name of ['code-graph.ttl', 'qa-instances.ttl', 'bridge-instances.ttl']) {
-    store.addAll(parseGeneratedTtl(path.join(GENERATED_DIR, name)));
+  const files = [
+    path.join(GENERATED_DIR, 'code-graph.ttl'),
+    path.join(GENERATED_DIR, 'qa-instances.ttl'),
+    path.join(GENERATED_DIR, 'bridge-instances.ttl'),
+    path.join(REPO_ROOT, 'ontology/qa/qa-snapshot.ttl'),
+  ];
+  for (const file of files) {
+    if (fs.existsSync(file)) {
+      store.addAll(parseGeneratedTtl(file));
+    }
   }
   return store;
 }
@@ -536,14 +544,302 @@ function queryBySymbol(store: GraphStore, symQuery: string, jsonMode: boolean) {
   }
 }
 
+function analyzePyramid(store: GraphStore) {
+  const allSuites = new Set<string>();
+  for (const type of [
+    'qa:VerificationSuite',
+    'qa:FixtureTableSuite',
+    'qa:StorageConformanceSuite',
+    'qa:DomainScenarioSuite',
+    'qa:HostSuite',
+    'qa:StoryTest',
+    'qa:Journey',
+  ]) {
+    for (const s of store.subjectsWith('rdf:type', type)) {
+      allSuites.add(s);
+    }
+  }
+
+  const suitesBySeam: Record<string, number> = {
+    'T1a-compute': 0,
+    'T1b-storage': 0,
+    'T1c-domain': 0,
+    'T2a-host': 0,
+    'T2b-story': 0,
+    'T3-journey': 0,
+  };
+  const suitesByTier: Record<string, number> = {
+    T0: 0,
+    T1: 0,
+    T2: 0,
+    T3: 0,
+  };
+
+  const suiteSeamMap = new Map<string, string>();
+  for (const s of allSuites) {
+    let seam = store.val(s, 'qa:seam');
+    let tier = store.val(s, 'qa:tier');
+    if (!seam) {
+      const types = store.vals(s, 'rdf:type');
+      if (types.includes('qa:FixtureTableSuite')) seam = 'T1a-compute';
+      else if (types.includes('qa:StorageConformanceSuite')) seam = 'T1b-storage';
+      else if (types.includes('qa:DomainScenarioSuite')) seam = 'T1c-domain';
+      else if (types.includes('qa:HostSuite')) seam = 'T2a-host';
+      else if (types.includes('qa:StoryTest')) seam = 'T2b-story';
+      else if (types.includes('qa:Journey')) seam = 'T3-journey';
+      else seam = 'T1a-compute';
+    }
+    if (!tier) {
+      tier = seam.startsWith('T1') ? 'T1' : seam.startsWith('T2') ? 'T2' : 'T3';
+    }
+    suiteSeamMap.set(s, seam);
+    if (suitesBySeam[seam] !== undefined) suitesBySeam[seam]++;
+    if (suitesByTier[tier] !== undefined) suitesByTier[tier]++;
+  }
+
+  const domainClasses = new Set<string>([
+    'wod:Note',
+    'wod:Session',
+    'wod:Notebook',
+    'wod:Page',
+    'wod:Effort',
+    'wod:Equipment',
+    'wod:Tag',
+    'wod:Dashboard',
+    'wod:Feed',
+    'wod:FieldValue',
+    'wod:Query',
+    'wod:EventRecord',
+    'wod:Metric',
+    'wod:Attachment',
+  ]);
+  for (const t of store.subjectsWith('bridge:seedNoun')) {
+    for (const noun of store.vals(t, 'bridge:seedNoun')) {
+      if (noun.startsWith('wod:')) domainClasses.add(noun);
+    }
+  }
+
+  const domainRows: Array<{
+    domainClass: string;
+    t1a: number;
+    t1b: number;
+    t1c: number;
+    t2a: number;
+    t2b: number;
+    t3: number;
+    status: 'balanced' | 'TOP-HEAVY' | 'uncovered';
+  }> = [];
+  const topHeavyNodes: Array<{
+    kind: 'domain' | 'route';
+    target: string;
+    t3Journeys: number;
+    lowerTierSuites: number;
+  }> = [];
+
+  for (const dc of [...domainClasses].sort()) {
+    const seeders = store.subjectsWith('bridge:seedNoun', dc);
+    let t1a = 0, t1b = 0, t1c = 0, t2a = 0, t2b = 0, t3 = 0;
+    for (const s of seeders) {
+      const seam = suiteSeamMap.get(s);
+      if (seam === 'T1a-compute') t1a++;
+      else if (seam === 'T1b-storage') t1b++;
+      else if (seam === 'T1c-domain') t1c++;
+      else if (seam === 'T2a-host') t2a++;
+      else if (seam === 'T2b-story') t2b++;
+      else if (seam === 'T3-journey') t3++;
+    }
+    const lowerTierCount = t1c + t2a + t2b;
+    const isTopHeavy = t3 >= 2 && lowerTierCount === 0;
+    const status = isTopHeavy ? 'TOP-HEAVY' : (t3 > 0 || lowerTierCount > 0 ? 'balanced' : 'uncovered');
+    domainRows.push({ domainClass: dc, t1a, t1b, t1c, t2a, t2b, t3, status });
+    if (isTopHeavy) {
+      topHeavyNodes.push({
+        kind: 'domain',
+        target: dc,
+        t3Journeys: t3,
+        lowerTierSuites: lowerTierCount,
+      });
+    }
+  }
+
+  const routeNodes = store.subjectsWith('rdf:type', 'code:Route');
+  const routeRows: Array<{
+    route: string;
+    t2a: number;
+    t2b: number;
+    t3: number;
+    status: 'balanced' | 'TOP-HEAVY' | 'e2e-only' | 'component-only' | 'uncovered';
+  }> = [];
+
+  for (const rNode of routeNodes) {
+    const routePath = store.val(rNode, 'code:routePath') ?? store.val(rNode, 'rdfs:label') ?? rNode;
+    const callers = store.subjectsWith('bridge:route', rNode);
+    let t2a = 0, t2b = 0, t3 = 0;
+    for (const s of callers) {
+      const seam = suiteSeamMap.get(s);
+      if (seam === 'T2a-host') t2a++;
+      else if (seam === 'T2b-story') t2b++;
+      else if (seam === 'T3-journey') t3++;
+    }
+    const lowerTierCount = t2a + t2b;
+    const isTopHeavy = t3 >= 2 && lowerTierCount === 0;
+    let status: 'balanced' | 'TOP-HEAVY' | 'e2e-only' | 'component-only' | 'uncovered' = 'uncovered';
+    if (isTopHeavy) {
+      status = 'TOP-HEAVY';
+      topHeavyNodes.push({
+        kind: 'route',
+        target: routePath,
+        t3Journeys: t3,
+        lowerTierSuites: lowerTierCount,
+      });
+    } else if (t3 > 0 && lowerTierCount > 0) {
+      status = 'balanced';
+    } else if (t3 > 0) {
+      status = 'e2e-only';
+    } else if (lowerTierCount > 0) {
+      status = 'component-only';
+    }
+    routeRows.push({ route: routePath, t2a, t2b, t3, status });
+  }
+  routeRows.sort((a, b) => a.route.localeCompare(b.route));
+
+  const issueNodes = store.subjectsWith('rdf:type', 'qa:Issue');
+  const mismatchedIssues: Array<{
+    issueId: string;
+    title: string;
+    rootCauses: string[];
+    coveredBy: string[];
+  }> = [];
+
+  for (const iIri of issueNodes) {
+    const issueId = store.val(iIri, 'qa:issueId') ?? iIri.split('/').pop() ?? iIri;
+    const title = store.val(iIri, 'rdfs:label') ?? issueId;
+    const rootCauses = store.vals(iIri, 'bridge:rootCause');
+    const rcPaths: string[] = [];
+    let hasPackageRc = false;
+    for (const rc of rootCauses) {
+      const p = store.val(rc, 'code:filePath') ?? store.val(rc, 'code:scipId') ?? rc;
+      rcPaths.push(p);
+      if (p.includes('packages/') || p.startsWith('packages/')) {
+        hasPackageRc = true;
+      }
+    }
+    if (!hasPackageRc) continue;
+
+    const coveredBy = store.vals(iIri, 'qa:coveredBy');
+    if (coveredBy.length === 0) continue;
+
+    let hasLowerTier = false;
+    const coveredByLabels: string[] = [];
+    for (const cb of coveredBy) {
+      const seam = suiteSeamMap.get(cb);
+      const tier = store.val(cb, 'qa:tier');
+      const label = store.val(cb, 'qa:journeyId') ?? store.val(cb, 'rdfs:label') ?? cb.split('/').pop() ?? cb;
+      coveredByLabels.push(label);
+      if (tier === 'T1' || tier === 'T2' || seam?.startsWith('T1') || seam?.startsWith('T2')) {
+        hasLowerTier = true;
+      }
+    }
+
+    if (!hasLowerTier) {
+      mismatchedIssues.push({
+        issueId,
+        title,
+        rootCauses: rcPaths,
+        coveredBy: coveredByLabels,
+      });
+    }
+  }
+  mismatchedIssues.sort((a, b) => a.issueId.localeCompare(b.issueId));
+
+  return {
+    totalSuites: allSuites.size,
+    suitesBySeam,
+    suitesByTier,
+    domainRows,
+    routeRows,
+    topHeavyNodes,
+    mismatchedIssues,
+  };
+}
+
+function reportPyramid(store: GraphStore, jsonMode: boolean) {
+  const data = analyzePyramid(store);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  console.log('\n=== Testing Pyramid & Seam Coverage Diagnostic ===\n');
+  console.log('Verification Suites by Seam:');
+  console.log(`  - T1a-compute: ${data.suitesBySeam['T1a-compute']} (Fixture table suites)`);
+  console.log(`  - T1b-storage: ${data.suitesBySeam['T1b-storage']} (Storage conformance suites)`);
+  console.log(`  - T1c-domain:  ${data.suitesBySeam['T1c-domain']} (Domain scenario suites)`);
+  console.log(`  - T2a-host:    ${data.suitesBySeam['T2a-host']} (App host route/state suites)`);
+  console.log(`  - T2b-story:   ${data.suitesBySeam['T2b-story']} (Storybook component test suites)`);
+  console.log(`  - T3-journey:  ${data.suitesBySeam['T3-journey']} (Playwright E2E journey suites)`);
+  console.log(`Total Active Verification Suites: ${data.totalSuites}\n`);
+
+  console.log('--- Domain Class Seam Coverage ---');
+  console.log('| Domain Class   | T1a | T1b | T1c | T2a | T2b | T3  | Status |');
+  console.log('|---|---|---|---|---|---|---|---|');
+  for (const r of data.domainRows) {
+    console.log(`| ${r.domainClass.padEnd(14)} | ${String(r.t1a).padStart(3)} | ${String(r.t1b).padStart(3)} | ${String(r.t1c).padStart(3)} | ${String(r.t2a).padStart(3)} | ${String(r.t2b).padStart(3)} | ${String(r.t3).padStart(3)} | ${r.status} |`);
+  }
+
+  console.log('\n--- Route Seam Coverage ---');
+  console.log('| Route                          | T2a (Host) | T2b (Story) | T3 (Journey) | Status |');
+  console.log('|---|---|---|---|---|');
+  for (const r of data.routeRows) {
+    console.log(`| ${r.route.padEnd(30)} | ${String(r.t2a).padStart(10)} | ${String(r.t2b).padStart(11)} | ${String(r.t3).padStart(12)} | ${r.status} |`);
+  }
+
+  console.log(`\n--- Top-Heavy Nodes (${data.topHeavyNodes.length}) ---`);
+  if (data.topHeavyNodes.length === 0) {
+    console.log('  No top-heavy nodes detected.');
+  } else {
+    for (const node of data.topHeavyNodes) {
+      console.log(`  - [${node.kind.toUpperCase()}] ${node.target}: ${node.t3Journeys} journeys, ${node.lowerTierSuites} lower-tier suites`);
+    }
+  }
+
+  console.log(`\n--- Mismatched Issue Coverage (${data.mismatchedIssues.length}) ---`);
+  if (data.mismatchedIssues.length === 0) {
+    console.log('  No mismatched issues detected.');
+  } else {
+    for (const issue of data.mismatchedIssues) {
+      console.log(`  - ${issue.issueId}: "${issue.title}"`);
+      console.log(`    Root Causes: ${issue.rootCauses.slice(0, 2).join(', ')}`);
+      console.log(`    Covered By:  ${issue.coveredBy.join(', ')} (T3-journey only; missing T1/T2 regression suite)`);
+    }
+  }
+}
+
 function generateChainsMarkdown(store: GraphStore) {
-  const journeyIris = store.subjectsWith('rdf:type', 'qa:Journey');
+  const journeyIris = [...new Set(store.subjectsWith('rdf:type', 'qa:Journey'))];
   const views = journeyIris.map((j) => getJourneyView(store, j)).sort((a, b) => a.id.localeCompare(b.id));
+  const pyramid = analyzePyramid(store);
 
   const lines: string[] = [
-    '# Unified Ontology 5-Beat Chain Projections',
+    '# Unified Ontology 5-Beat Chain Projections & Pyramid Health',
     '',
     '> AUTO-GENERATED by `bun run ontology:query -- --chains` from `ontology/generated/`. Do not edit by hand.',
+    '',
+    '## Testing Pyramid Seam Health Summary',
+    '',
+    '| Seam | Execution Tier | Suite Class | Active Suites |',
+    '|---|---|---|---|',
+    `| \`T1a-compute\` | Tier 1 | \`qa:FixtureTableSuite\` | ${pyramid.suitesBySeam['T1a-compute']} |`,
+    `| \`T1b-storage\` | Tier 1 | \`qa:StorageConformanceSuite\` | ${pyramid.suitesBySeam['T1b-storage']} |`,
+    `| \`T1c-domain\` | Tier 1 | \`qa:DomainScenarioSuite\` | ${pyramid.suitesBySeam['T1c-domain']} |`,
+    `| \`T2a-host\` | Tier 2 | \`qa:HostSuite\` | ${pyramid.suitesBySeam['T2a-host']} |`,
+    `| \`T2b-story\` | Tier 2 | \`qa:StoryTest\` | ${pyramid.suitesBySeam['T2b-story']} |`,
+    `| \`T3-journey\` | Tier 3 | \`qa:Journey\` | ${pyramid.suitesBySeam['T3-journey']} |`,
+    '',
+    `- **Total Active Suites**: ${pyramid.totalSuites}`,
+    `- **Top-Heavy Nodes**: ${pyramid.topHeavyNodes.length}`,
+    `- **Mismatched Issue Coverage**: ${pyramid.mismatchedIssues.length}`,
     '',
     `Total Journeys: **${views.length}**`,
     '',
@@ -651,8 +947,11 @@ const fileArg = getFlag('--file');
 const symbolArg = getFlag('--symbol');
 const issueArg = getFlag('--issue');
 const chainsFlag = args.includes('--chains');
+const pyramidFlag = args.includes('--pyramid');
 
-if (journeyArg) {
+if (pyramidFlag) {
+  reportPyramid(store, jsonMode);
+} else if (journeyArg) {
   queryByJourney(store, journeyArg, jsonMode);
 } else if (fileArg) {
   queryByFile(store, fileArg, jsonMode);
@@ -663,6 +962,6 @@ if (journeyArg) {
 } else if (chainsFlag) {
   generateChainsMarkdown(store);
 } else {
-  console.log('Usage: bun run ontology:query -- [--journey <id> | --file <path> | --symbol <name> | --issue <id> | --chains] [--json]');
+  console.log('Usage: bun run ontology:query -- [--pyramid | --journey <id> | --file <path> | --symbol <name> | --issue <id> | --chains] [--json]');
   process.exit(1);
 }

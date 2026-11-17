@@ -20,7 +20,7 @@ import type { TimerSurfaceModel } from '@/components/organisms/workout/useTimerS
 const meta: Meta<TimerSurfaceModel & { workoutTitle?: string; showPrompts?: boolean }> = {
   id: 'gallery-timer-surfaces',
   title: 'Playground/Organisms/Workout/Timer Surfaces',
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', domainState: 'activeSession' },
   args: {
     mainLabel: 'Rest',
     displayMs: 38_000,

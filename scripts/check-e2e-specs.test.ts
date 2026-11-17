@@ -2,9 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'bun:test';
-import { LEGACY_UNPAIRED_E2E_FILES, validateE2eSpecCrosswalk } from './check-e2e-specs';
-
-const NO_LEGACY = { legacyUnpairedFiles: new Set<string>() };
+import { validateE2eSpecCrosswalk } from './check-e2e-specs';
 
 describe('validateE2eSpecCrosswalk (spec-lint)', () => {
   it('passes when Level-1 Markdown spec and Level-2 .e2e.ts script match 1:1', () => {
@@ -38,7 +36,7 @@ describe('validateE2eSpecCrosswalk (spec-lint)', () => {
         "// spec: e2e/specs/feeds/publication-visibility.md\nimport { test } from '../fixtures/playgroundActor';\ntest('noop', async ({ page }) => { await page.setViewportSize({ width: 375, height: 812 }); });\n",
       );
 
-      expect(validateE2eSpecCrosswalk(dir, NO_LEGACY)).toEqual([]);
+      expect(validateE2eSpecCrosswalk(dir)).toEqual([]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -64,7 +62,7 @@ describe('validateE2eSpecCrosswalk (spec-lint)', () => {
       );
       writeFileSync(join(dir, 'e2e/live-app/broken.e2e.ts'), "import { test } from '@playwright/test';\n");
 
-      const issues = validateE2eSpecCrosswalk(dir, NO_LEGACY);
+      const issues = validateE2eSpecCrosswalk(dir);
       expect(issues.some((i) => i.message.includes("Missing required frontmatter key 'routes:'"))).toBe(true);
       expect(issues.some((i) => i.message.includes('H1 heading'))).toBe(true);
       expect(issues.some((i) => i.message.includes('Given'))).toBe(true);
@@ -106,7 +104,7 @@ describe('validateE2eSpecCrosswalk (spec-lint)', () => {
         "// spec: e2e/specs/journal/drift.md\nimport { test } from '../fixtures/playgroundActor';\ntest('noop', async () => {});\n",
       );
 
-      const issues = validateE2eSpecCrosswalk(dir, NO_LEGACY);
+      const issues = validateE2eSpecCrosswalk(dir);
       expect(issues.some((i) => i.message.includes("does not match parent folder 'journal'"))).toBe(true);
       expect(issues.some((i) => i.message.includes("Invalid frontmatter priority 'P0'"))).toBe(true);
       expect(issues.some((i) => i.message.includes("Frontmatter 'routes:' must be a non-empty bracketed list"))).toBe(true);
@@ -116,27 +114,27 @@ describe('validateE2eSpecCrosswalk (spec-lint)', () => {
     }
   });
 
-  it('ratchets LEGACY_UNPAIRED_E2E_FILES downward on new unpaired, deleted, or migrated files', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'wod-spec-lint-ratchet-'));
+  it('rejects any unpaired .e2e.ts script in e2e/live-app/ without a // spec: header', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wod-spec-lint-unpaired-'));
     try {
       mkdirSync(join(dir, 'e2e/specs/journal'), { recursive: true });
       mkdirSync(join(dir, 'e2e/live-app'), { recursive: true });
 
       writeFileSync(
-        join(dir, 'e2e/specs/journal/migrated.md'),
+        join(dir, 'e2e/specs/journal/paired.md'),
         [
           '---',
           'domain: journal',
-          'specFile: e2e/live-app/migrated.e2e.ts',
+          'specFile: e2e/live-app/paired.e2e.ts',
           'routes: [/journal]',
           'personas: [Athlete]',
           'viewports: [desktop]',
           'priority: P1',
           '---',
           '',
-          '# JRN-99 — Migrated Spec',
+          '# JRN-99 — Paired Spec',
           '',
-          '### Scenario 1: Migrated',
+          '### Scenario 1: Paired',
           'Given a workspace:',
           '1. Athlete opens /journal.',
           '- expect: stream renders.',
@@ -144,42 +142,42 @@ describe('validateE2eSpecCrosswalk (spec-lint)', () => {
         ].join('\n'),
       );
       writeFileSync(
-        join(dir, 'e2e/live-app/migrated.e2e.ts'),
-        "// spec: e2e/specs/journal/migrated.md\nimport { test } from '../fixtures/playgroundActor';\ntest('noop', async () => {});\n",
+        join(dir, 'e2e/live-app/paired.e2e.ts'),
+        "// spec: e2e/specs/journal/paired.md\nimport { test } from '../fixtures/playgroundActor';\ntest('noop', async () => {});\n",
       );
-      writeFileSync(join(dir, 'e2e/live-app/legacy-allowed.e2e.ts'), "import { test } from '@playwright/test';\n");
       writeFileSync(join(dir, 'e2e/live-app/brand-new-unpaired.e2e.ts'), "import { test } from '@playwright/test';\n");
 
-      const issues = validateE2eSpecCrosswalk(dir, {
-        legacyUnpairedFiles: new Set([
-          'e2e/live-app/legacy-allowed.e2e.ts',
-          'e2e/live-app/migrated.e2e.ts',
-          'e2e/live-app/deleted-legacy.e2e.ts',
-        ]),
-      });
+      const issues = validateE2eSpecCrosswalk(dir);
+      expect(issues).toHaveLength(1);
+      expect(issues[0]?.file).toBe('e2e/live-app/brand-new-unpaired.e2e.ts');
+      expect(issues[0]?.message).toContain('unpaired E2E specs are not allowed');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 
-      expect(issues.some((i) => i.file === 'e2e/live-app/legacy-allowed.e2e.ts')).toBe(false);
-      expect(
-        issues.some(
-          (i) =>
-            i.file === 'e2e/live-app/brand-new-unpaired.e2e.ts' &&
-            i.message.includes('unpaired E2E specs are not allowed'),
-        ),
-      ).toBe(true);
-      expect(
-        issues.some(
-          (i) =>
-            i.file === 'e2e/live-app/migrated.e2e.ts' &&
-            i.message.includes('remove it from LEGACY_UNPAIRED_E2E_FILES'),
-        ),
-      ).toBe(true);
-      expect(
-        issues.some(
-          (i) =>
-            i.file === 'e2e/live-app/deleted-legacy.e2e.ts' &&
-            i.message.includes('Stale LEGACY_UNPAIRED_E2E_FILES entry'),
-        ),
-      ).toBe(true);
+  it('rejects an .e2e.ts script whose // spec: header points to a non-spec file such as e2e/specs/README.md', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wod-spec-lint-non-spec-'));
+    try {
+      mkdirSync(join(dir, 'e2e/specs/journal'), { recursive: true });
+      mkdirSync(join(dir, 'e2e/live-app'), { recursive: true });
+
+      writeFileSync(join(dir, 'e2e/specs/README.md'), '# E2E Specs Index\n');
+      writeFileSync(
+        join(dir, 'e2e/live-app/bypass-readme.e2e.ts'),
+        "// spec: e2e/specs/README.md\nimport { test } from '@playwright/test';\n",
+      );
+      writeFileSync(
+        join(dir, 'e2e/live-app/bypass-dir.e2e.ts'),
+        "// spec: e2e/specs\nimport { test } from '@playwright/test';\n",
+      );
+
+      const issues = validateE2eSpecCrosswalk(dir);
+      expect(issues).toHaveLength(2);
+      expect(issues[0]?.file).toBe('e2e/live-app/bypass-dir.e2e.ts');
+      expect(issues[0]?.message).toContain('does not reference a valid Level-1 Markdown spec in e2e/specs/');
+      expect(issues[1]?.file).toBe('e2e/live-app/bypass-readme.e2e.ts');
+      expect(issues[1]?.message).toContain('does not reference a valid Level-1 Markdown spec in e2e/specs/');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -301,7 +299,7 @@ describe('validateE2eSpecCrosswalk (spec-lint)', () => {
         ].join('\n'),
       );
 
-      const issues = validateE2eSpecCrosswalk(dir, NO_LEGACY);
+      const issues = validateE2eSpecCrosswalk(dir);
       expect(issues).toHaveLength(1);
       expect(issues[0]?.file).toBe('e2e/specs/journal/missing-mobile.md');
       expect(issues[0]?.message).toContain("Declares 'mobile-375' in 'viewports:'");
@@ -312,9 +310,8 @@ describe('validateE2eSpecCrosswalk (spec-lint)', () => {
     }
   });
 
-  it('validates the live repository with zero crosswalk or allowlist drift', () => {
+  it('validates the live repository with 100% strict 1:1 pairing and zero crosswalk drift', () => {
     const repoRoot = join(import.meta.dirname, '..');
-    expect(LEGACY_UNPAIRED_E2E_FILES.size).toBe(24);
     expect(validateE2eSpecCrosswalk(repoRoot)).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 ---
 name: wod-wiki-testing
-description: Use when writing, compiling, debugging, or updating tests in wod-wiki across Tier 1 domain scenarios, Tier 2 Storybook domainState/Playground host tests, or the Tier 3 Markdown-to-Playwright E2E pipeline using PlaygroundTestActor, DomainWorld builders, and streamlined readiness events.
+description: Use when writing, compiling, debugging, or updating tests in wod-wiki across Nested Tiers 0-3 (Tier 1a/1b/1c compute/storage/domain scenarios, Tier 2a/2b host/Storybook tests, and Tier 3 Markdown-to-Playwright E2E pipeline).
 ---
 
 # WOD Wiki Testing & Markdown-to-Playwright Pipeline
@@ -13,27 +13,28 @@ Always pick the **lowest tier** that proves the behavior, verify you are not dup
 
 Before writing a new test, check whether the behavior belongs in a lower, faster tier or inside an existing Level-1 journey in `e2e/specs/README.md`:
 
-| Behavior under test | Tier | Shared seam to compose | Runner |
+| Behavior under test | Tier / Seam | Shared seam to compose | Runner |
 |---|---|---|---|
-| Parsing, `Metric Shake-Out Queue`, `Scoped Property Override` precedence, `Session` intake, `Note Provenance`, WQL `Entity Scope`, `Feed` and `Seed` round-trips | **Tier 1: Domain scenario** | `DomainScenarioHarness` (`packages/engine/tests/harness/DomainScenarioHarness.ts`) + `@bitcobblers/wod-wiki-core/testing` + `.md` scenario tables | `bun run test:package` |
-| Isolated UI states (`empty`, `populatedJournal`, `activeSession`, `scopedPropertyOverride`, `skippedDependencyDiagnostic`, `readOnlyFeedNote`), widget/dialog/sheet interactions, dark-mode contrast | **Tier 2: Storybook state + `play()`** | `parameters.domainState` (`apps/storybook/src/testing/domainStates.tsx`) + `storyActions` (`apps/storybook/src/testing/storyActions.ts`) | `bun run test:storybook` |
-| Single-route/hook state, document titles, route matching, settings forms, and in-memory service wiring without a browser | **Tier 2b: Playground host** | `renderWithPlaygroundHost` / `setupPlaygroundTestHost` (`apps/playground/src/testing/host.tsx`) | `bun run test:playground:unit` |
+| Schema/ID alignment, SHACL contracts, WebMCP/CLI agent parity, zero-orphan tests gate | **Tier 0: Static & ontology contracts** | `ontology/validate.sh`, `scripts/check-agent-parity.ts`, `scripts/check-orphan-tests.test.ts` | `bun run ontology:validate` / `bun run check:*` |
+| Pure grammar parsing, unit fusion, `Metric Shake-Out Queue`, WQL AST/planner, `RuntimeStack` block strategies on `MockClock` | **Tier 1a: Pure compute** | Pure `.md` fixture tables (`packages/wql/tests/fixtures/scenarios/`, `packages/lang/tests/fixtures/`) + Vitest compute harnesses | `bun run test:package` |
+| Parameterized `IStorage` CRUD, index-range, transaction rollback, and `queryDomain` assertions | **Tier 1b: Storage conformance** | Parameterized contract suite (`packages/storage/tests/storage-conformance.test.ts`) across `InMemoryStorage`, `SqlStorage`, `IndexedDBStorage`, `ApiStorage` | `bun run test:package` |
+| Multi-entity persistence, `ScopedPropertyOverride`, `Session` intake, `NoteProvenance`, sample-corpus WQL contracts | **Tier 1c: Domain scenarios** | `DomainScenarioHarness` (`packages/engine/tests/harness/DomainScenarioHarness.ts`) + `@bitcobblers/wod-wiki-core/testing` | `bun run test:package` |
+| Single-route state, route guards, URL/`?q=` sync, `#agent-view-state` projection, `useNoteDraft` unmount-flush, CM6 transactions | **Tier 2a: Playground host** | `renderWithPlaygroundHost` / `setupPlaygroundTestHost` (`apps/playground/src/testing/host.tsx`) + `<AgentStateScript />` | `bun run test:playground:unit` |
+| Isolated UI states (`empty`, `populatedJournal`, etc.), 375px organism layout, pointer/keyboard focus traps, dark mode | **Tier 2b: Storybook state + `play()`** | `parameters.domainState` (`apps/storybook/src/testing/domainStates.tsx`) + `storyActions` (`apps/storybook/src/testing/storyActions.ts`) + `@storybook/addon-a11y` | `bun run test:storybook` |
 | Multi-route user journeys, unload/reload persistence, worker `Feed` syncs, live timer/clock execution, desktop + `375x812` layout gates | **Tier 3: Markdown journey + Playwright** | `e2e/specs/<domain>/<journey>.md` + `PlaygroundTestActor` (`e2e/fixtures/playgroundActor.ts`) | `bun x playwright test --config playwright.journal.config.ts <spec>` |
 
 ## 2. Authoring Workflow for Tiers 1 & 2
 
-### Tier 1: Business-language domain scenarios
+### Tier 1: Headless compute, storage & domain scenarios
 
-1. Add a pure Markdown fixture when testing WQL (`packages/wql/tests/fixtures/scenarios/`) or parser snapshots (`packages/lang/tests/fixtures/`); zero TypeScript changes needed.
-2. For cross-domain flows (`Note` -> `Property Note` -> `Metric Shake-Out Queue` -> `Session` -> WQL -> `Feed`), instantiate `await DomainScenarioHarness.create()` in `packages/engine/tests/domain/` and call `afterEach(() => harness.dispose())`.
-3. Build all domain entities with `buildTestNote`, `buildPropertyNote`, `buildTestSession`, and `buildDomainWorld` from `packages/core/src/testing.ts` (`@bitcobblers/wod-wiki-core/testing`).
-4. For low-level runtime block or JIT strategy checks inside `packages/engine`, use `BehaviorTestHarness`, `MockBlock`, and `ExecutionContextTestHarness` from `packages/engine/tests/harness/`.
+1. **Tier 1a (Pure compute)**: Add a pure Markdown fixture when testing WQL (`packages/wql/tests/fixtures/scenarios/`) or parser snapshots (`packages/lang/tests/fixtures/`); zero TypeScript changes needed. For low-level runtime block or JIT strategy checks inside `packages/engine`, use `BehaviorTestHarness`, `MockBlock`, and `ExecutionContextTestHarness` from `packages/engine/tests/harness/`.
+2. **Tier 1b (Storage conformance)**: Run the shared parameterized contract suite (`packages/storage/tests/storage-conformance.test.ts`) across `InMemoryStorage`, `SqlStorage(':memory:')`, `IndexedDBStorage` (`fake-indexeddb`), and `ApiStorage` (Hono fetch).
+3. **Tier 1c (Domain scenarios)**: For cross-domain flows (`Note` -> `Property Note` -> `Metric Shake-Out Queue` -> `Session` -> WQL -> `Feed`), instantiate `await DomainScenarioHarness.create()` in `packages/engine/tests/domain/` and call `afterEach(() => harness.dispose())`. Build all domain entities with `buildTestNote`, `buildPropertyNote`, `buildTestSession`, and `buildDomainWorld` from `packages/core/src/testing.ts` (`@bitcobblers/wod-wiki-core/testing`).
 
-### Tier 2: Storybook states and Playground host tests
+### Tier 2: Playground host tests and Storybook states
 
-1. In `apps/storybook/src/`, set `parameters: { domainState: '<preset>' }` or pass a `DomainWorldInput` (`apps/storybook/src/testing/domainStates.tsx`). Reserve `parameters: { database: true }` strictly for `apps/storybook/src/database/Database.stories.tsx`.
-2. Script interactions in `play({ canvasElement })` with `storyActions` (`apps/storybook/src/testing/storyActions.ts`) and `TEST_IDS` (`apps/playground/src/lib/testIds.ts`).
-3. In `apps/playground`, mount UI and hooks via `renderWithPlaygroundHost` or `setupPlaygroundTestHost` (`apps/playground/src/testing/host.tsx`). Pass explicit `deps`/adapter props rather than global `mock.module()` so warm Vitest workers stay isolated.
+1. **Tier 2a (Playground host)**: In `apps/playground`, mount UI and hooks via `renderWithPlaygroundHost` or `setupPlaygroundTestHost` (`apps/playground/src/testing/host.tsx`). Pass explicit `deps`/adapter props rather than global `mock.module()` so warm Vitest workers stay isolated. Inspect `#agent-view-state` or `<main data-agent-status="ready">` for state verification.
+2. **Tier 2b (Storybook states)**: In `apps/storybook/src/`, set `parameters: { domainState: '<preset>' }` or pass a `DomainWorldInput` (`apps/storybook/src/testing/domainStates.tsx`). Script interactions in `play({ canvasElement })` with `storyActions` (`apps/storybook/src/testing/storyActions.ts`) and `TEST_IDS` (`apps/playground/src/lib/testIds.ts`).
 
 ## 3. Tier 3: Markdown -> Playwright Compilation Pipeline
 

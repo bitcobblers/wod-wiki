@@ -320,4 +320,93 @@ test.describe('FED-04 — Portable Codecs & Backup Restore', () => {
 
     app.assertCleanConsole();
   });
+
+  test('Scenario 3: /settings/storage credential-free safe export preserves outbox attachments without leaking tokens', async ({
+    app,
+  }) => {
+    const { page } = app;
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await app.goto('/settings/storage');
+    await expect(page.getByTestId('restore-section')).toBeVisible();
+
+    const validPairing = {
+      wodWikiPairing: 1,
+      kind: 'turso',
+      url: 'libsql://pair-target.turso.io',
+      authToken: 'pair-token-e2e',
+      database: 'pair-target',
+      schemaVersion: 32,
+      createdAt: '2026-10-19T00:00:00.000Z',
+    };
+    await page.getByTestId('restore-pairing-input').setInputFiles({
+      name: 'pairing.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(validPairing)),
+    });
+    await expect(page.getByRole('textbox', { name: 'Backup database URL', exact: true })).toHaveValue(validPairing.url);
+
+    // Probe unreachable target via mocked 200 non-JSON endpoint -> unreachable status, nothing written to localStorage, zero console errors
+    await page.route('https://unreachable-probe.invalid/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'text/plain', body: 'offline' }),
+    );
+    await page.getByRole('textbox', { name: 'Backup database URL', exact: true }).fill('libsql://unreachable-probe.invalid');
+    await page.locator('#restore-token').fill('unreachable-token');
+    await page.getByTestId('restore-check-button').click();
+    await expect(page.getByTestId('restore-status-unreachable')).toBeVisible({ timeout: 15_000 });
+    await page.unroute('https://unreachable-probe.invalid/**');
+    expect(await page.evaluate(() => localStorage.getItem('wodwiki.dataSettings.v1'))).toBeNull();
+
+    // Seed outbox + binary attachment and verify credential-free safe export
+    await page.evaluate(async (dbName) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const req = indexedDB.open(dbName);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const tx = db.transaction(['sync_outbox', 'attachments'], 'readwrite');
+          const attachment = {
+            id: 'e2e-binary',
+            noteId: 'e2e-unsent',
+            mimeType: 'application/octet-stream',
+            label: 'Binary',
+            data: new Uint8Array([0, 127, 255]).buffer,
+            createdAt: 1,
+          };
+          tx.objectStore('attachments').put(attachment);
+          tx.objectStore('sync_outbox').put({
+            seq: 900_001,
+            id: 'e2e-unsent-group',
+            at: Date.now(),
+            ops: [{ op: 'put', store: 'attachments', key: attachment.id, value: attachment }],
+          });
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      } finally {
+        db.close();
+      }
+    }, WOD_DB);
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('restore-export-button').click(),
+    ]);
+    const exported = JSON.parse(readFileSync((await download.path())!, 'utf8')) as {
+      format: string;
+      pendingGroups: Array<{ id: string }>;
+      rows: Array<{ store: string; rows: Array<{ id: string; data: unknown }> }>;
+    };
+    expect(exported.format).toBe('wod-wiki-safe-export');
+    expect(exported.pendingGroups.map((g) => g.id)).toContain('e2e-unsent-group');
+    const attachmentRow = exported.rows
+      .find((entry) => entry.store === 'attachments')
+      ?.rows.find((row) => row.id === 'e2e-binary');
+    expect(attachmentRow?.data).toEqual({ $binary: 'AH//', $bytes: 3 });
+    expect(JSON.stringify(exported)).not.toContain('unreachable-token');
+    expect(JSON.stringify(exported)).not.toContain('pair-token-e2e');
+
+    app.assertCleanConsole();
+  });
 });

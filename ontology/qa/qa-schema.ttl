@@ -25,19 +25,49 @@ qa:Domain a owl:Class ;
     rdfs:label "QA Domain" ;
     rdfs:comment "A functional QA domain area (e.g. journal, notebooks, feeds, properties, analytics, runtime) aligned via bridge:domainMapping." .
 
-qa:Journey a owl:Class ;
+qa:VerificationSuite a owl:Class ;
     rdfs:subClassOf prov:Plan ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Verification Suite" ;
+    rdfs:comment "A test suite proving an explicit logical seam contract across Tier 0 through Tier 3 (e.g. FixtureTableSuite, StorageConformanceSuite, DomainScenarioSuite, HostSuite, StoryTest, Journey)." .
+
+qa:Journey a owl:Class ;
+    rdfs:subClassOf qa:VerificationSuite ;
     ufo:stereotype ufo:InformationObject ;
     ufo:instantiatesPattern ufo:FiveBeatJourneyPattern ;
     rdfs:label "QA Journey" ;
     rdfs:comment "An end-to-end user acceptance journey (e.g. JRN-01, NBK-02, RUN-02) composed of ordered Steps and 5-beat causal chains." .
 
 qa:StoryTest a owl:Class ;
-    rdfs:subClassOf prov:Plan ;
+    rdfs:subClassOf qa:VerificationSuite ;
     ufo:stereotype ufo:InformationObject ;
     ufo:instantiatesPattern ufo:FiveBeatJourneyPattern ;
     rdfs:label "Storybook Component Test" ;
     rdfs:comment "A Tier 2 Storybook component test (play() interaction or visual state) with its own 5-beat causal chain (Seed -> Enter -> Sense -> Drive -> Prove)." .
+
+qa:FixtureTableSuite a owl:Class ;
+    rdfs:subClassOf qa:VerificationSuite ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Fixture Table Suite" ;
+    rdfs:comment "A Tier 1a fixture-driven test suite (e.g. Markdown parser or WQL scenario tables) proving pure compute contracts." .
+
+qa:StorageConformanceSuite a owl:Class ;
+    rdfs:subClassOf qa:VerificationSuite ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Storage Conformance Suite" ;
+    rdfs:comment "A Tier 1b storage conformance test suite executing parameterized contract assertions across InMemory, SQLite, IndexedDB, and API adapters." .
+
+qa:DomainScenarioSuite a owl:Class ;
+    rdfs:subClassOf qa:VerificationSuite ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Domain Scenario Suite" ;
+    rdfs:comment "A Tier 1c business-language domain scenario test suite running headless DomainScenarioHarness or domain tests." .
+
+qa:HostSuite a owl:Class ;
+    rdfs:subClassOf qa:VerificationSuite ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Host Suite" ;
+    rdfs:comment "A Tier 2a in-memory app host test suite mounting PlaygroundTestHost in JSDOM and asserting route, draft, or UI tool contracts." .
 
 qa:Step a owl:Class ;
     ufo:stereotype ufo:Event ;
@@ -102,12 +132,30 @@ qa:nextStep a owl:ObjectProperty ;
 
 qa:coveredBy a owl:ObjectProperty ;
     rdfs:label "covered by" ;
-    rdfs:comment "Links a QA Journey or Issue to the Run or Journey that covers/verifies it." .
+    rdfs:comment "Links a QA Journey or Issue to the VerificationSuite, Run, or Journey that covers/verifies it." .
 
 qa:affects a owl:ObjectProperty ;
     rdfs:label "affects" ;
     rdfs:domain qa:Issue ;
     rdfs:comment "Links a QA Issue to the QA Domain or Journey it impacts." .
+
+qa:tier a owl:DatatypeProperty ;
+    rdfs:label "tier" ;
+    rdfs:domain qa:VerificationSuite ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Testing pyramid execution tier: T0, T1, T2, or T3." .
+
+qa:seam a owl:DatatypeProperty ;
+    rdfs:label "seam" ;
+    rdfs:domain qa:VerificationSuite ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Logical seam contract: T0-contract, T1a-compute, T1b-storage, T1c-domain, T2a-host, T2b-story, T3-journey." .
+
+qa:suitePath a owl:DatatypeProperty ;
+    rdfs:label "suite path" ;
+    rdfs:domain qa:VerificationSuite ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repository-relative file path for the verification suite." .
 
 # PROV-O edges (redeclared with domain/range comments for clarity)
 prov:wasGeneratedBy a owl:ObjectProperty ;

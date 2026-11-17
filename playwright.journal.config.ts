@@ -151,7 +151,7 @@ export default defineConfig({
       // Cold-boot specs measure empty-IndexedDB startup and seed progress gates
       // and must never inherit the pre-seeded storageState snapshot.
       name: 'journal-cold-chromium',
-      testMatch: '**/live-app/cold-boot.e2e.ts',
+      testMatch: '**/live-app/cold-boot-profile.e2e.ts',
       timeout: 90 * 1000,
       use: { ...devices['Desktop Chrome'] },
     },
@@ -159,7 +159,7 @@ export default defineConfig({
       name: 'journal-chromium',
       dependencies: ['journal-setup'],
       testMatch: ['**/live-app/**/*.e2e.ts'],
-      testIgnore: ['**/live-app/cold-boot.e2e.ts', ...recordingIgnore],
+      testIgnore: ['**/live-app/cold-boot-profile.e2e.ts', ...recordingIgnore],
       use: {
         ...devices['Desktop Chrome'],
         storageState: journalStorageState,

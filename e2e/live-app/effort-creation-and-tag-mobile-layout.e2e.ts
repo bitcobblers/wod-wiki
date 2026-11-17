@@ -74,4 +74,78 @@ test.describe('PRP-03 — Effort Creation, WQL Syntax Guidance & Mobile Tag Layo
 
     app.assertCleanConsole();
   });
+
+  test('Scenario 3: mobile effort property inputs stay clear of actions-dock across scroll positions', async ({
+    app,
+  }) => {
+    const { page } = app;
+    await page.setViewportSize({ width: 375, height: 812 });
+    await app.seed.bundledEfforts();
+
+    const efforts = await app.properties.openEffort('thruster');
+    await efforts.waitForDetailLoaded();
+
+    const properties = efforts.frontmatterProperties();
+    const metInput = properties.getByLabel('Value for metrics.met');
+    const detailsToggle = page.getByRole('button', { name: 'Show property details' });
+    if (await detailsToggle.isVisible()) {
+      await detailsToggle.click();
+    }
+    await expect(metInput).toBeVisible();
+    await expect(properties.getByLabel('Value for discipline')).toBeVisible();
+
+    const dock = page.getByTestId('actions-dock');
+    await expect(dock).toBeAttached();
+
+    // Tapping MET input must focus it cleanly without dock interception
+    await metInput.click();
+    await expect(metInput).toBeFocused();
+
+    const { scrollHeight, viewportHeight } = await page.evaluate(() => ({
+      scrollHeight: document.documentElement.scrollHeight,
+      viewportHeight: window.innerHeight,
+    }));
+
+    let revealedPositions = 0;
+    const conflicts: string[] = [];
+    for (let y = 0; y <= scrollHeight - viewportHeight + 200; y += 200) {
+      await page.evaluate((top) => window.scrollTo(0, top), y);
+      const stepResult = await page.evaluate(() => {
+        const dockEl = document.querySelector<HTMLElement>('[data-testid="actions-dock"]');
+        if (!dockEl) return { revealed: false, hits: [] as string[] };
+        const cs = getComputedStyle(dockEl);
+        const dr = dockEl.getBoundingClientRect();
+        const revealed =
+          cs.visibility !== 'hidden' && cs.pointerEvents !== 'none' && dr.bottom > 0 && dr.top < window.innerHeight;
+        if (!revealed) return { revealed: false, hits: [] as string[] };
+        const hits: string[] = [];
+        const controls = Array.from(dockEl.querySelectorAll<HTMLElement>('button, a'));
+        const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('.cm-frontmatter-preview input'));
+        for (const input of inputs) {
+          const ir = input.getBoundingClientRect();
+          if (ir.width <= 4 || ir.height <= 4 || ir.bottom <= 0 || ir.top >= window.innerHeight) continue;
+          for (const ctrl of controls) {
+            const cr = ctrl.getBoundingClientRect();
+            const overlaps =
+              ir.left + 2 < cr.right - 1 &&
+              cr.left + 1 < ir.right - 2 &&
+              ir.top + 2 < cr.bottom - 1 &&
+              cr.top + 1 < ir.bottom - 2;
+            if (overlaps) {
+              hits.push(`${input.getAttribute('aria-label') ?? 'input'} vs ${ctrl.getAttribute('aria-label') ?? ctrl.textContent}`);
+            }
+          }
+        }
+        return { revealed: true, hits };
+      });
+      if (stepResult.revealed) {
+        revealedPositions += 1;
+        conflicts.push(...stepResult.hits);
+      }
+    }
+
+    expect(revealedPositions).toBeGreaterThan(0);
+    expect(conflicts).toEqual([]);
+    app.assertCleanConsole();
+  });
 });

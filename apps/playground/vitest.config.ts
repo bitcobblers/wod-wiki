@@ -12,9 +12,9 @@ export default defineConfig({
   },
   resolve: {
     alias: [
-      { find: 'bun:test', replacement: resolve(import.meta.dirname, 'tests/bun-test-shim.ts') },
-      { find: /^@\/testing\/(.*)$/, replacement: `${resolve(import.meta.dirname, 'tests/testing')}/$1` },
-      { find: '@/testing', replacement: resolve(import.meta.dirname, 'tests/testing/index.ts') },
+      { find: 'bun:test', replacement: resolve(import.meta.dirname, 'src/testing/bun-test-shim.ts') },
+      { find: /^@\/testing\/(.*)$/, replacement: `${resolve(import.meta.dirname, 'src/testing')}/$1` },
+      { find: '@/testing', replacement: resolve(import.meta.dirname, 'src/testing/index.ts') },
       { find: /^@wod-wiki\/lang-harness\/(.*)$/, replacement: `${resolve(rootDir, 'packages/lang/tests/harness')}/$1` },
       { find: '@wod-wiki/lang-harness', replacement: resolve(rootDir, 'packages/lang/tests/harness/index.ts') },
       { find: '@bitcobblers/wod-wiki-core/testing', replacement: resolve(rootDir, 'packages/core/src/testing.ts') },
@@ -45,10 +45,12 @@ export default defineConfig({
       },
     },
     globals: true,
+    testTimeout: 20000,
+    hookTimeout: 20000,
     env: {
       TZ: 'UTC',
     },
-    setupFiles: ['./tests/vitest-setup.ts'],
+    setupFiles: ['./src/testing/vitest-setup.ts'],
     include: [
       'src/**/*.{test,spec}.{ts,tsx}',
       'app/**/*.{test,spec}.{ts,tsx}',

@@ -12,7 +12,6 @@
  *    showing notebook color-coding (`journal`, `crossfit-girls`, `the-golos-method`, etc.).
  */
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { MemoryRouter } from 'react-router-dom';
 import { expect, fn, within } from 'storybook/test';
 import { CalendarAgendaView } from '@app/views/stream/CalendarAgendaView';
 import { CalendarPlannerView } from '@app/views/stream/CalendarPlannerView';
@@ -33,13 +32,7 @@ interface CalendarStoryArgs {
 
 const meta: Meta<CalendarStoryArgs> = {
   title: 'Playground/Views/Calendar Agenda & Planner',
-  decorators: [
-    (Story) => (
-      <MemoryRouter>
-        <Story />
-      </MemoryRouter>
-    ),
-  ],
+  parameters: { domainState: 'populatedJournal' },
   args: {
     includeUndatedShelf: true,
     onAddToToday: fn(),

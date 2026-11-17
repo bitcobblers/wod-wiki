@@ -69,6 +69,51 @@ describe('NoteEditor query block executor wiring', () => {
     await waitFor(() => expect(runFind).toHaveBeenCalled());
   });
 
+  it('renders populated session EventRecord rows in ```query:table inlays (results-widget-inlay)', async () => {
+    await host.cleanup();
+    host = await setupPlaygroundTestHost({
+      world: {
+        propertyNotes: [{ kind: 'effort', slug: 'kettlebell-swing', label: 'Kettlebell Swing' }],
+        notes: [
+          {
+            id: 'journal/2099-09-01',
+            title: 'Journal Result Widget Regression',
+            type: 'journal',
+            rawContent: '# Journal Result Widget Regression\n\n```time\nTimer: 1:00\n5 Burpees\n```\n',
+          },
+        ],
+        sessions: [
+          {
+            id: 'WOD-341-journal-2099-09-01',
+            noteId: 'journal/2099-09-01',
+            events: [
+              {
+                grain: 'event',
+                outputType: 'segment',
+                effortSlug: 'kettlebell-swing',
+                metrics: [
+                  { type: 'effort', value: 'kettlebell-swing', origin: 'parser' },
+                  { type: 'tis', value: 74, unit: 's', ...{ metadata: { canonicalKey: 'tis' } } },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const populatedDoc = 'Intro prose.\n\n```query:table\n:segment{result:WOD-341-journal-2099-09-01}\n```\n';
+    const { container } = render(<NoteEditor value={populatedDoc} onChange={() => {}} noteId="journal/2099-09-01" />);
+
+    const table = await screen.findByTestId('tabular-table');
+    expect(container.querySelector('.cm-query-block-preview')).toBeTruthy();
+    await waitFor(() => {
+      const tbody = table.querySelector('tbody');
+      expect(tbody?.textContent).toContain('kettlebell-swing');
+      expect(tbody?.textContent).toContain('74');
+    });
+  });
+
   it('reconciles mismatched or empty initial blocks without throwing Incomplete actionable block map', () => {
     const docWithTimer = '# My Note\n\n```time\n10:00\n```\n';
     expect(() => {

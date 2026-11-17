@@ -84,10 +84,10 @@ describe('useJournalZipProcessor', () => {
 
     await waitFor(() => {
       expect(result.current.state).toBe('success');
+      expect(landed()).toBe('/note/journal-2026-05-26');
     });
 
     expect(result.current.dateKey).toBe('2026-05-26');
-    expect(landed()).toBe('/note/journal-2026-05-26');
     expect(createNoteMock.mock.calls[0]?.[0]).toMatchObject({ journalDate: '2026-05-26' });
   });
 
@@ -120,10 +120,10 @@ describe('useJournalZipProcessor', () => {
 
     await waitFor(() => {
       expect(result.current.state).toBe('error');
+      expect(landed()).toBe('/journal');
     });
 
     expect(result.current.error).toBe('Invalid date format');
-    expect(landed()).toBe('/journal');
     expect(toastMock).toHaveBeenCalled();
   });
 

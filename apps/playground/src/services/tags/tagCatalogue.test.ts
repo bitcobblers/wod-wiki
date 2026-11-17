@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { buildTagDefinitions, categoryDefinitionsFrom, loadTagIndex, setTagIndex } from './tagCatalogue';
+import { buildTagDefinitions, categoryDefinitionsFrom, getTagIndex, loadTagIndex, setTagIndex } from './tagCatalogue';
 import type { Tag, TagTypeRecord } from '@bitcobblers/wod-wiki-core';
 import { InMemoryStorage, resetStorageForTesting, setStorageForTesting, storageService } from '@/services/storage';
 function tag(label: string, type?: string, contributions?: Tag['contributions']): Tag {
@@ -70,7 +70,6 @@ describe('tagCatalogue — built-in fallback', () => {
     });
 });
 
-
 describe('tagCatalogue — category-to-statement edges', () => {
     it('synthesizes child edges using TagTypeRecord categories, not only stored tag slugs', () => {
         const crossfit = tag('crossfit', 'domain');
@@ -106,5 +105,43 @@ describe('tagCatalogue — category-to-statement edges', () => {
             resetStorageForTesting();
             setTagIndex([]);
         }
+    });
+});
+
+describe('tag catalogue', () => {
+    it('takes a tag\'s slug from its label', () => {
+        const definitions = buildTagDefinitions([{ id: 't1', label: 'heavy', createdAt: 0 }]);
+        expect(definitions[0].slug).toBe('heavy');
+    });
+
+    it('keeps the contributions a tag carries', () => {
+        const definitions = buildTagDefinitions([
+            {
+                id: 't1',
+                label: 'heavy',
+                createdAt: 0,
+                contributions: [
+                    { kind: 'metric', type: 'intensity', value: 'heavy' },
+                    { kind: 'function', name: 'e1rm' },
+                ],
+            },
+        ]);
+        expect(definitions[0].contributions).toEqual([
+            { kind: 'metric', type: 'intensity', value: 'heavy' },
+            { kind: 'function', name: 'e1rm' },
+        ]);
+    });
+
+    it('infers the sound profile a sound tag names', () => {
+        const definitions = buildTagDefinitions([{ id: 't1', label: 'sound-classic', createdAt: 0 }]);
+        expect(definitions[0].contributions).toEqual([
+            { kind: 'metric', type: 'sound', value: 'classic' },
+        ]);
+    });
+
+    it('resolves a tag by slug', () => {
+        setTagIndex([{ id: 't1', label: 'heavy', createdAt: 0 }]);
+        expect(getTagIndex().resolve('heavy')?.slug).toBe('heavy');
+        expect(getTagIndex().resolve('nope')).toBeUndefined();
     });
 });

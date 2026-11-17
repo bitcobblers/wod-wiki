@@ -11,8 +11,8 @@
     "skipLibCheck": true,
     "types": ["bun-types", "vite/client"],
     "paths": {
-      "@/testing": ["./tests/testing/index.ts"],
-      "@/testing/*": ["./tests/testing/*"],
+      "@/testing": ["./src/testing/index.ts"],
+      "@/testing/*": ["./src/testing/*"],
       "@wod-wiki/lang-harness": ["../../packages/lang/tests/harness/index.ts"],
       "@wod-wiki/lang-harness/*": ["../../packages/lang/tests/harness/*"],
       "@bitcobblers/wod-wiki-core/testing": ["../../packages/core/src/testing.ts"],
@@ -29,8 +29,6 @@
     "src/**/*.tsx",
     "app/**/*.ts",
     "app/**/*.tsx",
-    "tests/**/*.ts",
-    "tests/**/*.tsx",
     "*.ts"
   ],
   "exclude": ["node_modules", "dist"]

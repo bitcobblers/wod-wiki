@@ -11,7 +11,6 @@
  *    monogram covers and notebook subscription chips.
  */
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { MemoryRouter } from 'react-router-dom';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { StreamFeed } from '@app/views/stream/StreamFeed';
 import { PropertyTable } from '@app/views/stream/PropertyTable';
@@ -69,13 +68,7 @@ interface StreamViewsStoryArgs {
 
 const meta: Meta<StreamViewsStoryArgs> = {
   title: 'Playground/Views/Stream, Table & Feed Cards',
-  decorators: [
-    (Story) => (
-      <MemoryRouter>
-        <Story />
-      </MemoryRouter>
-    ),
-  ],
+  parameters: { domainState: 'populatedJournal' },
   args: {
     level: 'note',
     showPlaygroundAction: true,

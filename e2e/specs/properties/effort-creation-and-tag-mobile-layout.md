@@ -30,3 +30,11 @@ Given a `375×812` mobile viewport:
 - expect: Step 1 renders `/t/quality/strength` with zero horizontal overflow (`scrollWidth <= clientWidth + 1`) and renders `/t/tag/tonnage` with a live `.cm-query-block-preview` widget and zero query syntax errors.
 - expect: Step 2 renders an explicit `Notebook “does-not-exist-qa” not found.` state (`notebook-not-found`) with a recovery action to `/notebooks` and no active `+ Add Note` button.
 - expect: the browser console stays clean.
+
+### Scenario 3: Mobile effort property form inputs stay clear of the thumb dock across scroll positions
+
+Given a `375×812` mobile viewport with bundled Effort definitions seeded:
+
+1. Athlete opens `/effort/thruster`, ensures property details are expanded, focuses `Value for metrics.met`, and sweeps scroll offsets across the document.
+- expect: `actions-dock` controls never cover or hit-test-intercept `metrics.met` or `discipline` property inputs at any revealed scroll position.
+- expect: the browser console stays clean.

@@ -206,7 +206,6 @@ function StreamQueryStatus({
   target,
   matched,
   total,
-  loading,
   countsPending,
   applied,
   ignored,
@@ -220,7 +219,6 @@ function StreamQueryStatus({
   target: string | null
   matched: number
   total: number
-  loading: boolean
   countsPending: boolean
   applied: number
   ignored: number
@@ -240,10 +238,7 @@ function StreamQueryStatus({
         <span className="font-mono">:{target}</span>
       ) : null}
       <span aria-hidden="true">·</span>
-      <span
-        data-testid="stream-query-counts"
-        className={loading || countsPending ? 'motion-safe:animate-pulse' : undefined}
-      >
+      <span data-testid="stream-query-counts">
         {countsPending ? 'Searching…' : `${matched} of ${total}`}
       </span>
       <span aria-hidden="true">·</span>
@@ -402,9 +397,10 @@ export function QueriableStreamView({
   const hasSettledRun = settledRoute === profile.route
   const [shelfOpen, setShelfOpen] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [queryPending, setQueryPending] = useState(false)
   const effectiveQuery = useMemo(() => plainTextFallbackQuery(query, profile.target) ?? query, [query, profile.target])
   const parsed = useMemo(() => parseQuery(effectiveQuery), [effectiveQuery])
-  const streamBusy = loading || (!hasSettledRun && !parsed.error)
+  const streamBusy = loading || queryPending || (!hasSettledRun && !parsed.error)
   useEffect(() => setSurfaceBusy(streamBusy), [streamBusy])
   useEffect(() => {
     return registerActiveStreamBridge({
@@ -878,12 +874,17 @@ export function QueriableStreamView({
     }
   }, [subscribedLibraryIds, openLibraryManager])
   useEffect(() => {
-    if (feedReadiness === 'preparing') return
+    if (feedReadiness === 'preparing') {
+      setQueryPending(false)
+      return
+    }
     if (parsed.error) {
       setLoading(false)
+      setQueryPending(false)
       return
     }
     let cancelled = false
+    setQueryPending(true)
     const timer = setTimeout(() => {
       setLoading(true)
       setStages(undefined)
@@ -928,12 +929,16 @@ export function QueriableStreamView({
           }
         })
         .finally(() => {
-          if (!cancelled) setLoading(false)
+          if (!cancelled) {
+            setLoading(false)
+            setQueryPending(false)
+          }
         })
     }, STREAM_EXECUTE_DEBOUNCE_MS)
     return () => {
       cancelled = true
       clearTimeout(timer)
+      setQueryPending(false)
     }
   }, [effectiveQuery, activeEngine, parsed, location.pathname, profile.route, feedReadiness, feedImportPending, savedTick])
 
@@ -1362,7 +1367,6 @@ export function QueriableStreamView({
           target={parsed.error ? null : isFindQuery(parsed) ? parsed.target : parsed.family}
           matched={entries.length}
           total={Math.max(stages?.selected ?? 0, entries.length)}
-          loading={loading}
           countsPending={!parsed.error && (!hasSettledRun || (loading && !stages))}
           applied={appliedFilters}
           ignored={ignoredFilters}
@@ -1569,7 +1573,11 @@ export function QueriableStreamView({
         </div>
       )}
       {/* Unified Stream Content across all Library routes (/feeds, /notebooks, /notes, /journal, /sessions, /efforts, /tags) */}
-      {readmeOverride ? null : layout === 'rows' ? (
+      {readmeOverride ? null : (layout === 'rows' || layout === 'agenda' || layout === 'planner') && entries.length === 0 && (!hasSettledRun || loading) ? (
+        <div className="py-16 text-center text-xs text-muted-foreground/60" data-testid="stream-loading">
+          Loading…
+        </div>
+      ) : layout === 'rows' ? (
         <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
           <PropertyTable
             entries={entries}

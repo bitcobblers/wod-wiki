@@ -28,3 +28,11 @@ Given an Athlete on `/load` with a malformed non-zip payload `corrupt-archive.zi
 2. Athlete resizes `/load` to 375×812 mobile, uploads `corrupt-archive.zip` again, and checks layout bounds and browser console health.
 - expect: Step 1 keeps `load-zip-intake` mounted on `/load` without redirecting and displays a descriptive alert inside `bundle-import-error`.
 - expect: Step 2 displays `bundle-import-error` cleanly at 375×812 with zero horizontal overflow and zero uncaught page or console errors.
+
+### Scenario 3: Credential-free safe export includes unsent outbox edits and unreachable backup probe leaves settings untouched
+
+Given an Athlete on `/settings/storage` with a seeded unsent `sync_outbox` attachment entry:
+
+1. Athlete imports a valid pairing file (`restore-pairing-input`), probes an unreachable target (`restore-check-button`), and triggers `restore-export-button`.
+- expect: Step 1 surfaces `restore-status-unreachable` without saving sync settings and downloads a `wod-wiki-safe-export` JSON containing the pending outbox group and binary attachment without exposing auth tokens.
+- expect: the browser console stays clean.

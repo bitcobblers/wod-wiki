@@ -1,0 +1,572 @@
+# Ontology Changeset: `20261117T004258Z-qa-seam-pyramid`
+
+- **Status**: `applied`
+- **Slug**: `qa-seam-pyramid`
+- **Author**: `serge`
+- **Created**: `2026-11-17T00:42:58.619Z`
+- **Base Ref**: `HEAD`
+
+## Impact Analysis
+
+267 changed file(s) impacting ontology/app/, ontology/bridge/, ontology/code/, ontology/core/, ontology/engine/, ontology/lang/metrics.ttl
+
+### Affected Ontology Modules
+- `ontology/app/`
+- `ontology/bridge/`
+- `ontology/code/`
+- `ontology/core/`
+- `ontology/engine/`
+- `ontology/lang/metrics.ttl`
+
+### Affected Code Targets
+- `apps/playground/app/agent/uiToolSpecs.ts`
+- `apps/playground/package.json`
+- `apps/playground/src/components/atoms/AppVersion.test.tsx`
+- `apps/playground/src/components/atoms/primitives/__tests__/touch-target-sizes.test.ts`
+- `apps/playground/src/components/atoms/primitives/avatar.tsx`
+- `apps/playground/src/lib/routes.ts`
+- `apps/playground/src/panels/review-panel-chromecast.test.ts`
+- `apps/playground/src/runtime/debug-sort.test.ts`
+- `apps/playground/src/services/analytics/analytics-contract.test.ts`
+- `apps/playground/src/services/analytics/effort-registry-crud-analytics.test.ts`
+- `apps/playground/src/services/analytics/processor-split-validation.test.ts`
+- `apps/playground/src/services/cast/cast-roundtrip.test.ts`
+- `apps/playground/src/services/cast/full-scale-integration.test.ts`
+- `apps/playground/src/services/queryService.ts`
+- `apps/playground/src/services/sound/SoundBridge.test.tsx`
+- `apps/playground/src/services/sound/SoundProfileBehavior.test.ts`
+- `apps/playground/src/services/sound/SoundProfileSelection.test.ts`
+- `apps/playground/src/services/sound/soundProfiles.test.ts`
+- `apps/playground/src/services/storage/InMemoryStorage.ts`
+- `apps/playground/src/services/tags/tagCatalogue.test.ts`
+- `apps/playground/src/testing/bun-test-shim.ts`
+- `apps/playground/src/testing/harness/RuntimeTestBuilder.ts`
+- `apps/playground/src/testing/host.tsx`
+- `apps/playground/src/testing/index.ts`
+- `apps/playground/src/testing/script/ScriptState.ts`
+- `apps/playground/src/testing/script/TestScript.ts`
+- `apps/playground/src/testing/script/assertions.ts`
+- `apps/playground/src/testing/script/compliance.ts`
+- `apps/playground/src/testing/script/index.ts`
+- `apps/playground/src/testing/transport/FakeRpcTransport.ts`
+- `apps/playground/src/testing/transport/index.ts`
+- `apps/playground/src/testing/vitest-setup.ts`
+- `apps/playground/tests/NAMING_CONVENTIONS.md`
+- `apps/playground/tests/analytics/analytics-contract.test.ts`
+- `apps/playground/tests/analytics/effort-registry-crud-analytics.test.ts`
+- `apps/playground/tests/analytics/processor-split-validation.test.ts`
+- `apps/playground/tests/analytics/two-pass-effort-resolution.test.ts`
+- `apps/playground/tests/blocks/EffortBlock.test.ts`
+- `apps/playground/tests/blocks/GroupBlock.test.ts`
+- `apps/playground/tests/blocks/TimerBlock.test.ts`
+- `apps/playground/tests/blocks/amrap_child_rotation_test.ts`
+- `apps/playground/tests/blocks/for_time_child_single_pass_test.ts`
+- `apps/playground/tests/blocks/lifecycle-edge-cases.test.ts`
+- `apps/playground/tests/blocks/root-block/RootBlock.basics.test.ts`
+- `apps/playground/tests/blocks/root-block/RootBlock.children.test.ts`
+- `apps/playground/tests/blocks/root-block/RootBlock.integration.test.ts`
+- `apps/playground/tests/blocks/root-block/RootBlock.lifecycle.test.ts`
+- `apps/playground/tests/bun-test-shim.ts`
+- `apps/playground/tests/canvas/home-feature-markdown.test.tsx`
+- `apps/playground/tests/canvas/syntax-source-markdown.test.ts`
+- `apps/playground/tests/cast-integration/cast-roundtrip.test.ts`
+- `apps/playground/tests/components/AppVersion.test.tsx`
+- `apps/playground/tests/contract/wql-calc-seeds.test.ts`
+- `apps/playground/tests/helpers/compliance-helpers.ts`
+- `apps/playground/tests/helpers/parser-test-utils.ts`
+- `apps/playground/tests/jit-compilation/amrap.test.ts`
+- `apps/playground/tests/jit-compilation/clear-children.test.ts`
+- `apps/playground/tests/jit-compilation/countup-collectible.test.ts`
+- `apps/playground/tests/jit-compilation/emom.test.ts`
+- `apps/playground/tests/jit-compilation/fixed-round-loop.test.ts`
+- `apps/playground/tests/jit-compilation/for-time-rep-scheme.test.ts`
+- `apps/playground/tests/jit-compilation/for-time-single.test.ts`
+- `apps/playground/tests/jit-compilation/forced-timer.test.ts`
+- `apps/playground/tests/jit-compilation/grouped_statements.test.ts`
+- `apps/playground/tests/jit-compilation/loop-with-rest.test.ts`
+- `apps/playground/tests/jit-compilation/rep-scheme-inheritance.test.ts`
+- `apps/playground/tests/jit-compilation/sequential-timers.test.ts`
+- `apps/playground/tests/language-compilation/parser-integration.test.ts`
+- `apps/playground/tests/language-compilation/statement-ids.test.ts`
+- `apps/playground/tests/language-compilation/syntax_features.test.ts`
+- `apps/playground/tests/language-compilation/whiteboard-script-parsing.test.ts`
+- `apps/playground/tests/lifecycle/ClockPropagation.test.ts`
+- `apps/playground/tests/lifecycle/LifecyclePhases.test.ts`
+- `apps/playground/tests/lifecycle/MountBehavior.test.ts`
+- `apps/playground/tests/lifecycle/NextBehavior.test.ts`
+- `apps/playground/tests/lifecycle/SnapshotClock.test.ts`
+- `apps/playground/tests/lifecycle/UnmountBehavior.test.ts`
+- `apps/playground/tests/note-context-nav.check.tsx`
+- `apps/playground/tests/panels/review-panel-chromecast.test.ts`
+- `apps/playground/tests/paperclip/recovery-loop-prevention-qa.sh`
+- `apps/playground/tests/parser-compliance/cross-dialect-interaction.parser.test.ts`
+- `apps/playground/tests/parser-compliance/dialect-hints.parser.test.ts`
+- `apps/playground/tests/parser-compliance/effort.parser.test.ts`
+- `apps/playground/tests/parser-compliance/error-recovery.parser.test.ts`
+- `apps/playground/tests/parser-compliance/harness-smoke.parser.test.ts`
+- `apps/playground/tests/parser-compliance/metric-boundaries.parser.test.ts`
+- `apps/playground/tests/parser-compliance/metrics-edge-cases.parser.test.ts`
+- `apps/playground/tests/parser-compliance/parse-then-run.integration.test.ts`
+- `apps/playground/tests/parser-compliance/rounds-and-structure.parser.test.ts`
+- `apps/playground/tests/parser-compliance/timer-patterns-advanced.parse-then-run.integration.test.ts`
+- `apps/playground/tests/parser-compliance/timer-patterns.parse-then-run.integration.test.ts`
+- `apps/playground/tests/parser-compliance/timer.parser.test.ts`
+- `apps/playground/tests/parser/lezer-tree-inspect.test.ts`
+- `apps/playground/tests/parser/lezer-whiteboardscript.test.ts`
+- `apps/playground/tests/parser/unit-flexibility.test.ts`
+- `apps/playground/tests/parser/wql-grammar.test.ts`
+- `apps/playground/tests/performance/compiler-performance.test.ts`
+- `apps/playground/tests/performance/parser-performance.test.ts`
+- `apps/playground/tests/playground/effort-routes.test.ts`
+- `apps/playground/tests/repro_output_serialization.ts`
+- `apps/playground/tests/runtime-compliance/alternating-emom.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/amrap.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/collectible.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/countup.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/effort.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/emom.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/for-time.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/full-scale-integration.test.ts`
+- `apps/playground/tests/runtime-compliance/metric-inheritance.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/mixed-timers.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/negative-scenarios.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/post-mount-snapshot-invariant.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/rest-overrun.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/rest.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/rounds.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/session-lifecycle.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/state-transitions.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/tabata.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/timer-state-transitions.compliance.test.ts`
+- `apps/playground/tests/runtime-compliance/timer.compliance.test.ts`
+- `apps/playground/tests/runtime/debug-sort.test.ts`
+- `apps/playground/tests/runtime/sound/SoundBridge.test.tsx`
+- `apps/playground/tests/runtime/sound/SoundProfileBehavior.test.ts`
+- `apps/playground/tests/runtime/sound/SoundProfileSelection.test.ts`
+- `apps/playground/tests/runtime/sound/soundProfiles.test.ts`
+- `apps/playground/tests/setup.ts`
+- `apps/playground/tests/strategies/AmrapLogicStrategy.integration.test.ts`
+- `apps/playground/tests/strategies/AmrapLogicStrategy.test.ts`
+- `apps/playground/tests/strategies/EffortFallbackStrategy.test.ts`
+- `apps/playground/tests/strategies/IntervalLogicStrategy.test.ts`
+- `apps/playground/tests/tags/tagCatalogue.test.ts`
+- `apps/playground/tests/testing/compiler/index.ts`
+- `apps/playground/tests/testing/components/SnapshotDiffViewer.tsx`
+- `apps/playground/tests/testing/components/index.ts`
+- `apps/playground/tests/testing/contracts/SnapshotTypes.ts`
+- `apps/playground/tests/testing/harness/BehaviorTestHarness.ts`
+- `apps/playground/tests/testing/harness/ExecutionContextTestBuilder.ts`
+- `apps/playground/tests/testing/harness/ExecutionContextTestHarness.ts`
+- `apps/playground/tests/testing/harness/MockBlock.ts`
+- `apps/playground/tests/testing/harness/MockEffortResolver.ts`
+- `apps/playground/tests/testing/harness/MockJitCompiler.ts`
+- `apps/playground/tests/testing/harness/RuntimeTestBuilder.ts`
+- `apps/playground/tests/testing/harness/StrategyTestHarness.ts`
+- `apps/playground/tests/testing/harness/factory.ts`
+- `apps/playground/tests/testing/harness/index.ts`
+- `apps/playground/tests/testing/host.ts`
+- `apps/playground/tests/testing/index.ts`
+- `apps/playground/tests/testing/script/ScriptState.ts`
+- `apps/playground/tests/testing/script/TestScript.ts`
+- `apps/playground/tests/testing/script/assertions.ts`
+- `apps/playground/tests/testing/script/compliance.ts`
+- `apps/playground/tests/testing/script/index.ts`
+- `apps/playground/tests/testing/setup/AllocateTestMemoryAction.ts`
+- `apps/playground/tests/testing/setup/ITestSetupAction.ts`
+- `apps/playground/tests/testing/setup/SetEffortStateAction.ts`
+- `apps/playground/tests/testing/setup/SetLoopIndexAction.ts`
+- `apps/playground/tests/testing/setup/SetMemoryValueAction.ts`
+- `apps/playground/tests/testing/setup/SetTimerStateAction.ts`
+- `apps/playground/tests/testing/setup/TestSetupActionRegistry.ts`
+- `apps/playground/tests/testing/setup/index.ts`
+- `apps/playground/tests/testing/testable/TestableBlock.ts`
+- `apps/playground/tests/testing/testable/index.ts`
+- `apps/playground/tests/testing/transport/FakeRpcTransport.ts`
+- `apps/playground/tests/testing/transport/index.ts`
+- `apps/playground/tests/unit-setup.ts`
+- `apps/playground/tests/vitest-setup.ts`
+- `apps/playground/tests/wods/.placeholder`
+- `apps/playground/tests/wods/all-wods.test.ts`
+- `apps/playground/tsconfig.json`
+- `apps/playground/vitest.config.ts`
+- `apps/storybook/test/LanguageWorkbench.test.tsx`
+- `apps/storybook/test/setup.ts`
+- `apps/storybook/vitest.config.ts`
+- `packages/engine/src/agent/manifest.ts`
+- `packages/engine/src/index.ts`
+- `packages/engine/src/sample/index.ts`
+- `packages/engine/src/sample/sampleCorpus.ts`
+- `packages/engine/src/storage/index.ts`
+- `packages/engine/src/storage/persistDomainWorld.ts`
+- `packages/engine/src/storage/queryServiceStores.ts`
+- `packages/engine/tests/domain/all-wods.domain.test.ts`
+- `packages/engine/tests/domain/sample-corpus-and-dashboards.domain.test.ts`
+- `packages/engine/tests/harness/DomainScenarioHarness.ts`
+- `packages/lang/src/runtime/RuntimeClock.ts`
+- `packages/lang/tests/effort-registry/performance.test.ts`
+- `packages/lang/tests/harness/compliance-helpers.ts`
+- `packages/lang/tests/harness/index.ts`
+- `packages/lang/tests/harness/parser-test-utils.ts`
+- `packages/lang/tests/harness/script/TestScript.ts`
+- `packages/lang/tests/parser/compliance/cross-dialect-interaction.parser.test.ts`
+- `packages/lang/tests/parser/compliance/dialect-hints.parser.test.ts`
+- `packages/lang/tests/parser/compliance/effort.parser.test.ts`
+- `packages/lang/tests/parser/compliance/error-recovery.parser.test.ts`
+- `packages/lang/tests/parser/compliance/harness-smoke.parser.test.ts`
+- `packages/lang/tests/parser/compliance/metric-boundaries.parser.test.ts`
+- `packages/lang/tests/parser/compliance/metrics-edge-cases.parser.test.ts`
+- `packages/lang/tests/parser/compliance/parse-then-run.integration.test.ts`
+- `packages/lang/tests/parser/compliance/rounds-and-structure.parser.test.ts`
+- `packages/lang/tests/parser/compliance/timer-patterns-advanced.parse-then-run.integration.test.ts`
+- `packages/lang/tests/parser/compliance/timer-patterns.parse-then-run.integration.test.ts`
+- `packages/lang/tests/parser/compliance/timer.parser.test.ts`
+- `packages/lang/tests/parser/lezer-tree-inspect.test.ts`
+- `packages/lang/tests/parser/lezer-whiteboardscript.test.ts`
+- `packages/lang/tests/parser/parser-integration.test.ts`
+- `packages/lang/tests/parser/statement-ids.test.ts`
+- `packages/lang/tests/parser/syntax_features.test.ts`
+- `packages/lang/tests/parser/unit-flexibility.test.ts`
+- `packages/lang/tests/parser/whiteboard-script-parsing.test.ts`
+- `packages/lang/tests/perf/compiler-performance.test.ts`
+- `packages/lang/tests/perf/parser-performance.test.ts`
+- `packages/lang/tests/runtime/AmrapLogicStrategy.integration.test.ts`
+- `packages/lang/tests/runtime/blocks/EffortBlock.test.ts`
+- `packages/lang/tests/runtime/blocks/GroupBlock.test.ts`
+- `packages/lang/tests/runtime/blocks/TimerBlock.test.ts`
+- `packages/lang/tests/runtime/blocks/amrap_child_rotation.test.ts`
+- `packages/lang/tests/runtime/blocks/for_time_child_single_pass.test.ts`
+- `packages/lang/tests/runtime/blocks/lifecycle-edge-cases.test.ts`
+- `packages/lang/tests/runtime/blocks/root-block/RootBlock.basics.test.ts`
+- `packages/lang/tests/runtime/blocks/root-block/RootBlock.children.test.ts`
+- `packages/lang/tests/runtime/blocks/root-block/RootBlock.integration.test.ts`
+- `packages/lang/tests/runtime/blocks/root-block/RootBlock.lifecycle.test.ts`
+- `packages/lang/tests/runtime/compliance/alternating-emom.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/amrap.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/collectible.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/countup.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/effort.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/emom.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/for-time.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/metric-inheritance.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/mixed-timers.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/negative-scenarios.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/post-mount-snapshot-invariant.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/rest-overrun.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/rest.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/rounds.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/session-lifecycle.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/state-transitions.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/tabata.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/timer-state-transitions.compliance.test.ts`
+- `packages/lang/tests/runtime/compliance/timer.compliance.test.ts`
+- `packages/lang/tests/runtime/jit/amrap.test.ts`
+- `packages/lang/tests/runtime/jit/clear-children.test.ts`
+- `packages/lang/tests/runtime/jit/countup-collectible.test.ts`
+- `packages/lang/tests/runtime/jit/emom.test.ts`
+- `packages/lang/tests/runtime/jit/fixed-round-loop.test.ts`
+- `packages/lang/tests/runtime/jit/for-time-rep-scheme.test.ts`
+- `packages/lang/tests/runtime/jit/for-time-single.test.ts`
+- `packages/lang/tests/runtime/jit/forced-timer.test.ts`
+- `packages/lang/tests/runtime/jit/grouped_statements.test.ts`
+- `packages/lang/tests/runtime/jit/loop-with-rest.test.ts`
+- `packages/lang/tests/runtime/jit/rep-scheme-inheritance.test.ts`
+- `packages/lang/tests/runtime/jit/sequential-timers.test.ts`
+- `packages/lang/tests/runtime/lifecycle/ClockPropagation.test.ts`
+- `packages/lang/tests/runtime/lifecycle/LifecyclePhases.test.ts`
+- `packages/lang/tests/runtime/lifecycle/MountBehavior.test.ts`
+- `packages/lang/tests/runtime/lifecycle/NextBehavior.test.ts`
+- `packages/lang/tests/runtime/lifecycle/SnapshotClock.test.ts`
+- `packages/lang/tests/runtime/lifecycle/UnmountBehavior.test.ts`
+- `packages/storage/src/index.ts`
+- `packages/storage/src/memory.ts`
+- `packages/storage/tests/storage-conformance.test.ts`
+- `packages/ui/test/setup.ts`
+- `packages/ui/vitest.config.ts`
+- `packages/wql/tests/contract/wql-calc-seeds.test.ts`
+- `packages/wql/tests/grammar/wql-grammar.test.ts`
+
+## Changed Files
+
+- [M] `apps/playground/app/pages/TagsPage.test.tsx` (`routes`)
+- [M] `apps/playground/package.json` (`other`)
+- [M] `apps/playground/src/components/atoms/primitives/avatar.tsx` (`other`)
+- [M] `apps/playground/src/services/queryService.ts` (`other`) — +symbols: indexedDbBlockStore, indexedDbEventStore, indexedDbNoteStore
+- [M] `apps/playground/src/services/storage/InMemoryStorage.ts` (`other`) — -symbols: InMemoryStorage, InMemoryStore
+- [M] `apps/playground/src/services/tags/tagCatalogue.test.ts` (`other`)
+- [M] `apps/playground/src/testing/host.tsx` (`other`)
+- [D] `apps/playground/tests/NAMING_CONVENTIONS.md` (`other`)
+- [D] `apps/playground/tests/analytics/analytics-contract.test.ts` (`other`)
+- [D] `apps/playground/tests/analytics/effort-registry-crud-analytics.test.ts` (`other`)
+- [D] `apps/playground/tests/analytics/processor-split-validation.test.ts` (`other`)
+- [D] `apps/playground/tests/analytics/two-pass-effort-resolution.test.ts` (`other`)
+- [D] `apps/playground/tests/blocks/EffortBlock.test.ts` (`other`)
+- [D] `apps/playground/tests/blocks/GroupBlock.test.ts` (`other`)
+- [D] `apps/playground/tests/blocks/TimerBlock.test.ts` (`other`)
+- [D] `apps/playground/tests/blocks/amrap_child_rotation_test.ts` (`other`)
+- [D] `apps/playground/tests/blocks/for_time_child_single_pass_test.ts` (`other`)
+- [D] `apps/playground/tests/blocks/lifecycle-edge-cases.test.ts` (`other`)
+- [D] `apps/playground/tests/blocks/root-block/RootBlock.basics.test.ts` (`other`)
+- [D] `apps/playground/tests/blocks/root-block/RootBlock.children.test.ts` (`other`)
+- [D] `apps/playground/tests/blocks/root-block/RootBlock.integration.test.ts` (`other`)
+- [D] `apps/playground/tests/blocks/root-block/RootBlock.lifecycle.test.ts` (`other`)
+- [D] `apps/playground/tests/bun-test-shim.ts` (`other`) — -symbols: jest, mock, spyOn
+- [D] `apps/playground/tests/canvas/home-feature-markdown.test.tsx` (`other`)
+- [D] `apps/playground/tests/canvas/syntax-source-markdown.test.ts` (`other`)
+- [D] `apps/playground/tests/cast-integration/cast-roundtrip.test.ts` (`other`)
+- [D] `apps/playground/tests/components/AppVersion.test.tsx` (`other`)
+- [D] `apps/playground/tests/contract/wql-calc-seeds.test.ts` (`other`)
+- [D] `apps/playground/tests/helpers/compliance-helpers.ts` (`other`) — -symbols: anyOutputHasMetric, anySystemPopHasReason, blockDisplayMetrics, blockHasDisplayMetric, currentBlockType, currentBlockTypeAsync, currentTimerElapsedMs, getRoundState, isTimerPaused, stackHasMetric, systemPopValues
+- [D] `apps/playground/tests/helpers/parser-test-utils.ts` (`other`) — -symbols: ALL_DIALECTS, ParserTestContext, ParserTestOptions, StatementAssertions, TreeAssertions, createParserContext, createParserContextFromScript, parse, parseFromScript
+- [D] `apps/playground/tests/jit-compilation/amrap.test.ts` (`other`)
+- [D] `apps/playground/tests/jit-compilation/clear-children.test.ts` (`other`)
+- [D] `apps/playground/tests/jit-compilation/countup-collectible.test.ts` (`other`)
+- [D] `apps/playground/tests/jit-compilation/emom.test.ts` (`other`)
+- [D] `apps/playground/tests/jit-compilation/fixed-round-loop.test.ts` (`other`)
+- [D] `apps/playground/tests/jit-compilation/for-time-rep-scheme.test.ts` (`other`)
+- [D] `apps/playground/tests/jit-compilation/for-time-single.test.ts` (`other`)
+- [D] `apps/playground/tests/jit-compilation/forced-timer.test.ts` (`other`)
+- [D] `apps/playground/tests/jit-compilation/grouped_statements.test.ts` (`other`)
+- [D] `apps/playground/tests/jit-compilation/loop-with-rest.test.ts` (`other`)
+- [D] `apps/playground/tests/jit-compilation/rep-scheme-inheritance.test.ts` (`other`)
+- [D] `apps/playground/tests/jit-compilation/sequential-timers.test.ts` (`other`)
+- [D] `apps/playground/tests/language-compilation/parser-integration.test.ts` (`other`)
+- [D] `apps/playground/tests/language-compilation/statement-ids.test.ts` (`other`)
+- [D] `apps/playground/tests/language-compilation/syntax_features.test.ts` (`other`)
+- [D] `apps/playground/tests/language-compilation/whiteboard-script-parsing.test.ts` (`other`)
+- [D] `apps/playground/tests/lifecycle/ClockPropagation.test.ts` (`other`)
+- [D] `apps/playground/tests/lifecycle/LifecyclePhases.test.ts` (`other`)
+- [D] `apps/playground/tests/lifecycle/MountBehavior.test.ts` (`other`)
+- [D] `apps/playground/tests/lifecycle/NextBehavior.test.ts` (`other`)
+- [D] `apps/playground/tests/lifecycle/SnapshotClock.test.ts` (`other`)
+- [D] `apps/playground/tests/lifecycle/UnmountBehavior.test.ts` (`other`)
+- [D] `apps/playground/tests/note-context-nav.check.tsx` (`other`)
+- [D] `apps/playground/tests/panels/review-panel-chromecast.test.ts` (`other`)
+- [D] `apps/playground/tests/paperclip/recovery-loop-prevention-qa.sh` (`other`)
+- [D] `apps/playground/tests/parser-compliance/cross-dialect-interaction.parser.test.ts` (`other`)
+- [D] `apps/playground/tests/parser-compliance/dialect-hints.parser.test.ts` (`other`)
+- [D] `apps/playground/tests/parser-compliance/effort.parser.test.ts` (`other`)
+- [D] `apps/playground/tests/parser-compliance/error-recovery.parser.test.ts` (`other`)
+- [D] `apps/playground/tests/parser-compliance/harness-smoke.parser.test.ts` (`other`)
+- [D] `apps/playground/tests/parser-compliance/metric-boundaries.parser.test.ts` (`other`)
+- [D] `apps/playground/tests/parser-compliance/metrics-edge-cases.parser.test.ts` (`other`)
+- [D] `apps/playground/tests/parser-compliance/parse-then-run.integration.test.ts` (`other`)
+- [D] `apps/playground/tests/parser-compliance/rounds-and-structure.parser.test.ts` (`other`)
+- [D] `apps/playground/tests/parser-compliance/timer-patterns-advanced.parse-then-run.integration.test.ts` (`other`)
+- [D] `apps/playground/tests/parser-compliance/timer-patterns.parse-then-run.integration.test.ts` (`other`)
+- [D] `apps/playground/tests/parser-compliance/timer.parser.test.ts` (`other`)
+- [D] `apps/playground/tests/parser/lezer-tree-inspect.test.ts` (`other`)
+- [D] `apps/playground/tests/parser/lezer-whiteboardscript.test.ts` (`other`)
+- [D] `apps/playground/tests/parser/unit-flexibility.test.ts` (`other`)
+- [D] `apps/playground/tests/parser/wql-grammar.test.ts` (`other`)
+- [D] `apps/playground/tests/performance/compiler-performance.test.ts` (`other`)
+- [D] `apps/playground/tests/performance/parser-performance.test.ts` (`other`)
+- [D] `apps/playground/tests/playground/effort-routes.test.ts` (`other`)
+- [D] `apps/playground/tests/repro_output_serialization.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/alternating-emom.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/amrap.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/collectible.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/countup.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/effort.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/emom.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/for-time.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/full-scale-integration.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/metric-inheritance.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/mixed-timers.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/negative-scenarios.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/post-mount-snapshot-invariant.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/rest-overrun.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/rest.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/rounds.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/session-lifecycle.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/state-transitions.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/tabata.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/timer-state-transitions.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime-compliance/timer.compliance.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime/debug-sort.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime/sound/SoundBridge.test.tsx` (`other`)
+- [D] `apps/playground/tests/runtime/sound/SoundProfileBehavior.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime/sound/SoundProfileSelection.test.ts` (`other`)
+- [D] `apps/playground/tests/runtime/sound/soundProfiles.test.ts` (`other`)
+- [D] `apps/playground/tests/setup.ts` (`other`)
+- [D] `apps/playground/tests/strategies/AmrapLogicStrategy.integration.test.ts` (`other`)
+- [D] `apps/playground/tests/strategies/AmrapLogicStrategy.test.ts` (`other`)
+- [D] `apps/playground/tests/strategies/EffortFallbackStrategy.test.ts` (`other`)
+- [D] `apps/playground/tests/strategies/IntervalLogicStrategy.test.ts` (`other`)
+- [D] `apps/playground/tests/tags/tagCatalogue.test.ts` (`other`)
+- [D] `apps/playground/tests/testing/compiler/index.ts` (`other`)
+- [D] `apps/playground/tests/testing/components/SnapshotDiffViewer.tsx` (`other`)
+- [D] `apps/playground/tests/testing/components/index.ts` (`other`)
+- [D] `apps/playground/tests/testing/contracts/SnapshotTypes.ts` (`other`)
+- [D] `apps/playground/tests/testing/harness/BehaviorTestHarness.ts` (`other`)
+- [D] `apps/playground/tests/testing/harness/ExecutionContextTestBuilder.ts` (`other`)
+- [D] `apps/playground/tests/testing/harness/ExecutionContextTestHarness.ts` (`other`)
+- [D] `apps/playground/tests/testing/harness/MockBlock.ts` (`other`)
+- [D] `apps/playground/tests/testing/harness/MockEffortResolver.ts` (`other`)
+- [D] `apps/playground/tests/testing/harness/MockJitCompiler.ts` (`other`)
+- [D] `apps/playground/tests/testing/harness/RuntimeTestBuilder.ts` (`other`)
+- [D] `apps/playground/tests/testing/harness/StrategyTestHarness.ts` (`other`)
+- [D] `apps/playground/tests/testing/harness/factory.ts` (`other`)
+- [D] `apps/playground/tests/testing/harness/index.ts` (`other`)
+- [D] `apps/playground/tests/testing/host.ts` (`other`)
+- [D] `apps/playground/tests/testing/index.ts` (`other`)
+- [D] `apps/playground/tests/testing/script/ScriptState.ts` (`other`)
+- [D] `apps/playground/tests/testing/script/TestScript.ts` (`other`) — -symbols: TestScript
+- [D] `apps/playground/tests/testing/script/assertions.ts` (`other`)
+- [D] `apps/playground/tests/testing/script/compliance.ts` (`other`) — -symbols: ComplianceContext, describeCompliance
+- [D] `apps/playground/tests/testing/script/index.ts` (`other`)
+- [D] `apps/playground/tests/testing/setup/AllocateTestMemoryAction.ts` (`other`)
+- [D] `apps/playground/tests/testing/setup/ITestSetupAction.ts` (`other`)
+- [D] `apps/playground/tests/testing/setup/SetEffortStateAction.ts` (`other`)
+- [D] `apps/playground/tests/testing/setup/SetLoopIndexAction.ts` (`other`)
+- [D] `apps/playground/tests/testing/setup/SetMemoryValueAction.ts` (`other`)
+- [D] `apps/playground/tests/testing/setup/SetTimerStateAction.ts` (`other`)
+- [D] `apps/playground/tests/testing/setup/TestSetupActionRegistry.ts` (`other`)
+- [D] `apps/playground/tests/testing/setup/index.ts` (`other`)
+- [D] `apps/playground/tests/testing/testable/TestableBlock.ts` (`other`)
+- [D] `apps/playground/tests/testing/testable/index.ts` (`other`)
+- [D] `apps/playground/tests/testing/transport/FakeRpcTransport.ts` (`other`) — -symbols: FakeRpcTransport, connectPair
+- [D] `apps/playground/tests/testing/transport/index.ts` (`other`)
+- [D] `apps/playground/tests/unit-setup.ts` (`other`)
+- [D] `apps/playground/tests/vitest-setup.ts` (`other`)
+- [D] `apps/playground/tests/wods/.placeholder` (`other`)
+- [D] `apps/playground/tests/wods/all-wods.test.ts` (`other`)
+- [M] `apps/playground/tsconfig.json` (`other`)
+- [M] `apps/playground/vitest.config.ts` (`other`)
+- [M] `apps/storybook/test/LanguageWorkbench.test.tsx` (`other`)
+- [M] `apps/storybook/vitest.config.ts` (`other`)
+- [M] `packages/engine/src/agent/helpers.ts` (`webmcp_tools`) — -symbols: buildQueryServiceStoresFromStorage
+- [M] `packages/engine/src/index.ts` (`engine`)
+- [M] `packages/engine/tests/harness/DomainScenarioHarness.ts` (`other`)
+- [M] `packages/lang/src/runtime/RuntimeClock.ts` (`lang_metrics`)
+- [M] `packages/lang/tests/effort-registry/performance.test.ts` (`other`)
+- [M] `packages/lang/tests/harness/index.ts` (`other`)
+- [M] `packages/lang/tests/harness/script/TestScript.ts` (`other`)
+- [M] `packages/storage/src/index.ts` (`other`)
+- [M] `packages/ui/test/setup.ts` (`other`)
+- [M] `packages/ui/vitest.config.ts` (`other`)
+- [A] `apps/playground/app/canvas/home-feature-markdown.test.tsx` (`routes`)
+- [A] `apps/playground/app/canvas/syntax-source-markdown.test.ts` (`routes`)
+- [A] `apps/playground/app/lib/effort-routes.test.ts` (`routes`)
+- [A] `apps/playground/src/components/atoms/AppVersion.test.tsx` (`other`)
+- [A] `apps/playground/src/components/atoms/primitives/__tests__/touch-target-sizes.test.ts` (`other`)
+- [A] `apps/playground/src/panels/review-panel-chromecast.test.ts` (`other`)
+- [A] `apps/playground/src/runtime/debug-sort.test.ts` (`other`)
+- [A] `apps/playground/src/services/analytics/analytics-contract.test.ts` (`other`)
+- [A] `apps/playground/src/services/analytics/effort-registry-crud-analytics.test.ts` (`other`)
+- [A] `apps/playground/src/services/analytics/processor-split-validation.test.ts` (`other`)
+- [A] `apps/playground/src/services/cast/cast-roundtrip.test.ts` (`other`)
+- [A] `apps/playground/src/services/cast/full-scale-integration.test.ts` (`other`)
+- [A] `apps/playground/src/services/sound/SoundBridge.test.tsx` (`other`)
+- [A] `apps/playground/src/services/sound/SoundProfileBehavior.test.ts` (`other`)
+- [A] `apps/playground/src/services/sound/SoundProfileSelection.test.ts` (`other`)
+- [A] `apps/playground/src/services/sound/soundProfiles.test.ts` (`other`)
+- [A] `apps/playground/src/testing/bun-test-shim.ts` (`other`) — +symbols: jest, mock, spyOn
+- [A] `apps/playground/src/testing/harness/RuntimeTestBuilder.ts` (`other`)
+- [A] `apps/playground/src/testing/index.ts` (`other`)
+- [A] `apps/playground/src/testing/script/ScriptState.ts` (`other`)
+- [A] `apps/playground/src/testing/script/TestScript.ts` (`other`) — +symbols: TestScript
+- [A] `apps/playground/src/testing/script/assertions.ts` (`other`)
+- [A] `apps/playground/src/testing/script/compliance.ts` (`other`) — +symbols: ComplianceContext, describeCompliance
+- [A] `apps/playground/src/testing/script/index.ts` (`other`)
+- [A] `apps/playground/src/testing/transport/FakeRpcTransport.ts` (`other`) — +symbols: FakeRpcTransport, connectPair
+- [A] `apps/playground/src/testing/transport/index.ts` (`other`)
+- [A] `apps/playground/src/testing/vitest-setup.ts` (`other`)
+- [A] `apps/storybook/test/setup.ts` (`other`)
+- [A] `packages/engine/src/sample/index.ts` (`engine`)
+- [A] `packages/engine/src/sample/sampleCorpus.ts` (`engine`) — +symbols: SAMPLE_TAG, SampleBundle, SampleMovement, SampleSession, SampleWorkoutType, buildSampleBundle, buildSampleWorld, buildSessionLogs, generateSampleSessions, round1
+- [A] `packages/engine/src/storage/index.ts` (`engine`)
+- [A] `packages/engine/src/storage/persistDomainWorld.ts` (`engine`) — +symbols: PERSIST_WORLD_STORES, persistDomainWorld
+- [A] `packages/engine/src/storage/queryServiceStores.ts` (`engine`) — +symbols: BuildQueryServiceStoresOptions, DatasetStore, buildQueryServiceStoresFromStorage
+- [A] `packages/engine/tests/domain/all-wods.domain.test.ts` (`other`)
+- [A] `packages/engine/tests/domain/sample-corpus-and-dashboards.domain.test.ts` (`other`)
+- [A] `packages/lang/tests/harness/compliance-helpers.ts` (`other`) — +symbols: anyOutputHasMetric, anySystemPopHasReason, blockDisplayMetrics, blockHasDisplayMetric, currentBlockType, currentBlockTypeAsync, currentTimerElapsedMs, getRoundState, isTimerPaused, stackHasMetric, systemPopValues
+- [A] `packages/lang/tests/harness/parser-test-utils.ts` (`other`) — +symbols: ALL_DIALECTS, DialectRegistry, ParserTestContext, ParserTestOptions, StatementAssertions, TreeAssertions, createParserContext, createParserContextFromScript, parse, parseFromScript
+- [A] `packages/lang/tests/parser/compliance/cross-dialect-interaction.parser.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/compliance/dialect-hints.parser.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/compliance/effort.parser.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/compliance/error-recovery.parser.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/compliance/harness-smoke.parser.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/compliance/metric-boundaries.parser.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/compliance/metrics-edge-cases.parser.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/compliance/parse-then-run.integration.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/compliance/rounds-and-structure.parser.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/compliance/timer-patterns-advanced.parse-then-run.integration.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/compliance/timer-patterns.parse-then-run.integration.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/compliance/timer.parser.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/lezer-tree-inspect.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/lezer-whiteboardscript.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/parser-integration.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/statement-ids.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/syntax_features.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/unit-flexibility.test.ts` (`other`)
+- [A] `packages/lang/tests/parser/whiteboard-script-parsing.test.ts` (`other`)
+- [A] `packages/lang/tests/perf/compiler-performance.test.ts` (`other`)
+- [A] `packages/lang/tests/perf/parser-performance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/AmrapLogicStrategy.integration.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/blocks/EffortBlock.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/blocks/GroupBlock.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/blocks/TimerBlock.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/blocks/amrap_child_rotation.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/blocks/for_time_child_single_pass.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/blocks/lifecycle-edge-cases.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/blocks/root-block/RootBlock.basics.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/blocks/root-block/RootBlock.children.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/blocks/root-block/RootBlock.integration.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/blocks/root-block/RootBlock.lifecycle.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/alternating-emom.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/amrap.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/collectible.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/countup.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/effort.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/emom.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/for-time.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/metric-inheritance.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/mixed-timers.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/negative-scenarios.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/post-mount-snapshot-invariant.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/rest-overrun.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/rest.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/rounds.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/session-lifecycle.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/state-transitions.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/tabata.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/timer-state-transitions.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/compliance/timer.compliance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/amrap.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/clear-children.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/countup-collectible.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/emom.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/fixed-round-loop.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/for-time-rep-scheme.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/for-time-single.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/forced-timer.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/grouped_statements.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/loop-with-rest.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/rep-scheme-inheritance.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/jit/sequential-timers.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/lifecycle/ClockPropagation.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/lifecycle/LifecyclePhases.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/lifecycle/MountBehavior.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/lifecycle/NextBehavior.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/lifecycle/SnapshotClock.test.ts` (`other`)
+- [A] `packages/lang/tests/runtime/lifecycle/UnmountBehavior.test.ts` (`other`)
+- [A] `packages/storage/src/memory.ts` (`other`) — +symbols: InMemoryStorage, InMemoryStore
+- [A] `packages/storage/tests/storage-conformance.test.ts` (`other`)
+- [A] `packages/wql/tests/contract/wql-calc-seeds.test.ts` (`other`)
+- [A] `packages/wql/tests/grammar/wql-grammar.test.ts` (`other`)
+
+## Proposed Triple Counts
+
+- `:domain`: +0 / -0
+- `:code`: +180 / -167
+- `:bridge`: +0 / -0
+
+## Approval & Apply Workflow
+
+```bash
+# 1. Review ontology/changesets/20261117T004258Z-qa-seam-pyramid.trig and approve:
+bun run ontology:changeset approve 20261117T004258Z-qa-seam-pyramid
+
+# 2. Apply approved changeset into canonical ontology/bridge:
+bun run ontology:changeset apply 20261117T004258Z-qa-seam-pyramid
+```

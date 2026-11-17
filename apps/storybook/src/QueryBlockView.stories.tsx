@@ -1,22 +1,26 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, within } from 'storybook/test';
+import { expect, waitFor, within } from 'storybook/test';
 import { QueryBlockView, type QueryExecutor } from '@bitcobblers/wod-wiki-ui';
+import { captureContext } from '@bitcobblers/wod-wiki-wql';
 import { JOURNALS, buildServiceForJournal } from './gallery/journals';
 
 const journalService = buildServiceForJournal(JOURNALS.crossfit);
 const corpusNewest = Math.max(...JOURNALS.crossfit.records.map((r) => r.timestamp));
+const corpusContext = captureContext(corpusNewest, 'UTC');
 
 const executor: QueryExecutor = {
-  runQuery: (query, options) => journalService.runQuery(query, { rangeEnd: corpusNewest, ...options }),
-  runFind: (parsed, options) => journalService.runFind(parsed, { anchorNow: corpusNewest, ...options }),
-  runRows: (parsed, options) => journalService.runRows(parsed, { anchorNow: corpusNewest, ...options }),
+  runQuery: (query, options) => journalService.runQuery(query, { ...options, rangeEnd: corpusNewest, context: corpusContext }),
+  runFind: (parsed, options) => journalService.runFind(parsed, { ...options, anchorNow: corpusNewest, context: corpusContext }),
+  runRows: (parsed, options) => journalService.runRows(parsed, { ...options, anchorNow: corpusNewest, context: corpusContext }),
+  runPipeline: (query, options) => journalService.runPipeline(query, { ...options, rangeEnd: corpusNewest, anchorNow: corpusNewest, context: corpusContext }),
 };
 
 const meta: Meta<typeof QueryBlockView> = {
   title: 'Packages/UI/Blocks/QueryBlockView',
   component: QueryBlockView,
+  parameters: { domainState: 'populatedJournal' },
   args: {
-    query: 'sum:totalVolume{} by {week} last 8w',
+    query: 'sum:totalVolume{effort:fran} by {week} in lb last 8w',
     widgetType: 'timeseries',
     readOnly: false,
   },
@@ -52,7 +56,18 @@ type Story = StoryObj<typeof QueryBlockView>;
 export const AggregateTimeseries: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByTestId('query-block-story')).toBeVisible();
+    const root = canvas.getByTestId('query-block-story');
+    await expect(root).toBeVisible();
+    await waitFor(() => {
+      expect(canvas.queryByText('Loading…')).toBeNull();
+    });
+    expect(canvas.queryByText(/query execution error/i)).toBeNull();
+    expect(canvas.queryByText(/no data for this range/i)).toBeNull();
+    await waitFor(() => {
+      const svg = root.querySelector('svg.recharts-surface');
+      expect(svg).not.toBeNull();
+      expect(svg).toBeVisible();
+    });
   },
 };
 
@@ -74,5 +89,23 @@ export const NoteFindQuery: Story = {
   args: {
     query: ':note{tags:benchmark} last 12w',
     widgetType: '',
+  },
+};
+
+export const TableQueryInlay: Story = {
+  args: {
+    query: ':segment{}',
+    widgetType: 'table',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const root = canvas.getByTestId('query-block-story');
+    await expect(root).toBeVisible();
+    await waitFor(() => {
+      expect(canvas.queryByText('Loading…')).toBeNull();
+    });
+    const table = await canvas.findByTestId('tabular-table');
+    await expect(table).toBeVisible();
+    expect(table.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
   },
 };

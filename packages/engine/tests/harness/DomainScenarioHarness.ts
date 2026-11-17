@@ -23,6 +23,10 @@ import {
 } from '@bitcobblers/wod-wiki-core/testing';
 import { toEventRows } from '@bitcobblers/wod-wiki-wql';
 import {
+  buildQueryServiceStoresFromStorage,
+  persistDomainWorld,
+} from '../../src/storage';
+import {
   MetricContainer,
   MetricType,
   QueryService,
@@ -210,7 +214,7 @@ export class DomainScenarioHarness {
 
   private constructor(storage: SqlStorage) {
     this.storage = storage;
-    this.queryService = new QueryService(this.buildQueryServiceStores());
+    this.queryService = new QueryService(buildQueryServiceStoresFromStorage(this.storage));
   }
 
   static async create(initialWorld?: DomainWorldInput): Promise<DomainScenarioHarness> {
@@ -225,9 +229,7 @@ export class DomainScenarioHarness {
 
   /** Aggregate a complete deterministic domain snapshot into the live database. */
   async seedWorld(input: DomainWorldInput = {}): Promise<DomainWorld> {
-    const world = buildDomainWorld(input);
-    await this.persistWorldRows(world);
-    return world;
+    return persistDomainWorld(this.storage, input);
   }
 
   /** Author a Note with its revisions, block-index projections, containment rows and notebook links. */
@@ -563,24 +565,7 @@ export class DomainScenarioHarness {
 
   /** Persist a world slice in one transaction. */
   private async persistWorldRows(world: WorldRowSlice): Promise<void> {
-    await this.storage.transaction([...WORLD_STORES], 'readwrite', async (tx) => {
-      if (world.notes.length) await tx.readwrite('notes').putMany(world.notes);
-      if (world.revisions.length) await tx.readwrite('block_revisions').putMany(world.revisions);
-      if (world.blockIndex.length) await tx.readwrite('block_index').putMany(world.blockIndex);
-      if (world.blockEfforts.length) await tx.readwrite('block_efforts').putMany(world.blockEfforts);
-      if (world.blockEquipment.length) await tx.readwrite('block_equipment').putMany(world.blockEquipment);
-      if (world.tags.length) await tx.readwrite('tags').putMany(world.tags);
-      if (world.noteTags.length) await tx.readwrite('note_tags').putMany(world.noteTags);
-      if (world.notebooks.length) await tx.readwrite('notes').putMany(world.notebooks);
-      if (world.notebookLinks.length) await tx.readwrite('notebook_links').putMany(world.notebookLinks);
-      for (const override of world.propertyOverrides) {
-        await this.projectPropertyOverride(tx, override);
-      }
-      if (world.pages.length) await tx.readwrite('page').putMany(world.pages);
-      if (world.pageNotes.length) await tx.readwrite('page_notes').putMany(world.pageNotes);
-      if (world.sessions.length) await tx.readwrite('sessions').putMany(world.sessions);
-      if (world.events.length) await tx.readwrite('events').putMany(world.events);
-    });
+    await persistDomainWorld(this.storage, world as unknown as DomainWorld);
   }
 
   /** Persist one Scoped Property Override and its Tag / Tag Category projections. */
@@ -630,195 +615,4 @@ export class DomainScenarioHarness {
     return sources;
   }
 
-  /** Production store seam: every QueryService store reads the live SqlStorage. */
-  private buildQueryServiceStores(): QueryServiceStores {
-    const storage = this.storage;
-    const asRange = (lower: KeyDTO, upper: KeyDTO): RangeDTO => ({ lower, upper });
-    const resultRows = (key: string): RangeDTO => asRange([key, ''], [`${key}\uffff`, '\uffff']);
-
-    const eventStore: EventStore = {
-      getEventsByTimeRange: async (start, end) => storage.readonly('events').getAllFromIndex('by-timestamp', asRange(start, end)),
-      getEventsByResult: async (resultId) => storage.readonly('events').getAllFromIndex('by-result-grain', resultRows(resultId)),
-      getEventsForNote: async (noteId) => (await storage.readonly('events').getAll()).filter((row) => row.noteId === noteId),
-      getEventsByContent: async (blockContentId) => storage.readonly('events').getAllFromIndex('by-content-grain', resultRows(blockContentId)),
-      scanAll: () => storage.readonly('events').getAll(),
-      appendEvents: async (rows) => {
-        if (rows.length) await storage.readwrite('events').putMany(rows);
-      },
-      finalizeSummaries: async (resultId, rows) => {
-        await storage.transaction(['events'], 'readwrite', async (tx) => {
-          const prior = await tx.readonly('events').getAllFromIndex('by-result-grain', {
-            lower: [resultId, 'summary'],
-            upper: [`${resultId}\uffff`, '\uffff'],
-          });
-          for (const row of prior) await tx.readwrite('events').delete(row.id);
-          if (rows.length) await tx.readwrite('events').putMany(rows);
-        });
-      },
-      deleteEvents: async (ids) => {
-        for (const id of ids) await storage.readwrite('events').delete(id);
-      },
-    };
-
-    const noteStore: NoteQueryStore = {
-      getAllNotes: () => storage.readonly('notes').getAll(),
-      getNotesByIds: async (ids) => {
-        const rows = await storage.readonly('notes').getMany([...ids]);
-        return rows.filter((row): row is Note => row !== undefined);
-      },
-      getNoteIdsForTag: async (label) => {
-        const ids = new Set<string>();
-        for (const tag of await storage.readonly('tags').getAllFromIndex('by-label', label)) {
-          for (const link of await storage.readonly('note_tags').getAllFromIndex('by-tag', tag.id)) {
-            ids.add(link.noteId);
-          }
-        }
-        return ids;
-      },
-      getNoteTagLabels: async (noteId) => {
-        const links = await storage.readonly('note_tags').getAllFromIndex('by-note', noteId);
-        const tags = await storage.readonly('tags').getMany(links.map((link) => link.tagId));
-        return tags.flatMap((tag) => (tag ? [tag.label] : []));
-      },
-      queryDomain: async (request) => {
-        const result = await storage.queryDomain({ ...request, plan: 'notes' });
-        return result && result.plan === 'notes' ? result : undefined;
-      },
-    };
-
-    const blockStore: BlockQueryStore = {
-      getAllBlocks: () => storage.readonly('block_index').getAll(),
-      queryDomain: async (request) => {
-        const result = await storage.queryDomain({ ...request, plan: 'blocks' });
-        return result && result.plan === 'blocks' ? result : undefined;
-      },
-    };
-
-    const effortStore: EffortQueryStore = {
-      getAllEfforts: () => storage.readonly('efforts').getAll(),
-    };
-
-    return {
-      eventStore,
-      noteStore,
-      blockStore,
-      effortStore,
-      blockEffortsStore: {
-        getAllFromIndex: (index, key) => storage.readonly('block_efforts').getAllFromIndex(index, key),
-      },
-      blockEquipmentStore: {
-        getAllFromIndex: (index, key) => storage.readonly('block_equipment').getAllFromIndex(index, key),
-      },
-      tagsStore: {
-        getAllFromIndex: (index, key) => storage.readonly('tags').getAllFromIndex(index, key),
-        getAll: () => storage.readonly('tags').getAll(),
-      },
-      noteTagsStore: {
-        getAllFromIndex: (index, key) => storage.readonly('note_tags').getAllFromIndex(index, key),
-      },
-      pageStore: {
-        getNotePages: (noteId) => storage.readonly('page_notes').getAllFromIndex('by-note', noteId),
-        getPage: (pageId) => storage.readonly('page').get(pageId),
-        getAllPages: () => storage.readonly('page').getAll(),
-        getAllLinks: () => storage.readonly('page_notes').getAll(),
-      },
-      relationStore: {
-        getBatches: async (noteIds) => {
-          const bundles = new Map<string, HarnessRelationBundle>();
-          for (const noteId of noteIds) {
-            const links = await storage.readonly('page_notes').getAllFromIndex('by-note', noteId);
-            const tagLinks = await storage.readonly('note_tags').getAllFromIndex('by-note', noteId);
-            const tags = await storage.readonly('tags').getMany(tagLinks.map((link) => link.tagId));
-            const pages = await storage.readonly('page').getMany([...new Set(links.map((link) => link.pageId))]);
-            bundles.set(noteId, {
-              tags: tags.flatMap((tag) => (tag ? [{ label: tag.label, ...(tag.type ? { type: tag.type } : {}) }] : [])),
-              links,
-              pages: pages.filter((page): page is Page => page !== undefined),
-            });
-          }
-          return bundles;
-        },
-      },
-      feedCatalogStore: {
-        getAllFeeds: async () => {
-          const rows: Array<{
-            id: string; label: string; url: string; tier: 'imported'; subscribed: boolean;
-            installed: boolean; notebookCount: number; itemCount: number;
-          }> = [];
-          for (const row of await storage.readonly('meta').getAll()) {
-            const key = (row as { key?: unknown }).key;
-            if (typeof key !== 'string' || !key.startsWith('seed:') || key === seedMetaKey('user')) continue;
-            const id = key.slice('seed:'.length);
-            rows.push({
-              id,
-              label: id,
-              url: `https://${id}.example/feed/`,
-              tier: 'imported',
-              subscribed: true,
-              installed: true,
-              notebookCount: 0,
-              itemCount: 0,
-            });
-          }
-          return rows;
-        },
-        getAllNotebooks: async () => {
-          const links = await storage.readonly('notebook_links').getAll();
-          const notes = await storage.readonly('notes').getAll();
-          const memberCount = new Map<string, number>();
-          for (const link of links) {
-            if (link.targetKind === 'note') memberCount.set(link.notebookId, (memberCount.get(link.notebookId) ?? 0) + 1);
-          }
-          const rows: Array<{
-            id: string; feedId: string; feedLabel: string; chunkId: string; slug: string;
-            label: string; count: number; subscribed: boolean; installed: boolean;
-            origin: 'user' | 'feed'; public?: boolean;
-          }> = [];
-          for (const [notebookId, count] of memberCount) {
-            const slug = notebookId.startsWith('notebook/') ? notebookId.slice('notebook/'.length) : notebookId;
-            const landing = notes.find((note) => note.id === notebookId);
-            const feedSourceId = landing?.feedSourceId;
-            rows.push({
-              id: notebookId,
-              feedId: feedSourceId ?? 'local',
-              feedLabel: feedSourceId ?? 'Yours (Local)',
-              chunkId: `notebook.${slug}`,
-              slug,
-              label: landing?.title ?? slug,
-              count,
-              subscribed: feedSourceId !== undefined,
-              installed: true,
-              origin: feedSourceId ? 'feed' : 'user',
-              ...(landing?.public !== undefined ? { public: landing.public } : {}),
-            });
-          }
-          return rows;
-        },
-      },
-    };
-  }
 }
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function flattenContributions(
-  contributions: ReadonlyArray<{ kind?: string; type?: string; value?: unknown }> | undefined,
-): { metrics: Record<string, string | number>; summaries: Record<string, string | number> } {
-  const metrics: Record<string, string | number> = {};
-  const summaries: Record<string, string | number> = {};
-  for (const contribution of contributions ?? []) {
-    if (contribution.kind !== 'metric' || typeof contribution.type !== 'string') continue;
-    const value = contribution.value;
-    if (typeof value !== 'string' && typeof value !== 'number') continue;
-    if (contribution.type.startsWith('metrics.')) metrics[contribution.type.slice('metrics.'.length)] = value;
-    else if (contribution.type.startsWith('summaries.')) summaries[contribution.type.slice('summaries.'.length)] = value;
-  }
-  return { metrics, summaries };
-}
-
-/** Store names every world-persisting write touches. */
-const WORLD_STORES: StoreName[] = [
-  'notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment',
-  'tags', 'note_tags', 'notebook_links', 'property_overrides', 'efforts', 'equipment',
-  'tag_types', 'page', 'page_notes', 'sessions', 'events',
-] as const;

@@ -12,11 +12,7 @@
     "build:vite:api": "VITE_STORAGE=api VITE_API_URL=/api vite build --outDir dist-api",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:markdown": "bun test ./tests/wods ./tests/canvas --preload ./tests/setup.ts",
-    "test:components": "bun test ./tests/blocks ./tests/strategies ./tests/lifecycle ./tests/analytics ./tests/cast-integration ./tests/runtime/sound ./tests/tags ./tests/playground --preload ./tests/setup.ts",
-    "test:all": "bun run test && bun run test:components",
     "test:coverage": "vitest run --coverage",
-    "test:perf": "bun test tests/performance",
     "clean": "rm -rf dist dist-api",
     "typecheck": "echo '[skip] Playground compiles via Vite/esbuild without a tsc gate; strict tsc adoption tracked as follow-up'"
   },

@@ -17,10 +17,10 @@ Given a Visitor arriving at '/' on both 1280×900 desktop and 375×812 mobile:
 
 1. Visitor opens '/', waits for core Seed readiness, opens the pitch video lightbox, closes it into 'Watch again', re-expands it, and scrolls to `tour-section-editor` without watching.
 2. Visitor scrolls to the Session Insights scope and activates the touch-safe 'Run to view' (`tour-insights-run`) call-to-action.
-3. Visitor pauses, resumes, and stops the fullscreen timer, confirms Stop Session, closes the 'Workout Complete' review dialog, inspects the revealed Session Insights metrics, and clicks `tour-pane-back-to-editor`.
+3. Visitor starts (if at Ready-to-Start gate), pauses, resumes, and stops the fullscreen timer, confirms Stop Session, closes the 'Workout Complete' review dialog, inspects the revealed Session Insights metrics, and clicks `tour-pane-back-to-editor`.
 - expect: Step 1 renders `tour-hero`, `tour-why-video`, and the inline editor (`0:03 Count Down`), toggles cleanly between lightbox and 'Watch again', and keeps `tour-why-video` expanded when scrolling past without watching (`tour-why-watch-again` stays hidden).
 - expect: Step 2 opens the fullscreen timer overlay with 44×44px hit-tested `timer-next-block`, `timer-play-pause`, and `timer-stop-session` controls visible and reachable.
-- expect: Step 3 persists the partial Session, glides `tour-section-insights` under the sticky header to illuminate `tour-insights-timeline`, `tour-insights-impatience`, and `tour-insights-reaction`, and glides back to `tour-section-editor` via `tour-pane-back-to-editor` with a clean browser console.
+- expect: Step 3 persists the partial Session, glides `tour-section-insights` under the sticky header to illuminate `tour-insights-timeline`, `tour-insights-impatience`, and `tour-insights-reaction`, keeps all mounted `.recharts-responsive-container` charts at non-zero dimensions with zero size warnings, and glides back to `tour-section-editor` via `tour-pane-back-to-editor` with a clean browser console.
 
 ### Scenario 2: Wod Wiki University outline scrolls to the 9 alternating guide cards, opens `/page/guide-start`, and preserves `/legacy` ADR-0010 boundary
 
