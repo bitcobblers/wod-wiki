@@ -78,11 +78,11 @@ export function PlaygroundRedirect({ createPage = defaultCreatePage }: Playgroun
   useEffect(() => {
     let cancelled = false
 
-    ;(async () => {
+    void (async () => {
       try {
         const id = await resolvePlaygroundId(attempt, createPage, () => cancelled)
         if (!cancelled) {
-          navigateRef.current(playgroundPath(id), { replace: true })
+          void navigateRef.current(playgroundPath(id), { replace: true })
         }
       } catch {
         if (!cancelled) {

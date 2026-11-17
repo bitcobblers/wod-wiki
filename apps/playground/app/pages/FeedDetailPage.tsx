@@ -102,7 +102,7 @@ export function FeedDetailPage({ feedSlug, deps }: FeedDetailPageProps) {
   }, []);
 
   const handleSettingsSync = useCallback(() => {
-    navigate(ROUTE_PATTERNS.settingsSync);
+    void navigate(ROUTE_PATTERNS.settingsSync);
   }, [navigate]);
 
   const handleSubscribe = useCallback(async () => {

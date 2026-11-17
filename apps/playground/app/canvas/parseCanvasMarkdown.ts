@@ -122,14 +122,14 @@ export interface CanvasSection {
  * Concatenates all `prose` chunks in order — the inverse of the
  * parser's prose→chunks pass. Returns '' for sections with no prose chunks.
  */
-export function getSectionProse(section: CanvasSection): string {
+export function getSectionProse(section: Pick<CanvasSection, 'proseChunks'>): string {
   return section.proseChunks
     .filter((c): c is { kind: 'prose'; text: string } => c.kind === 'prose')
     .map(c => c.text)
     .join('')
 }
 export interface ParsedCanvasPage {
-  frontmatter: Record<string, any>
+  frontmatter: Record<string, unknown>
   template: string
   route: string
   /** Frontmatter `type` (e.g. 'guide') — surfaced for page-kind gating. */
@@ -881,12 +881,12 @@ export function parseCanvasMarkdown(raw: string, defaultRoute: string = '/'): Pa
       heading:     acc.heading,
       level:       acc.level,
       attrs:       cleanAttrs,
-      theme:       (getAttrValue('theme') ?? 'slate') as any,
-      density:     (getAttrValue('density') ?? 'default') as any,
+      theme:       (getAttrValue('theme') ?? 'slate') as SectionTheme,
+      density:     (getAttrValue('density') ?? 'default') as SectionDensity,
       isDark:      hasAttr('dark'),
       isFullBleed: hasAttr('full-bleed'),
       isSticky:    hasAttr('sticky'),
-      prose:       getSectionProse({ proseChunks } as any),
+      prose:       getSectionProse({ proseChunks }),
       proseChunks,
       view,
       commands,

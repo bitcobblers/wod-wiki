@@ -3,7 +3,7 @@ import {
   Dialog as HeadlessDialog,
   DialogPanel,
   DialogTitle as HeadlessDialogTitle,
-  DialogDescription as HeadlessDialogDescription,
+  Description as HeadlessDialogDescription,
   Transition,
   TransitionChild
 } from '@headlessui/react';

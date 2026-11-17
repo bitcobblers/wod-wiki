@@ -236,6 +236,7 @@ function ResponsiveDonut({ data, unit }: { data: Array<{ name: string; value: nu
           isAnimationActive={false}
         >
           {data.map((d) => (
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- Recharts Pie per-slice fill still uses Cell
             <Cell key={d.name} fill={d.fill} />
           ))}
         </Pie>

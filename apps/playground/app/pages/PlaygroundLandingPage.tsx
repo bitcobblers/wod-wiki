@@ -140,7 +140,9 @@ export function PlaygroundLandingPage() {
     })
 
     if (result.dismissed) return
-    navigatePaletteResult(result.item, navigate)
+    navigatePaletteResult(result.item, (to) => {
+      void navigate(to)
+    })
   }, [navigate, canvasRouteList])
 
   const handleAttentionAction = useCallback(
@@ -171,7 +173,7 @@ export function PlaygroundLandingPage() {
       ].join('\n')
 
       const id = await createPlaygroundPage(template)
-      navigate(playgroundPath(id))
+      void navigate(playgroundPath(id))
     },
     [navigate],
   )
@@ -182,7 +184,7 @@ export function PlaygroundLandingPage() {
         window.open(docsPath, '_blank', 'noopener,noreferrer')
         return
       }
-      navigate(docsPath)
+      void navigate(docsPath)
     },
     [navigate],
   )

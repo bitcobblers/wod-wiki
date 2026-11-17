@@ -58,8 +58,9 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
 
     await page.goto('/', { waitUntil: 'networkidle' });
 
-    // Allow some time for async errors to surface
-    await page.waitForTimeout(2000);
+    // Wait for boot feed sync and main surface render to surface any async boot errors
+    await waitForFeedReady(page);
+    await expect(page.locator('main, [role="main"]').first()).toBeVisible();
 
     // Filter out non-critical errors (third-party scripts, etc.)
     const criticalErrors = errors.filter(err => {
@@ -109,11 +110,10 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
     await waitForFeedReady(page);
     await expect(page.locator('main').first()).toContainText('Fran');
 
-    // Start the workout: DOM click (block overlay decorations intercept
-    // pointer events, same as the live-app specs).
+    // Start the workout via Playwright pointer click so hit-testing is verified.
     const play = page.getByRole('button', { name: 'Play', exact: true }).first();
     await expect(play).toBeVisible({ timeout: 15_000 });
-    await play.evaluate((el) => (el as HTMLElement).click());
+    await play.click();
 
     await expect(page).toHaveURL(/\/day\/\d{4}-\d{2}-\d{2}/, { timeout: 15_000 });
     await expect(page.getByRole('button', { name: 'Stop Session', exact: true }).first()).toBeVisible({ timeout: 15_000 });

@@ -45,11 +45,14 @@ export class ExerciseSearchEngine {
     }
 
     // Set new timeout
-    this.debounceTimeout = setTimeout(async () => {
+    const runSearch = async () => {
       const results = await this.performSearch(query, options);
       this.lastQuery = query;
       this.lastResults = results;
       callback(results);
+    };
+    this.debounceTimeout = setTimeout(() => {
+      void runSearch();
     }, this.DEBOUNCE_DELAY);
   }
 

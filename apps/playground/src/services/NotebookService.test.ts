@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'bun:test';
+import { describe, expect, it, beforeEach } from 'vitest';
 import { NotebookService, CUSTOM_NOTEBOOK_ID, DEFAULTS_NOTEBOOK_ID } from './NotebookService';
 import { StorageService } from './storage/StorageService';
 import { InMemoryStorage } from './storage/InMemoryStorage';
@@ -122,7 +122,7 @@ describe('NotebookService (notes-store backed)', () => {
 
         const feeds = service.getFeedNotebooks();
         expect(feeds.length).toBeGreaterThan(0);
-        expect(service.moveNote('w-2', feeds[0]!.notebookId)).rejects.toThrow(/read-only/);
+        await expect(service.moveNote('w-2', feeds[0]!.notebookId)).rejects.toThrow(/read-only/);
 
         await service.moveNote('w-2', null);
         expect((await store.getNote('w-2'))?.notebookId).toBeUndefined();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type SyntheticEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BeakerIcon,
@@ -216,7 +216,7 @@ export function CreateJournalNoteDialog({
     if (!open || !supportsTemplates) return
     if (notebookNotes !== null && sources !== null) return
     const token = ++templatesReq.current
-    Promise.all([
+    void Promise.all([
       storageService.getAllNotes().catch(() => []),
       notebookService.getAll().catch(() => []),
       getScriptNotebooks().catch(() => []),
@@ -378,7 +378,7 @@ export function CreateJournalNoteDialog({
     (requiresTitle && !title.trim()) ||
     (kind === 'note' && enablePageRoute && !resolvedPageSlug)
 
-  const handleSubmit = async (event: FormEvent) => {
+  const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (inFlight.current || submitDisabled) return
 
@@ -389,7 +389,7 @@ export function CreateJournalNoteDialog({
       if (kind === 'notebook') {
         const created = await notebookService.create(title.trim(), description.trim(), notebookIcon)
         onOpenChange(false)
-        navigate(notebookPath(created.slug))
+        void navigate(notebookPath(created.slug))
         return
       }
 
@@ -404,7 +404,7 @@ export function CreateJournalNoteDialog({
         }
         const pageId = await createPlaygroundPage(content)
         onOpenChange(false)
-        navigate(playgroundPath(pageId))
+        void navigate(playgroundPath(pageId))
         return
       }
 
@@ -424,7 +424,7 @@ export function CreateJournalNoteDialog({
           expectedSourceRevision: 0,
         })
         onOpenChange(false)
-        navigate(tagPath('tag', slug))
+        void navigate(tagPath('tag', slug))
         return
       }
 
@@ -432,7 +432,7 @@ export function CreateJournalNoteDialog({
         const slug = slugifyRoute(title)
         if (!slug) {
           onOpenChange(false)
-          navigate(effortPath('new', undefined, { mode: 'create' }))
+          void navigate(effortPath('new', undefined, { mode: 'create' }))
           return
         }
         const label = title.trim()
@@ -455,7 +455,7 @@ export function CreateJournalNoteDialog({
         })
         await refreshEffortRegistry()
         onOpenChange(false)
-        navigate(effortPath(slug))
+        void navigate(effortPath(slug))
         return
       }
 
@@ -463,7 +463,7 @@ export function CreateJournalNoteDialog({
         const slug = slugifyRoute(title)
         if (!slug) {
           onOpenChange(false)
-          navigate(`${equipmentPath('new')}?mode=create`)
+          void navigate(`${equipmentPath('new')}?mode=create`)
           return
         }
         const label = title.trim()
@@ -477,7 +477,7 @@ export function CreateJournalNoteDialog({
         })
         await refreshEquipmentRegistry()
         onOpenChange(false)
-        navigate(equipmentPath(slug))
+        void navigate(equipmentPath(slug))
         return
       }
 
@@ -535,9 +535,9 @@ export function CreateJournalNoteDialog({
         onCreated(entry)
       } else if (targetNotebookId && !enablePageRoute) {
         const nbSlug = targetNotebookId.startsWith('notebook/') ? targetNotebookId.slice('notebook/'.length) : targetNotebookId
-        navigate(notebookItemPath(nbSlug, entry.id))
+        void navigate(notebookItemPath(nbSlug, entry.id))
       } else {
-        navigate(`${notePath(entry.id)}?edit=1`)
+        void navigate(`${notePath(entry.id)}?edit=1`)
       }
       onOpenChange(false)
     } catch (err) {

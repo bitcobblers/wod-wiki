@@ -64,7 +64,7 @@ export function EquipmentDetailPage() {
   useEffect(() => {
     const previous = previousSlugRef.current;
     if (equipment && previous && equipment.slug !== previous && equipment.registrySource === 'user') {
-      navigate(equipmentPath(equipment.slug));
+      void navigate(equipmentPath(equipment.slug));
     }
     previousSlugRef.current = equipment?.slug;
   }, [equipment, navigate]);
@@ -112,7 +112,7 @@ export function EquipmentDetailPage() {
         expectedSourceRevision: 0,
       });
       await refresh();
-      navigate(equipmentPath(slugValue), { replace: true });
+      void navigate(equipmentPath(slugValue), { replace: true });
     } catch (err) {
       // Draft state is untouched — the document stays editable in the editor.
       toast({
@@ -188,7 +188,7 @@ export function EquipmentDetailPage() {
       // cloneForEdit awaits the persisted copy commit — navigate only after.
       const cloned = await cloneForEdit();
       if (cloned) {
-        navigate(equipmentPath(cloned.slug));
+        void navigate(equipmentPath(cloned.slug));
         toast({
           title: 'Cloned',
           description: `Created a custom copy of "${equipment.label}". You can now edit it.`,

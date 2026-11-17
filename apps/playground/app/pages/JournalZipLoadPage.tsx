@@ -179,7 +179,7 @@ export function JournalZipLoadPage() {
   };
 
   const handleCancel = () => {
-    navigate(-1);
+    void navigate(-1);
   };
 
   return (
@@ -323,7 +323,7 @@ function MissingZipFallback() {
         title: `Imported ${res.imported} note(s)`,
         description: res.errors.length > 0 ? res.errors.slice(0, 2).join('; ') : 'Open the entry from your journal.',
       });
-      navigate(ROUTE_PATTERNS.journal);
+      void navigate(ROUTE_PATTERNS.journal);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'That file is not a valid portable bundle (.zip).');
     } finally {

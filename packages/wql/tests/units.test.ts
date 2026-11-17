@@ -31,8 +31,8 @@ describe('wql unit policy (ticket 13)', () => {
     });
 
     it('throws on unknown units and cross-dimension conversions', () => {
-      expect(() => convertViaCatalog(10, 'reps', 'kg')).toThrowError();
-      expect(() => convertViaCatalog(10, 'furlongs', 'm')).toThrowError();
+      expect(() => convertViaCatalog(10, 'reps', 'kg')).toThrow();
+      expect(() => convertViaCatalog(10, 'furlongs', 'm')).toThrow();
     });
   });
 

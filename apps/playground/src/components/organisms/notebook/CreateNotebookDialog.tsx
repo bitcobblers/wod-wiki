@@ -72,6 +72,7 @@ export const CreateNotebookDialog: React.FC<CreateNotebookDialogProps> = ({
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still reports keyCode 229 after compositionend.
         if (e.nativeEvent.isComposing || e.keyCode === 229) return;
         if (e.key === 'Enter' && !e.shiftKey && name.trim()) {
             e.preventDefault();

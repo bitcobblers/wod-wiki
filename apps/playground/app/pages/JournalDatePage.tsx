@@ -297,7 +297,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
       const runtimeId = uuidv7();
       const captured = await start(block, runtimeId);
       pendingRuntimes.set(runtimeId, { noteId, block: captured.block, captured, returnTo: dayPath(journalDate) });
-      navigate(runPath(runtimeId));
+      void navigate(runPath(runtimeId));
     } catch (error) { setRunError(error instanceof Error ? error.message : String(error)); }
   }, [journalDate, navigate]);
   const handleOutlineRun = useCallback((block: ScriptBlock) => {
@@ -390,7 +390,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
 
   const handleCreated = (created: HistoryRecord) => {
     journalNotes.listByDate(journalDate).then(setNotes).catch(() => {});
-    navigate(notePath(created.id));
+    void navigate(notePath(created.id));
   };
 
   return (

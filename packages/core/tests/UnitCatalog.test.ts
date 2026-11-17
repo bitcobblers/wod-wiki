@@ -63,8 +63,8 @@ describe('unit catalog — conversion', () => {
   });
 
   it('errors on unknown units and cross-dimension conversions', () => {
-    expect(() => convertViaCatalog(1, 'furlongs', 'm')).toThrowError(UnitConversionError);
-    expect(() => convertViaCatalog(1, 'm', 'kg')).toThrowError(UnitConversionError);
+    expect(() => convertViaCatalog(1, 'furlongs', 'm')).toThrow(UnitConversionError);
+    expect(() => convertViaCatalog(1, 'm', 'kg')).toThrow(UnitConversionError);
     try {
       convertViaCatalog(1, 'm', 'kg');
     } catch (e) {

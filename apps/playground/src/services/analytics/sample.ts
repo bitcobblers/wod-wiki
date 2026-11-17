@@ -439,7 +439,7 @@ async function loadSampleDataImpl(): Promise<{ facts: number }> {
 }
 
 export function loadSampleData(): Promise<{ facts: number }> {
-  if (inflightLoadSampleData) return inflightLoadSampleData;
+  if (inflightLoadSampleData !== null) return inflightLoadSampleData;
   inflightLoadSampleData = loadSampleDataImpl().finally(() => {
     inflightLoadSampleData = null;
   });

@@ -568,7 +568,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
       now: runtime.nowProvider,
     });
 
-    onComplete?.(block.id, results);
+    void onComplete?.(block.id, results);
   }, [block.id, execution.elapsedTime, execution.startTime, onComplete, runtime]);
 
   // The active cast transport comes from the process-wide registry, not

@@ -8,7 +8,7 @@
  * live via the module's version counter.
  */
 
-import { useState, useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore, type SyntheticEvent } from 'react'
 import { parseSoundTrigger } from '@bitcobblers/wod-wiki-engine'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
@@ -61,7 +61,7 @@ export function SoundProfilesSettingsSection() {
     return ok
   }
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     const name = newName.trim()
     if (!name) {
@@ -182,6 +182,7 @@ export function SoundProfilesSettingsSection() {
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
                         onKeyDown={(e) => {
+                          // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition fallback (keyCode 229)
                           if (e.nativeEvent.isComposing || e.keyCode === 229) return
                           if (e.key === 'Enter') void handleRename(profile)
                           else if (e.key === 'Escape') setRenamingId(null)
@@ -349,6 +350,7 @@ function RuleRow({
           value={trigger}
           onChange={(e) => setTrigger(e.target.value)}
           onKeyDown={(e) => {
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition fallback (keyCode 229)
             if (e.nativeEvent.isComposing || e.keyCode === 229) return
             if (e.key === 'Enter') commitTrigger()
           }}
@@ -378,7 +380,7 @@ function AddRuleForm({ onAdd }: { onAdd: (rule: SoundRuleDraft) => void }) {
   const [sound, setSound] = useState(SOUND_NAMES[0])
   const [error, setError] = useState<string | null>(null)
 
-  const submit = (e: React.FormEvent) => {
+  const submit = (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     const notation = trigger.trim()
     if (!parseSoundTrigger(notation)) {

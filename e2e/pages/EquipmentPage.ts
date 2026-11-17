@@ -125,7 +125,8 @@ export class EquipmentPage {
     // Real save trigger — drafts persist on blur (useEditorSave has no idle
     // timer); typing-only edits must blur, as a touch user tapping away would.
     await this.editorContent().blur();
-    await this.page.waitForTimeout(300);
+    await expect(this.editorContent()).not.toBeFocused();
+    await expect(this.page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready');
   }
 
   /** Click the Equipment L1 destination in the app rail (desktop) or the

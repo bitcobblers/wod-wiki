@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, mock, type Mock } from 'bun:test'
 import { cleanup, render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { NuqsAdapter } from 'nuqs/adapters/react-router'
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
 import React from 'react'
 
 import { useSectionScrollSpy } from './useSectionScrollSpy'

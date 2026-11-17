@@ -86,18 +86,18 @@ export const WorkoutActionButton: React.FC<WorkoutActionButtonProps> = ({
             }
         };
 
-        loadEntryDates();
+        void loadEntryDates();
     }, [open, provider]);
 
     const handleMainAction = (e: React.MouseEvent) => {
         e.stopPropagation();
-        onAction(new Date());
+        void onAction(new Date());
     };
 
     const handleDateSelect = (date: Date) => {
         // Set to noon to avoid timezone edge cases
         date.setHours(12, 0, 0, 0);
-        onAction(date);
+        void onAction(date);
         setOpen(false);
     };
 

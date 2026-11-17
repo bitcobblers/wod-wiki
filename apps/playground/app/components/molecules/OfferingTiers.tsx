@@ -237,7 +237,7 @@ export function OfferingTiers() {
     const today = getTodayDateKey()
     const note = await journalNotes.create({ journalDate: today, title: today, rawContent: '' })
     telemetry.record(HOME_EVENTS.noteCreated)
-    navigate(notePath(note.id))
+    void navigate(notePath(note.id))
   }
 
   const playgroundBadge =

@@ -169,6 +169,7 @@ function openLinkEditPopover(
 
   const handleKeyDown = (e: KeyboardEvent) => {
     e.stopPropagation();
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter") {
       e.preventDefault();

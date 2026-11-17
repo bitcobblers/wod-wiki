@@ -179,7 +179,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
         const captured = await draft.captureForRun(block, uuidv7());
         const targetNoteId = captured.note.id;
         pendingRuntimes.set(captured.session.id, { block: captured.block, noteId: targetNoteId, captured, returnTo: notePath(targetNoteId) });
-        navigate(runPath(captured.session.id));
+        void navigate(runPath(captured.session.id));
       } catch {
         // error is tracked and rendered by draft.saveError
       }
@@ -227,7 +227,9 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   useNotePageNav({
     content: draft.content,
     scriptBlocks,
-    onStartWorkout: handleStartWorkout,
+    onStartWorkout: (block) => {
+      void handleStartWorkout(block);
+    },
     results,
     noteId: entry?.id,
     helpfulActions: noteActions.helpfulActions,

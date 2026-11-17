@@ -275,7 +275,7 @@ export function EffortDetailPage() {
           title: 'Override deleted',
           description: `Removed the ${notebookSlugFromId(scopedNotebookId)} override for "${effort.label}".`,
         });
-        navigate(effortPath(effort.slug), { replace: true });
+        void navigate(effortPath(effort.slug), { replace: true });
         return;
       }
 
@@ -299,7 +299,7 @@ export function EffortDetailPage() {
         title: 'Effort deleted',
         description: `Deleted custom effort "${effort.label}".`,
       });
-      navigate(effortsPath(), { replace: true });
+      void navigate(effortsPath(), { replace: true });
     } catch (err) {
       isDeletingRef.current = false;
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete effort.');
@@ -312,7 +312,7 @@ export function EffortDetailPage() {
   useEffect(() => {
     const previous = previousSlugRef.current;
     if (effort && previous && effort.slug !== previous && effort.registrySource === 'user') {
-      navigate(effortPath(effort.slug));
+      void navigate(effortPath(effort.slug));
     }
     previousSlugRef.current = effort?.slug;
   }, [effort, navigate]);
@@ -361,7 +361,7 @@ export function EffortDetailPage() {
         title: 'Alias Linked',
         description: `Linked "${slug}" as an alias to ${selectedTargetSlug}.`,
       });
-      navigate(effortPath(selectedTargetSlug));
+      void navigate(effortPath(selectedTargetSlug));
     } catch (err) {
       toast({
         title: 'Failed to link alias',
@@ -412,7 +412,7 @@ export function EffortDetailPage() {
         expectedSourceRevision: 0,
       });
       await refresh();
-      navigate(effortPath(slugValue), { replace: true });
+      void navigate(effortPath(slugValue), { replace: true });
     } catch (err) {
       // Draft stays intact and editable on failure.
       toast({
@@ -438,7 +438,7 @@ export function EffortDetailPage() {
       if (!occurrence) throw new Error('The saved journal workout is unavailable.');
       const runtimeId = uuidv7();
       pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: note.id });
-      navigate(`/run/${runtimeId}`);
+      void navigate(`/run/${runtimeId}`);
     } catch (error) {
       toast({ title: 'Workout not started', description: error instanceof Error ? error.message : String(error), variant: 'destructive' });
     }
@@ -459,7 +459,7 @@ export function EffortDetailPage() {
         wodContent: block.content,
         date,
       });
-      navigate(dayPath(dateKey));
+      void navigate(dayPath(dateKey));
       toast({
         title: 'Scheduled',
         description: `Added to journal for ${dateKey}`,
@@ -484,7 +484,9 @@ export function EffortDetailPage() {
   useNotePageNav({
     content: activeDocument,
     scriptBlocks,
-    onStartWorkout: handleStartWorkout,
+    onStartWorkout: (block) => {
+      void handleStartWorkout(block);
+    },
     results,
     enableUnrecognizedActions: false,
     helpfulActions: [
@@ -525,7 +527,9 @@ export function EffortDetailPage() {
 
   // ── WOD block commands ───────────────────────────────────────────────────
   const commands = useScriptBlockCommands('notebook-readonly', {
-    onPlay: handleStartWorkout,
+    onPlay: (block) => {
+      void handleStartWorkout(block);
+    },
     onShare: shareBlock,
     onSchedule: setPendingScheduleBlock,
   });
@@ -544,7 +548,7 @@ export function EffortDetailPage() {
       // cloneForEdit awaits the persisted copy commit — navigate only after.
       const cloned = await cloneForEdit();
       if (cloned) {
-        navigate(effortPath(cloned.slug));
+        void navigate(effortPath(cloned.slug));
         toast({
           title: 'Cloned',
           description: `Created a custom copy of "${effort.label}". You can now edit it.`,
@@ -839,7 +843,7 @@ export function EffortDetailPage() {
             <CalendarCard
               selectedDate={null}
               onDateSelect={(date) => {
-                handleScheduleBlock(pendingScheduleBlock, date);
+                void handleScheduleBlock(pendingScheduleBlock, date);
                 setPendingScheduleBlock(null);
               }}
             />
@@ -868,10 +872,10 @@ export function EffortDetailPage() {
           if (targetNotebookId === 'notebook/custom') {
             void refresh();
             if (scopedNotebookId) {
-              navigate(effortPath(effort.slug));
+              void navigate(effortPath(effort.slug));
             }
           } else {
-            navigate(`${effortPath(effort.slug)}?notebook=${encodeURIComponent(targetNotebookId)}`);
+            void navigate(`${effortPath(effort.slug)}?notebook=${encodeURIComponent(targetNotebookId)}`);
           }
         }}
       />

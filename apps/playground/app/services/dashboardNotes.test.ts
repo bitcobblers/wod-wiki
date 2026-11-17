@@ -85,7 +85,7 @@ function setup() {
 
 describe('createDashboardNotes.createDashboard', () => {
   it('creates a dashboard note in the locked format, marked active', async () => {
-    const { persistence, dashboards } = await setup();
+    const { persistence, dashboards } = setup();
 
     const note = await dashboards.createDashboard('Road to Regionals');
 
@@ -99,13 +99,13 @@ describe('createDashboardNotes.createDashboard', () => {
   });
 
   it('defaults the title', async () => {
-    const { dashboards } = await setup();
+    const { dashboards } = setup();
     const note = await dashboards.createDashboard();
     expect(note.title).toBe('New Dashboard');
   });
 
   it('is not filed under a journal date', async () => {
-    const { dashboards } = await setup();
+    const { dashboards } = setup();
     const note = await dashboards.createDashboard();
     expect(note.journalDate).toBeUndefined();
     expect(note.type).toBe('dashboard');
@@ -113,7 +113,7 @@ describe('createDashboardNotes.createDashboard', () => {
   });
 
   it('deactivates the previously active dashboard', async () => {
-    const { persistence, dashboards } = await setup();
+    const { persistence, dashboards } = setup();
     const first = await dashboards.createDashboard('First');
 
     const second = await dashboards.createDashboard('Second');
@@ -126,7 +126,7 @@ describe('createDashboardNotes.createDashboard', () => {
   });
 
   it('leaves non-dashboard and already-inactive notes untouched', async () => {
-    const { persistence, journal, dashboards } = await setup();
+    const { persistence, journal, dashboards } = setup();
     const plain = await journal.create({ title: 'Fran', rawContent: '# Fran' });
     const inactive = await dashboards.createDashboard('Old');
     await dashboards.createDashboard('New'); // deactivates Old
@@ -139,7 +139,7 @@ describe('createDashboardNotes.createDashboard', () => {
   });
 
   it('deduplicates slugs on repeated default creations and notifies dashboard subscribers', async () => {
-    const { persistence, dashboards } = await setup();
+    const { persistence, dashboards } = setup();
     let notifications = 0;
     const unsub = subscribeDashboardsChanged(() => {
       notifications += 1;

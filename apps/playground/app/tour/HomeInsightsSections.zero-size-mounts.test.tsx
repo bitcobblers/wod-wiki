@@ -21,7 +21,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { NuqsAdapter } from 'nuqs/adapters/react-router'
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
 
 import { InsightsDashboardsSection } from './HomeInsightsSections'
 

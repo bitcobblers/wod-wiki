@@ -127,7 +127,9 @@ export function SyncActivityNotifier() {
       if (!activity.error) lastSeenError = null;
       if (activity.result && activity.result.id > lastSeenResultId) {
         lastSeenResultId = activity.result.id
-        notifyResult(activity.result, navigate)
+        notifyResult(activity.result, (to) => {
+          void navigate(to)
+        })
       }
       if (activity.error && activity.error !== lastSeenError) {
         lastSeenError = activity.error

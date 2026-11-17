@@ -211,7 +211,7 @@ export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSecti
       rawContent: '',
     })
     telemetry.record(HOME_EVENTS.noteCreated)
-    navigate(notePath(note.id))
+    void navigate(notePath(note.id))
   }, [navigate])
 
   const hasFilters = Boolean(search.trim())

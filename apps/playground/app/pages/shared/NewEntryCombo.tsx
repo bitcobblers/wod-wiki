@@ -129,7 +129,7 @@ export function NewEntryCombo() {
       for (const note of notes) {
         await notebookService.cloneNote(note.id, clone.slug)
       }
-      navigate(notebookPath(clone.slug))
+      void navigate(notebookPath(clone.slug))
     } finally {
       setCloning(false)
     }

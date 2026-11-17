@@ -7,7 +7,16 @@
  * (notes / blocks / efforts) is unchanged by workout-data unification.
  */
 
-import type { BlockIndexRow, Note, EventRecord, Page, PageNote, FeedSourceCatalogRow, FeedNotebookCatalogRow } from '@bitcobblers/wod-wiki-core';
+import type {
+  BlockIndexRow,
+  Note,
+  EventRecord,
+  Page,
+  PageNote,
+  FeedSourceCatalogRow,
+  FeedNotebookCatalogRow,
+  TagContribution,
+} from '@bitcobblers/wod-wiki-core';
 import type { IEffort } from '@bitcobblers/wod-wiki-lang';
 
 export type { IEffort };
@@ -155,6 +164,59 @@ export interface FeedCatalogQueryStore {
   getRemoteNotebookNotes?(slug: string, feedId?: string): Promise<Note[]>;
 }
 
+export interface BlockEffortQueryRow {
+  id?: string;
+  noteId: string;
+  blockId: string;
+  blockContentId?: string;
+  effortSlug?: string;
+  isStatic?: boolean;
+  sourcePath?: string;
+  createdAt?: number;
+}
+
+export interface BlockEffortQueryStore {
+  getAllFromIndex(index: string, key: string): Promise<BlockEffortQueryRow[]>;
+}
+
+export interface BlockEquipmentQueryRow {
+  id?: string;
+  noteId: string;
+  blockId?: string;
+  blockContentId?: string;
+  equipmentSlug?: string;
+  isStatic?: boolean;
+  sourcePath?: string;
+  createdAt?: number;
+}
+
+export interface BlockEquipmentQueryStore {
+  getAllFromIndex(index: string, key: string): Promise<BlockEquipmentQueryRow[]>;
+}
+
+export interface TagQueryRow {
+  id: string;
+  label: string;
+  type?: string;
+  contributions?: TagContribution[];
+  createdAt?: number;
+}
+
+export interface TagQueryStore {
+  getAllFromIndex(index: string, key: string): Promise<TagQueryRow[]>;
+  getAll?(): Promise<TagQueryRow[]>;
+}
+
+export interface NoteTagQueryRow {
+  id?: string;
+  noteId?: string;
+  tagId?: string;
+}
+
+export interface NoteTagQueryStore {
+  getAllFromIndex(index: string, key: string): Promise<NoteTagQueryRow[]>;
+}
+
 export interface QueryServiceStores {
   eventStore?: EventStore;
   noteStore?: NoteQueryStore;
@@ -163,17 +225,14 @@ export interface QueryServiceStores {
   blockStore?: BlockQueryStore;
   effortStore?: EffortQueryStore;
   /** Serves exercise containment rows (`block_efforts` store). */
-  blockEffortsStore?: { getAllFromIndex(index: string, key: string): Promise<any[]> };
+  blockEffortsStore?: BlockEffortQueryStore;
   /** Serves equipment containment rows (`block_equipment` store). */
-  blockEquipmentStore?: { getAllFromIndex(index: string, key: string): Promise<any[]> };
+  blockEquipmentStore?: BlockEquipmentQueryStore;
   /** Serves tag records (`tags` store). `getAll` backs the `:tag{}` plane;
    *  absent → the plane resolves to no rows. */
-  tagsStore?: {
-    getAllFromIndex(index: string, key: string): Promise<any[]>;
-    getAll?(): Promise<any[]>;
-  };
+  tagsStore?: TagQueryStore;
   /** Serves note-tag junction rows (`note_tags` store). */
-  noteTagsStore?: { getAllFromIndex(index: string, key: string): Promise<any[]> };
+  noteTagsStore?: NoteTagQueryStore;
   /** Canonical page_notes junction reads for container resolution — a
    *  note's parent Page wins over a standalone Note container. The two
    *  getAll* seams back the `:page{}` placement plane; absent → the plane

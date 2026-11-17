@@ -5,7 +5,7 @@
  */
 import { useMemo, useRef, useEffect, useLayoutEffect } from 'react'
 import { BrowserRouter, useLocation } from 'react-router-dom'
-import { NuqsAdapter } from 'nuqs/adapters/react-router'
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
 import { ThemeProvider } from '@/contexts/ThemeProvider'
 import { DebugModeProvider } from '@/contexts/DebugModeContext'
 import { AudioProvider } from '@/contexts/AudioContext'

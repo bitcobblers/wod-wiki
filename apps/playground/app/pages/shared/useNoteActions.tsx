@@ -215,7 +215,7 @@ export function useNoteActions(options: UseNoteActionsOptions) {
       if (onDeleted) {
         onDeleted(entry.id)
       } else {
-        navigate(deleteRedirectTo, { replace: true })
+        void navigate(deleteRedirectTo, { replace: true })
       }
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete note.')
@@ -271,7 +271,7 @@ export function useNoteActions(options: UseNoteActionsOptions) {
           onSaved={(updated) => onUpdated?.(updated)}
           onCloned={(created) => {
             if (onCloned) onCloned(created)
-            else navigate(`${notePath(created.id)}?edit=1`)
+            else void navigate(`${notePath(created.id)}?edit=1`)
           }}
         />
       )}

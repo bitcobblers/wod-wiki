@@ -109,7 +109,7 @@ export function CanvasPage({
     rootMargin: '-10% 0px -40% 0px',
     threshold: [0, 0.3, 1.0],
     onChange: (id) => {
-      setActiveId(id);
+      void setActiveId(id);
     },
     shouldAcceptChange: () => true,
   });

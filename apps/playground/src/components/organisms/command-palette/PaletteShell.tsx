@@ -132,7 +132,7 @@ export const PaletteShell: React.FC = () => {
   // current entry.
   useEffect(() => {
     if (!isOpen) return;
-    navigate(window.location.pathname + window.location.search + window.location.hash, {
+    void navigate(window.location.pathname + window.location.search + window.location.hash, {
       state: { ...(history.state?.usr ?? {}), paletteClose: true },
     });
     const onPopState = () => _dismiss();
@@ -140,7 +140,7 @@ export const PaletteShell: React.FC = () => {
     return () => {
       window.removeEventListener('popstate', onPopState);
       if ((history.state?.usr as { paletteClose?: boolean } | null | undefined)?.paletteClose) {
-        navigate(-1);
+        void navigate(-1);
       }
     };
   }, [isOpen, _dismiss, navigate]);

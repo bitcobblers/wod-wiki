@@ -73,6 +73,7 @@ export function WqlBars({ result, unit: unitProp }: WqlBarsProps) {
         />
         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
           {data.map((d) => (
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- Recharts Bar per-bar fill still uses Cell
             <Cell key={d.name} fill={d.fill} />
           ))}
         </Bar>

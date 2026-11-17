@@ -93,7 +93,7 @@ export function useJournalZipProcessor(deps: UseJournalZipProcessorDeps = {}): J
             error: 'Failed to decode the journal entry',
             onRetry: () => {
               // Trigger reprocess by refetching
-              process();
+              void process();
             },
           });
           showToast({
@@ -120,7 +120,7 @@ export function useJournalZipProcessor(deps: UseJournalZipProcessorDeps = {}): J
               description: 'Invalid date format. Expected YYYY-MM-DD.',
               variant: 'destructive',
             });
-            navigate(ROUTE_PATTERNS.journal, { replace: true });
+            void navigate(ROUTE_PATTERNS.journal, { replace: true });
             return;
           }
           dateKey = parsed.dateKey;
@@ -154,7 +154,7 @@ export function useJournalZipProcessor(deps: UseJournalZipProcessorDeps = {}): J
             state: 'error',
             error: 'An unexpected error occurred',
             onRetry: () => {
-              process();
+              void process();
             },
           });
           showToast({
@@ -177,7 +177,7 @@ export function useJournalZipProcessor(deps: UseJournalZipProcessorDeps = {}): J
         })) as { id: string };
 
         if (!cancelled) {
-          navigate(notePath(note.id), { replace: true });
+          void navigate(notePath(note.id), { replace: true });
           setState({ state: 'success', content, dateKey });
         }
       } catch (err) {
@@ -187,7 +187,7 @@ export function useJournalZipProcessor(deps: UseJournalZipProcessorDeps = {}): J
             state: 'error',
             error: 'Failed to create journal entry',
             onRetry: () => {
-              createEntry(content, dateKey);
+              void createEntry(content, dateKey);
             },
           });
           showToast({
@@ -199,7 +199,7 @@ export function useJournalZipProcessor(deps: UseJournalZipProcessorDeps = {}): J
       }
     };
 
-    process();
+    void process();
 
     return () => {
       cancelled = true;

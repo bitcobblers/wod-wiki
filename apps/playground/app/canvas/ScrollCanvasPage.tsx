@@ -73,7 +73,11 @@ export function ScrollCanvasPage({
 
   const getBlock = useCallback(() => blocksRef.current[0] ?? null, [])
   const getContent = useCallback(() => doc, [doc])
-  const runtime = useCanvasRuntime({ getBlock, getContent, title: page.frontmatter.title })
+  const runtime = useCanvasRuntime({
+    getBlock,
+    getContent,
+    title: typeof page.frontmatter.title === 'string' ? page.frontmatter.title : undefined,
+  })
   const { startRun } = runtime
   const stickyViewportOffset = useStickyBoundaryOffset(STICKY_NAV_HEIGHT)
 
@@ -93,16 +97,18 @@ export function ScrollCanvasPage({
   const [, setHeadingParam] = useQueryState('h', { history: 'replace', shallow: true })
   const deps = useMemo<NavActionDeps>(
     () => ({
-      navigate: (to: string, opts?: { replace?: boolean }) => navigate(to, { replace: opts?.replace }),
+      navigate: (to: string, opts?: { replace?: boolean }) => {
+        void navigate(to, { replace: opts?.replace })
+      },
       setQueryParam: (params: Record<string, string | null>, replace?: boolean) => {
         const h = params['h']
-        if (h !== undefined) setHeadingParam(h, { history: replace ? 'replace' : 'push' })
+        if (h !== undefined) void setHeadingParam(h, { history: replace ? 'replace' : 'push' })
       },
       swapSource: (source: string) => setDoc(resolveSource(source, wodFiles)),
       setPanelState: (state: 'note' | 'track' | 'review') => {
         if (state === 'track') {
           const block = getBlock()
-          if (block) startRun(block)
+          if (block) void startRun(block)
         }
       },
     }),

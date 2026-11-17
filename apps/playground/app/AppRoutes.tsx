@@ -1,4 +1,4 @@
-import { Suspense, type MutableRefObject, type ReactNode } from 'react';
+import { Suspense, type RefObject, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ROUTE_PATTERNS, LEGACY_REDIRECT_PATTERNS } from './lib/routes';
 import { AppContent } from './AppContent';
@@ -17,7 +17,7 @@ import { JournalZipLoadPage } from './pages/JournalZipLoadPage';
 import type { CanvasRoute } from './canvas/canvasRoutes';
 
 export interface AppRoutesProps {
-  searchHandlerRef?: MutableRefObject<(() => void) | null>;
+  searchHandlerRef?: RefObject<(() => void) | null>;
   canvasRouteList?: CanvasRoute[];
   rootUnavailable?: ReactNode;
   pageSettlingFallback?: ReactNode;

@@ -54,7 +54,7 @@ export function useZipProcessor(deps: UseZipProcessorDeps = {}) {
       if (handledShareRef.current === shareToken) return;
       handledShareRef.current = shareToken;
       let cancelled = false;
-      (async () => {
+      void (async () => {
         try {
           const content = await decode(zParam);
           if (content === null) throw new Error('Invalid workout link');
@@ -77,7 +77,7 @@ export function useZipProcessor(deps: UseZipProcessorDeps = {}) {
           }
         }
         if (!cancelled) {
-          navigate('/', { replace: true });
+          void navigate('/', { replace: true });
         }
       })();
       return () => { cancelled = true; };
@@ -88,7 +88,7 @@ export function useZipProcessor(deps: UseZipProcessorDeps = {}) {
     let cancelled = false;
     // Only accept well-formed app paths as provenance — the param is URL data.
     const sourcePath = srcParam && srcParam.startsWith('/') ? srcParam : undefined;
-    (async () => {
+    void (async () => {
       try {
         const content = await decode(zipParam);
         if (content === null) throw new Error('Invalid workout link');
@@ -97,7 +97,7 @@ export function useZipProcessor(deps: UseZipProcessorDeps = {}) {
           ? await intake.createPage(content, { sourcePath })
           : await intake.createPage(content);
         if (!cancelled) {
-          navigate(playgroundPath(name), { replace: true });
+          void navigate(playgroundPath(name), { replace: true });
         }
       } catch (err) {
         console.error('Failed to decode zip:', err);
@@ -107,7 +107,7 @@ export function useZipProcessor(deps: UseZipProcessorDeps = {}) {
             description: 'The link was invalid or the workout could not be saved.',
             variant: 'destructive',
           });
-          navigate(ROUTE_PATTERNS.home, { replace: true });
+          void navigate(ROUTE_PATTERNS.home, { replace: true });
         }
       }
     })();

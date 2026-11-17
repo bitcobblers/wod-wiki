@@ -96,7 +96,7 @@ const CommandPill: React.FC<{
       id: cmd.id,
       label: cmd.label,
       icon: PrimaryIcon,
-      action: { type: "call", handler: () => handleAction() },
+      action: { type: "call", handler: () => { void handleAction(); } },
     }),
     [cmd.id, cmd.label, PrimaryIcon, handleAction],
   );
@@ -106,7 +106,7 @@ const CommandPill: React.FC<{
       id: `${cmd.id}-split`,
       label: "Copy link",
       icon: SplitIcon,
-      action: { type: "call", handler: handleSplitAction },
+      action: { type: "call", handler: () => { void handleSplitAction(); } },
     }),
     [cmd.id, SplitIcon, handleSplitAction],
   );
@@ -137,7 +137,7 @@ const CommandPill: React.FC<{
         data-testid={cmd.id === "run" || cmd.id === "play" ? TEST_IDS.EDITOR_START_WORKOUT : undefined}
         onClick={(e) => {
           stopEvent(e);
-          handleAction();
+          void handleAction();
         }}
         onMouseDown={stopEvent}
         onPointerDown={stopEvent}

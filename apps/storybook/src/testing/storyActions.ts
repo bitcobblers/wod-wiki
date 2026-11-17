@@ -14,8 +14,8 @@ export const storyActions = {
   /** Wait until `StoryDomainStateProvider` finishes in-memory hydration. */
   async waitForHydrated(canvasElement: HTMLElement): Promise<StoryCanvas> {
     const canvas = within(canvasElement);
-    await waitFor(() => {
-      expect(canvas.queryByTestId('story-domain-state-loading')).toBeNull();
+    await waitFor(async () => {
+      await expect(canvas.queryByTestId('story-domain-state-loading')).toBeNull();
     });
     return canvas;
   },

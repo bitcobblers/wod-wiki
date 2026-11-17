@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, mock } from 'bun:test';
 import type { ReactNode } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { NuqsAdapter } from 'nuqs/adapters/react-router';
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import { SecondaryNav } from '../SecondaryNav';
 import { NavContext, initialNavState } from '../NavContext';
 import type { NavItemL3, NavState } from '../navTypes';

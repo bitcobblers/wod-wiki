@@ -32,7 +32,9 @@ function useNavDeps(): NavActionDeps {
   const { scrollToSection } = useNav()
 
   return {
-    navigate: (to, opts) => navigate(to, { replace: opts?.replace }),
+    navigate: (to, opts) => {
+      void navigate(to, { replace: opts?.replace })
+    },
     setQueryParam: (_params, _replace) => {
       // Sidebar clicks on L3 section items use scrollToSection instead.
       // URL query params are updated by the page's IntersectionObserver.

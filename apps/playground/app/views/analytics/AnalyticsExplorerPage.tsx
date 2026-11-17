@@ -144,7 +144,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   // Ticket 14/15: ensure the field catalog is populated (resumable no-op
   // when complete) before discovery reads it.
   useEffect(() => {
-    startFieldCatalogBackfill();
+    void startFieldCatalogBackfill();
   }, []);
   // The /dashboards landing query — the annotation-9 dashboard search. A
   // stored Route WQL Config default (the page's own query settings, legacy

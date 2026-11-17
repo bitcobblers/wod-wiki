@@ -362,7 +362,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   // Intercept selection from Chromecast to start the inline runtime with auto-start.
   const handleCastSelectBlock = useCallback((block: ScriptBlock) => {
     if (enableInlineRuntime) {
-      handleRun(block, true);
+      void handleRun(block, true);
     }
   }, [enableInlineRuntime, handleRun]);
 
@@ -522,7 +522,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       splitIcon: <Copy className="h-3 w-3" />,
       splitSuccessIcon: <Check className="h-3 w-3" />,
       onClick: (block) => {
-        buildPlaygroundUrl(block.content).then((url) => {
+        void buildPlaygroundUrl(block.content).then((url) => {
           const tab = window.open(url, "wodwiki-playground");
           if (tab) tab.focus();
         });
@@ -635,11 +635,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             if (numeric.has(type)) return false;
 
             // Editor owns the segment loop — palette knows nothing about segments.
-            import('@/components/organisms/command-palette/palette-store').then(() => {
+            void import('@/components/organisms/command-palette/palette-store').then(() => {
               import('@/components/Editor/services/statementBuilderFlow').then(({ runStatementBuilderFlow }) => {
-                runStatementBuilderFlow(focus, view);
+                void runStatementBuilderFlow(focus, view);
               }).catch(() => {
-                usePaletteStore.getState().open({ placeholder: 'Modify metric…', sources: [] });
+                void usePaletteStore.getState().open({ placeholder: 'Modify metric…', sources: [] });
               });
             });
             return true;
@@ -1373,7 +1373,7 @@ function sectionToScriptBlock(section: EditorSection, state: EditorState): Scrip
 function notifyBlockChanges(
   state: EditorState,
   onBlocksChange: ((blocks: ScriptBlock[]) => void) | undefined,
-  lastBlocksJsonRef: React.MutableRefObject<string>
+  lastBlocksJsonRef: React.RefObject<string>
 ) {
   if (!onBlocksChange) return;
 

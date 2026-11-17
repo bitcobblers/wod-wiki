@@ -10,7 +10,7 @@
  * only — its target route is fixed. A dropped write (quota / private
  * browsing) keeps the form open with an error — never a false success.
  */
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type SyntheticEvent } from 'react'
 import { EditorDialog, resolveQueryDraft } from '@bitcobblers/wod-wiki-ui'
 import { remotePrefsMode } from '@/services/storage/metaStore'
 import { Button } from '@/components/atoms/primitives/button'
@@ -73,7 +73,7 @@ export function SaveWqlShortcutDialog({
   const labelError = trimmedLabel ? null : 'Label is required.'
   const canSave = !!trimmedLabel && !fixedBehaviour && (!queryRequired || !!trimmedWql) && !wqlError
 
-  const save = async (event: FormEvent) => {
+  const save = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!canSave) return
     const next: WqlShortcut = {

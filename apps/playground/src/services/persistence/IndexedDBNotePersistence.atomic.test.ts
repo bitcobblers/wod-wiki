@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { IDBFactory, IDBRequest, IDBTransaction, IDBDatabase, IDBKeyRange } from 'fake-indexeddb';
 Object.assign(globalThis, { IDBRequest, IDBTransaction, IDBDatabase, IDBKeyRange });
 import type { IStorage } from '@bitcobblers/wod-wiki-storage';

@@ -20,8 +20,8 @@ export async function decodeZip(z: string): Promise<string | null> {
       const ds = new DecompressionStream('gzip');
       const writer = ds.writable.getWriter();
       const reader = ds.readable.getReader();
-      writer.write(bytes);
-      writer.close();
+      void writer.write(bytes);
+      void writer.close();
       const chunks: Uint8Array[] = [];
       for (;;) {
         const { done, value } = await reader.read();

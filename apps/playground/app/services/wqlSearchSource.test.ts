@@ -74,8 +74,8 @@ const BLOCK_ENTRY: Entry = {
 }
 
 describe('wqlSearchSource', () => {
-  afterEach(() => {
-    clearRouteWqlConfig(PALETTE_ROUTE_ID)
+  afterEach(async () => {
+    await clearRouteWqlConfig(PALETTE_ROUTE_ID)
   })
 
   it('returns no rows for invalid WQL and never executes', async () => {
@@ -342,8 +342,8 @@ describe('navigatePaletteResult', () => {
 })
 
 describe('searchPaletteQuery', () => {
-  afterEach(() => {
-    clearRouteWqlConfig(PALETTE_ROUTE_ID)
+  afterEach(async () => {
+    await clearRouteWqlConfig(PALETTE_ROUTE_ID)
   })
 
   it('seed is an executable inclusive find query grouped by date', () => {

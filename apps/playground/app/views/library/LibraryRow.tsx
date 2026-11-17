@@ -160,7 +160,7 @@ export function LibraryRow({
       role="button"
       tabIndex={0}
       onClick={() => navigate(entryOpenHref(entry))}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(entryOpenHref(entry)) } }}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void navigate(entryOpenHref(entry)) } }}
       className={`flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 hover:bg-muted/40 transition-colors text-left group w-full cursor-pointer ${
         isPrimary ? 'bg-primary/[0.025]' : ''
       }`}

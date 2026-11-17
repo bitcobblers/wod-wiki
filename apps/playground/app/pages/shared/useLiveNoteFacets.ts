@@ -471,7 +471,7 @@ export function useLiveNoteFacets(
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    Promise.all([
+    void Promise.all([
       storageService.getAllTags().catch(() => [] as Tag[]),
       storageService.getAllTagTypes().catch(() => []),
     ]).then(([tags, types]) => {

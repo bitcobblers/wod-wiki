@@ -134,7 +134,7 @@ export function PlaygroundNotePage({
         onSaved({ rawContent: captured.note.rawContent, blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision });
         pendingRuntimes.set(runtimeId, { block: captured.block, noteId: captured.session.noteId, captured, origin: 'playground', returnTo: `/playground/${encodeURIComponent(pageName)}` });
         onRunWorkout();
-        navigate(runPath(runtimeId));
+        void navigate(runPath(runtimeId));
       } catch (error) {
         toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
@@ -194,7 +194,7 @@ export function PlaygroundNotePage({
             </ToastAction>
           ),
         })
-        navigate(notePath(runtimeNoteId))
+        void navigate(notePath(runtimeNoteId))
       } catch {
         toast({ title: 'Error', description: 'Could not move to journal', variant: 'destructive' })
       }
@@ -217,7 +217,7 @@ export function PlaygroundNotePage({
           wodContent: block.content,
           date: date,
         })
-        navigate(dayPath(dateKey))
+        void navigate(dayPath(dateKey))
         toast({
           title: 'Scheduled',
           description: `Added to journal for ${dateKey}`,
@@ -241,7 +241,7 @@ export function PlaygroundNotePage({
     try {
       const pageId = await createPlaygroundPage(content)
       toast({ title: 'Cloned', description: 'A playground copy was created.' })
-      navigate(playgroundPath(pageId))
+      void navigate(playgroundPath(pageId))
     } catch {
       toast({ title: 'Error', description: 'Could not clone playground', variant: 'destructive' })
     }
@@ -250,7 +250,9 @@ export function PlaygroundNotePage({
   const index = useNotePageNav({
     content,
     scriptBlocks,
-    onStartWorkout: handleStartWorkout,
+    onStartWorkout: (block) => {
+      void handleStartWorkout(block)
+    },
     results,
     noteId: runtimeNoteId,
     // Whiteboard playground L3: Move to journal, Reset, Clone after the
@@ -314,9 +316,13 @@ export function PlaygroundNotePage({
   )
 
   const commands = useScriptBlockCommands('playground', {
-    onPlay: handleStartWorkout,
+    onPlay: (block) => {
+      void handleStartWorkout(block)
+    },
     onShare: shareBlock,
-    onAddToToday: handleAddToToday,
+    onAddToToday: (block) => {
+      void handleAddToToday(block)
+    },
     onSchedule: setPendingScheduleBlock,
   })
 
@@ -343,7 +349,7 @@ export function PlaygroundNotePage({
         endLine: script.split('\n').length,
         content: script,
       }
-      handleStartWorkout(exampleBlock)
+      void handleStartWorkout(exampleBlock)
     },
     [handleStartWorkout],
   )
@@ -354,7 +360,7 @@ export function PlaygroundNotePage({
       if (docsPath.startsWith('/')) {
         window.open(docsPath, '_blank')
       } else {
-        navigate(docsPath)
+        void navigate(docsPath)
       }
     },
     [navigate],
@@ -363,13 +369,13 @@ export function PlaygroundNotePage({
   const handleButtonAction = useCallback(
     (action: string, params: Record<string, string>) => {
       if (action === 'route' && params['route']) {
-        navigate(params['route'])
+        void navigate(params['route'])
       } else if (action === 'start-workout') {
         // Start the first available workout block
         const firstBlock = scriptBlocks[0]
-        if (firstBlock) handleStartWorkout(firstBlock)
+        if (firstBlock) void handleStartWorkout(firstBlock)
       } else if (action === 'new-note') {
-        navigate('/playground')
+        void navigate('/playground')
       }
     },
     [navigate, scriptBlocks, handleStartWorkout],
@@ -448,7 +454,7 @@ export function PlaygroundNotePage({
             <CalendarCard
               selectedDate={null}
               onDateSelect={(date) => {
-                handleScheduleBlock(pendingScheduleBlock, date)
+                void handleScheduleBlock(pendingScheduleBlock, date)
                 setPendingScheduleBlock(null)
               }}
             />

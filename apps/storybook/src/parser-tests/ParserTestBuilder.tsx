@@ -574,7 +574,7 @@ export function ParserTestBuilder({
             <button
               type="button"
               onClick={() => {
-                navigator.clipboard.writeText(jsonText).then(() => {
+                void navigator.clipboard.writeText(jsonText).then(() => {
                   setCopied(true);
                   setTimeout(() => setCopied(false), 1500);
                 });

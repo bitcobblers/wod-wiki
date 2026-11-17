@@ -302,8 +302,8 @@ export const UniversalNoteEditor: Story = {
     await expect(canvas.getByTestId('note-editor-host')).toBeVisible();
     await expect(canvas.getByText('Benchmark Day')).toBeVisible();
     // Parity gate: default pipeline query executes cleanly without pipeline-unsupported error
-    await waitFor(() => {
-      expect(canvas.queryByText(/loading…/i)).toBeNull();
+    await waitFor(async () => {
+      await expect(canvas.queryByText(/loading…/i)).toBeNull();
     });
     await expect(canvas.queryByText(/pipeline queries are not supported/i)).toBeNull();
     await expect(canvas.queryByText(/query execution error/i)).toBeNull();
@@ -318,53 +318,53 @@ export const UniversalNoteEditorDialog: Story = {
     const openBtn = canvas.getByTestId('note-dialog-open');
     await userEvent.click(openBtn);
 
-    await waitFor(() => {
-      expect(document.querySelector('[role="dialog"]')).toBeVisible();
-      expect(document.querySelector('[data-testid="note-dialog-editor"]')).toBeVisible();
+    await waitFor(async () => {
+      await expect(document.querySelector('[role="dialog"]')).toBeVisible();
+      await expect(document.querySelector('[data-testid="note-dialog-editor"]')).toBeVisible();
     });
 
     const dialogHost = document.querySelector<HTMLElement>('[data-testid="note-dialog-editor"]');
     openBodyLine(LINE.queryBody, dialogHost);
     await userEvent.keyboard(':no');
 
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
-      expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
+      await expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
     });
 
     // Tooltip floats within viewport above dialog panel
-    await waitFor(() => {
+    await waitFor(async () => {
       const menuEl = autocompleteMenu();
-      expect(menuEl).not.toBeNull();
+      await expect(menuEl).not.toBeNull();
       const box = menuEl!.getBoundingClientRect();
-      expect(box.top).toBeGreaterThanOrEqual(0);
-      expect(box.bottom).toBeLessThanOrEqual(window.innerHeight || 1000);
+      await expect(box.top).toBeGreaterThanOrEqual(0);
+      await expect(box.bottom).toBeLessThanOrEqual(window.innerHeight || 1000);
     });
 
     // Accept into the doc
     await userEvent.keyboard('{Enter}');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeNull();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
     });
     const view = getCmView(dialogHost);
-    expect(view.state.doc.toString()).toContain(':note{');
+    await expect(view.state.doc.toString()).toContain(':note{');
 
     // First Escape dismisses the menu, second closes the dialog
     openBodyLine(LINE.queryBody, dialogHost);
     await userEvent.keyboard(':no');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
     });
 
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeNull();
-      expect(document.querySelector('[role="dialog"]')).toBeVisible();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
+      await expect(document.querySelector('[role="dialog"]')).toBeVisible();
     });
 
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => {
-      expect(document.querySelector('[role="dialog"]')).toBeNull();
+    await waitFor(async () => {
+      await expect(document.querySelector('[role="dialog"]')).toBeNull();
     });
   },
 };
@@ -376,31 +376,31 @@ export const CompletionNestedWqlQuery: Story = {
     openBodyLine(LINE.queryBody, host);
     await userEvent.keyboard(':no');
 
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
-      expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
+      await expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
     });
 
     await userEvent.keyboard('{Enter}');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeNull();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
     });
     const view = getCmView(host);
-    expect(view.state.doc.toString()).toContain(':note{');
+    await expect(view.state.doc.toString()).toContain(':note{');
 
     // Filter keys inside the braces
     await userEvent.keyboard('t');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
       const labels = Array.from(autocompleteMenu()?.querySelectorAll('.cm-completionLabel') || []).map((l) =>
         l.textContent?.trim(),
       );
-      expect(labels).toContain('text');
+      await expect(labels).toContain('text');
     });
 
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeNull();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
     });
   },
 };
@@ -412,31 +412,31 @@ export const CompletionNestedWqlWql: Story = {
     openBodyLine(LINE.wqlBody, host);
     await userEvent.keyboard(':no');
 
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
-      expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
+      await expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
     });
 
     await userEvent.keyboard('{Enter}');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeNull();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
     });
     const view = getCmView(host);
-    expect(view.state.doc.toString()).toContain(':note{');
+    await expect(view.state.doc.toString()).toContain(':note{');
 
     // Filter keys inside the braces
     await userEvent.keyboard('t');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
       const labels = Array.from(autocompleteMenu()?.querySelectorAll('.cm-completionLabel') || []).map((l) =>
         l.textContent?.trim(),
       );
-      expect(labels).toContain('text');
+      await expect(labels).toContain('text');
     });
 
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeNull();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
     });
   },
 };
@@ -449,45 +449,45 @@ export const CompletionTimeBodyStructureAndUnits: Story = {
     // 1. Structure snippet
     openBodyLine(LINE.timeBodyRest, host);
     await userEvent.keyboard('circ');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
-      expect(firstOptionLabel()?.textContent?.trim()).toBe('Circuit');
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
+      await expect(firstOptionLabel()?.textContent?.trim()).toBe('Circuit');
     });
     await userEvent.keyboard('{Enter}');
     const view = getCmView(host);
-    await waitFor(() => {
-      expect(view.state.doc.toString()).toContain('Air Squats');
+    await waitFor(async () => {
+      await expect(view.state.doc.toString()).toContain('Air Squats');
     });
 
     // 2. Unit completion after number
     openBodyLine(LINE.timeBodyRest, host);
     await userEvent.keyboard('100 k');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
       const kg = Array.from(autocompleteMenu()?.querySelectorAll('.cm-completionLabel') || []).find(
         (l) => l.textContent?.trim() === 'kg',
       );
-      expect(kg).toBeDefined();
+      await expect(kg).toBeDefined();
     });
     const kgEl = Array.from(autocompleteMenu()?.querySelectorAll('.cm-completionLabel') || []).find(
       (l) => l.textContent?.trim() === 'kg',
     )!;
     await userEvent.click(kgEl);
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeNull();
-      expect(view.state.doc.toString()).toContain('100 kg');
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
+      await expect(view.state.doc.toString()).toContain('100 kg');
     });
 
     // 3. Property completion on empty line
     openBodyLine(LINE.timeBodyRest, host);
     await userEvent.keyboard('soun');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
-      expect(firstOptionLabel()?.textContent?.trim()).toBe('sound');
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
+      await expect(firstOptionLabel()?.textContent?.trim()).toBe('sound');
     });
     await userEvent.keyboard('{Enter}');
-    await waitFor(() => {
-      expect(view.state.doc.toString()).toContain('sound');
+    await waitFor(async () => {
+      await expect(view.state.doc.toString()).toContain('sound');
     });
   },
 };
@@ -499,18 +499,18 @@ export const CompletionTimeBodyEffort: Story = {
     openBodyLine(LINE.timeBodyRest, host);
     await userEvent.keyboard('Thr');
 
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
       const rows = Array.from(autocompleteMenu()?.querySelectorAll('li') || []);
       const thrRow = rows.find((r) => r.textContent?.includes('Thrusters'));
-      expect(thrRow).toBeDefined();
-      expect(thrRow?.querySelector('.cm-completionDetail')?.textContent?.trim()).toBe('thruster');
+      await expect(thrRow).toBeDefined();
+      await expect(thrRow?.querySelector('.cm-completionDetail')?.textContent?.trim()).toBe('thruster');
     });
 
     await userEvent.keyboard('{Enter}');
     const view = getCmView(host);
-    await waitFor(() => {
-      expect(view.state.doc.toString()).toContain('Thrusters');
+    await waitFor(async () => {
+      await expect(view.state.doc.toString()).toContain('Thrusters');
     });
   },
 };
@@ -526,43 +526,43 @@ export const CompletionChoiceDeduplication: Story = {
     await userEvent.keyboard('10 Push Ups ');
     await requestCompletion(view);
     await settleCompletion();
-    expect(autocompleteMenu()).toBeNull();
+    await expect(autocompleteMenu()).toBeNull();
 
     // 2. Pipe re-opens directives
     openBodyLine(LINE.timeBodyRest, host);
     await userEvent.keyboard('10 Push Ups | ');
     await requestCompletion(view);
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
       const labels = Array.from(autocompleteMenu()?.querySelectorAll('.cm-completionLabel') || []).map((l) =>
         l.textContent?.trim(),
       );
-      expect(labels).toContain('AMRAP');
+      await expect(labels).toContain('AMRAP');
     });
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeNull();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
     });
 
     // 3. Units deduplication: effort/directive completions remain open without kg/lb
     openBodyLine(LINE.timeBodyRest, host);
     await userEvent.keyboard('10 kg ');
     await requestCompletion(view);
-    await waitFor(() => {
+    await waitFor(async () => {
       const menu = autocompleteMenu();
-      expect(menu).toBeVisible();
+      await expect(menu).toBeVisible();
       const labels = Array.from(menu!.querySelectorAll('.cm-completionLabel')).map((l) =>
         l.textContent?.trim(),
       );
-      expect(labels).toContain('AMRAP');
-      expect(labels).toContain('EMOM');
-      expect(labels).toContain('FOR TIME');
-      expect(labels).not.toContain('kg');
-      expect(labels).not.toContain('lb');
+      await expect(labels).toContain('AMRAP');
+      await expect(labels).toContain('EMOM');
+      await expect(labels).toContain('FOR TIME');
+      await expect(labels).not.toContain('kg');
+      await expect(labels).not.toContain('lb');
     });
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeNull();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
     });
   },
 };
@@ -574,22 +574,22 @@ export const CompletionKeyboardNavigation: Story = {
     openBodyLine(LINE.queryBody, host);
     await userEvent.keyboard(':no');
 
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
-      expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
+      await expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
     });
 
     await userEvent.keyboard('{ArrowDown}');
-    await waitFor(() => {
-      expect(firstOptionLabel()?.textContent?.trim()).toBe('notes');
+    await waitFor(async () => {
+      await expect(firstOptionLabel()?.textContent?.trim()).toBe('notes');
     });
 
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeNull();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
     });
     const lines = Array.from(host.querySelectorAll('.cm-line')).map((l) => l.textContent?.trim());
-    expect(lines).not.toContain(':note{');
+    await expect(lines).not.toContain(':note{');
   },
 };
 
@@ -603,22 +603,22 @@ export const CompletionSectionIsolation: Story = {
     openBodyLine(LINE.prose, host);
     await userEvent.keyboard(':no');
     await settleCompletion();
-    expect(autocompleteMenu()).toBeNull();
+    await expect(autocompleteMenu()).toBeNull();
 
     gotoLine(LINE.prose, host);
     await userEvent.keyboard('{Enter}circ');
     await settleCompletion();
-    expect(autocompleteMenu()).toBeNull();
+    await expect(autocompleteMenu()).toBeNull();
 
     // 2. Frontmatter stays inert
     gotoLine(LINE.frontmatterDate, host);
     await userEvent.keyboard(' :no');
     await settleCompletion();
-    expect(autocompleteMenu()).toBeNull();
+    await expect(autocompleteMenu()).toBeNull();
 
     // 3. Fence isolation: compute ```query body line dynamically after {Enter} shifted lines
     const queryBodyLine = findFenceBodyLine(view, '```query');
-    expect(view.state.doc.line(queryBodyLine - 1).text.trim()).toBe('```query');
+    await expect(view.state.doc.line(queryBodyLine - 1).text.trim()).toBe('```query');
     openBodyLine(queryBodyLine, host);
     await userEvent.keyboard('circ');
     await settleCompletion();
@@ -627,19 +627,19 @@ export const CompletionSectionIsolation: Story = {
       const labels = Array.from(menuAfterCirc.querySelectorAll('.cm-completionLabel')).map((l) =>
         l.textContent?.trim(),
       );
-      expect(labels).not.toContain('Circuit');
+      await expect(labels).not.toContain('Circuit');
     }
 
     // Confirm the query body line is genuinely inside the ```query fence and offers :note
     openBodyLine(queryBodyLine, host);
     await userEvent.keyboard(':no');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeVisible();
-      expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeVisible();
+      await expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
     });
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => {
-      expect(autocompleteMenu()).toBeNull();
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
     });
   },
 };
@@ -725,13 +725,13 @@ export const WodFenceEditingAndLinting: Story = {
 
     // Frontmatter YAML delimiters stay hidden when caret is in body
     const cmText = contentEl.textContent ?? '';
-    expect(cmText.trimStart().startsWith('---')).toBe(false);
-    expect(cmText).not.toContain('search: hidden');
+    await expect(cmText.trimStart().startsWith('---')).toBe(false);
+    await expect(cmText).not.toContain('search: hidden');
 
     // Type X, Enter, Y inside ```time fence without CM6 crash
     await userEvent.keyboard('X{Enter}Y');
-    await waitFor(() => {
-      expect(view.state.doc.toString()).toContain('TimerX\nY: 1:00');
+    await waitFor(async () => {
+      await expect(view.state.doc.toString()).toContain('TimerX\nY: 1:00');
     });
 
     // Broken WOD syntax surfaces lint markers
@@ -740,10 +740,10 @@ export const WodFenceEditingAndLinting: Story = {
       changes: { from: 0, to: full.length, insert: '# Bad\n\n```time\n(2\n  5 Burpees\n```\n' },
       selection: { anchor: 0 },
     });
-    await waitFor(() => {
+    await waitFor(async () => {
       const gutterErr = root.querySelector('.cm-unified-gutter-marker.cm-gutter-error');
       const lintDiag = root.querySelector('.cm-lintPoint-error, .cm-lintRange-error');
-      expect(gutterErr || lintDiag).toBeTruthy();
+      await expect(gutterErr || lintDiag).toBeTruthy();
     });
   },
 };
@@ -782,41 +782,41 @@ export const NoteReferenceMetricsAndPropertyA11y: Story = {
     const showDetails = await within(root).findByRole('button', { name: 'Show property details' });
     await userEvent.click(showDetails);
 
-    await waitFor(() => {
+    await waitFor(async () => {
       const preview = root.querySelector<HTMLElement>('.cm-frontmatter-preview');
-      expect(preview?.querySelector('[data-frontmatter-column="key"]')?.textContent).toBe('Key');
-      expect(preview?.querySelector('[data-frontmatter-column="value"]')?.textContent).toBe('Value');
+      await expect(preview?.querySelector('[data-frontmatter-column="key"]')?.textContent).toBe('Key');
+      await expect(preview?.querySelector('[data-frontmatter-column="value"]')?.textContent).toBe('Value');
     });
 
     const preview = root.querySelector<HTMLElement>('.cm-frontmatter-preview')!;
     const catInput = preview.querySelector<HTMLInputElement>(
       '[data-frontmatter-row="category"] input[aria-label="Value for category"]',
     )!;
-    expect(catInput).toBeVisible();
-    expect(catInput.getAttribute('aria-haspopup')).toBe('listbox');
-    expect(catInput.getAttribute('role')).toBe('combobox');
+    await expect(catInput).toBeVisible();
+    await expect(catInput.getAttribute('aria-haspopup')).toBe('listbox');
+    await expect(catInput.getAttribute('role')).toBe('combobox');
 
     const panelHeightBefore = preview.getBoundingClientRect().height;
     await userEvent.click(catInput);
     const listId = catInput.getAttribute('aria-controls');
-    expect(listId).toBeTruthy();
+    await expect(listId).toBeTruthy();
 
-    await waitFor(() => {
+    await waitFor(async () => {
       const list = document.getElementById(listId!);
-      expect(list).toBeVisible();
-      expect(list?.getAttribute('aria-label')).toBe('Suggested tags');
-      expect(list?.closest('.cm-frontmatter-preview')).toBeNull();
-      expect(list!.getBoundingClientRect().width).toBeLessThanOrEqual(340);
+      await expect(list).toBeVisible();
+      await expect(list?.getAttribute('aria-label')).toBe('Suggested tags');
+      await expect(list?.closest('.cm-frontmatter-preview')).toBeNull();
+      await expect(list!.getBoundingClientRect().width).toBeLessThanOrEqual(340);
     });
-    expect(Math.abs(preview.getBoundingClientRect().height - panelHeightBefore)).toBeLessThanOrEqual(1);
+    await expect(Math.abs(preview.getBoundingClientRect().height - panelHeightBefore)).toBeLessThanOrEqual(1);
     await userEvent.keyboard('{Escape}');
 
     // Focusing workout line renders the live inline metric panel
     const swingOffset = view.state.doc.toString().indexOf('Kettlebell Swings');
     view.dispatch({ selection: { anchor: swingOffset } });
     view.focus();
-    await waitFor(() => {
-      expect(root.querySelector('[aria-label="Metric inline panel"]')).toBeVisible();
+    await waitFor(async () => {
+      await expect(root.querySelector('[aria-label="Metric inline panel"]')).toBeVisible();
     });
   },
 };
@@ -859,32 +859,32 @@ export const NoteEditorVisualNavigation: Story = {
     view.dispatch({ selection: { anchor: lineStart(7) } });
     view.focus();
     let prev = view.coordsAtPos(lineStart(7))!;
-    expect(prev).not.toBeNull();
+    await expect(prev).not.toBeNull();
     let climbedInsidePara = 0;
     for (let i = 0; i < 10; i++) {
       await userEvent.keyboard('{ArrowUp}');
       const head = view.state.selection.main.head;
       if (head === lineStart(6)) break;
-      expect(head).toBeGreaterThan(lineStart(6));
+      await expect(head).toBeGreaterThan(lineStart(6));
       const next = view.coordsAtPos(head)!;
-      expect(next.top).toBeLessThan(prev.top);
-      expect(prev.top - next.top).toBeLessThanOrEqual(30);
+      await expect(next.top).toBeLessThan(prev.top);
+      await expect(prev.top - next.top).toBeLessThanOrEqual(30);
       prev = next;
       climbedInsidePara++;
     }
-    expect(climbedInsidePara).toBeGreaterThanOrEqual(1);
-    expect(view.state.selection.main.head).toBe(lineStart(6));
+    await expect(climbedInsidePara).toBeGreaterThanOrEqual(1);
+    await expect(view.state.selection.main.head).toBe(lineStart(6));
 
     // Shift+ArrowUp extends selection one line up
     view.dispatch({ selection: { anchor: lineStart(12) } });
     await userEvent.keyboard('{Shift>}{ArrowUp}{/Shift}');
-    expect(view.state.selection.main.anchor).toBe(lineStart(12));
-    expect(view.state.selection.main.head).toBe(lineStart(11));
+    await expect(view.state.selection.main.anchor).toBe(lineStart(12));
+    await expect(view.state.selection.main.head).toBe(lineStart(11));
 
     // Home on empty line is a no-op
     view.dispatch({ selection: { anchor: lineStart(11) } });
     await userEvent.keyboard('{Home}');
-    expect(view.state.selection.main.head).toBe(lineStart(11));
+    await expect(view.state.selection.main.head).toBe(lineStart(11));
   },
 };
 
@@ -931,109 +931,109 @@ export const WidgetBlockEditAndErrorInlay: Story = {
     // 1. Focus preview surface -> wait for Edit button -> click Edit -> Save -> preview updates
     const surface = root.querySelector<HTMLElement>('[data-testid="widget-preview-surface"]')!;
     surface.focus();
-    const editBtn = await waitFor(() => {
+    const editBtn = await waitFor(async () => {
       const btn = root.querySelector<HTMLElement>('[aria-label="Edit widget"]');
-      expect(btn).toBeVisible();
+      await expect(btn).toBeVisible();
       return btn!;
     });
     await userEvent.click(editBtn);
 
-    const textarea = await waitFor(() => {
+    const textarea = await waitFor(async () => {
       const el = root.querySelector<HTMLTextAreaElement>('[data-testid="widget-markdown-editor"]');
-      expect(el).toBeVisible();
-      expect(document.activeElement).toBe(el);
+      await expect(el).toBeVisible();
+      await expect(document.activeElement).toBe(el);
       return el!;
     });
     setNativeTextareaValue(textarea, mkConfig('Updated'));
     await userEvent.click(root.querySelector<HTMLElement>('[aria-label="Save widget"]')!);
     await moveCursorOut();
 
-    await waitFor(() => {
-      expect(root.querySelector('[data-testid="widget-markdown-editor"]')).toBeNull();
-      expect(root.querySelector('[data-testid="widget-preview-surface"]')?.textContent).toContain('Updated');
+    await waitFor(async () => {
+      await expect(root.querySelector('[data-testid="widget-markdown-editor"]')).toBeNull();
+      await expect(root.querySelector('[data-testid="widget-preview-surface"]')?.textContent).toContain('Updated');
     });
 
     // 1b. Auto-saves valid JSON on blur without clicking Save or pressing Ctrl+Enter
     const surfaceBlur = root.querySelector<HTMLElement>('[data-testid="widget-preview-surface"]')!;
     surfaceBlur.focus();
-    const editBtnBlur = await waitFor(() => {
+    const editBtnBlur = await waitFor(async () => {
       const btn = root.querySelector<HTMLElement>('[aria-label="Edit widget"]');
-      expect(btn).toBeVisible();
+      await expect(btn).toBeVisible();
       return btn!;
     });
     await userEvent.click(editBtnBlur);
 
-    const blurTa = await waitFor(() => {
+    const blurTa = await waitFor(async () => {
       const el = root.querySelector<HTMLTextAreaElement>('[data-testid="widget-markdown-editor"]');
-      expect(el).toBeVisible();
-      expect(document.activeElement).toBe(el);
+      await expect(el).toBeVisible();
+      await expect(document.activeElement).toBe(el);
       return el!;
     });
     setNativeTextareaValue(blurTa, mkConfig('BlurSaved'));
     await moveCursorOut();
 
-    await waitFor(() => {
-      expect(root.querySelector('[data-testid="widget-markdown-editor"]')).toBeNull();
-      expect(root.querySelector('[data-testid="widget-preview-surface"]')?.textContent).toContain('BlurSaved');
+    await waitFor(async () => {
+      await expect(root.querySelector('[data-testid="widget-markdown-editor"]')).toBeNull();
+      await expect(root.querySelector('[data-testid="widget-preview-surface"]')?.textContent).toContain('BlurSaved');
     });
 
     // 2. Invalid JSON blur shows widget-error-inlay and Undo restores preview
     const surface2 = root.querySelector<HTMLElement>('[data-testid="widget-preview-surface"]')!;
     surface2.focus();
-    const editBtn2 = await waitFor(() => {
+    const editBtn2 = await waitFor(async () => {
       const btn = root.querySelector<HTMLElement>('[aria-label="Edit widget"]');
-      expect(btn).toBeVisible();
+      await expect(btn).toBeVisible();
       return btn!;
     });
     await userEvent.click(editBtn2);
-    const invalidTa = await waitFor(() => {
+    const invalidTa = await waitFor(async () => {
       const el = root.querySelector<HTMLTextAreaElement>('[data-testid="widget-markdown-editor"]');
-      expect(el).toBeVisible();
-      expect(document.activeElement).toBe(el);
+      await expect(el).toBeVisible();
+      await expect(document.activeElement).toBe(el);
       return el!;
     });
     setNativeTextareaValue(invalidTa, '{"title":');
     await moveCursorOut();
 
-    await waitFor(() => {
-      expect(root.querySelector('[data-testid="widget-error-inlay"]')).toBeVisible();
+    await waitFor(async () => {
+      await expect(root.querySelector('[data-testid="widget-error-inlay"]')).toBeVisible();
     });
     const undoBtn = root.querySelector<HTMLElement>('[aria-label="Undo changes"]')!;
     await userEvent.click(undoBtn);
-    await waitFor(() => {
-      expect(root.querySelector('[data-testid="widget-error-inlay"]')).toBeNull();
-      expect(root.querySelector('[data-testid="widget-markdown-editor"]')).toBeNull();
+    await waitFor(async () => {
+      await expect(root.querySelector('[data-testid="widget-error-inlay"]')).toBeNull();
+      await expect(root.querySelector('[data-testid="widget-markdown-editor"]')).toBeNull();
     });
 
     // 3. Keyboard flow: Enter to edit, Escape to discard, Ctrl+Enter to save
     const surfaceAfter = root.querySelector<HTMLElement>('[data-testid="widget-preview-surface"]')!;
     surfaceAfter.focus();
     await userEvent.keyboard('{Enter}');
-    const kbTa = await waitFor(() => {
+    const kbTa = await waitFor(async () => {
       const el = root.querySelector<HTMLTextAreaElement>('[data-testid="widget-markdown-editor"]');
-      expect(el).toBeVisible();
+      await expect(el).toBeVisible();
       return el!;
     });
     setNativeTextareaValue(kbTa, mkConfig('Discarded'));
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => {
-      expect(root.querySelector('[data-testid="widget-markdown-editor"]')).toBeNull();
-      expect(root.querySelector('[data-testid="widget-preview-surface"]')?.textContent).not.toContain('Discarded');
+    await waitFor(async () => {
+      await expect(root.querySelector('[data-testid="widget-markdown-editor"]')).toBeNull();
+      await expect(root.querySelector('[data-testid="widget-preview-surface"]')?.textContent).not.toContain('Discarded');
     });
 
     const surface3 = root.querySelector<HTMLElement>('[data-testid="widget-preview-surface"]')!;
     surface3.focus();
     await userEvent.keyboard('{Enter}');
-    const kbTa2 = await waitFor(() => {
+    const kbTa2 = await waitFor(async () => {
       const el = root.querySelector<HTMLTextAreaElement>('[data-testid="widget-markdown-editor"]');
-      expect(el).toBeVisible();
+      await expect(el).toBeVisible();
       return el!;
     });
     setNativeTextareaValue(kbTa2, mkConfig('CtrlSaved'));
     await userEvent.keyboard('{Control>}{Enter}{/Control}');
     await moveCursorOut();
-    await waitFor(() => {
-      expect(root.querySelector('[data-testid="widget-preview-surface"]')?.textContent).toContain('CtrlSaved');
+    await waitFor(async () => {
+      await expect(root.querySelector('[data-testid="widget-preview-surface"]')?.textContent).toContain('CtrlSaved');
     });
   },
 };

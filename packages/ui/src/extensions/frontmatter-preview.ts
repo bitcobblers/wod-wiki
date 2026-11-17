@@ -502,6 +502,7 @@ function createTagDraftRow(
 
   attachSuggestions(input, view, root, "value", key, [], commit);
   input.addEventListener("keydown", (e) => {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
     if (e.isComposing || e.keyCode === 229) return;
     // Escape discards the draft even when attachSuggestions already closed the
     // listbox and prevented default on the same event.
@@ -658,6 +659,7 @@ function createMetricDraftRow(
         customKeyInput.setAttribute("aria-label", "Metric key");
         customKeyInput.dataset.frontmatterField = "key";
         customKeyInput.addEventListener("keydown", (e) => {
+          // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
           if (e.isComposing || e.keyCode === 229) return;
           if (e.key === "Escape") {
             e.preventDefault();
@@ -683,6 +685,7 @@ function createMetricDraftRow(
   attachFor();
   select.addEventListener("change", attachFor);
   input.addEventListener("keydown", (e) => {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
     if (e.isComposing || e.keyCode === 229) return;
     if (e.defaultPrevented && e.key !== "Escape") return;
     if (e.key === "Escape") {
@@ -771,6 +774,7 @@ function createSummaryDraftRow(
   };
 
   keyInput.addEventListener("keydown", (e) => {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Escape") {
       e.preventDefault();
@@ -784,6 +788,7 @@ function createSummaryDraftRow(
     }
   });
   valInput.addEventListener("keydown", (e) => {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Escape") {
       e.preventDefault();

@@ -366,7 +366,7 @@ export function QueriableStreamView({
         params.set('layout', nextLayout)
       }
       const nextSearch = params.toString()
-      navigate(
+      void navigate(
         { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
         { replace: true },
       )
@@ -438,7 +438,7 @@ export function QueriableStreamView({
     const rest = params.toString()
     const qPart = typeof nextQuery === 'string' && nextQuery.length > 0 ? `q=${nextQuery}` : ''
     const search = [rest, qPart].filter(Boolean).join('&')
-    navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true })
+    void navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true })
   }, [navigate, location.pathname, location.search])
   useEffect(() => {
     if (!feedIntakeParam) return
@@ -448,7 +448,7 @@ export function QueriableStreamView({
     }
   }, [feedIntakeParam, dismissFeedIntake])
   const openLibraryManager = useCallback(() => {
-    navigate(ROUTE_PATTERNS.settingsSync)
+    void navigate(ROUTE_PATTERNS.settingsSync)
   }, [navigate])
   const [createNotebookOpen, setCreateNotebookOpen] = useState(false)
   const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null)
@@ -652,7 +652,7 @@ export function QueriableStreamView({
           ? String(resolved.rawContent ?? '')
           : ''
         const { routeId } = await ensurePlaygroundEntry(content, { title: entry.title })
-        navigate(playgroundPath(routeId.replace(/^playground\//, '')))
+        void navigate(playgroundPath(routeId.replace(/^playground\//, '')))
       } catch (err) {
         setActionError(err instanceof Error ? err.message : 'Could not create the playground entry.')
       }
@@ -986,13 +986,13 @@ export function QueriableStreamView({
       return
     }
     let cancelled = false
+    const builtin = BUILTIN_NOTEBOOK_SLUGS.includes(notebookSlugParam)
     const landing = storage.readonly('notes').get(`notebook/${notebookSlugParam}`).catch(() => undefined)
     void Promise.all([
-      BUILTIN_NOTEBOOK_SLUGS.includes(notebookSlugParam),
       notebookService.getAllNotebooks().then((nbs) => nbs.some((nb) => nb.slug === notebookSlugParam)).catch(() => false),
       playgroundFeedCatalogStore.getAllNotebooks().then((rows) => rows.some((row) => row.slug === notebookSlugParam)).catch(() => false),
       landing.then(Boolean),
-    ]).then(([builtin, registered, catalog, hasLanding]) => {
+    ]).then(([registered, catalog, hasLanding]) => {
       if (!cancelled) setNotebookNotFound(!builtin && !registered && !catalog && !hasLanding)
     })
     return () => {

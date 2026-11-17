@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach, vi } from 'bun:test';
+import { describe, expect, it, afterEach, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { useEditorSave } from './useEditorSave';
 

@@ -76,6 +76,10 @@ import type {
   NoteQueryStore,
   BlockQueryStore,
   EffortQueryStore,
+  BlockEffortQueryStore,
+  BlockEquipmentQueryStore,
+  TagQueryStore,
+  NoteTagQueryStore,
   IEffort,
   QueryServiceStores,
   FeedCatalogQueryStore,
@@ -1194,16 +1198,16 @@ export class QueryService {
 
   // Optional storage seam properties for block_efforts, block_equipment, and typed tag resolution.
   // Injected by the app adapter (`services/queryService.ts`); tests can supply fakes.
-  private readonly blockEffortsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+  private readonly blockEffortsStore: BlockEffortQueryStore = {
     getAllFromIndex: async () => [],
   };
-  private readonly blockEquipmentStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+  private readonly blockEquipmentStore: BlockEquipmentQueryStore = {
     getAllFromIndex: async () => [],
   };
-  private readonly tagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]>; getAll?(): Promise<any[]> } = {
+  private readonly tagsStore: TagQueryStore = {
     getAllFromIndex: async () => [],
   };
-  private readonly noteTagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+  private readonly noteTagsStore: NoteTagQueryStore = {
     getAllFromIndex: async () => [],
   };
 
@@ -2932,13 +2936,14 @@ export class QueryService {
           await Promise.all(noteIds.map(async (id) => noteTags.set(id, await this.noteStore.getNoteTagLabels(id))));
         }
         if (needsTypedTags && this.tagsStore.getAll) {
-          const allTags = (await this.tagsStore.getAll()) as Array<{ id: string; label: string; type?: string }>;
+          const allTags = await this.tagsStore.getAll();
           const tagById = new Map(allTags.map((t) => [t.id, t]));
           await Promise.all(
             noteIds.map(async (id) => {
-              const links = (await this.noteTagsStore.getAllFromIndex('by-note', id)) as Array<{ tagId: string }>;
+              const links = await this.noteTagsStore.getAllFromIndex('by-note', id);
               const byType = new Map<string, string[]>();
               for (const link of links) {
+                if (!link.tagId) continue;
                 const tag = tagById.get(link.tagId);
                 if (!tag?.type) continue;
                 const list = byType.get(tag.type);
@@ -2971,7 +2976,9 @@ export class QueryService {
     const typedTag = tags.find(t => t.type === type);
     if (typedTag) {
       const links = await this.noteTagsStore.getAllFromIndex('by-tag', typedTag.id);
-      for (const link of links) out.add(link.noteId);
+      for (const link of links) {
+        if (link.noteId) out.add(link.noteId);
+      }
     }
     if (type === 'equipment') {
       const slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

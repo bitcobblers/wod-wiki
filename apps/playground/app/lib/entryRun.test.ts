@@ -5,9 +5,9 @@
  * route. Playground entries retain the entry's Note UUID; catalog entries
  * adopt into today's journal (existing behavior).
  */
-import { describe, it, expect, mock, beforeEach } from 'bun:test'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const createFromWorkoutMock = mock(() =>
+const createFromWorkoutMock = vi.fn(() =>
   Promise.resolve({ id: 'journal-note-1', journalDate: '2026-09-05', blocks: { 'journal-workout': { id: 'journal-workout', kind: 'wod', version: 1, sourceRevision: 1, from: 0, to: 30 } } } as never),
 )
 
@@ -70,7 +70,7 @@ describe('startEntryRun — playground entries', () => {
     })
     const { navigate, calls } = makeNavigate()
     const original = journalNotes.getById;
-    journalNotes.getById = mock(async () => ({ id: entry.id, blocks: { 'playground-workout': { id: 'playground-workout', kind: 'wod' } } }) as never);
+    journalNotes.getById = vi.fn(async () => ({ id: entry.id, blocks: { 'playground-workout': { id: 'playground-workout', kind: 'wod' } } }) as never);
 
     try { await startEntryRun(entry, navigate); } finally { journalNotes.getById = original; }
 
@@ -105,7 +105,7 @@ describe('startEntryRun — catalog adoption', () => {
 
   it('falls back to resolving the note and extracting its first time fence', async () => {
     const originalResolve = journalNotes.resolve
-    journalNotes.resolve = mock(async () => ({
+    journalNotes.resolve = vi.fn(async () => ({
       id: 'crossfit-girls/grace',
       rawContent: '# Grace\n\n```time\n30 Clean & Jerks\n```\n',
     }) as never)
@@ -123,7 +123,7 @@ describe('startEntryRun — catalog adoption', () => {
 describe('startEntryRun — failure', () => {
   it('throws without staging or navigating when no runnable block exists', async () => {
     const originalResolve = journalNotes.resolve
-    journalNotes.resolve = mock(async () => ({ id: 'n', rawContent: '# Just prose' }) as never)
+    journalNotes.resolve = vi.fn(async () => ({ id: 'n', rawContent: '# Just prose' }) as never)
     try {
       const { navigate, calls } = makeNavigate()
       await expect(startEntryRun(makeEntry(), navigate)).rejects.toThrow(/No runnable workout block/)

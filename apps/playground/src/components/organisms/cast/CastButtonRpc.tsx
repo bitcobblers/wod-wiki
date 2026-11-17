@@ -302,8 +302,12 @@ export const CastButtonRpc: React.FC = () => {
             }
         };
 
-        btn.addEventListener('click', onNativeClick);
-        return () => btn.removeEventListener('click', onNativeClick);
+        const handleNativeClick = () => {
+            void onNativeClick();
+        };
+
+        btn.addEventListener('click', handleNativeClick);
+        return () => btn.removeEventListener('click', handleNativeClick);
     }, [backend, connectSession, cleanupCast]);
 
 

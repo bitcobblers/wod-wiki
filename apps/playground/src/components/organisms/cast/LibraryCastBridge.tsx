@@ -59,7 +59,7 @@ export const LibraryCastBridge: React.FC = () => {
                 console.warn('[LibraryCastBridge] Dropped malformed open-notebook payload');
                 return;
             }
-            navigate(payload.href);
+            void navigate(payload.href);
         });
         return unsub;
     }, [castTransport, navigate]);

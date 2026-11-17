@@ -54,7 +54,7 @@ export function EffortRegistryProvider({ children }: { children: React.ReactNode
   }, [init]);
 
   useEffect(() => {
-    init();
+    void init();
   }, [init]);
 
   // Same-tab feed imports hydrate the singleton directly (BroadcastChannel

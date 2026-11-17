@@ -51,8 +51,7 @@ const typedParserOptions = isTypedLint
 
 const typedRules = isTypedLint
   ? {
-      // Async & Promise safety — enforced as 'error' across packages, API, E2E, and scripts
-      // (softened to 'warn' for Playground & Storybook UI debt below).
+      // Async & Promise safety — enforced as 'error' across all packages, apps, E2E, and scripts.
       '@typescript-eslint/no-floating-promises': [
         'error',
         {
@@ -69,11 +68,11 @@ const typedRules = isTypedLint
       '@typescript-eslint/await-thenable': 'error',
       'no-return-await': 'off',
       '@typescript-eslint/return-await': ['error', 'in-try-catch'],
-      // TypeScript hygiene & deprecated APIs
+      // TypeScript hygiene & deprecated APIs — enforced as 'error' everywhere.
       '@typescript-eslint/prefer-readonly': 'error',
       '@typescript-eslint/no-unnecessary-type-arguments': 'error',
       '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'error',
-      '@typescript-eslint/no-deprecated': 'warn',
+      '@typescript-eslint/no-deprecated': 'error',
     }
   : {};
 
@@ -115,7 +114,7 @@ module.exports = [
     rules: {
       ...js.configs.recommended.rules,
       ...tsPlugin.configs.recommended.rules,
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-require-imports': 'off',
       'no-undef': 'off', // TypeScript owns undefined-name checking; eslint no-undef false-positives on ambient types
@@ -131,8 +130,8 @@ module.exports = [
       // console.log/info/debug are disallowed in production package sources.
       'no-console': ['error', { allow: ['warn', 'error'] }],
       'no-debugger': 'error',
-      'no-fallthrough': 'warn',
-      'no-constant-condition': 'warn',
+      'no-fallthrough': 'error',
+      'no-constant-condition': 'error',
       'no-useless-escape': 'error',
       // Dead assignments, control-flow & comma expressions
       'no-useless-assignment': 'error',
@@ -156,33 +155,25 @@ module.exports = [
     },
   },
   {
-    // Playground & Storybook UI apps carry deferred async/promise effect debt.
+    // Unit test suites retain legacy `any` in mocks/spies as warnings while all
+    // production sources enforce `no-explicit-any: 'error'`.
     files: [
-      'apps/playground/src/**/*.ts',
-      'apps/playground/src/**/*.tsx',
-      'apps/playground/app/**/*.ts',
-      'apps/playground/app/**/*.tsx',
-      'apps/storybook/src/**/*.ts',
-      'apps/storybook/src/**/*.tsx',
-      'apps/storybook/test/**/*.ts',
-      'apps/storybook/test/**/*.tsx',
+      '**/tests/**/*.ts',
+      '**/tests/**/*.tsx',
+      '**/test/**/*.ts',
+      '**/test/**/*.tsx',
+      '**/__tests__/**/*.ts',
+      '**/__tests__/**/*.tsx',
+      '**/*.test.ts',
+      '**/*.test.tsx',
     ],
     rules: {
-      ...(isTypedLint
-        ? {
-            '@typescript-eslint/no-floating-promises': ['warn', { ignoreVoid: true }],
-            '@typescript-eslint/no-misused-promises': [
-              'warn',
-              { checksVoidReturn: { attributes: false } },
-            ],
-            '@typescript-eslint/await-thenable': 'warn',
-            '@typescript-eslint/return-await': ['warn', 'in-try-catch'],
-          }
-        : {}),
+      '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
   {
-    // Playground app carries pre-migration lint debt on architecture/error-cause rules.
+    // Playground app configuration: allow console diagnostics and disable
+    // boolean-literal-compare while Playground tsconfig sets strictNullChecks: false.
     files: [
       'apps/playground/src/**/*.ts',
       'apps/playground/src/**/*.tsx',
@@ -192,13 +183,7 @@ module.exports = [
       'apps/playground/tests/**/*.tsx',
     ],
     rules: {
-      'no-restricted-imports': 'warn',
-      'no-restricted-syntax': 'warn',
-      'preserve-caught-error': 'warn',
-      // Playground tsconfig sets strictNullChecks: false, where boolean | undefined
-      // collapses to boolean and causes false positives in boolean-literal-compare.
       ...(isTypedLint ? { '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off' } : {}),
-      // Playground is an app, not a library: console diagnostics are expected.
       'no-console': 'off',
     },
   },
@@ -210,13 +195,11 @@ module.exports = [
     },
   },
   {
-    // Architecture guard for the app-support component tree. Patterns are the
-    // pre-migration 'error' rules downgraded to 'warn': nine call sites still
-    // violate them and semantics-preserving reroutes are follow-up work.
+    // Architecture guard for the app-support component tree — enforced as 'error'.
     files: ['apps/playground/src/components/**/*.ts', 'apps/playground/src/components/**/*.tsx'],
     rules: {
       'no-restricted-imports': [
-        'warn',
+        'error',
         {
           patterns: [
             {
@@ -240,14 +223,13 @@ module.exports = [
     },
   },
   {
-    // Playwright E2E suite & configs: allow test runner console output and
-    // surface anti-patterns (fixed waitForTimeout sleeps, DOM evaluate clicks)
-    // as warnings on legacy specs while keeping zero-error lint enforcement.
+    // Playwright E2E suite & configs: enforce web-first assertions and pointer
+    // hit-testing as hard errors.
     files: ['e2e/**/*.ts', 'playwright*.config.ts'],
     rules: {
       'no-console': 'off',
       'no-restricted-syntax': [
-        'warn',
+        'error',
         {
           selector: "CallExpression[callee.name='require']",
           message: 'Use ES module import instead of require().',

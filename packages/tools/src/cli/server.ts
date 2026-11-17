@@ -18,6 +18,7 @@
 
 import http from 'node:http';
 import { Readable } from 'node:stream';
+import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { openCliDb, nodeFs, nodePath } from './db';
 import type { CliDatabaseConfig } from './config';
 import type { CliDb } from './db';
@@ -81,7 +82,7 @@ function startHttpServer(
         const webRes = await handler(webReq);
         res.writeHead(webRes.status, Object.fromEntries(webRes.headers.entries()));
         if (webRes.body) {
-          Readable.fromWeb(webRes.body as any).pipe(res);
+          Readable.fromWeb(webRes.body as unknown as WebReadableStream).pipe(res);
         } else {
           res.end();
         }

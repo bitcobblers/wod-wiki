@@ -46,6 +46,7 @@ function ScalarTokenInput({
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
         if (e.nativeEvent.isComposing || e.keyCode === 229) return;
         if (e.key === 'Enter') {
           commit();

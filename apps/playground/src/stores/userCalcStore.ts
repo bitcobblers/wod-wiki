@@ -51,7 +51,7 @@ export interface HydrationResult {
 let dbPromise: Promise<IDBPDatabase<UserCalcDB>> | undefined;
 
 function open(): Promise<IDBPDatabase<UserCalcDB>> {
-  if (!dbPromise) {
+  if (dbPromise === undefined) {
     dbPromise = openDB<UserCalcDB>(DB_NAME, DB_VERSION, {
       upgrade(db) {
         if (!db.objectStoreNames.contains(STORE)) {

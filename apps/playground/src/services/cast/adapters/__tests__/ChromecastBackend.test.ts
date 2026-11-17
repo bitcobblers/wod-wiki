@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { ChromecastBackend, type ChromecastBackendDeps } from '../ChromecastBackend';
 import type { CastSdkState } from '../../ChromecastSdk';
 import type { ISignaling } from '../../rpc/WebRtcRpcTransport';

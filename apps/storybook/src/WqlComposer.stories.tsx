@@ -652,19 +652,19 @@ export const SegmentTraversalInteraction: Story = {
       '[data-testid^="token-slot-"]:not([data-testid^="token-slot-remove-"]):not([data-testid^="token-slot-value-"])',
     )!;
     await userEvent.click(firstToken);
-    await waitFor(() => {
-      expect(canvas.getByTestId('wql-field-picker')).toBeVisible();
+    await waitFor(async () => {
+      await expect(canvas.getByTestId('wql-field-picker')).toBeVisible();
     });
 
     const initialLabel = canvas.getByTestId('wql-picker-search').getAttribute('aria-label');
     await userEvent.click(canvas.getByTestId('wql-segment-next'));
-    await waitFor(() => {
-      expect(canvas.getByTestId('wql-picker-search').getAttribute('aria-label')).not.toBe(initialLabel);
+    await waitFor(async () => {
+      await expect(canvas.getByTestId('wql-picker-search').getAttribute('aria-label')).not.toBe(initialLabel);
     });
 
     await userEvent.click(canvas.getByTestId('wql-segment-previous'));
-    await waitFor(() => {
-      expect(canvas.getByTestId('wql-picker-search').getAttribute('aria-label')).toBe(initialLabel);
+    await waitFor(async () => {
+      await expect(canvas.getByTestId('wql-picker-search').getAttribute('aria-label')).toBe(initialLabel);
     });
   },
 };

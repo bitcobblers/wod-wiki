@@ -44,7 +44,7 @@ function BundleImportIntake() {
         title: `Imported ${res.imported} note(s), ${res.sessionsImported ?? 0} session(s)`,
         description: res.errors.length > 0 ? res.errors.slice(0, 2).join('; ') : 'Import complete.',
       })
-      navigate(ROUTE_PATTERNS.home)
+      void navigate(ROUTE_PATTERNS.home)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'That file is not a valid portable bundle (.zip).')
     } finally {

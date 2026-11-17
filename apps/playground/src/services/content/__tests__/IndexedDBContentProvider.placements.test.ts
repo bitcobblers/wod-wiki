@@ -8,7 +8,7 @@
  * - the note keeps its canonical route (/notes/<id>) throughout — a
  *   placement change never clones or deletes it.
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 
 import { InMemoryStorage } from '../../storage/InMemoryStorage';
 import { StorageService } from '../../storage/StorageService';

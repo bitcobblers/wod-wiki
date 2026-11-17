@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/atoms/primitives/card';
 import { Badge } from '@/components/atoms/primitives/badge';
-import { Clock, ArrowRight } from '@phosphor-icons/react';
+import { ClockIcon, ArrowRightIcon } from '@phosphor-icons/react';
 import { useTimerElapsed } from '@bitcobblers/wod-wiki-engine/react';
 import { formatTimePrecise, formatTimeHHMMSS } from '@bitcobblers/wod-wiki-engine';
 import { cn } from '@/lib/utils';
@@ -81,7 +81,7 @@ export const DigitalClock: React.FC<DigitalClockProps> = ({
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Clock size={24} className="text-primary" />
+            <ClockIcon size={24} className="text-primary" />
             <h3 className="text-xl font-semibold">{title}</h3>
           </div>
           <div className="flex items-center gap-2">
@@ -159,7 +159,7 @@ export const DigitalClock: React.FC<DigitalClockProps> = ({
               <div className="text-xs text-muted-foreground mb-1">Up Next</div>
               <div className="font-semibold">{nextCardLabel}</div>
             </div>
-            <ArrowRight size={24} className="text-muted-foreground" />
+            <ArrowRightIcon size={24} className="text-muted-foreground" />
           </div>
         </div>
 

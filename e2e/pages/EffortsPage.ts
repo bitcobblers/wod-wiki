@@ -167,7 +167,7 @@ export class EffortsPage {
     await this.page.keyboard.press('ControlOrMeta+a');
     await this.page.keyboard.insertText(wql);
     await this.page.keyboard.press('Enter');
-    await this.page.waitForTimeout(150);
+    await expect(this.page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready');
   }
 
   async searchFor(term: string) {
@@ -185,7 +185,19 @@ export class EffortsPage {
     await editor.click();
     await this.page.keyboard.press('ControlOrMeta+a');
     await this.page.keyboard.insertText(text);
-    await this.page.waitForTimeout(100);
+    await expect
+      .poll(() =>
+        this.notebookEditor().evaluate((root, expected) => {
+          const container = root.querySelector('.cm-editor')?.parentElement as
+            | (HTMLElement & { __codemirrorView?: { state: { doc: { toString(): string } } } })
+            | null;
+          if (container?.__codemirrorView) {
+            return container.__codemirrorView.state.doc.toString() === expected;
+          }
+          return root.querySelector('.cm-content') !== null;
+        }, text),
+      )
+      .toBe(true);
   }
 
   async clearUserEfforts() {

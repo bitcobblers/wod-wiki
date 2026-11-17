@@ -258,7 +258,7 @@ export function CreateReferenceFromLabelDialog({
               : kind === 'equipment'
                 ? equipmentPath(cleanSlug)
                 : tagPath(tagCategory || 'general', cleanSlug);
-          navigate(targetPath);
+          void navigate(targetPath);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not create definition.');

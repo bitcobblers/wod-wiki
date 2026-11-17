@@ -145,7 +145,7 @@ export function useWakeLock(options: UseWakeLockOptions = {}): UseWakeLockResult
   useEffect(() => {
     if (!isSupported) return;
 
-    const handleVisibilityChange = async () => {
+    const handleVisibilityChange = () => {
       // Only re-acquire if we were previously active and document is now visible
       // and the enabled option is either undefined (manual mode) or true
       if (
@@ -155,7 +155,7 @@ export function useWakeLock(options: UseWakeLockOptions = {}): UseWakeLockResult
       ) {
         // Re-request the wake lock if it was released due to visibility change
         // and we still want it active
-        await request();
+        void request();
       }
     };
 
@@ -174,9 +174,9 @@ export function useWakeLock(options: UseWakeLockOptions = {}): UseWakeLockResult
     if (enabled === undefined) return;
 
     if (enabled) {
-      request();
+      void request();
     } else {
-      release();
+      void release();
     }
   }, [enabled, request, release]);
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EditorView } from "@codemirror/view";
-import { RuntimeTimerPanel } from "@/components/organisms/editor/RuntimeTimerPanel";
+import { RuntimeTimerPanel, type RuntimeTimerPanelProps } from "@/components/organisms/editor/RuntimeTimerPanel";
 import type { ScriptBlock, Sessions } from "@/components/Editor/types";
 import { toStoredOutputStatement } from '@/components/Editor/types';
 import { RowsResultsChrome, RowsTable, type InlineMetricEditPayload } from "@bitcobblers/wod-wiki-ui";
@@ -81,7 +81,7 @@ export interface FullscreenTimerProps {
   onPark?: (runtime: IScriptRuntime) => void;
   // Test/storybook seams — production defaults keep normal renders untouched.
   /** Track-view runtime surface; defaults to the live RuntimeTimerPanel. */
-  RuntimePanelSlot?: React.ComponentType<any>;
+  RuntimePanelSlot?: React.ComponentType<RuntimeTimerPanelProps>;
   /** Cast control in the dialog actions; defaults to the live CastButtonRpc. */
   CastButtonSlot?: React.ComponentType;
   /** Audio control in the dialog actions; defaults to the live AudioToggle. */

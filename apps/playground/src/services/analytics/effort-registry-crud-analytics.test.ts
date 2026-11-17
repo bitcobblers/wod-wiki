@@ -95,9 +95,9 @@ describe('Effort Registry CRUD + Analytics Resolution', () => {
   });
 
   describe('Create → Analytics', () => {
-    it('resolves a newly created custom effort with correct MET in analytics', () => {
+    it('resolves a newly created custom effort with correct MET in analytics', async () => {
       // 1. Create custom effort
-      registry.upsert(customEffort);
+      await registry.upsert(customEffort);
 
       // 2. Build analytics context with the resolver
       const context: AnalyticsProfileContext = {
@@ -124,8 +124,8 @@ describe('Effort Registry CRUD + Analytics Resolution', () => {
       expect((effortData[0].value as any).baseAttributes.met).toBe(8.5);
     });
 
-    it('composed met-minutes calc computes MET-minutes from custom effort MET', () => {
-      registry.upsert(customEffort);
+    it('composed met-minutes calc computes MET-minutes from custom effort MET', async () => {
+      await registry.upsert(customEffort);
 
       const context: AnalyticsProfileContext = {
         dialect: 'time',

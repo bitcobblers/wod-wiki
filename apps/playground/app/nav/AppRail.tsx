@@ -33,7 +33,9 @@ export function AppRail({ onSearch, onCreate: _onCreate }: { onSearch: () => voi
   const closeDrawer = useCloseNavigationDrawer()
 
   const deps: NavActionDeps = {
-    navigate: (to, opts) => navigate(to, { replace: opts?.replace }),
+    navigate: (to, opts) => {
+      void navigate(to, { replace: opts?.replace })
+    },
     setQueryParam: () => {},
     scrollToSection: () => {},
   }
@@ -58,7 +60,7 @@ export function AppRail({ onSearch, onCreate: _onCreate }: { onSearch: () => voi
       <button
         onClick={() => {
           closeDrawer()
-          navigate('/')
+          void navigate('/')
         }}
         title="Wod Wiki home"
         aria-label="Wod Wiki home"
@@ -146,7 +148,7 @@ export function AppRail({ onSearch, onCreate: _onCreate }: { onSearch: () => voi
         type="button"
         onClick={() => {
           closeDrawer()
-          navigate('/settings/profile')
+          void navigate('/settings/profile')
         }}
         title="Profile"
         aria-label="Profile"
@@ -173,7 +175,7 @@ export function AppRail({ onSearch, onCreate: _onCreate }: { onSearch: () => voi
         type="button"
         onClick={() => {
           closeDrawer()
-          navigate('/settings/appearance')
+          void navigate('/settings/appearance')
         }}
         title="Settings"
         aria-label="Settings"

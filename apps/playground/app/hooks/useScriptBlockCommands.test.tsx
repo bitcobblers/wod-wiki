@@ -55,10 +55,10 @@ describe('useScriptBlockCommands — log command', () => {
     expect(ids(captureCommands('journal-plan', { onLog: () => {} }))).not.toContain('log');
   });
 
-  it('log command click dispatches the onLog handler', () => {
+  it('log command click dispatches the onLog handler', async () => {
     let called = false;
     const cmds = captureCommands('playground', { onLog: () => { called = true; } });
-    cmds.find(c => c.id === 'log')?.onClick({} as never);
+    await cmds.find(c => c.id === 'log')?.onClick({} as never);
     expect(called).toBe(true);
   });
 });

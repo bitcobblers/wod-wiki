@@ -124,7 +124,7 @@ describe('PaletteShell WQL mode', () => {
   it('keeps the plain text input for non-WQL requests', async () => {
     const search = mock(async (_query: string): Promise<PaletteItem[]> => [])
     renderShell()
-    openPalette({ placeholder: 'Pick one…', sources: [{ id: 'plain', search }] })
+    void openPalette({ placeholder: 'Pick one…', sources: [{ id: 'plain', search }] })
 
     const input = await screen.findByPlaceholderText('Pick one…')
     expect(screen.queryByTestId('wql-composer')).toBeNull()
@@ -136,7 +136,7 @@ describe('PaletteShell WQL mode', () => {
   it('narrows results live while typing — resolved draft reaches sources after the execution debounce (#1010)', async () => {
     const search = mock(async (_query: string): Promise<PaletteItem[]> => [])
     renderShell()
-    openPalette({
+    void openPalette({
       wql: { initialQuery: paletteQuery, execute },
       sources: [{ id: 'wql-search', search }],
     })
@@ -155,7 +155,7 @@ describe('PaletteShell WQL mode', () => {
     const search = mock(async (_query: string): Promise<PaletteItem[]> => [])
     const onApply = mock((_wql: string) => {})
     renderShell()
-    openPalette({
+    void openPalette({
       wql: { initialQuery: paletteQuery, execute, onApply },
       sources: [{ id: 'wql-search', search }],
     })
@@ -180,7 +180,7 @@ describe('PaletteShell WQL mode', () => {
     ])
     const onApply = mock((_wql: string) => {})
     renderShell()
-    openPalette({
+    void openPalette({
       wql: { initialQuery: paletteQuery, execute, onApply },
       sources: [{ id: 'wql-search', search }],
     })
@@ -329,7 +329,7 @@ describe('PaletteShell WQL mode', () => {
   it('closes via the touch close button in non-WQL mode', async () => {
     const search = mock(async (_query: string): Promise<PaletteItem[]> => [])
     renderShell()
-    openPalette({ placeholder: 'Pick one…', sources: [{ id: 'plain', search }] })
+    void openPalette({ placeholder: 'Pick one…', sources: [{ id: 'plain', search }] })
 
     fireEvent.click(await screen.findByTestId('palette-cancel'))
 
@@ -365,7 +365,7 @@ describe('PaletteShell Find mode (plain text default)', () => {
     const search = mock(async (q: string): Promise<PaletteItem[]> =>
       q.includes('front squat') ? [item] : [])
     renderShell()
-    openPalette({
+    void openPalette({
       wql: { initialQuery: 'front squat', execute },
       sources: [{ id: 'pages:wql-text', search }],
     })
@@ -390,7 +390,7 @@ describe('PaletteShell Find mode (plain text default)', () => {
       { id: 'entry:1', label: 'Fran', type: 'entry', payload: { id: 'entry:1' } },
     ])
     renderShell()
-    openPalette({
+    void openPalette({
       wql: { initialQuery: ':journal', execute },
       sources: [{ id: 'wql-search', search }],
     })
@@ -419,7 +419,7 @@ describe('PaletteShell Find mode (plain text default)', () => {
       { id: 'entry:1', label: 'Fran', type: 'entry', payload: { id: 'entry:1' } },
     ])
     renderShell()
-    openPalette({
+    void openPalette({
       wql: { initialQuery: 'front squat', execute },
       sources: [{ id: 'wql-search', search }],
     })
@@ -507,7 +507,7 @@ describe('PaletteShell mobile keyboard adaptation', () => {
     // Keyboard closed: the whole 800px layout viewport is visible → full screen on mobile.
     const vv = stubVisualViewport(800)
     renderShell()
-    openPalette({
+    void openPalette({
       wql: { initialQuery: paletteQuery, execute },
       sources: [{ id: 'plain', search }],
     })

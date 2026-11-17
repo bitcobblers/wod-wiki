@@ -17,7 +17,7 @@
  * landing row) stay plain routes.
  */
 
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type SyntheticEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 import { BookmarkPlus, Check, ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-react'
@@ -229,7 +229,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
         }
         if (wasActive) {
           if (landingWql) apply(landingWql)
-          else navigate(spec.route)
+          else void navigate(spec.route)
         }
       }
     }
@@ -247,7 +247,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
       (!queryRequired || trimmedWql.length > 0) &&
       !wqlError
 
-    const handleSaveDraft = async (event: FormEvent) => {
+    const handleSaveDraft = async (event: SyntheticEvent<HTMLFormElement>) => {
       event.preventDefault()
       if (!editorDraft || !canSaveDraft) return
       const current = resolveRouteShortcuts(spec.route, undefined, builtins)
@@ -273,7 +273,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
       setEditorDraft(null)
       if (existing && wasActive && !nextItem.to) {
         if (nextItem.wql) apply(nextItem.wql)
-        else navigate(spec.route)
+        else void navigate(spec.route)
       } else if (!existing && nextItem.wql && nextItem.wql !== effectiveQuery) {
         apply(nextItem.wql)
       }
@@ -568,7 +568,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                       if (landingWql) {
                         apply(landingWql)
                       } else {
-                        navigate(spec.route)
+                        void navigate(spec.route)
                       }
                       closeNavigationDrawer()
                     }}
@@ -586,7 +586,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                     if (landingWql) {
                       apply(landingWql)
                     } else {
-                      navigate(spec.route)
+                      void navigate(spec.route)
                     }
                     closeNavigationDrawer()
                   }}
@@ -607,7 +607,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                     key={`shortcut-${s.id}`}
                     onClick={() => {
                       if (s.wql) apply(s.wql)
-                      else navigate(spec.route)
+                      else void navigate(spec.route)
                       closeNavigationDrawer()
                     }}
                     current={shortcutMatches(s, matchCtx)}
@@ -627,7 +627,12 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                     key={child.id}
                     onClick={() => {
                       if (child.action) {
-                        executeNavAction(child.action, { navigate, setQueryParam: () => {} })
+                        executeNavAction(child.action, {
+                          navigate: (to, opts) => {
+                            void navigate(to, { replace: opts?.replace })
+                          },
+                          setQueryParam: () => {},
+                        })
                         closeNavigationDrawer()
                       }
                     }}

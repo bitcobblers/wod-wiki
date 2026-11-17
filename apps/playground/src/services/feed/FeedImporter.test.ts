@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
 import { SEED_SCHEMA, seedMetaKey } from '@/types/seed';
 import { InMemoryFeedStorage, type SeedChunkWrite, type SeedChunkResult } from './FeedImportStorage';
