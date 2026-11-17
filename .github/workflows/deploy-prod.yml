@@ -214,7 +214,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq >/dev/null 2>&1 || true
-          sudo apt-get install -y -qq mosquitto-clients >/dev/null 2>&1
+          sudo apt-get install -y -qq mosquitto-clients >/dev/null 2>&1 || true
           STATUS=blocked
           if [ "${{ needs.publish.result }}" = "success" ] && [ "${{ needs.create-release.result }}" = "success" ]; then
             STATUS=promoted
@@ -222,5 +222,5 @@ jobs:
           SHA_FULL="${{ needs.resolve-artifacts.outputs.target-sha }}"
           export SHORT=${SHA_FULL:0:7} STATUS TAG="${{ needs.resolve-artifacts.outputs.tag }}" SHA="$SHA_FULL"
           PAYLOAD=$(node -e 'console.log(JSON.stringify({kind:"promotion",status:process.env.STATUS,title:`deploy-prod ${process.env.STATUS} — ${process.env.TAG} @ ${process.env.SHORT}`,sha:process.env.SHA,run_id:process.env.GITHUB_RUN_ID,url:`https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,source:"github-actions",ts:new Date().toISOString(),detail:{tag:process.env.TAG}}))')
-          mosquitto_pub -h 10.1.0.30 -u qa -P "${TAILNET_MQTT_PASSWORD}" -t qa/wod-wiki/events -m "$PAYLOAD"
-          mosquitto_pub -h 10.1.0.30 -u qa -P "${TAILNET_MQTT_PASSWORD}" -t qa/wod-wiki/promotion/last -m "$PAYLOAD" -r
+          timeout 20 mosquitto_pub -h mqtt.forest-adhara.ts.net -u qa -P "${TAILNET_MQTT_PASSWORD}" -t qa/wod-wiki/events -m "$PAYLOAD" || echo "::warning::HA event emit failed (non-fatal)"
+          timeout 20 mosquitto_pub -h mqtt.forest-adhara.ts.net -u qa -P "${TAILNET_MQTT_PASSWORD}" -t qa/wod-wiki/promotion/last -m "$PAYLOAD" -r || echo "::warning::HA event emit failed (non-fatal)"
