@@ -109,7 +109,7 @@ bridge:webMcpTool a owl:ObjectProperty ;
     bridge:hermesLevel bridge:O4BridgeGraph ;
     rdfs:range code:WebMcpTool ;
     rdfs:label "WebMCP tool" ;
-    rdfs:comment "Links a qa:Journey or qa:Step to a code:WebMcpTool invoked during agent-driven execution." .
+    rdfs:comment "Links a qa:Journey, qa:Step, qa:VerificationSuite, or code:Route to a code:WebMcpTool invoked or exposed during agent-driven execution." .
 
 bridge:implementsDomainClass a owl:ObjectProperty ;
     bridge:hermesLevel bridge:O4BridgeGraph ;

@@ -28,6 +28,8 @@ interface ExtractedTool {
   tier: number;
   cliEquivalent: string;
   relPath: string;
+  mountScope?: string;
+  isUiTool: boolean;
 }
 
 function extractAgentTools(): ExtractedTool[] {
@@ -54,8 +56,40 @@ function extractAgentTools(): ExtractedTool[] {
           tier: Number(tier),
           cliEquivalent: cliEquivalent ?? `wod ${name.replace(/^wod_/, '').replace(/_/g, ' ')} --json`,
           relPath: rel,
+          isUiTool: false,
         });
       }
+    }
+  }
+  return tools;
+}
+
+function extractUiAgentTools(): ExtractedTool[] {
+  const relPath = 'apps/playground/app/agent/uiToolSpecs.ts';
+  const absPath = path.join(REPO_ROOT, relPath);
+  if (!fs.existsSync(absPath)) return [];
+  const src = fs.readFileSync(absPath, 'utf8');
+  const fnIdx = src.indexOf('export function exportPlaygroundUiToolsManifest');
+  const body = fnIdx !== -1 ? src.slice(fnIdx) : src;
+  const tools: ExtractedTool[] = [];
+  const blocks = body.split(/\{\s*\r?\n\s*name:\s*/).slice(1);
+  for (const block of blocks) {
+    const head = `name: ${block.slice(0, 1400)}`;
+    const name = head.match(/\bname:\s*['"]([a-z0-9_]+)['"]/)?.[1];
+    const title = head.match(/\btitle:\s*['"]([^'"]+)['"]/)?.[1];
+    const tier = head.match(/\btier:\s*(\d+)/)?.[1];
+    const mountScope = head.match(/\bmountScope:\s*['"]([^'"]+)['"]/)?.[1];
+    if (name && title) {
+      tools.push({
+        name,
+        title,
+        domain: 'ui',
+        tier: tier !== undefined ? Number(tier) : 1,
+        cliEquivalent: `playwright:${name}`,
+        relPath,
+        ...(mountScope ? { mountScope } : {}),
+        isUiTool: true,
+      });
     }
   }
   return tools;
@@ -108,6 +142,10 @@ function routeIri(pattern: string): string {
 
 function toolIri(name: string): string {
   return `<https://wod.wiki/code/tool/${encodeSegment(name)}>`;
+}
+
+function suiteIri(relPath: string): string {
+  return `<https://wod.wiki/qa/suite/${encodeSegment(relPath)}>`;
 }
 
 function storyIri(storyId: string): string {
@@ -465,8 +503,12 @@ export async function buildUnifiedGraph() {
     );
   }
 
-  // 4. Index WebMCP / Domain Agent Tools
-  const agentTools = extractAgentTools();
+  // 4. Index WebMCP / Domain Agent Tools & UI WebMCP Tools
+  const domainTools = extractAgentTools();
+  const uiTools = extractUiAgentTools();
+  const agentTools = [...domainTools, ...uiTools];
+  const allToolNames = new Map(agentTools.map((t) => [t.name, toolIri(t.name)]));
+
   for (const tool of agentTools) {
     const wIri = toolIri(tool.name);
     codeLines.push(
@@ -476,6 +518,8 @@ export async function buildUnifiedGraph() {
       `    code:toolTitle "${esc(tool.title)}" ;`,
       `    code:toolDomain "${esc(tool.domain)}" ;`,
       `    code:toolTier ${tool.tier} ;`,
+      `    code:isUiTool ${tool.isUiTool} ;`,
+      ...(tool.mountScope ? [`    code:mountScope "${esc(tool.mountScope)}" ;`] : []),
       `    code:cliEquivalent "${esc(tool.cliEquivalent)}" ;`,
       `    code:definedIn ${fileIri(tool.relPath)} .`,
       '',
@@ -619,6 +663,8 @@ export async function buildUnifiedGraph() {
       qaLines.push(
         `${stIri} a qa:StoryTest ;`,
         `    rdfs:label "${esc(storyTitle + ' / ' + exportName)}" ;`,
+        `    qa:tier "T2" ;`,
+        `    qa:seam "T2b-story" ;`,
         `    qa:hasPlayTest ${hasPlay ? 'true' : 'false'} ;`,
         `    qa:hasStep ${stBeats.map((b) => storyBeatIri(storyId, b.name)).join(', ')} .`,
         '',
@@ -702,6 +748,8 @@ export async function buildUnifiedGraph() {
     qaLines.push(
       `${jIri} a qa:Journey ;`,
       `    rdfs:label "${esc(parsed.id + ': ' + parsed.title)}" ;`,
+      `    qa:tier "T3" ;`,
+      `    qa:seam "T3-journey" ;`,
       `    qa:journeyId "${esc(parsed.id)}" ;`,
       `    qa:journeyTitle "${esc(parsed.title)}" ;`,
       `    qa:slug "${esc(parsed.slug)}" ;`,
@@ -768,6 +816,18 @@ export async function buildUnifiedGraph() {
           bridgeLines.push(`${jIri} bridge:testId ${testIdIri(cur)} .`);
         }
       }
+      for (const [toolName, tIri] of allToolNames) {
+        if (pwContent.includes(toolName)) {
+          bridgeLines.push(`${jIri} bridge:webMcpTool ${tIri} .`);
+        }
+      }
+    }
+
+    const specRaw = fs.readFileSync(absSpec, 'utf8');
+    for (const [toolName, tIri] of allToolNames) {
+      if (specRaw.includes(toolName)) {
+        bridgeLines.push(`${jIri} bridge:webMcpTool ${tIri} .`);
+      }
     }
 
     for (const r of parsed.routes) {
@@ -807,6 +867,152 @@ export async function buildUnifiedGraph() {
           bridgeLines.push(`${jIri} bridge:story ${storyIri(st.id)} .`);
           qaLines.push(`${storyTestIri(st.id)} qa:verifiesJourney ${jIri} .`);
         }
+      }
+    }
+  }
+
+  // 5b. Index Multi-Tier Verification Suites (qa:FixtureTableSuite, qa:StorageConformanceSuite, qa:DomainScenarioSuite, qa:HostSuite)
+  let suiteCount = 0;
+
+  // Tier 1a: qa:FixtureTableSuite (Markdown parser & WQL scenario tables)
+  const fixtureDirs = [
+    path.join(REPO_ROOT, 'packages/wql/tests/fixtures/scenarios'),
+    path.join(REPO_ROOT, 'packages/lang/tests/fixtures'),
+  ];
+  const fixtureFiles: string[] = [];
+  for (const fdir of fixtureDirs) {
+    walkFiles(fdir, new Set(['.md']), fixtureFiles);
+  }
+  for (const absFixture of fixtureFiles) {
+    const rel = path.relative(REPO_ROOT, absFixture).replace(/\\/g, '/');
+    const content = fs.readFileSync(absFixture, 'utf8');
+    const sIri = suiteIri(rel);
+    const label = path.basename(rel, '.md');
+    suiteCount++;
+    qaLines.push(
+      `${sIri} a qa:FixtureTableSuite ;`,
+      `    rdfs:label "${esc(label)}" ;`,
+      `    qa:suitePath "${esc(rel)}" ;`,
+      `    qa:tier "T1" ;`,
+      `    qa:seam "T1a-compute" ;`,
+      `    qa:inDomain ${domainIri('runtime')} .`,
+      '',
+    );
+    bridgeLines.push(`${sIri} bridge:touches ${fileIri(rel)} .`);
+    for (const hint of DOMAIN_CLASS_HINTS) {
+      if (hint.pattern.test(content)) {
+        bridgeLines.push(`${sIri} bridge:seedNoun ${hint.wodClass} .`);
+      }
+    }
+  }
+
+  // Tier 1b: qa:StorageConformanceSuite (parameterized IStorage conformance tests)
+  const storageFiles: string[] = [];
+  walkFiles(path.join(REPO_ROOT, 'packages/storage/tests'), new Set(['.ts', '.tsx']), storageFiles);
+  for (const absFile of storageFiles) {
+    const rel = path.relative(REPO_ROOT, absFile).replace(/\\/g, '/');
+    if (!rel.includes('storage-conformance') && !rel.includes('conformance')) continue;
+    const content = fs.readFileSync(absFile, 'utf8');
+    const sIri = suiteIri(rel);
+    const label = path.basename(rel, path.extname(rel));
+    suiteCount++;
+    qaLines.push(
+      `${sIri} a qa:StorageConformanceSuite ;`,
+      `    rdfs:label "${esc(label)}" ;`,
+      `    qa:suitePath "${esc(rel)}" ;`,
+      `    qa:tier "T1" ;`,
+      `    qa:seam "T1b-storage" ;`,
+      `    qa:inDomain ${domainIri('journal')} .`,
+      '',
+    );
+    bridgeLines.push(`${sIri} bridge:touches ${fileIri(rel)} .`);
+    for (const noun of ['wod:Note', 'wod:Notebook', 'wod:Page', 'wod:Session', 'wod:Effort', 'wod:Equipment', 'wod:Tag']) {
+      bridgeLines.push(`${sIri} bridge:seedNoun ${noun} .`);
+    }
+  }
+
+  // Tier 1c: qa:DomainScenarioSuite (headless business-language domain tests)
+  const domainTestFiles: string[] = [];
+  walkFiles(path.join(REPO_ROOT, 'packages/engine/tests/domain'), new Set(['.ts']), domainTestFiles);
+  for (const absFile of domainTestFiles) {
+    if (!absFile.endsWith('.domain.test.ts')) continue;
+    const rel = path.relative(REPO_ROOT, absFile).replace(/\\/g, '/');
+    const content = fs.readFileSync(absFile, 'utf8');
+    const sIri = suiteIri(rel);
+    const label = path.basename(rel, '.domain.test.ts');
+    suiteCount++;
+    qaLines.push(
+      `${sIri} a qa:DomainScenarioSuite ;`,
+      `    rdfs:label "${esc(label)}" ;`,
+      `    qa:suitePath "${esc(rel)}" ;`,
+      `    qa:tier "T1" ;`,
+      `    qa:seam "T1c-domain" ;`,
+      `    qa:inDomain ${domainIri('journal')} .`,
+      '',
+    );
+    bridgeLines.push(`${sIri} bridge:touches ${fileIri(rel)} .`);
+    for (const hint of DOMAIN_CLASS_HINTS) {
+      if (hint.pattern.test(content)) {
+        bridgeLines.push(`${sIri} bridge:seedNoun ${hint.wodClass} .`);
+      }
+    }
+  }
+
+  // Tier 2a: qa:HostSuite (Playground host route & state tests)
+  const hostCandidates: string[] = [];
+  walkFiles(path.join(REPO_ROOT, 'apps/playground'), new Set(['.ts', '.tsx']), hostCandidates);
+  for (const absFile of hostCandidates) {
+    const rel = path.relative(REPO_ROOT, absFile).replace(/\\/g, '/');
+    if (!/\.(test|spec)\.(ts|tsx)$/.test(rel)) continue;
+    const content = fs.readFileSync(absFile, 'utf8');
+    if (!content.includes('@/testing/host') && !content.includes('setupPlaygroundTestHost') && !content.includes('renderWithPlaygroundHost')) {
+      continue;
+    }
+    const sIri = suiteIri(rel);
+    const label = path.basename(rel).replace(/\.(test|spec)\.(tsx?)/, '');
+    suiteCount++;
+    qaLines.push(
+      `${sIri} a qa:HostSuite ;`,
+      `    rdfs:label "${esc(label)}" ;`,
+      `    qa:suitePath "${esc(rel)}" ;`,
+      `    qa:tier "T2" ;`,
+      `    qa:seam "T2a-host" ;`,
+      `    qa:inDomain ${domainIri('journal')} .`,
+      '',
+    );
+    bridgeLines.push(`${sIri} bridge:touches ${fileIri(rel)} .`);
+    for (const hint of DOMAIN_CLASS_HINTS) {
+      if (hint.pattern.test(content)) {
+        bridgeLines.push(`${sIri} bridge:seedNoun ${hint.wodClass} .`);
+      }
+    }
+    const matchedRoutes = new Set<string>();
+    for (const [rKey, rPattern] of Object.entries(ROUTE_PATTERNS)) {
+      if (content.includes(`ROUTE_PATTERNS.${rKey}`)) {
+        matchedRoutes.add(rPattern);
+      }
+    }
+    for (const r of knownRoutes) {
+      if (matchedRoutes.has(r)) continue;
+      if (content.includes(`'${r}'`) || content.includes(`"${r}"`)) {
+        matchedRoutes.add(r);
+        continue;
+      }
+      if (r.includes(':')) {
+        const rxStr = r
+          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          .replace(/:[A-Za-z0-9_]+/g, '[^/\'"\\s]+');
+        if (new RegExp(`['"]${rxStr}['"?]`).test(content)) {
+          matchedRoutes.add(r);
+        }
+      }
+    }
+    for (const r of matchedRoutes) {
+      bridgeLines.push(`${sIri} bridge:route ${routeIri(r)} .`);
+    }
+    for (const [toolName, tIri] of allToolNames) {
+      if (content.includes(toolName)) {
+        bridgeLines.push(`${sIri} bridge:webMcpTool ${tIri} .`);
       }
     }
   }
@@ -881,7 +1087,225 @@ export async function buildUnifiedGraph() {
   let rootCauseCount = 0;
 
   const qaTtl = await fetchQaOntologyTtl();
-  if (qaTtl) {
+  if (qaTtl && qaTtl.includes('<https://wod.wiki/qa/')) {
+    // Parse canonical multi-line Turtle snapshot (<https://wod.wiki/qa/...>)
+    interface SnapTriple {
+      s: string;
+      p: string;
+      o: string;
+      isLiteral: boolean;
+      datatype?: string;
+    }
+    const tokens: Array<{ type: 'iri' | 'str' | 'sym' | 'punct'; val: string; dt?: string }> = [];
+    let ti = 0;
+    const tlen = qaTtl.length;
+    while (ti < tlen) {
+      const ch = qaTtl[ti];
+      if (/\s/.test(ch)) {
+        ti++;
+        continue;
+      }
+      if (ch === '#') {
+        while (ti < tlen && qaTtl[ti] !== '\n') ti++;
+        continue;
+      }
+      if (ch === '<') {
+        const end = qaTtl.indexOf('>', ti + 1);
+        if (end !== -1) {
+          tokens.push({ type: 'iri', val: qaTtl.slice(ti, end + 1) });
+          ti = end + 1;
+          continue;
+        }
+      }
+      if (ch === '"') {
+        ti++;
+        let val = '';
+        while (ti < tlen && qaTtl[ti] !== '"') {
+          if (qaTtl[ti] === '\\' && ti + 1 < tlen) {
+            const nxt = qaTtl[ti + 1];
+            val += nxt === 'n' ? '\n' : nxt === '"' ? '"' : nxt === '\\' ? '\\' : nxt;
+            ti += 2;
+          } else {
+            val += qaTtl[ti++];
+          }
+        }
+        ti++;
+        let dt: string | undefined;
+        if (qaTtl[ti] === '^' && qaTtl[ti + 1] === '^') {
+          ti += 2;
+          const ds = ti;
+          while (ti < tlen && !/[\s;,.]/.test(qaTtl[ti])) ti++;
+          dt = qaTtl.slice(ds, ti);
+        } else if (qaTtl[ti] === '@') {
+          while (ti < tlen && !/[\s;,.]/.test(qaTtl[ti])) ti++;
+        }
+        tokens.push({ type: 'str', val, dt });
+        continue;
+      }
+      if (ch === ';' || ch === ',' || (ch === '.' && (ti + 1 >= tlen || /\s/.test(qaTtl[ti + 1])))) {
+        tokens.push({ type: 'punct', val: ch });
+        ti++;
+        continue;
+      }
+      const m = qaTtl.slice(ti).match(/^[^\s;,"<>]+/);
+      if (m) {
+        tokens.push({ type: 'sym', val: m[0] });
+        ti += m[0].length;
+        continue;
+      }
+      ti++;
+    }
+
+    const snapBySubj = new Map<string, SnapTriple[]>();
+    let pos = 0;
+    while (pos < tokens.length) {
+      const t = tokens[pos];
+      if (t.type === 'sym' && (t.val === '@prefix' || t.val === '@base')) {
+        pos += 3;
+        if (tokens[pos]?.val === '.') pos++;
+        continue;
+      }
+      if (t.type === 'punct' && t.val === '.') {
+        pos++;
+        continue;
+      }
+      const subj = tokens[pos++]?.val ?? '';
+      while (pos < tokens.length && tokens[pos].val !== '.') {
+        if (tokens[pos]?.type === 'punct' && tokens[pos].val === ';') {
+          pos++;
+          continue;
+        }
+        const rawPred = tokens[pos++]?.val ?? '';
+        const pred = rawPred === 'a' ? 'rdf:type' : rawPred;
+        while (pos < tokens.length) {
+          const objTok = tokens[pos++];
+          if (!objTok) break;
+          const isLit = objTok.type === 'str' || /^(true|false|-?\d+(\.\d+)?)$/.test(objTok.val);
+          const list = snapBySubj.get(subj) ?? [];
+          list.push({ s: subj, p: pred, o: objTok.val, isLiteral: isLit, datatype: objTok.dt });
+          snapBySubj.set(subj, list);
+          if (tokens[pos]?.val === ',') {
+            pos++;
+          } else {
+            break;
+          }
+        }
+        if (tokens[pos]?.val === ';') {
+          pos++;
+          if (tokens[pos]?.val === '.') break;
+        } else {
+          break;
+        }
+      }
+      if (tokens[pos]?.val === '.') pos++;
+    }
+
+    const valsOf = (s: string, p: string) => (snapBySubj.get(s) ?? []).filter((x) => x.p === p).map((x) => x.o);
+    const valOf = (s: string, p: string) => valsOf(s, p)[0];
+
+    // 6a. Proposed journeys not already authored in e2e/specs/
+    for (const [subj] of snapBySubj.entries()) {
+      if (!valsOf(subj, 'rdf:type').includes('qa:Journey')) continue;
+      const jId = valOf(subj, 'qa:journeyId') ?? subj.replace(/^<https:\/\/wod\.wiki\/qa\/journey\/|>$/g, '');
+      const jSlug = valOf(subj, 'qa:slug') ?? jId.toLowerCase();
+      if (journeyById.has(jId) || slugToJourneyIri.has(jSlug)) continue;
+      const status = valOf(subj, 'qa:status') ?? 'proposed';
+      if (status !== 'proposed') continue;
+      const label = valOf(subj, 'rdfs:label') ?? jId;
+      const title = valOf(subj, 'qa:journeyTitle') ?? label;
+      const inDom = valOf(subj, 'qa:inDomain') ?? domainIri('manual');
+      slugToJourneyIri.set(jSlug, subj);
+      proposedCount++;
+      qaLines.push(
+        `${subj} a qa:Journey ;`,
+        `    rdfs:label "${esc(label)}" ;`,
+        `    qa:tier "T3" ;`,
+        `    qa:seam "T3-journey" ;`,
+        `    qa:journeyId "${esc(jId)}" ;`,
+        `    qa:journeyTitle "${esc(title)}" ;`,
+        `    qa:slug "${esc(jSlug)}" ;`,
+        `    qa:status "proposed" ;`,
+        `    qa:priority "P2" ;`,
+        `    qa:inDomain ${inDom} .`,
+        '',
+      );
+    }
+
+    // 6b. QA Runs
+    for (const [subj] of snapBySubj.entries()) {
+      if (!valsOf(subj, 'rdf:type').includes('qa:Run')) continue;
+      runCount++;
+      const rId = valOf(subj, 'qa:runId') ?? subj.replace(/^<https:\/\/wod\.wiki\/qa\/run\/|>$/g, '');
+      const label = valOf(subj, 'rdfs:label') ?? rId;
+      const runDate = valOf(subj, 'qa:runDate') ?? '';
+      const runTs = valOf(subj, 'qa:runTimestamp') ?? (runDate ? `${runDate}T00:00:00Z` : '2026-11-11T00:00:00Z');
+      const commit = valOf(subj, 'qa:commit') ?? '';
+      const findings = Number(valOf(subj, 'qa:findings') ?? 0) || 0;
+      const runDoms = valsOf(subj, 'qa:runDomain');
+      qaLines.push(
+        `${subj} a qa:Run ;`,
+        `    rdfs:label "${esc(label)}" ;`,
+        `    qa:runId "${esc(rId)}" ;`,
+        `    qa:runTimestamp "${esc(runTs)}"^^xsd:dateTime ;`,
+        `    qa:runDate "${esc(runDate)}" ;`,
+        `    qa:commit "${esc(commit)}" ;`,
+        `    qa:findings ${findings}${runDoms.length > 0 ? ` ;\n    qa:runDomain ${[...new Set(runDoms)].join(', ')}` : ''} .`,
+        '',
+      );
+    }
+
+    // 6c. QA Issues + bridge:rootCause edges
+    const seenRootCauses = new Set<string>();
+    for (const [subj] of snapBySubj.entries()) {
+      if (!valsOf(subj, 'rdf:type').includes('qa:Issue')) continue;
+      issueCount++;
+      const iId = valOf(subj, 'qa:issueId') ?? subj.replace(/^<https:\/\/wod\.wiki\/qa\/issue\/|>$/g, '');
+      const title = valOf(subj, 'rdfs:label') ?? iId;
+      const rawSev = (valOf(subj, 'qa:issueSeverity') ?? valOf(subj, 'qa:severity') ?? 'medium').toLowerCase();
+      const sev = ['critical', 'high', 'medium', 'low'].includes(rawSev) ? rawSev : 'medium';
+      const kind = valOf(subj, 'qa:kind') ?? 'defect';
+      const status = valOf(subj, 'qa:issueStatus') ?? valOf(subj, 'qa:status') ?? 'open';
+      const summary = valOf(subj, 'qa:issueSummary');
+      const coverageStatus = valOf(subj, 'qa:coverageStatus');
+      const wasGenBy = valsOf(subj, 'prov:wasGeneratedBy');
+      const firstSeenRun = valOf(subj, 'qa:firstSeenRun');
+      const lastSeenRun = valOf(subj, 'qa:lastSeenRun');
+      const resolvedInRun = valOf(subj, 'qa:resolvedInRun');
+      const affects = [...new Set(valsOf(subj, 'qa:affects'))];
+      const coveredBy = [...new Set(valsOf(subj, 'qa:coveredBy'))];
+      const rootCauses = [...new Set(valsOf(subj, 'bridge:rootCause'))];
+
+      const extra: string[] = [];
+      if (summary) extra.push(`    qa:issueSummary "${esc(summary)}"`);
+      if (coverageStatus) extra.push(`    qa:coverageStatus "${esc(coverageStatus)}"`);
+      for (const wg of [...new Set(wasGenBy)]) extra.push(`    prov:wasGeneratedBy ${wg}`);
+      if (firstSeenRun) extra.push(`    qa:firstSeenRun ${firstSeenRun}`);
+      if (lastSeenRun) extra.push(`    qa:lastSeenRun ${lastSeenRun}`);
+      if (resolvedInRun) extra.push(`    qa:resolvedInRun ${resolvedInRun}`);
+      for (const af of affects) extra.push(`    qa:affects ${af}`);
+      for (const cb of coveredBy) extra.push(`    qa:coveredBy ${cb}`);
+
+      qaLines.push(
+        `${subj} a qa:Issue ;`,
+        `    rdfs:label "${esc(title)}" ;`,
+        `    qa:issueId "${esc(iId)}" ;`,
+        `    qa:issueSeverity "${esc(sev)}" ;`,
+        `    qa:severity "${esc(sev)}" ;`,
+        `    qa:kind "${esc(kind)}" ;`,
+        `    qa:issueStatus "${esc(status)}" ;`,
+        `    qa:status "${esc(status)}"${extra.length > 0 ? ` ;\n${extra.join(' ;\n')}` : ''} .`,
+        '',
+      );
+
+      for (const rc of rootCauses) {
+        const key = `${subj}\0${rc}`;
+        if (seenRootCauses.has(key)) continue;
+        seenRootCauses.add(key);
+        rootCauseCount++;
+        bridgeLines.push(`${subj} bridge:rootCause ${rc} .`);
+      }
+    }
+  } else if (qaTtl) {
     const qaNodes = new Map<string, Map<string, string[]>>();
     for (const rawLine of qaTtl.split(/\r?\n/)) {
       const line = rawLine.trim();
@@ -915,6 +1339,8 @@ export async function buildUnifiedGraph() {
       qaLines.push(
         `${jIri} a qa:Journey ;`,
         `    rdfs:label "${esc(label)}" ;`,
+        `    qa:tier "T3" ;`,
+        `    qa:seam "T3-journey" ;`,
         `    qa:journeyId "${esc(propId)}" ;`,
         `    qa:journeyTitle "${esc(label)}" ;`,
         `    qa:slug "${esc(key)}" ;`,
@@ -1088,7 +1514,7 @@ export async function buildUnifiedGraph() {
   fs.writeFileSync(trigOut, trigParts.join('\n'), 'utf8');
 
   console.log(
-    `Indexed code+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${knownRoutes.size} routes, ${agentTools.length} WebMCP tools, ${indexedStories.length} stories, ${domains.size} domains, ${journeyById.size + proposedCount} journeys (${journeyById.size} authored, ${proposedCount} proposed), ${runCount} runs, ${issueCount} issues, ${rootCauseCount} rootCause edges.`,
+    `Indexed code+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${knownRoutes.size} routes, ${agentTools.length} WebMCP tools (${uiTools.length} UI), ${suiteCount} verification suites, ${indexedStories.length} stories, ${domains.size} domains, ${journeyById.size + proposedCount} journeys (${journeyById.size} authored, ${proposedCount} proposed), ${runCount} runs, ${issueCount} issues, ${rootCauseCount} rootCause edges.`,
   );
   console.log(
     `Wrote:\n  - ${path.relative(REPO_ROOT, codeOut)}\n  - ${path.relative(REPO_ROOT, qaOut)}\n  - ${path.relative(REPO_ROOT, bridgeOut)}\n  - ${path.relative(REPO_ROOT, trigOut)}`,

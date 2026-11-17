@@ -2,13 +2,8 @@ import { useEffect, useMemo, type ReactElement, type ReactNode } from 'react';
 import { MemoryRouter, Routes, Route, useLocation, type Location } from 'react-router-dom';
 import { NuqsTestingAdapter, type UrlUpdateEvent } from 'nuqs/adapters/testing';
 import { act, render, type RenderResult } from '@testing-library/react';
-import {
-  buildDomainWorld,
-  resetTestingVocabulary,
-  type DomainWorld,
-  type DomainWorldInput,
-} from '@bitcobblers/wod-wiki-core/testing';
-import type { IEffort } from '@bitcobblers/wod-wiki-lang';
+import { persistDomainWorld } from '@bitcobblers/wod-wiki-engine';
+import type { DomainWorld, DomainWorldInput } from '@bitcobblers/wod-wiki-core/testing';
 import {
   InMemoryStorage,
   StorageService,
@@ -16,7 +11,6 @@ import {
   setStorageForTesting,
   storageService,
   type IStorage,
-  type StoreType,
 } from '@/services/storage';
 import { rehydrateActiveDatabaseCaches } from '@/services/storage/activeDatabaseCaches';
 import { invalidateSeedContent } from '@/services/content/seedContent';
@@ -34,6 +28,32 @@ import { EffortRegistryProvider } from '../../app/contexts/EffortRegistryContext
 import { EquipmentRegistryProvider } from '../../app/contexts/EquipmentRegistryContext';
 import { NavProvider } from '../../app/nav/NavContext';
 import { buildAppNavTree } from '../../app/nav/appNavTree';
+import { AgentStateScript, type AgentViewState } from '../../app/agent/AgentStateScript';
+import { pendingNoteSaves, waitForPendingNoteSave } from '@/lib/pendingNoteSaves';
+
+export type { AgentViewState };
+
+export function readAgentViewState(container?: ParentNode): AgentViewState {
+  const scriptEl = container
+    ? container.querySelector('script[id="agent-view-state"]')
+    : document.getElementById('agent-view-state');
+  if (!scriptEl) {
+    throw new Error('Missing #agent-view-state script tag in rendered host DOM');
+  }
+  const raw = scriptEl.textContent;
+  if (!raw || !raw.trim()) {
+    throw new Error('Empty #agent-view-state script tag in rendered host DOM');
+  }
+  return JSON.parse(raw) as AgentViewState;
+}
+
+export async function flushAndAwaitDraft(noteId: string): Promise<void> {
+  do {
+    await waitForPendingNoteSave(noteId);
+    // Allow microtasks (e.g. useEditorSave drain continuation) to enqueue the next save.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  } while (pendingNoteSaves.has(noteId));
+}
 
 export interface PlaygroundHostOptions {
   /** Declarative domain snapshot to hydrate into in-memory storage. */
@@ -63,109 +83,7 @@ export async function hydratePlaygroundStorage(
   targetStorage: IStorage,
   worldInput?: DomainWorldInput,
 ): Promise<DomainWorld> {
-  resetTestingVocabulary();
-  const world = buildDomainWorld(worldInput ?? {});
-
-  const stores = [
-    'notes',
-    'block_revisions',
-    'block_index',
-    'block_efforts',
-    'block_equipment',
-    'tags',
-    'note_tags',
-    'notebook_links',
-    'property_overrides',
-    'efforts',
-    'equipment',
-    'page',
-    'page_notes',
-    'sessions',
-    'events',
-  ] as const;
-
-  const explicitNoteIds = new Set(world.notes.map((n) => n.id));
-  await targetStorage.transaction([...stores], 'readwrite', async (tx) => {
-    for (const nb of world.notebooks) {
-      if (!explicitNoteIds.has(nb.id)) {
-        await tx.readwrite('notes').put(nb);
-      }
-    }
-    for (const note of world.notes) {
-      await tx.readwrite('notes').put(note);
-    }
-    for (const rev of world.revisions) {
-      await tx.readwrite('block_revisions').put(rev);
-    }
-    for (const row of world.blockIndex) {
-      await tx.readwrite('block_index').put(row);
-    }
-    for (const row of world.blockEfforts) {
-      await tx.readwrite('block_efforts').put(row);
-    }
-    for (const row of world.blockEquipment) {
-      await tx.readwrite('block_equipment').put(row);
-    }
-    for (const tag of world.tags) {
-      await tx.readwrite('tags').put(tag);
-    }
-    for (const link of world.noteTags) {
-      await tx.readwrite('note_tags').put(link);
-    }
-    for (const link of world.notebookLinks) {
-      await tx.readwrite('notebook_links').put(link);
-    }
-    for (const override of world.propertyOverrides) {
-      await tx.readwrite('property_overrides').put(override);
-    }
-    // Project bundled/defaults Effort and Equipment Property Notes into lookup stores.
-    for (const propInput of worldInput?.propertyNotes ?? []) {
-      const isDefault =
-        !propInput.asOverride &&
-        (propInput.notebookId === undefined || propInput.notebookId === 'notebook/defaults');
-      if (!isDefault) continue;
-      if (propInput.kind === 'effort') {
-        const effortRow: StoreType<'efforts'> = {
-          id: propInput.id ?? `effort-${propInput.slug}`,
-          slug: propInput.slug,
-          label: propInput.label,
-          aliases: propInput.aliases ?? [],
-          baseAttributes: {
-            met: 5.0,
-            ...(propInput.baseAttributes ?? {}),
-          } as IEffort['baseAttributes'],
-          registrySource: 'bundled',
-          sourceId: 'core',
-          ...(propInput.body ? { body: propInput.body } : {}),
-        };
-        await tx.readwrite('efforts').put(effortRow);
-      } else if (propInput.kind === 'equipment') {
-        const equipRow: StoreType<'equipment'> = {
-          id: propInput.id ?? `equipment-${propInput.slug}`,
-          slug: propInput.slug,
-          label: propInput.label,
-          aliases: propInput.aliases ?? [],
-          registrySource: 'bundled',
-          sourceId: 'core',
-          ...(propInput.body ? { body: propInput.body } : {}),
-        };
-        await tx.readwrite('equipment').put(equipRow);
-      }
-    }
-    for (const page of world.pages) {
-      await tx.readwrite('page').put(page);
-    }
-    for (const pn of world.pageNotes) {
-      await tx.readwrite('page_notes').put(pn);
-    }
-    for (const session of world.sessions) {
-      await tx.readwrite('sessions').put(session);
-    }
-    for (const event of world.events) {
-      await tx.readwrite('events').put(event);
-    }
-  });
-
+  const world = await persistDomainWorld(targetStorage, worldInput);
   setStorageForTesting(targetStorage);
   await rehydrateActiveDatabaseCaches();
   return world;
@@ -225,9 +143,14 @@ export function PlaygroundProviderTree({
   searchParams,
   onUrlUpdate,
   onLocationChange,
-  theme = 'light',
+  theme,
   panelSize,
 }: PlaygroundProviderTreeProps): ReactElement {
+  const resolvedTheme =
+    theme ??
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+      ? 'dark'
+      : 'light');
   const navTree = useMemo(() => buildAppNavTree(() => {}, []), []);
   const resolvedSize: PanelSizeInfo | undefined = panelSize
     ? 'mode' in panelSize
@@ -250,7 +173,7 @@ export function PlaygroundProviderTree({
   );
 
   return (
-    <ThemeProvider defaultTheme={theme}>
+    <ThemeProvider defaultTheme={resolvedTheme} forcedTheme={theme}>
       <DebugModeProvider>
         <AudioProvider>
           <EffortRegistryProvider>
@@ -263,6 +186,7 @@ export function PlaygroundProviderTree({
                 >
                   <NavProvider tree={navTree}>
                     <LocationTracker onChange={onLocationChange} />
+                    <AgentStateScript />
                     {inner}
                   </NavProvider>
                 </NuqsTestingAdapter>
@@ -283,6 +207,7 @@ export interface PlaygroundRenderResult extends PlaygroundHostHandle {
   rendered: RenderResult;
   getLocation: () => Location;
   urlUpdates: UrlUpdateEvent[];
+  readAgentViewState: () => AgentViewState;
 }
 
 export async function renderWithPlaygroundHost(
@@ -326,6 +251,7 @@ export async function renderWithPlaygroundHost(
     rendered,
     getLocation: () => currentLocation,
     urlUpdates,
+    readAgentViewState: () => readAgentViewState(rendered.container),
     cleanup: async () => {
       rendered.unmount();
       await host.cleanup();

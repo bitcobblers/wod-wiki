@@ -14,6 +14,7 @@
 
 import {
   QueryService,
+  buildQueryServiceStoresFromStorage,
   type NoteQueryStore,
   type BlockQueryStore,
   type EffortQueryStore,
@@ -25,7 +26,6 @@ import {
   captureContext,
   civilDateOf,
   civilDateAdd,
-  coalescingEventStore,
   zonedStartOfDay,
   toEventRows,
   type PageSourceEntry,
@@ -35,55 +35,11 @@ import { toStoredOutputStatement } from '@bitcobblers/wod-wiki-lang';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-core';
 import { useActiveRunStore } from '@/stores/activeRunStore';
 import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
-import { storageService } from '@/services/storage';
+import { storageService, storage } from '@/services/storage';
 import { playgroundFeedCatalogStore } from '@/services/feed/feedCatalog';
 import { isNotebookSubscribed } from '@/services/feed/feedSubscriptions';
 import { waitForAllPendingNoteSaves } from '@/services/persistence/pendingNoteSaves';
 import { flushPendingUnloadResults } from '@/services/resultRecorder';
-/** Unified event store over IndexedDB — the `events` object store (V16).
- *
- *  Wrapped in `coalescingEventStore`: dashboard widgets sharing one resolved
- *  range join ONE in-flight IndexedDB range read instead of each issuing its
- *  own. The wrapper is transparent — every other seam passes through. */
-export const indexedDbEventStore: EventStore = coalescingEventStore({
-  getEventsByTimeRange: (start: number, end: number) => storageService.getEventsByTimeRange(start, end),
-  getEventsByMetricDates: (dates) => storageService.getEventsByMetricDates(dates),
-  getEventsByResult: (resultId) => storageService.getEventsByResult(resultId),
-  getEventsForNote: (noteId) => storageService.getEventsForNote(noteId),
-  getEventsByContent: (blockContentId) => storageService.getEventsByContent(blockContentId),
-  scanAll: () => storageService.scanAll(),
-  appendEvents: (rows) => storageService.appendEvents(rows),
-  finalizeSummaries: (resultId, rows) => storageService.finalizeSummaries(resultId, rows),
-  deleteEvents: (ids) => storageService.deleteEvents(ids),
-});
-
-export const indexedDbNoteStore: NoteQueryStore = {
-  getAllNotes: () => storageService.getAllNotes(),
-  getNotesByIds: async (ids) => [...(await storageService.getDetailBatches(ids)).values()].map(bundle => bundle.note),
-  getNoteIdsForTag: async (label: string) =>
-    new Set((await storageService.getNotesForTag(label)).map((n) => n.id)),
-  getNoteTagLabels: async (noteId: string) =>
-    (await storageService.getTagsForNote(noteId)).map((tag) => tag.label),
-  // Indexed/domain candidate read — undefined capability (or scoped tx)
-  // falls back to getAllNotes inside the engine; candidates are a superset,
-  // WQL re-applies every residual filter in JS and never server-limits.
-  queryDomain: async (req) => {
-    if (!storageService.queryDomain) return undefined;
-    const res = await storageService.queryDomain({ ...req, plan: 'notes' });
-    return res && res.plan === 'notes' ? res : undefined;
-  },
-};
-
-
-export const indexedDbBlockStore: BlockQueryStore = {
-  getAllBlocks: () => storageService.getAllBlockIndex(),
-  queryDomain: async (req) => {
-    if (!storageService.queryDomain) return undefined;
-    const res = await storageService.queryDomain({ ...req, plan: 'blocks' });
-    return res && res.plan === 'blocks' ? res : undefined;
-  },
-};
-
 /**
  * Production effort store: the CompositeEffortRegistry (bundled + user,
  * IndexedDB-backed), lazily constructed on first query. The registry rows
@@ -99,6 +55,19 @@ export class RegistryEffortStore implements EffortQueryStore {
     return [...registry.list()];
   }
 }
+
+/** Unified event store over IndexedDB — the `events` object store (V16).
+ *
+ *  Wrapped in `coalescingEventStore`: dashboard widgets sharing one resolved
+ *  range join ONE in-flight IndexedDB range read instead of each issuing its
+ *  own. The wrapper is transparent — every other seam passes through. */
+const defaultStores = buildQueryServiceStoresFromStorage(storage, {
+  coalesce: true,
+  effortStore: new RegistryEffortStore(),
+});
+export const indexedDbEventStore: EventStore = defaultStores.eventStore!;
+export const indexedDbNoteStore: NoteQueryStore = defaultStores.noteStore!;
+export const indexedDbBlockStore: BlockQueryStore = defaultStores.blockStore!;
 
 // ─── Page-source datasets (@session / @today) ─────────────────────────────
 //
@@ -297,44 +266,16 @@ class PlaygroundQueryService extends QueryService {
 }
 
 export function createQueryService(): QueryService {
-  return new PlaygroundQueryService({
-    eventStore: indexedDbEventStore,
-    noteStore: indexedDbNoteStore,
-    blockStore: indexedDbBlockStore,
+  const stores = buildQueryServiceStoresFromStorage(storage, {
+    coalesce: true,
     effortStore: new RegistryEffortStore(),
-    blockEffortsStore: {
-      getAllFromIndex: (index, key) => storageService.getAllFromIndex('block_efforts', index, key),
-    },
-    blockEquipmentStore: {
-      getAllFromIndex: (index, key) => storageService.getAllFromIndex('block_equipment', index, key),
-    },
-    tagsStore: {
-      getAllFromIndex: (index, key) => storageService.getAllFromIndex('tags', index, key),
-      // The :tag{} plane lists every tag record (labels + contributions).
-      getAll: () => storageService.getAllTags(),
-    },
-    noteTagsStore: {
-      getAllFromIndex: (index, key) => storageService.getAllFromIndex('note_tags', index, key),
-    },
-    // Canonical page_notes junction reads for container resolution.
-    pageStore: {
-      getNotePages: (noteId) => storageService.getNotePages(noteId),
-      getPage: (pageId) => storageService.getPage(pageId),
-      // Whole-plane reads backing the :page{} placement plane.
-      getAllPages: () => storageService.getAllPages(),
-      getAllLinks: () => storageService.getAllPageNotes(),
-    },
-    relationStore: {
-      getBatches: (noteIds) => storageService.getDetailBatches(noteIds),
-    },
-    // Named page-source datasets — @session projects live at query time;
-    // everything else reads the populated registry. No database roundtrip.
+    feedCatalogStore: playgroundFeedCatalogStore,
     datasetStore: {
       getDataset: (name) => (name === '@session' ? projectLiveSession() : pageSourceRegistry.getDataset(name)),
     },
-    feedCatalogStore: playgroundFeedCatalogStore,
     isNotebookSubscribed: (feedId, chunkId) => isNotebookSubscribed(feedId, chunkId),
   });
+  return new PlaygroundQueryService(stores);
 }
 
 /**

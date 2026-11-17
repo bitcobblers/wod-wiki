@@ -77,7 +77,17 @@ export class TestScript {
         const clock = config?.clock ?? createMockClock(new Date('2024-01-01T12:00:00Z'));
         const stack = new RuntimeStack();
         const eventBus = new EventBus();
-        const runtime = config?.runtime ?? new ScriptRuntime(script, compiler, { stack, clock, eventBus }, config?.options);
+        const nowProvider = {
+            now: () => clock.currentDate,
+            nowMs: () => clock.currentDate.getTime(),
+        };
+        const runtime = config?.runtime ?? new ScriptRuntime(
+            script,
+            compiler,
+            { stack, clock, eventBus },
+            config?.options,
+            nowProvider,
+        );
         const castTransport = config?.castTransport ?? new FakeRpcTransport();
         if (!config?.castTransport) {
             const browserFake = new FakeRpcTransport();

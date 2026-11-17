@@ -44,8 +44,10 @@ export default defineConfig({
         resolve: resolveConfig,
         test: {
           name: 'app-unit',
-          environment: 'node',
-          include: ['test/**/*.test.ts'],
+          environment: 'jsdom',
+          globals: true,
+          setupFiles: [path.resolve(import.meta.dirname, 'test/setup.ts')],
+          include: ['test/**/*.{test,spec}.{ts,tsx}'],
         },
       },
     ],

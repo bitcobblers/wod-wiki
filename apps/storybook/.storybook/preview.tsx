@@ -32,32 +32,12 @@ const preview: Preview = {
     },
   },
   decorators: [
-    // Opt-in deterministic in-memory domain state (`parameters: { domainState }`)
-    // or real browser IndexedDB plane (`parameters: { database: true }`).
-    (Story, context) => {
-      const domainState = context.parameters?.domainState as StoryDomainStateSpec | undefined;
-      const storyRoute = context.parameters?.route as string | undefined;
-      const storyRoutePath = context.parameters?.routePath as string | undefined;
-      if (domainState !== undefined) {
-        return (
-          <StoryDomainStateProvider spec={domainState} route={storyRoute} routePath={storyRoutePath}>
-            <Story />
-          </StoryDomainStateProvider>
-        );
-      }
-      if (context.parameters?.database) {
-        return (
-          <DatabaseProvider>
-            <Story />
-          </DatabaseProvider>
-        );
-      }
-      return <Story />;
-    },
     // Dark-Mode Standard host rule (wayfinder #994/#998): the `dark` class
     // lives on <html>, never on a wrapper — shared tokens resolve per
     // element (@theme inline), so this flips every story. Cleanup restores
     // light so one story's global never leaks into the next.
+    // Kept first (outermost) so `html.dark` is toggled immediately even while
+    // `StoryDomainStateProvider` below is hydrating.
     (Story, context) => {
       const theme = context.globals?.theme || 'light';
       useEffect(() => {
@@ -146,6 +126,29 @@ const preview: Preview = {
           )}
         </div>
       );
+    },
+    // Opt-in deterministic in-memory domain state (`parameters: { domainState }`)
+    // or real browser IndexedDB plane (`parameters: { database: true }`).
+    (Story, context) => {
+      const domainState = context.parameters?.domainState as StoryDomainStateSpec | undefined;
+      const storyRoute = context.parameters?.route as string | undefined;
+      const storyRoutePath = context.parameters?.routePath as string | undefined;
+      const storyTheme = context.globals?.theme === 'dark' ? 'dark' : 'light';
+      if (domainState !== undefined) {
+        return (
+          <StoryDomainStateProvider spec={domainState} route={storyRoute} routePath={storyRoutePath} theme={storyTheme}>
+            <Story />
+          </StoryDomainStateProvider>
+        );
+      }
+      if (context.parameters?.database) {
+        return (
+          <DatabaseProvider>
+            <Story />
+          </DatabaseProvider>
+        );
+      }
+      return <Story />;
     },
   ],
   parameters: {

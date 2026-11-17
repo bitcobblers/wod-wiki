@@ -290,13 +290,28 @@ function saveWidgetSource(view: EditorView, sectionId: string, markdown: string)
     };
   }
 
-  view.dispatch({
-    changes: {
-      from: section.contentFrom,
-      to: section.contentTo,
-      insert: normalizeWidgetMarkdown(markdown),
-    },
-  });
+  const dispatchChange = () => {
+    if (view.state.readOnly) return;
+    const latest = findWidgetSection(view, sectionId);
+    if (!latest || latest.contentFrom == null || latest.contentTo == null) return;
+    view.dispatch({
+      changes: {
+        from: latest.contentFrom,
+        to: latest.contentTo,
+        insert: normalizeWidgetMarkdown(markdown),
+      },
+    });
+  };
+
+  try {
+    dispatchChange();
+  } catch (err) {
+    if (err instanceof Error && /update.*in progress/i.test(err.message)) {
+      queueMicrotask(dispatchChange);
+    } else {
+      throw err;
+    }
+  }
 
   return parsed;
 }

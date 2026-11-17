@@ -33,6 +33,7 @@
 
 import React, { useEffect, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 import {
   WqlComposer,
   WqlQueryInspectorModal,
@@ -51,7 +52,7 @@ const meta: Meta<typeof WqlComposer> = {
   id: 'gallery-wql-composer',
   title: 'Packages/UI/Composer/WQL Composer',
   component: WqlComposer,
-  parameters: { layout: 'padded' },
+  parameters: { layout: 'padded', domainState: 'populatedJournal' },
   args: {
     initialQuery: ':note{tags:benchmark} last 8w',
     showDiagnostics: true,
@@ -636,4 +637,34 @@ const WorkbenchFilterHarness: React.FC = () => {
 
 export const HostWorkbenchFilter: Story = {
   render: () => <WorkbenchFilterHarness />,
+};
+
+export const SegmentTraversalInteraction: Story = {
+  render: () => (
+    <div className="max-w-3xl" data-testid="wql-segment-traversal-story">
+      <WqlComposer initialQuery=":note{tags:benchmark} last 8w" compact execute={liveExecute} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const root = canvas.getByTestId('wql-segment-traversal-story');
+    const firstToken = root.querySelector<HTMLElement>(
+      '[data-testid^="token-slot-"]:not([data-testid^="token-slot-remove-"]):not([data-testid^="token-slot-value-"])',
+    )!;
+    await userEvent.click(firstToken);
+    await waitFor(() => {
+      expect(canvas.getByTestId('wql-field-picker')).toBeVisible();
+    });
+
+    const initialLabel = canvas.getByTestId('wql-picker-search').getAttribute('aria-label');
+    await userEvent.click(canvas.getByTestId('wql-segment-next'));
+    await waitFor(() => {
+      expect(canvas.getByTestId('wql-picker-search').getAttribute('aria-label')).not.toBe(initialLabel);
+    });
+
+    await userEvent.click(canvas.getByTestId('wql-segment-previous'));
+    await waitFor(() => {
+      expect(canvas.getByTestId('wql-picker-search').getAttribute('aria-label')).toBe(initialLabel);
+    });
+  },
 };

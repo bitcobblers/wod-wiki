@@ -19,6 +19,7 @@ export type SeedContentFiles = Record<string, string>;
 
 let cache: SeedContentFiles | null = null;
 let promise: Promise<SeedContentFiles> | null = null;
+let epoch = 0;
 const listeners = new Set<() => void>();
 
 function notify(): void {
@@ -35,15 +36,17 @@ async function load(): Promise<SeedContentFiles> {
 /** Memoized corpus load; retries on the next call after a failure. */
 export function ensureSeedContent(): Promise<SeedContentFiles> {
   if (!promise) {
+    const loadEpoch = epoch;
     promise = load()
       .then((files) => {
+        if (loadEpoch !== epoch) return cache ?? files;
         if (Object.keys(files).length > 0) markBootMilestone('corpusReady');
         cache = files;
         notify();
         return files;
       })
       .catch((err) => {
-        promise = null;
+        if (loadEpoch === epoch) promise = null;
         throw err;
       });
   }
@@ -52,6 +55,7 @@ export function ensureSeedContent(): Promise<SeedContentFiles> {
 
 /** Drop the cache and reload — the seed broadcast path. */
 export function invalidateSeedContent(): void {
+  epoch++;
   cache = null;
   promise = null;
   // The derived corpus planes (block rows, static notes/tags) re-derive too.

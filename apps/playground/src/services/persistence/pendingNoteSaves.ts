@@ -98,11 +98,14 @@ export function replayStagedNoteSaves(): Promise<void> {
   return replayStagedPromise;
 }
 
-export function waitForPendingNoteSave(noteId: string): Promise<void> {
+export async function waitForPendingNoteSave(noteId: string): Promise<void> {
   const active = [...pendingNoteSaves]
     .filter(([id]) => id === noteId)
     .map(([, promise]) => promise.then(() => undefined, () => undefined));
-  return Promise.all([replayStagedNoteSaves(), ...active]).then(() => undefined);
+  if (active.length > 0) {
+    await Promise.all(active);
+  }
+  await replayStagedNoteSaves();
 }
 
 export function waitForAllPendingNoteSaves(): Promise<void> {

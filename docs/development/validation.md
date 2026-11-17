@@ -27,6 +27,7 @@ All commands run from the repo root with `bun`.
 | Ontology code-graph & bridge build | `bun run ontology:build` | Indexes `packages/`, `apps/playground/`, `e2e/`, and QA findings into `ontology/generated/` |
 | Ontology TypeScript codegen | `bun run ontology:codegen` | Generates `ontology/generated/ontology-types.ts` (75+ classes, SHACL validators, stereotype metadata) |
 | Ontology bidirectional query & chains | `bun run ontology:query -- --chains` | Generates `ontology/generated/chains.md` and supports `--journey`, `--file`, `--symbol`, `--issue` traversal |
+| Ontology testing pyramid diagnostic | `bun run ontology:query -- --pyramid` | Generates testing pyramid seam coverage matrix, flags top-heavy nodes and mismatched issue coverage (`--json` supported) |
 | Ontology static HTML explorer | `bun run ontology:viewer` | Generates self-contained, offline `ontology/generated/explorer.html` for interactive 5-layer traversal |
 | Ontology bidirectional changeset gate | `bun run ontology:changeset` | Proposes, approves, and applies gated code-to-ontology changesets (`propose` / `approve` / `apply` / `sync-from-ontology`) |
 | API storage & server contract | `bun run check:server` | Verifies SQLite-backed Hono/engine server API endpoints (`apps/api/check.ts`) |
@@ -36,6 +37,20 @@ All commands run from the repo root with `bun`.
 | WebKit cross-browser smoke E2E | `bun run test:e2e:webkit` | Single-shard Desktop Safari + iPhone 13 WebKit smoke suite (`playwright.webkit.config.ts`) |
 | Static Storybook build | `bun run build-storybook` | Never cancel; can take up to 60 minutes |
 | Docs link check | `bun run docs:check` | Sub-second; must pass before merge |
+
+## Testing Pyramid & Seam Selection Matrix
+
+WOD Wiki establishes a hardened 4-tier / 7-seam testing pyramid. Every testing layer owns an explicit boundary contract so upper seams can trust it without duplicating combinatorial permutations in full browser tests:
+
+| Tier / Seam | Runner | Boundary Contract Owned | What Upper Seams Trust (Never Re-Test Above) |
+|---|---|---|---|
+| **Tier 0: Static & Ontology Contracts** | `ontology:validate`, `check:*` (`< 2s`) | Schema/ID alignment across RDF, TS, routes, `TEST_IDS`, WebMCP/CLI, E2E crosswalk, and zero-orphan tests gate. | Every referenced ID, route, tool schema, and test file registration is valid. |
+| **Tier 1a: Pure Compute** | `bun run test:package` (`~1–3s`) | `Text / AST / MockClock -> Output` in `packages/core`, `packages/lang`, `packages/wql`, and `packages/engine/src/runtime` (0 storage, 0 React). | Dialect parsing, unit fusion, `Metric Shake-Out Queue` precedence, WQL parsing/planning, and `RuntimeStack` block strategies. |
+| **Tier 1b: Storage & Codec Conformance** | `bun run test:package` (`~2–4s`) | Parameterized `IStorage` suite across `InMemoryStorage`, `SqlStorage(':memory:')`, `IndexedDBStorage`, and `ApiStorage`, plus `.zip`/`.jsonl` codecs (`packages/storage/tests/storage-conformance.test.ts`). | `InMemoryStorage` and `SqlStorage` behave identically to browser `IndexedDBStorage` and HTTP `ApiStorage` on index ranges, transactions, rollbacks, and `queryDomain` plans. |
+| **Tier 1c: Headless Domain & Agent** | `bun run test:package` (`~2–5s`) | Cross-entity workflows over shared `buildQueryServiceStoresFromStorage` + `persistDomainWorld`: `DomainScenarioHarness`, `DOMAIN_AGENT_TOOLS`, CLI JSON parity, and sample-corpus WQL contracts. | Multi-entity persistence, `ScopedPropertyOverride` resolution, `Session` intake & `EventRecord` splits, `NoteProvenance`, `PublicationVisibility`, `Feed` publish/import, and sample-dashboard non-emptiness. |
+| **Tier 2a: App Host, Route & CM6 State** | `bun run test:playground:unit` (`~3–8s`) | JSDOM + `renderWithPlaygroundHost` / `setupPlaygroundTestHost` (`apps/playground/src/testing/host.tsx`) + `<AgentStateScript />`: route guards, URL/`?q=` sync, `data-agent-status` busy->ready, `#agent-view-state` JSON, autosave unmount-flush, and CodeMirror 6 transactions. | Route resolution, not-found states, query-bar <-> URL binding, draft persistence semantics, agent state projection, and CodeMirror document mutations. |
+| **Tier 2b: Visual Organisms & Focus** | `bun run test:storybook` (`~5–12s`) | Real headless Chromium (`@vitest/browser-playwright`) + `parameters.domainState` + `play()` + `@storybook/addon-a11y`: `375px` organism layout, pointer/focus/`Escape` traps, `48px` coarse targets, CM6 autocomplete popups, chart ticks, and dark/light contrast. | Organism-level CSS layout, keyboard/focus traps, popover positioning, and WCAG contrast. |
+| **Tier 3: Multi-Boundary Browser E2E** | `bun run test:e2e[:preview]` (`30–90s`) | **Strict Admission Gate:** scenarios requiring Web Workers / cold-boot seed sync, IndexedDB survival across full reload, multi-route `AppShell` handoffs, `FastClock` live timer execution, hosted SQLite server (`VITE_STORAGE=api`), or WebKit smoke. | Everything proven in Tiers 0–2b. |
 
 ## Lint and type check
 

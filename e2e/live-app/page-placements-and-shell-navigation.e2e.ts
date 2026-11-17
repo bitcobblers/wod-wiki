@@ -1,6 +1,6 @@
 // spec: e2e/specs/notebooks/page-placements-and-shell-navigation.md
 import { expect, test, TEST_IDS } from '../fixtures/playgroundActor';
-import { deleteNoteByRouteId } from '../helpers/wodwikiDb';
+import { deleteNoteByRouteId, getNotePlacements } from '../helpers/wodwikiDb';
 
 const PALETTE_NOTE_ID = '01950000-0000-7000-8000-000000000831';
 const PALETTE_NOTE_TITLE = 'NBK03 Atlas Kettlebell Complex';
@@ -158,6 +158,156 @@ test.describe('NBK-03 — Page Placements & Shell Navigation', () => {
       await displayNameInput.fill('Anonymous');
       await page.getByTestId('profile-weight').fill('');
       await page.getByTestId('profile-height').fill('');
+    }
+  });
+
+  test('Scenario 3: many-to-many page placement lists Notes on /day/:date and /page/:slug while keeping /note/:id canonical', async ({
+    app,
+  }) => {
+    const { page } = app;
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    const dateOne = '2099-09-10';
+    const dateOther = '2099-09-11';
+    const dateTwo = '2099-09-12';
+    const noteOneId = `journal/${dateOne}`;
+    const noteTwoId = `journal/${dateTwo}`;
+    const namedSlug = `placement-nbk03-${Date.now().toString().slice(-4)}`;
+
+    await app.journal.clearDate(dateOne);
+    await app.journal.clearDate(dateTwo);
+    await app.seed.journalNote(dateOne, '# Placement One\n\nFirst note body.', { title: 'Placement One' });
+    await app.seed.journalNote(dateTwo, '# Placement Two\n\nSecond note body.', { title: 'Placement Two' });
+
+    try {
+      // Place Note 1 onto named page and second journal date
+      await app.goto(`/note/${encodeURIComponent(noteOneId)}`);
+      await page.getByRole('button', { name: 'Page options' }).click();
+      await page.getByRole('button', { name: 'Note placements' }).click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await page.getByLabel('Named page').fill(namedSlug);
+      await page.getByRole('button', { name: 'Place on this page' }).click();
+      await expect(page.getByRole('dialog')).toBeHidden();
+
+      await page.getByRole('button', { name: 'Page options' }).click();
+      await page.getByRole('button', { name: 'Note placements' }).click();
+      await page.getByLabel('Journal date').fill(dateOther);
+      await page.getByRole('button', { name: 'Place on this page' }).click();
+      await expect(page.getByRole('dialog')).toBeHidden();
+
+      const placementsAfterAdd = await getNotePlacements(page, noteOneId);
+      expect(placementsAfterAdd.map((r) => r.date ?? r.slug).sort()).toEqual([dateOne, dateOther, namedSlug].sort());
+
+      // Place Note 2 onto the same named page
+      await app.goto(`/note/${encodeURIComponent(noteTwoId)}`);
+      await page.getByRole('button', { name: 'Page options' }).click();
+      await page.getByRole('button', { name: 'Note placements' }).click();
+      await page.getByLabel('Named page').fill(namedSlug);
+      await page.getByRole('button', { name: 'Place on this page' }).click();
+      await expect(page.getByRole('dialog')).toBeHidden();
+
+      // Verify /day/:otherDate and /page/:slug list their placed Notes and open canonical routes
+      await app.goto(`/day/${dateOther}`);
+      await expect(page.getByRole('link', { name: 'Placement One' }).first()).toBeVisible();
+
+      await app.goto(`/page/${namedSlug}`);
+      await expect(page.getByRole('link', { name: 'Placement One' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Placement Two' })).toBeVisible();
+
+      await page.getByRole('link', { name: 'Placement One' }).click();
+      await expect(page).toHaveURL(new RegExp(`/note/${encodeURIComponent(noteOneId)}`));
+      await expect(page.getByText('First note body.')).toBeVisible();
+
+      // Remove one placement and verify canonical route still holds remaining placements
+      await page.getByRole('button', { name: 'Page options' }).click();
+      await page.getByRole('button', { name: 'Note placements' }).click();
+      await page.getByRole('button', { name: 'Remove' }).first().click();
+      await expect(page.getByRole('dialog')).toBeHidden();
+      expect(await getNotePlacements(page, noteOneId)).toHaveLength(2);
+
+      app.assertCleanConsole();
+    } finally {
+      await app.journal.clearDate(dateOne);
+      await app.journal.clearDate(dateTwo);
+    }
+  });
+
+  test('Scenario 4: live L2/L3 note facet sync, inline L2 saved-link CRUD, and L2 dashboard switcher', async ({
+    app,
+  }) => {
+    const { page } = app;
+    await page.setViewportSize({ width: 1600, height: 1000 });
+
+    const noteId = 'nbk03-live-facets-note';
+    await app.seed.note(
+      noteId,
+      '# Morning Prep\n\n```time\n21-15-9\n  Thrusters 95 lb\n  Pull-ups\n```\n',
+      { title: 'Morning Prep' },
+    );
+
+    try {
+      await app.goto(`/note/${noteId}?edit=1`);
+      const editor = page.locator('.cm-content').first();
+      await expect(editor).toBeVisible({ timeout: 15_000 });
+
+      const sidebar = page.getByRole('navigation', { name: 'Main' }).locator('nav').last();
+      await expect(sidebar.getByText('Efforts', { exact: true })).toBeVisible({ timeout: 30_000 });
+
+      await editor.click();
+      await page.keyboard.press('ControlOrMeta+End');
+      await page.keyboard.type('\n\n## Finisher\n#hyroxprep\n\n```time\n12 Kettlebell Zottman Curl\n```\n');
+
+      await expect(page.getByRole('button', { name: 'Finisher', exact: true })).toBeVisible({ timeout: 10_000 });
+      await expect(sidebar.getByRole('button', { name: 'Kettlebell', exact: true })).toBeVisible({ timeout: 10_000 });
+      const defineAction = page.getByTestId('l3-define-zottman-curl').first();
+      await expect(defineAction).toBeVisible({ timeout: 10_000 });
+
+      await defineAction.click();
+      const createDialog = page.getByTestId('create-reference-dialog');
+      await expect(createDialog).toBeVisible();
+      await createDialog.getByTestId('create-reference-submit').click();
+      await expect(createDialog).toBeHidden({ timeout: 10_000 });
+
+      await expect(sidebar.getByTestId('menu-filter-note-context-efforts:zottman-curl')).toBeVisible({ timeout: 10_000 });
+      await sidebar.getByTestId('menu-filter-note-context-efforts:zottman-curl').click();
+      await expect(page).toHaveURL(/\/notes\?q=.*zottman-curl/);
+
+      await page.goBack();
+      await expect(sidebar.getByRole('button', { name: 'Zottman Curl', exact: true })).toBeVisible({ timeout: 15_000 });
+      await sidebar.getByRole('button', { name: 'Zottman Curl', exact: true }).click();
+      await expect(page).toHaveURL(/\/effort\/zottman-curl$/);
+
+      // L2 inline saved-link CRUD on /notes
+      await app.goto('/notes');
+      const mainNav = page.getByRole('navigation', { name: 'Main' });
+      await mainNav.getByTestId('conditions-nav-shortcut-add').click();
+      await expect(mainNav.getByTestId('conditions-nav-inline-editor')).toBeVisible();
+      await mainNav.getByTestId('conditions-nav-editor-label').fill('Kettlebell Notes');
+      await mainNav.getByTestId('conditions-nav-editor-wql').fill(':note{equipment:kettlebell}');
+      await mainNav.getByTestId('conditions-nav-editor-save').click();
+      await expect(page).toHaveURL(/\/notes\?q=.*equipment%3Akettlebell/);
+
+      await mainNav.getByTestId('conditions-nav-edit-toggle').click();
+      await mainNav.getByRole('button', { name: 'Edit Kettlebell Notes' }).click();
+      await mainNav.getByTestId('conditions-nav-editor-label').fill('KB Sessions');
+      await mainNav.getByTestId('conditions-nav-editor-save').click();
+      await expect(mainNav.getByText('KB Sessions', { exact: true })).toBeVisible();
+      await mainNav.getByRole('button', { name: 'Delete KB Sessions' }).click();
+      await expect(mainNav.getByText('KB Sessions', { exact: true })).toHaveCount(0);
+      await mainNav.getByTestId('conditions-nav-edit-toggle').click();
+
+      // Dashboard L2 switcher live-syncs newly created dashboards with deduplicated slugs
+      await app.wql.openExplorer();
+      await mainNav.getByTestId('dashboards-nav-new').click();
+      await expect(page).toHaveURL(/\/dashboard\/new-dashboard$/, { timeout: 15_000 });
+      await expect(mainNav.getByTestId('dashboard-nav-item-new-dashboard')).toBeVisible({ timeout: 10_000 });
+      await mainNav.getByTestId('dashboards-nav-new').click();
+      await expect(page).toHaveURL(/\/dashboard\/new-dashboard-2$/, { timeout: 15_000 });
+      await expect(mainNav.getByTestId('dashboard-nav-item-new-dashboard-2')).toBeVisible({ timeout: 15_000 });
+
+      app.assertCleanConsole();
+    } finally {
+      await deleteNoteByRouteId(page, noteId);
     }
   });
 });

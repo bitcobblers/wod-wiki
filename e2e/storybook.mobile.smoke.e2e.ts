@@ -23,6 +23,7 @@ const STORIES = [
   // Workbench story — covered since #997: the Session Outputs Table renders
   // its Card List below sm, so this previously-overflowing story holds.
   'playground--for-time-starter',
+  'screens--universal-note-editor',
   // rows cards (inventory 008 measured 815px cards / 472px overflow here),
   // and GalleryCardView roots carry min-w-0 against grid blowout.
   'gallery-wql-example-gallery--rows-find-section',
@@ -51,3 +52,31 @@ for (const storyId of STORIES) {
     expect(overflow).toBe(0);
   });
 }
+
+test('screens--universal-note-editor completion menu uses 48px coarse-pointer touch targets at 375px', async ({ page }) => {
+  await page.goto('/iframe.html?id=screens--universal-note-editor&viewMode=story', { waitUntil: 'networkidle' });
+  const host = page.getByTestId('note-editor-host');
+  await expect(host.locator('.cm-content')).toBeVisible({ timeout: 15_000 });
+
+  await host.locator('.cm-line').first().click();
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="note-editor-host"]') as unknown as {
+      __codemirrorView?: {
+        state: { doc: { line: (n: number) => { from: number; to: number } } };
+        dispatch: (tr: { changes: { from: number; to: number; insert: string }; selection: { anchor: number } }) => void;
+        focus: () => void;
+      };
+    };
+    const view = el?.__codemirrorView;
+    if (!view) throw new Error('note editor view not found');
+    const line = view.state.doc.line(23);
+    view.dispatch({ changes: { from: line.from, to: line.to, insert: '' }, selection: { anchor: line.from } });
+    view.focus();
+  });
+  await page.keyboard.type('circ');
+  const menu = page.locator('.cm-tooltip-autocomplete');
+  await expect(menu).toBeVisible();
+  await expect
+    .poll(() => menu.locator('li').first().evaluate((row) => getComputedStyle(row).minHeight))
+    .toBe('48px');
+});

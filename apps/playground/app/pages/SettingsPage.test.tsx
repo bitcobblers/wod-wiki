@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { SettingsPage } from './SettingsPage'
 import {
   PlaygroundProviderTree,
@@ -154,6 +154,66 @@ describe('SettingsPage', () => {
       expect(screen.queryByText('Content Sources')).toBeNull()
     })
 
+    it('validates pairing JSON import, populates credentials, and refuses same-URL restore while preserving local settings and notes (storage-restore-ui)', async () => {
+      const saved = { kind: 'turso', url: 'libsql://saved.turso.io', authToken: 'saved-token' }
+      localStorage.setItem('wodwiki.dataSettings.v1', JSON.stringify(saved))
+      await host.storage.readwrite('notes').put({
+        id: 'restore-keep',
+        title: 'Restore Keep',
+        rawContent: '# Restore Keep\n\nLocal note preserved.\n',
+        sourceRevision: 1,
+        blocks: {},
+        createdAt: Date.now(),
+      })
+
+      renderSettings('/settings/storage')
+
+      const pairingInput = screen.getByTestId('restore-pairing-input') as HTMLInputElement
+      const invalidFile = new File(['{ not json'], 'broken.json', { type: 'application/json' })
+      Object.defineProperty(invalidFile, 'text', { value: async () => '{ not json' })
+      await act(async () => {
+        fireEvent.change(pairingInput, { target: { files: [invalidFile] } })
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('restore-pairing-error')).toBeDefined()
+      })
+      const urlInput = screen.getByRole('textbox', { name: /^Backup database URL$/ }) as HTMLInputElement
+      expect(urlInput.value).toBe('')
+
+      const validPairing = {
+        wodWikiPairing: 1,
+        kind: 'turso',
+        url: 'libsql://pair-target.turso.io',
+        authToken: 'pair-token-e2e',
+        database: 'pair-target',
+        schemaVersion: 32,
+        createdAt: '2026-10-19T00:00:00.000Z',
+      }
+      const validFile = new File([JSON.stringify(validPairing)], 'pairing.json', { type: 'application/json' })
+      Object.defineProperty(validFile, 'text', { value: async () => JSON.stringify(validPairing) })
+      await act(async () => {
+        fireEvent.change(pairingInput, { target: { files: [validFile] } })
+      })
+
+      await waitFor(() => {
+        expect(urlInput.value).toBe(validPairing.url)
+        expect((document.getElementById('restore-token') as HTMLInputElement).value).toBe(validPairing.authToken)
+      })
+
+      // Same-URL restore is refused and leaves settings + local note intact
+      fireEvent.change(urlInput, { target: { value: 'libsql://saved.turso.io' } })
+      fireEvent.change(document.getElementById('restore-token')!, { target: { value: 'other-token' } })
+      fireEvent.click(screen.getByTestId('restore-button'))
+      fireEvent.click(screen.getByTestId('restore-confirm-button'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('restore-error').textContent).toContain('already the active sync target')
+      })
+      expect(JSON.parse(localStorage.getItem('wodwiki.dataSettings.v1') ?? 'null')).toEqual(saved)
+      const kept = await host.storage.readonly('notes').get('restore-keep')
+      expect(kept?.id).toBe('restore-keep')
+    })
   })
 
 })

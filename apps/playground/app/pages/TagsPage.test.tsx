@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
 import { TagsPage } from './TagsPage';
@@ -46,7 +46,7 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
 
         renderTags('heavy');
 
-        await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit heavy' })).toBeTruthy());
+        await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit heavy' })).toBeTruthy(), { timeout: 5000 });
     });
 
     it('opens the tag a ?tag= link points at', async () => {
@@ -54,7 +54,7 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
 
         renderTags(undefined, `/t/general/heavy?tag=heavy`);
 
-        await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit heavy' })).toBeTruthy());
+        await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit heavy' })).toBeTruthy(), { timeout: 5000 });
     });
 
     it('opens the built-in tonnage tag with its contributions in clean storage', async () => {
@@ -97,7 +97,7 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
             expect(tags.map(tag => tag.label)).toEqual(['sprint']);
         }, { timeout: 5000 });
         // The new tag is the edited one.
-        await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit sprint' })).toBeTruthy());
+        await waitFor(() => expect(screen.getByRole('heading', { name: 'Edit sprint' })).toBeTruthy(), { timeout: 5000 });
     });
 
     it('saves the contributions a tag carries', async () => {

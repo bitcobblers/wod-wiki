@@ -13,6 +13,21 @@
         [ sh:prefix "qa" ;   sh:namespace "https://wod.wiki/ontology/qa#"^^xsd:anyURI ] ,
         [ sh:prefix "prov" ; sh:namespace "http://www.w3.org/ns/prov#"^^xsd:anyURI ] .
 
+qa:VerificationSuiteShape a sh:NodeShape ;
+    sh:targetClass qa:VerificationSuite ;
+    sh:property [
+        sh:path qa:tier ;
+        sh:maxCount 1 ;
+        sh:in ( "T0" "T1" "T2" "T3" ) ;
+        sh:message "Verification suite tier must be T0, T1, T2, or T3." ;
+    ] ;
+    sh:property [
+        sh:path qa:seam ;
+        sh:maxCount 1 ;
+        sh:in ( "T0-contract" "T1a-compute" "T1b-storage" "T1c-domain" "T2a-host" "T2b-story" "T3-journey" ) ;
+        sh:message "Verification suite seam must be T0-contract, T1a-compute, T1b-storage, T1c-domain, T2a-host, T2b-story, or T3-journey." ;
+    ] .
+
 qa:JourneyShape a sh:NodeShape ;
     sh:targetClass qa:Journey ;
     sh:property [
@@ -100,4 +115,12 @@ qa:IssueShape a sh:NodeShape ;
         sh:minCount 1 ; sh:maxCount 1 ;
         sh:in ( "critical" "high" "medium" "low" ) ;
         sh:message "Issue severity must be critical, high, medium, or low." ;
+    ] ;
+    sh:property [
+        sh:path qa:coveredBy ;
+        sh:or (
+            [ sh:class qa:VerificationSuite ]
+            [ sh:class qa:Run ]
+        ) ;
+        sh:message "qa:coveredBy on a QA issue must link to a qa:VerificationSuite or qa:Run." ;
     ] .

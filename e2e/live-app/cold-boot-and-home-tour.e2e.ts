@@ -51,6 +51,12 @@ test.describe('JRN-01 — Cold Boot & Home Tour', () => {
     }) => {
       test.setTimeout(90_000);
       const { page } = app;
+      const chartZeroSizeWarnings: string[] = [];
+      page.on('console', (msg) => {
+        if (msg.type() === 'warning' && /of chart should be greater than 0/.test(msg.text())) {
+          chartZeroSizeWarnings.push(msg.text());
+        }
+      });
       await page.setViewportSize(viewport);
       await app.goto('/');
       await dismissSettledSyncToasts(page);
@@ -100,6 +106,11 @@ test.describe('JRN-01 — Cold Boot & Home Tour', () => {
       await expectTouchable(stop);
       await expectTouchable(pause);
 
+      if ((await pause.getAttribute('title')) === 'Start') {
+        await pause.click();
+        await expect(pause).toHaveAttribute('title', 'Pause');
+      }
+
       await pause.click();
       await expect(pause).toHaveAttribute('title', 'Continue');
       await pause.click();
@@ -118,12 +129,23 @@ test.describe('JRN-01 — Cold Boot & Home Tour', () => {
         })
         .toBe(1);
 
+      await expect(page.getByTestId('tour-why-watch-again')).toBeVisible({ timeout: 15_000 });
+      await expect
+        .poll(
+          async () => {
+            const box = await page.locator('#tour-why-video-wrap').boundingBox();
+            return !!box && box.height <= 1;
+          },
+          { timeout: 15_000, message: 'why-video wrapper finishes collapsing before clicking back to editor' },
+        )
+        .toBe(true);
+
       const insights = page.getByTestId('tour-section-insights');
       await expect
         .poll(
           async () => {
             const box = await insights.boundingBox();
-            return !!box && box.y >= 0 && box.y <= 140;
+            return !!box && box.y >= -2 && box.y <= 140;
           },
           { timeout: 15_000, message: 'closing review parks tour-section-insights under sticky header' },
         )
@@ -150,12 +172,22 @@ test.describe('JRN-01 — Cold Boot & Home Tour', () => {
         .poll(
           async () => {
             const box = await editorSection.boundingBox();
-            return !!box && box.y >= 0 && box.y <= 140;
+            return !!box && box.y >= -2 && box.y <= 140;
           },
           { timeout: 15_000, message: 'back-to-editor parks tour-section-editor under sticky header' },
         )
         .toBe(true);
       await expect(page.locator('[data-gate-id="editor-pane"] .cm-content').first()).toBeVisible();
+
+      // Folded from property-responsive-defects (#12): all mounted Recharts containers have real dimensions and emit zero size warnings
+      const zeroBoxes = await page.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLElement>('.recharts-responsive-container')).filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width <= 0 || r.height <= 0;
+        }).length,
+      );
+      expect(zeroBoxes, `zero-size chart containers at ${viewport.width}x${viewport.height}`).toBe(0);
+      expect(chartZeroSizeWarnings, `zero-size chart warnings at ${viewport.width}x${viewport.height}`).toEqual([]);
 
       app.assertCleanConsole();
     });

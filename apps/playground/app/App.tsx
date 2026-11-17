@@ -3,8 +3,8 @@
  * rendering lives in AppContent; per-route classification in
  * lib/routeView (see docs/adr/app-route-view.md).
  */
-import { useMemo, useRef, Suspense, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useMemo, useRef, useEffect, useLayoutEffect } from 'react'
+import { BrowserRouter, useLocation } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router'
 import { ThemeProvider } from '@/contexts/ThemeProvider'
 import { DebugModeProvider } from '@/contexts/DebugModeContext'
@@ -16,26 +16,8 @@ import { NavProvider, useNav } from './nav/NavContext'
 import { buildAppNavTree } from './nav/appNavTree'
 import { recordRecentVisit } from './nav/panels/ConditionsNavPanel'
 import { useCanvasRoutes } from './canvas/canvasRoutes'
-import { AppContent } from './AppContent'
-import { LEGACY_REDIRECT_PATTERNS, ROUTE_PATTERNS } from './lib/routes'
-import {
-  PlanRedirect,
-  TrackerRedirect,
-  ReviewRedirect,
-  SegmentsRedirect,
-} from './lib/routeRedirects'
+import { AppRoutes } from './AppRoutes'
 import { DocumentTitleSync } from './lib/DocumentTitleSync'
-import { PlaygroundLandingPage } from './pages/PlaygroundLandingPage'
-import { SyntaxView } from './views/SyntaxView'
-import { NotFoundPage } from './pages/NotFoundPage'
-import CalcAuthoringPrototypePage from './pages/CalcAuthoringPrototypePage'
-import QueryBlockComposerPrototypePage from './pages/QueryBlockComposerPrototypePage'
-import { CalcAuthoringPanel } from '@/components/organisms/calc-authoring/CalcAuthoringPanel'
-import { LoadZipPage } from './pages/LoadZipPage'
-import { JournalZipLoadPage } from './pages/JournalZipLoadPage'
-import { SubscribePage } from './pages/SubscribePage'
-import { WallClockPage } from './pages/WallClockPage'
-import { PlaygroundRedirect } from './pages/PlaygroundRedirect'
 import { useZipProcessor } from './hooks/useZipProcessor'
 import { useJournalZipProcessor } from './hooks/useJournalZipProcessor'
 import { isFeedImportEnabled, runFeedSync } from '@/services/feed/feedSync'
@@ -62,7 +44,7 @@ function ScrollToTop() {
   const { pathname, hash } = useLocation()
   const { scrollToSection } = useNav()
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     recordRecentVisit(pathname)
     if (hash) {
       const targetId = hash.slice(1)
@@ -166,122 +148,27 @@ export function App() {
                 <PlaygroundAgentProvider />
                 <AgentConfirmHost />
                 <AgentStateScript />
-                <Routes>
-                  {/* Home is bundle-owned and renders before the corpus.
-                      The wildcard gates only paths still waiting for the imported
-                      routes; once routes exist, unmatched paths 404. */}
-                  <Route path={ROUTE_PATTERNS.home} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route
-                    path="*"
-                    element={
-                      canvasRouteList.length === 0 ? (
-                        <RootUnavailable
-                          settling={
-                            feedReadiness === 'preparing' ||
-                            (isFeedImportEnabled() && feedReadiness !== 'error')
-                          }
-                        />
-                      ) : (
-                        <NotFoundPage />
-                      )
-                    }
-                  />
-                  <Route path="/proto/calc-authoring" element={<CalcAuthoringPrototypePage />} />
-                  <Route path="/proto/query-block-composer" element={<QueryBlockComposerPrototypePage />} />
-
-                  <Route path="/settings" element={<Navigate to="/settings/appearance" replace />} />
-                  <Route path="/settings/appearance" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.settingsProfile} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  {/* Retired /settings/data split into database + sync (2026-10). */}
-                  <Route path={LEGACY_REDIRECT_PATTERNS.settingsData} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
-                  {/* Retired /settings/database renamed to /settings/storage (2026-10). */}
-                  <Route path={LEGACY_REDIRECT_PATTERNS.settingsDatabase} element={<Navigate to={ROUTE_PATTERNS.settingsStorage} replace />} />
-                  <Route path={ROUTE_PATTERNS.settingsStorage} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.settingsSync} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path="/settings/system" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  {/* Retired /settings/queries — per-surface query config now lives on
-                      the pages themselves (each page's own query settings). */}
-                  <Route path={LEGACY_REDIRECT_PATTERNS.settingsQueries} element={<Navigate to={ROUTE_PATTERNS.journal} replace />} />
-                  <Route path={ROUTE_PATTERNS.settingsTags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.settingsSoundProfiles} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path="/settings/library/calcs" element={<div className="p-6"><CalcAuthoringPanel /></div>} />
-                  <Route path="/legacy" element={<PlaygroundLandingPage />} />
-                  <Route path="/syntax" element={<SyntaxView />} />
-                  {/* Retired corpus landing paths (/chapters/*, /challenge,
-                      /getting-started) — no redirect left behind (ticket 09). */}
-                  <Route path={ROUTE_PATTERNS.plan} element={<PlanRedirect />} />
-                  {/* Feed concept — /feeds the library, /feed/:slug one source. */}
-                  <Route path={ROUTE_PATTERNS.feeds} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.feed} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  {/* Notebook concept — /notebooks the library, /notebook/:slug
-                      one notebook, a deeper target a member (note UUID, date,
-                      dated item). */}
-                  <Route path={ROUTE_PATTERNS.notebooks} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.notebook} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.notebookTarget} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.notebookItem} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.subscribe} element={<SubscribePage />} />
-                  {/* Page concept — /pages the library, /page/:slug one page. */}
-                  <Route path={ROUTE_PATTERNS.pages} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route
-                    path={ROUTE_PATTERNS.page}
-                    element={
-                      canvasRouteList.length === 0 &&
-                      (feedReadiness === 'preparing' || (isFeedImportEnabled() && feedReadiness !== 'error')) ? (
-                        <RootUnavailable settling />
-                      ) : (
-                        <AppContent searchHandlerRef={searchHandlerRef} />
-                      )
-                    }
-                  />
-                  <Route path={ROUTE_PATTERNS.load} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><LoadZipPage /></Suspense>} />
-                  <Route path={ROUTE_PATTERNS.loadJournal} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><JournalZipLoadPage /></Suspense>} />
-                  <Route path={ROUTE_PATTERNS.loadJournalDate} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><JournalZipLoadPage /></Suspense>} />
-                  <Route path={ROUTE_PATTERNS.playgroundRoot} element={<PlaygroundRedirect />} />
-                  <Route path={ROUTE_PATTERNS.playground} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.playgrounds} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  {/* Note concept — /notes the library, /note/:noteId one note. */}
-                  <Route path={ROUTE_PATTERNS.notes} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.note} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  {/* Journal concept — /journal the library, /day/:date one day. */}
-                  <Route path={ROUTE_PATTERNS.journal} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.day} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.run} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><WallClockPage /></Suspense>} />
-                  <Route path={ROUTE_PATTERNS.tracker} element={<TrackerRedirect />} />
-                  {/* Sessions — /sessions lists execution telemetry;
-                      /results/:sessionId is the canonical detail (#946, Ticket 005). */}
-                  <Route path="/results/segments" element={<SegmentsRedirect />} />
-                  <Route path={ROUTE_PATTERNS.sessionDetail} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.sessions} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.sessionDate} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  {/* Retired review screens (#946, Ticket 005) — bookmarks land on the sessions family. */}
-                  <Route path="/review/:runtimeId" element={<ReviewRedirect />} />
-                  <Route path="/note/:noteId/review" element={<ReviewRedirect />} />
-                  <Route path="/note/:noteId/review/:sectionId" element={<ReviewRedirect />} />
-                  <Route path="/note/:noteId/review/:sectionId/:resultId" element={<ReviewRedirect />} />
-                  {/* Effort concept — /efforts the library, /effort/:slug one effort. */}
-                  <Route path={ROUTE_PATTERNS.efforts} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.effort} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  {/* Equipment — list is the note stream; detail/create are note pages. */}
-                  <Route path={ROUTE_PATTERNS.equipment} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.equipmentSlug} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  {/* Tag concept — /tags the catalogue, /t/:type/:tag one tag. */}
-                  {/* Tag concept — /tags the catalogue, /t/:type one Tag Category, /t/:type/:tag one Tag Property Note. */}
-                  <Route path={ROUTE_PATTERNS.tags} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.tagCategory} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.tag} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  {/* Dashboards: /dashboards = list + WQL explorer,
-                      /dashboard/:slug = one dashboard by slug or id. */}
-                  <Route path={ROUTE_PATTERNS.dashboards} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  <Route path={ROUTE_PATTERNS.dashboardView} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-                  {canvasRouteList.map(({ route }) => (
-                    <Route
-                      key={route}
-                      path={route}
-                      element={<AppContent searchHandlerRef={searchHandlerRef} />}
-                    />
-                  ))}
-                </Routes>
+                <AppRoutes
+                  searchHandlerRef={searchHandlerRef}
+                  canvasRouteList={canvasRouteList}
+                  rootUnavailable={
+                    canvasRouteList.length === 0 ? (
+                      <RootUnavailable
+                        settling={
+                          feedReadiness === 'preparing' ||
+                          (isFeedImportEnabled() && feedReadiness !== 'error')
+                        }
+                      />
+                    ) : undefined
+                  }
+                  pageSettlingFallback={
+                    canvasRouteList.length === 0 &&
+                    (feedReadiness === 'preparing' ||
+                      (isFeedImportEnabled() && feedReadiness !== 'error')) ? (
+                      <RootUnavailable settling />
+                    ) : undefined
+                  }
+                />
                 <DocumentTitleSync />
               </NavProvider>
             </NuqsAdapter>

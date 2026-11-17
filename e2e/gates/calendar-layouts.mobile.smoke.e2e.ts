@@ -31,6 +31,7 @@ test('the agenda layout renders on /notes at 375px without horizontal overflow',
   await seedLayout(page, 'agenda');
   await page.goto('/notes?q=:note{}', { waitUntil: 'domcontentloaded' });
   await waitForFeedReady(page);
+  await expect(page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready', { timeout: 20_000 });
 
   const agenda = page.getByTestId('calendar-agenda-view');
   await expect(agenda).toBeVisible();
@@ -45,6 +46,7 @@ test('the planner layout renders on /notes at 375px without horizontal overflow'
   await seedLayout(page, 'planner');
   await page.goto('/notes?q=:note{}', { waitUntil: 'domcontentloaded' });
   await waitForFeedReady(page);
+  await expect(page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready', { timeout: 20_000 });
 
   const planner = page.getByTestId('calendar-planner-view');
   await expect(planner).toBeVisible();
@@ -59,6 +61,7 @@ test('a planner cell starts a new entry on its own day, with a notebook target',
   await seedLayout(page, 'planner');
   await page.goto('/notes?q=:note{}', { waitUntil: 'domcontentloaded' });
   await waitForFeedReady(page);
+  await expect(page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready', { timeout: 20_000 });
 
   await expect(page.getByTestId('calendar-planner-view')).toBeVisible();
 

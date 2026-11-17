@@ -371,9 +371,9 @@ export function buildViewer() {
     .map((i) => {
       const id = store.val(i, 'qa:issueId') ?? i.split('/').pop() ?? i;
       const title = store.val(i, 'rdfs:label') ?? id;
-      const severity = store.val(i, 'qa:severity') ?? 'Medium';
+      const severity = store.val(i, 'qa:issueSeverity') ?? store.val(i, 'qa:severity') ?? 'medium';
       const kind = store.val(i, 'qa:kind') ?? 'defect';
-      const status = store.val(i, 'qa:status') ?? 'open';
+      const status = store.val(i, 'qa:issueStatus') ?? store.val(i, 'qa:status') ?? 'open';
       const coverageStatus = store.val(i, 'qa:coverageStatus') ?? '';
       const firstSeenRun = store.val(i, 'qa:firstSeenRun')?.split('/').pop() ?? '';
       const lastSeenRun = store.val(i, 'qa:lastSeenRun')?.split('/').pop() ?? '';

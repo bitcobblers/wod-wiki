@@ -17,9 +17,8 @@
  * 4. Every referenced `specFile` exists and starts with `// spec: <relMdPath>`.
  * 5. Every `.e2e.ts` carrying `// spec: <relMdPath>` points to an existing
  *    Markdown spec that maps back to it 1:1.
- * 6. Every `e2e/live-app/*.e2e.ts` without `// spec:` must be explicitly listed
- *    in `LEGACY_UNPAIRED_E2E_FILES`, and stale/migrated allowlist entries fail
- *    so the allowlist only ratchets down.
+ * 6. Every `e2e/live-app/*.e2e.ts` MUST carry `// spec: <relMdPath>` and map
+ *    1:1 to a Level-1 Markdown spec in `e2e/specs/` (zero unpaired E2E files).
  * 7. Every Markdown spec declaring `mobile-375` in `viewports` must EITHER have
  *    its `specFile` matched in `playwright.journal.config.ts`'s
  *    `journal-mobile-375` project OR explicitly exercise a `375` mobile viewport
@@ -32,43 +31,6 @@ export interface SpecValidationIssue {
   file: string;
   message: string;
 }
-
-export interface SpecCrosswalkOptions {
-  legacyUnpairedFiles?: ReadonlySet<string>;
-}
-
-/**
- * Ratchet allowlist of pre-existing `e2e/live-app/*.e2e.ts` files that predate
- * the two-level Markdown <-> Playwright contract. New `.e2e.ts` files MUST carry
- * `// spec: e2e/specs/<domain>/<journey>.md`; deleting or migrating any file
- * below requires removing it from this set.
- */
-export const LEGACY_UNPAIRED_E2E_FILES: ReadonlySet<string> = new Set([
-  'e2e/live-app/canvas-editor-frontmatter.e2e.ts',
-  'e2e/live-app/clock-command-board.e2e.ts',
-  'e2e/live-app/codemirror-wod-editing.e2e.ts',
-  'e2e/live-app/cold-boot.e2e.ts',
-  'e2e/live-app/error-states.e2e.ts',
-  'e2e/live-app/explore-navigation.e2e.ts',
-  'e2e/live-app/folding-zones.e2e.ts',
-  'e2e/live-app/nav-ladder.e2e.ts',
-  'e2e/live-app/new-entry-combo.e2e.ts',
-  'e2e/live-app/note-editor-navigation.e2e.ts',
-  'e2e/live-app/note-reference-metrics.e2e.ts',
-  'e2e/live-app/notebook-dated-item.e2e.ts',
-  'e2e/live-app/page-placement.e2e.ts',
-  'e2e/live-app/page-query-settings.e2e.ts',
-  'e2e/live-app/playground-full-integration.e2e.ts',
-  'e2e/live-app/playground-widget-block-preview.e2e.ts',
-  'e2e/live-app/properties-a11y.e2e.ts',
-  'e2e/live-app/property-responsive-defects.e2e.ts',
-  'e2e/live-app/results-widget-inlay.e2e.ts',
-  'e2e/live-app/storage-restore-ui.e2e.ts',
-  'e2e/live-app/tags-page.e2e.ts',
-  'e2e/live-app/timer-tiers.e2e.ts',
-  'e2e/live-app/widget-edit-behavior.e2e.ts',
-  'e2e/live-app/wql-segment-editor.e2e.ts',
-]);
 
 const REQUIRED_FRONTMATTER_KEYS = [
   'domain',
@@ -252,12 +214,8 @@ function isMatchedInJournalMobile375Project(
   return false;
 }
 
-export function validateE2eSpecCrosswalk(
-  repoRoot: string,
-  options?: SpecCrosswalkOptions,
-): SpecValidationIssue[] {
+export function validateE2eSpecCrosswalk(repoRoot: string): SpecValidationIssue[] {
   const issues: SpecValidationIssue[] = [];
-  const legacyUnpaired = options?.legacyUnpairedFiles ?? LEGACY_UNPAIRED_E2E_FILES;
   const specsDir = join(repoRoot, 'e2e/specs');
   const liveAppDir = join(repoRoot, 'e2e/live-app');
 
@@ -379,28 +337,16 @@ export function validateE2eSpecCrosswalk(
     }
   }
 
-  const seenLiveAppFiles = new Set<string>();
   for (const absTs of walkFiles(liveAppDir, '.e2e.ts')) {
     const relTs = relative(repoRoot, absTs).replace(/\\/g, '/');
-    seenLiveAppFiles.add(relTs);
     const tsRaw = readFileSync(absTs, 'utf8');
     const headerMatch = tsRaw.match(/^\/\/\s*spec:\s*(\S+)/m);
     if (!headerMatch) {
-      if (!legacyUnpaired.has(relTs)) {
-        issues.push({
-          file: relTs,
-          message:
-            "Missing '// spec: e2e/specs/<domain>/<journey>.md' header comment (unpaired E2E specs are not allowed outside LEGACY_UNPAIRED_E2E_FILES)",
-        });
-      }
-      continue;
-    }
-    if (legacyUnpaired.has(relTs)) {
       issues.push({
         file: relTs,
-        message:
-          "File now carries '// spec:' header — remove it from LEGACY_UNPAIRED_E2E_FILES so the allowlist ratchets down",
+        message: "Missing '// spec: e2e/specs/<domain>/<journey>.md' header comment (unpaired E2E specs are not allowed)",
       });
+      continue;
     }
     const targetMd = headerMatch[1]!;
     const absMd = join(repoRoot, targetMd);
@@ -409,20 +355,15 @@ export function validateE2eSpecCrosswalk(
       continue;
     }
     const mappedTs = mdToTs.get(targetMd);
-    if (mappedTs && mappedTs !== relTs) {
+    if (!mappedTs) {
+      issues.push({
+        file: relTs,
+        message: `Header '// spec: ${targetMd}' does not reference a valid Level-1 Markdown spec in e2e/specs/`,
+      });
+    } else if (mappedTs !== relTs) {
       issues.push({
         file: relTs,
         message: `Markdown spec '${targetMd}' maps to '${mappedTs}', not '${relTs}'`,
-      });
-    }
-  }
-
-  for (const allowlisted of legacyUnpaired) {
-    if (!seenLiveAppFiles.has(allowlisted)) {
-      issues.push({
-        file: allowlisted,
-        message:
-          'Stale LEGACY_UNPAIRED_E2E_FILES entry — file no longer exists on disk; remove it so the allowlist ratchets down',
       });
     }
   }
