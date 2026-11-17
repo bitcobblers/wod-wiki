@@ -105,8 +105,8 @@ export function parseDocument(text: string): ParsedDocument {
             if (byMatch) {
                 defaults.groupBy = byMatch[1]!.split(',').map((d) => d.trim()).filter(Boolean);
             }
-            const lastParamMatch = /last\s+\$([a-zA-Z_][\w-]*)(?:\s*(d|w))?/.exec(rest);
-            const lastMatch = !lastParamMatch ? /last\s+(\d+)\s*(d|w)/.exec(rest) : null;
+            const lastParamMatch = /last\s+\$([a-zA-Z_][\w-]*)(?:\s*([dw]))?/.exec(rest);
+            const lastMatch = !lastParamMatch ? /last\s+(\d+)\s*([dw])/.exec(rest) : null;
             if (lastParamMatch) {
                 defaults.window = {
                     kind: 'param',

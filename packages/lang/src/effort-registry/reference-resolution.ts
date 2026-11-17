@@ -348,7 +348,7 @@ export function createReferenceIndex(
             equipmentRefs = resolvedEquipment.refs;
             diagnostics.push(...resolvedEquipment.diagnostics);
             // Explicit equipment contradicting the named effort's definition equipment is a conflict.
-            if (effortEntity?.equipment?.length) {
+            if (effortEntity && effortEntity.equipment?.length) {
               const definitionSlugs = new Set(effortEntity.equipment);
               const authoredSlugs = equipmentRefs.map(ref => ref.slug);
               if (authoredSlugs.length > 0 && authoredSlugs.some(slug => !definitionSlugs.has(slug))) {

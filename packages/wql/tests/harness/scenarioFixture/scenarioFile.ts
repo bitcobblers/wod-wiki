@@ -249,7 +249,6 @@ export function parseScenarioFile(raw: string, file: string): ParsedScenario {
       const unitMatch = line.match(/^- unit:\s*(.+)$/);
       if (unitMatch) {
         expected.unit = unitMatch[1].trim();
-        continue;
       }
     }
 

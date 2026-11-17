@@ -131,7 +131,7 @@ export const CONSTRUCT_GRID_MAP: Record<string, string> = {
   ':* rest': 'rest',
   ':? actual': 'actual',
   '?lb prompt': 'load-prompt',
-  '⌘/ palette': 'palette',
+  '\u2318/ palette': 'palette',
   'rounds': 'rounds',
   'reps': 'metrics',
   'load': 'metrics',

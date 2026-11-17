@@ -83,7 +83,7 @@ export class InMemoryStore<T> implements IReadWriteStore<T> {
 
   async put(value: T, _key?: IDBValidKey): Promise<IDBValidKey> {
     if (!this.mutable) throw new Error('read-only store');
-    if (this.commit) return this.commit(store => store.put(value)) as Promise<IDBValidKey>;
+    if (this.commit) return (await this.commit(store => store.put(value))) as IDBValidKey;
     const userId = this.getUserId?.();
     const stored = userId ? (stampUserOwned(this.name, value, userId) as T) : value;
     validateStorageRow(this.name, stored);
@@ -106,7 +106,7 @@ export class InMemoryStore<T> implements IReadWriteStore<T> {
   }
 
   async putMany(values: T[], keys?: IDBValidKey[]): Promise<IDBValidKey[]> {
-    if (this.commit) return this.commit(store => store.putMany(values, keys)) as Promise<IDBValidKey[]>;
+    if (this.commit) return (await this.commit(store => store.putMany(values, keys))) as IDBValidKey[];
     if (keys && keys.length !== values.length) throw new Error('putMany key count mismatch');
     const out: IDBValidKey[] = [];
     for (let i = 0; i < values.length; i++) out.push(await this.put(values[i], keys?.[i]));

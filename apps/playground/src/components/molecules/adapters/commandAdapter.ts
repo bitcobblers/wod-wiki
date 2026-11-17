@@ -1,4 +1,4 @@
-import type { Command, CommandPaletteResult } from '@/components/organisms/command-palette/types';
+import type { Command } from '@/components/organisms/command-palette/types';
 import type { ScriptCommand } from '@/components/Editor/overlays/ScriptCommand';
 import type { IListItem } from '../types';
 
@@ -10,21 +10,6 @@ export function commandToListItem(cmd: Command): IListItem<Command> {
     shortcut: cmd.shortcut,
     keywords: cmd.keywords,
     payload: cmd,
-  };
-}
-
-export function paletteResultToListItem(
-  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Legacy adapter kept until CommandPaletteResult callers are removed.
-  result: CommandPaletteResult,
-// eslint-disable-next-line @typescript-eslint/no-deprecated -- Legacy adapter kept until CommandPaletteResult callers are removed.
-): IListItem<CommandPaletteResult> {
-  return {
-    id: result.id,
-    label: result.name,
-    subtitle: result.subtitle ?? result.category,
-    group: result.category,
-    keywords: [result.name, result.category],
-    payload: result,
   };
 }
 

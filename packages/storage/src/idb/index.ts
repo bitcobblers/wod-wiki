@@ -211,7 +211,7 @@ class IDBStore<T> implements IReadWriteStore<T> {
       }
       return Promise.all(keys.map(key => this.tx!.objectStore(this.name).get(key)));
     }
-    return this.owner.transaction([this.name], 'readonly', tx => tx.readonly(this.name).getMany(keys)) as Promise<(T | undefined)[]>;
+    return (await this.owner.transaction([this.name], 'readonly', tx => tx.readonly(this.name).getMany(keys))) as (T | undefined)[];
   }
 
   async getAll(query?: IDBValidKey | IDBKeyRange, count?: number): Promise<T[]> {
@@ -248,7 +248,7 @@ class IDBStore<T> implements IReadWriteStore<T> {
       }
       return Promise.all(keys.map(key => this.tx!.objectStore(this.name).index(index).getAll(key)));
     }
-    return this.owner.transaction([this.name], 'readonly', tx => tx.readonly(this.name).getAllFromIndexMany(index, keys)) as Promise<T[][]>;
+    return (await this.owner.transaction([this.name], 'readonly', tx => tx.readonly(this.name).getAllFromIndexMany(index, keys))) as T[][];
   }
 
   async count(query?: IDBValidKey | IDBKeyRange): Promise<number> {
@@ -1159,6 +1159,7 @@ async function migrateSchema(db: IDBPDatabase, oldVersion: number, tx: IDBPTrans
       const legacy = cursor.value as LegacySession;
       const logs = legacy.data?.logs ?? [];
       let alreadyProjected = false;
+      // noinspection LoopStatementThatDoesntLoopJS
       // eslint-disable-next-line no-unreachable-loop -- checks non-emptiness of async IDB index cursor
       for await (const _ev of eventsStore.index('by-result-grain').iterate(IDBKeyRange.bound([legacy.id, ''], [legacy.id, []]))) {
         alreadyProjected = true;

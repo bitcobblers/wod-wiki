@@ -312,7 +312,7 @@ export function extractLiveNoteFacets(
       continue;
     }
 
-    const firstFenceLine = section.rawContent.split(/\r\n|\n|\r/, 1)[0]?.trim() ?? '';
+    const firstFenceLine = section.rawContent.split(/\r\n|[\n\r]/, 1)[0]?.trim() ?? '';
     const wodFenceMatch =
       !section.scriptBlock && section.type === 'code'
         ? firstFenceLine.match(/^`{3,}(?:wod|whiteboard)(?::([\w-]+))?\s*$/i)

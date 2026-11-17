@@ -66,7 +66,7 @@ function markdownSubtype(text: string): string {
 
 export function parseDocumentSections(content: string, options: SectionRecognitionOptions = {}): Section[] {
   if (!content) return [];
-  const lines = content.split(/\r\n|\n|\r/);
+  const lines = content.split(/\r\n|[\n\r]/);
   const offsets: number[] = [];
   const separators: string[] = [];
   let offset = 0;

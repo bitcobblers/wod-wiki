@@ -253,7 +253,7 @@ class SqlStore<T> implements IReadWriteStore<T> {
     const state = bufferedGet<T>(this.store, k, this.buffer);
     if (state) return state.hit ? state.value : undefined;
     if (this.cleared?.has(this.store)) return undefined;
-    return getRow(this.conn, this.def, k) as Promise<T | undefined>;
+    return (await getRow(this.conn, this.def, k)) as T | undefined;
   }
 
   async getMany(keys: IDBValidKey[]): Promise<(T | undefined)[]> {

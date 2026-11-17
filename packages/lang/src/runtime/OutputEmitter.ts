@@ -6,7 +6,6 @@ import type { RoundState } from './memory/MemoryTypes';
 import { CurrentRoundMetric } from './compiler/metrics/CurrentRoundMetric';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
-import {  } from '@bitcobblers/wod-wiki-core';
 import { TimeSpan } from './models/TimeSpan';
 import { IRuntimeClock } from './contracts/IRuntimeClock';
 import { IRuntimeBlock } from './contracts/IRuntimeBlock';

@@ -48,6 +48,7 @@ export interface FloatingPlacement {
  * @param viewport  the visible viewport
  * @param panelHeight  the panel's natural height
  * @param avoid     region the popup must not cover (the metadata actions)
+ * @param gap       vertical offset between the field and popover
  */
 export function computeFloatingPlacement(
   field: { top: number; bottom: number; left: number; width: number },

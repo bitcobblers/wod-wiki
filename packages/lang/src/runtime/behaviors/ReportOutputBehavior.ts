@@ -5,7 +5,6 @@ import { MetricType } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import type { IMetric } from '@bitcobblers/wod-wiki-core';
 import { RoundState, TimerState } from '../memory/MemoryTypes';
-import {  } from '@bitcobblers/wod-wiki-core';
 import { TimeSpan } from '../models/TimeSpan';
 import { readTimer } from '../time/TimerSpans';
 import { calculateElapsed } from '../time/calculateElapsed';

@@ -79,7 +79,7 @@ export function setMetricQuery(query: string, metric: string): string {
   if (isAggregateQuery(parsed)) return serialize({ ...parsed, metric });
   if (!isFindQuery(parsed)) return query;
 
-  const sourceHead = /^:(journal|notebooks|playground)(?:\{|\s|$)/.exec(query.trim())?.[1];
+  const sourceHead = /^:(journal|notebooks|playground)(?:[{\s]|$)/.exec(query.trim())?.[1];
   const contentFilters = parsed.filters.filter((filter) => {
     if (!CONTENT_FILTER_KEYS[filter.key]) return false;
     if (sourceHead && filter.key === 'source' && filter.values.length === 1 && filter.values[0].value === sourceHead) {

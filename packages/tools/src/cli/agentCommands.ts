@@ -216,8 +216,8 @@ export async function runAgentNounVerbCommand(env: AgentCliExecutionEnv): Promis
     }
 
     if (noun === 'doctor') {
-      let backendKind = 'sqlite';
-      let backendTarget = '';
+      let backendKind: string;
+      let backendTarget: string;
       let dbReady = false;
       let noteCount = 0;
       let sessionCount = 0;

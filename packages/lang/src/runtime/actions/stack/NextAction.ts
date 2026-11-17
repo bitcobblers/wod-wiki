@@ -11,6 +11,7 @@ export class NextAction implements IRuntimeAction {
    *   When provided (e.g., from PopBlockAction carrying createdAt), these options
    *   are merged with a snapshot clock. When omitted (e.g., user-triggered next),
    *   a fresh snapshot clock is created.
+   * @param now Clock provider used when minting a fresh snapshot clock.
    */
   constructor(
     private readonly options?: BlockLifecycleOptions,

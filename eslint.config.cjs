@@ -33,6 +33,69 @@ const wodWikiPlugin = {
         };
       },
     },
+    'no-empty-import': {
+      meta: {
+        type: 'problem',
+        schema: [],
+        messages: {
+          emptyImport: 'Empty named import declaration is unused.',
+        },
+      },
+      create(context) {
+        return {
+          ImportDeclaration(node) {
+            if (
+              node.specifiers.length === 0 &&
+              /^import\s+(?:type\s+)?\{\s*\}/.test(context.sourceCode.getText(node))
+            ) {
+              context.report({ node, messageId: 'emptyImport' });
+            }
+          },
+        };
+      },
+    },
+    'no-trailing-continue': {
+      meta: {
+        type: 'suggestion',
+        schema: [],
+        messages: {
+          unnecessaryContinue: "'continue' is unnecessary as the last statement in a loop.",
+        },
+      },
+      create(context) {
+        const LOOP_TYPES = new Set([
+          'ForStatement',
+          'ForInStatement',
+          'ForOfStatement',
+          'WhileStatement',
+          'DoWhileStatement',
+        ]);
+        function isTailOfEnclosingLoop(stmt) {
+          let cur = stmt;
+          while (cur.parent) {
+            const p = cur.parent;
+            if (p.type === 'BlockStatement') {
+              if (p.body[p.body.length - 1] !== cur) return false;
+              cur = p;
+            } else if (p.type === 'IfStatement' && p.consequent === cur && !p.alternate) {
+              cur = p;
+            } else if (LOOP_TYPES.has(p.type) && p.body === cur) {
+              return true;
+            } else {
+              return false;
+            }
+          }
+          return false;
+        }
+        return {
+          ContinueStatement(node) {
+            if (!node.label && isTailOfEnclosingLoop(node)) {
+              context.report({ node, messageId: 'unnecessaryContinue' });
+            }
+          },
+        };
+      },
+    },
   },
 };
 
@@ -67,7 +130,7 @@ const typedRules = isTypedLint
       ],
       '@typescript-eslint/await-thenable': 'error',
       'no-return-await': 'off',
-      '@typescript-eslint/return-await': ['error', 'in-try-catch'],
+      '@typescript-eslint/return-await': ['error', 'error-handling-correctness-only'],
       // TypeScript hygiene & deprecated APIs — enforced as 'error' everywhere.
       '@typescript-eslint/prefer-readonly': 'error',
       '@typescript-eslint/no-unnecessary-type-arguments': 'error',
@@ -138,9 +201,11 @@ module.exports = [
       'no-sequences': ['error', { allowInParentheses: false }],
       'no-unreachable-loop': 'error',
       'wod-wiki/protected-abstract-constructor': 'error',
+      'wod-wiki/no-empty-import': 'error',
+      'wod-wiki/no-trailing-continue': 'error',
       // RegExp hygiene
       'regexp/no-useless-non-capturing-group': 'error',
-      'regexp/prefer-character-class': 'error',
+      'regexp/prefer-character-class': ['error', { minAlternatives: 2 }],
       'regexp/no-dupe-characters-character-class': 'error',
       // JSDoc signature parity
       'jsdoc/check-param-names': ['error', { checkDestructured: false }],

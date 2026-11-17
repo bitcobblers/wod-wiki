@@ -502,6 +502,7 @@ function createTagDraftRow(
 
   attachSuggestions(input, view, root, "value", key, [], commit);
   input.addEventListener("keydown", (e) => {
+// noinspection JSDeprecatedSymbols
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
     if (e.isComposing || e.keyCode === 229) return;
     // Escape discards the draft even when attachSuggestions already closed the
@@ -659,7 +660,8 @@ function createMetricDraftRow(
         customKeyInput.setAttribute("aria-label", "Metric key");
         customKeyInput.dataset.frontmatterField = "key";
         customKeyInput.addEventListener("keydown", (e) => {
-          // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
+      // noinspection JSDeprecatedSymbols
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
           if (e.isComposing || e.keyCode === 229) return;
           if (e.key === "Escape") {
             e.preventDefault();
@@ -685,6 +687,7 @@ function createMetricDraftRow(
   attachFor();
   select.addEventListener("change", attachFor);
   input.addEventListener("keydown", (e) => {
+// noinspection JSDeprecatedSymbols
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
     if (e.isComposing || e.keyCode === 229) return;
     if (e.defaultPrevented && e.key !== "Escape") return;
@@ -774,6 +777,7 @@ function createSummaryDraftRow(
   };
 
   keyInput.addEventListener("keydown", (e) => {
+// noinspection JSDeprecatedSymbols
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Escape") {
@@ -788,6 +792,7 @@ function createSummaryDraftRow(
     }
   });
   valInput.addEventListener("keydown", (e) => {
+// noinspection JSDeprecatedSymbols
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Escape") {

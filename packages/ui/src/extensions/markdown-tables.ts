@@ -245,6 +245,7 @@ class MarkdownTableWidget extends WidgetType {
       input.addEventListener("click", (e) => e.stopPropagation());
       input.addEventListener("keydown", (e) => {
         e.stopPropagation();
+        // noinspection JSDeprecatedSymbols
         // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
         if (e.isComposing || e.keyCode === 229) return;
         if (e.key === "Tab") {

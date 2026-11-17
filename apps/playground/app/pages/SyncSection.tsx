@@ -77,7 +77,7 @@ function progressLabel(event: FeedSyncProgress): string {
  *  /settings/sync and the /notebooks manager drawer. Identity (origin, counts,
  *  size, versions, last check/sync, subscription) comes from readFeedStatus;
  *  lifecycle actions ride the shared feed service contract. */
-function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscribe, onDelete, onAutoSync, onToggleNotebook: _onToggleNotebook, subscribedOnly }: {
+function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscribe, onDelete, onAutoSync, onToggleNotebook: _onToggleNotebook, subscribedOnly: _subscribedOnly }: {
   source: FeedSourceStatus
   /** This source's sync is the one in flight — spin its button. */
   running: boolean
@@ -97,9 +97,6 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
   const allNotebooks = source.notebooks.filter(notebook => notebook.id !== source.id)
   const subMode = getFeedSubscriptionMode(source.id)
   const subscribedCount = allNotebooks.filter(notebook => notebook.subscribed).length
-  const _notebooks = subscribedOnly
-    ? allNotebooks.filter(notebook => notebook.subscribed)
-    : allNotebooks
   const core = source.autoImport
   // Primary Sync ONLY while a subscribed source has a detected update; a
   // current source shows status text instead of a redundant button.

@@ -33,7 +33,6 @@ export function buildCanvasRoutes(files: SeedContentFiles): CanvasRoute[] {
       // corpus-derived. Keeping one route owner also removes the corpus gate
       // from the home route.
       if (page && page.route !== ROUTE_PATTERNS.home) canvas.push({ route: page.route, page })
-      continue
     }
   }
   return canvas

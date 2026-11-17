@@ -402,7 +402,7 @@ function evaluateCalc(src: string, scope: string, sessionRpe: number | undefined
       const mean = (x: number[]) => x.reduce((a, b) => a + b, 0) / x.length;
       const sd = (x: number[]) => { const m = mean(x); return Math.sqrt(mean(x.map(v => (v - m) ** 2))); };
       const name = calc.name;
-      let series: number[] = [];
+      let series: number[];
       if (name.includes('acwr')) { const a7 = w(daily, 7, mean), a28 = w(daily, 28, mean); series = daily.map((_, i) => a7[i] / a28[i]); }
       else if (name.includes('monotony')) { const a7 = w(daily, 7, mean), s7 = w(daily, 7, sd); series = daily.map((_, i) => a7[i] / s7[i]); }
       else if (name.includes('strain')) { const a7 = w(daily, 7, mean), s7 = w(daily, 7, sd), sum7 = w(daily, 7, x => x.reduce((a, b) => a + b, 0)); series = daily.map((_, i) => (a7[i] / s7[i]) * sum7[i]); }

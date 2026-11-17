@@ -51,7 +51,7 @@ if (certFiles.length > 0 && keyFiles.length > 0) {
     console.log(`\n🚀 WOD Wiki Relay started at ws://0.0.0.0:${PORT}/ws (Insecure)`);
 }
 
-wss.on('connection', (ws, req) => {
+wss.on('connection', (ws) => {
   let deviceId: string | null = null;
 
   ws.on('message', (data) => {

@@ -237,7 +237,9 @@ async function main(): Promise<void> {
     const attachment = replayed.map((op) => op.mutation).find((m) => m.op === 'put' && m.store === 'attachments');
     assert.ok(attachment && attachment.op === 'put');
     const copiedAttachment = attachment.value;
-    assert.ok(copiedAttachment !== null && typeof copiedAttachment === 'object' && 'data' in copiedAttachment && copiedAttachment.data instanceof ArrayBuffer);
+    if (copiedAttachment === null || typeof copiedAttachment !== 'object' || !('data' in copiedAttachment) || !(copiedAttachment.data instanceof ArrayBuffer)) {
+      assert.fail('expected binary attachment');
+    }
     assert.deepEqual(new Uint8Array(copiedAttachment.data), new Uint8Array([0, 255, 1, 254, 128, 7]), 'binary fidelity');
     await copyDb.close();
     // tampered copy refused
@@ -308,7 +310,9 @@ async function main(): Promise<void> {
       const attachment = replayed.map((op) => op.mutation).find((m) => m.op === 'put' && m.store === 'attachments');
       assert.ok(attachment && attachment.op === 'put');
       const migratedAttachment = attachment.value;
-      assert.ok(migratedAttachment !== null && typeof migratedAttachment === 'object' && 'data' in migratedAttachment && migratedAttachment.data instanceof ArrayBuffer);
+      if (migratedAttachment === null || typeof migratedAttachment !== 'object' || !('data' in migratedAttachment) || !(migratedAttachment.data instanceof ArrayBuffer)) {
+        assert.fail('expected binary attachment');
+      }
       assert.deepEqual(new Uint8Array(migratedAttachment.data), new Uint8Array([0, 255, 1, 254, 128, 7]));
       await targetDb.close();
       const sourceAfter = await databaseFingerprint(await openDb(dbs.get('old-live')!.file));
