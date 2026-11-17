@@ -67,6 +67,7 @@ export interface IEventBus {
      * Dispatch an event and return the resulting actions without executing them.
      * Used internally when actions need special handling.
      *
+     * @param event - The event to dispatch.
      * @param runtime - The runtime context. Typed as the
      * {@link IEventDispatchContext} primitive so the implementation can rely
      * on `stack` (for scope filtering) and `errors` (for early-exit) without

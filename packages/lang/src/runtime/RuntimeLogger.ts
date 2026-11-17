@@ -68,7 +68,7 @@ class RuntimeLoggerImpl {
     private readonly _console = console;
     private _enabled = false;
     private _history: RuntimeLogEntry[] = [];
-    private _maxHistory = 500;
+    private readonly _maxHistory = 500;
 
     private readonly EVENT_STYLES: Record<EventCode, string> = {
         BOOT: 'color: #3b82f6; font-weight: bold',  // primary

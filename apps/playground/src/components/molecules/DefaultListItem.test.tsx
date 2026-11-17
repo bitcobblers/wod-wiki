@@ -17,7 +17,7 @@ describe('DefaultListItem', () => {
     executeAction: () => {},
   };
 
-  const mockItem: IListItem<unknown> = {
+  const mockItem: IListItem = {
     id: 'test-item',
     label: 'Test Item',
     payload: null,
@@ -43,7 +43,7 @@ describe('DefaultListItem', () => {
     });
 
     it('renders item icon when provided', () => {
-      const itemWithIcon: IListItem<unknown> = {
+      const itemWithIcon: IListItem = {
         ...mockItem,
         icon: <span data-testid="test-icon">📁</span>,
       };
@@ -56,7 +56,7 @@ describe('DefaultListItem', () => {
     });
 
     it('renders subtitle when provided', () => {
-      const itemWithSubtitle: IListItem<unknown> = {
+      const itemWithSubtitle: IListItem = {
         ...mockItem,
         subtitle: 'This is a subtitle',
       };
@@ -69,7 +69,7 @@ describe('DefaultListItem', () => {
 
   describe('Badge rendering', () => {
     it('renders badge when provided', () => {
-      const itemWithBadge: IListItem<unknown> = {
+      const itemWithBadge: IListItem = {
         ...mockItem,
         badge: '5',
       };
@@ -80,7 +80,7 @@ describe('DefaultListItem', () => {
     });
 
     it('applies correct badge styling', () => {
-      const itemWithBadge: IListItem<unknown> = {
+      const itemWithBadge: IListItem = {
         ...mockItem,
         badge: 'New',
       };
@@ -291,7 +291,7 @@ describe('DefaultListItem', () => {
 
   describe('Disabled state', () => {
     it('applies disabled styling when item is disabled', () => {
-      const disabledItem: IListItem<unknown> = {
+      const disabledItem: IListItem = {
         ...mockItem,
         isDisabled: true,
       };
@@ -314,7 +314,7 @@ describe('DefaultListItem', () => {
         },
       };
 
-      const disabledItem: IListItem<unknown> = {
+      const disabledItem: IListItem = {
         ...mockItem,
         isDisabled: true,
       };
@@ -362,7 +362,7 @@ describe('DefaultListItem', () => {
 
   describe('Depth indentation', () => {
     it('applies correct padding for depth 1', () => {
-      const itemWithDepth: IListItem<unknown> = {
+      const itemWithDepth: IListItem = {
         ...mockItem,
         depth: 1,
       };
@@ -376,7 +376,7 @@ describe('DefaultListItem', () => {
     });
 
     it('applies correct padding for depth 2', () => {
-      const itemWithDepth: IListItem<unknown> = {
+      const itemWithDepth: IListItem = {
         ...mockItem,
         depth: 2,
       };
@@ -390,7 +390,7 @@ describe('DefaultListItem', () => {
     });
 
     it('caps padding at pl-16 for deep nesting', () => {
-      const itemWithDeepDepth: IListItem<unknown> = {
+      const itemWithDeepDepth: IListItem = {
         ...mockItem,
         depth: 10,
       };
@@ -415,7 +415,7 @@ describe('DefaultListItem', () => {
 
   describe('Shortcut rendering', () => {
     it('renders ShortcutBadge when shortcut is provided', () => {
-      const itemWithShortcut: IListItem<unknown> = {
+      const itemWithShortcut: IListItem = {
         ...mockItem,
         shortcut: ['⌘', 'K'],
       };
@@ -430,7 +430,7 @@ describe('DefaultListItem', () => {
     });
 
     it('does not render ShortcutBadge when shortcut is empty', () => {
-      const itemWithEmptyShortcut: IListItem<unknown> = {
+      const itemWithEmptyShortcut: IListItem = {
         ...mockItem,
         shortcut: [],
       };
@@ -477,7 +477,7 @@ describe('DefaultListItem', () => {
 
   describe('Edge cases', () => {
     it('handles item with only label', () => {
-      const minimalItem: IListItem<unknown> = {
+      const minimalItem: IListItem = {
         id: 'minimal',
         label: 'Minimal Item',
         payload: null,

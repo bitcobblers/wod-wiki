@@ -133,7 +133,7 @@ export class InMemoryStore<T> implements IReadWriteStore<T> {
 }
 
 export class InMemoryStorage implements IStorage {
-  private stores = new Map<StoreName, Rows>();
+  private readonly stores = new Map<StoreName, Rows>();
   private chain: Promise<unknown> = Promise.resolve();
   constructor(private readonly options: { getUserId?: () => string } = {}) {}
 

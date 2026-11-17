@@ -24,7 +24,7 @@ function normalizeSlug(label: string): string {
 }
 
 export class EffortResolver implements IEffortResolver {
-  private options: Required<EffortResolverOptions>;
+  private readonly options: Required<EffortResolverOptions>;
 
   constructor(
     private readonly registry: IEffortRegistry,

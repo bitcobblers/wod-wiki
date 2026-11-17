@@ -29,7 +29,7 @@ class StaticPromoterBlock {
     readonly context: any = {};
     readonly behaviors: readonly any[] = [];
     readonly isComplete = false;
-    private _memory: MemoryLocation[] = [];
+    private readonly _memory: MemoryLocation[] = [];
 
     constructor(memory: MemoryLocation[]) {
         this._memory = memory;
@@ -72,7 +72,7 @@ class DynamicPromoterBlock {
     readonly context: any = {};
     readonly isComplete = false;
     readonly behaviors: readonly any[];
-    private _memory: MemoryLocation[] = [];
+    private readonly _memory: MemoryLocation[] = [];
 
     constructor() {
         this.behaviors = [new DynamicPromoterBehavior()];

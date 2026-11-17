@@ -87,7 +87,9 @@ function parseTails(
 }
 /**
  * Parse one `- …` expectation line.
- * @param where file name + line for diagnostics.
+ * @param line raw `- …` expectation line.
+ * @param file fixture file path for diagnostics.
+ * @param lineNo 1-based line number for diagnostics.
  */
 export function parseMetricLine(
   line: string,

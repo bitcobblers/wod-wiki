@@ -28,7 +28,7 @@ export async function removeSeedSourceContent(
   storage: IStorage,
   meta: SeedMetaRecord,
 ): Promise<number> {
-  return await storage.transaction(
+  return storage.transaction(
     [
       'notes',
       'attachments',

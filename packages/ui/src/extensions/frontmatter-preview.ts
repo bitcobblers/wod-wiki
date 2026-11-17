@@ -79,7 +79,7 @@ export const frontmatterReferenceIndex = Facet.define<
  * to rebuild so chips/diagnostics reflect the new catalog without waiting
  * for an unrelated doc/selection change.
  */
-export const referenceIndexReload = StateEffect.define<null>();
+export const referenceIndexReload = StateEffect.define();
 
 /** Kind of definition document the frontmatter declares, if any. */
 type DefinitionKind = 'effort' | 'equipment' | null;
@@ -957,7 +957,7 @@ function createFrontmatterSummary(
   summary.className = "divide-y divide-border/60";
 
   const groups = [
-    { label: "Tags", entries: entries.filter(([key]) => TAG_CATEGORY_SUMMARY_KEYS[key.trim().toLowerCase()] === true), hash: true },
+    { label: "Tags", entries: entries.filter(([key]) => TAG_CATEGORY_SUMMARY_KEYS[key.trim().toLowerCase()]), hash: true },
     { label: "Aliases", entries: entries.filter(([key]) => isAliasProperty(key)), hash: false },
   ];
   for (const group of groups) {
@@ -981,7 +981,7 @@ function createFrontmatterSummary(
     summary.appendChild(row);
   }
 
-  const hidden = entries.filter(([key]) => TAG_CATEGORY_SUMMARY_KEYS[key.trim().toLowerCase()] !== true && !isAliasProperty(key));
+  const hidden = entries.filter(([key]) => !TAG_CATEGORY_SUMMARY_KEYS[key.trim().toLowerCase()] && !isAliasProperty(key));
   const metricCount = hidden.filter(([key]) => {
     const k = key.trim().toLowerCase();
     return k.startsWith("metrics.") || k === "metrics";
@@ -2110,14 +2110,14 @@ const frontmatterDetailSync = EditorView.updateListener.of((update) => {
       persistedDetailed.set(update.view.dom, current);
     } else if (persistedDetailed.get(update.view.dom) === true && !current) {
       queueMicrotask(() => {
-        if (update.view.state.field(frontmatterDetailed) === false) {
+        if (!update.view.state.field(frontmatterDetailed)) {
           update.view.dispatch({ effects: setFrontmatterDetailed.of(true) });
         }
       });
     }
   } else if (persistedDetailed.get(update.view.dom) === true && !current) {
     queueMicrotask(() => {
-      if (update.view.state.field(frontmatterDetailed) === false) {
+      if (!update.view.state.field(frontmatterDetailed)) {
         update.view.dispatch({ effects: setFrontmatterDetailed.of(true) });
       }
     });

@@ -55,7 +55,7 @@ function parserValidValue(type: string, value: string): boolean {
   if (type === 'groupby') {
     if (!/^[a-zA-Z][\w-]*$/.test(v)) return false;
     const probe = parseQuery(`sum:tis{} by {${v}}`);
-    return !probe.error && probe.family === 'aggregate' && probe.groupBy?.includes(v) === true;
+    return !probe.error && probe.family === 'aggregate' && (probe.groupBy?.includes(v));
   }
   return true;
 }

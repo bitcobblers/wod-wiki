@@ -26,9 +26,9 @@ export interface PathIndexingOptions {
 }
 
 export class ExercisePathIndexer {
-  private exerciseData: Map<string, { name: string; path: string; searchTerms: string[] }> = new Map();
+  private readonly exerciseData: Map<string, { name: string; path: string; searchTerms: string[] }> = new Map();
 
-  constructor(private options: PathIndexingOptions = {}) {}
+  constructor(private readonly options: PathIndexingOptions = {}) {}
 
   /**
    * Add an exercise to the indexer

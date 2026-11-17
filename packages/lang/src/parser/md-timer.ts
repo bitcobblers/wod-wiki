@@ -25,6 +25,7 @@ export class MdTimerRuntime {
    * Parse WhiteboardScript source into a {@link WhiteboardScript}, running the
    * Dialect Stack on every statement.
    *
+   * @param inputText - Raw WhiteboardScript source text.
    * @param sport - The block's `:sport` fence suffix (` ```log:climbing `).
    */
   read(inputText: string, sport?: string): WhiteboardScript {

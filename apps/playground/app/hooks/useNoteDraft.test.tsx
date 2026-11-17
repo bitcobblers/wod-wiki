@@ -1,4 +1,3 @@
-import React from 'react';
 import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import { act, renderHook } from '@testing-library/react';
 import type { HistoryRecord } from '@/types/history';

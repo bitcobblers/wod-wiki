@@ -59,7 +59,7 @@ export interface CountdownTimerConfig {
 export class CountdownTimerBehavior implements IRuntimeBehavior {
     constructor(public readonly config: CountdownTimerConfig) { }
 
-    private subscriptions: Unsubscribe[] = [];
+    private readonly subscriptions: Unsubscribe[] = [];
     private isPaused = false;
 
     onMount(ctx: IBehaviorContext): IRuntimeAction[] {

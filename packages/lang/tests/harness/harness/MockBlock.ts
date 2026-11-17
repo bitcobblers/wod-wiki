@@ -109,9 +109,9 @@ class MockBehaviorContext implements IBehaviorContext {
   readonly block: IRuntimeBlock;
   clock: IRuntimeClock;
   readonly stackLevel: number;
-  private _mockBlock: MockBlock;
+  private readonly _mockBlock: MockBlock;
   private _unsubscribers: Array<() => void> = [];
-  private _capabilities: Set<string> = new Set();
+  private readonly _capabilities: Set<string> = new Set();
 
   readonly recordings: BehaviorContextRecordings;
 
@@ -336,7 +336,7 @@ export class MockBlock implements IRuntimeBlock {
 
   private _runtime?: IScriptRuntime;
   private _behaviorContext?: MockBehaviorContext;
-  private _recordings: BehaviorContextRecordings = {
+  private readonly _recordings: BehaviorContextRecordings = {
     pushMemory: [],
     updateMemory: [],
     subscribe: [],
@@ -566,7 +566,7 @@ export class MockBlock implements IRuntimeBlock {
   // List-Based Memory API
   // ============================================================================
 
-  private _memory: IMemoryLocation[] = [];
+  private readonly _memory: IMemoryLocation[] = [];
 
   /**
    * Push a new memory location onto the block's memory list.

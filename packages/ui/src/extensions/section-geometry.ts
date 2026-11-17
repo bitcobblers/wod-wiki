@@ -16,11 +16,11 @@ export type GeometryListener = (rects: SectionRect[], docVersion: number) => voi
 class SectionGeometryPlugin {
   rects: SectionRect[] = [];
   docVersion: number = 0;
-  private listeners: Set<GeometryListener> = new Set();
+  private readonly listeners: Set<GeometryListener> = new Set();
   private pendingNotify: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
-  constructor(private view: EditorView) {
+  constructor(private readonly view: EditorView) {
     this.measure();
     if (typeof ResizeObserver !== "undefined" && this.view.contentDOM) {
       this.resizeObserver = new ResizeObserver(() => {

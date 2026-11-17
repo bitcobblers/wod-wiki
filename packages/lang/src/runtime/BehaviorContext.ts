@@ -54,13 +54,13 @@ export class BehaviorContext implements IBehaviorContext {
      * the shared Set so all contexts for the same block observe the same
      * capabilities.
      */
-    private _capabilities: Set<string>;
+    private readonly _capabilities: Set<string>;
 
     constructor(
         readonly block: IRuntimeBlock,
         readonly clock: IRuntimeClock,
         readonly stackLevel: number,
-        private runtime: IRuntimeContext,
+        private readonly runtime: IRuntimeContext,
         sharedCapabilities?: Set<string>
     ) {
         this._capabilities = sharedCapabilities ?? new Set<string>();

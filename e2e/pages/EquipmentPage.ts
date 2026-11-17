@@ -131,7 +131,7 @@ export class EquipmentPage {
   /** Click the Equipment L1 destination in the app rail (desktop) or the
    *  mobile navigation drawer. */
   async clickEquipmentNav() {
-    const mobile = (await this.page.viewportSize())?.width === 375;
+    const mobile = this.page.viewportSize()?.width === 375;
     if (mobile) {
       await this.page.getByRole('button', { name: 'Open navigation' }).click();
     }

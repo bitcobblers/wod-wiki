@@ -1,7 +1,6 @@
 import { describe, it, expect, vi} from 'vitest';
 import { RuntimeStack } from '../../src/runtime/RuntimeStack';
 import { IRuntimeBlock } from '../../src/runtime/contracts/IRuntimeBlock';
-import { StackEvent } from '../../src/runtime/contracts/IRuntimeStack';
 
 describe('RuntimeStack', () => {
     const createMockBlock = (id: string): IRuntimeBlock => ({

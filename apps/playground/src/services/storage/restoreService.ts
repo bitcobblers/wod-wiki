@@ -151,7 +151,7 @@ function credentialFreeUrl(url: unknown): url is string {
 function safeContentSources(): { key: string; value: unknown }[] {
   const out: { key: string; value: unknown }[] = [];
   for (const key of SAFE_CONTENT_KEYS) {
-    let raw: string | null = null;
+    let raw: string | null;
     try {
       raw = localStorage.getItem(key);
     } catch {

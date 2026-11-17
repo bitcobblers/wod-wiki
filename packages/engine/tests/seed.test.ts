@@ -3,8 +3,6 @@ import {
   SEED_SCHEMA,
   assertSeedManifest,
   assertNotebookIndex,
-  assertSeedRows,
-  assertSeedRow,
   type SeedManifest,
   type NotebookIndex,
   type NotebookIndexSummary,

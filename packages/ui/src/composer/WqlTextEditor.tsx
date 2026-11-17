@@ -224,15 +224,23 @@ export function wqlEditorKeymap(onSubmit: () => void, onEscape: () => boolean, o
     { key: 'PageDown', run: view => completionStatus(view.state) === 'active' ? moveCompletionSelection(true, 'page')(view) : cursorPageDown(view) },
     {
       key: 'Home',
-      run: view => completionStatus(view.state) === 'active'
-        ? (view.dispatch({ effects: setSelectedCompletion(0) }), true)
-        : cursorDocStart(view),
+      run: view => {
+        if (completionStatus(view.state) === 'active') {
+          view.dispatch({ effects: setSelectedCompletion(0) });
+          return true;
+        }
+        return cursorDocStart(view);
+      },
     },
     {
       key: 'End',
-      run: view => completionStatus(view.state) === 'active'
-        ? (view.dispatch({ effects: setSelectedCompletion(currentCompletions(view.state).length - 1) }), true)
-        : cursorDocEnd(view),
+      run: view => {
+        if (completionStatus(view.state) === 'active') {
+          view.dispatch({ effects: setSelectedCompletion(currentCompletions(view.state).length - 1) });
+          return true;
+        }
+        return cursorDocEnd(view);
+      },
     },
     {
       key: 'Tab',
@@ -262,7 +270,14 @@ export function wqlEditorKeymap(onSubmit: () => void, onEscape: () => boolean, o
     },
     // First Escape closes the popup; the second blurs back to the host
     // (onEscape) or the editor itself — never two levels at once.
-    { key: 'Escape', run: view => view.compositionStarted || (closeCompletion(view) || onEscape() || (view.contentDOM.blur(), true)) },
+    {
+      key: 'Escape',
+      run: view => {
+        if (view.compositionStarted || closeCompletion(view) || onEscape()) return true;
+        view.contentDOM.blur();
+        return true;
+      },
+    },
     ...historyKeymap,
   ];
 }

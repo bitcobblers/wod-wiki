@@ -51,20 +51,28 @@ const typedParserOptions = isTypedLint
 
 const typedRules = isTypedLint
   ? {
-      // Async & Promise safety (Qodana: ES6MissingAwait, JSIgnoredPromiseFromCall, ES6RedundantAwait)
-      '@typescript-eslint/no-floating-promises': ['warn', { ignoreVoid: true }],
+      // Async & Promise safety — enforced as 'error' across packages, API, E2E, and scripts
+      // (softened to 'warn' for Playground & Storybook UI debt below).
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        {
+          ignoreVoid: true,
+          allowForKnownSafeCalls: [
+            { from: 'package', name: ['describe', 'it', 'suite', 'test'], package: 'node:test' },
+          ],
+        },
+      ],
       '@typescript-eslint/no-misused-promises': [
-        'warn',
+        'error',
         { checksVoidReturn: { attributes: false } },
       ],
-      '@typescript-eslint/await-thenable': 'warn',
+      '@typescript-eslint/await-thenable': 'error',
       'no-return-await': 'off',
-      '@typescript-eslint/return-await': ['warn', 'in-try-catch'],
-      // TypeScript hygiene & deprecated APIs (Qodana: TypeScriptFieldCanBeMadeReadonly,
-      // TypeScriptRedundantGenericType, PointlessBooleanExpressionJS, JSDeprecatedSymbols)
-      '@typescript-eslint/prefer-readonly': 'warn',
-      '@typescript-eslint/no-unnecessary-type-arguments': 'warn',
-      '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'warn',
+      '@typescript-eslint/return-await': ['error', 'in-try-catch'],
+      // TypeScript hygiene & deprecated APIs
+      '@typescript-eslint/prefer-readonly': 'error',
+      '@typescript-eslint/no-unnecessary-type-arguments': 'error',
+      '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'error',
       '@typescript-eslint/no-deprecated': 'warn',
     }
   : {};
@@ -108,7 +116,7 @@ module.exports = [
       ...js.configs.recommended.rules,
       ...tsPlugin.configs.recommended.rules,
       '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-require-imports': 'off',
       'no-undef': 'off', // TypeScript owns undefined-name checking; eslint no-undef false-positives on ambient types
       'no-redeclare': 'off', // TypeScript function overloads false-positive on core no-redeclare
@@ -119,27 +127,24 @@ module.exports = [
       '@typescript-eslint/ban-ts-comment': 'off',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
-      // console.warn/error are the sanctioned diagnostic channels (no logger
-      // utility exists in this repo); console.log/info/debug stay flagged so
-      // stray debugging output is caught.
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      // console.warn/error are the sanctioned diagnostic channels in library code;
+      // console.log/info/debug are disallowed in production package sources.
+      'no-console': ['error', { allow: ['warn', 'error'] }],
       'no-debugger': 'error',
       'no-fallthrough': 'warn',
       'no-constant-condition': 'warn',
-      'no-useless-escape': 'warn',
-      // Dead assignments, control-flow & comma expressions (Qodana: JSUnusedAssignment,
-      // CommaExpressionJS, LoopStatementThatDoesntLoopJS, TypeScriptAbstractClassConstructorCanBeMadeProtected)
-      'no-useless-assignment': 'warn',
-      'no-sequences': ['warn', { allowInParentheses: false }],
-      'no-unreachable-loop': 'warn',
-      'wod-wiki/protected-abstract-constructor': 'warn',
-      // RegExp hygiene (Qodana: RegExpUnnecessaryNonCapturingGroup, RegExpSingleCharAlternation,
-      // RegExpRedundantClassElement)
-      'regexp/no-useless-non-capturing-group': 'warn',
-      'regexp/prefer-character-class': 'warn',
-      'regexp/no-dupe-characters-character-class': 'warn',
-      // JSDoc signature parity (Qodana: JSCommentMatchesSignature)
-      'jsdoc/check-param-names': ['warn', { checkDestructured: false }],
+      'no-useless-escape': 'error',
+      // Dead assignments, control-flow & comma expressions
+      'no-useless-assignment': 'error',
+      'no-sequences': ['error', { allowInParentheses: false }],
+      'no-unreachable-loop': 'error',
+      'wod-wiki/protected-abstract-constructor': 'error',
+      // RegExp hygiene
+      'regexp/no-useless-non-capturing-group': 'error',
+      'regexp/prefer-character-class': 'error',
+      'regexp/no-dupe-characters-character-class': 'error',
+      // JSDoc signature parity
+      'jsdoc/check-param-names': ['error', { checkDestructured: false }],
       'no-restricted-syntax': [
         'error',
         {
@@ -151,8 +156,33 @@ module.exports = [
     },
   },
   {
-    // Playground app carries pre-migration lint debt (never previously gated).
-    // Soften the known-debt rules here; packages/ and apps/storybook stay strict.
+    // Playground & Storybook UI apps carry deferred async/promise effect debt.
+    files: [
+      'apps/playground/src/**/*.ts',
+      'apps/playground/src/**/*.tsx',
+      'apps/playground/app/**/*.ts',
+      'apps/playground/app/**/*.tsx',
+      'apps/storybook/src/**/*.ts',
+      'apps/storybook/src/**/*.tsx',
+      'apps/storybook/test/**/*.ts',
+      'apps/storybook/test/**/*.tsx',
+    ],
+    rules: {
+      ...(isTypedLint
+        ? {
+            '@typescript-eslint/no-floating-promises': ['warn', { ignoreVoid: true }],
+            '@typescript-eslint/no-misused-promises': [
+              'warn',
+              { checksVoidReturn: { attributes: false } },
+            ],
+            '@typescript-eslint/await-thenable': 'warn',
+            '@typescript-eslint/return-await': ['warn', 'in-try-catch'],
+          }
+        : {}),
+    },
+  },
+  {
+    // Playground app carries pre-migration lint debt on architecture/error-cause rules.
     files: [
       'apps/playground/src/**/*.ts',
       'apps/playground/src/**/*.tsx',
@@ -164,7 +194,6 @@ module.exports = [
     rules: {
       'no-restricted-imports': 'warn',
       'no-restricted-syntax': 'warn',
-      'no-useless-assignment': 'warn',
       'preserve-caught-error': 'warn',
       // Playground tsconfig sets strictNullChecks: false, where boolean | undefined
       // collapses to boolean and causes false positives in boolean-literal-compare.
@@ -174,8 +203,8 @@ module.exports = [
     },
   },
   {
-    // CLI tools and repo scripts intentionally write output to stdout via console.log.
-    files: ['packages/tools/tests/**/*.ts', 'apps/api/check.ts', 'scripts/**/*.ts'],
+    // Package test harnesses, CLI check scripts, and repo scripts write to stdout via console.log.
+    files: ['packages/*/tests/**/*.ts', 'apps/api/check.ts', 'scripts/**/*.ts'],
     rules: {
       'no-console': 'off',
     },

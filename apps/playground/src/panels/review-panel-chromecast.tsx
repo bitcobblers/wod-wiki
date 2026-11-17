@@ -42,15 +42,12 @@ interface ProjectionLike {
  */
 export function aggregateProjections(projections: ProjectionLike[]): ProjectionLike[] {
     const grouped = new Map<string, ProjectionLike[]>();
-    const ungrouped: ProjectionLike[] = [];
 
     for (const proj of projections) {
         const type = proj.metricType?.toString().toLowerCase();
         if (type) {
             if (!grouped.has(type)) grouped.set(type, []);
             grouped.get(type)!.push(proj);
-        } else {
-            ungrouped.push(proj);
         }
     }
 

@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from 'bun:test'
 import { isFindQuery, parseQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-wql'
-import { occurrencesForKey, resultIdentityKey, toggleGroupDimension } from '../conditionsFacets'
+import { occurrencesForKey, resultIdentityKey } from '../conditionsFacets'
 
 const findOf = (q: string): ParsedFindQuery => {
   const parsed = parseQuery(q)

@@ -11,7 +11,7 @@
 
 import { useMemo } from 'react'
 import { parseCanvasMarkdown, type ParsedCanvasPage } from './parseCanvasMarkdown'
-import { findRouteWithCandidatesIn, normalizePathname } from './canvasRouteLookup'
+import { findRouteWithCandidatesIn } from './canvasRouteLookup'
 import { ROUTE_PATTERNS } from '../lib/routes'
 import { useSeedContent, type SeedContentFiles } from '@/services/content/seedContent'
 export { getSectionProse } from './parseCanvasMarkdown'

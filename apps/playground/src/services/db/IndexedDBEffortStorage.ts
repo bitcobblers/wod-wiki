@@ -3,7 +3,7 @@ import { storageService, type StorageService } from '@/services/storage';
 import { mergeCustomOverridesIntoList } from './mergeCustomOverrides';
 
 export class IndexedDBEffortStorage implements EffortStorageAdapter {
-  private _db?: StorageService;
+  private readonly _db?: StorageService;
   constructor(db?: StorageService) {
     this._db = db;
   }

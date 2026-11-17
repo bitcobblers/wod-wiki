@@ -96,7 +96,7 @@ export function extractNoteIdentity(markdown: string): NoteIdentity | undefined 
 }
 
 /** True when a scalar is safe to emit bare in a `key: value` frontmatter line. */
-const FRONTMATTER_SAFE = /^[^:#\[\]{}'"*&,!?|>%@`\s][^:#\[\]{}"']*$/;
+const FRONTMATTER_SAFE = /^[^:#[\]{}'"*&,!?|>%@`\s][^:#[\]{}"']*$/;
 
 /**
  * Ensure the leading frontmatter carries `title` + `wod-note-id`. Existing

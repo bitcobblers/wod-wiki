@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { ICodeStatement, IMetric, MetricType, MetricContainer, MetricOrigin } from '@bitcobblers/wod-wiki-core';
+import { expect } from 'vitest';
+import { ICodeStatement, IMetric, MetricType, MetricOrigin } from '@bitcobblers/wod-wiki-core';
 import { CrossFitDialect } from '../../src/dialects/CrossFitDialect';
 import { CardioDialect } from '../../src/dialects/CardioDialect';
 import { YogaDialect } from '../../src/dialects/YogaDialect';
 import { HabitsDialect } from '../../src/dialects/HabitsDialect';
 import { ClimbDialect } from '../../src/dialects/ClimbDialect';
-import { DialectStack, createDialectStack } from '../../src/dialects/DialectStack';
+import { DialectStack } from '../../src/dialects/DialectStack';
 import { parseScript } from '../../src/parser/parseScript';
 import { getHints, hasHint } from '../../src/metrics/hints';
 

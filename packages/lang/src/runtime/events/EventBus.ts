@@ -37,8 +37,8 @@ type CallbackRegistration = {
  * of which block is active. They do not produce actions and cannot affect runtime state.
  */
 export class EventBus implements IEventBus {
-  private handlersByEvent: Map<string, EventHandlerRegistration[]> = new Map();
-  private callbacksByEvent: Map<string, CallbackRegistration[]> = new Map();
+  private readonly handlersByEvent: Map<string, EventHandlerRegistration[]> = new Map();
+  private readonly callbacksByEvent: Map<string, CallbackRegistration[]> = new Map();
 
   register(
     eventName: string,

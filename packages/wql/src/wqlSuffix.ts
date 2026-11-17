@@ -75,12 +75,12 @@ export function splitAtWhere(text: string): { primary: string; where?: string } 
 // ponytail: regex suffix/prefix peel for => @source and @source | ...; upgrade to Lezer AST node when source pipelines support sub-expression branches.
 const STORED_AS_RE = /\s*=>\s*@?([a-zA-Z0-9_-]+)\s*$/;
 const SOURCE_PREFIX_RE = /^@([a-zA-Z0-9_-]+)\s*(?:\||=>)\s*/;
-const IN_SOURCE_RE = /\s+(?:in|from)\s+@([a-zA-Z0-9_-]+)\s*$/i;
+const IN_SOURCE_RE = /\s+(?:in|from)\s+@([a-z0-9_-]+)\s*$/i;
 const DISPLAY_UNIT_RE = /\s+in\s+([a-zA-Z0-9_-]+)\s*$/;
 const ROLLUP_RE = /\.rollup\((\d+)?([a-zA-Z]*)\)\s*$/;
 const BY_RE = /\s+by\s+\{([^}]*)\}\s*$/;
 const LAST_RE = /\s+last\s+(\d+)([dw])\s*$/i;
-const LAST_PARAM_RE = /\s+last\s+\$([a-zA-Z_][\w-]*)(?:\s+([dw]))?\s*$/i;
+const LAST_PARAM_RE = /\s+last\s+\$([a-z_][\w-]*)(?:\s+([dw]))?\s*$/i;
 const FROM_TO_RE = /\s+from\s+(\d{4}-\d{2}-\d{2})(?:\s+to\s+(\d{4}-\d{2}-\d{2}))?\s*$/i;
 /**
  * Extract suffixes from a raw WQL query string.
@@ -108,7 +108,7 @@ export function parseWqlSuffixes(raw: string): ParsedWqlSuffixes {
     text = text.slice(prefixMatch[0].length).trim();
   }
   const isFind = text.startsWith('find:');
-  const isRows = /^rows(?=[:{]|\s|$)/.test(text);
+  const isRows = /^rows(?=[:{\s]|$)/.test(text);
 
   // C3: a suffix kind may appear once. Each peel site strips its kind until
   // exhausted (right-to-left); more than one occurrence becomes a conflict

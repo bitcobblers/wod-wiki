@@ -18,7 +18,7 @@ import { MetricContainer } from '@bitcobblers/wod-wiki-engine';
 import { IDialect } from '@bitcobblers/wod-wiki-engine';
 
 export class DialectRegistry {
-  private dialects: Map<string, IDialect> = new Map();
+  private readonly dialects: Map<string, IDialect> = new Map();
   register(dialect: IDialect): void {
     this.dialects.set(dialect.id, dialect);
   }

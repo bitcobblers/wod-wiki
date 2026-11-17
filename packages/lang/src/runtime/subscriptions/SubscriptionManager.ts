@@ -18,7 +18,7 @@ import { Unsubscribe } from '../contracts/IRuntimeStack';
  * then iterates over all registered subscriptions for each event.
  */
 export class SubscriptionManager {
-    private subscriptions = new Map<string, IRuntimeSubscription>();
+    private readonly subscriptions = new Map<string, IRuntimeSubscription>();
     private stackUnsub: Unsubscribe | null = null;
     private outputUnsub: Unsubscribe | null = null;
     private disposed = false;

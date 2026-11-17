@@ -600,7 +600,7 @@ function parsePropertyMetricRule(
     const amount = Number(qtyMatch[1]);
     const unitStr = qtyMatch[2];
     const knownUnit = getUnit(unitStr);
-    if (!Number.isNaN(amount) && (knownUnit || /^(kg|lb|m|km|mi|s|min|h|ms|reps|cal|bpm|W|pts|AU|%)$/i.test(unitStr))) {
+    if (!Number.isNaN(amount) && (knownUnit || /^(kg|lb|[mshW%]|km|mi|min|ms|reps|cal|bpm|pts|AU)$/i.test(unitStr))) {
       return {
         kind: 'static',
         key: normalizedKey,
@@ -739,7 +739,7 @@ function hasStatementOwnedMetric(container: MetricContainer, key: string): boole
   return container.rawMetrics.some(
     (m) =>
       (m.type === targetType || m.type === key || m.name === key) &&
-      STATEMENT_OWNED_ORIGINS[m.origin] === true,
+      STATEMENT_OWNED_ORIGINS[m.origin],
   );
 }
 

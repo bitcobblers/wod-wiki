@@ -603,7 +603,7 @@ function owningFeed(claims: FeedClaim[], note: Note): FeedClaim {
  * Returns the number of notes stamped.
  */
 export async function backfillFeedProvenance(storage: IStorage): Promise<number> {
-  return await storage.transaction(['meta', 'notes', 'block_index'], 'readwrite', async (tx) => {
+  return storage.transaction(['meta', 'notes', 'block_index'], 'readwrite', async (tx) => {
     const metaStore = tx.readwrite('meta');
     const claims = new Map<string, FeedClaim[]>();
     for (const row of await metaStore.getAll()) {
@@ -667,7 +667,7 @@ export async function backfillFeedProvenance(storage: IStorage): Promise<number>
  * is proven. Returns the number of rows rewritten.
  */
 export async function migrateNotebookVocabulary(storage: IStorage): Promise<number> {
-  return await storage.transaction(['meta', 'notes', 'block_index', 'block_efforts', 'block_equipment'], 'readwrite', async (tx) => {
+  return storage.transaction(['meta', 'notes', 'block_index', 'block_efforts', 'block_equipment'], 'readwrite', async (tx) => {
     let migrated = 0;
     // 1. Checkpoint chunk keys — the membership proof itself migrates.
     const metaStore = tx.readwrite('meta');

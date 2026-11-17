@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { afterEach, expect } from 'vitest';
+import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
 if (typeof window !== 'undefined') {

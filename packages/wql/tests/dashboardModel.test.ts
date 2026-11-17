@@ -10,7 +10,6 @@ import {
   referencedTokens,
   setDashboardTokenValue,
   substituteTokens,
-  type DashboardSectionInput,
 } from '../src/dashboard/model';
 
 describe('parseQueryWidgetSuffix', () => {

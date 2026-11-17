@@ -103,6 +103,6 @@ test.describe('RUN-02 — read-only Feed intake & provenance run', () => {
     expect(await getNoteContentByRouteId(page, upstreamId), 'upstream content untouched by the run').toBe(imported);
     await app.editor.openNote(upstreamId);
     await expect(page.locator('.cm-content')).toContainText('0:03 AMRAP', { timeout: 15_000 });
-    await app.assertCleanConsole();
+    app.assertCleanConsole();
   });
 });

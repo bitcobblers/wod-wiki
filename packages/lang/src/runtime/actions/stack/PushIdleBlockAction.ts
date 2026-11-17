@@ -11,20 +11,20 @@ import { PushBlockAction } from './PushBlockAction';
  * behaviors instead of the monolithic IdleBehavior.
  */
 export class PushIdleBlockAction implements IRuntimeAction {
-    private _type = 'push-idle-block';
+    private readonly _type = 'push-idle-block';
     // Direct-build: IdleBlockStrategy is invoked by class here, not via JitCompiler.compile()
-    private strategy = new IdleBlockStrategy();
+    private readonly strategy = new IdleBlockStrategy();
 
     constructor(
-        private id: string,
-        private label: string,
-        private config: {
+        private readonly id: string,
+        private readonly label: string,
+        private readonly config: {
             popOnNext?: boolean;
             popOnEvents?: string[];
             buttonLabel?: string;
             buttonAction?: string;
         },
-        private options?: BlockLifecycleOptions
+        private readonly options?: BlockLifecycleOptions
     ) { }
 
     get type(): string {

@@ -7,7 +7,6 @@ import { queryService } from '@/services/queryService';
 import * as sampleModule from '@/services/analytics/sample';
 import { dashboardNotes } from '../../services/dashboardNotes';
 import { journalNotes } from '../../services/journalNotes';
-import { storageService } from '@/services/storage';
 
 function resultOf(raw: string): QueryResult {
   return {

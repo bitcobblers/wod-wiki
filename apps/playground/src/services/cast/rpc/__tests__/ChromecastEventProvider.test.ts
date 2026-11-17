@@ -9,7 +9,7 @@ import { IEvent } from '@bitcobblers/wod-wiki-engine';
 class MockTransport implements IRpcTransport {
     connected = true;
     sent: RpcMessage[] = [];
-    private messageHandlers = new Set<(msg: RpcMessage) => void>();
+    private readonly messageHandlers = new Set<(msg: RpcMessage) => void>();
 
     send(message: RpcMessage): void {
         this.sent.push(message);

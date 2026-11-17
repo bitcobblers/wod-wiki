@@ -98,7 +98,7 @@ const FN_NAMES = Object.keys(FN_DIMS).concat(['has', 'lookup']);
 interface Tok { t: string; s: string; }
 function tokenize(src: string): Tok[] {
   const toks: Tok[] = [];
-  const re = /\s*("(?:[^"]*)"|\d+\.?\d*|[a-zA-Z_][\w.-]*(?::[\w.:*!|,-]+(?:\{[^}]*\})?(?:\s+by\s+\{[^}]*\})?)?|[-+*/(),<>!=]=?|>=|<=|==)/y;
+  const re = /\s*("[^"]*"|\d+\.?\d*|[a-zA-Z_][\w.-]*(?::[\w.:*!|,-]+(?:\{[^}]*\})?(?:\s+by\s+\{[^}]*\})?)?|[-+*/(),<>!=]=?|>=|<=|==)/y;
   let m; let last = 0;
   while (last < src.length) {
     re.lastIndex = last;
@@ -551,6 +551,7 @@ function TextVariant({ scope }: { scope: string }) {
     </div>
   );
 }
+void TextVariant;
 
 // ── Variant B: token slots ───────────────────────────────────────────────────
 function SlotsVariant({ scope, onSrc }: { scope: string; onSrc: (s: string) => void }) {

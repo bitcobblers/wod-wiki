@@ -25,7 +25,6 @@ import { entryOpenHref } from '../lib/entryActions'
 import { wqlStreamHref } from '../lib/wqlLink'
 import { withAffiliateTag } from '@/lib/affiliateLink'
 import { toEntry, blockToEntry } from '../lib/entryMapper'
-import type { Note } from '@/types/storage'
 import { QueryToDashboardDialog } from '../views/analytics/QueryToDashboardDialog'
 
 // ── File-type helpers ─────────────────────────────────────────────────────────

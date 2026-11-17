@@ -52,6 +52,10 @@ export interface EffortEnrichmentPassOptions {
   propertySources?: readonly PropertyRuleInput[];
 }
 
+// Console is the sanctioned sink for these debug-traced enrichment passes.
+// eslint-disable-next-line no-console
+const logTrace = (message: string): void => console.log(message);
+
 /**
  * Enriches a single compiled block with planned effort metrics.
  *
@@ -67,10 +71,6 @@ export interface EffortEnrichmentPassOptions {
  * @param block The single compiled block to enrich (not a tree root)
  * @param options Resolver and configuration
  */
-// Console is the sanctioned sink for these debug-traced enrichment passes.
-// eslint-disable-next-line no-console
-const logTrace = (message: string): void => console.log(message);
-
 export function applyEffortEnrichment(block: IRuntimeBlock, options: EffortEnrichmentPassOptions): void {
   const { resolver, references, overwrite = false, debug = false, propertySources } = options;
   tryEnrichBlock(block, resolver, references, overwrite, debug, propertySources);

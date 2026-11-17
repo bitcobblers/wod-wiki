@@ -5,12 +5,10 @@ import {
   buildDashboardDocument,
   parseDashboardNote,
   type DashboardDocument,
-  type QueryResult,
 } from '@bitcobblers/wod-wiki-wql';
 import {
   buildSampleWorld,
   generateSampleSessions,
-  round1,
 } from '../../src/sample';
 import { DomainScenarioHarness } from '../harness/DomainScenarioHarness';
 

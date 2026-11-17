@@ -284,9 +284,8 @@ describe('wod CLI database behavior', () => {
     const noteId = /\[wod parse\] note ([0-9a-f-]+)/.exec(parseOut)![1];
 
     const exportFile = join(process.cwd(), 'temp-db-test-export.md');
-    let dlOut = '';
     const dlCode = await cliMain(['download', 'note', noteId, '--db', TEMP_DB_FILE, '-o', exportFile], {
-      stdout: (t) => { dlOut += t; },
+      stdout: () => {},
     });
     expect(dlCode).toBe(0);
 

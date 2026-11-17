@@ -288,7 +288,7 @@ async function suite(dir: string): Promise<void> {
     assert.equal((await call('PUT', '/api/v1/notes', { value: currentNote })).status, 200);
   } finally {
     await client.close();
-    server.stop(true);
+    await server.stop(true);
   }
   const q = (body: unknown) => call('POST', '/api/v1/query', body);
 

@@ -58,7 +58,7 @@ export type { CountdownMode };
 type BehaviorConstructor<T extends IRuntimeBehavior> = new (...args: any[]) => T;
 
 export class BlockBuilder {
-    private behaviors: Map<Function, IRuntimeBehavior> = new Map();
+    private readonly behaviors: Map<Function, IRuntimeBehavior> = new Map();
     private context: IBlockContext | undefined;
     private key: BlockKey | undefined;
     private label: string = "";
@@ -72,7 +72,7 @@ export class BlockBuilder {
     /** Declared exit intent — resolved into a single ExitBehavior in build(). */
     private declaredExitMode: 'immediate' | 'deferred' | undefined;
 
-    constructor(private runtime: IRuntimeContext) {}
+    constructor(private readonly runtime: IRuntimeContext) {}
 
     addBehavior(behavior: IRuntimeBehavior): BlockBuilder {
 

@@ -5,7 +5,6 @@ import { QueryService, type NoteQueryStore, type EventStore } from '../src/Query
 import { parseQuery } from '../src/wql';
 
 const DAY = 86_400_000;
-const WEEK = 7 * DAY;
 const day0 = Math.floor(1_700_000_000_000 / DAY) * DAY;
 const HOUR = 3_600_000;
 

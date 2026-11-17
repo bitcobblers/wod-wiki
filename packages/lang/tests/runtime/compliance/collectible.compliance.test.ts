@@ -10,7 +10,7 @@
  *   🔴 Expected to FAIL (RED) — behaviour is not yet implemented
  */
 import { it, expect } from 'vitest';
-import { describeCompliance, assertions } from '@wod-wiki/lang-harness/script';
+import { describeCompliance } from '@wod-wiki/lang-harness/script';
 import { currentBlockType, anySystemPopHasReason, blockDisplayMetrics } from '@wod-wiki/lang-harness/compliance-helpers';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 

@@ -23,11 +23,11 @@ interface CanvasEditorPanelProps {
 
 export const CanvasEditorPanel: React.FC<CanvasEditorPanelProps> = ({
   variant,
-  panelTitle,
-  panelSubtitle,
+  panelTitle: _panelTitle,
+  panelSubtitle: _panelSubtitle,
   panelContent,
-  panelThemeClass,
-  headerActions,
+  panelThemeClass: _panelThemeClass,
+  headerActions: _headerActions,
   showPanelButtons = false,
   viewDefButtons,
   runState,

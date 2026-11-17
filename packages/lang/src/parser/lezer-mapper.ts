@@ -48,8 +48,11 @@ export function extractStatementsRaw(
  * every statement here, so every parse consumer gets fused units and sport
  * hints uniformly. See `DialectStack.ts`.
  *
- * @param sport - The block's `:sport` fence suffix (` ```log:climbing `).
+ * @param sourceOrTree - WhiteboardScript source text or pre-parsed Lezer tree.
+ * @param sportOrTree - The block's `:sport` fence suffix (` ```log:climbing `) or pre-parsed Lezer tree.
  *   Omitted → the full registry stack runs. See {@link DialectStack.dialectsFor}.
+ * @param sportArg - Optional `:sport` suffix when `sportOrTree` is a `Tree`.
+ * @param references - Optional resolved catalog references for enrichment.
  */
 export function extractStatements(
   sourceOrTree: SourceInput,

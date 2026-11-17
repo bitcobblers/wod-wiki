@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:te
 // React 19 only flushes updates inside act() when the test environment opts
 // in; the historical full-suite run got this from a sibling file's global.
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { useEffect, type ReactNode } from 'react'
 import { parseDocumentSections } from '@bitcobblers/wod-wiki-core'
 

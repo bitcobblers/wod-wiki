@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach , vi} from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AnalyticsEngine } from '../../src/analytics/AnalyticsEngine';
 import { IOutputStatement, OutputStatement } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';

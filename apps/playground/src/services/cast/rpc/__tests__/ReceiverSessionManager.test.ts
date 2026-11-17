@@ -9,9 +9,9 @@ import {
 class MockTransport implements IRpcTransport {
   connected = true;
   sent: RpcMessage[] = [];
-  private messageHandlers = new Set<(m: RpcMessage) => void>();
-  private disconnectedHandlers = new Set<() => void>();
-  private connectedHandlers = new Set<() => void>();
+  private readonly messageHandlers = new Set<(m: RpcMessage) => void>();
+  private readonly disconnectedHandlers = new Set<() => void>();
+  private readonly connectedHandlers = new Set<() => void>();
 
   send(message: RpcMessage): void {
     this.sent.push(message);

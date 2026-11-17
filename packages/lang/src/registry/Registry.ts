@@ -19,7 +19,7 @@
  *           processors already follow.
  */
 export class Registry<T extends { id: string; priority?: number }> {
-  private items = new Map<string, T>();
+  private readonly items = new Map<string, T>();
 
   constructor(defaults: readonly T[] = []) {
     for (const item of defaults) {

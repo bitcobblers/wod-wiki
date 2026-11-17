@@ -11,7 +11,7 @@
  */
 import { it, expect } from 'vitest';
 import { describeCompliance, assertions } from '@wod-wiki/lang-harness/script';
-import { currentBlockType, getRoundState } from '@wod-wiki/lang-harness/compliance-helpers';
+import { getRoundState } from '@wod-wiki/lang-harness/compliance-helpers';
 
 // ===========================================================================
 // 🟡 Alternating EMOM — (3) :60 EMOM / - 5 Pullups / - 8 Pushups

@@ -96,7 +96,7 @@ describe('HomeTour arrival & hero-reset contract', () => {
     window.localStorage.clear()
 
     class MockIntersectionObserver {
-      constructor(private callback: IOCallback) {}
+      constructor(private readonly callback: IOCallback) {}
       observe(target: Element) {
         ioCallbacks.push({ callback: this.callback, target })
       }

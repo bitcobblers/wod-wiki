@@ -76,7 +76,7 @@ export interface IMemoryLocation {
  * When disposed, sends empty array to all subscribers for cleanup.
  */
 export class MemoryLocation implements IMemoryLocation {
-    private _listeners = new Set<(nv: MetricContainer, ov: MetricContainer) => void>();
+    private readonly _listeners = new Set<(nv: MetricContainer, ov: MetricContainer) => void>();
     private _metrics: MetricContainer;
     private _isDisposed = false;
 

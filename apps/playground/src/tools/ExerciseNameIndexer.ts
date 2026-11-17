@@ -34,10 +34,10 @@ export interface NameIndexingOptions {
 }
 
 export class ExerciseNameIndexer {
-  private exercises: Exercise[] = [];
-  private normalizedNames: Map<string, Exercise> = new Map();
+  private readonly exercises: Exercise[] = [];
+  private readonly normalizedNames: Map<string, Exercise> = new Map();
 
-  constructor(private options: NameIndexingOptions = {}) {}
+  constructor(private readonly options: NameIndexingOptions = {}) {}
 
   /**
    * Add an exercise to the indexer

@@ -38,7 +38,7 @@ import { EmitSystemOutputAction } from './actions/stack/EmitSystemOutputAction';
  * 4. Context is discarded — all actions in the turn shared the same frozen timestamp
  */
 export class ExecutionContext implements IRuntimeContext {
-    private _workList: IRuntimeAction[] = [];
+    private readonly _workList: IRuntimeAction[] = [];
     private _iteration = 0;
     private readonly _maxIterations: number;
     private readonly _snapshotClock: SnapshotClock;

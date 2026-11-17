@@ -17,7 +17,6 @@ import {
     useRoundDisplay
 } from '../../src/react/hooks/useBlockMemory';
 import { IRuntimeBlock } from '../../src/runtime/contracts/IRuntimeBlock';
-import { MemoryEntry } from '../../src/runtime/types/executionSnapshot';
 import { TimerState, RoundState, DisplayState } from '../../src/runtime/memory/MemoryTypes';
 import { TimeSpan } from '../../src/runtime/models/TimeSpan';
 

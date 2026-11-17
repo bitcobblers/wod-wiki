@@ -105,7 +105,7 @@ describe('WQL-4 — a multi-series document renders every band', () => {
   });
 
   it('DashboardView renders both series of a multi-binding widget', async () => {
-    const runQueryMock = vi.fn(async (query: string) => ({
+    const runQueryMock = vi.fn(async (_query: string) => ({
       parsed: AGG,
       series: [{ key: 's', label: 's', points: [{ ts: 1000, value: 30 }] }],
       stages: { selected: 1, buckets: 1, aggregated: 1, groups: 1 },

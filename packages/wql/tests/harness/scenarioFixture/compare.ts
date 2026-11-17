@@ -4,7 +4,7 @@
  */
 
 import type { QueryResult, RowsQueryResult } from '../../../src/QueryService';
-import type { ParsedScenario, ExpectedSeries, ExpectedRun } from './scenarioFile';
+import type { ParsedScenario } from './scenarioFile';
 
 export type ActualScenarioResult = QueryResult | RowsQueryResult | { error: string };
 

@@ -47,7 +47,7 @@ describe('useEditorSave', () => {
 
   it('coalesces: onChange alone never saves; a line change flushes the pending draft', async () => {
     const committed: string[] = [];
-    const { result, unmount } = renderHook(() => useEditorSave<string>({ onSave: async value => { committed.push(value); } }));
+    const { result, unmount } = renderHook(() => useEditorSave({ onSave: async value => { committed.push(value); } }));
     act(() => result.current.onChange('draft'));
     expect(committed).toEqual([]);
     act(() => result.current.onLineChange(1, 0));
@@ -64,7 +64,7 @@ describe('useEditorSave', () => {
     const { promise: gate, resolve: release } = Promise.withResolvers<void>();
     const committed: string[] = [];
     const { result, unmount } = renderHook(() =>
-      useEditorSave<string>({
+      useEditorSave({
         onSave: async (value) => {
           if (value === 'line-1') await gate;
           committed.push(value);
@@ -97,7 +97,7 @@ describe('useEditorSave', () => {
   it('autosaves a focused single-line draft after the idle window without line change or blur', async () => {
     vi.useFakeTimers();
     const committed: string[] = [];
-    const { result, unmount } = renderHook(() => useEditorSave<string>({
+    const { result, unmount } = renderHook(() => useEditorSave({
       onSave: async value => { committed.push(value); },
       idleMs: 350,
     }));
@@ -113,7 +113,7 @@ describe('useEditorSave', () => {
   it('coalesces rapid keystrokes into one idle autosave of the latest draft', () => {
     vi.useFakeTimers();
     const committed: string[] = [];
-    const { result, unmount } = renderHook(() => useEditorSave<string>({
+    const { result, unmount } = renderHook(() => useEditorSave({
       onSave: async value => { committed.push(value); },
       idleMs: 350,
     }));
@@ -132,7 +132,7 @@ describe('useEditorSave', () => {
   it('idleMs 0 disables the idle autosave while line changes still flush', async () => {
     vi.useFakeTimers();
     const committed: string[] = [];
-    const { result, unmount } = renderHook(() => useEditorSave<string>({
+    const { result, unmount } = renderHook(() => useEditorSave({
       onSave: async value => { committed.push(value); },
       idleMs: 0,
     }));

@@ -157,7 +157,7 @@ function resolveFeedDisplayLabel(src: FeedSource, manifest?: SeedManifest): stri
   const curated = src.label.trim();
   if (!curated) return manifest?.name?.trim() || src.id;
   if (src.tier === 'imported' && manifest?.name?.trim()) {
-    let defaultHostLabel = '';
+    let defaultHostLabel: string;
     try {
       defaultHostLabel = new URL(src.url).hostname;
     } catch {

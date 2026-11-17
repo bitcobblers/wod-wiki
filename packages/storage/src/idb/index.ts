@@ -476,31 +476,33 @@ export class IndexedDBStorage implements IStorage {
       let pre20 = 0;
       let migrationError: Error | undefined;
       this.opening = openDB(this.options.dbName ?? IDB_DB_NAME, DB_VERSION, {
-        upgrade: async (db, oldVersion, _version, tx) => {
-          void tx.done.catch(() => {});
-          if (oldVersion > DB_VERSION) {
-            // A newer client owns this database — never downgrade or rewrite it.
-            newer = true;
-            tx.abort();
-            return;
-          }
-          if (oldVersion !== 0 && oldVersion < 20) {
-            // Pre-V20 layouts predate the versioned migration chain. Their
-            // rows are NEVER silently destroyed: the upgrade aborts with an
-            // actionable error so the user can export from an older app or
-            // explicitly clear site data. The database file stays untouched.
-            pre20 = oldVersion;
-            tx.abort();
-            return;
-          }
-          try {
-            createMissingStores(db, tx);
-            if (oldVersion !== 0 && oldVersion < DB_VERSION) this.options.onUpgradeStart?.(oldVersion);
-            await migrateSchema(db, oldVersion, tx);
-          } catch (error) {
-            migrationError = error instanceof Error ? error : new Error(String(error));
-            try { tx.abort(); } catch { /* The failed request may already have aborted it. */ }
-          }
+        upgrade: (db, oldVersion, _version, tx) => {
+          void (async () => {
+            void tx.done.catch(() => {});
+            if (oldVersion > DB_VERSION) {
+              // A newer client owns this database — never downgrade or rewrite it.
+              newer = true;
+              tx.abort();
+              return;
+            }
+            if (oldVersion !== 0 && oldVersion < 20) {
+              // Pre-V20 layouts predate the versioned migration chain. Their
+              // rows are NEVER silently destroyed: the upgrade aborts with an
+              // actionable error so the user can export from an older app or
+              // explicitly clear site data. The database file stays untouched.
+              pre20 = oldVersion;
+              tx.abort();
+              return;
+            }
+            try {
+              createMissingStores(db, tx);
+              if (oldVersion !== 0 && oldVersion < DB_VERSION) this.options.onUpgradeStart?.(oldVersion);
+              await migrateSchema(db, oldVersion, tx);
+            } catch (error) {
+              migrationError = error instanceof Error ? error : new Error(String(error));
+              try { tx.abort(); } catch { /* The failed request may already have aborted it. */ }
+            }
+          })();
         },
         blocking: () => { void this.close(); },
       }).catch(error => {
@@ -1157,6 +1159,7 @@ async function migrateSchema(db: IDBPDatabase, oldVersion: number, tx: IDBPTrans
       const legacy = cursor.value as LegacySession;
       const logs = legacy.data?.logs ?? [];
       let alreadyProjected = false;
+      // eslint-disable-next-line no-unreachable-loop -- checks non-emptiness of async IDB index cursor
       for await (const _ev of eventsStore.index('by-result-grain').iterate(IDBKeyRange.bound([legacy.id, ''], [legacy.id, []]))) {
         alreadyProjected = true;
         break;

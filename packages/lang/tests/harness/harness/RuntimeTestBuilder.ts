@@ -101,7 +101,7 @@ export class RuntimeTestHarness {
 
 export class RuntimeTestBuilder {
   private scriptText = '';
-  private strategies: IRuntimeBlockStrategy[] = [];
+  private readonly strategies: IRuntimeBlockStrategy[] = [];
   private clockTime = new Date();
 
   withScript(text: string): this {

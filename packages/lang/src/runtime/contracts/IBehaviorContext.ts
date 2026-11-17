@@ -238,7 +238,7 @@ export interface IBehaviorContext {
      * Multiple locations with the same tag can coexist on the same block.
      *
      * @param tag The memory tag (e.g., 'timer', 'metric:display')
-     * @param metric The metric array to store at this location
+     * @param metrics The metric array to store at this location
      * @returns The created memory location for optional further manipulation
      *
      * @example

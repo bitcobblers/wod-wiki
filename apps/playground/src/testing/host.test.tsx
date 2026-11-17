@@ -66,7 +66,7 @@ function DraftUnmountProbe({ noteId, initialContent }: { noteId: string; initial
 
 function QueuedDrainProbe({ noteId, savesCompleted }: { noteId: string; savesCompleted: string[] }) {
   const revRef = useRef(1);
-  const { onChange, flush } = useEditorSave<string>({
+  const { onChange, flush } = useEditorSave({
     idleMs: 0,
     onSave: async (rawContent) => {
       const savePromise = notePersistence.saveNote({

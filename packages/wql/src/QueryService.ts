@@ -516,7 +516,7 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
   for (const filter of filters) {
     const literal = !filter.negate && filter.values.every((v) => !v.wildcard);
     const values = literal ? filter.values.map((v) => v.value) : [];
-    if (filter.key === 'source' && literal && filter.values.every((v) => DOMAIN_SOURCE_KINDS[v.value] === true)) {
+    if (filter.key === 'source' && literal && filter.values.every((v) => DOMAIN_SOURCE_KINDS[v.value])) {
       selection.push({ field: 'source', values });
       continue;
     }
@@ -549,7 +549,7 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
     residual = true;
   }
   if (plane === 'note' && sourceScope?.length) {
-    if (sourceScope.every((v) => DOMAIN_SOURCE_KINDS[v] === true)) {
+    if (sourceScope.every((v) => DOMAIN_SOURCE_KINDS[v])) {
       selection.push({ field: 'source', values: sourceScope });
     } else {
       // `journal`/`all` need the resolver's shape exclusions — the wire's
@@ -1194,16 +1194,16 @@ export class QueryService {
 
   // Optional storage seam properties for block_efforts, block_equipment, and typed tag resolution.
   // Injected by the app adapter (`services/queryService.ts`); tests can supply fakes.
-  private blockEffortsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+  private readonly blockEffortsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
     getAllFromIndex: async () => [],
   };
-  private blockEquipmentStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+  private readonly blockEquipmentStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
     getAllFromIndex: async () => [],
   };
-  private tagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]>; getAll?(): Promise<any[]> } = {
+  private readonly tagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]>; getAll?(): Promise<any[]> } = {
     getAllFromIndex: async () => [],
   };
-  private noteTagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
+  private readonly noteTagsStore: { getAllFromIndex(index: string, key: string): Promise<any[]> } = {
     getAllFromIndex: async () => [],
   };
 
@@ -2634,7 +2634,7 @@ export class QueryService {
       preferred: options.preferredUnit,
     });
     const targetUnit = unitResolution.unit;
-    const shouldConvert = unitResolution.convert === true;
+    const shouldConvert = unitResolution.convert;
     const seriesError = unitResolution.error;
 
     // Stage 3+4: GROUP + AGGREGATE per bucket. Group identity (ticket 16)

@@ -93,7 +93,7 @@ function hasReps(statements: ICodeStatement[] | undefined): boolean {
   );
 }
 
-function readNumber(value: unknown, label: string): number | null {
+function readNumber(value: unknown, _label: string): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim() !== '') {
     const n = Number(value);
@@ -102,7 +102,7 @@ function readNumber(value: unknown, label: string): number | null {
   return null;
 }
 
-function readString(value: unknown, label: string): string | null {
+function readString(value: unknown, _label: string): string | null {
   if (typeof value === 'string' && value.length > 0) return value;
   if (typeof value === 'number') return String(value);
   return null;

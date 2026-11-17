@@ -26,7 +26,7 @@ export class UnknownSoundError extends Error {
 
 export class AudioService {
   private enabled: boolean;
-  private sink: IAudioSink;
+  private readonly sink: IAudioSink;
 
   constructor(sink?: IAudioSink, enabled?: boolean) {
     this.sink = sink ?? new WebAudioSink();

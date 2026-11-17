@@ -61,7 +61,6 @@ import { linkPreview } from '@bitcobblers/wod-wiki-ui/extensions';
 import { markdownSyntaxHiding } from '@bitcobblers/wod-wiki-ui/extensions';
 import { wodLinter } from '@bitcobblers/wod-wiki-ui/extensions';
 import { wodAutocompletion, wodEditorKeymap, wodAutoWrap, autocompleteTooltipTheme, customCompletionSources, nestedCompletionOptions, resolveCodeLanguage, type CustomCompletionSource, type NestedCompletionOptions } from '@bitcobblers/wod-wiki-ui/extensions';
-import { loadSuggestions } from '@bitcobblers/wod-wiki-ui';
 import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete';
 import { storageService } from '@/hooks/useBrowserServices';
 import { wodOverlayPanel } from '@bitcobblers/wod-wiki-ui/extensions';
@@ -78,7 +77,6 @@ import { createParser } from '@bitcobblers/wod-wiki-engine';
 import type { INotePersistence } from "@/services/persistence";
 import { queryService, onResultSaved } from "@/hooks/useCastSignaling";
 import { createAttachmentUrlExtension, createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, loadReferenceCatalog, resolveNotePersistence, buildNestedCompletionOptions } from "@/app/editor/noteEditorServices";
-import { readSoundProfiles } from "@/hooks/useBrowserServices";
 
 import { entryOpenHref } from '../../../../app/lib/entryActions';
 import { toEntry, blockToEntry } from '../../../../app/lib/entryMapper';
@@ -1051,7 +1049,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       const content = view.state.doc.toString();
       const lines = content.split("\n");
       
-      let lineIdx = -1;
+      let lineIdx: number;
 
       // Matches logic in line-ids.ts and extractPageIndex (App.tsx).
       // Workout line IDs end with `-line-<1-based line number>` (the prefix

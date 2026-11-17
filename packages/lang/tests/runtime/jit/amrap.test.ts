@@ -26,10 +26,10 @@ describe('AMRAP (Cindy) — Output Statements', () => {
         /**
          * Advance through one complete round (3 exercises).
          */
-        function advanceOneRound() {
-            script.next(); // Pullups complete
-            script.next(); // Pushups complete
-            script.next(); // Air Squats complete
+        async function advanceOneRound() {
+            await script.next(); // Pullups complete
+            await script.next(); // Pushups complete
+            await script.next(); // Air Squats complete
         }
 
         it('should start workout with correct stack depth', async () => {

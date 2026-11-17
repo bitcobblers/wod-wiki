@@ -13,7 +13,7 @@ export interface StorageBackend {
 }
 
 export class InMemoryBackend implements StorageBackend {
-  private map = new Map<string, string>();
+  private readonly map = new Map<string, string>();
 
   getItem(key: string): string | null {
     return this.map.get(key) ?? null;
@@ -61,7 +61,7 @@ export const browserLocalStorageBackend: StorageBackend = {
 export class LocalStore {
   constructor(
     readonly prefix: string = '',
-    private backend: StorageBackend = browserLocalStorageBackend,
+    private readonly backend: StorageBackend = browserLocalStorageBackend,
   ) {}
 
   qualify(key: string): string {

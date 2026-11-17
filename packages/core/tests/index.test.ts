@@ -16,7 +16,6 @@ import {
   type TimeSpan,
   type StoredOutputStatement,
   type Session,
-  type EventRecord,
   type Note,
   type BlockRevision,
   type BlockIndexRow,
@@ -167,7 +166,7 @@ describe('@bitcobblers/wod-wiki-core public API', () => {
 
   describe('Persistence shape types compile cleanly', () => {
     it('accepts conformant shapes', () => {
-      const storedOutput: StoredOutputStatement = {
+      const _storedOutput: StoredOutputStatement = {
         id: 1,
         outputType: 'segment',
         timeSpan: { started: 1000, ended: 2000 },

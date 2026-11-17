@@ -124,8 +124,8 @@ describe('SecondaryNav on home page', () => {
   });
 
   it('renders date window picker, group by options, and on this page when stream controls are active', () => {
-    const onToggleGroupDim = mock((dim: string) => {});
-    const onQueryChange = mock((q: string) => {});
+    const onToggleGroupDim = mock((_dim: string) => {});
+    const onQueryChange = mock((_q: string) => {});
     render(
       <MemoryRouter initialEntries={['/journal']}>
         <NuqsAdapter>
