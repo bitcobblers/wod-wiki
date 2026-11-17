@@ -34,10 +34,10 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq >/dev/null 2>&1 || true
-          sudo apt-get install -y -qq mosquitto-clients >/dev/null 2>&1
+          sudo apt-get install -y -qq mosquitto-clients >/dev/null 2>&1 || true
           export SHORT=${GITHUB_SHA:0:7} STATUS=running
           PAYLOAD=$(node -e 'console.log(JSON.stringify({kind:"ci",status:process.env.STATUS,title:`main.yml build #${process.env.GITHUB_RUN_ID} started @ ${process.env.SHORT}`,sha:process.env.GITHUB_SHA,run_id:process.env.GITHUB_RUN_ID,url:`https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,source:"github-actions",ts:new Date().toISOString()}))')
-          mosquitto_pub -h 10.1.0.30 -u qa -P "${TAILNET_MQTT_PASSWORD}" -t qa/wod-wiki/events -m "$PAYLOAD"
+          timeout 20 mosquitto_pub -h mqtt.forest-adhara.ts.net -u qa -P "${TAILNET_MQTT_PASSWORD}" -t qa/wod-wiki/events -m "$PAYLOAD" || echo "::warning::HA event emit failed (non-fatal)"
 
   slug:
     name: Slug
