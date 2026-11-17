@@ -60,6 +60,7 @@ function renderInlineMarkdown(text: string): string {
   out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]*)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  // eslint-disable-next-line no-control-regex -- NUL sentinels isolate inline code spans during markdown pass
   out = out.replace(/\u0000CODE(\d+)\u0000/g, (_m, idx: string) => codeSpans[Number(idx)] ?? '');
   return out;
 }

@@ -1,11 +1,73 @@
-// Flat config for ESLint 10 — unifies the former .eslintrc.json + .eslintignore
-// (wod-wiki side) and .eslintrc.json (wod-wiki-engine side) after the merge.
+// Flat config for ESLint 10 — unifies syntax/AST linting (`bun run lint`) and
+// opt-in type-aware linting (`ESLINT_TYPED=1` via `bun run lint:typed`) aligned
+// with Qodana static analysis categories.
 const js = require('@eslint/js');
 const globals = require('globals');
 const tsParser = require('@typescript-eslint/parser');
 const tsPlugin = require('@typescript-eslint/eslint-plugin');
 const reactHooks = require('eslint-plugin-react-hooks');
 const storybook = require('eslint-plugin-storybook');
+const regexpPlugin = require('eslint-plugin-regexp');
+const jsdocMod = require('eslint-plugin-jsdoc');
+
+const jsdocPlugin = jsdocMod.default || jsdocMod;
+const isTypedLint = process.env.ESLINT_TYPED === '1';
+
+const wodWikiPlugin = {
+  rules: {
+    'protected-abstract-constructor': {
+      meta: {
+        type: 'suggestion',
+        schema: [],
+        messages: {
+          makeProtected: 'Abstract class constructor can be made protected.',
+        },
+      },
+      create(context) {
+        return {
+          "ClassDeclaration[abstract=true] > ClassBody > MethodDefinition[kind='constructor']"(node) {
+            if (node.accessibility !== 'protected' && node.accessibility !== 'private') {
+              context.report({ node, messageId: 'makeProtected' });
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
+const typedParserOptions = isTypedLint
+  ? {
+      project: [
+        './tsconfig.eslint.json',
+        './apps/playground/tsconfig.json',
+        './apps/storybook/tsconfig.json',
+        './apps/api/tsconfig.json',
+        './e2e/tsconfig.json',
+      ],
+      tsconfigRootDir: __dirname,
+    }
+  : {};
+
+const typedRules = isTypedLint
+  ? {
+      // Async & Promise safety (Qodana: ES6MissingAwait, JSIgnoredPromiseFromCall, ES6RedundantAwait)
+      '@typescript-eslint/no-floating-promises': ['warn', { ignoreVoid: true }],
+      '@typescript-eslint/no-misused-promises': [
+        'warn',
+        { checksVoidReturn: { attributes: false } },
+      ],
+      '@typescript-eslint/await-thenable': 'warn',
+      'no-return-await': 'off',
+      '@typescript-eslint/return-await': ['warn', 'in-try-catch'],
+      // TypeScript hygiene & deprecated APIs (Qodana: TypeScriptFieldCanBeMadeReadonly,
+      // TypeScriptRedundantGenericType, PointlessBooleanExpressionJS, JSDeprecatedSymbols)
+      '@typescript-eslint/prefer-readonly': 'warn',
+      '@typescript-eslint/no-unnecessary-type-arguments': 'warn',
+      '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'warn',
+      '@typescript-eslint/no-deprecated': 'warn',
+    }
+  : {};
 
 module.exports = [
   {
@@ -15,6 +77,7 @@ module.exports = [
       '**/coverage/**',
       '**/storybook-static/**',
       '**/.github/**',
+      'ontology/generated/**',
       '**/*.cjs',
       '**/*.mjs',
       '**/*.js',
@@ -26,13 +89,19 @@ module.exports = [
       parser: tsParser,
       ecmaVersion: 'latest',
       sourceType: 'module',
-      parserOptions: { ecmaFeatures: { jsx: true } },
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+        ...typedParserOptions,
+      },
       globals: { ...globals.browser, ...globals.node },
     },
     plugins: {
       '@typescript-eslint': tsPlugin,
       'react-hooks': reactHooks,
       storybook,
+      regexp: regexpPlugin,
+      jsdoc: jsdocPlugin,
+      'wod-wiki': wodWikiPlugin,
     },
     linterOptions: { reportUnusedDisableDirectives: false },
     rules: {
@@ -58,6 +127,19 @@ module.exports = [
       'no-fallthrough': 'warn',
       'no-constant-condition': 'warn',
       'no-useless-escape': 'warn',
+      // Dead assignments, control-flow & comma expressions (Qodana: JSUnusedAssignment,
+      // CommaExpressionJS, LoopStatementThatDoesntLoopJS, TypeScriptAbstractClassConstructorCanBeMadeProtected)
+      'no-useless-assignment': 'warn',
+      'no-sequences': ['warn', { allowInParentheses: false }],
+      'no-unreachable-loop': 'warn',
+      'wod-wiki/protected-abstract-constructor': 'warn',
+      // RegExp hygiene (Qodana: RegExpUnnecessaryNonCapturingGroup, RegExpSingleCharAlternation,
+      // RegExpRedundantClassElement)
+      'regexp/no-useless-non-capturing-group': 'warn',
+      'regexp/prefer-character-class': 'warn',
+      'regexp/no-dupe-characters-character-class': 'warn',
+      // JSDoc signature parity (Qodana: JSCommentMatchesSignature)
+      'jsdoc/check-param-names': ['warn', { checkDestructured: false }],
       'no-restricted-syntax': [
         'error',
         {
@@ -65,6 +147,7 @@ module.exports = [
           message: 'Use ES module import instead of require().',
         },
       ],
+      ...typedRules,
     },
   },
   {
@@ -81,9 +164,19 @@ module.exports = [
     rules: {
       'no-restricted-imports': 'warn',
       'no-restricted-syntax': 'warn',
-      'no-useless-assignment': 'off',
+      'no-useless-assignment': 'warn',
       'preserve-caught-error': 'warn',
+      // Playground tsconfig sets strictNullChecks: false, where boolean | undefined
+      // collapses to boolean and causes false positives in boolean-literal-compare.
+      ...(isTypedLint ? { '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off' } : {}),
       // Playground is an app, not a library: console diagnostics are expected.
+      'no-console': 'off',
+    },
+  },
+  {
+    // CLI tools and repo scripts intentionally write output to stdout via console.log.
+    files: ['packages/tools/tests/**/*.ts', 'apps/api/check.ts', 'scripts/**/*.ts'],
+    rules: {
       'no-console': 'off',
     },
   },

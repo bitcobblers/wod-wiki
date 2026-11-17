@@ -32,7 +32,7 @@ export function loadJournal(file: string): CorpusJournal {
   try {
     return parseCorpusJournal(JSON.parse(raw));
   } catch (e) {
-    throw new Error(`corpus/${file}: invalid JSON (${e instanceof Error ? e.message : String(e)})`);
+    throw new Error(`corpus/${file}: invalid JSON (${e instanceof Error ? e.message : String(e)})`, { cause: e });
   }
 }
 

@@ -30,7 +30,6 @@ export function ChallengeHeaderBadge({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<number | null>(null);
-  if (totalSteps === 0) return null;
 
   const handleChallengeClick = (questId: string) => {
     const sectionId = challengeSectionMap.get(questId);
@@ -87,6 +86,8 @@ export function ChallengeHeaderBadge({
       }
     };
   }, []);
+
+  if (totalSteps === 0) return null;
 
   const cancelClose = () => {
     if (closeTimeoutRef.current) {

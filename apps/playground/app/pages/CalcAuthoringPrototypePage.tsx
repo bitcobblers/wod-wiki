@@ -432,7 +432,7 @@ function suggestions(src: string, scope: string): { items: Suggest[]; from: numb
   const push = (label: string, insert: string, detail: string) => items.push({ label, insert, detail });
   const lookupM = /lookup\("([\w-]*)",?\s*("[\w-]*",?\s*)?"?([\w-]*)$/.exec(src);
   if (lookupM) {
-    if (lookupM[2] === undefined && !src.endsWith('"')) { TABLES && Object.keys(TABLES).forEach(t => push(t, `"${t}"`, 'lookup table')); }
+    if (lookupM[2] === undefined && !src.endsWith('"')) { if (TABLES) Object.keys(TABLES).forEach(t => push(t, `"${t}"`, 'lookup table')); }
     else {
       const table = lookupM[1];
       const parts = src.split('"').length;

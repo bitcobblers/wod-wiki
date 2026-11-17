@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "vitest.shims.d.ts",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "apps/storybook/test/**/*.ts",
+    "apps/storybook/test/**/*.tsx",
+    "apps/playground/app/hooks/useNoteDraft.test.tsx",
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/storybook-static/**"
+  ]
+}

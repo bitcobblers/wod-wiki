@@ -121,7 +121,9 @@ function discoverSiblingRepos(): string[] {
         dirs.push(full);
       }
     }
-  } catch {}
+  } catch {
+    // Ignore unreadable parent directories.
+  }
   return dirs.sort();
 }
 
