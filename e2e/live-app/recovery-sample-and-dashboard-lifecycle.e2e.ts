@@ -10,13 +10,15 @@ test.describe('ANL-05 — Recovery Sample Coverage, Precision & User Dashboard D
     if (!isMobile) {
       await page.setViewportSize({ width: 1280, height: 850 });
     }
-    await app.goto('/dashboards?q=sum%3AtotalVolume%7B%7D+by+%7Bweek%7D');
+    await app.goto('/dashboards?q=avg%3Acalc.readiness%7B%7D+by+%7Bday%7D');
 
-    // Load sample data if prompt is shown
+    // Wait for sample-data status control to mount so we never race async hydration
     const sampleBtn = page.getByRole('button', { name: /Preview with sample data/i });
-    if (await sampleBtn.isVisible().catch(() => false)) {
+    const purgeBtn = page.getByRole('button', { name: /Purge sample data/i });
+    await expect(sampleBtn.or(purgeBtn)).toBeVisible({ timeout: 20_000 });
+    if ((await purgeBtn.count()) === 0) {
       await sampleBtn.click();
-      await expect(page.getByRole('button', { name: /Purge sample data/i })).toBeVisible({
+      await expect(purgeBtn).toBeVisible({
         timeout: 30_000,
       });
     }
