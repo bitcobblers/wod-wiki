@@ -25,8 +25,9 @@ export function patchPropertyCloneSource(
   raw: string,
   sourceSlug: string,
   sourceLabel: string,
+  existingId?: string,
 ): { raw: string; id: string; slug: string; label: string } {
-  const id = `${kind}-user-${crypto.randomUUID()}`;
+  const id = existingId ?? `${kind}-user-${crypto.randomUUID()}`;
   const slug = `${sourceSlug}-custom`;
   const label = `${sourceLabel} (Custom)`;
   let next = patchFrontmatterProperty(raw, ['id'], id);
@@ -110,6 +111,9 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
   const isEditable = item?.registrySource === 'user';
   const committedNote = useRef<{ id: string; revision: number } | null>(null);
   const loadedSlug = useRef<string | undefined>(undefined);
+  // Guards against reloading the bundled source slug when `refresh()` bumps
+  // `revision` after an inline auto-clone before route navigation updates `slug`.
+  const autoClonedFromSlug = useRef<string | null>(null);
   // WW-035: slugs we already re-hydrated the registry for — one storage-backed
   // refresh per slug miss, never a refresh loop.
   const refreshedForSlug = useRef<string | null>(null);
@@ -121,6 +125,7 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
     }
     if (!slug) {
       loadedSlug.current = undefined;
+      autoClonedFromSlug.current = null;
       setItem(null);
       setNotFound(false);
       setIsAliasMatch(false);
@@ -132,6 +137,13 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
 
     const slugChanged = loadedSlug.current !== slug;
     loadedSlug.current = slug;
+    if (slugChanged) {
+      autoClonedFromSlug.current = null;
+    } else if (autoClonedFromSlug.current === slug) {
+      // Auto-clone committed `<slug>-custom`; wait for the route effect to
+      // navigate to the custom slug instead of re-hydrating the bundled source.
+      return;
+    }
     let cancelled = false;
 
     if (slugChanged) {
@@ -216,16 +228,36 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
       }
       parsed.updatedAt = new Date().toISOString();
 
-      if (parsed.registrySource === 'bundled') {
-        const patched = patchPropertyCloneSource(kind, source, parsed.slug, parsed.label);
+      const autoCloned = parsed.registrySource === 'bundled';
+      if (autoCloned) {
+        const targetCloneSlug = `${parsed.slug}-custom`;
+        const existingClone =
+          resolveDirect(targetCloneSlug) ??
+          (kind === 'effort'
+            ? await storageService.getEffort(targetCloneSlug)
+            : await storageService.getEquipment(targetCloneSlug));
+        const existingUserClone = existingClone?.registrySource === 'user' ? existingClone : undefined;
+        const patched = patchPropertyCloneSource(
+          kind,
+          source,
+          parsed.slug,
+          parsed.label,
+          existingUserClone?.id,
+        );
         source = patched.raw;
         parsed.id = patched.id;
         parsed.slug = patched.slug;
         parsed.label = patched.label;
         parsed.registrySource = 'user';
-        parsed.ownerNoteId = `${kind}/${parsed.slug}`;
+        parsed.ownerNoteId = existingUserClone?.ownerNoteId ?? `${kind}/${parsed.slug}`;
         if (applyCloneFields && item) {
           Object.assign(parsed, applyCloneFields(parsed, item, patched));
+        }
+        if (existingUserClone && committedNote.current?.id !== parsed.ownerNoteId) {
+          const existingNote = await storageService.getNote(parsed.ownerNoteId);
+          if (existingNote) {
+            committedNote.current = { id: parsed.ownerNoteId, revision: existingNote.sourceRevision };
+          }
         }
       }
 
@@ -241,8 +273,14 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
           ...(kind === 'equipment' ? { noteId } : {}),
         });
         committedNote.current = { id: saved.id, revision: saved.sourceRevision };
-        await refresh();
+        if (autoCloned) {
+          if (slug && slug !== parsed.slug) {
+            autoClonedFromSlug.current = slug;
+          }
+          setDocumentState(source);
+        }
         setItem(parsed);
+        await refresh();
         return parsed;
       } catch (err) {
         toast({
@@ -253,7 +291,7 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
         throw err;
       }
     },
-    [kind, slug, item, fromDocument, applyCloneFields, refresh],
+    [kind, slug, item, resolveDirect, fromDocument, applyCloneFields, refresh],
   );
 
   const { onChange, onLineChange, onBlur, flush } = useEditorSave({

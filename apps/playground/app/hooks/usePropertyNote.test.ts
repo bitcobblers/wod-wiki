@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
-import { createElement } from 'react';
+import { createElement, useState } from 'react';
 import { parseQuery } from '@bitcobblers/wod-wiki-wql';
+import { documentToEffort, effortToDocument, type IEffort } from '@bitcobblers/wod-wiki-lang';
 import type { Tag, TagTypeRecord } from '@bitcobblers/wod-wiki-core';
 import { getTagIndex } from '@/services/tags/tagCatalogue';
 import { setStorageForTesting, resetStorageForTesting, storageService } from '@/services/storage';
@@ -10,7 +11,9 @@ import {
   buildTagCategoryNoteDocument,
   buildTagNoteDocument,
   usePropertyNote,
+  useRegistryPropertyNote,
   type UsePropertyNoteResult,
+  type UseRegistryPropertyNoteResult,
 } from './usePropertyNote';
 
 afterEach(() => {
@@ -132,5 +135,81 @@ describe('usePropertyNote — category note save/reload', () => {
     await waitFor(() => expect(latest!.document).toContain('metrics.resistance: 12kg'), { timeout: 5000 });
     expect(latest!.document).toContain('# Domain');
     expect(latest!.sourceRevision).toBe(stored!.sourceRevision);
+  });
+});
+
+describe('useRegistryPropertyNote — bundled auto-clone race safety', () => {
+  beforeEach(() => {
+    setStorageForTesting(new InMemoryStorage());
+  });
+
+  const bundledThruster: IEffort = {
+    id: 'effort-bundled-thruster',
+    slug: 'thruster',
+    label: 'Thruster',
+    aliases: ['thrusters'],
+    equipment: ['barbell'],
+    baseAttributes: { met: 8, discipline: 'strength' },
+    registrySource: 'bundled',
+  };
+
+  it('keeps cloned document across pre-navigation revision bumps and idempotently handles back-to-back saves', async () => {
+    const catalog = new Map<string, IEffort>([['thruster', bundledThruster]]);
+    let latest: UseRegistryPropertyNoteResult<IEffort> | null = null;
+
+    function EffortProbe({ slug }: { slug: string }) {
+      const [revision, setRevision] = useState(0);
+      latest = useRegistryPropertyNote<IEffort>({
+        kind: 'effort',
+        slug,
+        isReady: true,
+        revision,
+        resolveDirect: (s) => catalog.get(s),
+        resolveByAlias: () => undefined,
+        toDocument: effortToDocument,
+        fromDocument: (raw, base) => {
+          const { effort, errors } = documentToEffort(raw, base);
+          return { item: effort, errors };
+        },
+        refresh: async () => {
+          const savedCustom = await storageService.getEffort('thruster-custom');
+          if (savedCustom) catalog.set('thruster-custom', savedCustom);
+          setRevision((r) => r + 1);
+        },
+      });
+      return null;
+    }
+
+    render(createElement(EffortProbe, { slug: 'thruster' }));
+    await waitFor(() => expect(latest?.item?.slug).toBe('thruster'));
+
+    const firstEdit = latest!.document.replace('  met: 8', '  met: 9');
+    await act(async () => {
+      await latest!.save(firstEdit);
+    });
+
+    // Even though `refresh()` bumped `revision` while `slug` prop is still `'thruster'`,
+    // the hook must keep the newly cloned `thruster-custom` item & document rather
+    // than reloading the bundled `thruster` definition.
+    expect(latest!.item?.slug).toBe('thruster-custom');
+    expect(latest!.item?.registrySource).toBe('user');
+    expect(latest!.document).toContain('slug: thruster-custom');
+    expect(latest!.document).toContain('met: 9');
+
+    const firstId = latest!.item!.id;
+
+    // A second save arriving with a bundled-shaped draft before navigation completes
+    // must update `thruster-custom` with the SAME record id instead of throwing a
+    // re-keying error.
+    const secondBundledDraft = effortToDocument(bundledThruster).replace('  met: 8', '  met: 9.5');
+    await act(async () => {
+      await latest!.save(secondBundledDraft);
+    });
+
+    expect(latest!.item?.id).toBe(firstId);
+    const persisted = await storageService.getEffort('thruster-custom');
+    expect(persisted?.id).toBe(firstId);
+    const persistedNote = await storageService.getNote('effort/thruster-custom');
+    expect(persistedNote?.rawContent).toContain('met: 9.5');
   });
 });

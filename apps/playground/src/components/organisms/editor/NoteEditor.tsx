@@ -15,7 +15,7 @@
 
 import { getTagIndex } from '@/hooks/useBrowserServices';
 import React, { useEffect, useRef, useMemo, useState, useCallback } from "react";
-import { EditorState, Prec, StateEffect, type Extension } from "@codemirror/state";
+import { Annotation, EditorState, Prec, StateEffect, type Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 import {
   EditorView,
@@ -43,6 +43,9 @@ import { lintKeymap } from "@codemirror/lint";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 
 import { editorTheme, editorFocusTracker, navigationFacet, affiliateTagFacet } from '@bitcobblers/wod-wiki-ui/extensions';
+
+/** Marks programmatic dispatches from NoteEditor's controlled `value` prop sync effect. */
+const externalValueSyncAnnotation = Annotation.define<boolean>();
 import { ASSOCIATE_TAG } from '@/lib/affiliateLink';
 import { smartIncrement } from '@bitcobblers/wod-wiki-ui/extensions';
 
@@ -800,17 +803,26 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         if (update.docChanged) {
           const identity = update.state.field(sectionField);
           onIdentityChange?.({ rawContent: identity.rawContent, blocks: identity.noteBlocks, sourceRevision: identity.sourceRevision });
-          onChange(identity.rawContent);
+          const isExternalValueSync = update.transactions.every(
+            (t) => t.annotation(externalValueSyncAnnotation) === true,
+          );
+          if (!isExternalValueSync) {
+            onChange(identity.rawContent);
+          }
           onDocUpdate?.(update);
           notifyBlockChanges(update.state, onBlocksChange, lastBlocksJsonRef);
-          // Typing-like transactions stay coalesced; everything else (widget
-          // commits, query-block inserts, undo) is a deliberate commit — save now.
-          const typed = update.transactions.some(t =>
-            (t.isUserEvent("input") && !t.isUserEvent("input.wheel") && !t.isUserEvent("input.format"))
-            || t.isUserEvent("delete")
-            || t.isUserEvent("paste")
-            || t.isUserEvent("drop"));
-          if (!typed) void onCommitChange?.();
+          if (!isExternalValueSync) {
+            // Typing-like transactions stay coalesced; everything else (widget
+            // commits, query-block inserts, undo) is a deliberate commit — save now.
+            const typed = update.transactions.some(t =>
+              (t.isUserEvent("input") && !t.isUserEvent("input.wheel") && !t.isUserEvent("input.format"))
+              || t.isUserEvent("delete")
+              || t.isUserEvent("paste")
+              || t.isUserEvent("drop"));
+            if (!typed) {
+              void Promise.resolve(onCommitChange?.()).catch(() => {});
+            }
+          }
         }
         if (update.selectionSet || update.docChanged) {
           setCursorVersion((version) => version + 1);
@@ -969,6 +981,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         });
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: value },
+        annotations: externalValueSyncAnnotation.of(true),
         ...(validRestore ? { effects: sectionRestore.of({ rawContent: value, blocks: noteBlocks, sourceRevision: rev }) } : {}),
       });
     } else if (noteBlocks && sourceRevision !== identity.sourceRevision) {
