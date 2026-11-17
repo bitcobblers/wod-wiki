@@ -59,7 +59,7 @@ export function parseFixtureFile(raw: string, file: string): ParsedFixture {
 
   // ── Frontmatter: flat meta lines ─────────────────────────────────────────
   const meta: Record<string, string> = {};
-  let i = 0;
+  let i: number;
   if (lines[0] !== '---') {
     at('frontmatter', 'file must start with a --- frontmatter block');
   }

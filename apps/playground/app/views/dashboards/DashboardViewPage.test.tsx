@@ -87,7 +87,7 @@ import * as useDashboardsModule from '../../hooks/useDashboards';
 // Mirrors useDashboardSource's real transition semantics: a refreshKey bump
 // flips loading to true but KEEPS the previously resolved source until the
 // new resolution lands.
-function fakeUseDashboardSource(slug: string | undefined, refreshKey?: number) {
+function useFakeDashboardSource(slug: string | undefined, refreshKey?: number) {
   const [source, setSource] = useState<{
     slug: string; title: string; rawContent: string; editable: boolean; noteId: string;
   } | null>(null);
@@ -138,7 +138,7 @@ function installSpies(): void {
       {props.children}
     </>
   )) as never);
-  spyOn(useDashboardsModule, 'useDashboardSource').mockImplementation(fakeUseDashboardSource as never);
+  spyOn(useDashboardsModule, 'useDashboardSource').mockImplementation(useFakeDashboardSource as never);
 }
 
 import { DashboardViewPage } from './DashboardViewPage';
@@ -189,7 +189,7 @@ describe('DashboardViewPage delete dashboard (late finding #7)', () => {
   it('offers no delete affordance on read-only prebuilt dashboards', async () => {
     const sourceModule = await import('../../hooks/useDashboards');
     spyOn(sourceModule, 'useDashboardSource').mockImplementation(((slug: string | undefined, refreshKey?: number) => {
-      const base = fakeUseDashboardSource(slug, refreshKey);
+      const base = useFakeDashboardSource(slug, refreshKey);
       return { ...base, source: base.source ? { ...base.source, editable: false } : null };
     }) as never);
 

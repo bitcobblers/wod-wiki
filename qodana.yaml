@@ -8,3 +8,17 @@ exclude:
   - name: All
     paths:
       - docs
+      - ontology/generated
+      - apps/playground/public
+      - apps/storybook/public
+      - apps/playground/prototypes
+      - apps/playground/app/tour/tour-redesign.prototype.html
+      - apps/playground/app/views/analytics/PROTOTYPE_analytics_query_builder.html
+      - scripts/whiteboard-html
+      - e2e/scripts/install-flight-recorder.js
+  # Pushes intra-package relative imports toward barrel index.ts files or root
+  # tsconfig workspace aliases, causing circular dependencies and breaking tsup.
+  - name: ES6PreferShortImport
+  # MCP agent tools and CLI handlers intentionally wrap execution in a top-level
+  # try/catch for telemetry and structured error envelopes.
+  - name: ExceptionCaughtLocallyJS

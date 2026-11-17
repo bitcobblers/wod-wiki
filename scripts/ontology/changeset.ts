@@ -313,7 +313,7 @@ export function collectGitChanges(
       ? ['diff', '--cached', '--name-status']
       : ['diff', '--name-status', 'HEAD']
 
-  let rawStatus = ''
+  let rawStatus: string
   try {
     rawStatus = execSync(`git ${diffArgs.join(' ')}`, {
       cwd: rootDir,
@@ -373,7 +373,7 @@ export function collectGitChanges(
       continue
     }
 
-    let diffText = ''
+    let diffText: string
     try {
       if (entry.status === 'A' && existsSync(join(rootDir, entry.path))) {
         const content = readFileSync(join(rootDir, entry.path), 'utf8')

@@ -54,12 +54,14 @@ WOD Wiki establishes a hardened 4-tier / 7-seam testing pyramid. Every testing l
 
 ## Lint and type check
 
-ESLint is configured and enforced — there is no "no ESLint" exemption:
+ESLint is configured and enforced with local `.eslintcache` acceleration — there is no "no ESLint" exemption:
 
-- `bun run lint` — packages + apps
-- `bun run lint:packages` — `packages/*/src`
-- `bun run lint:playground` — `apps/playground/src`
-- `bun run lint:storybook` — `apps/storybook/src`
+- `bun run lint` — fast syntax, AST, RegExp, and JSDoc lint across `packages/*/{src,tests}`, `apps/playground/{src,app}`, `apps/storybook/{src,test}`, `apps/api`, `e2e`, and `scripts`
+- `bun run lint:typed` — type-aware ESLint (`ESLINT_TYPED=1`, `.eslintcache-typed`) adding floating/misused promise, `return-await`, `prefer-readonly`, `no-deprecated`, redundant type-argument, and boolean literal checks aligned with Qodana
+- `bun run lint:packages` — `packages/*/src`, `packages/*/tests`, `packages/ui/test`
+- `bun run lint:playground` — `apps/playground/src` + `apps/playground/app`
+- `bun run lint:storybook` — `apps/storybook/src` + `apps/storybook/test`
+- `bun run lint:e2e` — `e2e` + `playwright*.config.ts`
 
 For types, run the narrowest relevant check for the touched surface and
 `bun run check:playground-types` when touching the playground app. Only fix
