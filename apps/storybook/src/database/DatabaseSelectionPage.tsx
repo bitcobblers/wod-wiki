@@ -1,5 +1,12 @@
 import { useState } from 'react';
 import { isValidLocalDatabaseName } from '@bitcobblers/wod-wiki-storage/idb';
+import {
+  Badge,
+  Button,
+  Field,
+  FieldLabel,
+  Input,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { useDatabase } from './DatabaseContext';
 
 const NAME_RULE = 'Use 1–100 letters, numbers, dots, dashes, or underscores — starting with a letter or number.';
@@ -81,15 +88,15 @@ export function DatabaseSelectionPage() {
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Databases</h2>
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             data-testid="database-refresh"
             onClick={() => void refreshDatabases()}
             disabled={busy}
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-card disabled:opacity-50"
           >
             Refresh
-          </button>
+          </Button>
         </div>
         <ul className="space-y-2">
           {sorted.map((db) => {
@@ -104,12 +111,9 @@ export function DatabaseSelectionPage() {
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                     <span className="font-mono">{db.name}</span>
                     {active && (
-                      <span
-                        data-testid="database-active-badge"
-                        className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground"
-                      >
+                      <Badge data-testid="database-active-badge">
                         Active
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">Schema version {db.version ?? '—'}</div>
@@ -117,15 +121,14 @@ export function DatabaseSelectionPage() {
                 {active ? (
                   <span className="text-xs text-muted-foreground">Current</span>
                 ) : (
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
                     data-testid={`database-select-${db.name}`}
                     onClick={() => void handleSelect(db.name)}
                     disabled={busy}
-                    className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:opacity-90 disabled:opacity-50"
                   >
                     Use
-                  </button>
+                  </Button>
                 )}
               </li>
             );
@@ -139,26 +142,29 @@ export function DatabaseSelectionPage() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Create database</h2>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            data-testid="database-create-input"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="e.g. wodwiki-storybook"
-            className="flex-1 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-          />
-          <button
-            type="button"
-            data-testid="database-create-button"
-            onClick={() => void handleCreate()}
-            disabled={busy}
-            className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-50"
-          >
-            Create
-          </button>
-        </div>
+        <Field className="space-y-2">
+          <FieldLabel className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Create database
+          </FieldLabel>
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              data-testid="database-create-input"
+              value={newName}
+              onValueChange={setNewName}
+              placeholder="e.g. wodwiki-storybook"
+              className="flex-1"
+            />
+            <Button
+              size="sm"
+              data-testid="database-create-button"
+              onClick={() => void handleCreate()}
+              disabled={busy}
+            >
+              Create
+            </Button>
+          </div>
+        </Field>
         {createError && (
           <p data-testid="database-create-error" className="text-xs text-destructive">
             {createError}
@@ -193,22 +199,23 @@ export function DatabaseSelectionPage() {
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                   {source.label}
                   {source.autoImport && (
-                    <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">auto</span>
+                    <Badge variant="outline">auto</Badge>
                   )}
                 </div>
                 {source.description && (
                   <div className="truncate text-xs text-muted-foreground">{source.description}</div>
                 )}
               </div>
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="sm"
                 data-testid={`feed-import-${source.id}`}
                 onClick={() => void importFeedSource(source.id)}
                 disabled={feed.status === 'running' || busy}
-                className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs text-primary hover:bg-card disabled:opacity-50"
+                className="shrink-0 text-primary"
               >
                 Import
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

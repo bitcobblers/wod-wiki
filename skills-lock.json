@@ -84,6 +84,13 @@
       "sourceType": "github",
       "skillPath": "skills/stitch-skill/SKILL.md",
       "computedHash": "b0fed0044377622a841738e7742bc99d5afbae288e9e0c0021707cc401bb63b1"
+    },
+    "ui-sdk": {
+      "source": "vercel-labs/ui",
+      "commit": "9e75b866ee410f3e18f1e72ed6ae00b6b8166c75",
+      "sourceType": "github",
+      "skillPath": "packages/core/skills/ui-sdk/SKILL.md",
+      "computedHash": "9a60caf01da3d47beedf627bf1505d922dccc93b04f294c6aa64edf01c46b3ba"
     }
   }
 }

@@ -1,5 +1,5 @@
 import { Moon, Sun } from "lucide-react"
-import { Button } from "@/components/atoms/primitives/button"
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { useTheme } from "@/contexts/ThemeProvider"
 
 export function ThemeToggle() {

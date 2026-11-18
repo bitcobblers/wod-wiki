@@ -14,8 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui';
 import { effortToDocument, equipmentToDocument, slugifyRefLabel, type IEffort } from '@bitcobblers/wod-wiki-lang';
-import { Button } from '@/components/atoms/primitives/button';
-import { Input } from '@/components/atoms/primitives/input';
+import { Button, Input } from '@bitcobblers/wod-wiki-ui/primitives';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { DEFAULT_TAG_TYPES } from '@/services/storage/StorageService';
 import { storageService } from '@/services/storage';
@@ -338,7 +337,7 @@ export function CreateReferenceFromLabelDialog({
           <span>{kind === 'tag' ? 'Tag name' : 'Display label'}</span>
           <Input
             value={label}
-            onChange={(e) => handleLabelChange(e.target.value)}
+            onValueChange={handleLabelChange}
             data-testid="create-reference-label"
             placeholder={kind === 'tag' ? 'grip-endurance' : 'Macebell 360'}
           />
@@ -348,9 +347,9 @@ export function CreateReferenceFromLabelDialog({
           <span>Slug</span>
           <Input
             value={slug}
-            onChange={(e) => {
+            onValueChange={(next) => {
               setSlugTouched(true);
-              setSlug(e.target.value);
+              setSlug(next);
             }}
             data-testid="create-reference-slug"
             className="font-mono text-xs"

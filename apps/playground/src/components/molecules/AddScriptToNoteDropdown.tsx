@@ -5,13 +5,12 @@ import { planPath } from '@/lib/routes';
 import { toShortId } from '@/lib/idUtils';
 import { isJournalEntry } from '@/types/notebook';
 import {
-    DropdownMenu,
-    DropdownMenuTrigger,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-} from '@/components/atoms/primitives/dropdown-menu';
+    Popover,
+    PopoverContent,
+    PopoverTitle,
+    PopoverTrigger,
+    Separator,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
 import type { ScriptBlock } from '@/components/Editor/types';
 import type { IContentProvider } from '@/types/content-provider';
@@ -154,90 +153,94 @@ export const AddScriptToNoteDropdown: React.FC<AddScriptToNoteDropdownProps> = (
         : formatDateWeekdayShort(selectedDate);
 
     return (
-        <DropdownMenu open={open} onOpenChange={setOpen}>
-            <DropdownMenuTrigger asChild>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                    }}
-                    className={cn(
-                        'flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] font-medium transition-colors shadow-sm',
-                        'bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border/50',
-                        className
-                    )}
+        <div onClick={(e) => e.stopPropagation()}>
+            <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger
+                    aria-label="Add to Plan"
                     title="Add to Plan..."
+                    className={cn(
+                        'flex h-auto items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] font-medium transition-colors shadow-sm',
+                        'bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border/50',
+                        className,
+                    )}
                 >
-                    <Plus className="h-3 w-3" />
+                    <Plus className="h-3 w-3" aria-hidden="true" />
                     <span>Plan</span>
-                </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="top" className="w-[520px]" onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuLabel className="flex items-center gap-2">
-                    <Plus className="h-3.5 w-3.5" />
-                    Add to Plan
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
+                </PopoverTrigger>
+                <PopoverContent
+                    align="end"
+                    side="top"
+                    sideOffset={6}
+                    className="w-[520px] p-2"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <PopoverTitle className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold">
+                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                        Add to Plan
+                    </PopoverTitle>
+                    <Separator className="my-1" />
 
-                {loading ? (
-                    <div className="flex items-center justify-center py-6">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                ) : (
-                    <div className="flex">
-                        {/* Left: Calendar Date Picker */}
-                        <div className="w-[260px] flex-shrink-0 border-r border-border/50">
-                            <CalendarCard
-                                selectedDate={selectedDate}
-                                onDateSelect={handleDateSelect}
-                                entryDates={entryDates}
-                            />
+                    {loading ? (
+                        <div className="flex items-center justify-center py-6">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                         </div>
-
-                        {/* Right: Target notes for selected date */}
-                        <div className="flex-1 min-w-0 flex flex-col">
-                            {/* Date header */}
-                            <div className="flex items-center gap-2 text-xs px-2 py-1.5 font-semibold">
-                                <Calendar className={cn("h-3 w-3", isToday ? "text-primary" : "text-muted-foreground")} />
-                                <span>{dateLabel}</span>
-                                <span className="text-muted-foreground font-normal">
-                                    ({notesForDate.length} {notesForDate.length === 1 ? 'note' : 'notes'})
-                                </span>
+                    ) : (
+                        <div className="flex">
+                            <div className="w-[260px] flex-shrink-0 border-r border-border/50">
+                                <CalendarCard
+                                    selectedDate={selectedDate}
+                                    onDateSelect={handleDateSelect}
+                                    entryDates={entryDates}
+                                />
                             </div>
 
-                            <div className="-mx-1 my-1 h-px bg-muted" />
+                            <div className="flex-1 min-w-0 flex flex-col">
+                                <div className="flex items-center gap-2 text-xs px-2 py-1.5 font-semibold">
+                                    <Calendar className={cn('h-3 w-3', isToday ? 'text-primary' : 'text-muted-foreground')} aria-hidden="true" />
+                                    <span>{dateLabel}</span>
+                                    <span className="text-muted-foreground font-normal">
+                                        ({notesForDate.length} {notesForDate.length === 1 ? 'note' : 'notes'})
+                                    </span>
+                                </div>
 
-                            {/* Notes for selected date */}
-                            <div className="flex-1 max-h-48 overflow-y-auto custom-scrollbar">
-                                {notesForDate.map(note => (
-                                    <DropdownMenuItem
-                                        key={note.id}
-                                        onClick={() => handleAddToNote(note.id)}
-                                        className="flex flex-col items-start gap-0.5 py-2"
-                                    >
-                                        <div className="flex items-center gap-2 w-full">
-                                            <Calendar className="h-3 w-3 text-muted-foreground" />
-                                            <span className="font-medium truncate flex-1 text-sm">{note.title}</span>
+                                <div className="-mx-1 my-1 h-px bg-muted" />
+
+                                <div className="flex-1 max-h-48 overflow-y-auto custom-scrollbar space-y-0.5 p-1">
+                                    {notesForDate.map((note) => (
+                                        <button
+                                            key={note.id}
+                                            type="button"
+                                            onClick={() => void handleAddToNote(note.id)}
+                                            className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-2 text-left hover:bg-muted transition-colors"
+                                        >
+                                            <div className="flex items-center gap-2 w-full">
+                                                <Calendar className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                                                <span className="font-medium truncate flex-1 text-sm">{note.title}</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                    {notesForDate.length === 0 && (
+                                        <div className="px-3 py-4 text-xs text-muted-foreground text-center italic">
+                                            No notes on this date
                                         </div>
-                                    </DropdownMenuItem>
-                                ))}
-                                {notesForDate.length === 0 && (
-                                    <div className="px-3 py-4 text-xs text-muted-foreground text-center italic">
-                                        No notes on this date
-                                    </div>
-                                )}
+                                    )}
+                                </div>
+
+                                <div className="-mx-1 my-1 h-px bg-muted" />
+
+                                <button
+                                    type="button"
+                                    onClick={() => void handleCreateNewNote()}
+                                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-primary font-medium hover:bg-muted transition-colors"
+                                >
+                                    <FilePlus className="h-4 w-4" aria-hidden="true" />
+                                    <span>New Note for {dateLabel}</span>
+                                </button>
                             </div>
-
-                            <div className="-mx-1 my-1 h-px bg-muted" />
-
-                            {/* Create new note for the selected date */}
-                            <DropdownMenuItem onClick={handleCreateNewNote} className="gap-2 text-primary font-medium">
-                                <FilePlus className="h-4 w-4" />
-                                <span>New Note for {dateLabel}</span>
-                            </DropdownMenuItem>
                         </div>
-                    </div>
-                )}
-            </DropdownMenuContent>
-        </DropdownMenu>
+                    )}
+                </PopoverContent>
+            </Popover>
+        </div>
     );
 };

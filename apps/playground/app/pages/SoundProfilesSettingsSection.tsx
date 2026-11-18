@@ -11,7 +11,7 @@
 import { useState, useSyncExternalStore, type SyntheticEvent } from 'react'
 import { parseSoundTrigger } from '@bitcobblers/wod-wiki-engine'
 import { Plus, Trash2 } from 'lucide-react'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { SOUND_NAMES } from '@/services/audio/AudioPolicy'
 import {
   readSoundProfiles,

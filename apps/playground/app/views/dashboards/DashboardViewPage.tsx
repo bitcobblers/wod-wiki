@@ -20,7 +20,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/atoms/primitives/dialog';
+import {
+  Button,
+  Dialog,
+  DialogBackdrop,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { queryService } from '@/services/queryService';
 import {
   useAnalyticsUnitPreference,
@@ -583,6 +592,7 @@ export function DashboardViewPage() {
         </div>
       </div>
       <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <DialogBackdrop />
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Delete dashboard</DialogTitle>
@@ -593,22 +603,23 @@ export function DashboardViewPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
               data-testid="cancel-delete-dashboard"
               onClick={() => setConfirmDeleteOpen(false)}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               Cancel
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
               data-testid="confirm-delete-dashboard"
+              data-agent-confirm={`Deletes dashboard "${document?.title || source.title}" from your vault`}
               onClick={() => void handleDeleteDashboard()}
-              className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
             >
               Delete dashboard
-            </button>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

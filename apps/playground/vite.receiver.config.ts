@@ -67,6 +67,7 @@ export default defineConfig({
             // receiver builds without a prior packages tsup build.
             '@bitcobblers/wod-wiki-lang/react': resolve(import.meta.dirname, '../../packages/lang/src/react.ts'),
             '@bitcobblers/wod-wiki-ui/styles.css': resolve(import.meta.dirname, '../../packages/ui/src/styles.css'),
+            '@bitcobblers/wod-wiki-ui/primitives': resolve(import.meta.dirname, '../../packages/ui/src/primitives/index.ts'),
             '@bitcobblers/wod-wiki-ui/extensions': resolve(import.meta.dirname, '../../packages/ui/src/extensions/index.ts'),
             '@bitcobblers/wod-wiki-core': resolve(import.meta.dirname, '../../packages/core/src'),
             '@bitcobblers/wod-wiki-lang': resolve(import.meta.dirname, '../../packages/lang/src'),

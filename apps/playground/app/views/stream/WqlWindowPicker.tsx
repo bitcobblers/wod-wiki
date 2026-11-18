@@ -2,7 +2,11 @@ import React, { useMemo, useState } from 'react'
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { parseQuery, serialize, type AnyParsedQuery } from '@bitcobblers/wod-wiki-wql'
 import { formatDateKey } from '../../services/dateUtils'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/atoms/primitives/dropdown-menu'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@bitcobblers/wod-wiki-ui/primitives'
 import { cn } from '@/lib/utils'
 
 export interface WqlWindowPickerProps {
@@ -120,19 +124,16 @@ export function WqlWindowPicker({ query, onQueryChange, highlightDates = new Set
 
   return (
     <div className={cn('relative inline-flex items-center', className)}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            data-testid="wql-window-picker-trigger"
-            className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Calendar className="size-3.5 text-muted-foreground" aria-hidden="true" />
-            <span className="font-mono text-xs">{currentLabel}</span>
-            <ChevronDown className="size-3 text-muted-foreground" aria-hidden="true" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-72 p-3">
+      <Popover>
+        <PopoverTrigger
+          data-testid="wql-window-picker-trigger"
+          className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <Calendar className="size-3.5 text-muted-foreground" aria-hidden="true" />
+          <span className="font-mono text-xs">{currentLabel}</span>
+          <ChevronDown className="size-3 text-muted-foreground" aria-hidden="true" />
+        </PopoverTrigger>
+        <PopoverContent align="end" sideOffset={6} aria-label="Time window filter" className="w-72 p-3">
           {/* Preset options */}
           <div className="mb-3 flex flex-wrap gap-1 border-b border-border/60 pb-2">
             {PRESETS.map(preset => {
@@ -237,8 +238,8 @@ export function WqlWindowPicker({ query, onQueryChange, highlightDates = new Set
               Select second date to complete range (starting from {rangeStart})
             </div>
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </PopoverContent>
+      </Popover>
 
       {currentWindow && (
         <button

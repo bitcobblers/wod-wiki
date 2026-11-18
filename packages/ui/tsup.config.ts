@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 const runtimeOnly = process.env.TSUP_RUNTIME_ONLY === '1';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/extensions/index.ts'],
+  entry: ['src/index.ts', 'src/extensions/index.ts', 'src/primitives/index.ts'],
   format: runtimeOnly ? ['esm'] : ['esm', 'cjs'],
   dts: !runtimeOnly,
   sourcemap: !runtimeOnly,
@@ -32,6 +32,7 @@ export default defineConfig({
     '@codemirror/view',
     '@lezer/common',
     '@lezer/highlight',
-    '@lezer/lr'
+    '@lezer/lr',
+    /^@ui-sdk\//
   ]
 });

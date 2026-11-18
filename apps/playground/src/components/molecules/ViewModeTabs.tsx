@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '@/components/atoms/primitives/button';
+import { Button } from '@bitcobblers/wod-wiki-ui/primitives';
 import { cn } from '@/lib/utils';
 
 export interface ViewModeTab {
@@ -27,6 +27,7 @@ export const ViewModeTabs: React.FC<ViewModeTabsProps> = ({
         <Button
           key={view.id}
           id={`tutorial-view-mode-${view.id}`}
+          aria-label={isMobile ? view.label : undefined}
           variant={activeView === view.id ? 'default' : 'ghost'}
           size={isMobile ? 'icon' : 'sm'}
           onClick={() => onChange(view.id)}

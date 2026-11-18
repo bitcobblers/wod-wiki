@@ -1,14 +1,13 @@
 import * as React from 'react'
 import { Link as RouterLink } from 'react-router-dom'
-import type { VariantProps } from 'class-variance-authority'
+import { Button, type ButtonSize, type ButtonVariant } from '@bitcobblers/wod-wiki-ui/primitives'
 import { cn } from '@/lib/utils'
-import { buttonVariants } from '@/components/atoms/primitives/button'
 
 type ButtonLinkIcon = React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>
 
-export interface ButtonLinkProps
-  extends React.AnchorHTMLAttributes<HTMLAnchorElement>,
-    VariantProps<typeof buttonVariants> {
+export interface ButtonLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
+  variant?: ButtonVariant
+  size?: ButtonSize
   to?: string
   icon?: ButtonLinkIcon
   trailingIcon?: ButtonLinkIcon
@@ -16,16 +15,7 @@ export interface ButtonLinkProps
 }
 
 function getIconSize(size: ButtonLinkProps['size']): string {
-  switch (size) {
-    case 'sm':
-      return 'h-4 w-4'
-    case 'lg':
-      return 'h-5 w-5'
-    case 'icon':
-      return 'h-4 w-4'
-    default:
-      return 'h-4 w-4'
-  }
+  return size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'
 }
 
 export const ButtonLink = React.memo(React.forwardRef<HTMLAnchorElement, ButtonLinkProps>(
@@ -40,7 +30,6 @@ export const ButtonLink = React.memo(React.forwardRef<HTMLAnchorElement, ButtonL
     )
 
     const classes = cn(
-      buttonVariants({ variant, size }),
       'gap-2 no-underline [&_svg]:pointer-events-none [&_svg]:shrink-0',
       fullWidth && 'w-full justify-start',
       className,
@@ -48,24 +37,26 @@ export const ButtonLink = React.memo(React.forwardRef<HTMLAnchorElement, ButtonL
 
     if (to) {
       return (
-        <RouterLink
-          to={to}
-          ref={ref}
+        <Button
+          variant={variant}
+          size={size}
           className={classes}
+          render={<RouterLink to={to} ref={ref} {...props} />}
         >
           {content}
-        </RouterLink>
+        </Button>
       )
     }
 
     return (
-      <a
-        ref={ref}
+      <Button
+        variant={variant}
+        size={size}
         className={classes}
-        {...props}
+        render={<a ref={ref} {...props} />}
       >
         {content}
-      </a>
+      </Button>
     )
   },
 ))

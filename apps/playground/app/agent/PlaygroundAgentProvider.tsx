@@ -1,6 +1,7 @@
 import React, { useEffect, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useWebMCP } from '@mcp-b/react-webmcp';
+import { agentTools, createAgent, registerTools } from '@ui-sdk/react/agent';
 import {
   DOMAIN_AGENT_TOOLS,
   type AgentDomainContext,
@@ -49,6 +50,20 @@ import {
 } from './uiToolSpecs';
 
 // ── WW-025: executeTool call-shape normalization ───────────────────────────
+
+export const uiSdkAgent = createAgent({
+  allow: (step, options) =>
+    step.confirm
+      ? requestAgentConfirmation(
+          {
+            action: `ui.${step.action}`,
+            targetId: String(step.ref),
+            summary: step.confirm,
+          },
+          options,
+        )
+      : true,
+});
 
 const WRAPPED_EXECUTE_TOOL = Symbol('wodWrappedExecuteTool');
 
@@ -314,6 +329,10 @@ export const PlaygroundAgentProvider: React.FC = () => {
       const navMc = navWithMc.modelContext;
       installModelContextExecuteToolAdapter(docMc);
       if (navMc !== docMc) installModelContextExecuteToolAdapter(navMc);
+      const unregisterUiSdk = registerTools(uiSdkAgent, { allow: () => true });
+      return () => {
+        unregisterUiSdk();
+      };
     }
   }, []);
 
@@ -346,11 +365,21 @@ export const PlaygroundAgentProvider: React.FC = () => {
       tier: 1,
       scope: 'global-ui',
     });
+    const uiSdkCleanups = agentTools.map((tool) =>
+      trackMountedWebMcpTool({
+        name: tool.name,
+        title: `UI-SDK ${tool.name[0]!.toUpperCase()}${tool.name.slice(1)}`,
+        description: tool.description,
+        tier: tool.name === 'act' ? 1 : 0,
+        scope: 'global-ui',
+      }),
+    );
     return () => {
       c1();
       c2();
       c3();
       c4();
+      for (const cleanup of uiSdkCleanups) cleanup();
     };
   }, []);
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { DocumentItem } from '@/components/Editor/utils/documentStructure';
 import { Dumbbell, Edit2, Play, Save } from 'lucide-react';
-import { Button } from '@/components/atoms/primitives/button';
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { usePanelSize } from '@/panels/panel-system/PanelSizeContext';
 import { cn } from '@/lib/utils';
 import type { HistoryRecord } from '@/types/history';

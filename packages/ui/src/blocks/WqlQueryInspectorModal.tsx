@@ -18,6 +18,7 @@ import {
   type QueryBlockObject,
 } from '@bitcobblers/wod-wiki-wql';
 import { EditorDialog } from '../dialog/EditorDialog';
+import { Button } from '../primitives/button';
 import {
   QueryObjectBuilder,
   type QueryObjectValidationState,
@@ -131,22 +132,23 @@ export function WqlQueryInspectorModal({
           >
             {serializedDraft}
           </div>
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={onClose}
-            className="min-h-12 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground rounded-lg border border-border hover:bg-muted transition-colors"
+            className="min-h-12 text-muted-foreground hover:text-foreground"
           >
             Cancel
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            size="sm"
             data-testid="wql-inspector-apply"
             onClick={() => void handleApply()}
             disabled={!validation.valid || applying}
-            className="min-h-12 px-3 py-1.5 text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow transition-colors"
+            className="min-h-12"
           >
             {applying ? 'Applying…' : applyLabel}
-          </button>
+          </Button>
         </>
       }
     >

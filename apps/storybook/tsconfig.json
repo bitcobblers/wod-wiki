@@ -13,7 +13,10 @@
       "@bitcobblers/wod-wiki-engine/react": ["../../packages/engine/src/react.ts"],
       "@bitcobblers/wod-wiki-engine": ["../../packages/engine/src"],
       "@bitcobblers/wod-wiki-storage": ["../../packages/storage/src"],
-      "@bitcobblers/wod-wiki-storage/idb": ["../../packages/storage/src/idb"]
+      "@bitcobblers/wod-wiki-storage/idb": ["../../packages/storage/src/idb"],
+      "@bitcobblers/wod-wiki-ui/primitives": ["../../packages/ui/src/primitives/index.ts"],
+      "@bitcobblers/wod-wiki-ui/extensions": ["../../packages/ui/src/extensions/index.ts"],
+      "@bitcobblers/wod-wiki-ui": ["../../packages/ui/src/index.ts"]
     }
   },
   "include": ["src/**/*"],

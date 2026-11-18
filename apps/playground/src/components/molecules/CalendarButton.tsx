@@ -1,29 +1,19 @@
-/**
- * CalendarButton — Single button with a calendar icon that opens a popover
- * containing a CalendarCard for date selection.
- */
-
 import React, { useState } from 'react';
 import { CalendarDays } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { cn } from '@/lib/utils';
 import { formatDateShort } from '@/lib/dateFormat';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/atoms/primitives/dropdown-menu';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
-import { usePopoverAlign } from '@/hooks/usePopoverAlign';
 
 export interface CalendarButtonProps {
-  /** Currently selected date */
   selectedDate: Date | null;
-  /** Called when the user picks a date */
   onDateSelect: (date: Date | null) => void;
-  /** ISO date strings ("YYYY-MM-DD") to highlight in the calendar */
   entryDates?: Set<string>;
   size?: 'sm' | 'default';
-  /** When true, renders as read-only — non-interactive, visually dimmed */
   disabled?: boolean;
   className?: string;
 }
@@ -37,45 +27,37 @@ export const CalendarButton: React.FC<CalendarButtonProps> = ({
   className,
 }) => {
   const [open, setOpen] = useState(false);
-  const { triggerRef, align, recompute } = usePopoverAlign('end');
 
   const padding = size === 'sm' ? 'px-2 py-1.5' : 'px-2.5 py-2';
   const textSize = size === 'sm' ? 'text-[11px]' : 'text-xs';
-
-  const dateLabel = selectedDate
-    ? formatDateShort(selectedDate)
-    : null;
-
-  const handleOpenChange = (next: boolean) => {
-    if (disabled) return;
-    if (next) recompute();
-    setOpen(next);
-  };
+  const dateLabel = selectedDate ? formatDateShort(selectedDate) : null;
 
   return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-      <DropdownMenuTrigger asChild>
-        <button
-          ref={el => { triggerRef.current = el; }}
-          type="button"
-          disabled={disabled}
-          title={dateLabel ? `Selected: ${dateLabel}` : 'Select date'}
-          className={cn(
-            'inline-flex items-center gap-1.5 rounded-lg border border-border/70',
-            'bg-muted text-muted-foreground shadow-sm hover:shadow-md transition-shadow font-medium',
-            'hover:bg-accent hover:text-accent-foreground transition-colors',
-            'disabled:opacity-60 disabled:pointer-events-none',
-            textSize,
-            padding,
-            selectedDate && 'text-primary',
-            className,
-          )}
-        >
-          <CalendarDays className="h-4 w-4 shrink-0" />
-          {dateLabel && <span className="leading-none">{dateLabel}</span>}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align={align} className="p-0 w-auto">
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (!disabled) setOpen(next);
+      }}
+    >
+      <PopoverTrigger
+        disabled={disabled}
+        aria-label={dateLabel ? `Selected date ${dateLabel}` : 'Select date'}
+        title={dateLabel ? `Selected: ${dateLabel}` : 'Select date'}
+        className={cn(
+          'inline-flex h-auto items-center gap-1.5 rounded-lg border border-border/70',
+          'bg-muted text-muted-foreground shadow-sm hover:shadow-md transition-shadow font-medium',
+          'hover:bg-accent hover:text-accent-foreground transition-colors',
+          'disabled:opacity-60 disabled:pointer-events-none',
+          textSize,
+          padding,
+          selectedDate && 'text-primary',
+          className,
+        )}
+      >
+        <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
+        {dateLabel && <span className="leading-none">{dateLabel}</span>}
+      </PopoverTrigger>
+      <PopoverContent align="end" sideOffset={6} aria-label="Choose date" className="p-0 w-auto">
         <CalendarCard
           selectedDate={selectedDate}
           onDateSelect={(date) => {
@@ -84,7 +66,7 @@ export const CalendarButton: React.FC<CalendarButtonProps> = ({
           }}
           entryDates={entryDates}
         />
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   );
 };

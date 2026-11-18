@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react'
 import { RefreshCw, CheckCircle2, AlertCircle, CloudOff, Database, Server, Check, Lock, Search, Download, ArchiveRestore } from 'lucide-react'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import {
   readDataSettings,
   connectTurso,

@@ -1,9 +1,15 @@
 import React, { useState, useCallback } from 'react';
-import { Card, CardContent } from '@/components/atoms/primitives/card';
-import { Button } from '@/components/atoms/primitives/button';
-import { Badge } from '@/components/atoms/primitives/badge';
-import { Progress } from '@/components/atoms/primitives/progress';
-import { Label } from '@/components/atoms/primitives/label';
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  Progress,
+  ProgressIndicator,
+  ProgressLabel,
+  ProgressTrack,
+  ProgressValue,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { PlayIcon, PauseIcon, SquareIcon } from '@phosphor-icons/react';
 import { useTimerElapsed } from '@bitcobblers/wod-wiki-engine/react';
 import { cn } from '@/lib/utils';
@@ -88,20 +94,22 @@ export const ClockAnchor: React.FC<ClockAnchorProps> = ({
 
           {/* Timer Display */}
           <div className="space-y-4">
-            <Label className="text-sm font-medium text-muted-foreground">
+            <div className="text-sm font-medium text-muted-foreground">
               {duration ? 'Time Remaining' : 'Time Elapsed'}
-            </Label>
+            </div>
             <div className="text-6xl font-mono font-bold text-foreground">
               {duration ? formatTime(duration) : '--:--'}
             </div>
             {showProgress && (duration ?? 0) > 0 && (
-              <div className="space-y-2">
+              <Progress value={0} className="w-full space-y-2">
                 <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Progress</span>
-                  <span>0%</span>
+                  <ProgressLabel>Progress</ProgressLabel>
+                  <ProgressValue />
                 </div>
-                <Progress value={0} className="h-3" />
-              </div>
+                <ProgressTrack className="h-3">
+                  <ProgressIndicator />
+                </ProgressTrack>
+              </Progress>
             )}
           </div>
 
@@ -158,11 +166,10 @@ export const ClockAnchor: React.FC<ClockAnchorProps> = ({
 
           {/* Main Display */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Timer Display */}
             <div className="space-y-4">
-              <Label className="text-sm font-medium text-muted-foreground">
+              <div className="text-sm font-medium text-muted-foreground">
                 {duration ? 'Time Remaining' : 'Time Elapsed'}
-              </Label>
+              </div>
               <div className={cn(
                 "text-6xl font-mono font-bold transition-colors",
                 isRunning ? "text-primary" : "text-foreground"
@@ -170,21 +177,22 @@ export const ClockAnchor: React.FC<ClockAnchorProps> = ({
                 {formatTime(displayTime)}
               </div>
               {showProgress && (duration ?? 0) > 0 && (
-                <div className="space-y-2">
+                <Progress value={Math.round(progress)} className="w-full space-y-2">
                   <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Progress</span>
-                    <span>{Math.round(progress)}%</span>
+                    <ProgressLabel>Progress</ProgressLabel>
+                    <ProgressValue />
                   </div>
-                  <Progress value={progress} className="h-3" />
-                </div>
+                  <ProgressTrack className="h-3">
+                    <ProgressIndicator />
+                  </ProgressTrack>
+                </Progress>
               )}
             </div>
 
-            {/* Status Panel */}
             <div className="space-y-4">
-              <Label className="text-sm font-medium text-muted-foreground">
+              <div className="text-sm font-medium text-muted-foreground">
                 Status
-              </Label>
+              </div>
               <div className="flex flex-col items-center justify-center h-24">
                 <div className={cn(
                   "w-4 h-4 rounded-full mb-2",

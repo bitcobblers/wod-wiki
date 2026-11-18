@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import {
+    Button,
     Dialog,
+    DialogBackdrop,
     DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/atoms/primitives/dialog';
-import { Button } from '@/components/atoms/primitives/button';
+} from '@bitcobblers/wod-wiki-ui/primitives';
 
 interface ImportMarkdownDialogProps {
     open: boolean;
@@ -46,6 +47,7 @@ export const ImportMarkdownDialog: React.FC<ImportMarkdownDialogProps> = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogBackdrop />
             <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
                 <DialogHeader>
                     <DialogTitle>Import from Markdown</DialogTitle>

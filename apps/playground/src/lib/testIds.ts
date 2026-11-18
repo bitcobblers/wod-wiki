@@ -124,6 +124,7 @@ export const TEST_IDS = {
   EQUIPMENT_NOT_FOUND_CREATE_BTN: 'equipment-not-found-create-btn',
   EQUIPMENT_CREATE_BTN: 'equipment-create-btn',
   EQUIPMENT_LOAD_ERROR: 'equipment-load-error',
+  EQUIPMENT_INLINE_BACKLINKS: 'equipment-inline-backlinks',
 
   // ── Command palette ────────────────────────────────────────────────────────
   COMMAND_PALETTE_TRIGGER: 'command-palette-trigger',
@@ -201,6 +202,10 @@ export const TEST_IDS = {
   STREAM_QUERY_SYNTAX_HINT: 'stream-query-syntax-hint',
   DELETE_DASHBOARD_BUTTON: 'delete-dashboard-button',
   CONFIRM_DELETE_DASHBOARD: 'confirm-delete-dashboard',
+  NOTE_DELETE_DIALOG: 'note-delete-dialog',
+  NOTE_DELETE_CANCEL: 'note-delete-cancel',
+  NOTE_DELETE_CONFIRM: 'note-delete-confirm',
+  EXPLORER_INVALID_URL_ALERT: 'explorer-invalid-url-alert',
   CONDITIONS_NAV_RECENT: 'conditions-nav-recent',
   LOAD_ZIP_INTAKE: 'load-zip-intake',
   BUNDLE_FILE_INPUT: 'bundle-file-input',

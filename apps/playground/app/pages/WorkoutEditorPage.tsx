@@ -10,7 +10,6 @@ import { useState, useMemo, useCallback } from 'react'
 import { formatDateHeader } from '@/lib/dateFormat'
 import { useNavigate } from 'react-router-dom'
 import { toast } from '@/hooks/use-toast'
-import { ToastAction } from '@/components/atoms/primitives/toast'
 import { EditorView } from '@codemirror/view'
 import { v7 as uuidv7 } from 'uuid'
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
@@ -156,11 +155,10 @@ export function WorkoutEditorPage({
       toast({
         title: `Added to ${dateLabel}`,
         description: `"${name}" was added to your journal.`,
-        action: (
-          <ToastAction altText="View journal entry" onClick={() => navigate(journalRoute)}>
-            View Note
-          </ToastAction>
-        ),
+        action: {
+          label: 'View Note',
+          onAction: () => navigate(journalRoute),
+        },
         duration: 7000,
       })
     },

@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
 import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine';
-import { Button } from '@/components/atoms/primitives/button';
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { useNav } from '../../../app/nav/NavContext';
 
 export interface L3DrawerState {

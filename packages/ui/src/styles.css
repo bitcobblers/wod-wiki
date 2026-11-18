@@ -245,3 +245,108 @@
     border-color: hsl(var(--border));
   }
 }
+
+@layer components {
+  :root {
+    color-scheme: light;
+    --ui-background: hsl(var(--card));
+    --ui-foreground: hsl(var(--foreground));
+    --ui-muted: hsl(var(--muted));
+    --ui-muted-foreground: hsl(var(--muted-foreground));
+    --ui-border: hsl(var(--border));
+    --ui-input: hsl(var(--field-border));
+    --ui-primary: hsl(var(--primary));
+    --ui-primary-foreground: hsl(var(--primary-foreground));
+    --ui-destructive: hsl(var(--destructive));
+    --ui-ring: hsl(var(--ring));
+    --ui-ring-border: hsl(var(--ring));
+    --ui-radius: 0.5rem;
+    --ui-font-sans: var(--font-sans);
+    --ui-font-mono: var(--font-mono);
+  }
+
+  .dark {
+    color-scheme: dark;
+    --ui-background: hsl(var(--card));
+    --ui-foreground: hsl(var(--foreground));
+    --ui-muted: hsl(var(--muted));
+    --ui-muted-foreground: hsl(var(--muted-foreground));
+    --ui-border: hsl(var(--border));
+    --ui-input: hsl(var(--field-border));
+    --ui-primary: hsl(var(--primary));
+    --ui-primary-foreground: hsl(var(--primary-foreground));
+    /* Lifted above --destructive (58% L) so FieldError text passes 4.5:1 on --card. */
+    --ui-destructive: hsl(354 68% 76%);
+    --ui-ring: hsl(var(--ring));
+    --ui-ring-border: hsl(var(--ring));
+  }
+
+  :is(
+    [data-slot="button"],
+    [data-slot="dialog-trigger"],
+    [data-slot="dialog-close"],
+    [data-slot="alert-dialog-trigger"],
+    [data-slot="alert-dialog-close"],
+    [data-slot="drawer-trigger"],
+    [data-slot="drawer-close"],
+    [data-slot="popover-trigger"],
+    [data-slot="popover-close"],
+    [data-slot="menu-trigger"]
+  ) {
+    &[data-variant="secondary"] {
+      border-color: transparent;
+      background: hsl(var(--secondary));
+      color: hsl(var(--secondary-foreground));
+
+      &:hover:not([data-disabled]) {
+        background: hsl(var(--secondary) / 0.8);
+      }
+    }
+
+    &[data-variant="ghost"] {
+      border-color: transparent;
+      background: transparent;
+
+      &:hover:not([data-disabled]) {
+        background: var(--ui-muted);
+      }
+    }
+
+    &[data-variant="link"] {
+      border-color: transparent;
+      background: transparent;
+      color: var(--ui-primary);
+      text-underline-offset: 4px;
+
+      &:hover:not([data-disabled]) {
+        background: transparent;
+        text-decoration: underline;
+      }
+    }
+
+    &[data-size="sm"] {
+      height: 2.25rem;
+      padding-inline: 0.75rem;
+      font-size: 0.75rem;
+    }
+
+    &[data-size="lg"] {
+      height: 2.75rem;
+      padding-inline: 1.5rem;
+      font-size: 0.875rem;
+    }
+
+    &[data-size="icon"] {
+      width: 2.75rem;
+      height: 2.75rem;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      padding: 0;
+    }
+  }
+
+  [data-slot="button"]:not([data-pending]) [data-show="pending"],
+  [data-slot="button"][data-pending] [data-show="idle"] {
+    display: none;
+  }
+}

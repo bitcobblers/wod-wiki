@@ -1,30 +1,20 @@
-/**
- * ButtonGroupDropdown
- *
- * Two-sided pill: left = primary action, right = chevron that opens a
- * DropdownMenu listing any number of additional INavActivation actions.
- */
-
 import React from 'react';
 import { ChevronDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/atoms/primitives/dropdown-menu';
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuSeparator,
+  MenuTrigger,
+} from '@bitcobblers/wod-wiki-ui/primitives';
+import { cn } from '@/lib/utils';
 import type { INavActivation, INavAction } from '@/nav/navTypes';
 
 export interface ButtonGroupDropdownProps {
-  /** Primary left-hand action */
   primary: INavActivation;
-  /** Actions shown in the dropdown */
   actions: INavActivation[];
   size?: 'sm' | 'default';
   className?: string;
-  /** Override action execution — supply when NavActionDeps are available. */
   onAction?: (action: INavAction, activation: INavActivation) => void;
 }
 
@@ -62,58 +52,52 @@ export const ButtonGroupDropdown: React.FC<ButtonGroupDropdownProps> = ({
         className,
       )}
     >
-      {/* Primary */}
       <button
         type="button"
         title={primary.label}
         onClick={() => fireAction(primary, onAction)}
         className={cn(
-          'flex items-center gap-2 transition-colors',
-          'hover:bg-accent hover:text-accent-foreground',
+          'flex items-center gap-2 transition-colors hover:bg-accent hover:text-accent-foreground',
           padding,
         )}
       >
-        {PrimaryIcon && <PrimaryIcon className="h-4 w-4 shrink-0" />}
+        {PrimaryIcon && <PrimaryIcon className="h-4 w-4 shrink-0" aria-hidden="true" />}
         <span>{primary.label}</span>
       </button>
 
-      {/* Divider */}
       <div className="w-px bg-border/60 self-stretch" />
 
-      {/* Dropdown trigger */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            title="More options"
-            className={cn(
-              'flex items-center justify-center transition-colors',
-              'hover:bg-accent hover:text-accent-foreground',
-              iconPadding,
-            )}
-          >
-            <ChevronDown className="h-4 w-4" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[160px]">
+      <Menu>
+        <MenuTrigger
+          aria-label={`More ${primary.label} options`}
+          title="More options"
+          className={cn(
+            'flex h-auto w-auto rounded-none border-0 bg-transparent items-center justify-center transition-colors hover:bg-accent hover:text-accent-foreground',
+            iconPadding,
+          )}
+        >
+          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+        </MenuTrigger>
+        <MenuContent align="end" sideOffset={6} className="min-w-[160px]">
           {actions.map((act, i) => {
             if (act.action.type === 'none') {
-              return <DropdownMenuSeparator key={act.id ?? i} />;
+              return <MenuSeparator key={act.id ?? i} />;
             }
             const Icon = act.icon;
             return (
-              <DropdownMenuItem
+              <MenuItem
                 key={act.id}
+                value={act.id}
                 onClick={() => fireAction(act, onAction)}
                 className="gap-2"
               >
-                {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
                 {act.label}
-              </DropdownMenuItem>
+              </MenuItem>
             );
           })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </MenuContent>
+      </Menu>
     </div>
   );
 };

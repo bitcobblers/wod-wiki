@@ -344,7 +344,7 @@ describe('MarkdownCanvasPage result persistence', () => {
     await waitFor(() => expect(screen.getAllByTestId('chrome-title')[0]?.textContent).toBe('Examples'))
 
     act(() => {
-      screen.getByRole('button', { name: 'With weight' }).click()
+      screen.getByRole('radio', { name: 'With weight' }).click()
     })
 
     await waitFor(() => {

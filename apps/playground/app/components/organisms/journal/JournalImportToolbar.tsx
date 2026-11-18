@@ -1,35 +1,20 @@
-/**
- * JournalImportToolbar
- *
- * Split button toolbar for journal zip-load import actions.
- * Primary: Import for Today
- * Dropdown: Plan for Future (date picker)
- */
-
 import React, { useState } from 'react';
 import { CalendarDays, CheckCircle2 } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { formatDateShort } from '@/lib/dateFormat';
 import { cn } from '@/lib/utils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/atoms/primitives/dropdown-menu';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
-import { usePopoverAlign } from '@/hooks/usePopoverAlign';
 
 export interface JournalImportToolbarProps {
-  /** Currently selected date (for pre-selection in picker) */
   selectedDate?: Date | null;
-  /** Called when user clicks "Import for Today" */
   onImportToday: () => Promise<void>;
-  /** Called when user selects a date from the picker */
   onDateSelect: (date: Date) => Promise<void>;
-  /** ISO date strings to highlight in calendar */
   entryDates?: Set<string>;
-  /** Whether an import is in progress */
   isLoading?: boolean;
-  /** CSS class for custom styling */
   className?: string;
 }
 
@@ -43,8 +28,7 @@ export const JournalImportToolbar: React.FC<JournalImportToolbarProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [importing, setImporting] = useState(false);
-  const { triggerRef, align, recompute } = usePopoverAlign('end');
-  
+
   const handleImportToday = async () => {
     setImporting(true);
     try {
@@ -64,78 +48,59 @@ export const JournalImportToolbar: React.FC<JournalImportToolbarProps> = ({
     }
   };
 
-  const handleOpenChange = (next: boolean) => {
-    if (next) recompute();
-    setOpen(next);
-  };
-
-  const dateLabel = selectedDate
-    ? formatDateShort(selectedDate)
-    : 'Date';
-
+  const dateLabel = selectedDate ? formatDateShort(selectedDate) : 'Date';
   const isDisabled = isLoading || importing;
 
   return (
     <div
       className={cn(
         'inline-flex items-stretch rounded-lg overflow-hidden border border-border/70',
-        'bg-muted text-muted-foreground shadow-sm hover:shadow-md transition-shadow font-medium',
-        'text-xs',
+        'bg-muted text-muted-foreground shadow-sm hover:shadow-md transition-shadow font-medium text-xs',
         className,
       )}
     >
-      {/* Primary: Import for Today */}
       <button
         type="button"
         title="Import to today's journal"
-        onClick={handleImportToday}
+        onClick={() => void handleImportToday()}
         disabled={isDisabled}
         className={cn(
-          'flex items-center gap-2 px-3 py-2 transition-colors',
-          'hover:bg-accent hover:text-accent-foreground',
+          'flex items-center gap-2 px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
           isDisabled && 'opacity-60 cursor-not-allowed',
         )}
       >
         {importing ? (
           <span className="inline-block animate-spin">⏳</span>
         ) : (
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
         )}
         <span>Import Today</span>
       </button>
 
-      {/* Divider */}
       <div className="w-px bg-border/60 self-stretch" />
 
-      {/* Date picker trigger */}
-      <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-        <DropdownMenuTrigger asChild>
-          <button
-            ref={el => { triggerRef.current = el; }}
-            type="button"
-            title="Select a date to plan for the future"
-            className={cn(
-              'flex items-center gap-1.5 px-2.5 py-2 transition-colors',
-              'hover:bg-accent hover:text-accent-foreground',
-              selectedDate && 'text-primary',
-              isDisabled && 'opacity-60 cursor-not-allowed',
-            )}
-            disabled={isDisabled}
-          >
-            <CalendarDays className="h-4 w-4 shrink-0" />
-            {selectedDate && (
-              <span className="leading-none text-xs">{dateLabel}</span>
-            )}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align={align} className="p-0 w-auto">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          disabled={isDisabled}
+          aria-label="Plan for future date"
+          title="Select a date to plan for the future"
+          className={cn(
+            'flex h-auto rounded-none border-0 bg-transparent items-center gap-1.5 px-2.5 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
+            selectedDate && 'text-primary',
+            isDisabled && 'opacity-60 cursor-not-allowed',
+          )}
+        >
+          <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {selectedDate && <span className="leading-none text-xs">{dateLabel}</span>}
+        </PopoverTrigger>
+        <PopoverContent align="end" sideOffset={6} aria-label="Plan date" className="p-0 w-auto">
           <CalendarCard
             selectedDate={selectedDate || null}
-            onDateSelect={handleDateSelect}
+            onDateSelect={(d) => void handleDateSelect(d)}
             entryDates={entryDates}
           />
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 };

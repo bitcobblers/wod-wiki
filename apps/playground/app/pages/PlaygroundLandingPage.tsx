@@ -2,7 +2,7 @@ import { useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Moon, Sun, Sparkles, PanelTop, LayoutGrid } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeProvider'
-import { Switch } from '@/components/atoms/primitives/switch'
+import { Switch, SwitchThumb } from '@bitcobblers/wod-wiki-ui/primitives'
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
 import { useCanvasRoutes } from '../canvas/canvasRoutes'
 import { canvasRouteSource } from '../services/paletteDataSources'
@@ -196,9 +196,11 @@ export function PlaygroundLandingPage() {
           <Sun className="size-4 text-zinc-500" aria-hidden="true" />
           <Switch
             checked={isDarkMode}
-            onChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+            onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
             aria-label="Toggle dark mode"
-          />
+          >
+            <SwitchThumb />
+          </Switch>
           <Moon className="size-4 text-zinc-500" aria-hidden="true" />
         </div>
       }

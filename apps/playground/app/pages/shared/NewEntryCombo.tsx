@@ -13,7 +13,7 @@ import {
   WrenchScrewdriverIcon,
 } from '@heroicons/react/20/solid'
 
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { notebookService } from '@/hooks/useBrowserServices'
 
 import { useNav } from '../../nav/NavContext'

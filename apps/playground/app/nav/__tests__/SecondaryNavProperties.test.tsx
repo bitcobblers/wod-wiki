@@ -346,11 +346,14 @@ describe('canonical tag membership through the L3 rail', () => {
       query: ':notebooks{tags:strength} by {tag}',
       entries: [entry({ id: 'f1', sourceNotebook: 'crossfit-girls', title: 'Fran' })],
     })
-    fireEvent.click(await waitFor(() => {
+    const tagsButton = await waitFor(() => {
       const button = screen.getByTestId('conditions-section-tags').querySelector('button')
       if (!button) throw new Error('tags accordion not rendered yet')
       return button
-    }))
+    })
+    if (tagsButton.getAttribute('aria-expanded') === 'false') {
+      fireEvent.click(tagsButton)
+    }
     await waitFor(() => expect(screen.getByTestId('conditions-row-tags:benchmark')).toBeTruthy())
     expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy()
   })
@@ -511,11 +514,14 @@ describe('FacetProperties in the L3 stream controls', () => {
     renderRail("/feeds", controls())
     publish({ pathname: '/feeds', query: DEFAULT_Q, entries: ENTRIES })
     // Open the tags accordion via its section wrapper — no label wording pin.
-    fireEvent.click(await waitFor(() => {
+    const tagsButton = await waitFor(() => {
       const button = screen.getByTestId('conditions-section-tags').querySelector('button')
       if (!button) throw new Error('tags accordion not rendered yet')
       return button
-    }))
+    })
+    if (tagsButton.getAttribute('aria-expanded') === 'false') {
+      fireEvent.click(tagsButton)
+    }
     await waitFor(() => expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy())
 
     // Typing in the live Contains box rewrites the query's text condition;

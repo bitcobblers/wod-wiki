@@ -1,8 +1,7 @@
 import { useCallback, useMemo, useState, useSyncExternalStore, type SyntheticEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { CloudDownload, ExternalLink, Loader2, Rss } from 'lucide-react';
-import { Button } from '@/components/atoms/primitives/button';
-import { Input } from '@/components/atoms/primitives/input';
+import { Button, Input } from '@bitcobblers/wod-wiki-ui/primitives';
 import { TEST_IDS } from '@/lib/testIds';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -234,7 +233,7 @@ export function SubscribePage() {
             <Input
               type="url"
               value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
+              onValueChange={setUrlInput}
               placeholder="https://example.com/seed/"
               aria-label="Feed directory URL"
               className="flex-1 min-w-0 text-xs"

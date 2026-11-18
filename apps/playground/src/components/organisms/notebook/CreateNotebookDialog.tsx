@@ -6,13 +6,14 @@
 
 import React, { useState } from 'react';
 import {
+    Button,
     Dialog,
+    DialogBackdrop,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
-    DialogDescription,
-} from '@/components/atoms/Dialog';
-import { Button } from '@/components/atoms/primitives/button';
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { cn } from '@/lib/utils';
 import type { Notebook } from '@/types/notebook';
 
@@ -82,6 +83,7 @@ export const CreateNotebookDialog: React.FC<CreateNotebookDialogProps> = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogBackdrop />
             <DialogContent className="bg-popover text-popover-foreground border border-border">
                 <DialogHeader>
                     <DialogTitle className="text-foreground">{editing ? 'Edit Notebook' : 'Create Notebook'}</DialogTitle>

@@ -13,8 +13,8 @@ import { lowerReceiverCss } from './legacyReceiverCss';
 const lower = (css: string): string => lowerReceiverCss(css, 'test.css').code;
 
 describe('lowerReceiverCss', () => {
-    it('unwraps @layer blocks so the engine keeps the rules', () => {
-        const out = lower('@layer utilities{.a{color:red}}');
+    it('unwraps @layer blocks (including nested @layer imports) so the engine keeps the rules', () => {
+        const out = lower('@layer ui-sdk;@layer components{@layer ui-sdk{.a{color:red}}}');
 
         expect(out).toContain('color:red');
         expect(out).not.toContain('@layer');

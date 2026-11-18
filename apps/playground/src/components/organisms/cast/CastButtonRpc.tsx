@@ -22,7 +22,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TvMinimal, Cast } from 'lucide-react';
-import { Button } from '@/components/atoms/primitives/button';
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { useActiveRunStore } from '@/stores/activeRunStore';
 import {
     sharedCastSessionManager,

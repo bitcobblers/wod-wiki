@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
-import { Button } from '@/components/atoms/primitives/button'
 import {
+  Button,
   Dialog,
+  DialogBackdrop,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/atoms/primitives/dialog'
+} from '@bitcobblers/wod-wiki-ui/primitives'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
+import { TEST_IDS } from '@/lib/testIds'
 import { exportNote } from '@/services/ExportImportService'
 import type { HistoryRecord } from '@/types/history'
 import { NotePlacementDialog, type NotePlacementMode } from '../../components/organisms/journal/NotePlacementDialog'
@@ -284,7 +286,8 @@ export function useNoteActions(options: UseNoteActionsOptions) {
           }
         }}
       >
-        <DialogContent data-testid="note-delete-dialog">
+        <DialogBackdrop />
+        <DialogContent data-testid={TEST_IDS.NOTE_DELETE_DIALOG}>
           <DialogHeader>
             <DialogTitle>Delete note?</DialogTitle>
             <DialogDescription>
@@ -305,7 +308,7 @@ export function useNoteActions(options: UseNoteActionsOptions) {
                 setConfirmDeleteOpen(false)
                 setDeleteError(null)
               }}
-              data-testid="note-delete-cancel"
+              data-testid={TEST_IDS.NOTE_DELETE_CANCEL}
             >
               Cancel
             </Button>
@@ -314,12 +317,13 @@ export function useNoteActions(options: UseNoteActionsOptions) {
               variant="destructive"
               disabled={deletingNote}
               aria-busy={deletingNote}
+              data-agent-confirm={`Deletes note "${entry.title || 'Untitled note'}" permanently`}
               onClick={() => {
                 void handleConfirmDelete()
               }}
-              data-testid="note-delete-confirm"
+              data-testid={TEST_IDS.NOTE_DELETE_CONFIRM}
             >
-              {deletingNote ? 'Deleting…' : 'Delete note'}
+              {deletingNote ? 'Deleting…' : 'Delete forever'}
             </Button>
           </DialogFooter>
         </DialogContent>

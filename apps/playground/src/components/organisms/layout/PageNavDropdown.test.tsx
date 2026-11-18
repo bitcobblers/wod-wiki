@@ -36,7 +36,7 @@ describe('PageNavDropdown', () => {
       screen.getByLabelText('Page sections').click()
     })
     act(() => {
-      screen.getByRole('menuitem').click()
+      screen.getByRole('button', { name: 'Overview' }).click()
     })
     expect(scrollToSection).toHaveBeenCalledWith('overview')
   })
@@ -63,7 +63,7 @@ describe('PageNavDropdown', () => {
       screen.getByLabelText('Page sections').click()
     })
     act(() => {
-      screen.getByRole('menuitem').click()
+      screen.getByRole('button', { name: 'Fran' }).click()
     })
     expect(onRun).toHaveBeenCalled()
     expect(scrollToSection).not.toHaveBeenCalled()

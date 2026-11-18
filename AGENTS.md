@@ -144,3 +144,7 @@ e2e/
 - **Build Times**: NEVER cancel builds - `bun run build-storybook` may take up to 60 minutes
 - **Stale dev servers hold the ports**: several long-lived `vite` processes keep :5173/:5174 from earlier sessions. A stale server answers with an outdated public-dir snapshot — the seed manifest 404s, the SPA shell is served instead, and the app reports "Seed sync settled with outcome error". Check `ss -ltnp | grep 5173` before debugging seed sync, and run the dev server on a free port.
 - **Seed corpora are built per app**: `scripts/sync-seed.ts` emits `apps/playground/public/seed/core` and `apps/storybook/public/seed/core` (identical — the shared `markdown/` corpus; starter notes live in the app's `notebook/defaults`, not in the seed). Playground's Vite config serves `/seed/*` per request because its public-dir listing otherwise becomes stale after regeneration; Storybook serves its own `public/seed` through `staticDirs`.
+
+## ui-sdk
+
+Before using `ui-sdk`, follow the `ui-sdk` skill if it's installed, and read `node_modules/@ui-sdk/react/docs/llms.txt`. To build a new component, also search `node_modules/@ui-sdk/react/docs/core.md` by heading, and read `rendering.md` next to it (`node_modules/@ui-sdk/react/docs/rendering.md`).

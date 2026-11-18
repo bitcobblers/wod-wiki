@@ -8,8 +8,7 @@
  * owns the draft, the save/reset actions and the storage calls.
  */
 import { ArrowDown, ArrowUp, Pencil, Trash2, X } from 'lucide-react'
-import { Button } from '@/components/atoms/primitives/button'
-import { Switch } from '@/components/atoms/primitives/switch'
+import { Button, Switch, SwitchThumb } from '@bitcobblers/wod-wiki-ui/primitives'
 import { SOURCE_OPTIONS, TARGET_OPTIONS } from '@bitcobblers/wod-wiki-ui'
 import { GROUP_BY_DIMENSIONS } from '../../../lib/groupByOptions'
 
@@ -199,9 +198,11 @@ export function ConfigSection({
           Custom
           <Switch
             checked={enabled}
-            onChange={onEnabledChange}
+            onCheckedChange={onEnabledChange}
             data-testid={testId}
-          />
+          >
+            <SwitchThumb />
+          </Switch>
         </label>
       </div>
       {children}

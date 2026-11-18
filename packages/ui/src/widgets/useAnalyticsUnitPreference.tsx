@@ -1,3 +1,8 @@
+import {
+  SegmentedControl,
+  SegmentedControlIndicator,
+  SegmentedControlItem,
+} from '@ui-sdk/react/segmented-control';
 import { useCallback, useEffect, useState } from 'react';
 import { cn } from '../utils/cn';
 import { parseQuery } from '@bitcobblers/wod-wiki-wql';
@@ -113,42 +118,33 @@ export function AnalyticsUnitPreference({ className, unit: unitProp, forced = fa
       data-testid="analytics-unit-preference"
       className={cn('inline-flex items-center gap-1 text-xs', className)}
     >
-      <div
+      <SegmentedControl
+        aria-label="Display unit preference"
+        value={activeUnit}
+        disabled={forced}
+        onValueChange={(next) => {
+          if (next === 'kg' || next === 'lb') setUnit(next);
+        }}
+        title={forced ? 'Unit forced by query directive in this view' : 'Display unit preference'}
         className={cn(
           'inline-flex items-center rounded-lg border border-border bg-card p-1',
           forced && 'opacity-70',
         )}
-        title={forced ? 'Unit forced by query directive in this view' : 'Display unit preference'}
       >
-        <button
-          type="button"
-          disabled={forced}
-          onClick={() => setUnit('kg')}
-          className={cn(
-            'px-2.5 py-1 rounded-md transition-colors text-xs font-mono',
-            activeUnit === 'kg'
-              ? 'bg-primary text-primary-foreground font-medium'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-            forced && 'cursor-default hover:bg-transparent hover:text-muted-foreground',
-          )}
+        <SegmentedControlIndicator />
+        <SegmentedControlItem
+          value="kg"
+          className="px-2.5 py-1 rounded-md transition-colors text-xs font-mono text-muted-foreground hover:text-foreground data-checked:bg-primary data-checked:text-primary-foreground data-checked:font-medium"
         >
           kg
-        </button>
-        <button
-          type="button"
-          disabled={forced}
-          onClick={() => setUnit('lb')}
-          className={cn(
-            'px-2.5 py-1 rounded-md transition-colors text-xs font-mono',
-            activeUnit === 'lb'
-              ? 'bg-primary text-primary-foreground font-medium'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-            forced && 'cursor-default hover:bg-transparent hover:text-muted-foreground',
-          )}
+        </SegmentedControlItem>
+        <SegmentedControlItem
+          value="lb"
+          className="px-2.5 py-1 rounded-md transition-colors text-xs font-mono text-muted-foreground hover:text-foreground data-checked:bg-primary data-checked:text-primary-foreground data-checked:font-medium"
         >
           lb
-        </button>
-      </div>
+        </SegmentedControlItem>
+      </SegmentedControl>
       {forced && (
         <span className="text-[11px] text-muted-foreground italic">forced by note</span>
       )}

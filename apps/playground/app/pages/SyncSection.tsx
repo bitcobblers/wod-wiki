@@ -10,8 +10,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CloudDownload, RefreshCw, CheckCircle2, AlertCircle, Plus, Link2 } from 'lucide-react'
-import { Button } from '@/components/atoms/primitives/button'
-import { Input } from '@/components/atoms/primitives/input'
+import { Button, Input } from '@bitcobblers/wod-wiki-ui/primitives'
 import { deleteFeedSource, readFeedStatus, runFeedSync, subscribeFeedUpdates, syncFeedSource, unsubscribeFeedSource, type FeedSourceStatus, type FeedStatus, type FeedSyncOutcome, type FeedSyncProgress } from '@/services/feed/feedSync'
 import type { FeedImportProgress } from '@/services/feed/FeedImporter'
 import { addCustomFeedSource, type CustomFeedSource } from '@/services/feed/feedSources'
@@ -690,7 +689,7 @@ export function SyncSection({ deps = {} }: { deps?: SyncSectionDeps } = {}) {
               <Input
                 id="feed-source-label"
                 value={newLabel}
-                onChange={(e) => setNewLabel(e.target.value)}
+                onValueChange={setNewLabel}
                 placeholder="My library (optional — defaults to the host name)"
                 disabled={busyId !== null}
               />
@@ -705,7 +704,7 @@ export function SyncSection({ deps = {} }: { deps?: SyncSectionDeps } = {}) {
                 autoComplete="off"
                 spellCheck={false}
                 value={newUrl}
-                onChange={(e) => setNewUrl(e.target.value)}
+                onValueChange={setNewUrl}
                 placeholder="https://example.com/feed/library/"
                 className="font-mono"
                 disabled={busyId !== null}

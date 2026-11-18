@@ -20,6 +20,9 @@ export default defineConfig({
       '@bitcobblers/wod-wiki-core': resolve(import.meta.dirname, '../core/src'),
       '@bitcobblers/wod-wiki-lang': resolve(import.meta.dirname, '../lang/src'),
       '@bitcobblers/wod-wiki-wql': resolve(import.meta.dirname, '../wql/src'),
+      '@bitcobblers/wod-wiki-ui/primitives': resolve(import.meta.dirname, './src/primitives/index.ts'),
+      '@bitcobblers/wod-wiki-ui/extensions': resolve(import.meta.dirname, './src/extensions/index.ts'),
+      '@bitcobblers/wod-wiki-ui': resolve(import.meta.dirname, './src/index.ts'),
     },
   },
 });

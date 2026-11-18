@@ -6,7 +6,7 @@ import { ROUTE_PATTERNS, notePath } from '../../lib/routes'
 import { getTodayDateKey } from '../../services/dateUtils'
 import { journalNotes } from '../../services/journalNotes'
 import { telemetry, HOME_EVENTS } from '@/services/telemetry'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { readDataSettings, storageBackend } from '@/services/storage'
 import { TaglineHeader } from '../../tour/TaglineHeader'
 import { TOUR_ACCENTS } from '../../tour/tourConstants'

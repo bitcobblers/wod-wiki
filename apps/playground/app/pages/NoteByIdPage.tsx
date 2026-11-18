@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { v7 as uuidv7 } from 'uuid'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { CalendarCard } from '@/components/atoms/CalendarCard'
 import { JournalPageShell } from '@/panels/page-shells'
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor'

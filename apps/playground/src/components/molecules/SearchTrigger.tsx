@@ -1,6 +1,6 @@
 import React from 'react';
 import { Search } from 'lucide-react';
-import { Button } from '@/components/atoms/primitives/button';
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 
 interface SearchTriggerProps {
   onSearch?: () => void;

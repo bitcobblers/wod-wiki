@@ -1,35 +1,22 @@
-/**
- * CalendarSplitButton
- *
- * Two-sided pill: left = primary action, right = calendar icon that
- * opens a CalendarCard popover for date selection.
- */
-
 import React, { useState } from 'react';
 import { CalendarDays } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { cn } from '@/lib/utils';
 import { formatDateShort } from '@/lib/dateFormat';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/atoms/primitives/dropdown-menu';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
 import type { INavActivation, INavAction } from '@/nav/navTypes';
-import { usePopoverAlign } from '@/hooks/usePopoverAlign';
 
 export interface CalendarSplitButtonProps {
-  /** Primary left-hand action */
   primary: INavActivation;
-  /** Currently selected date */
   selectedDate: Date | null;
-  /** Called when the user picks a date */
   onDateSelect: (date: Date | null) => void;
-  /** ISO date strings ("YYYY-MM-DD") to highlight in the calendar */
   entryDates?: Set<string>;
   size?: 'sm' | 'default';
   className?: string;
-  /** Override action execution — supply when NavActionDeps are available. */
   onAction?: (action: INavAction, activation: INavActivation) => void;
 }
 
@@ -56,20 +43,11 @@ export const CalendarSplitButton: React.FC<CalendarSplitButtonProps> = ({
   onAction,
 }) => {
   const [open, setOpen] = useState(false);
-  const { triggerRef, align, recompute } = usePopoverAlign('end');
   const PrimaryIcon = primary.icon;
   const padding = size === 'sm' ? 'px-2.5 py-1.5' : 'px-3 py-2';
   const iconPadding = size === 'sm' ? 'px-2 py-1.5' : 'px-2.5 py-2';
   const textSize = size === 'sm' ? 'text-[11px]' : 'text-xs';
-
-  const dateLabel = selectedDate
-    ? formatDateShort(selectedDate)
-    : 'Date';
-
-  const handleOpenChange = (next: boolean) => {
-    if (next) recompute();
-    setOpen(next);
-  };
+  const dateLabel = selectedDate ? formatDateShort(selectedDate) : 'Date';
 
   return (
     <div
@@ -80,45 +58,35 @@ export const CalendarSplitButton: React.FC<CalendarSplitButtonProps> = ({
         className,
       )}
     >
-      {/* Primary */}
       <button
         type="button"
         title={primary.label}
         onClick={() => fireAction(primary, onAction)}
         className={cn(
-          'flex items-center gap-2 transition-colors',
-          'hover:bg-accent hover:text-accent-foreground',
+          'flex items-center gap-2 transition-colors hover:bg-accent hover:text-accent-foreground',
           padding,
         )}
       >
-        {PrimaryIcon && <PrimaryIcon className="h-4 w-4 shrink-0" />}
+        {PrimaryIcon && <PrimaryIcon className="h-4 w-4 shrink-0" aria-hidden="true" />}
         <span>{primary.label}</span>
       </button>
 
-      {/* Divider */}
       <div className="w-px bg-border/60 self-stretch" />
 
-      {/* Calendar trigger */}
-      <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-        <DropdownMenuTrigger asChild>
-          <button
-            ref={el => { triggerRef.current = el; }}
-            type="button"
-            title={`Select date — ${dateLabel}`}
-            className={cn(
-              'flex items-center gap-1.5 transition-colors',
-              'hover:bg-accent hover:text-accent-foreground',
-              iconPadding,
-              selectedDate && 'text-primary',
-            )}
-          >
-            <CalendarDays className="h-4 w-4 shrink-0" />
-            {selectedDate && (
-              <span className="leading-none">{dateLabel}</span>
-            )}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align={align} className="p-0 w-auto">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          aria-label={`Select date (${dateLabel})`}
+          title={`Select date — ${dateLabel}`}
+          className={cn(
+            'flex h-auto rounded-none border-0 bg-transparent items-center gap-1.5 transition-colors hover:bg-accent hover:text-accent-foreground',
+            iconPadding,
+            selectedDate && 'text-primary',
+          )}
+        >
+          <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {selectedDate && <span className="leading-none">{dateLabel}</span>}
+        </PopoverTrigger>
+        <PopoverContent align="end" sideOffset={6} aria-label="Choose date" className="p-0 w-auto">
           <CalendarCard
             selectedDate={selectedDate}
             onDateSelect={(date) => {
@@ -127,8 +95,8 @@ export const CalendarSplitButton: React.FC<CalendarSplitButtonProps> = ({
             }}
             entryDates={entryDates}
           />
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 };

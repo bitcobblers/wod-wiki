@@ -87,15 +87,12 @@ describe('SettingsPage', () => {
       const chimeSpy = spyOn(audioService, 'playSound').mockResolvedValue(undefined)
 
       const toggle = screen.getByTestId('sound-toggle')
-      expect(toggle.getAttribute('data-headlessui-state')).toContain('checked')
+      expect(toggle.getAttribute('aria-checked')).toBe('true')
 
       fireEvent.click(toggle)
       expect(audioService.isEnabled()).toBe(false)
-      expect(toggle.getAttribute('data-headlessui-state')).not.toContain('checked')
+      expect(toggle.getAttribute('aria-checked')).toBe('false')
 
-      // Back on through the UI (the provider caches its own enabled state),
-      // then the test chime reaches the audio service. The toggle itself
-      // plays a click sound first — the chime is the last call.
       fireEvent.click(toggle)
       fireEvent.click(screen.getByTestId('play-test-sound-btn'))
       expect(chimeSpy.mock.calls.at(-1)?.[0]).toBe('chime')
@@ -105,25 +102,25 @@ describe('SettingsPage', () => {
       renderSettings('/settings/system')
 
       const toggle = screen.getByTestId('debug-mode-toggle')
-      expect(toggle.getAttribute('data-headlessui-state')).not.toContain('checked')
+      expect(toggle.getAttribute('aria-checked')).toBe('false')
 
       fireEvent.click(toggle)
       expect(localStorage.getItem('wod-wiki-debug-mode')).toBe('true')
-      expect(toggle.getAttribute('data-headlessui-state')).toContain('checked')
+      expect(toggle.getAttribute('aria-checked')).toBe('true')
     })
 
     it('defaults telemetry toggle to enabled and toggles to opt out', () => {
       renderSettings('/settings/system')
       const toggle = screen.getByTestId('telemetry-toggle')
-      expect(toggle.getAttribute('data-headlessui-state')).toContain('checked')
+      expect(toggle.getAttribute('aria-checked')).toBe('true')
 
       fireEvent.click(toggle)
       expect(localStorage.getItem('wodwiki.telemetry.consent')).toBe('denied')
-      expect(toggle.getAttribute('data-headlessui-state')).not.toContain('checked')
+      expect(toggle.getAttribute('aria-checked')).toBe('false')
 
       fireEvent.click(toggle)
       expect(localStorage.getItem('wodwiki.telemetry.consent')).toBe('granted')
-      expect(toggle.getAttribute('data-headlessui-state')).toContain('checked')
+      expect(toggle.getAttribute('aria-checked')).toBe('true')
     })
 
     it('opens confirmation modal when clicking Reset & Clear Cache', () => {

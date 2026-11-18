@@ -9,7 +9,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pencil, Trash2 } from 'lucide-react';
-import { Button } from '@/components/atoms/primitives/button';
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog';
 import { notebookService } from '@/hooks/useBrowserServices';
 import type { Notebook } from '@/types/notebook';

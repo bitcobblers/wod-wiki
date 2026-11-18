@@ -1,5 +1,6 @@
 import type { Preview } from '@storybook/react-vite';
 import { useEffect } from 'react';
+import { WodOverlayHost } from '@bitcobblers/wod-wiki-ui/primitives';
 import { DatabaseProvider } from '../src/database/DatabaseContext';
 import { StoryDomainStateProvider, type StoryDomainStateSpec } from '../src/testing/domainStates';
 import '../src/index.css';
@@ -62,6 +63,7 @@ const preview: Preview = {
       return (
         <div className={`min-h-screen bg-background text-foreground ${isBleed ? '' : 'p-4 '}font-sans`}>
           <Story />
+          <WodOverlayHost />
           {showOntology && (
             <div
               style={{

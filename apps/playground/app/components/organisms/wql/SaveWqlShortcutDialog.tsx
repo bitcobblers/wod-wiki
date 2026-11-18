@@ -13,7 +13,7 @@
 import { useEffect, useState, type SyntheticEvent } from 'react'
 import { EditorDialog, resolveQueryDraft } from '@bitcobblers/wod-wiki-ui'
 import { remotePrefsMode } from '@/services/storage/metaStore'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 
 import {
   ALL_SHORTCUT_ID,

@@ -11,13 +11,17 @@ import {
 import { EditorDialog, WqlComposer } from '@bitcobblers/wod-wiki-ui'
 import { effortToDocument, tagRecordToDocument } from '@bitcobblers/wod-wiki-lang'
 import type { Tag } from '@bitcobblers/wod-wiki-core'
-import * as Headless from '@headlessui/react'
-import { Button } from '@/components/atoms/primitives/button'
 import {
-  ComboboxDescription,
-  ComboboxLabel,
-  ComboboxOption,
-} from '@/components/atoms/primitives/combobox'
+  Button,
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxItemIndicator,
+  ComboboxList,
+  ComboboxTrigger,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { TEST_IDS } from '@/lib/testIds'
 import { storageService } from '@/services/storage'
 import { notebookService } from '@/services/NotebookService'
@@ -299,11 +303,6 @@ export function CreateJournalNoteDialog({
     }
     return [blank, ...userOptions, ...sourceOptions]
   }, [notebookNotes, sources])
-
-  const selectedTemplateOption = useMemo(
-    () => allTemplateOptions.find(opt => opt.key === templateKey) ?? allTemplateOptions[0]!,
-    [allTemplateOptions, templateKey],
-  )
 
   const { visibleTemplateOptions, truncatedMatches } = useMemo(() => {
     const q = templateQuery.trim().toLowerCase()
@@ -741,59 +740,74 @@ export function CreateJournalNoteDialog({
               <label htmlFor="journal-create-template" className="text-xs font-medium text-muted-foreground">
                 Start from <span className="font-normal text-muted-foreground/80">(optional)</span>
               </label>
-              <Headless.Combobox
-                value={selectedTemplateOption}
-                onChange={(opt) => setTemplateKey(opt?.key ?? '')}
-                onClose={() => setTemplateQuery('')}
+              <Combobox
+                value={templateKey || '__blank__'}
+                filter={false}
+                items={allTemplateOptions.map((opt) => ({
+                  value: opt.key || '__blank__',
+                  label: opt.label,
+                }))}
+                onValueChange={(next) => {
+                  const resolved = typeof next === 'string' && next !== '__blank__' ? next : ''
+                  setTemplateKey(resolved)
+                }}
+                onQueryChange={setTemplateQuery}
+                onOpenChange={(nextOpen) => {
+                  if (!nextOpen) setTemplateQuery('')
+                }}
                 disabled={creating}
               >
-                <div className="relative">
-                  <Headless.ComboboxInput
+                <div className="relative flex">
+                  <ComboboxInput
                     id="journal-create-template"
                     aria-label="Start from template"
                     placeholder="Blank note — type to search templates…"
-                    displayValue={(opt: TemplateOption | null) => opt?.label ?? 'Blank note'}
-                    onChange={(e) => setTemplateQuery(e.target.value)}
-                    className={`${fieldClass} pr-8`}
+                    className={`${fieldClass} pr-8 flex-1`}
                     data-testid="journal-create-template"
                   />
-                  <Headless.ComboboxButton
-                    className="absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground hover:text-foreground"
+                  <ComboboxTrigger
+                    className="absolute inset-y-0 right-0 h-full w-8 border-0 bg-transparent p-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
                     aria-label="Toggle template options"
                   >
                     <svg className="size-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                       <path d="M5.75 10.75L8 13L10.25 10.75" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                       <path d="M10.25 5.25L8 3L5.75 5.25" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                  </Headless.ComboboxButton>
-                  <Headless.ComboboxOptions
-                    className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg focus:outline-none"
-                    data-testid="journal-create-template-options"
-                  >
-                    {visibleTemplateOptions.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-muted-foreground">
-                        No matching templates.
-                      </div>
-                    ) : (
-                      visibleTemplateOptions.map((opt) => (
-                        <ComboboxOption key={opt.key || '__blank__'} value={opt}>
-                          <ComboboxLabel>{opt.label}</ComboboxLabel>
-                          {opt.group !== 'Default' && (
-                            <ComboboxDescription>{opt.group}</ComboboxDescription>
-                          )}
-                        </ComboboxOption>
-                      ))
-                    )}
-                    {truncatedMatches > 0 && (
-                      <div className="px-3 py-1.5 text-[11px] text-muted-foreground border-t border-border/40">
-                        {templateQuery.trim()
-                          ? `+${truncatedMatches} more matches — keep typing to refine`
-                          : `Showing curated shortlist (${allTemplateOptions.length} total — type to search all)`}
-                      </div>
-                    )}
-                  </Headless.ComboboxOptions>
+                  </ComboboxTrigger>
                 </div>
-              </Headless.Combobox>
+                <ComboboxContent
+                  className="max-h-60 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg"
+                >
+                  <ComboboxEmpty className="px-3 py-2 text-xs text-muted-foreground">
+                    No matching templates.
+                  </ComboboxEmpty>
+                  <ComboboxList>
+                    {visibleTemplateOptions.map((opt) => (
+                      <ComboboxItem
+                        key={opt.key || '__blank__'}
+                        value={opt.key || '__blank__'}
+                        label={opt.label}
+                        className="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs data-highlighted:bg-muted"
+                      >
+                        <span className="truncate font-medium">{opt.label}</span>
+                        <span className="flex items-center gap-1.5 shrink-0">
+                          {opt.group !== 'Default' && (
+                            <span className="text-[11px] text-muted-foreground">{opt.group}</span>
+                          )}
+                          <ComboboxItemIndicator />
+                        </span>
+                      </ComboboxItem>
+                    ))}
+                  </ComboboxList>
+                  {truncatedMatches > 0 && (
+                    <div className="px-3 py-1.5 text-[11px] text-muted-foreground border-t border-border/40">
+                      {templateQuery.trim()
+                        ? `+${truncatedMatches} more matches — keep typing to refine`
+                        : `Showing curated shortlist (${allTemplateOptions.length} total — type to search all)`}
+                    </div>
+                  )}
+                </ComboboxContent>
+              </Combobox>
             </div>
           )}
 

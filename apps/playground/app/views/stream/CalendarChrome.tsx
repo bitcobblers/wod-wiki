@@ -12,7 +12,7 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import type { Entry } from '../../lib/entryMapper'
 import { entryOpenHref } from '../../lib/entryActions'
 import {
