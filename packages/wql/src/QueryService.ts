@@ -53,6 +53,7 @@ import {
   type TagFilter,
 } from './wql';
 import { WQL_SOURCE_VALUES, WQL_TYPED_TAG_KEYS, type WqlTypedTagKey } from './vocabulary';
+import { supportsWqlFilterKey } from './capabilities';
 import { bindQueryParams } from './paramRef';
 import { unknownTokensMessage } from './dashboard/model';
 import { convertViaCatalog, resolveOutputUnit } from './units';
@@ -808,6 +809,10 @@ export interface QueryResult {
   error?: string;
   /** Compact coverage references (ticket 16 explainability). */
   coverage?: CoverageReport;
+  /** Find-family result when runQuery executes a find query. */
+  find?: FindQueryResult;
+  /** Advisories surfaced from find/aggregate execution. */
+  advisories?: Array<{ message: string }>;
 }
 
 /** One run in a rows result: the canonical result identity plus the event
@@ -1195,6 +1200,7 @@ export class QueryService {
   };
   private readonly isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
   private readonly feedCatalogStore?: FeedCatalogQueryStore;
+  private readonly sessionStore?: QueryServiceStores['sessionStore'];
 
   // Optional storage seam properties for block_efforts, block_equipment, and typed tag resolution.
   // Injected by the app adapter (`services/queryService.ts`); tests can supply fakes.
@@ -1232,6 +1238,7 @@ export class QueryService {
         'relationStore' in storesOrEventStore ||
         'datasetStore' in storesOrEventStore ||
         'feedCatalogStore' in storesOrEventStore ||
+        'sessionStore' in storesOrEventStore ||
         'isNotebookSubscribed' in storesOrEventStore)
     ) {
       const stores = storesOrEventStore as QueryServiceStores;
@@ -1248,6 +1255,7 @@ export class QueryService {
       if (stores.noteTagsStore) this.noteTagsStore = stores.noteTagsStore;
       if (stores.isNotebookSubscribed) this.isNotebookSubscribed = stores.isNotebookSubscribed;
       if (stores.feedCatalogStore) this.feedCatalogStore = stores.feedCatalogStore;
+      if (stores.sessionStore) this.sessionStore = stores.sessionStore;
     } else {
       this.store = (storesOrEventStore as EventStore | undefined) ?? defaultEventStore;
       this.noteStore = noteStore ?? defaultNoteStore;
@@ -1265,6 +1273,24 @@ export class QueryService {
   async runQuery(raw: string, options: QueryOptions = {}): Promise<QueryResult> {
     const parsed = parseQuery(raw);
     if (isPipelineQuery(parsed)) return this.pipelineResultToQueryResult(await this.runPipelineParsed(parsed, options));
+    if (isFindQuery(parsed)) {
+      const findRes = await this.runFind(parsed, options);
+      const advisories = (findRes.parsed.advisories ?? []).map((message) => ({ message }));
+      return {
+        parsed: { family: 'aggregate', raw: parsed.raw, agg: 'count', metric: parsed.target, filters: [], groupBy: [] },
+        series: [],
+        stages: {
+          selected: findRes.stages.selected,
+          buckets: 0,
+          aggregated: findRes.stages.matched,
+          groups: 0,
+        },
+        matched: [],
+        find: findRes,
+        ...(advisories.length ? { advisories } : {}),
+        ...(findRes.parsed.error ? { error: findRes.parsed.error } : {}),
+      };
+    }
     return this.run(parsed, options);
   }
 
@@ -1347,7 +1373,9 @@ export class QueryService {
     groups.sort((a, b) => sessionCompletedAt(b[1]) - sessionCompletedAt(a[1]));
 
     const planeFilters = parsed.filters.filter((f) => f.key === 'plane');
-    const factFilters = parsed.filters.filter((f) => !['result', 'block', 'note', 'plane'].includes(f.key));
+    const factFilters = parsed.filters.filter(
+      (f) => !['result', 'block', 'note', 'plane'].includes(f.key) && supportsWqlFilterKey('session', 'find', f.key),
+    );
     const normalizedFactFilters = factFilters.map((f) => (f.key === 'tag' ? { ...f, key: 'tags' } : f));
     const sessionDims = groups.length > 0 && normalizedFactFilters.length > 0
       ? await this.loadFactDimensions(
@@ -1385,6 +1413,20 @@ export class QueryService {
         };
       })
       .filter((run) => run.events.length > 0);
+    if (this.sessionStore && planeFilters.length === 0 && normalizedFactFilters.length === 0 && blockIds.length === 0) {
+      const seen = new Set(runs.map((r) => r.resultId));
+      const allSessions = await this.sessionStore.getAll();
+      for (const s of allSessions) {
+        if (seen.has(s.id)) continue;
+        if (resultIds.length > 0 && !resultIds.includes(s.id)) continue;
+        if (noteIds.length > 0 && !noteIds.includes(s.noteId)) continue;
+        const ts = s.completedAt ?? s.startedAt ?? s.createdAt ?? 0;
+        if ((parsed.window || options.range) && !effectiveTimeWindow(ts, parsed.window, options.range, ctx)) continue;
+        runs.push({ resultId: s.id, noteId: s.noteId, timestamp: ts, events: [] });
+      }
+      runs.sort((a, b) => b.timestamp - a.timestamp);
+    }
+    const selectedSessionCount = Math.max(groups.length, runs.length);
     // Pagination is presentation: the pipeline's event set stays the FULL
     // plane-narrowed selection, only the run cards are clipped.
     const runsFull = runs;
@@ -1400,7 +1442,7 @@ export class QueryService {
       blocks: [],
       runs,
       events: runsFull.flatMap((run) => run.events),
-      stages: { selected: groups.length, matched: runs.length },
+      stages: { selected: selectedSessionCount, matched: runs.length },
     };
   }
 

@@ -18,6 +18,8 @@ import { CalculationDefinition } from './types';
 /** Shared rest/pause exclusion filter constant (§10.6). */
 export const REST_EXCLUSION = 'rest|pause|rest-*';
 
+const WORKOUT_FENCES = ['time', 'log', 'wod', 'whiteboard', 'crossfit'];
+
 const expr = (id: string, expression: string, unit?: string) =>
   ({ id, kind: 'expr' as const, expression, unit });
 
@@ -27,7 +29,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'pace-reps',
     kind: 'output',
     scope: 'segment',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'elapsed > 0 and has(reps)',
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
@@ -39,7 +41,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'pace-speed',
     kind: 'output',
     scope: 'segment',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'elapsed > 0 and has(distance)',
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
@@ -51,7 +53,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'pace-runner',
     kind: 'output',
     scope: 'segment',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'elapsed > 0 and has(distance)',
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
@@ -63,7 +65,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'power',
     kind: 'output',
     scope: 'segment',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'elapsed > 0 and has(reps) and has(resistance)',
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
@@ -91,7 +93,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'e1rm',
     kind: 'output',
     scope: 'segment',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'has(reps) and has(resistance) and reps > 0 and resistance > 0',
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
@@ -111,7 +113,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'pct1rm',
     kind: 'output',
     scope: 'segment',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'has(reps) and has(resistance) and reps > 0',
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
@@ -129,7 +131,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'climb-sends',
     kind: 'output',
     scope: 'segment',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'has(climbSend)',
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
@@ -153,7 +155,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     scope: 'segment',
     // Fenced like the legacy MetMinuteProjectionEngine — segment-scope only
     // (its workout consumer is fenced too).
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'elapsed > 0',
     variants: [
       {
@@ -179,7 +181,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'total-reps',
     kind: 'output',
     scope: 'workout',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'has(sum(reps)) and sum(reps) > 0',
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
@@ -191,7 +193,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'total-reps-by-effort',
     kind: 'output',
     scope: 'workout',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: { total: expr('total', `sum(reps, without: ${REST_EXCLUSION})`) },
@@ -202,7 +204,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'total-distance',
     kind: 'output',
     scope: 'workout',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'has(sum(distance)) and sum(distance) > 0',
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
@@ -214,7 +216,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'total-volume',
     kind: 'output',
     scope: 'workout',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'has(sum(segmentVolume)) and sum(segmentVolume) > 0',
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
@@ -226,7 +228,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'total-volume-by-effort',
     kind: 'output',
     scope: 'workout',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: {
@@ -243,7 +245,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'met-minutes',
     kind: 'output',
     scope: 'workout',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'has(sum(metMinutes))',
     variants: [
       {
@@ -252,12 +254,12 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
         id: 'estimated', priority: 100,
         when: 'sum(metMinutesEstimated) > 0',
         origin: 'analyzed-estimated',
-        nodes: { total: expr('total', 'round(sum(metMinutes))') },
+        nodes: { total: expr('total', 'sum(metMinutes)') },
       },
       {
         id: 'resolved', priority: 10,
         origin: 'analyzed',
-        nodes: { total: expr('total', 'round(sum(metMinutes))') },
+        nodes: { total: expr('total', 'sum(metMinutes)') },
       },
     ],
     output: { nodeId: 'total', key: 'calc.metMinutes', emitType: 'work', unit: 'MET-min' },
@@ -290,7 +292,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'session-load',
     kind: 'output',
     scope: 'workout',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'has(session.duration)',
     variants: [
       {
@@ -338,7 +340,7 @@ export const BUILTIN_CALCS: CalculationDefinition[] = [
     id: 'tis',
     kind: 'output',
     scope: 'workout',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     when: 'has(sum(metMinutes)) and has(sum(elapsed))',
     variants: [
       {
@@ -401,7 +403,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'acwr',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: {
@@ -417,7 +419,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'monotony',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: {
@@ -433,7 +435,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'strain',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: {
@@ -453,7 +455,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'ctl',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: {
@@ -467,7 +469,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'atl',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: {
@@ -481,7 +483,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'tsb',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: {
@@ -505,7 +507,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'soreness',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'user',
       nodes: {
@@ -519,7 +521,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'sleep',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'user',
       nodes: {
@@ -533,7 +535,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'hrv',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'user',
       nodes: {
@@ -551,7 +553,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'readiness',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: {
@@ -569,7 +571,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'mvcBw',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: {
@@ -587,7 +589,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'ef',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: {
@@ -607,7 +609,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
     id: 'adherence',
     kind: 'output',
     scope: 'store',
-    fences: ['time', 'log'],
+    fences: WORKOUT_FENCES,
     variants: [{
       id: 'default', priority: 10, origin: 'analyzed',
       nodes: {

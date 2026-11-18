@@ -51,6 +51,24 @@ export function computeLabel(metric: IMetric, _surface: MetricPresentationSurfac
   return base;
 }
 
+function formatTooltipValue(metric: IMetric): string {
+  if (isTimeLikeMetric(metric.type) && typeof metric.value === 'number') {
+    return formatDurationSmart(metric.value);
+  }
+  const val = metric.value;
+  if (val !== null && typeof val === 'object') {
+    if (metric.image) return metric.image;
+    const obj = val as Record<string, unknown>;
+    if ('amount' in obj && 'units' in obj) {
+      return obj.amount !== undefined ? `${obj.amount} ${obj.units}` : String(obj.units);
+    }
+    if ('text' in obj) return String(obj.text);
+    if ('current' in obj) return `Round ${obj.current}`;
+    return JSON.stringify(val);
+  }
+  return String(val);
+}
+
 /**
  * Build a tooltip string for a metric — identical to the existing buildTooltip
  * in MetricPill so callers can migrate without losing fidelity.
@@ -58,7 +76,7 @@ export function computeLabel(metric: IMetric, _surface: MetricPresentationSurfac
 export function buildTooltip(metric: IMetric): string {
   const parts: string[] = [];
   parts.push(`Type: ${metric.type}`);
-  if (metric.value !== undefined) parts.push(`Value: ${metric.value}`);
+  if (metric.value !== undefined) parts.push(`Value: ${formatTooltipValue(metric)}`);
   if (metric.origin) parts.push(`Origin: ${metric.origin}`);
   if (metric.sourceBlockKey) parts.push(`Block: ${metric.sourceBlockKey}`);
   if (metric.timestamp) {

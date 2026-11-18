@@ -203,7 +203,9 @@ export class ChildSelectionBehavior implements IRuntimeBehavior {
         this.childIndex++;
         this.dispatchedOnLastNext = true;
 
-        const upcomingGroup = this.config.childGroups[this.childIndex];
+        const upcomingGroup =
+            this.config.childGroups[this.childIndex]
+            ?? (this.shouldLoop(ctx) ? this.config.childGroups[0] : undefined);
         return [
             new CompileAndPushBlockAction(nextGroup),
             this.createNextPreview(ctx, upcomingGroup),

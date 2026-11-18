@@ -260,4 +260,8 @@ export interface QueryServiceStores {
   isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
   /** Distributed feed & notebook catalog seam for `:feed{}`, `:notebook{type:notebook}`, and zero-import remote previews. */
   feedCatalogStore?: FeedCatalogQueryStore;
+  /** Optional session store so `:session{}` reconciles in-progress sessions with 0 events. */
+  sessionStore?: {
+    getAll(): Promise<Array<{ id: string; noteId: string; startedAt?: number; completedAt?: number; createdAt?: number }>>;
+  };
 }

@@ -189,6 +189,14 @@ const ACCEPT_LIST: AcceptEntry[] = [
     used: 0,
   },
   {
+    id: 'metminutes-unrounded-storage',
+    reason: 'WW-078 / §10.9 — rounding moves to the display layer; calc.metMinutes preserves float precision.',
+    match: (d) =>
+      d.kind === 'projection-mismatch' && d.where === 'calc.metMinutes' && d.field === 'value'
+      && typeof d.composed === 'number' && Math.round(d.composed) === d.legacy,
+    used: 0,
+  },
+  {
     id: 'tier1-library-annotations-new',
     reason: 'spec §1.1 — phase-1 library annotations (segmentVolume, effortRpe, metMinutes, metMinutesEstimated) are the new Tier-1 surface feeding workout aggregates; legacy computed them workout-side only.',
     match: (d) => d.kind === 'annotation-only-composed' && LIBRARY_ANNOTATION_TYPES.has(d.where.split(':')[0]),

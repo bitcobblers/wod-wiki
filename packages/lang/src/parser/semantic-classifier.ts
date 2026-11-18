@@ -657,14 +657,56 @@ function propertyPair(primitive: PropertyPrimitive): MetricPair {
   };
 }
 
+function foldRepLadders(pairs: MetricPair[]): MetricPair[] {
+  const folded: MetricPair[] = [];
+  let i = 0;
+  while (i < pairs.length) {
+    const first = pairs[i];
+    if (first.metrics instanceof RepMetric && typeof first.metrics.reps === 'number') {
+      const repItems: MetricPair[] = [first];
+      let j = i;
+      while (
+        j + 2 < pairs.length &&
+        pairs[j + 1].metrics instanceof EffortMetric &&
+        (pairs[j + 1].metrics as EffortMetric).effort === '-' &&
+        pairs[j + 1].meta.startOffset - pairs[j].meta.endOffset === 0 &&
+        pairs[j + 2].metrics instanceof RepMetric &&
+        typeof (pairs[j + 2].metrics as RepMetric).reps === 'number' &&
+        pairs[j + 2].meta.startOffset - pairs[j + 1].meta.endOffset === 0
+      ) {
+        repItems.push(pairs[j + 2]);
+        j += 2;
+      }
+      if (repItems.length >= 3) {
+        const last = repItems[repItems.length - 1];
+        const ladderMeta: SyntaxMeta = {
+          ...first.meta,
+          endOffset: last.meta.endOffset,
+          columnEnd: last.meta.columnEnd,
+          length: last.meta.endOffset - first.meta.startOffset,
+          raw: repItems.map((item) => item.meta.raw).join('-'),
+        };
+        folded.push({ metrics: new RoundsMetric(repItems.length), meta: ladderMeta });
+        folded.push(...repItems);
+        i = j + 1;
+        continue;
+      }
+    }
+    folded.push(first);
+    i++;
+  }
+  return folded;
+}
+
 function mergeFragments(pairs: MetricPair[]): MetricPair[] {
-  if (pairs.length < 2) return pairs;
+  const normalized = foldRepLadders(pairs);
+  if (normalized.length < 2) return normalized;
 
   const result: MetricPair[] = [];
-  let current = pairs[0];
+  let current = normalized[0];
 
-  for (let index = 1; index < pairs.length; index++) {
-    const next = pairs[index];
+  for (let index = 1; index < normalized.length; index++) {
+    const next = normalized[index];
 
     if (current.metrics instanceof EffortMetric && next.metrics instanceof EffortMetric) {
       if (current.metrics.effort === '/' || current.metrics.effort === '|' ||
