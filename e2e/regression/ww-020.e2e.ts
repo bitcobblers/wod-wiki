@@ -92,8 +92,8 @@ test.describe('WW-020 — user-authored notes deleted by the boot/feed import cy
       // left the day page stuck at '0 notes').
       await app.goto(`/day/${DATE}`);
       await expect(page.getByText('2 notes', { exact: true })).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByText(titleOne)).toBeVisible();
-      await expect(page.getByText(titleTwo)).toBeVisible();
+      await expect(page.getByText(titleOne).first()).toBeVisible();
+      await expect(page.getByText(titleTwo).first()).toBeVisible();
 
       // And both rows are still in the store after the reload/import cycle.
       await expect
