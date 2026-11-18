@@ -10,7 +10,6 @@ import {
   CalendarWeekdays,
   CalendarWeeks,
 } from '@bitcobblers/wod-wiki-ui/primitives';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface CalendarCardProps {
@@ -75,16 +74,12 @@ export const CalendarCard: React.FC<CalendarCardProps> = ({
           <CalendarPrevious
             data-variant="ghost"
             className="h-7 w-7 p-0 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-          >
-            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          </CalendarPrevious>
+          />
           <CalendarHeading className="text-sm font-medium text-foreground" />
           <CalendarNext
             data-variant="ghost"
             className="h-7 w-7 p-0 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-          >
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </CalendarNext>
+          />
         </div>
 
         <CalendarGrid>

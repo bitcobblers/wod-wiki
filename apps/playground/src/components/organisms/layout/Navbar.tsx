@@ -3,7 +3,6 @@
 import clsx from 'clsx';
 import { LayoutGroup, motion } from 'motion/react';
 import React, { forwardRef, useId } from 'react';
-import { TouchTarget } from '@/components/atoms/primitives/touch-target';
 import { Link } from '@/components/atoms/primitives/link';
 
 export function Navbar({ className, ...props }: React.ComponentPropsWithoutRef<'nav'>) {
@@ -71,7 +70,7 @@ export const NavbarItem = forwardRef(function NavbarItem(
           aria-current={current ? 'page' : undefined}
           ref={ref as React.ForwardedRef<HTMLAnchorElement>}
         >
-          <TouchTarget>{children}</TouchTarget>
+          {children}
         </Link>
       ) : (
         <button
@@ -82,7 +81,7 @@ export const NavbarItem = forwardRef(function NavbarItem(
           aria-current={current ? 'page' : undefined}
           ref={ref as React.ForwardedRef<HTMLButtonElement>}
         >
-          <TouchTarget>{children}</TouchTarget>
+          {children}
         </button>
       )}
     </span>

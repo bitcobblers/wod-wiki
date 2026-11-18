@@ -183,14 +183,14 @@ test.describe('NBK-03 — Page Placements & Shell Navigation', () => {
       // Place Note 1 onto named page and second journal date
       await app.goto(`/note/${encodeURIComponent(noteOneId)}`);
       const placementsDialog = page.getByRole('dialog', { name: 'Note placements' });
-      await page.getByRole('button', { name: 'Page options' }).click();
+      await page.getByRole('button', { name: 'Page options', exact: true }).click();
       await page.getByRole('button', { name: 'Note placements' }).click();
       await expect(placementsDialog).toBeVisible();
       await page.getByLabel('Named page').fill(namedSlug);
       await page.getByRole('button', { name: 'Place on this page' }).click();
       await expect(placementsDialog).toBeHidden();
 
-      await page.getByRole('button', { name: 'Page options' }).click();
+      await page.getByRole('button', { name: 'Page options', exact: true }).click();
       await page.getByRole('button', { name: 'Note placements' }).click();
       await page.getByLabel('Journal date').fill(dateOther);
       await page.getByRole('button', { name: 'Place on this page' }).click();
@@ -201,7 +201,7 @@ test.describe('NBK-03 — Page Placements & Shell Navigation', () => {
 
       // Place Note 2 onto the same named page
       await app.goto(`/note/${encodeURIComponent(noteTwoId)}`);
-      await page.getByRole('button', { name: 'Page options' }).click();
+      await page.getByRole('button', { name: 'Page options', exact: true }).click();
       await page.getByRole('button', { name: 'Note placements' }).click();
       await page.getByLabel('Named page').fill(namedSlug);
       await page.getByRole('button', { name: 'Place on this page' }).click();
@@ -220,7 +220,7 @@ test.describe('NBK-03 — Page Placements & Shell Navigation', () => {
       await expect(page.getByText('First note body.')).toBeVisible();
 
       // Remove one placement and verify canonical route still holds remaining placements
-      await page.getByRole('button', { name: 'Page options' }).click();
+      await page.getByRole('button', { name: 'Page options', exact: true }).click();
       await page.getByRole('button', { name: 'Note placements' }).click();
       await page.getByRole('button', { name: 'Remove' }).first().click();
       await expect(placementsDialog).toBeHidden();

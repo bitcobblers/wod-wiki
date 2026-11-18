@@ -60,14 +60,15 @@ import { DataSection } from './DataSection'
 import { SyncSection } from './SyncSection'
 import { SoundProfilesSettingsSection } from './SoundProfilesSettingsSection'
 import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
   Button,
-  Dialog,
-  DialogBackdrop,
-  DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
   Switch,
   SwitchThumb,
 } from '@bitcobblers/wod-wiki-ui/primitives'
@@ -602,24 +603,23 @@ function SystemSection() {
         </div>
       </section>
 
-      <Dialog
+      <AlertDialog
         open={isResetConfirmOpen}
         onOpenChange={(nextOpen) => {
           if (!nextOpen && !isResetting) setIsResetConfirmOpen(false)
         }}
-        dismissible={!isResetting}
       >
-        <DialogBackdrop />
-        <DialogContent
+        <AlertDialogBackdrop />
+        <AlertDialogContent
           className="sm:max-w-md"
           data-testid="reset-confirmation-modal"
         >
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2.5 text-destructive font-semibold text-base">
+            <AlertDialogTitle className="flex items-center gap-2.5 text-destructive font-semibold text-base">
               <AlertTriangle className="size-5" aria-hidden="true" />
               Reset All Application Data?
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
               {resetTarget ? (
                 <>
                   This permanently deletes every note, result, cached effort, and local setting stored
@@ -631,7 +631,7 @@ function SystemSection() {
                   from your browser storage. This returns Wod Wiki to its first-run state and cannot be undone.
                 </>
               )}
-            </DialogDescription>
+            </AlertDialogDescription>
           </DialogHeader>
           {resetError && (
             <p role="alert" className="text-xs text-destructive" data-testid="reset-error">
@@ -639,17 +639,14 @@ function SystemSection() {
             </p>
           )}
           <DialogFooter className="pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsResetConfirmOpen(false)}
-              disabled={isResetting}
-            >
+            <AlertDialogClose disabled={isResetting}>
               Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmReset}
+            </AlertDialogClose>
+            <AlertDialogClose
+              value="confirm"
+              data-variant="destructive"
               disabled={isResetting}
+              action={() => handleConfirmReset()}
               data-testid="confirm-reset-button"
               data-agent-confirm="Permanently wipes all notes, workout results, custom efforts, and local settings"
               className="gap-2"
@@ -662,10 +659,10 @@ function SystemSection() {
                   <span>Yes, Reset Everything</span>
                 </>
               )}
-            </Button>
+            </AlertDialogClose>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

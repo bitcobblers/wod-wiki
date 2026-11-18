@@ -3,7 +3,6 @@
 import clsx from 'clsx';
 import { LayoutGroup, motion } from 'motion/react';
 import React, { forwardRef, useId } from 'react';
-import { TouchTarget } from '@/components/atoms/primitives/touch-target';
 import { Link } from '@/components/atoms/primitives/link';
 import { useCloseNavigationDrawer } from '../../../../app/nav/NavigationDrawerContext';
 
@@ -86,7 +85,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
 ) {
   const closeDrawer = useCloseNavigationDrawer();
   const classes = clsx(
-    'group flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left text-base/6 font-medium text-foreground sm:py-2 sm:text-sm/5 transition-all duration-200',
+    'group flex min-h-11 sm:min-h-9 w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left text-base/6 font-medium text-foreground sm:py-2 sm:text-sm/5 transition-all duration-200',
     '[&>[data-slot=icon]]:size-6 [&>[data-slot=icon]]:shrink-0 [&>[data-slot=icon]]:text-muted-foreground sm:[&>[data-slot=icon]]:size-5 [&>[data-slot=icon]]:transition-colors',
     '[&>[data-slot=icon]:last-child]:ml-auto [&>[data-slot=icon]:last-child]:size-5 sm:[&>[data-slot=icon]:last-child]:size-4',
     '[&>[data-slot=avatar]]:-m-0.5 [&>[data-slot=avatar]]:size-7 sm:[&>[data-slot=avatar]]:size-6',
@@ -118,7 +117,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
           aria-current={current ? 'page' : undefined}
           ref={ref as React.ForwardedRef<HTMLAnchorElement>}
         >
-          <TouchTarget>{children}</TouchTarget>
+          {children}
         </Link>
       ) : (
         <button
@@ -129,7 +128,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
           aria-current={current ? 'page' : undefined}
           ref={ref as React.ForwardedRef<HTMLButtonElement>}
         >
-          <TouchTarget>{children}</TouchTarget>
+          {children}
         </button>
       )}
     </span>

@@ -15,6 +15,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Tabs, TabsList, TabsPanel, TabsTab } from '@bitcobblers/wod-wiki-ui/primitives'
 import { MacOSChrome } from '../components/atoms/MacOSChrome'
 import type { Sessions } from '@/components/Editor/types'
 import { TourSessionInsights } from './screens/TourSessionInsights'
@@ -129,26 +130,30 @@ export function InsightsDashboardsSection({ session, onRun, onBackToEditor }: In
       )
     }
     return (
-      <div className="flex h-full flex-col gap-3">
+      <Tabs
+        value={active.id}
+        onValueChange={(nextId) => {
+          const idx = DASHBOARD_SLIDES.findIndex((sl) => sl.id === nextId)
+          if (idx >= 0) setSlide(idx)
+        }}
+        className="flex h-full flex-col gap-3"
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div role="tablist" aria-label="Dashboard slides" className="flex flex-wrap gap-1 rounded-lg border border-border bg-muted/30 p-1">
-            {DASHBOARD_SLIDES.map((sl, i) => (
-              <button
+          <TabsList
+            aria-label="Dashboard slides"
+            className="flex flex-wrap gap-1 border-b-0 rounded-lg border border-border bg-muted/30 p-1"
+          >
+            {DASHBOARD_SLIDES.map((sl) => (
+              <TabsTab
                 key={sl.id}
-                type="button"
-                role="tab"
-                aria-selected={slide === i}
+                value={sl.id}
                 data-testid={`dashboard-slide-tab-${sl.id}`}
-                onClick={() => setSlide(i)}
-                className={cn(
-                  'min-h-11 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
-                  slide === i ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground',
-                )}
+                className="min-h-11 rounded-md border-0 px-3 py-1.5 text-xs font-semibold transition-colors text-muted-foreground hover:text-foreground data-selected:bg-background data-selected:text-foreground data-selected:shadow"
               >
                 {sl.label}
-              </button>
+              </TabsTab>
             ))}
-          </div>
+          </TabsList>
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -157,7 +162,7 @@ export function InsightsDashboardsSection({ session, onRun, onBackToEditor }: In
               data-testid="dashboard-slide-prev"
               className="flex size-11 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              <ChevronLeft className="size-4" />
+              <ChevronLeft className="size-4" aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -166,19 +171,19 @@ export function InsightsDashboardsSection({ session, onRun, onBackToEditor }: In
               data-testid="dashboard-slide-next"
               className="flex size-11 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              <ChevronRight className="size-4" />
+              <ChevronRight className="size-4" aria-hidden="true" />
             </button>
           </div>
         </div>
         <MacOSChrome title={active.title} className="min-h-0 flex-1" headerActions={<BackToEditorButton onClick={onBackToEditor} />}>
-          <div key={active.id} className="flex h-full w-full flex-col" role="tabpanel">
+          <TabsPanel value={active.id} className="flex h-full w-full flex-col p-0">
             <SampleDashboardPane boardSlug={active.id} />
-          </div>
+          </TabsPanel>
         </MacOSChrome>
         <p className="text-center font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
           {slide + 1} / {DASHBOARD_SLIDES.length}
         </p>
-      </div>
+      </Tabs>
     )
   }
 

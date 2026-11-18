@@ -105,7 +105,6 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
                   }
                 >
                   <CloseMenuIcon />
-                  <span className="sr-only">Close navigation</span>
                 </DrawerClose>
               </div>
               <div className="flex min-h-0 flex-1 flex-col">
@@ -150,7 +149,6 @@ function RightL3Drawer({ open, close, children }: React.PropsWithChildren<{ open
               }
             >
               <CloseMenuIcon />
-              <span className="sr-only">Close page options</span>
             </DrawerClose>
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">

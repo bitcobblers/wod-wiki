@@ -768,12 +768,7 @@ export function CreateJournalNoteDialog({
                   <ComboboxTrigger
                     className="absolute inset-y-0 right-0 h-full w-8 border-0 bg-transparent p-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
                     aria-label="Toggle template options"
-                  >
-                    <svg className="size-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M5.75 10.75L8 13L10.25 10.75" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M10.25 5.25L8 3L5.75 5.25" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </ComboboxTrigger>
+                  />
                 </div>
                 <ComboboxContent
                   className="max-h-60 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg"

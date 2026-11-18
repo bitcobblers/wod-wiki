@@ -26,15 +26,16 @@ import {
   toNotebookId,
 } from '@bitcobblers/wod-wiki-engine';
 import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
   Badge,
   Button,
-  Dialog,
-  DialogBackdrop,
-  DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
   Field,
   FieldLabel,
   Select,
@@ -898,7 +899,7 @@ export function EffortDetailPage() {
           }
         }}
       />
-      <Dialog
+      <AlertDialog
         open={confirmDeleteOpen}
         onOpenChange={(open) => {
           if (!deletingEffort) {
@@ -907,15 +908,15 @@ export function EffortDetailPage() {
           }
         }}
       >
-        <DialogBackdrop />
-        <DialogContent data-testid="effort-delete-dialog">
+        <AlertDialogBackdrop />
+        <AlertDialogContent data-testid="effort-delete-dialog">
           <DialogHeader>
-            <DialogTitle>{scopedNotebookId ? 'Delete scoped override?' : 'Delete custom effort?'}</DialogTitle>
-            <DialogDescription>
+            <AlertDialogTitle>{scopedNotebookId ? 'Delete scoped override?' : 'Delete custom effort?'}</AlertDialogTitle>
+            <AlertDialogDescription>
               {scopedNotebookId
                 ? `Remove the ${notebookSlugFromId(scopedNotebookId)} override for "${effort.label}"? The bundled catalog definition remains untouched.`
                 : `Permanently delete custom effort "${effort.label}"? Bundled efforts and your workout sessions remain untouched.`}
-            </DialogDescription>
+            </AlertDialogDescription>
           </DialogHeader>
           {deleteError && (
             <p role="alert" className="text-sm text-destructive">
@@ -923,34 +924,26 @@ export function EffortDetailPage() {
             </p>
           )}
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
+            <AlertDialogClose
               disabled={deletingEffort}
-              onClick={() => {
-                setConfirmDeleteOpen(false);
-                setDeleteError(null);
-              }}
+              onClick={() => setDeleteError(null)}
               data-testid="effort-delete-cancel"
             >
               Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
+            </AlertDialogClose>
+            <AlertDialogClose
+              value="confirm"
+              data-variant="destructive"
               disabled={deletingEffort}
-              aria-busy={deletingEffort}
               data-agent-confirm={`Deletes effort "${effort.label}"`}
-              onClick={() => {
-                void handleConfirmDelete();
-              }}
+              action={() => handleConfirmDelete()}
               data-testid="effort-delete-confirm"
             >
               {deletingEffort ? 'Deleting…' : scopedNotebookId ? 'Delete override' : 'Delete effort'}
-            </Button>
+            </AlertDialogClose>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

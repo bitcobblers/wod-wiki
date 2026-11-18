@@ -21,16 +21,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
-  Button,
-  Dialog,
-  DialogBackdrop,
-  DialogContent,
-  DialogDescription,
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from '@bitcobblers/wod-wiki-ui/primitives';
 import { queryService } from '@/services/queryService';
+import { TEST_IDS } from '@/lib/testIds';
 import {
   useAnalyticsUnitPreference,
   DashboardView,
@@ -591,38 +592,33 @@ export function DashboardViewPage() {
 
         </div>
       </div>
-      <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
-        <DialogBackdrop />
-        <DialogContent className="max-w-sm">
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogBackdrop />
+        <AlertDialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete dashboard</DialogTitle>
-            <DialogDescription>
+            <AlertDialogTitle>Delete dashboard</AlertDialogTitle>
+            <AlertDialogDescription>
               Delete &quot;{document?.title || source.title}&quot; from your vault? Widgets and
               tokens are removed with the note — prebuilt dashboards and your workout notes are
               never touched.
-            </DialogDescription>
+            </AlertDialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="cancel-delete-dashboard"
-              onClick={() => setConfirmDeleteOpen(false)}
-            >
+            <AlertDialogClose data-testid="cancel-delete-dashboard">
               Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              data-testid="confirm-delete-dashboard"
+            </AlertDialogClose>
+            <AlertDialogClose
+              value="confirm"
+              data-variant="destructive"
+              data-testid={TEST_IDS.CONFIRM_DELETE_DASHBOARD}
               data-agent-confirm={`Deletes dashboard "${document?.title || source.title}" from your vault`}
-              onClick={() => void handleDeleteDashboard()}
+              action={() => handleDeleteDashboard()}
             >
               Delete dashboard
-            </Button>
+            </AlertDialogClose>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </AlertDialogContent>
+      </AlertDialog>
       <WidgetComposerDialog
         open={composer !== null}
         onClose={() => setComposer(null)}

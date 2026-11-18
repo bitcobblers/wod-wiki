@@ -13,7 +13,6 @@ import {
   type ToastActionData,
   type ToastOptions,
 } from '@ui-sdk/react/toast';
-import { XIcon } from 'lucide-react';
 import type * as React from 'react';
 
 export interface ToastNotificationInput {
@@ -56,7 +55,7 @@ export function useToast(): {
 
 export function WodOverlayHost(props: Omit<OverlayHostProps, 'toast'>): React.JSX.Element {
   return (
-    <div data-agent-hidden="">
+    <div className="contents" data-agent-hidden="">
       <OverlayHost
         {...props}
         toast={{
@@ -67,9 +66,7 @@ export function WodOverlayHost(props: Omit<OverlayHostProps, 'toast'>): React.JS
                 <ToastDescription className="text-xs text-muted-foreground whitespace-pre-line" />
               </div>
               <ToastAction data-variant="solid" />
-              <ToastClose aria-label="Close notification">
-                <XIcon className="size-4" aria-hidden="true" />
-              </ToastClose>
+              <ToastClose aria-label="Close notification" />
             </Toast>
           ),
         }}
