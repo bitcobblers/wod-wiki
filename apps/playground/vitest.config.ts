@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 const rootDir = resolve(import.meta.dirname, '../..');
@@ -54,6 +54,10 @@ export default defineConfig({
     include: [
       'src/**/*.{test,spec}.{ts,tsx}',
       'app/**/*.{test,spec}.{ts,tsx}',
+    ],
+    exclude: [
+      ...configDefaults.exclude,
+      '**/*.regression.test.{ts,tsx}',
     ],
   },
 });
