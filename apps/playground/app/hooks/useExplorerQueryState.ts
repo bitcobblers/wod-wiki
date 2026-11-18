@@ -130,13 +130,16 @@ export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): 
 
   // Draft → URL. Replace within an editing spell; one scratch entry per
   // spell so checkpoints survive (never a history entry per keystroke).
+  // Unparseable drafts stay in local editor state without overwriting `?q=`.
   const setDraft = useCallback(
     (next: string) => {
       if (next === draftRef.current) return
-      const params = new URLSearchParams(searchParamsRef.current)
-      params.set('q', next)
-      setSearchParams(params, { replace: !urlIsCheckpoint.current })
-      urlIsCheckpoint.current = false
+      if (!parseQuery(next).error) {
+        const params = new URLSearchParams(searchParamsRef.current)
+        params.set('q', next)
+        setSearchParams(params, { replace: !urlIsCheckpoint.current })
+        urlIsCheckpoint.current = false
+      }
       setDraftState(next)
     },
     [setSearchParams],

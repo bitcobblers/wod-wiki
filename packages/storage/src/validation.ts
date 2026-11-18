@@ -109,8 +109,8 @@ export async function validateStoredPins(
   let i = 0;
   for (const note of notes) for (const block of Object.values(note.blocks)) {
     const revision = revisions[i++];
-    if (!revision || revision.kind !== block.kind || revision.rawContent !== note.rawContent.slice(block.from, block.to)
-      || revision.dialect !== block.dialect || revision.sport !== block.sport) throw new StorageError(409, 'Note block has no matching immutable revision', 'invalid_note_blocks');
+    if (revision && (revision.kind !== block.kind || revision.rawContent !== note.rawContent.slice(block.from, block.to)
+      || revision.dialect !== block.dialect || revision.sport !== block.sport)) throw new StorageError(409, 'Note block has no matching immutable revision', 'invalid_note_blocks');
   }
   for (let sessionIndex = 0; sessionIndex < sessions.length; sessionIndex++) {
     const revision = revisions[i++];

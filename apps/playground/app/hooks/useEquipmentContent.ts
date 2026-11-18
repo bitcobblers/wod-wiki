@@ -93,7 +93,10 @@ export function useEquipmentLinks(slug: string | undefined): EquipmentLinksResul
     }
     let cancelled = false;
     async function load() {
-      const efforts = effortRegistry.list().filter((effort) => effort.equipment?.includes(slug!) ?? false);
+      const efforts = effortRegistry.list().filter((effort) => {
+        const eq = effort.equipment ?? (effort.baseAttributes ? Reflect.get(effort.baseAttributes, 'equipment') : undefined);
+        return Array.isArray(eq) ? eq.includes(slug!) : false;
+      });
       const usedBy = await storageService.getEquipmentUsage(slug!);
       if (!cancelled) setLinks({ efforts, usedBy });
     }

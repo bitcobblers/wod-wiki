@@ -101,6 +101,30 @@ export const OUTPUT_TYPE_DOT: Record<string, string> = {
   analytics: 'bg-type-analytics shadow-type-analytics/50',
 };
 
+const OUTPUT_TYPE_LABEL: Record<string, string> = {
+  segment: 'Segment',
+  milestone: 'Milestone',
+  completion: 'Complete',
+  metric: 'Metric',
+  system: 'System',
+  event: 'Event',
+  group: 'Group',
+  load: 'Load',
+  compiler: 'Compiler',
+  analytics: 'Analytics',
+};
+
+function formatOutputTypeLabel(outputType: unknown): string {
+  const raw = String(outputType ?? 'system').trim().toLowerCase();
+  if (!raw) return 'System';
+  return OUTPUT_TYPE_LABEL[raw] ?? raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+function formatOutputRowTitle(outputType: unknown, elapsedStr: string): string {
+  const label = formatOutputTypeLabel(outputType);
+  return elapsedStr ? `${label} (${elapsedStr})` : label;
+}
+
 // ── Metric categorisation (base column vocabulary + dynamic custom discovery) ─
 
 export interface CategorizedMetrics {
@@ -639,21 +663,20 @@ function StatementCards({
         const elapsedStr = ended !== undefined && started !== undefined ? formatMMSS(ended - started) : 'running';
         const offsetStr = started !== undefined && t0 !== undefined ? `+${formatMMSS(started - t0)}` : '+00:00';
         const typeKey = String(out.outputType);
-        const hoverInfo = `#${out.id ?? idx + 1} · Block: ${out.sourceBlockKey || 'session'}${
-          out.completionReason ? ` · Reason: ${out.completionReason}` : ''
-        }`;
+        const typeLabel = formatOutputTypeLabel(out.outputType);
+        const rowTitle = formatOutputRowTitle(out.outputType, elapsedStr);
         const pr = lookupPrHighlight(out, prHighlights);
         const bodyMetrics = [...cats.reps, ...cats.loads, ...cats.rounds, ...cats.durations, ...cats.distances];
         const hasBody = bodyMetrics.length > 0;
 
         return (
-          <li key={out.id ?? idx} className="relative pb-3 pl-6 last:pb-0" title={hoverInfo}>
+          <li key={out.id ?? idx} className="relative pb-3 pl-6 last:pb-0" title={rowTitle}>
             {idx < rows.length - 1 && (
               <span aria-hidden className="absolute bottom-0 left-[5px] top-5 w-px bg-border/60" />
             )}
             <span
               aria-hidden
-              title={`Type: ${out.outputType} | ${hoverInfo}`}
+              title={rowTitle}
               className={`absolute left-0 top-1.5 size-2.5 rounded-full shadow-md ring-2 ring-background ${
                 OUTPUT_TYPE_DOT[typeKey] ?? OUTPUT_TYPE_DOT.system
               }`}
@@ -666,7 +689,7 @@ function StatementCards({
                       OUTPUT_TYPE_CLASS[typeKey] ?? OUTPUT_TYPE_CLASS.system
                     }`}
                   >
-                    {String(out.outputType ?? 'system').slice(0, 4)}
+                    {typeLabel}
                   </span>
                   {presentBadges(cats.efforts)}
                   {pr && <PRBadge improvement={pr.improvement} unit={pr.unit} label={pr.label} />}
@@ -907,9 +930,8 @@ export function OutputStatementsTable({
                   ended !== undefined && started !== undefined ? formatMMSS(ended - started) : 'running';
                 const wallTimeStr = formatClockTime(new Date(ended ?? started ?? 0));
                 const offsetStr = started !== undefined && t0 !== undefined ? `+${formatMMSS(started - t0)}` : '+00:00';
-                const hoverInfo = `#${out.id ?? idx + 1} · Block: ${out.sourceBlockKey || 'session'}${
-                  out.completionReason ? ` · Reason: ${out.completionReason}` : ''
-                }`;
+                const typeLabel = formatOutputTypeLabel(out.outputType);
+                const rowTitle = formatOutputRowTitle(out.outputType, elapsedStr);
                 const rowKey = String(out.id ?? `${out.sourceBlockKey ?? 'row'}-${idx}`);
                 const pr = lookupPrHighlight(out, prHighlights);
                 const canInlineEditRow =
@@ -920,7 +942,7 @@ export function OutputStatementsTable({
                 return (
                   <tr
                     key={rowKey}
-                    title={hoverInfo}
+                    title={rowTitle}
                     className="hover:bg-muted/30 transition-colors group cursor-default"
                   >
                     {activeColumns.map((col) => {
@@ -931,9 +953,9 @@ export function OutputStatementsTable({
                               className={`inline-block rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider ${
                                 OUTPUT_TYPE_CLASS[String(out.outputType)] ?? OUTPUT_TYPE_CLASS.system
                               }`}
-                              title={`Type: ${out.outputType} | ${hoverInfo}`}
+                              title={rowTitle}
                             >
-                              {String(out.outputType ?? 'system').slice(0, 4)}
+                              {typeLabel}
                             </span>
                           </td>
                         );

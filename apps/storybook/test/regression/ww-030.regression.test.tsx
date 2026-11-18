@@ -52,7 +52,9 @@ describe('WW-030 — bar-chart Y-axis tick unit spacing', () => {
     );
 
     const ticks = Array.from(
-      container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick text'),
+      container.querySelectorAll(
+        '.recharts-yAxis-tick-labels text, .recharts-yAxis .recharts-cartesian-axis-tick text',
+      ),
     )
       .map((el) => (el.textContent ?? '').trim())
       .filter(Boolean);

@@ -48,7 +48,9 @@ describe('WW-074 — HRV trend widget units are milliseconds', () => {
     );
 
     const ticks = Array.from(
-      container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick text'),
+      container.querySelectorAll(
+        '.recharts-yAxis-tick-labels text, .recharts-yAxis .recharts-cartesian-axis-tick text',
+      ),
     )
       .map((el) => (el.textContent ?? '').trim())
       .filter(Boolean);

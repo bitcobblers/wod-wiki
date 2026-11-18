@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, X } from 'lucide-react';
 import { WqlEmptyState } from '@bitcobblers/wod-wiki-ui';
+import { ROUTE_PATTERNS } from '@/lib/routes';
 import { hasSampleData, loadSampleData, purgeSampleData } from '@/services/analytics/sample';
 import type { QueryResult } from '@bitcobblers/wod-wiki-engine';
 
@@ -107,7 +108,7 @@ export function SampleDataPrompt({ result, onChanged, layout = 'inline', refresh
           <span>{pending ? 'Loading sample data…' : 'Preview with sample data'}</span>
         </button>
         <Link
-          to="/collections"
+          to={ROUTE_PATTERNS.journal}
           className="text-xs text-primary underline-offset-2 hover:underline"
         >
           Log your first workout

@@ -13,7 +13,7 @@ import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { useChartShape } from './useChartShape';
 import { WqlEmptyState } from './WqlEmptyState';
 import { SERIES_COLORS } from './chartPalette';
-import { compactNumber } from './chartData';
+import { formatTimeseriesTick } from './WqlTimeseries';
 
 export interface WqlBarsProps {
   result: QueryResult;
@@ -53,11 +53,10 @@ export function WqlBars({ result, unit: unitProp }: WqlBarsProps) {
         <YAxis
           tickLine={false}
           axisLine={false}
-          width={48}
-          tickFormatter={compactNumber}
+          width={64}
+          tickFormatter={(v) => formatTimeseriesTick(v as number | string, unit)}
           stroke="hsl(var(--muted-foreground))"
           tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-          unit={unit ? ` ${unit}` : ''}
         />
         <Tooltip
           contentStyle={{

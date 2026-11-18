@@ -66,7 +66,6 @@ export const wodNotebookListTool = defineAgentTool({
       if (link.targetKind === 'note') bump(toNotebookId(link.notebookId), link.noteId);
     }
     for (const n of allNotes) {
-      if (isLandingNote(n)) continue;
       for (const nbId of notebooksOfItem(n)) {
         bump(toNotebookId(nbId), n.id);
       }
@@ -130,7 +129,7 @@ export const wodNotebookListTool = defineAgentTool({
       .map((nb) => ({
         id: nb.notebookId,
         ...nb,
-        url: `${prefix}/notebooks/${encodeURIComponent(nb.slug)}`,
+        url: `${prefix}/notebook/${encodeURIComponent(nb.slug)}`,
       }));
 
     return {

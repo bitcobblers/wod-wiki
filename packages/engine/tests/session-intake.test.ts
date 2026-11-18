@@ -105,7 +105,8 @@ describe('Candidate 01 — Journal Session Intake & Upstream Provenance', () => 
     expect(intake.session.noteId).toBe(intake.note.id);
     expect(intake.revision.rawContent).toContain('800m Run');
     expect(await storage.readonly('sessions').getAllFromIndex('by-note', seedNote.id)).toHaveLength(0);
-    expect(await storage.readonly('sessions').getAllFromIndex('by-note', intake.note.id)).toHaveLength(1);
+    // WW-052: preparing a run at the Ready-to-Start gate must not persist a 0s phantom session row.
+    expect(await storage.readonly('sessions').getAllFromIndex('by-note', intake.note.id)).toHaveLength(0);
 
     // Placed onto the 2026-11-10 Journal Page
     const pages = await storage.readonly('page').getAllFromIndex('by-date', '2026-11-10');

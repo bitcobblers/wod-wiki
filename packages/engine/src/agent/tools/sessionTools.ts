@@ -176,6 +176,9 @@ export const wodSessionRunHeadlessTool = defineAgentTool({
     });
 
     runtime.do(new StartSessionAction());
+    if (stack.current?.key.toString().startsWith('waiting-to-start')) {
+      runtime.handle(new NextEvent(undefined, { nowMs: () => clock.currentDate.getTime(), now: () => clock.currentDate }));
+    }
 
     const stepAdvanceMs = args.stepAdvanceMs ?? 10_000;
     const maxSteps = args.maxSteps ?? 500;
