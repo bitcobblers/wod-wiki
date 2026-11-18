@@ -327,7 +327,16 @@ export async function cloneRemoteRecord(
 
 export interface PortableFileEntry {
   path: string;
-  content: string;
+  content?: string;
+  bytes?: Uint8Array;
+}
+
+const portableTextDecoder = new TextDecoder();
+
+function decodePortableFileContent(entry: PortableFileEntry): string {
+  if (typeof entry.content === 'string') return entry.content;
+  if (entry.bytes instanceof Uint8Array) return portableTextDecoder.decode(entry.bytes);
+  throw new Error(`PortableFileEntry '${entry.path}' is missing both 'content' and 'bytes'.`);
 }
 
 export interface PortabilityImportReport {
@@ -441,12 +450,12 @@ export async function ingestPortableFilesIntoStorage(
   );
   const telemetryBundles: NoteTelemetryBundle[] = [];
   for (const jf of jsonlFiles) {
-    const parsed = parseNoteBundleFromJsonl(jf.content);
+    const parsed = parseNoteBundleFromJsonl(decodePortableFileContent(jf));
     errors.push(...parsed.errors.map((e) => `${jf.path}: ${e}`));
     telemetryBundles.push(...parsed.bundles);
   }
   for (const cf of csvFiles) {
-    const parsed = csvToTelemetryBundle(cf.content);
+    const parsed = csvToTelemetryBundle(decodePortableFileContent(cf));
     errors.push(...parsed.errors.map((e) => `${cf.path}: ${e}`));
     telemetryBundles.push(...parsed.bundles);
   }
@@ -475,7 +484,7 @@ export async function ingestPortableFilesIntoStorage(
       for (const mf of mdFiles) {
         try {
           const fallbackTitle = (mf.path.split('/').at(-1) ?? 'Imported Note').replace(/\.md$/i, '');
-          const parsed = parseNoteMarkdown(mf.content, { fallbackTitle });
+          const parsed = parseNoteMarkdown(decodePortableFileContent(mf), { fallbackTitle });
           const noteId = parsed.id ?? (await seedNoteId(`import:${mf.path}:${now}`));
           const existing = await noteStore.get(noteId);
           const nextRev =

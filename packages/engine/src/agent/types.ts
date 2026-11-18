@@ -64,6 +64,8 @@ export interface AgentDomainContext {
   feedLifecycle?: AgentFeedLifecycleAdapter;
   /** Surface-specific Tier 2 gate (Radix modal in WebMCP, elicitation in MCP, --yes in CLI). */
   confirmDestructive?: (req: AgentConfirmationRequest) => Promise<boolean>;
+  /** Optional timeout (ms) before an unresolved `confirmDestructive` rejects with `AgentConfirmationRequiredError`. */
+  confirmTimeoutMs?: number;
   /** Optional hook run after writes (e.g. cache invalidation in Playground, domain refresh in SQL). */
   onMutated?: (stores: readonly StoreName[]) => Promise<void> | void;
 }
@@ -99,7 +101,16 @@ export async function requireDestructiveConfirmation(
     return;
   }
   if (ctx.confirmDestructive) {
-    const approved = await ctx.confirmDestructive(req);
+    const timeoutMs = ctx.confirmTimeoutMs ?? 1_500;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const approved = await Promise.race([
+      ctx.confirmDestructive(req).finally(() => {
+        if (timer !== undefined) clearTimeout(timer);
+      }),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), timeoutMs);
+      }),
+    ]);
     if (approved) return;
     throw new AgentConfirmationRequiredError(
       req,

@@ -264,6 +264,21 @@ export function buildQueryServiceStoresFromStorage(
     feedCatalogStore,
   };
 
+  const sessionStore = {
+    getAll: async () => {
+      const rows = await storage.readonly('sessions').getAll();
+      return rows.map((s) => ({
+        id: s.id,
+        noteId: s.noteId,
+        startedAt: s.startTime,
+        ...(s.completed ? { completedAt: s.endTime } : {}),
+        createdAt: s.createdAt,
+      }));
+    },
+  };
+
+  Object.assign(stores, { sessionStore });
+
   if (options.datasetStore) {
     stores.datasetStore = options.datasetStore;
   }

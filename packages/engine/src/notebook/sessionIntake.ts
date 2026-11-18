@@ -261,21 +261,12 @@ export async function prepareJournalSessionRun(
             noteId: clonedNoteId,
             createdAt: startedAt,
           },
-          {
-            id: makeNotebookLinkId('notebook/journal', 'session', sessionId),
-            notebookId: 'notebook/journal',
-            targetKind: 'session',
-            targetId: sessionId,
-            noteId: clonedNoteId,
-            createdAt: startedAt,
-          },
         ];
 
         await tx.readwrite('notes').put(clonedNote);
         if (revisions.length > 0) await tx.readwrite('block_revisions').putMany(revisions);
         if (projections.length > 0) await tx.readwrite('block_index').putMany(projections);
         await tx.readwrite('page_notes').put(pageNote);
-        await tx.readwrite('sessions').put(session);
         await tx.readwrite('notebook_links').putMany(links);
 
         return {
@@ -358,16 +349,7 @@ export async function prepareJournalSessionRun(
         noteId: sourceNote.id,
         createdAt: startedAt,
       }));
-      links.push({
-        id: makeNotebookLinkId('notebook/journal', 'session', sessionId),
-        notebookId: 'notebook/journal',
-        targetKind: 'session',
-        targetId: sessionId,
-        noteId: sourceNote.id,
-        createdAt: startedAt,
-      });
 
-      await tx.readwrite('sessions').put(session);
       await tx.readwrite('notebook_links').putMany(links);
 
       return {

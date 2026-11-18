@@ -53,10 +53,17 @@ describe('WW-093 — volume vs bar load and session store count reconciliation',
     });
 
     // Simulate a halted in-progress session row persisted in storage.
-    await prepareJournalSessionRun(harness.storage, {
+    const prepared = await prepareJournalSessionRun(harness.storage, {
       noteId: note.id,
       sessionId: 'sess-ww093-c',
       startedAt: HARNESS_EPOCH + 40_000,
+    });
+    await harness.storage.readwrite('sessions').put({
+      ...prepared.session,
+      status: 'in-progress',
+      endTime: HARNESS_EPOCH + 45_000,
+      duration: 5_000,
+      completed: false,
     });
 
     const storeCount = (await harness.storage.readonly('sessions').getAll()).length;

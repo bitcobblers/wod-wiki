@@ -366,6 +366,9 @@ export class DomainScenarioHarness {
     });
     runtime.subscribeToOutput(() => {});
     runtime.do(new StartSessionAction());
+    if (runtime.stack.current?.key.toString().startsWith('waiting-to-start')) {
+      runtime.handle({ name: 'next', timestamp: clock.currentDate, data: { source: 'domain-scenario-harness' } });
+    }
 
     const advances = input.advances ?? [10_000];
     const maxNexts = input.maxNexts ?? 64;

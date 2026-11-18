@@ -3,6 +3,7 @@ import {
   KNOWN_SECTION_WIDGETS,
   isNoteEditable,
   isSystemReadOnlyNotebook,
+  notebookSlugFromId,
   parseDocumentSections,
   toNotebookId,
   type Note,
@@ -199,7 +200,7 @@ export const wodNoteGetTool = defineAgentTool({
       date: note.date,
       createdAt: note.createdAt,
       tags: note.tags ?? [],
-      notebooks,
+      notebooks: notebooks.map((id) => ({ id, slug: notebookSlugFromId(id) })),
       blocks,
       sessionCount: sessions.length,
       recentSessions: sessions
