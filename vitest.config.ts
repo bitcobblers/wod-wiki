@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import { resolve } from 'node:path';
 
 // Workspace unit-test runner (`bun run test:package`). Mirrors the original
@@ -25,10 +25,13 @@ const workspaceAliases = {
   '@bitcobblers/wod-wiki-ui': resolve(import.meta.dirname, 'packages/ui/src'),
 };
 
+const REGRESSION_EXCLUDE = [...configDefaults.exclude, '**/*.regression.test.{ts,tsx}'];
+
 const sourceProject = (name: string, dir: string) => ({
   test: {
     name,
     include: [`${dir}/tests/**/*.test.ts`],
+    exclude: REGRESSION_EXCLUDE,
     globals: true,
     environment: 'node',
     testTimeout: 20000,

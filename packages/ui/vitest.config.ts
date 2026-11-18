@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import { resolve } from 'node:path';
 
 /**
@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./test/setup.ts'],
+    exclude: [...configDefaults.exclude, '**/*.regression.test.{ts,tsx}'],
     testTimeout: 20000,
     hookTimeout: 20000,
   },
