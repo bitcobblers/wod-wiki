@@ -686,7 +686,7 @@ class Sql {
 const SOURCE_ALL_KINDS = ['journal', ...WQL_SOURCE_VALUES.filter((k) => k !== 'journal')];
 
 /** SQL projection of one source kind — built from the SAME
- *  {@link SOURCE_ID_SHAPES} table `sourceMatches` reads (single shared
+ *  `SOURCE_ID_SHAPES` table `sourceMatches` reads (single shared
  *  projection; never a second prefix decision). Unknown kinds keep the exact
  *  sourceId literal. `journal` reads the materialized column, which the
  *  write path computes with `sourceMatches(…, 'journal')` — the resolver's

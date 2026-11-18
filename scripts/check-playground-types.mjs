@@ -196,7 +196,7 @@ export function main({
     stderr(`check-playground-types: FAILED — cannot load baseline: ${err.message}`)
     return 1
   }
-  const { added, resolved, newCount, resolvedCount, currentCount } = compareDiagnostics(counts, baseline)
+  const { added, newCount, resolvedCount, currentCount } = compareDiagnostics(counts, baseline)
   for (const { key, count } of added.slice(0, 20)) {
     const [file, code, ...rest] = key.split('|')
     stderr(`NEW (${count}×) ${file} ${code}: ${rest.join('|')}`)

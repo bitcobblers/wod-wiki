@@ -110,6 +110,7 @@ function mentionPhraseRegex(entry: MentionEntry): RegExp {
   const alternatives = [...new Set(entry.phrases.map(phrase => phrase.trim()).filter(Boolean))]
     .map(phrase => phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .join('|');
+  // noinspection RegExpUnnecessaryNonCapturingGroup
   return new RegExp(`(?<![\\w-])(?:${alternatives})(?![\\w-])`, 'i');
 }
 

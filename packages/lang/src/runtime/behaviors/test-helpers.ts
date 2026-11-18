@@ -11,7 +11,6 @@ import { IBehaviorContext } from '../contracts/IBehaviorContext';
 import { MemoryTypeMap, TimerState, MemoryType, RoundState } from '../memory/MemoryTypes';
 import { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
 import { IMemoryLocation, MemoryLocation, MemoryTag } from '../memory/MemoryLocation';
-import {  } from '@bitcobblers/wod-wiki-core';
 import { TimeSpan } from '../models/TimeSpan';
 import { MetricVisibility, getMetricVisibility } from '../memory/MetricVisibility';
 

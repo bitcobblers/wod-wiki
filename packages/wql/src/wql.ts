@@ -340,7 +340,7 @@ function cannotParse(text: string): string {
 // value such as `text:where`) is never mistaken for the join.
 
 /** Comparison predicate at the tail of a metric join: `<op> <number>`. */
-const CMP_RE = /^(.+?)\s*(>=|<=|!=|==|>|<)\s*(-?\d+(?:\.\d+)?)\s*$/;
+const CMP_RE = /^(.+?)\s*(>=|<=|!=|==|[><])\s*(-?\d+(?:\.\d+)?)\s*$/;
 
 function cannotParseJoin(text: string): string {
   return `Cannot parse join "${text}". Expected :source{filters} or find:target{filters}, or agg:metric{filters} <op> <number>`;

@@ -9,7 +9,7 @@ import { MetricContainer } from '@bitcobblers/wod-wiki-core';
  * parser attach to a statement so that compiler strategies and the label
  * composer can make decisions. Hints used to live in a parallel `Set<string>`
  * channel on the statement; they now flow through the single metric channel
- * as {@link MetricType.Hint} metrics.
+ * as `MetricType.Hint` metrics.
  *
  * Hint metrics are deliberately excluded from display resolution
  * (see ownership `legacyAdapters`) and from runtime block fragments

@@ -129,7 +129,7 @@ function serializePipeline(p: ParsedPipelineQuery): string {
  *  phrases (`"[^"]*"`) carry multi-word text; the grammar has no escape, so
  *  values containing `"` are outside the text surface entirely. */
 function serializeValue(value: string): string {
-  if (/^[a-zA-Z0-9_-]+((:|\.)[a-zA-Z0-9_-]+)*$/.test(value)) return value;
+  if (/^[a-zA-Z0-9_-]+(([:.])[a-zA-Z0-9_-]+)*$/.test(value)) return value;
   return `"${value}"`;
 }
 

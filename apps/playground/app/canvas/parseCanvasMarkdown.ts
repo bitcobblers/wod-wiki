@@ -334,7 +334,7 @@ function parseCommandBlock(content: string): CommandBlock {
     const m = line.match(/^target:\s*(.+)$/)
     if (m) { target = m[1].trim(); continue }
     const openM = line.match(/^open:\s*(view|dialog|route)$/)
-    if (openM) { open = openM[1] as OpenMode; continue }
+    if (openM) { open = openM[1] as OpenMode }
   }
   return { target, open, pipeline: parsePipelineSteps(lines) }
 }
@@ -350,7 +350,7 @@ function parseButtonBlock(content: string): ButtonBlock {
     const targetM = line.match(/^target:\s*(.+)$/)
     if (targetM) { target = targetM[1].trim(); continue }
     const openM = line.match(/^open:\s*(view|dialog|route)$/)
-    if (openM) { open = openM[1] as OpenMode; continue }
+    if (openM) { open = openM[1] as OpenMode }
   }
   return { label, target, open, pipeline: parsePipelineSteps(lines) }
 }

@@ -24,7 +24,7 @@ export interface ParseResult {
  * 
  * @param content - The WOD block content to parse
  * @param sport - The block's `:sport` fence suffix (` ```log:climbing `).
- *   Omitted → the full registry stack runs. See {@link DialectStack.dialectsFor}.
+ *   Omitted → the full registry stack runs. See `DialectStack.dialectsFor`.
  * @returns ParseResult with statements, errors, and success flag
  */
 export function parseScriptBlock(

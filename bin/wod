@@ -2,7 +2,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
 
 const isBun = typeof process.versions.bun !== 'undefined';
 const selfDir = path.dirname(fileURLToPath(import.meta.url));

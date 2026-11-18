@@ -1725,7 +1725,7 @@ export function normalizeDashboardSegment(input: DashboardInput, index: number):
     question: 'WQL Query',
     query,
     widgetType,
-    dataSource: input.dataSource || (query.includes('by {week}') || query.includes('by {month}') ? 'corpus' : 'session'),
+    dataSource: query.includes('by {week}') || query.includes('by {month}') ? 'corpus' : 'session',
   };
 }
 export function DashboardQueryCard({

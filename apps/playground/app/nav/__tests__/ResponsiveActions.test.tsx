@@ -14,10 +14,8 @@ function installMobileMatchMedia(): void {
     onchange: null,
     addEventListener: () => {},
     removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
     dispatchEvent: () => false,
-  })) as typeof window.matchMedia;
+  })) as unknown as typeof window.matchMedia;
 }
 
 beforeAll(() => {

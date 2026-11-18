@@ -8,7 +8,6 @@ import { IMetric } from '@bitcobblers/wod-wiki-core';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import { OutputStatement, OutputStatementType } from '@bitcobblers/wod-wiki-core';
 import type { OutputStatementOptions } from '@bitcobblers/wod-wiki-core';
-import {  } from '@bitcobblers/wod-wiki-core';
 import { TimeSpan } from './models/TimeSpan';
 import { IMemoryLocation, MemoryLocation, MemoryTag } from './memory/MemoryLocation';
 import {

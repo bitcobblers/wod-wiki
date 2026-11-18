@@ -248,7 +248,7 @@ export function cycleBaselineLayer(obj: QueryBlockObject): QueryBlockObject {
   const primary = series.find((s) => Boolean(s.query));
   if (!primary?.query) return obj;
   const primaryAst = parseQuery(primary.query);
-  const existing = series.find((s) => /^baseline_(2|4|12)w$/.test(s.id));
+  const existing = series.find((s) => /^baseline_([24]|12)w$/.test(s.id));
   const currentWeeks = existing ? Number(/^baseline_(\d+)w$/.exec(existing.id)?.[1]) : undefined;
   const currentIdx = BASELINE_PERIODS.findIndex((p) => p === currentWeeks);
   const nextWeeks = currentIdx >= 0 ? BASELINE_PERIODS[(currentIdx + 1) % BASELINE_PERIODS.length]! : 4;
@@ -747,7 +747,7 @@ export function QueryObjectBuilder({
 
   const seriesList = value.series ?? [];
   const goalActive = seriesList.some((s) => s.id === 'goal');
-  const baselineSeries = seriesList.find((s) => /^baseline_(2|4|12)w$/.test(s.id));
+  const baselineSeries = seriesList.find((s) => /^baseline_([24]|12)w$/.test(s.id));
   const baselineWeeks = baselineSeries ? Number(/^baseline_(\d+)w$/.exec(baselineSeries.id)?.[1]) : undefined;
   const compareActive = seriesList.some((s) => s.id === 'secondary');
 

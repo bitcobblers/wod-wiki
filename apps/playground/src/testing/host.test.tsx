@@ -83,6 +83,7 @@ function QueuedDrainProbe({ noteId, savesCompleted }: { noteId: string; savesCom
         revRef.current = updated.sourceRevision ?? revRef.current + 1;
         savesCompleted.push(rawContent);
       } finally {
+        // noinspection ES6MissingAwait
         if (pendingNoteSaves.get(noteId) === savePromise) {
           pendingNoteSaves.delete(noteId);
         }

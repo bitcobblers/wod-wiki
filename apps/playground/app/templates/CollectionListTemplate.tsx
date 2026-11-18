@@ -83,7 +83,7 @@ export function CollectionListTemplate<TQuery, TRecord, TItem>({
       setError(null);
 
       try {
-        const loadedRecords = await Promise.resolve(loadRecords(query));
+        const loadedRecords = await loadRecords(query);
         if (!isCancelled) {
           setRecords(loadedRecords);
         }

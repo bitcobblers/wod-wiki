@@ -79,7 +79,7 @@ function sourceCoordinates(rawContent: string): { rawStarts: number[]; editorSta
   const rawStarts = [0];
   const editorStarts = [0];
   let removed = 0;
-  for (const match of rawContent.matchAll(/\r\n|\r|\n/g)) {
+  for (const match of rawContent.matchAll(/\r\n|[\r\n]/g)) {
     removed += match[0].length - 1;
     rawStarts.push(match.index + match[0].length);
     editorStarts.push(match.index + match[0].length - removed);

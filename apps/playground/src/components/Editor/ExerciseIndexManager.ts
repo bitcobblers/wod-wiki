@@ -271,7 +271,7 @@ export class ExerciseIndexManager {
 
     // Check if already loading
     if (this.loadingPromises.has(path)) {
-      return this.loadingPromises.get(path)!;
+      return await this.loadingPromises.get(path)!;
     }
 
     // Start loading

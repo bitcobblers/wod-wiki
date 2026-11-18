@@ -569,7 +569,9 @@ async function suite(dir: string): Promise<void> {
     { op: 'put', store: 'notes', value: { id: 'bad-source', noteId: 42 } },
   ] })).status, 400);
   const retainedNote = (await call('GET', `/api/v1/notes/get?key=${enc(u1)}`)).json;
-  assert.ok(typeof retainedNote === 'object' && retainedNote !== null && 'title' in retainedNote);
+  if (typeof retainedNote !== 'object' || retainedNote === null || !('title' in retainedNote)) {
+    assert.fail('expected retainedNote object');
+  }
   assert.equal(retainedNote.title, 'Fran Bench');
   // trust-boundary range/key validators: garbage fails closed, no crash
   assert.equal((await call('GET', `/api/v1/notes/all?range=${enc([])}`)).status, 400, '[] is not a range');

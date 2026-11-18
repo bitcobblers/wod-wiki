@@ -73,7 +73,7 @@ describe('TimerDisplay — Keyboard Navigation', () => {
       });
 
       const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
-      const _prevented = !window.dispatchEvent(event);
+      window.dispatchEvent(event);
       // The handler calls preventDefault, so the event should be cancelled
       // Note: dispatchEvent returns false if preventDefault was called
     });

@@ -933,8 +933,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
     viewRef.current = view;
     setViewInstance(view);
-    const _shouldExposeCodemirrorView = import.meta.env.MODE === 'test'
-      || (import.meta.env.DEV && window.navigator.webdriver);
     // Expose view for test automation to directly manipulate content
     (mountNode as unknown as { __codemirrorView?: EditorView }).__codemirrorView = view;
     onViewCreated?.(view);
