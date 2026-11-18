@@ -35,10 +35,12 @@ describe('WW-070 — scoped equipment override navigates and re-badges on save',
             seedOrigin: 'seed',
           },
         ],
-        notebooks: [
+        notes: [
           {
-            slug: 'qa-override-club',
+            id: 'notebook/qa-override-club',
+            type: 'notebook',
             title: 'QA Override Club',
+            rawContent: '# QA Override Club',
           },
         ],
       },

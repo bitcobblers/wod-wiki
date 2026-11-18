@@ -23,7 +23,7 @@ afterEach(async () => {
 
 describe('WW-041 — empty .zip upload on /load', () => {
   it('stays on /load and surfaces bundle-import-error for an empty .zip', async () => {
-    const emptyBytes = await new JSZip().generateAsync({ type: 'uint8array' });
+    const emptyBytes = await new JSZip().generateAsync({ type: 'arraybuffer' });
     const emptyFile = new File([emptyBytes], 'empty-bundle.zip', { type: 'application/zip' });
 
     host = await renderWithPlaygroundHost(<LoadZipPage />, {
