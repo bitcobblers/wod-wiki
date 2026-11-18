@@ -22,3 +22,6 @@ exclude:
   # MCP agent tools and CLI handlers intentionally wrap execution in a top-level
   # try/catch for telemetry and structured error envelopes.
   - name: ExceptionCaughtLocallyJS
+  # _code_quality.yml runs qodana-action without bun install, so node_modules/eslint
+  # is absent and Qodana flags every new TS/JS file; ESLint runs via `bun run lint`.
+  - name: Eslint
