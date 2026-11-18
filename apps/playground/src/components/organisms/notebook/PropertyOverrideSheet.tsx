@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  isNonPublishableNotebook,
   isPublishableNotebookLanding,
   notebookSlugFromId,
   toNotebookId,
@@ -62,7 +63,14 @@ export function PropertyOverrideSheet({
 
       const rows: TargetNotebookItem[] = [];
       for (const n of allNotes) {
-        if (isPublishableNotebookLanding(n)) {
+        const isTargetNotebook =
+          isPublishableNotebookLanding(n) ||
+          (n.id.startsWith('notebook/') &&
+            n.type === 'notebook' &&
+            !isNonPublishableNotebook(n.id) &&
+            n.feedOrigin !== 'feed' &&
+            n.seedOrigin !== 'seed');
+        if (isTargetNotebook) {
           const nbId = toNotebookId(n.id);
           rows.push({
             id: nbId,

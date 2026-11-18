@@ -51,12 +51,21 @@ describe('WW-080 — Create Note template picker stays bounded', () => {
       fireEvent.click(noteTab);
     }
 
-    const select = await screen.findByTestId('journal-create-template');
-    await waitFor(() => {
-      expect(select.querySelectorAll('option').length).toBeGreaterThan(1);
-    });
-
-    const optionCount = select.querySelectorAll('option').length;
-    expect(optionCount).toBeLessThanOrEqual(MAX_TEMPLATE_OPTIONS);
+    const templateControl = await screen.findByTestId('journal-create-template');
+    if (templateControl.tagName === 'SELECT') {
+      await waitFor(() => {
+        expect(templateControl.querySelectorAll('option').length).toBeGreaterThan(1);
+      });
+      const optionCount = templateControl.querySelectorAll('option').length;
+      expect(optionCount).toBeLessThanOrEqual(MAX_TEMPLATE_OPTIONS);
+    } else {
+      const toggle = screen.getByRole('button', { name: 'Toggle template options' });
+      fireEvent.click(toggle);
+      await waitFor(() => {
+        expect(screen.getAllByRole('option').length).toBeGreaterThan(1);
+      });
+      const optionCount = screen.getAllByRole('option').length;
+      expect(optionCount).toBeLessThanOrEqual(MAX_TEMPLATE_OPTIONS);
+    }
   });
 });

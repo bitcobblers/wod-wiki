@@ -53,10 +53,37 @@ export function formatTimeseriesTooltipValue(value: number | string, unit?: stri
   return formatWithUnit(formatted, unit);
 }
 
+const INTRINSIC_METRIC_UNITS: Record<string, string> = {
+  'calc.hrv': 'ms',
+  hrv: 'ms',
+};
+
+function resolveTimeseriesUnit(result: QueryResult, unitProp?: string): string | undefined {
+  const seriesUnit = result.series[0]?.unit;
+  if (seriesUnit) return seriesUnit;
+
+  const seriesKey = result.series[0]?.key?.toLowerCase();
+  if (seriesKey && INTRINSIC_METRIC_UNITS[seriesKey]) {
+    return INTRINSIC_METRIC_UNITS[seriesKey];
+  }
+
+  const parsedMetric = result.parsed?.metric?.toLowerCase();
+  if (parsedMetric && INTRINSIC_METRIC_UNITS[parsedMetric]) {
+    return INTRINSIC_METRIC_UNITS[parsedMetric];
+  }
+
+  const rawQuery = (result as { query?: unknown }).query;
+  if (typeof rawQuery === 'string' && /\b(?:calc\.hrv|hrv)\b/i.test(rawQuery)) {
+    return 'ms';
+  }
+
+  return unitProp;
+}
+
 export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
   const shape = useChartShape(result);
   const data = useMemo(() => mergeSeries(result.series), [result]);
-  const unit = result.series[0]?.unit ?? unitProp;
+  const unit = resolveTimeseriesUnit(result, unitProp);
 
   if (shape.kind !== 'timeseries' && shape.kind !== 'scalar') {
     return <WqlEmptyState result={result} />;

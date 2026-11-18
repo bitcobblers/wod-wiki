@@ -948,12 +948,21 @@ function isAliasProperty(key: string): boolean {
   return ["alias", "aliases"].includes(key.trim().toLowerCase());
 }
 
-function createSummaryPill(value: string, hash: boolean): HTMLElement {
+function createSummaryPill(value: string, hash: boolean, href?: string): HTMLElement {
   const pill = document.createElement("span");
   pill.className = "inline-flex max-w-full items-center rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-xs text-foreground";
   const label = document.createElement("span");
   label.className = "truncate";
-  label.textContent = hash ? `#${value}` : value;
+  const text = hash ? `#${value}` : value;
+  if (href) {
+    const link = document.createElement("a");
+    link.href = href;
+    link.textContent = text;
+    link.className = "hover:underline cursor-pointer";
+    label.appendChild(link);
+  } else {
+    label.textContent = text;
+  }
   pill.appendChild(label);
   return pill;
 }
@@ -961,6 +970,8 @@ function createSummaryPill(value: string, hash: boolean): HTMLElement {
 function createFrontmatterSummary(
   entries: [string, unknown][],
   onShowDetails: () => void,
+  docKind?: DefinitionKind | null,
+  referenceProvider?: FrontmatterReferenceProvider | null,
 ): HTMLElement {
   const summary = document.createElement("div");
   summary.dataset.frontmatterSummary = "true";
@@ -987,7 +998,18 @@ function createFrontmatterSummary(
     label.className = "mr-1 w-14 shrink-0 text-[11px] font-medium text-muted-foreground";
     label.textContent = group.label;
     row.appendChild(label);
-    for (const value of values) row.appendChild(createSummaryPill(value, group.hash));
+    for (const value of values) {
+      let href: string | undefined;
+      if (group.label === "Aliases" && referenceProvider && (docKind === "effort" || docKind === "equipment")) {
+        const match = docKind === "effort"
+          ? referenceProvider.resolveEffort(value)
+          : referenceProvider.resolveEquipment(value);
+        if (match) {
+          href = referenceProvider.openHref(docKind, match.slug);
+        }
+      }
+      row.appendChild(createSummaryPill(value, group.hash, href));
+    }
     summary.appendChild(row);
   }
 
@@ -1103,7 +1125,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
       box.appendChild(createFrontmatterSummary(entries, () => {
         persistedDetailed.set(view.dom, true);
         view.dispatch({ effects: setFrontmatterDetailed.of(true) });
-      }));
+      }, docKind, referenceProvider));
     } else {
     // The table always carries its Key/Value labels — a field never has to
     // rely on its placeholder to say what it is.
@@ -1295,7 +1317,15 @@ export class DefaultFrontmatterWidget extends WidgetType {
           // references: display the authored token (resolution still routes
           // navigation), or every self-aliasing pill collapses to the
           // canonical label and becomes indistinguishable.
-          pillText.textContent = isAliasRow ? chip : (match ? match.label : chip);
+          if (isAliasRow && match && referenceProvider) {
+            const aliasLink = document.createElement("a");
+            aliasLink.href = referenceProvider.openHref(valueKind as "effort" | "equipment", match.slug);
+            aliasLink.textContent = chip;
+            aliasLink.className = "hover:underline cursor-pointer";
+            pillText.appendChild(aliasLink);
+          } else {
+            pillText.textContent = isAliasRow ? chip : (match ? match.label : chip);
+          }
           pill.appendChild(pillText);
 
           if (match && referenceProvider && (!isAliasRow || idx === 0)) {
