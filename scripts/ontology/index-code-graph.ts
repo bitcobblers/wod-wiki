@@ -1372,7 +1372,12 @@ export async function buildUnifiedGraph() {
       const lastSeenRun = valOf(subj, 'qa:lastSeenRun');
       const resolvedInRun = valOf(subj, 'qa:resolvedInRun');
       const affects = [...new Set(valsOf(subj, 'qa:affects'))];
-      const coveredBy = [...new Set(valsOf(subj, 'qa:coveredBy'))];
+      const coveredBy = [
+        ...new Set([
+          ...valsOf(subj, 'qa:coveredBy'),
+          ...(regressionSuitesByWwId.get(iId.toUpperCase()) ?? []),
+        ]),
+      ];
       const rootCauses = [...new Set(valsOf(subj, 'bridge:rootCause'))];
 
       const extra: string[] = [];

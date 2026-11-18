@@ -4341,6 +4341,24 @@
     code:packageName "packages/engine" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/engine/tests/agent/regression/ww-047.regression.test.ts> a code:File ;
+    rdfs:label "ww-047.regression.test.ts" ;
+    code:filePath "packages/engine/tests/agent/regression/ww-047.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/agent/regression/ww-049.regression.test.ts> a code:File ;
+    rdfs:label "ww-049.regression.test.ts" ;
+    code:filePath "packages/engine/tests/agent/regression/ww-049.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/agent/regression/ww-062.regression.test.ts> a code:File ;
+    rdfs:label "ww-062.regression.test.ts" ;
+    code:filePath "packages/engine/tests/agent/regression/ww-062.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/engine/tests/domain/all-wods.domain.test.ts> a code:File ;
     rdfs:label "all-wods.domain.test.ts" ;
     code:filePath "packages/engine/tests/domain/all-wods.domain.test.ts" ;
@@ -4368,6 +4386,36 @@
 <https://wod.wiki/code/file/packages/engine/tests/domain/property-notes-and-shakeout.domain.test.ts> a code:File ;
     rdfs:label "property-notes-and-shakeout.domain.test.ts" ;
     code:filePath "packages/engine/tests/domain/property-notes-and-shakeout.domain.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-048.regression.test.ts> a code:File ;
+    rdfs:label "ww-048.regression.test.ts" ;
+    code:filePath "packages/engine/tests/domain/regression/ww-048.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-051.regression.test.ts> a code:File ;
+    rdfs:label "ww-051.regression.test.ts" ;
+    code:filePath "packages/engine/tests/domain/regression/ww-051.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-052.regression.test.ts> a code:File ;
+    rdfs:label "ww-052.regression.test.ts" ;
+    code:filePath "packages/engine/tests/domain/regression/ww-052.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-056.regression.test.ts> a code:File ;
+    rdfs:label "ww-056.regression.test.ts" ;
+    code:filePath "packages/engine/tests/domain/regression/ww-056.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-093.regression.test.ts> a code:File ;
+    rdfs:label "ww-093.regression.test.ts" ;
+    code:filePath "packages/engine/tests/domain/regression/ww-093.regression.test.ts" ;
     code:packageName "packages/engine" ;
     code:isTestFile true .
 
@@ -4530,6 +4578,12 @@
     code:filePath "packages/engine/tests/reference-seed-check.ts" ;
     code:packageName "packages/engine" ;
     code:isTestFile false .
+
+<https://wod.wiki/code/file/packages/engine/tests/regression/ww-044.regression.test.ts> a code:File ;
+    rdfs:label "ww-044.regression.test.ts" ;
+    code:filePath "packages/engine/tests/regression/ww-044.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
 
 <https://wod.wiki/code/file/packages/engine/tests/seed/user-data-survival.test.ts> a code:File ;
     rdfs:label "user-data-survival.test.ts" ;
@@ -14247,6 +14301,24 @@
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/lang/tests/regression/ww-076.regression.test.ts> a code:File ;
+    rdfs:label "ww-076.regression.test.ts" ;
+    code:filePath "packages/lang/tests/regression/ww-076.regression.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/regression/ww-077.regression.test.ts> a code:File ;
+    rdfs:label "ww-077.regression.test.ts" ;
+    code:filePath "packages/lang/tests/regression/ww-077.regression.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/regression/ww-078.regression.test.ts> a code:File ;
+    rdfs:label "ww-078.regression.test.ts" ;
+    code:filePath "packages/lang/tests/regression/ww-078.regression.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/lang/tests/runtime/AmrapLogicStrategy.integration.test.ts> a code:File ;
     rdfs:label "AmrapLogicStrategy.integration.test.ts" ;
     code:filePath "packages/lang/tests/runtime/AmrapLogicStrategy.integration.test.ts" ;
@@ -20927,6 +20999,12 @@
     code:packageName "packages/ui" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/ui/test/regression/ww-034.regression.test.tsx> a code:File ;
+    rdfs:label "ww-034.regression.test.tsx" ;
+    code:filePath "packages/ui/test/regression/ww-034.regression.test.tsx" ;
+    code:packageName "packages/ui" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/ui/test/rows-table.test.tsx> a code:File ;
     rdfs:label "rows-table.test.tsx" ;
     code:filePath "packages/ui/test/rows-table.test.tsx" ;
@@ -24200,6 +24278,18 @@
 <https://wod.wiki/code/file/packages/wql/tests/quotedValueInsert.test.ts> a code:File ;
     rdfs:label "quotedValueInsert.test.ts" ;
     code:filePath "packages/wql/tests/quotedValueInsert.test.ts" ;
+    code:packageName "packages/wql" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/wql/tests/regression/ww-057.regression.test.ts> a code:File ;
+    rdfs:label "ww-057.regression.test.ts" ;
+    code:filePath "packages/wql/tests/regression/ww-057.regression.test.ts" ;
+    code:packageName "packages/wql" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/wql/tests/regression/ww-089.regression.test.ts> a code:File ;
+    rdfs:label "ww-089.regression.test.ts" ;
+    code:filePath "packages/wql/tests/regression/ww-089.regression.test.ts" ;
     code:packageName "packages/wql" ;
     code:isTestFile true .
 
@@ -44109,6 +44199,66 @@
     code:packageName "apps/playground" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-038.regression.test.tsx> a code:File ;
+    rdfs:label "ww-038.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-038.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-041.regression.test.tsx> a code:File ;
+    rdfs:label "ww-041.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-041.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-059.regression.test.tsx> a code:File ;
+    rdfs:label "ww-059.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-059.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-070.regression.test.tsx> a code:File ;
+    rdfs:label "ww-070.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-070.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-071.regression.test.tsx> a code:File ;
+    rdfs:label "ww-071.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-071.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-072.regression.test.tsx> a code:File ;
+    rdfs:label "ww-072.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-072.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-084.regression.test.tsx> a code:File ;
+    rdfs:label "ww-084.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-084.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-088.regression.test.tsx> a code:File ;
+    rdfs:label "ww-088.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-088.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-090.regression.test.tsx> a code:File ;
+    rdfs:label "ww-090.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-090.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-091.regression.test.tsx> a code:File ;
+    rdfs:label "ww-091.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-091.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/apps/playground/src/repositories/groupings.ts> a code:File ;
     rdfs:label "groupings.ts" ;
     code:filePath "apps/playground/src/repositories/groupings.ts" ;
@@ -61303,6 +61453,76 @@
     qa:seam "T2a-host" ;
     qa:inDomain <https://wod.wiki/qa/domain/journal> .
 
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-038.regression.test.tsx> a qa:HostSuite ;
+    rdfs:label "ww-038.regression" ;
+    qa:suitePath "apps/playground/src/regression/ww-038.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-041.regression.test.tsx> a qa:HostSuite ;
+    rdfs:label "ww-041.regression" ;
+    qa:suitePath "apps/playground/src/regression/ww-041.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-059.regression.test.tsx> a qa:HostSuite ;
+    rdfs:label "ww-059.regression" ;
+    qa:suitePath "apps/playground/src/regression/ww-059.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-070.regression.test.tsx> a qa:HostSuite ;
+    rdfs:label "ww-070.regression" ;
+    qa:suitePath "apps/playground/src/regression/ww-070.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-071.regression.test.tsx> a qa:HostSuite ;
+    rdfs:label "ww-071.regression" ;
+    qa:suitePath "apps/playground/src/regression/ww-071.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-072.regression.test.tsx> a qa:HostSuite ;
+    rdfs:label "ww-072.regression" ;
+    qa:suitePath "apps/playground/src/regression/ww-072.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-084.regression.test.tsx> a qa:HostSuite ;
+    rdfs:label "ww-084.regression" ;
+    qa:suitePath "apps/playground/src/regression/ww-084.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-088.regression.test.tsx> a qa:HostSuite ;
+    rdfs:label "ww-088.regression" ;
+    qa:suitePath "apps/playground/src/regression/ww-088.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-090.regression.test.tsx> a qa:HostSuite ;
+    rdfs:label "ww-090.regression" ;
+    qa:suitePath "apps/playground/src/regression/ww-090.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-091.regression.test.tsx> a qa:HostSuite ;
+    rdfs:label "ww-091.regression" ;
+    qa:suitePath "apps/playground/src/regression/ww-091.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
 <https://wod.wiki/qa/suite/apps/playground/src/services/feed/feedCatalog.test.ts> a qa:HostSuite ;
     rdfs:label "feedCatalog" ;
     qa:suitePath "apps/playground/src/services/feed/feedCatalog.test.ts" ;
@@ -61322,6 +61542,174 @@
     qa:suitePath "apps/playground/src/testing/host.test.tsx" ;
     qa:tier "T2" ;
     qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-076.regression.test.ts> a qa:FixtureTableSuite ;
+    rdfs:label "ww-076" ;
+    qa:suitePath "packages/lang/tests/regression/ww-076.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1a-compute" ;
+    qa:inDomain <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-077.regression.test.ts> a qa:FixtureTableSuite ;
+    rdfs:label "ww-077" ;
+    qa:suitePath "packages/lang/tests/regression/ww-077.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1a-compute" ;
+    qa:inDomain <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-078.regression.test.ts> a qa:FixtureTableSuite ;
+    rdfs:label "ww-078" ;
+    qa:suitePath "packages/lang/tests/regression/ww-078.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1a-compute" ;
+    qa:inDomain <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-057.regression.test.ts> a qa:FixtureTableSuite ;
+    rdfs:label "ww-057" ;
+    qa:suitePath "packages/wql/tests/regression/ww-057.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1a-compute" ;
+    qa:inDomain <https://wod.wiki/qa/domain/analytics> .
+
+<https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-089.regression.test.ts> a qa:FixtureTableSuite ;
+    rdfs:label "ww-089" ;
+    qa:suitePath "packages/wql/tests/regression/ww-089.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1a-compute" ;
+    qa:inDomain <https://wod.wiki/qa/domain/analytics> .
+
+<https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-047.regression.test.ts> a qa:DomainScenarioSuite ;
+    rdfs:label "ww-047" ;
+    qa:suitePath "packages/engine/tests/agent/regression/ww-047.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1c-domain" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-049.regression.test.ts> a qa:DomainScenarioSuite ;
+    rdfs:label "ww-049" ;
+    qa:suitePath "packages/engine/tests/agent/regression/ww-049.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1c-domain" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-062.regression.test.ts> a qa:DomainScenarioSuite ;
+    rdfs:label "ww-062" ;
+    qa:suitePath "packages/engine/tests/agent/regression/ww-062.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1c-domain" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-048.regression.test.ts> a qa:DomainScenarioSuite ;
+    rdfs:label "ww-048" ;
+    qa:suitePath "packages/engine/tests/domain/regression/ww-048.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1c-domain" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-051.regression.test.ts> a qa:DomainScenarioSuite ;
+    rdfs:label "ww-051" ;
+    qa:suitePath "packages/engine/tests/domain/regression/ww-051.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1c-domain" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-052.regression.test.ts> a qa:DomainScenarioSuite ;
+    rdfs:label "ww-052" ;
+    qa:suitePath "packages/engine/tests/domain/regression/ww-052.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1c-domain" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-056.regression.test.ts> a qa:DomainScenarioSuite ;
+    rdfs:label "ww-056" ;
+    qa:suitePath "packages/engine/tests/domain/regression/ww-056.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1c-domain" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-093.regression.test.ts> a qa:DomainScenarioSuite ;
+    rdfs:label "ww-093" ;
+    qa:suitePath "packages/engine/tests/domain/regression/ww-093.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1c-domain" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/packages/engine/tests/regression/ww-044.regression.test.ts> a qa:DomainScenarioSuite ;
+    rdfs:label "ww-044" ;
+    qa:suitePath "packages/engine/tests/regression/ww-044.regression.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1c-domain" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-030.regression.test.tsx> a qa:VerificationSuite ;
+    rdfs:label "ww-030" ;
+    qa:suitePath "apps/storybook/test/regression/ww-030.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-storybook" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-068.regression.test.tsx> a qa:VerificationSuite ;
+    rdfs:label "ww-068" ;
+    qa:suitePath "apps/storybook/test/regression/ww-068.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-storybook" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-073.regression.test.tsx> a qa:VerificationSuite ;
+    rdfs:label "ww-073" ;
+    qa:suitePath "apps/storybook/test/regression/ww-073.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-storybook" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-074.regression.test.tsx> a qa:VerificationSuite ;
+    rdfs:label "ww-074" ;
+    qa:suitePath "apps/storybook/test/regression/ww-074.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-storybook" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-079.regression.test.tsx> a qa:VerificationSuite ;
+    rdfs:label "ww-079" ;
+    qa:suitePath "apps/storybook/test/regression/ww-079.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-storybook" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-080.regression.test.tsx> a qa:VerificationSuite ;
+    rdfs:label "ww-080" ;
+    qa:suitePath "apps/storybook/test/regression/ww-080.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-storybook" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-085.regression.test.tsx> a qa:VerificationSuite ;
+    rdfs:label "ww-085" ;
+    qa:suitePath "apps/storybook/test/regression/ww-085.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-storybook" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-086.regression.test.tsx> a qa:VerificationSuite ;
+    rdfs:label "ww-086" ;
+    qa:suitePath "apps/storybook/test/regression/ww-086.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-storybook" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-087.regression.test.tsx> a qa:VerificationSuite ;
+    rdfs:label "ww-087" ;
+    qa:suitePath "apps/storybook/test/regression/ww-087.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-storybook" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-092.regression.test.tsx> a qa:VerificationSuite ;
+    rdfs:label "ww-092" ;
+    qa:suitePath "apps/storybook/test/regression/ww-092.regression.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-storybook" ;
     qa:inDomain <https://wod.wiki/qa/domain/journal> .
 
 <https://wod.wiki/qa/suite/e2e/regression/ww-019.e2e.ts> a qa:VerificationSuite ;
@@ -62140,7 +62528,8 @@
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
     qa:coveredBy <https://wod.wiki/qa/journey/JRN-01> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-019.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-020> a qa:Issue ;
     rdfs:label "User-authored notes silently deleted within seconds of creation by the boot/feed import cycle — now 6 reproductions across journal and runtime authoring paths" ;
@@ -62160,7 +62549,8 @@
     qa:affects <https://wod.wiki/qa/domain/properties> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> .
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-020.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-021> a qa:Issue ;
     rdfs:label "Feed subscription silently lost — wodwiki.seedSubscriptions reverts to defaults seconds after Subscribe" ;
@@ -62326,7 +62716,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-15-smoke-214120> ;
-    qa:affects <https://wod.wiki/qa/domain/analytics> .
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-030.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-030.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-031> a qa:Issue ;
     rdfs:label "All /load deep links bounce away before any import UI renders" ;
@@ -62392,7 +62784,8 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:affects <https://wod.wiki/qa/domain/properties> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/PRP-03> .
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-03> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-034.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-035> a qa:Issue ;
     rdfs:label "Newly created effort lands on 'Effort \"slug\" not found' despite successful IndexedDB persistence" ;
@@ -62430,7 +62823,9 @@
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/journey/JRN-01> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/services/storage/StorageService.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-036.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-037> a qa:Issue ;
     rdfs:label "Tag drill-down /t/:type/:tag overflows 65px horizontally on 375x812 mobile" ;
@@ -62462,7 +62857,9 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-smoke-023730> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/ANL-06> .
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-06> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-038.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-038.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-039> a qa:Issue ;
     rdfs:label "data-agent-status flips 'ready' while dashboard/board widgets still render 'Loading…' skeletons" ;
@@ -62513,7 +62910,9 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/FED-04> .
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-04> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-041.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-041.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-042> a qa:Issue ;
     rdfs:label "llms.txt advertises /settings/queries (settingsQueries) but the route is retired and bounces to /journal" ;
@@ -62562,7 +62961,9 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/FED-04> .
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-04> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/regression/ww-044.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-044.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-045> a qa:Issue ;
     rdfs:label "WebMCP/MCP wod_feed_manage exposes no subscribe/unsubscribe/delete action — the primary feeds CTA is unavailable to agents" ;
@@ -62615,7 +63016,9 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/NBK-01> .
+    qa:coveredBy <https://wod.wiki/qa/journey/NBK-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-047.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-047.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-048> a qa:Issue ;
     rdfs:label "note header shows a backlink chip for only one of two linked notebooks — N:M membership under-represented in the header" ;
@@ -62631,7 +63034,9 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/NBK-02> .
+    qa:coveredBy <https://wod.wiki/qa/journey/NBK-02> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-048.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-048.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-049> a qa:Issue ;
     rdfs:label "wod_note_delete without confirmId never resolves — promise pends indefinitely on a silent human-only 'Confirm Agent Action' modal (no timeout, no confirmation-required error)" ;
@@ -62647,7 +63052,9 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-049.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-049.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-050> a qa:Issue ;
     rdfs:label "#agent-view-state clock reports phase=ready/status=idle while the live workout timer visibly runs" ;
@@ -62680,7 +63087,9 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-051.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-051.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-052> a qa:Issue ;
     rdfs:label "Exiting at the Ready-to-Start gate records a 0s phantom in-progress session row" ;
@@ -62696,7 +63105,9 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-052.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-052.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-053> a qa:Issue ;
     rdfs:label "Cold load of an unregistered /run/:runtimeId renders a completely blank main — the existing 'Runtime not found' guard never appears, no data-agent-status" ;
@@ -62745,7 +63156,8 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/FED-03> .
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-03> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-055.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-056> a qa:Issue ;
     rdfs:label "Benchmark PR Board widgets permanently empty on sample corpus: 'Sample data loaded' badge shown but sessions store = 0 post-import, 5 visible widgets No data" ;
@@ -62762,7 +63174,9 @@
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-smoke-023730> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/ANL-04> .
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-04> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-056.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-056.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-057> a qa:Issue ;
     rdfs:label ":session{text:fran} reports '0 applied, 1 ignored' yet empties the result list to 0 of 0 — ignore advisory contradicts actual filtering" ;
@@ -62777,7 +63191,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-smoke-023730> ;
-    qa:affects <https://wod.wiki/qa/domain/analytics> .
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-057.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-057.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-058> a qa:Issue ;
     rdfs:label "Delete note on /note/:id applies silently/deferred with no confirmation dialog and a misleading 'Saved states are identical.' toast" ;
@@ -62810,7 +63226,9 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
     qa:affects <https://wod.wiki/qa/domain/journal> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> .
+    qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-059.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-059.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-060> a qa:Issue ;
     rdfs:label "slash command menu /time and /wod show identical description 'Timer workout block' — indistinguishable" ;
@@ -62856,7 +63274,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/NBK-01> .
+    qa:coveredBy <https://wod.wiki/qa/journey/NBK-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-062.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-062.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-063> a qa:Issue ;
     rdfs:label "Unknown tag deep link /t/:type/:tag silently degrades to 'No tag is selected' instead of explicit not-found" ;
@@ -62905,7 +63325,8 @@
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-smoke-014925> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-065.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-066> a qa:Issue ;
     rdfs:label "Cast to TV click with no receiver produces zero user-facing feedback — console-only failure" ;
@@ -62920,7 +63341,8 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:affects <https://wod.wiki/qa/domain/manual> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/RUN-04> .
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-04> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-066.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-067> a qa:Issue ;
     rdfs:label "Mobile Keypad mode toggle sets aria-pressed=true but renders no digit pad at 375x812 — dead-end input affordance" ;
@@ -62951,7 +63373,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
-    qa:affects <https://wod.wiki/qa/domain/runtime> .
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-068.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-068.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-069> a qa:Issue ;
     rdfs:label "Per-block Run buttons ignore their block — clicking a non-first block's Run opens a gate for Block 1; no block picker" ;
@@ -62982,7 +63406,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:affects <https://wod.wiki/qa/domain/properties> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/PRP-04> .
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-04> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-070.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-070.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-071> a qa:Issue ;
     rdfs:label "Alias chips on /effort/:slug and /equipment/:slug are non-interactive spans — PRP-01 spec promises linked chips" ;
@@ -62997,7 +63423,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:affects <https://wod.wiki/qa/domain/properties> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/PRP-01> .
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-071.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-071.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-072> a qa:Issue ;
     rdfs:label "/subscribe probe failure surfaces raw browser error 'Failed to fetch' with no remediation hint" ;
@@ -63012,7 +63440,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/FED-02> .
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-02> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-072.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-072.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-073> a qa:Issue ;
     rdfs:label "Feed overflow menu ignores Escape (backdrop click works) — contradicts FED-01 Scenario 3 despite handler + passing test in source" ;
@@ -63027,7 +63457,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-073.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-073.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-074> a qa:Issue ;
     rdfs:label "HRV trend widget on /dashboard/recovery-readiness labels Y-axis ticks and readout in kg instead of ms (0 kg..80 kg, '71kg')" ;
@@ -63042,7 +63474,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-074.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-074.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-075> a qa:Issue ;
     rdfs:label "Time-window picker updates chip + query draft but leaves stale chart/counts until Run — no dirty indicator" ;
@@ -63073,7 +63507,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-076.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-076.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-077> a qa:Issue ;
     rdfs:label "Live run cannot advance past the first movement — Next/Enter/Nav/outline clicks/rep logging never activate movement 2 in AMRAP or For Time ladder runs" ;
@@ -63088,7 +63524,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-077.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-077.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-078> a qa:Issue ;
     rdfs:label "Float-valued analytics readouts mix precision conventions on one panel (18.07 min 2dp, 31.9 pts 1dp, 36 MET-min truncated)" ;
@@ -63103,7 +63541,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/RUN-03> .
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-03> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-078.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-078.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-079> a qa:Issue ;
     rdfs:label "Script Outline rows duplicate the movement name ('15 Kettlebell Swings Kettlebell Swings 24 kg'; '5 Pullups Pullups') in gate and live outline" ;
@@ -63118,7 +63558,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
-    qa:affects <https://wod.wiki/qa/domain/runtime> .
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-079.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-079.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-080> a qa:Issue ;
     rdfs:label "Create Note dialog 'Start from' template combobox dumps ~1,355 unsorted corpus notes as native <option> rows" ;
@@ -63133,7 +63575,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
-    qa:affects <https://wod.wiki/qa/domain/journal> .
+    qa:affects <https://wod.wiki/qa/domain/journal> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-080.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-080.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-081> a qa:Issue ;
     rdfs:label "/journal strip shows contradictory frozen totals at data-agent-status=ready — '1 of 280' frozen mid-import count (mobile), '1 of 2'→'1 of 1' flicker (desktop); three totals disagree simultaneously" ;
@@ -63197,7 +63641,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-smoke-201659> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-smoke-201659> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-084.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-084.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-085> a qa:Issue ;
     rdfs:label "Ready-to-Start gate: mouse clicks on Start do nothing (keyboard '/' works), and after keyboard start the overlay stays frozen on 'Ready to Start' 00:00 while the engine reports live/running; raw CSS keyframes text present in overlay DOM" ;
@@ -63212,7 +63658,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-085.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-085.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-086> a qa:Issue ;
     rdfs:label "Subscribe on /feeds shows no pending/disabled state during the ~6-8s feed sync — identical enabled button invites double-submits" ;
@@ -63227,7 +63675,9 @@
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
+    qa:coveredBy <https://wod.wiki/qa/journey/FED-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-086.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-086.e2e.ts> .
 
 }
 
@@ -65315,6 +65765,55 @@ wod:Query bridge:story <https://wod.wiki/code/story/packages-ui-blocks-wql-examp
 <https://wod.wiki/qa/suite/apps/playground/src/app/editor/__tests__/session-run-identity-and-stop.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/app/editor/__tests__/session-run-identity-and-stop.test.tsx> .
 <https://wod.wiki/qa/suite/apps/playground/src/app/editor/__tests__/session-run-identity-and-stop.test.tsx> bridge:seedNoun wod:Note .
 <https://wod.wiki/qa/suite/apps/playground/src/app/editor/__tests__/session-run-identity-and-stop.test.tsx> bridge:seedNoun wod:Session .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-038.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/regression/ww-038.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-038.regression.test.tsx> bridge:seedNoun wod:Dashboard .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-038.regression.test.tsx> bridge:seedNoun wod:Query .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-041.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/regression/ww-041.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-041.regression.test.tsx> bridge:seedNoun wod:Page .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-041.regression.test.tsx> bridge:seedNoun wod:Attachment .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-041.regression.test.tsx> bridge:route <https://wod.wiki/code/route/load> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-059.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/regression/ww-059.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-059.regression.test.tsx> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-059.regression.test.tsx> bridge:seedNoun wod:Notebook .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-059.regression.test.tsx> bridge:seedNoun wod:Page .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-059.regression.test.tsx> bridge:seedNoun wod:Session .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-059.regression.test.tsx> bridge:route <https://wod.wiki/code/route/day__date> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-070.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/regression/ww-070.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-070.regression.test.tsx> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-070.regression.test.tsx> bridge:seedNoun wod:Notebook .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-070.regression.test.tsx> bridge:seedNoun wod:Page .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-070.regression.test.tsx> bridge:seedNoun wod:Equipment .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-070.regression.test.tsx> bridge:seedNoun wod:FieldValue .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-070.regression.test.tsx> bridge:route <https://wod.wiki/code/route/equipment__slug> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-071.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/regression/ww-071.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-071.regression.test.tsx> bridge:seedNoun wod:Page .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-071.regression.test.tsx> bridge:seedNoun wod:Effort .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-071.regression.test.tsx> bridge:seedNoun wod:Equipment .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-071.regression.test.tsx> bridge:seedNoun wod:FieldValue .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-071.regression.test.tsx> bridge:route <https://wod.wiki/code/route/effort__slug> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-072.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/regression/ww-072.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-072.regression.test.tsx> bridge:seedNoun wod:Page .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-072.regression.test.tsx> bridge:seedNoun wod:Feed .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-084.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/regression/ww-084.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-084.regression.test.tsx> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-084.regression.test.tsx> bridge:seedNoun wod:Page .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-084.regression.test.tsx> bridge:seedNoun wod:Session .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-088.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/regression/ww-088.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-088.regression.test.tsx> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-088.regression.test.tsx> bridge:seedNoun wod:Page .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-088.regression.test.tsx> bridge:seedNoun wod:Session .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-088.regression.test.tsx> bridge:seedNoun wod:Effort .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-088.regression.test.tsx> bridge:seedNoun wod:Equipment .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-088.regression.test.tsx> bridge:route <https://wod.wiki/code/route/equipment__slug> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-090.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/regression/ww-090.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-090.regression.test.tsx> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-090.regression.test.tsx> bridge:seedNoun wod:Page .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-090.regression.test.tsx> bridge:seedNoun wod:Effort .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-090.regression.test.tsx> bridge:route <https://wod.wiki/code/route/effort__slug> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-091.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/regression/ww-091.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-091.regression.test.tsx> bridge:seedNoun wod:Page .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-091.regression.test.tsx> bridge:seedNoun wod:Effort .
+<https://wod.wiki/qa/suite/apps/playground/src/regression/ww-091.regression.test.tsx> bridge:route <https://wod.wiki/code/route/effort__slug> .
 <https://wod.wiki/qa/suite/apps/playground/src/services/feed/feedCatalog.test.ts> bridge:touches <https://wod.wiki/code/file/apps/playground/src/services/feed/feedCatalog.test.ts> .
 <https://wod.wiki/qa/suite/apps/playground/src/services/feed/feedCatalog.test.ts> bridge:seedNoun wod:Notebook .
 <https://wod.wiki/qa/suite/apps/playground/src/services/feed/feedCatalog.test.ts> bridge:seedNoun wod:Feed .
@@ -65390,6 +65889,60 @@ wod:Query bridge:story <https://wod.wiki/code/story/packages-ui-blocks-wql-examp
 <https://wod.wiki/qa/suite/apps/playground/src/testing/host.test.tsx> bridge:route <https://wod.wiki/code/route/legacy> .
 <https://wod.wiki/qa/suite/apps/playground/src/testing/host.test.tsx> bridge:route <https://wod.wiki/code/route/notebook__slug__item> .
 <https://wod.wiki/qa/suite/apps/playground/src/testing/host.test.tsx> bridge:route <https://wod.wiki/code/route/playground__noteId> .
+<https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-076.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/lang/tests/regression/ww-076.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-076.regression.test.ts> bridge:seedNoun wod:Metric .
+<https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-077.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/lang/tests/regression/ww-077.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-077.regression.test.ts> bridge:seedNoun wod:Session .
+<https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-077.regression.test.ts> bridge:seedNoun wod:Effort .
+<https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-078.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/lang/tests/regression/ww-078.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-078.regression.test.ts> bridge:seedNoun wod:Metric .
+<https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-078.regression.test.ts> bridge:seedNoun wod:Effort .
+<https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-057.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/wql/tests/regression/ww-057.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-057.regression.test.ts> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-057.regression.test.ts> bridge:seedNoun wod:Session .
+<https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-057.regression.test.ts> bridge:seedNoun wod:EventRecord .
+<https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-057.regression.test.ts> bridge:seedNoun wod:Metric .
+<https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-057.regression.test.ts> bridge:seedNoun wod:Effort .
+<https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-089.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/wql/tests/regression/ww-089.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-089.regression.test.ts> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-089.regression.test.ts> bridge:seedNoun wod:Query .
+<https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-047.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/engine/tests/agent/regression/ww-047.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-047.regression.test.ts> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-047.regression.test.ts> bridge:seedNoun wod:Notebook .
+<https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-049.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/engine/tests/agent/regression/ww-049.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-049.regression.test.ts> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-062.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/engine/tests/agent/regression/ww-062.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-062.regression.test.ts> bridge:seedNoun wod:Notebook .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-048.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-048.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-048.regression.test.ts> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-048.regression.test.ts> bridge:seedNoun wod:Notebook .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-051.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-051.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-051.regression.test.ts> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-051.regression.test.ts> bridge:seedNoun wod:Session .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-051.regression.test.ts> bridge:seedNoun wod:EventRecord .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-052.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-052.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-052.regression.test.ts> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-052.regression.test.ts> bridge:seedNoun wod:Session .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-056.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-056.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-056.regression.test.ts> bridge:seedNoun wod:Dashboard .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-056.regression.test.ts> bridge:seedNoun wod:Query .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-093.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-093.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-093.regression.test.ts> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-093.regression.test.ts> bridge:seedNoun wod:Session .
+<https://wod.wiki/qa/suite/packages/engine/tests/regression/ww-044.regression.test.ts> bridge:touches <https://wod.wiki/code/file/packages/engine/tests/regression/ww-044.regression.test.ts> .
+<https://wod.wiki/qa/suite/packages/engine/tests/regression/ww-044.regression.test.ts> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/packages/engine/tests/regression/ww-044.regression.test.ts> bridge:seedNoun wod:Notebook .
+<https://wod.wiki/qa/suite/packages/engine/tests/regression/ww-044.regression.test.ts> bridge:seedNoun wod:Feed .
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-030.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/storybook/test/regression/ww-030.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-068.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/storybook/test/regression/ww-068.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-073.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/storybook/test/regression/ww-073.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-074.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/storybook/test/regression/ww-074.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-079.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/storybook/test/regression/ww-079.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-080.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/storybook/test/regression/ww-080.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-085.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/storybook/test/regression/ww-085.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-086.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/storybook/test/regression/ww-086.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-087.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/storybook/test/regression/ww-087.regression.test.tsx> .
+<https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-092.regression.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/storybook/test/regression/ww-092.regression.test.tsx> .
 <https://wod.wiki/qa/suite/e2e/regression/ww-019.e2e.ts> bridge:touches <https://wod.wiki/code/file/e2e/regression/ww-019.e2e.ts> .
 <https://wod.wiki/qa/suite/e2e/regression/ww-020.e2e.ts> bridge:touches <https://wod.wiki/code/file/e2e/regression/ww-020.e2e.ts> .
 <https://wod.wiki/qa/suite/e2e/regression/ww-030.e2e.ts> bridge:touches <https://wod.wiki/code/file/e2e/regression/ww-030.e2e.ts> .

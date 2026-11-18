@@ -4337,6 +4337,24 @@
     code:packageName "packages/engine" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/engine/tests/agent/regression/ww-047.regression.test.ts> a code:File ;
+    rdfs:label "ww-047.regression.test.ts" ;
+    code:filePath "packages/engine/tests/agent/regression/ww-047.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/agent/regression/ww-049.regression.test.ts> a code:File ;
+    rdfs:label "ww-049.regression.test.ts" ;
+    code:filePath "packages/engine/tests/agent/regression/ww-049.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/agent/regression/ww-062.regression.test.ts> a code:File ;
+    rdfs:label "ww-062.regression.test.ts" ;
+    code:filePath "packages/engine/tests/agent/regression/ww-062.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/engine/tests/domain/all-wods.domain.test.ts> a code:File ;
     rdfs:label "all-wods.domain.test.ts" ;
     code:filePath "packages/engine/tests/domain/all-wods.domain.test.ts" ;
@@ -4364,6 +4382,36 @@
 <https://wod.wiki/code/file/packages/engine/tests/domain/property-notes-and-shakeout.domain.test.ts> a code:File ;
     rdfs:label "property-notes-and-shakeout.domain.test.ts" ;
     code:filePath "packages/engine/tests/domain/property-notes-and-shakeout.domain.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-048.regression.test.ts> a code:File ;
+    rdfs:label "ww-048.regression.test.ts" ;
+    code:filePath "packages/engine/tests/domain/regression/ww-048.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-051.regression.test.ts> a code:File ;
+    rdfs:label "ww-051.regression.test.ts" ;
+    code:filePath "packages/engine/tests/domain/regression/ww-051.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-052.regression.test.ts> a code:File ;
+    rdfs:label "ww-052.regression.test.ts" ;
+    code:filePath "packages/engine/tests/domain/regression/ww-052.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-056.regression.test.ts> a code:File ;
+    rdfs:label "ww-056.regression.test.ts" ;
+    code:filePath "packages/engine/tests/domain/regression/ww-056.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/engine/tests/domain/regression/ww-093.regression.test.ts> a code:File ;
+    rdfs:label "ww-093.regression.test.ts" ;
+    code:filePath "packages/engine/tests/domain/regression/ww-093.regression.test.ts" ;
     code:packageName "packages/engine" ;
     code:isTestFile true .
 
@@ -4526,6 +4574,12 @@
     code:filePath "packages/engine/tests/reference-seed-check.ts" ;
     code:packageName "packages/engine" ;
     code:isTestFile false .
+
+<https://wod.wiki/code/file/packages/engine/tests/regression/ww-044.regression.test.ts> a code:File ;
+    rdfs:label "ww-044.regression.test.ts" ;
+    code:filePath "packages/engine/tests/regression/ww-044.regression.test.ts" ;
+    code:packageName "packages/engine" ;
+    code:isTestFile true .
 
 <https://wod.wiki/code/file/packages/engine/tests/seed/user-data-survival.test.ts> a code:File ;
     rdfs:label "user-data-survival.test.ts" ;
@@ -14243,6 +14297,24 @@
     code:packageName "packages/lang" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/lang/tests/regression/ww-076.regression.test.ts> a code:File ;
+    rdfs:label "ww-076.regression.test.ts" ;
+    code:filePath "packages/lang/tests/regression/ww-076.regression.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/regression/ww-077.regression.test.ts> a code:File ;
+    rdfs:label "ww-077.regression.test.ts" ;
+    code:filePath "packages/lang/tests/regression/ww-077.regression.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/lang/tests/regression/ww-078.regression.test.ts> a code:File ;
+    rdfs:label "ww-078.regression.test.ts" ;
+    code:filePath "packages/lang/tests/regression/ww-078.regression.test.ts" ;
+    code:packageName "packages/lang" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/lang/tests/runtime/AmrapLogicStrategy.integration.test.ts> a code:File ;
     rdfs:label "AmrapLogicStrategy.integration.test.ts" ;
     code:filePath "packages/lang/tests/runtime/AmrapLogicStrategy.integration.test.ts" ;
@@ -20923,6 +20995,12 @@
     code:packageName "packages/ui" ;
     code:isTestFile true .
 
+<https://wod.wiki/code/file/packages/ui/test/regression/ww-034.regression.test.tsx> a code:File ;
+    rdfs:label "ww-034.regression.test.tsx" ;
+    code:filePath "packages/ui/test/regression/ww-034.regression.test.tsx" ;
+    code:packageName "packages/ui" ;
+    code:isTestFile true .
+
 <https://wod.wiki/code/file/packages/ui/test/rows-table.test.tsx> a code:File ;
     rdfs:label "rows-table.test.tsx" ;
     code:filePath "packages/ui/test/rows-table.test.tsx" ;
@@ -24196,6 +24274,18 @@
 <https://wod.wiki/code/file/packages/wql/tests/quotedValueInsert.test.ts> a code:File ;
     rdfs:label "quotedValueInsert.test.ts" ;
     code:filePath "packages/wql/tests/quotedValueInsert.test.ts" ;
+    code:packageName "packages/wql" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/wql/tests/regression/ww-057.regression.test.ts> a code:File ;
+    rdfs:label "ww-057.regression.test.ts" ;
+    code:filePath "packages/wql/tests/regression/ww-057.regression.test.ts" ;
+    code:packageName "packages/wql" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/packages/wql/tests/regression/ww-089.regression.test.ts> a code:File ;
+    rdfs:label "ww-089.regression.test.ts" ;
+    code:filePath "packages/wql/tests/regression/ww-089.regression.test.ts" ;
     code:packageName "packages/wql" ;
     code:isTestFile true .
 
@@ -44102,6 +44192,66 @@
 <https://wod.wiki/code/file/apps/playground/src/receiver-rpc.test.tsx> a code:File ;
     rdfs:label "receiver-rpc.test.tsx" ;
     code:filePath "apps/playground/src/receiver-rpc.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-038.regression.test.tsx> a code:File ;
+    rdfs:label "ww-038.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-038.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-041.regression.test.tsx> a code:File ;
+    rdfs:label "ww-041.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-041.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-059.regression.test.tsx> a code:File ;
+    rdfs:label "ww-059.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-059.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-070.regression.test.tsx> a code:File ;
+    rdfs:label "ww-070.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-070.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-071.regression.test.tsx> a code:File ;
+    rdfs:label "ww-071.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-071.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-072.regression.test.tsx> a code:File ;
+    rdfs:label "ww-072.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-072.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-084.regression.test.tsx> a code:File ;
+    rdfs:label "ww-084.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-084.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-088.regression.test.tsx> a code:File ;
+    rdfs:label "ww-088.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-088.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-090.regression.test.tsx> a code:File ;
+    rdfs:label "ww-090.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-090.regression.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/src/regression/ww-091.regression.test.tsx> a code:File ;
+    rdfs:label "ww-091.regression.test.tsx" ;
+    code:filePath "apps/playground/src/regression/ww-091.regression.test.tsx" ;
     code:packageName "apps/playground" ;
     code:isTestFile true .
 
