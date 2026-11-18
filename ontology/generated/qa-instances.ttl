@@ -5989,11 +5989,305 @@
     qa:seam "T2a-host" ;
     qa:inDomain <https://wod.wiki/qa/domain/journal> .
 
+<https://wod.wiki/qa/suite/apps/playground/src/services/storage/StorageService.regression.test.ts> a qa:HostSuite ;
+    rdfs:label "StorageService.regression" ;
+    qa:suitePath "apps/playground/src/services/storage/StorageService.regression.test.ts" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
 <https://wod.wiki/qa/suite/apps/playground/src/testing/host.test.tsx> a qa:HostSuite ;
     rdfs:label "host" ;
     qa:suitePath "apps/playground/src/testing/host.test.tsx" ;
     qa:tier "T2" ;
     qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-019.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-019" ;
+    qa:suitePath "e2e/regression/ww-019.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-020.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-020" ;
+    qa:suitePath "e2e/regression/ww-020.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-030.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-030" ;
+    qa:suitePath "e2e/regression/ww-030.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-034.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-034" ;
+    qa:suitePath "e2e/regression/ww-034.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-036.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-036" ;
+    qa:suitePath "e2e/regression/ww-036.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-038.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-038" ;
+    qa:suitePath "e2e/regression/ww-038.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-041.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-041" ;
+    qa:suitePath "e2e/regression/ww-041.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-044.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-044" ;
+    qa:suitePath "e2e/regression/ww-044.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-047.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-047" ;
+    qa:suitePath "e2e/regression/ww-047.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-048.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-048" ;
+    qa:suitePath "e2e/regression/ww-048.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-049.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-049" ;
+    qa:suitePath "e2e/regression/ww-049.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-051.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-051" ;
+    qa:suitePath "e2e/regression/ww-051.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-052.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-052" ;
+    qa:suitePath "e2e/regression/ww-052.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-055.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-055" ;
+    qa:suitePath "e2e/regression/ww-055.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-056.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-056" ;
+    qa:suitePath "e2e/regression/ww-056.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-057.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-057" ;
+    qa:suitePath "e2e/regression/ww-057.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-059.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-059" ;
+    qa:suitePath "e2e/regression/ww-059.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-062.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-062" ;
+    qa:suitePath "e2e/regression/ww-062.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-065.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-065" ;
+    qa:suitePath "e2e/regression/ww-065.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-066.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-066" ;
+    qa:suitePath "e2e/regression/ww-066.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-068.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-068" ;
+    qa:suitePath "e2e/regression/ww-068.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-070.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-070" ;
+    qa:suitePath "e2e/regression/ww-070.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-071.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-071" ;
+    qa:suitePath "e2e/regression/ww-071.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-072.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-072" ;
+    qa:suitePath "e2e/regression/ww-072.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-073.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-073" ;
+    qa:suitePath "e2e/regression/ww-073.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-074.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-074" ;
+    qa:suitePath "e2e/regression/ww-074.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-076.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-076" ;
+    qa:suitePath "e2e/regression/ww-076.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-077.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-077" ;
+    qa:suitePath "e2e/regression/ww-077.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-078.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-078" ;
+    qa:suitePath "e2e/regression/ww-078.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-079.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-079" ;
+    qa:suitePath "e2e/regression/ww-079.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-080.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-080" ;
+    qa:suitePath "e2e/regression/ww-080.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-084.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-084" ;
+    qa:suitePath "e2e/regression/ww-084.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-085.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-085" ;
+    qa:suitePath "e2e/regression/ww-085.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-086.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-086" ;
+    qa:suitePath "e2e/regression/ww-086.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-087.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-087" ;
+    qa:suitePath "e2e/regression/ww-087.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-088.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-088" ;
+    qa:suitePath "e2e/regression/ww-088.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-089.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-089" ;
+    qa:suitePath "e2e/regression/ww-089.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-090.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-090" ;
+    qa:suitePath "e2e/regression/ww-090.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-091.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-091" ;
+    qa:suitePath "e2e/regression/ww-091.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-092.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-092" ;
+    qa:suitePath "e2e/regression/ww-092.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-093.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-093" ;
+    qa:suitePath "e2e/regression/ww-093.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
     qa:inDomain <https://wod.wiki/qa/domain/journal> .
 
 <https://wod.wiki/qa/journey/ANL-06> a qa:Journey ;

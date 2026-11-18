@@ -11,20 +11,8 @@
  * and fails while the board stays empty.
  * Source: QA ledger https://qa.forest-adhara.ts.net/issues.html (last seen 2026-11-16-smoke-014925).
  */
-import { test, expect, type PlaygroundTestActor } from '../fixtures/playgroundActor';
-
-/** Load the bundled sample corpus via the explorer prompt (the populated-corpus path). */
-async function loadSampleData(app: PlaygroundTestActor): Promise<void> {
-  const { page } = app;
-  await app.wql.openExplorer('sum:totalVolume{} by {week}');
-  const sampleBtn = page.getByRole('button', { name: /Preview with sample data/i });
-  if (await sampleBtn.isVisible().catch(() => false)) {
-    await sampleBtn.click();
-    await expect(page.getByRole('button', { name: /Purge sample data/i })).toBeVisible({
-      timeout: 30_000,
-    });
-  }
-}
+import { test, expect } from '../fixtures/playgroundActor';
+import { loadSampleData } from './helpers';
 
 test.describe('WW-065 — Benchmark PR Board settle latency (populated)', () => {
   test('WW-065: the populated Benchmark PR Board settles with data in every widget within 15s', async ({

@@ -10,14 +10,19 @@ snapshot of 2026-11-18 (`known-issues.json`, app commit `969de0d9e`):
 - Every test asserts the **correct** behavior, so the suite is **expected to
   be red** while its defect is open. A failing test is the defect, made
   executable; a passing test means the defect no longer reproduces and the
-  test should graduate into the matching `e2e/live-app/` journey (with its
-  Level-1 spec) and be deleted here.
+  test should graduate into the **lowest appropriate tier** per `AGENTS.md`
+  (Tier 1 pure compute / storage / domain in `packages/*/tests/`, Tier 2a
+  Playground host/route tests in `apps/playground/src/`, Tier 2b Storybook
+  organism `play()` tests in `apps/storybook/src/`, or Tier 3 multi-boundary
+  journeys in `e2e/live-app/` with a paired `e2e/specs/` Markdown spec) and
+  be deleted here.
 - The suite is deliberately **not** wired into the required PR checks and is
   separate from the `e2e/specs/` ↔ `e2e/live-app/` 1:1 gate
   (`scripts/check-e2e-specs.ts`). Run it on demand:
 
   ```bash
-  bun x playwright test --config playwright.regression.config.ts            # local dev app
+  bun x playwright test --config playwright.regression.config.ts                       # local dev app
+  E2E_TARGET=preview bun x playwright test --config playwright.regression.config.ts    # local vite preview
   E2E_APP_URL=https://wod.wiki bun x playwright test --config playwright.regression.config.ts
   ```
 
@@ -77,6 +82,7 @@ snapshot of 2026-11-18 (`known-issues.json`, app commit `969de0d9e`):
 ## Maintenance
 
 When a nightly dogfood run resolves a defect, expect its test here to go
-green: verify, then graduate it. When a new defect opens, add one file per
-issue following the existing headers — assert the behavior that should hold,
-never the buggy behavior.
+green: verify, then graduate it to the lowest appropriate tier (Tier 1, Tier 2a,
+Tier 2b, or Tier 3 per `AGENTS.md`) and remove the regression file here. When a
+new defect opens, add one file per issue following the existing headers — assert
+the behavior that should hold, never the buggy behavior.

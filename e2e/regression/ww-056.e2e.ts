@@ -12,21 +12,9 @@
  * render 'No data for this range.' on a board whose queries can never match.
  * Source: QA ledger https://qa.forest-adhara.ts.net/issues.html (last seen 2026-11-18-nightly-052229).
  */
-import { test, expect, type PlaygroundTestActor } from '../fixtures/playgroundActor';
+import { test, expect } from '../fixtures/playgroundActor';
 import type { Page } from '@playwright/test';
-
-/** Load the bundled sample corpus via the explorer prompt (the ANL-05 path). */
-async function loadSampleData(app: PlaygroundTestActor): Promise<void> {
-  const { page } = app;
-  await app.wql.openExplorer('sum:totalVolume{} by {week}');
-  const sampleBtn = page.getByRole('button', { name: /Preview with sample data/i });
-  if (await sampleBtn.isVisible().catch(() => false)) {
-    await sampleBtn.click();
-    await expect(page.getByRole('button', { name: /Purge sample data/i })).toBeVisible({
-      timeout: 30_000,
-    });
-  }
-}
+import { loadSampleData } from './helpers';
 
 async function sessionsStoreCount(page: Page): Promise<number> {
   return page.evaluate(async () => {

@@ -33,21 +33,38 @@ test.describe('WW-080 — Create Note template picker stays bounded', () => {
     await expect(dialog).toBeVisible({ timeout: 15_000 });
     await dialog.getByTestId('new-entry-note').click();
 
-    const select = dialog.getByTestId('journal-create-template');
-    await expect(select, "'Start from' template control is present").toBeVisible({
+    const control = dialog.getByTestId('journal-create-template');
+    await expect(control, "'Start from' template control is present").toBeVisible({
       timeout: 15_000,
     });
 
-    // Template sources load in the background; wait until the picker has
-    // populated beyond the lone "Blank note" row before measuring it.
-    await expect
-      .poll(() => select.locator('option').count(), { timeout: 20_000 })
-      .toBeGreaterThan(1);
+    const tagName = await control.evaluate((el) => el.tagName.toLowerCase());
+    if (tagName === 'select') {
+      // Template sources load in the background; wait until the picker has
+      // populated beyond the lone "Blank note" row before measuring it.
+      await expect
+        .poll(() => control.locator('option').count(), { timeout: 20_000 })
+        .toBeGreaterThan(1);
 
-    const optionCount = await select.locator('option').count();
-    expect(
-      optionCount,
-      `template picker exposes ${optionCount} native options — a bounded picker stays at or under ${MAX_TEMPLATE_OPTIONS}`,
-    ).toBeLessThanOrEqual(MAX_TEMPLATE_OPTIONS);
+      const optionCount = await control.locator('option').count();
+      expect(
+        optionCount,
+        `template picker exposes ${optionCount} native options — a bounded picker stays at or under ${MAX_TEMPLATE_OPTIONS}`,
+      ).toBeLessThanOrEqual(MAX_TEMPLATE_OPTIONS);
+    } else {
+      // Searchable combobox or custom picker: open if collapsed, then verify
+      // the rendered item/option count stays bounded.
+      const isExpanded = await control.getAttribute('aria-expanded');
+      if (isExpanded === 'false') {
+        await control.click();
+      }
+      const renderedCount = await app.page
+        .locator('[role="option"], [data-radix-collection-item]')
+        .count();
+      expect(
+        renderedCount,
+        `template picker renders ${renderedCount} items/options — a bounded picker stays at or under ${MAX_TEMPLATE_OPTIONS}`,
+      ).toBeLessThanOrEqual(MAX_TEMPLATE_OPTIONS);
+    }
   });
 });

@@ -10,30 +10,8 @@
  * '0 kg' while grouped ticks render without the space ('5,000kg').
  * Source: QA ledger https://qa.forest-adhara.ts.net/issues.html (last seen 2026-11-15-smoke-214120).
  */
-import { test, expect, type PlaygroundTestActor } from '../fixtures/playgroundActor';
-import type { Locator, Page } from '@playwright/test';
-
-/** Load the bundled sample corpus via the explorer prompt (the populated-corpus path). */
-async function loadSampleData(app: PlaygroundTestActor): Promise<void> {
-  const { page } = app;
-  await app.wql.openExplorer('sum:totalVolume{} by {week}');
-  const sampleBtn = page.getByRole('button', { name: /Preview with sample data/i });
-  if (await sampleBtn.isVisible().catch(() => false)) {
-    await sampleBtn.click();
-    await expect(page.getByRole('button', { name: /Purge sample data/i })).toBeVisible({
-      timeout: 30_000,
-    });
-  }
-}
-
-async function yAxisTickTexts(scope: Page | Locator): Promise<string[]> {
-  const ticks = scope.locator('.recharts-yAxis .recharts-cartesian-axis-tick text');
-  const texts: string[] = [];
-  for (const tick of await ticks.all()) {
-    texts.push(((await tick.textContent()) ?? '').trim());
-  }
-  return texts.filter(Boolean);
-}
+import { test, expect } from '../fixtures/playgroundActor';
+import { loadSampleData, yAxisTickTexts } from './helpers';
 
 test.describe('WW-030 — bar-chart Y-axis tick unit spacing', () => {
   test('WW-030: every kg tick on an explorer bar chart uses the grouped, single-space unit format', async ({

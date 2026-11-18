@@ -412,7 +412,7 @@ export async function buildUnifiedGraph() {
     const rel = path.relative(REPO_ROOT, abs).replace(/\\/g, '/');
     const isTest = /\.(test|spec)\.(ts|tsx)$/.test(rel) || rel.includes('/__tests__/');
     const isSpecMd = rel.startsWith('e2e/specs/') && rel.endsWith('.md');
-    const isE2eTs = rel.startsWith('e2e/live-app/') && rel.endsWith('.e2e.ts');
+    const isE2eTs = (rel.startsWith('e2e/live-app/') || rel.startsWith('e2e/regression/')) && rel.endsWith('.e2e.ts');
     const pkgMatch = rel.match(/^(packages\/[^/]+|apps\/[^/]+|e2e)/);
     const area = pkgMatch ? pkgMatch[1] : 'repo';
 
@@ -873,6 +873,19 @@ export async function buildUnifiedGraph() {
 
   // 5b. Index Multi-Tier Verification Suites (qa:FixtureTableSuite, qa:StorageConformanceSuite, qa:DomainScenarioSuite, qa:HostSuite)
   let suiteCount = 0;
+  const regressionSuitesByWwId = new Map<string, Set<string>>();
+  const recordRegressionWwIds = (rel: string, content: string, sIri: string) => {
+    const fileMatches = rel.match(/\bWW-\d{3}\b/gi);
+    const ids = fileMatches && fileMatches.length > 0
+      ? fileMatches
+      : (content.match(/\bWW-\d{3}\b/g) ?? []);
+    for (const rawId of ids) {
+      const wwId = rawId.toUpperCase();
+      const set = regressionSuitesByWwId.get(wwId) ?? new Set<string>();
+      set.add(sIri);
+      regressionSuitesByWwId.set(wwId, set);
+    }
+  };
 
   // Tier 1a: qa:FixtureTableSuite (Markdown parser & WQL scenario tables)
   const fixtureDirs = [
@@ -964,10 +977,12 @@ export async function buildUnifiedGraph() {
     const rel = path.relative(REPO_ROOT, absFile).replace(/\\/g, '/');
     if (!/\.(test|spec)\.(ts|tsx)$/.test(rel)) continue;
     const content = fs.readFileSync(absFile, 'utf8');
-    if (!content.includes('@/testing/host') && !content.includes('setupPlaygroundTestHost') && !content.includes('renderWithPlaygroundHost')) {
+    const isRegression = rel.includes('.regression.test.');
+    if (!isRegression && !content.includes('@/testing/host') && !content.includes('setupPlaygroundTestHost') && !content.includes('renderWithPlaygroundHost')) {
       continue;
     }
     const sIri = suiteIri(rel);
+    if (isRegression) recordRegressionWwIds(rel, content, sIri);
     const label = path.basename(rel).replace(/\.(test|spec)\.(tsx?)/, '');
     suiteCount++;
     qaLines.push(
@@ -1014,6 +1029,92 @@ export async function buildUnifiedGraph() {
         bridgeLines.push(`${sIri} bridge:webMcpTool ${tIri} .`);
       }
     }
+  }
+
+  // Tier 1 / 2b / 3 Regression Suites (*.regression.test.{ts,tsx} & e2e/regression/ww-*.e2e.ts)
+  const tier1RegressionPkgs: Array<{ pkg: string; cls: string; seam: string; domain: string }> = [
+    { pkg: 'core', cls: 'qa:FixtureTableSuite', seam: 'T1a-compute', domain: 'runtime' },
+    { pkg: 'lang', cls: 'qa:FixtureTableSuite', seam: 'T1a-compute', domain: 'runtime' },
+    { pkg: 'wql', cls: 'qa:FixtureTableSuite', seam: 'T1a-compute', domain: 'analytics' },
+    { pkg: 'tools', cls: 'qa:FixtureTableSuite', seam: 'T1a-compute', domain: 'runtime' },
+    { pkg: 'ui', cls: 'qa:FixtureTableSuite', seam: 'T1a-compute', domain: 'journal' },
+    { pkg: 'storage', cls: 'qa:StorageConformanceSuite', seam: 'T1b-storage', domain: 'journal' },
+    { pkg: 'engine', cls: 'qa:DomainScenarioSuite', seam: 'T1c-domain', domain: 'journal' },
+  ];
+  for (const { pkg, cls, seam, domain } of tier1RegressionPkgs) {
+    const pkgTestsDir = path.join(REPO_ROOT, 'packages', pkg, 'tests');
+    const regFiles: string[] = [];
+    walkFiles(pkgTestsDir, new Set(['.ts', '.tsx']), regFiles);
+    for (const absFile of regFiles) {
+      const rel = path.relative(REPO_ROOT, absFile).replace(/\\/g, '/');
+      if (!/\.regression\.test\.(ts|tsx)$/.test(rel)) continue;
+      const content = fs.readFileSync(absFile, 'utf8');
+      const sIri = suiteIri(rel);
+      const label = path.basename(rel).replace(/\.regression\.test\.(tsx?)$/, '');
+      suiteCount++;
+      qaLines.push(
+        `${sIri} a ${cls} ;`,
+        `    rdfs:label "${esc(label)}" ;`,
+        `    qa:suitePath "${esc(rel)}" ;`,
+        `    qa:tier "T1" ;`,
+        `    qa:seam "${seam}" ;`,
+        `    qa:inDomain ${domainIri(domain)} .`,
+        '',
+      );
+      bridgeLines.push(`${sIri} bridge:touches ${fileIri(rel)} .`);
+      for (const hint of DOMAIN_CLASS_HINTS) {
+        if (hint.pattern.test(content)) {
+          bridgeLines.push(`${sIri} bridge:seedNoun ${hint.wodClass} .`);
+        }
+      }
+      recordRegressionWwIds(rel, content, sIri);
+    }
+  }
+
+  // Tier 2b regression suites (apps/storybook/test/**/*.regression.test.{ts,tsx})
+  const storybookRegFiles: string[] = [];
+  walkFiles(path.join(REPO_ROOT, 'apps/storybook/test'), new Set(['.ts', '.tsx']), storybookRegFiles);
+  for (const absFile of storybookRegFiles) {
+    const rel = path.relative(REPO_ROOT, absFile).replace(/\\/g, '/');
+    if (!/\.regression\.test\.(ts|tsx)$/.test(rel)) continue;
+    const content = fs.readFileSync(absFile, 'utf8');
+    const sIri = suiteIri(rel);
+    const label = path.basename(rel).replace(/\.regression\.test\.(tsx?)$/, '');
+    suiteCount++;
+    qaLines.push(
+      `${sIri} a qa:VerificationSuite ;`,
+      `    rdfs:label "${esc(label)}" ;`,
+      `    qa:suitePath "${esc(rel)}" ;`,
+      `    qa:tier "T2" ;`,
+      `    qa:seam "T2b-storybook" ;`,
+      `    qa:inDomain ${domainIri('journal')} .`,
+      '',
+    );
+    bridgeLines.push(`${sIri} bridge:touches ${fileIri(rel)} .`);
+    recordRegressionWwIds(rel, content, sIri);
+  }
+
+  // Tier 3 regression suites (e2e/regression/ww-*.e2e.ts)
+  const e2eRegFiles: string[] = [];
+  walkFiles(path.join(REPO_ROOT, 'e2e/regression'), new Set(['.ts']), e2eRegFiles);
+  for (const absFile of e2eRegFiles) {
+    const rel = path.relative(REPO_ROOT, absFile).replace(/\\/g, '/');
+    if (!rel.endsWith('.e2e.ts')) continue;
+    const content = fs.readFileSync(absFile, 'utf8');
+    const sIri = suiteIri(rel);
+    const label = path.basename(rel, '.e2e.ts');
+    suiteCount++;
+    qaLines.push(
+      `${sIri} a qa:VerificationSuite ;`,
+      `    rdfs:label "${esc(label)}" ;`,
+      `    qa:suitePath "${esc(rel)}" ;`,
+      `    qa:tier "T3" ;`,
+      `    qa:seam "T3-journey" ;`,
+      `    qa:inDomain ${domainIri('journal')} .`,
+      '',
+    );
+    bridgeLines.push(`${sIri} bridge:touches ${fileIri(rel)} .`);
+    recordRegressionWwIds(rel, content, sIri);
   }
 
   // Build slug -> journeyId lookup from authored specs
@@ -1403,6 +1504,9 @@ export async function buildUnifiedGraph() {
         const jKey = jrn.replace(/^jrn:/, '');
         const resolvedJrn = slugToJourneyIri.get(jKey) ?? journeyIri(jKey);
         extraTriples.push(`    qa:coveredBy ${resolvedJrn}`);
+      }
+      for (const sIri of regressionSuitesByWwId.get(id.toUpperCase()) ?? []) {
+        extraTriples.push(`    qa:coveredBy ${sIri}`);
       }
 
       qaLines.push(

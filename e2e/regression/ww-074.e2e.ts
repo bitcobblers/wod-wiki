@@ -12,33 +12,12 @@
  */
 import { test, expect, type PlaygroundTestActor } from '../fixtures/playgroundActor';
 import type { Locator } from '@playwright/test';
-
-/** Load the bundled sample corpus via the explorer prompt (the populated-corpus path). */
-async function loadSampleData(app: PlaygroundTestActor): Promise<void> {
-  const { page } = app;
-  await app.wql.openExplorer('sum:totalVolume{} by {week}');
-  const sampleBtn = page.getByRole('button', { name: /Preview with sample data/i });
-  if (await sampleBtn.isVisible().catch(() => false)) {
-    await sampleBtn.click();
-    await expect(page.getByRole('button', { name: /Purge sample data/i })).toBeVisible({
-      timeout: 30_000,
-    });
-  }
-}
+import { loadSampleData, yAxisTickTexts } from './helpers';
 
 function widgetByTitle(page: PlaygroundTestActor['page'], title: string): Locator {
   return page.locator(
     `xpath=//h3[normalize-space()="${title}"]/ancestor::div[contains(@class,"bg-card")][1]`,
   );
-}
-
-async function yAxisTickTexts(scope: Locator): Promise<string[]> {
-  const ticks = scope.locator('.recharts-yAxis .recharts-cartesian-axis-tick text');
-  const texts: string[] = [];
-  for (const tick of await ticks.all()) {
-    texts.push(((await tick.textContent()) ?? '').trim());
-  }
-  return texts.filter(Boolean);
 }
 
 test.describe('WW-074 — HRV trend widget units are milliseconds', () => {
