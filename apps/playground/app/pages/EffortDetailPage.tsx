@@ -345,6 +345,11 @@ export function EffortDetailPage() {
     };
     return effortToDocument(blank);
   });
+  const createDocumentRef = useRef(createDocument);
+  const handleCreateDocumentChange = useCallback((next: string) => {
+    createDocumentRef.current = next;
+    setCreateDocument(next);
+  }, []);
   const [showAliasLinking, setShowAliasLinking] = useState(false);
   const [selectedTargetSlug, setSelectedTargetSlug] = useState<string>('');
   const existingEfforts = useMemo(() => {
@@ -372,7 +377,8 @@ export function EffortDetailPage() {
   }, [slug, selectedTargetSlug, registry, refresh, navigate]);
 
   const handleCreateSubmit = useCallback(async () => {
-    const { effort: parsed, errors } = documentToEffort(createDocument);
+    const activeCreateDoc = createDocumentRef.current;
+    const { effort: parsed, errors } = documentToEffort(activeCreateDoc);
     if (errors.length > 0) {
       toast({
         title: 'Invalid YAML',
@@ -407,7 +413,7 @@ export function EffortDetailPage() {
       await commitReferenceNote({
         kind: 'effort',
         slug: slugValue,
-        rawContent: createDocument,
+        rawContent: activeCreateDoc,
         title: parsed.label.trim() || fileToDisplayName(slugValue),
         expectedSourceRevision: 0,
       });
@@ -597,7 +603,7 @@ export function EffortDetailPage() {
             <div className="relative" data-testid="effort-create-editor">
               <NoteEditor
                 value={createDocument}
-                onChange={setCreateDocument}
+                onChange={handleCreateDocumentChange}
                 theme={actualTheme}
                 readonly={false}
                 showLineNumbers={true}

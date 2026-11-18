@@ -89,7 +89,11 @@ function entryFromDomainRow(row: DomainDetail): HistoryRecord {
     title: row.note.title,
     slug: projection.pageSlug,
     pageId: projection.pageId,
-    journalDate: projection.journalDate,
+    journalDate:
+      projection.journalDate ??
+      (row.note.type === 'journal' && row.note.date !== undefined
+        ? localDateKey(new Date(row.note.date))
+        : undefined),
     placements,
     createdAt: row.note.createdAt,
     updatedAt: row.note.createdAt,

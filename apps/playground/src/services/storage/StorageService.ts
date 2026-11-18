@@ -206,15 +206,33 @@ export class StorageService implements NotePersistenceStorage {
     return this.storage.readonly('notes').getAllFromIndex('by-type', type);
   }
 
-  /** Indexed calendar-date -> note IDs lookup via `page.by-date` and `page_notes.by-page`. */
+  /** Indexed calendar-date -> note IDs lookup via `page.by-date` + `page_notes.by-page`, plus `notes.by-date` fallback for notes seeded without page links. */
   async getNoteIdsForJournalDate(date: string): Promise<string[]> {
-    const pages = await this.storage.readonly('page').getAllFromIndex('by-date', date);
-    if (pages.length === 0) return [];
     const ids = new Set<string>();
-    const pageNotes = this.storage.readonly('page_notes');
-    for (const page of pages) {
-      for (const link of await pageNotes.getAllFromIndex('by-page', page.id)) {
-        ids.add(link.noteId);
+    const pages = await this.storage.readonly('page').getAllFromIndex('by-date', date);
+    if (pages.length > 0) {
+      const pageNotes = this.storage.readonly('page_notes');
+      for (const page of pages) {
+        for (const link of await pageNotes.getAllFromIndex('by-page', page.id)) {
+          ids.add(link.noteId);
+        }
+      }
+    }
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    if (m) {
+      const y = Number(m[1]);
+      const mo = Number(m[2]) - 1;
+      const d = Number(m[3]);
+      const dayStart = new Date(y, mo, d, 0, 0, 0, 0).getTime();
+      const dayEnd = new Date(y, mo, d, 23, 59, 59, 999).getTime();
+      const notesStore = this.storage.readonly('notes');
+      const dated = typeof IDBKeyRange !== 'undefined'
+        ? await notesStore.getAllFromIndex('by-date', IDBKeyRange.bound(dayStart, dayEnd))
+        : await notesStore.getAllFromIndex('by-type', 'journal');
+      for (const note of dated) {
+        if (note.type === 'journal' && note.date !== undefined && note.date >= dayStart && note.date <= dayEnd) {
+          ids.add(note.id);
+        }
       }
     }
     return [...ids];

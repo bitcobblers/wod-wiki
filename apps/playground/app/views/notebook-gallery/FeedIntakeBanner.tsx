@@ -16,6 +16,16 @@ export interface FeedIntakeBannerProps {
   onSubscribed: (feedId: string) => void;
 }
 
+const NETWORK_ERROR_RE = /failed to fetch|load failed|networkerror|network request failed/i;
+
+function formatFeedProbeError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : '';
+  if (err instanceof TypeError || NETWORK_ERROR_RE.test(raw) || !raw.trim()) {
+    return 'Could not reach this feed URL. Check the URL and your network connection (or server CORS settings), then try again.';
+  }
+  return `${raw} Check the URL and try again.`;
+}
+
 export function FeedIntakeBanner({
   feedParam,
   onDismiss,
@@ -48,7 +58,7 @@ export function FeedIntakeBanner({
         })
         .catch((err) => {
           if (!active) return;
-          setError(err instanceof Error ? err.message : 'Failed to probe feed manifest.');
+          setError(formatFeedProbeError(err));
           setLoading(false);
         });
     } else {
@@ -79,7 +89,7 @@ export function FeedIntakeBanner({
         setLoading(false);
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Failed to probe feed manifest.');
+        setError(formatFeedProbeError(err));
         setLoading(false);
       });
   };

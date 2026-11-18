@@ -12,7 +12,8 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { notebookSlugFromId, toNotebookId } from '@bitcobblers/wod-wiki-engine';
 import { DocumentDuplicateIcon } from '@heroicons/react/20/solid';
 import { Button } from '@/components/atoms/primitives/button';
 import { Badge } from '@/components/atoms/primitives/badge';
@@ -36,12 +37,19 @@ import { fileToDisplayName } from '@/repositories/groupings';
 import { appendWidget, resolveEntityScope } from '@bitcobblers/wod-wiki-wql';
 import { queryService } from '@/services/queryService';
 import { WidgetComposerDialog } from '../views/dashboards/WidgetComposerDialog';
+import { storageService } from '@/services/storage';
 import { PropertyOverrideSheet } from '@/components/organisms/notebook/PropertyOverrideSheet';
 export function EquipmentDetailPage() {
   const { slug: slugParam, tag: tagParam } = useParams<{ slug?: string; tag?: string }>();
   const slug = slugParam ?? tagParam;
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const rawNotebookParam = searchParams.get('notebook')?.trim() ?? '';
+  const scopedNotebookId = useMemo(() => {
+    if (!rawNotebookParam) return null;
+    const normalized = toNotebookId(rawNotebookParam);
+    return normalized === 'notebook/custom' ? null : normalized;
+  }, [rawNotebookParam]);
   const { theme } = useTheme();
   const actualTheme = theme === 'dark' ? 'dark' : 'vs';
   const { isReady, refresh } = useEquipmentRegistry();
@@ -332,9 +340,13 @@ export function EquipmentDetailPage() {
       )}>
         <Badge
           data-testid={TEST_IDS.EQUIPMENT_DETAIL_SOURCE}
-          variant={equipment.registrySource === 'bundled' ? 'secondary' : 'default'}
+          variant={equipment.registrySource === 'bundled' && !scopedNotebookId ? 'secondary' : 'default'}
         >
-          {equipment.registrySource === 'bundled' ? 'Bundled' : 'Custom'}
+          {scopedNotebookId
+            ? `Scoped · ${notebookSlugFromId(scopedNotebookId)}`
+            : equipment.registrySource === 'bundled'
+              ? 'Bundled'
+              : 'Custom'}
         </Badge>
       </ResponsiveActions>
       <CastButtonRpc />
@@ -366,6 +378,68 @@ export function EquipmentDetailPage() {
               mode="edit"
               onBlocksChange={setScriptBlocks}
             />
+            {(contextData.efforts.length > 0 || contextData.related.length > 0 || contextData.backlinks.length > 0) && (
+              <section
+                aria-label="Backlinks and usage"
+                data-testid="equipment-inline-backlinks"
+                className="mt-6 border-t border-border pt-4 space-y-3"
+              >
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Backlinks &amp; Used in
+                </h2>
+                {contextData.efforts.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-muted-foreground">Related efforts</div>
+                    <ul className="flex flex-wrap gap-2">
+                      {contextData.efforts.map((item) => (
+                        <li key={item.id}>
+                          <Link
+                            to={item.to}
+                            className="inline-flex items-center rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                          >
+                            {item.title}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {contextData.related.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-muted-foreground">Used in notes</div>
+                    <ul className="flex flex-wrap gap-2">
+                      {contextData.related.map((item) => (
+                        <li key={item.id}>
+                          <Link
+                            to={item.to}
+                            className="inline-flex items-center rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                          >
+                            {item.title}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {contextData.backlinks.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-muted-foreground">Backlinks</div>
+                    <ul className="flex flex-wrap gap-2">
+                      {contextData.backlinks.map((item) => (
+                        <li key={item.id}>
+                          <Link
+                            to={item.to}
+                            className="inline-flex items-center rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                          >
+                            {item.title}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
             <NoteContextNav data={contextData} up={ownership?.up} relatedLabel="Used in" trailingSections={trailingSections} />
           </div>
         }
@@ -389,8 +463,17 @@ export function EquipmentDetailPage() {
         slug={equipment.slug}
         label={equipment.label}
         rawContent={document}
-        onSaved={() => {
-          void refresh();
+        storageOverride={storageService.storage}
+        onSaved={(targetNotebookId) => {
+          if (targetNotebookId === 'notebook/custom') {
+            void refresh();
+            if (scopedNotebookId) {
+              void navigate(equipmentPath(equipment.slug));
+            }
+          } else {
+            void refresh();
+            void navigate(`${equipmentPath(equipment.slug)}?notebook=${encodeURIComponent(targetNotebookId)}`);
+          }
         }}
       />
     </div>

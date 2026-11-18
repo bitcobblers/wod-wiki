@@ -150,8 +150,11 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   // stored Route WQL Config default (the page's own query settings, legacy
   // /dashboard key aliased) overrides it; deep links (?q=) still win.
   const routeConfig = useRouteWqlConfig('/dashboards')
+  const landingDefault = routeConfig.defaultWql ?? DASHBOARDS_LANDING_QUERY;
   const { draft, setDraft, submitted, submit, weeks: activeWeeks, setWeeks } =
-    useExplorerQueryState({ defaultQuery: routeConfig.defaultWql ?? DASHBOARDS_LANDING_QUERY, runOnLanding: true });
+    useExplorerQueryState({ defaultQuery: landingDefault, runOnLanding: true });
+  const submittedParsed = useMemo(() => (submitted ? parseQuery(submitted) : null), [submitted]);
+  const submittedInvalid = Boolean(submittedParsed?.error);
   const { unit: preferredUnit } = useAnalyticsUnitPreference();
   const { forced: unitForced } = useMemo(
     () => getEffectiveAnalyticsUnit(submitted, preferredUnit),
@@ -497,6 +500,27 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
         </div>
 
         <section className="min-w-0">
+          {submittedInvalid && (
+            <div
+              role="alert"
+              data-testid="explorer-invalid-url-alert"
+              className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            >
+              <span>
+                The URL query <code className="font-mono">{submitted}</code> is invalid ({submittedParsed?.error}).
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft(landingDefault);
+                  submit(landingDefault);
+                }}
+                className="rounded border border-destructive/40 bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+              >
+                Restore default query
+              </button>
+            </div>
+          )}
           {isFindQuery(liveParsed) ? (
             /* ── Find query result: the Library's date-grouped stream ── */
             <div className="mt-3">

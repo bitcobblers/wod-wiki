@@ -7,7 +7,7 @@
  * LIVES is /settings/storage; this page is where content COMES FROM.
  */
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CloudDownload, RefreshCw, CheckCircle2, AlertCircle, Plus, Link2 } from 'lucide-react'
 import { Button } from '@/components/atoms/primitives/button'
@@ -101,6 +101,19 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
   // Primary Sync ONLY while a subscribed source has a detected update; a
   // current source shows status text instead of a redundant button.
   const pending = source.subscribed && !source.upToDate && source.remote !== null
+  const moreDetailsRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const onDocKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && moreDetailsRef.current?.open) {
+        e.preventDefault();
+        moreDetailsRef.current.open = false;
+        moreDetailsRef.current.removeAttribute('open');
+        moreDetailsRef.current.querySelector('summary')?.focus();
+      }
+    };
+    document.addEventListener('keydown', onDocKeyDown);
+    return () => document.removeEventListener('keydown', onDocKeyDown);
+  }, []);
   const closeDetails = (e: React.SyntheticEvent) => {
     const details = (e.currentTarget as HTMLElement).closest('details');
     if (details) details.open = false;
@@ -175,6 +188,7 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onUnsubscr
           {/* Native details/summary overflow — opens without JavaScript, the
               summary is keyboard reachable, links carry noopener. */}
           <details
+            ref={moreDetailsRef}
             className="relative shrink-0"
             data-testid={`feed-more-${source.id}`}
             onKeyDown={(e) => {
