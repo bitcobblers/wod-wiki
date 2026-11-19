@@ -18,16 +18,29 @@ export interface SampleDataPromptProps {
   /** 'inline' keeps the prompt inside a chart-sized area; 'card' renders a full-width empty-state card; 'banner' renders only the sample-data banner (or nothing if no sample data). */
   layout?: 'inline' | 'card' | 'banner';
   refreshKey?: number | string;
+  /** Suppress the loaded banner inside an empty result pane when a top-level banner is already mounted. */
+  hideBannerWhenLoaded?: boolean;
+  /** Notifies parent surface when a sample load or purge starts/settles. */
+  onPendingChange?: (action: 'load' | 'purge' | null) => void;
   deps?: SampleDataPromptDeps;
 }
 
-export function SampleDataPrompt({ result, onChanged, layout = 'inline', refreshKey, deps }: SampleDataPromptProps) {
+export function SampleDataPrompt({
+  result,
+  onChanged,
+  layout = 'inline',
+  refreshKey,
+  hideBannerWhenLoaded = false,
+  onPendingChange,
+  deps,
+}: SampleDataPromptProps) {
   const checkSampleData = deps?.hasSampleData ?? hasSampleData;
   const runLoadSampleData = deps?.loadSampleData ?? loadSampleData;
   const runPurgeSampleData = deps?.purgeSampleData ?? purgeSampleData;
   const [loaded, setLoaded] = useState<boolean | undefined>(undefined);
   const [dismissed, setDismissed] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'load' | 'purge' | null>(null);
+  const pending = pendingAction !== null;
 
   const refresh = useCallback(async () => {
     setLoaded(await checkSampleData());
@@ -39,26 +52,30 @@ export function SampleDataPrompt({ result, onChanged, layout = 'inline', refresh
   }, [refresh, refreshKey]);
 
   const handleLoad = async () => {
-    if (pending) return;
-    setPending(true);
+    if (pendingAction !== null) return;
+    setPendingAction('load');
+    onPendingChange?.('load');
     try {
       await runLoadSampleData();
-      await refresh();
       await onChanged?.();
+      await refresh();
     } finally {
-      setPending(false);
+      setPendingAction(null);
+      onPendingChange?.(null);
     }
   };
 
   const handlePurge = async () => {
-    if (pending) return;
-    setPending(true);
+    if (pendingAction !== null) return;
+    setPendingAction('purge');
+    onPendingChange?.('purge');
     try {
       await runPurgeSampleData();
-      await refresh();
       await onChanged?.();
+      await refresh();
     } finally {
-      setPending(false);
+      setPendingAction(null);
+      onPendingChange?.(null);
     }
   };
 
@@ -69,11 +86,16 @@ export function SampleDataPrompt({ result, onChanged, layout = 'inline', refresh
         type="button"
         onClick={() => { void handlePurge(); }}
         disabled={pending}
-        aria-busy={pending}
+        aria-busy={pendingAction === 'purge'}
         className="font-medium text-destructive hover:text-destructive/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {pending ? 'Purging sample data…' : 'Purge sample data'}
+        {pendingAction === 'purge' ? 'Purging sample data…' : 'Purge sample data'}
       </button>
+      {pendingAction === 'purge' && (
+        <span role="status" aria-live="polite" className="sr-only">
+          Purging sample data…
+        </span>
+      )}
       <button
         type="button"
         onClick={() => setDismissed(true)}
@@ -87,7 +109,7 @@ export function SampleDataPrompt({ result, onChanged, layout = 'inline', refresh
   );
 
   if (layout === 'banner') {
-    return loaded && !dismissed ? banner : null;
+    return (loaded && pendingAction !== 'load' && !dismissed) || pendingAction === 'purge' ? banner : null;
   }
 
   const loadPrompt = (
@@ -100,12 +122,12 @@ export function SampleDataPrompt({ result, onChanged, layout = 'inline', refresh
           type="button"
           onClick={() => { void handleLoad(); }}
           disabled={pending}
-          aria-busy={pending}
+          aria-busy={pendingAction === 'load'}
           data-testid="sample-data-load-button"
           className="inline-flex items-center gap-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {pending && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
-          <span>{pending ? 'Loading sample data…' : 'Preview with sample data'}</span>
+          {pendingAction === 'load' && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+          <span>{pendingAction === 'load' ? 'Loading sample data…' : 'Preview with sample data'}</span>
         </button>
         <Link
           to={ROUTE_PATTERNS.journal}
@@ -114,10 +136,23 @@ export function SampleDataPrompt({ result, onChanged, layout = 'inline', refresh
           Log your first workout
         </Link>
       </div>
+      {pendingAction === 'load' && (
+        <p role="status" aria-live="polite" className="mt-2 text-xs text-muted-foreground">
+          Loading sample data…
+        </p>
+      )}
     </div>
   );
 
-  const inner = loaded ? (dismissed ? null : banner) : loadPrompt;
+  const loadedFallback = hideBannerWhenLoaded ? (
+    <p className="text-xs text-muted-foreground text-center">
+      Sample data is loaded, but no facts matched this query.
+    </p>
+  ) : dismissed ? null : (
+    banner
+  );
+
+  const inner = pendingAction === 'load' ? loadPrompt : loaded ? loadedFallback : loadPrompt;
 
   if (layout === 'card') {
     return (

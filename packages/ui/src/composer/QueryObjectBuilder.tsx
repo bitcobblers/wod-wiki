@@ -81,7 +81,7 @@ const SPAN_OPTIONS: readonly { label: string; span?: 1 | 2 | 4 | 'full' }[] = [
 ];
 
 const SENTENCE_METRICS = ['totalVolume', 'reps', 'tis', 'calc.e1rm', 'calc.readiness'];
-const SENTENCE_GROUPS = ['week', 'day', 'session', 'round', 'effort', 'equipment'];
+const SENTENCE_GROUPS = ['week', 'month', 'day', 'session', 'round', 'effort', 'equipment'];
 const BASELINE_PERIODS = [4, 12, 2] as const;
 const PREVIEW_DEBOUNCE_MS = 300;
 

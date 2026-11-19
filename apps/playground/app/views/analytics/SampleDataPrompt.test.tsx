@@ -101,4 +101,87 @@ describe('SampleDataPrompt pending state & idempotency (WW-006)', () => {
     expect(txCount).toBe(generateSampleSessions().length)
     expect(await hasSampleData()).toBe(true)
   })
+
+  it('WW-095: keeps Loading sample data status visible across async onChanged without flashing Purging sample data', async () => {
+    let sampleLoaded = false
+    let resolveLoad!: (value: { facts: number }) => void
+    let resolveChanged!: () => void
+
+    const deps = {
+      hasSampleData: async () => sampleLoaded,
+      loadSampleData: () =>
+        new Promise<{ facts: number }>((resolve) => {
+          resolveLoad = (val) => {
+            sampleLoaded = true
+            resolve(val)
+          }
+        }),
+      purgeSampleData: async () => {
+        sampleLoaded = false
+      },
+    }
+
+    render(
+      <MemoryRouter>
+        <SampleDataPrompt
+          layout="card"
+          deps={deps}
+          onChanged={() =>
+            new Promise<void>((resolve) => {
+              resolveChanged = resolve
+            })
+          }
+        />
+      </MemoryRouter>,
+    )
+
+    const button = await screen.findByRole('button', { name: /Preview with sample data/i })
+    await act(async () => {
+      fireEvent.click(button)
+    })
+
+    const statusDuringLoad = screen.getByRole('status')
+    expect(statusDuringLoad.textContent).toContain('Loading sample data')
+    expect(screen.queryByText(/Purging sample data/i)).toBeNull()
+
+    await act(async () => {
+      resolveLoad({ facts: 48 })
+      await new Promise((r) => setTimeout(r, 10))
+    })
+
+    // While onChanged is still awaiting query re-execution, NEVER flash Purge/Purging!
+    expect(screen.queryByText(/Purging sample data/i)).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('Loading sample data')
+
+    await act(async () => {
+      resolveChanged()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Sample data loaded')).toBeDefined()
+    })
+  })
+
+  it('WW-095: hideBannerWhenLoaded shows honest no-match copy without a duplicate Purge banner', async () => {
+    const deps = {
+      hasSampleData: async () => true,
+      loadSampleData: async () => ({ facts: 48 }),
+      purgeSampleData: async () => {},
+    }
+
+    render(
+      <MemoryRouter>
+        <SampleDataPrompt
+          layout="inline"
+          hideBannerWhenLoaded={true}
+          deps={deps}
+        />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/Sample data is loaded, but no facts matched/i)).toBeDefined()
+    })
+    expect(screen.queryByRole('button', { name: /Purge sample data/i })).toBeNull()
+  })
 })
