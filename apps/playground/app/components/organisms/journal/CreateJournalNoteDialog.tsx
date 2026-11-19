@@ -144,6 +144,7 @@ export function CreateJournalNoteDialog({
   const [kind, setKind] = useState<ComposerKind>(() => toComposerKind(defaultKind))
   const [date, setDate] = useState(() => getTodayDateKey())
   const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
   const [description, setDescription] = useState('')
   const [notebookIcon, setNotebookIcon] = useState('📓')
   const [creating, setCreating] = useState(false)
@@ -177,6 +178,7 @@ export function CreateJournalNoteDialog({
     setKind(toComposerKind(defaultKind))
     setDate(defaultDate && parseJournalDate(defaultDate) ? defaultDate : getTodayDateKey())
     setTitle('')
+    setBody('')
     setDescription('')
     setNotebookIcon('📓')
     setEnablePageRoute(defaultKind === 'page')
@@ -486,12 +488,18 @@ export function CreateJournalNoteDialog({
       const effectiveType = isNotebookTarget || enablePageRoute ? 'note' : 'journal'
       const slugForNote = enablePageRoute && resolvedPageSlug ? resolvedPageSlug : undefined
 
+      const trimmedBody = body.trim()
+      const withOptionalBody = (base: string): string => {
+        if (!trimmedBody) return base
+        return base.trimEnd() ? `${base.trimEnd()}\n\n${body}` : body
+      }
+
       let input: CreateJournalNoteInput
       if (selectedTemplate?.kind === 'notebook') {
         input = {
           journalDate: parsed.dateKey,
           title: title.trim() || selectedTemplate.note.title || fallbackTitle,
-          rawContent: selectedTemplate.note.rawContent,
+          rawContent: withOptionalBody(selectedTemplate.note.rawContent),
           tags: selectedTemplate.note.tags,
           sourceId: selectedTemplate.note.id,
           slug: slugForNote,
@@ -505,7 +513,7 @@ export function CreateJournalNoteDialog({
         input = {
           journalDate: parsed.dateKey,
           title: title.trim() || selectedTemplate.item.name,
-          rawContent: selectedTemplate.item.content,
+          rawContent: withOptionalBody(selectedTemplate.item.content),
           tags: [],
           sourceId: selectedTemplate.sourceId,
           slug: slugForNote,
@@ -516,10 +524,14 @@ export function CreateJournalNoteDialog({
         const needsHeading = isNotebookTarget || enablePageRoute
         const trimmedWql = wqlScope.trim()
         const wqlFence = trimmedWql ? `\n\`\`\`query\n${trimmedWql}\n\`\`\`\n` : ''
+        const heading = needsHeading ? `# ${resolvedTitle}${trimmedBody ? '\n\n' : '\n'}` : ''
+        const bodyAndWql = trimmedBody
+          ? `${body}${wqlFence ? `\n${wqlFence}` : ''}`
+          : wqlFence
         input = {
           journalDate: parsed.dateKey,
           title: resolvedTitle,
-          rawContent: (needsHeading ? `# ${resolvedTitle}\n` : '') + wqlFence,
+          rawContent: heading + bodyAndWql,
           tags: [],
           slug: slugForNote,
           type: effectiveType,
@@ -685,6 +697,24 @@ export function CreateJournalNoteDialog({
               className="h-11 w-full rounded-lg border border-input bg-background px-3.5 text-base font-medium placeholder:font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
+
+          {kind === 'note' && (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="journal-create-body" className="text-xs font-medium text-muted-foreground">
+                Content <span className="font-normal text-muted-foreground/80">(optional)</span>
+              </label>
+              <textarea
+                id="journal-create-body"
+                data-testid={TEST_IDS.ENTRY_CREATE_BODY_INPUT}
+                value={body}
+                onChange={e => setBody(e.target.value)}
+                rows={3}
+                disabled={creating}
+                placeholder="Write workout or notes here…"
+                className="w-full resize-y rounded-lg border border-input bg-background px-3.5 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+          )}
 
           {/* 2. Note-specific context: Location + Date in a compact 2-column row */}
           {supportsDateAndTarget && (

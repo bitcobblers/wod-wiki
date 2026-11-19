@@ -16,7 +16,7 @@
  * Source: QA ledger https://qa.forest-adhara.ts.net/issues.html (last seen 2026-11-18-nightly-052229).
  */
 import type { Page } from '@playwright/test';
-import { test, expect } from '../fixtures/playgroundActor';
+import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
 import { deleteNoteByRouteId } from '../helpers/wodwikiDb';
 
 const DATE = '2099-08-03';
@@ -106,6 +106,64 @@ test.describe('WW-020 — user-authored notes deleted by the boot/feed import cy
       if (noteOneId) await deleteNoteByRouteId(page, noteOneId).catch(() => {});
       if (noteTwoId) await deleteNoteByRouteId(page, noteTwoId).catch(() => {});
       await app.journal.clearDate(DATE).catch(() => {});
+    }
+  });
+
+  test('WW-020 (dialog body): body entered in Create a note dialog persists in editor, IDB, and across full reload', async ({
+    app,
+  }) => {
+    test.setTimeout(120_000);
+    const { page } = app;
+    const bodyDate = '2099-08-04';
+    const stamp = Date.now();
+    const title = `WW020 Dialog Title ${stamp}`;
+    const bodyText = `For Time:\n10 Burpees\n10 Air Squats ${stamp}`;
+    let noteId = '';
+
+    try {
+      await app.journal.clearDate(bodyDate);
+      await app.goto(`/day/${bodyDate}`);
+      await expect(page.getByText('No Notes on this date yet.')).toBeVisible({ timeout: 15_000 });
+
+      await page.getByRole('button', { name: 'Create a note' }).click();
+      const dialog = page.locator('[role="dialog"]');
+      await expect(dialog).toBeVisible({ timeout: 10_000 });
+
+      await dialog.getByLabel(/Title/).fill(title);
+
+      // The visible body textarea must be the first textarea inside the dialog
+      // (preceding Combobox's hidden FormInputs textarea) and carry ENTRY_CREATE_BODY_INPUT.
+      const bodyField = dialog.getByTestId(TEST_IDS.ENTRY_CREATE_BODY_INPUT);
+      await expect(bodyField).toBeVisible({ timeout: 5_000 });
+      expect(await dialog.locator('textarea').first().getAttribute('data-testid')).toBe(
+        TEST_IDS.ENTRY_CREATE_BODY_INPUT,
+      );
+      await bodyField.fill(bodyText);
+
+      await dialog.getByRole('button', { name: 'Create' }).click();
+      await page.waitForURL(/\/note\//, { timeout: 15_000 });
+      noteId = decodeURIComponent(new URL(page.url()).pathname.replace(/^\/note\//, ''));
+      expect(noteId).toBeTruthy();
+
+      const editor = page.locator('.cm-content[contenteditable="true"]').first();
+      await expect(editor).toBeVisible({ timeout: 15_000 });
+      await expect(editor).toContainText(`10 Air Squats ${stamp}`, { timeout: 10_000 });
+
+      await expect
+        .poll(() => app.editor.readStoredContent(noteId), { timeout: 15_000 })
+        .toContain(bodyText);
+
+      // Reload the note page and ensure dialog-submitted body survives cleanly
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await expect(page.locator('.cm-content').first()).toContainText(`10 Air Squats ${stamp}`, {
+        timeout: 15_000,
+      });
+      await expect
+        .poll(() => app.editor.readStoredContent(noteId), { timeout: 15_000 })
+        .toContain(bodyText);
+    } finally {
+      if (noteId) await deleteNoteByRouteId(page, noteId).catch(() => {});
+      await app.journal.clearDate(bodyDate).catch(() => {});
     }
   });
 });
