@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import {
+  beginImportActivity,
+  endImportActivity,
   markFeedFirstPaint,
   markFeedSyncProgress,
   markFeedSyncSettled,
@@ -79,7 +81,7 @@ describe('AgentStateScript and MainLandmark boot import readiness (WW-019)', () 
     expect(main.getAttribute('aria-busy')).toBe('true');
     expect(readAgentViewState()).toMatchObject({
       status: 'loading',
-      feedReadiness: 'ready',
+      feedReadiness: 'preparing',
       importPending: true,
     });
 
@@ -99,6 +101,33 @@ describe('AgentStateScript and MainLandmark boot import readiness (WW-019)', () 
       feedReadiness: 'ready',
       importPending: false,
     });
+  });
+
+  it('holds status="loading" and importPending=true during beginImportActivity (sample-data import) (WW-019)', () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboards']}>
+        <MainLandmark>
+          <div>Dashboard Content</div>
+        </MainLandmark>
+        <AgentStateScript />
+      </MemoryRouter>,
+    );
+
+    const main = screen.getByRole('main');
+    expect(readAgentViewState()).toMatchObject({ status: 'ready', importPending: false });
+
+    act(() => {
+      beginImportActivity('Loading sample data…');
+    });
+    expect(main.getAttribute('data-agent-status')).toBe('loading');
+    expect(readAgentViewState()).toMatchObject({ status: 'loading', importPending: true });
+    expect(screen.getByTestId('boot-import-progress').textContent).toContain('Loading sample data…');
+
+    act(() => {
+      endImportActivity();
+    });
+    expect(main.getAttribute('data-agent-status')).toBe('ready');
+    expect(readAgentViewState()).toMatchObject({ status: 'ready', importPending: false });
   });
 
   it('suppresses boot-import-progress pill on the Home route (/) while still holding agent status loading', () => {

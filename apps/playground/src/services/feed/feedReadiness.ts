@@ -32,6 +32,8 @@ type GateState = 'idle' | FeedReadiness;
 let state: GateState = 'idle';
 let progress: FeedSyncProgress | null = null;
 let bootImportPending = false;
+let activeImportCount = 0;
+let activeImportLabel: string | null = null;
 let freshBootImporting = false;
 const listeners = new Set<() => void>();
 let busyRetryTimer: RetryTimer | null = null;
@@ -72,9 +74,42 @@ function setState(next: GateState): void {
 
 function setBootImportPending(next: boolean): void {
   if (bootImportPending === next) return;
+  const prevEffective = bootImportPending || activeImportCount > 0;
   bootImportPending = next;
-  reflectImportPending(next);
-  notify();
+  const nextEffective = bootImportPending || activeImportCount > 0;
+  reflectImportPending(nextEffective);
+  if (prevEffective !== nextEffective) notify();
+}
+
+/**
+ * Signal an active non-boot corpus/sample import (WW-019). Ref-counted so
+ * overlapping operations never clear the indicator prematurely.
+ */
+export function beginImportActivity(label?: string): void {
+  const prevEffective = bootImportPending || activeImportCount > 0;
+  activeImportCount += 1;
+  if (label !== undefined) activeImportLabel = label;
+  const nextEffective = bootImportPending || activeImportCount > 0;
+  reflectImportPending(nextEffective);
+  if (!prevEffective || label !== undefined) notify();
+}
+
+export function endImportActivity(): void {
+  if (activeImportCount === 0) return;
+  const prevEffective = bootImportPending || activeImportCount > 0;
+  activeImportCount = Math.max(0, activeImportCount - 1);
+  if (activeImportCount === 0) activeImportLabel = null;
+  const nextEffective = bootImportPending || activeImportCount > 0;
+  reflectImportPending(nextEffective);
+  if (prevEffective !== nextEffective || activeImportCount === 0) notify();
+}
+
+export function getActiveImportLabel(): string | null {
+  return activeImportLabel;
+}
+
+export function useActiveImportLabel(): string | null {
+  return useSyncExternalStore(subscribe, getActiveImportLabel);
 }
 
 function clearBusyWatch(): void {
@@ -111,11 +146,13 @@ export function markFeedSyncStarted(): void {
 }
 
 /**
- * Ungate first-paint route shells once the core canvas chunk commits while
- * keeping `bootImportPending` true until the full boot corpus import settles.
+ * Notification hook for first-paint corpus chunks.
+ * Under the WW-019 single settled contract, `state` (`data-feed-state`) stays
+ * `'preparing'` until `bootImportPending` clears so queries never run against a
+ * half-imported vault; Home (`/`) renders unblocked via `AppRoutes`.
  */
 export function markFeedFirstPaint(): void {
-  if (state === 'preparing') {
+  if (state === 'preparing' && !bootImportPending && activeImportCount === 0) {
     setState('ready');
   }
 }
@@ -160,9 +197,9 @@ export function getFeedReadiness(): FeedReadiness {
   return state === 'idle' ? 'ready' : state;
 }
 
-/** Non-reactive read of whether background cold-boot corpus import is still running. */
+/** Non-reactive read of whether any boot or sample corpus import is running. */
 export function isBootImportPending(): boolean {
-  return bootImportPending;
+  return bootImportPending || activeImportCount > 0;
 }
 
 /** Non-reactive read of the latest boot progress event. */
@@ -197,6 +234,8 @@ export function resetFeedReadinessForTest(): void {
   progress = null;
   freshBootImporting = false;
   bootImportPending = false;
+  activeImportCount = 0;
+  activeImportLabel = null;
   state = 'idle';
   reflectState('idle');
   reflectOutcome(null);
@@ -274,16 +313,12 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
   } catch {
     coreMeta = undefined; // Provider unreadable — the sync run itself surfaces it.
   }
+  const enabled = (deps.isEnabled ?? isFeedImportEnabled)();
   const fresh = !coreMeta || coreMeta.seedVersion <= 0;
-  if (fresh) {
+  const hasPendingAutoSync = !fresh && await hasUnimportedAutoSyncFeed(all, storage);
+  if (enabled && (fresh || hasPendingAutoSync)) {
     freshBootImporting = true;
     markFeedSyncStarted();
-  } else if (await hasUnimportedAutoSyncFeed(all, storage)) {
-    // Interrupted first visit: core landed but a subscribed auto-sync feed
-    // never imported. Keep the boot-import signal up across the background
-    // pass without re-gating the already-committed UI shell (WW-019).
-    freshBootImporting = true;
-    markFeedSyncSettled('current');
   } else {
     markFeedSyncSettled('current');
   }
@@ -301,13 +336,10 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
         onProgress,
         onFirstPaint: () => markFeedFirstPaint(),
       });
-      if (outcome !== 'busy' && outcome !== 'error') {
-        markFeedFirstPaint();
-      }
       // Every page load owes subscribed catalogs their update check — on a
       // fresh browser ensurePlaygroundDefaultSubscriptions just enabled the
       // default sample feeds, whose initial import is part of the boot corpus.
-      // Hold `bootImportPending` until that pass finishes without re-gating UI.
+      // Hold both gate ('preparing') and bootImportPending until all settle.
       if (
         outcome !== 'busy' &&
         outcome !== 'error' &&
@@ -326,18 +358,23 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
     }
     return;
   }
-  // Returning visitor: the vault is queryable offline from the committed
-  // core — feeds keep refreshing in the background; their outcomes only
-  // reach sync activity, never the gate (no late 'error' flip, no retry).
+  // Returning visitor: if a newly subscribed auto-sync feed was pending,
+  // hold the gate until it finishes; otherwise background refreshes keep the
+  // settled gate untouched.
+  let bgOutcome: FeedSyncOutcome = 'current';
   try {
-    await runBootFeedSync({ ...deps, sources: all, onProgress })
-      .catch((err) => console.error('[feedSync] background boot sync failed', err));
+    bgOutcome = await runBootFeedSync({ ...deps, sources: all, onProgress })
+      .catch((err) => {
+        console.error('[feedSync] background boot sync failed', err);
+        return 'error' as const;
+      });
   } finally {
-    // Release the WW-019 hold (see the gate decision above) once the pass
-    // settles; a no-op when no hold was taken.
     if (freshBootImporting) {
       freshBootImporting = false;
-      setBootImportPending(false);
+      // Returning visitor already has `core` committed offline; background
+      // external-feed errors must still surface via syncActivity without
+      // flipping the app readiness gate to 'error'.
+      markFeedSyncSettled(bgOutcome === 'error' ? 'current' : bgOutcome);
     }
   }
 }

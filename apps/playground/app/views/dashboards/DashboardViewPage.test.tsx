@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { QueryResult } from '@bitcobblers/wod-wiki-engine';
@@ -141,6 +141,7 @@ function installSpies(): void {
   spyOn(useDashboardsModule, 'useDashboardSource').mockImplementation(useFakeDashboardSource as never);
 }
 
+import { notifyResultSaved } from '@/services/resultRecorder';
 import { DashboardViewPage } from './DashboardViewPage';
 import { NavContext, initialNavState } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
@@ -336,5 +337,34 @@ describe('DashboardViewPage L3 3-slot contract', () => {
     for (const id of ['dashboard-title', 'note-h4', 'note-h5', 'note-h9']) {
       expect(globalThis.document.getElementById(id)).not.toBeNull();
     }
+  });
+});
+
+describe('DashboardViewPage live reactivity (WW-056)', () => {
+  it('re-runs widget queries when a new workout result is saved without reloading the route', async () => {
+    let queryCalls = 0;
+    let currentValue = 42;
+    spyOn(queryService, 'runQuery').mockImplementation((async (raw: string) => {
+      queryCalls += 1;
+      return {
+        parsed: { family: 'aggregate', raw, agg: 'sum', metric: 'totalVolume', filters: [], groupBy: [] },
+        series: [{ key: 'total', label: 'total', points: [{ ts: Date.now(), value: currentValue }], unit: 'reps' }],
+        stages: { selected: 1, buckets: 1, aggregated: 1, groups: 0 },
+        matched: [],
+        unit: 'reps',
+      } as unknown as QueryResult;
+    }) as never);
+
+    renderPage();
+    await waitFor(() => expect(screen.getByText('42')).toBeDefined());
+    const initialCalls = queryCalls;
+
+    currentValue = 84;
+    act(() => {
+      notifyResultSaved({ id: 'sess-new' } as never);
+    });
+
+    await waitFor(() => expect(queryCalls).toBeGreaterThan(initialCalls));
+    await waitFor(() => expect(screen.getByText('84')).toBeDefined());
   });
 });

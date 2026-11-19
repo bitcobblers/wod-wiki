@@ -68,4 +68,29 @@ test.describe('WW-056 — Benchmark PR Board populates from sample data', () => 
     );
     await expect(franWidget).not.toContainText('No data for this range.');
   });
+
+  test('WW-056 (reactivity): clicking Preview with sample data directly on Benchmark PR Board populates all 5 widgets without reload', async ({
+    app,
+  }) => {
+    const { page } = app;
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    await app.wql.openDashboard('benchmark-pr-board');
+    await expect(
+      page.getByRole('heading', { name: /Benchmark PR Board/i }).first(),
+    ).toBeVisible({ timeout: 15_000 });
+
+    const sampleBtn = page.getByRole('button', { name: /Preview with sample data/i });
+    await expect(sampleBtn).toBeVisible({ timeout: 15_000 });
+    await sampleBtn.click();
+
+    await expect(page.getByRole('button', { name: /Purge sample data/i })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect
+      .poll(async () => page.getByText('No data for this range.').count(), {
+        timeout: 20_000,
+      })
+      .toBe(0);
+  });
 });
