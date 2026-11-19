@@ -1,0 +1,61 @@
+# Negative cross-graph fixture for Stage 1 Dataset Quad Gate (`ontology/validate.sh`).
+# Validation MUST fail Stage 1 on this file with exactly 4 violations:
+#   1. Unauthorized Local <-> Local predicate (`qa:unauthorizedDomainLink` from :qa -> :domain)
+#   2. Wrong-slice endpoint class on authorized bridge (`qa:Issue` using `bridge:seedNoun`, which requires `qa:VerificationSuite` or `qa:Step`)
+#   3. Undeclared :code link predicate (`qa:undeclaredCodeLink` targeting an existing `code:File`)
+#   4. Live dangling :code target (`bridge:playwrightSpec` pointing to a non-existent `https://wod.wiki/code/file/...` IRI)
+#
+# Additionally includes 1 historical provenance link (`bridge:rootCause` with
+# `sys:allowHistoricalMissingTarget true`) pointing to a deleted file, which
+# MUST be reported as non-fatal historical drift rather than a Stage 1 violation.
+
+@prefix wodg:   <https://wod.wiki/graph/> .
+@prefix wod:    <https://wod.wiki/ontology#> .
+@prefix qa:     <https://wod.wiki/ontology/qa#> .
+@prefix code:   <https://wod.wiki/ontology/code#> .
+@prefix bridge: <https://wod.wiki/ontology/bridge#> .
+@prefix prov:   <http://www.w3.org/ns/prov#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+
+wodg:code {
+    <https://wod.wiki/code/file/packages/engine/src/index.ts> a code:File ;
+        code:filePath "packages/engine/src/index.ts" ;
+        code:packageName "@bitcobblers/wod-wiki-engine" .
+}
+
+wodg:qa {
+    <https://wod.wiki/qa/domain/bad-cross> a qa:Domain ;
+        rdfs:label "Bad Cross-Graph Domain" .
+
+    <https://wod.wiki/qa/run/bad-cross-run> a qa:Run ;
+        qa:runId "bad-cross-run-1" ;
+        qa:runTimestamp "2026-11-18T00:00:00Z"^^xsd:dateTime .
+
+    <https://wod.wiki/qa/journey/BAD-01> a qa:Journey ;
+        qa:journeyId "BAD-01" ;
+        qa:inDomain <https://wod.wiki/qa/domain/bad-cross> ;
+        qa:hasStep <https://wod.wiki/qa/journey/BAD-01/beat/Seed> ;
+        # Violation 1: unauthorized Local <-> Local predicate (:qa -> :domain)
+        qa:unauthorizedDomainLink wod:Note ;
+        # Violation 3: undeclared :code link predicate targeting existing code:File
+        qa:undeclaredCodeLink <https://wod.wiki/code/file/packages/engine/src/index.ts> ;
+        # Violation 4: live dangling :code file IRI (not historical-allowed)
+        bridge:playwrightSpec <https://wod.wiki/code/file/e2e/live-app/nonexistent-live-spec.e2e.ts> .
+
+    <https://wod.wiki/qa/journey/BAD-01/beat/Seed> a qa:Step ;
+        qa:hasBeat qa:Seed ;
+        qa:stepIndex 1 .
+
+    <https://wod.wiki/qa/issue/BAD-ISS-01> a qa:Issue ;
+        qa:issueId "BAD-ISS-01" ;
+        qa:issueSeverity "low" ;
+        prov:wasGeneratedBy <https://wod.wiki/qa/run/bad-cross-run> ;
+        # Non-fatal historical drift: bridge:rootCause allows historical missing targets
+        bridge:rootCause <https://wod.wiki/code/file/apps/playground/src/deleted-historical.tsx> .
+}
+
+wodg:bridge {
+    # Violation 2: wrong source endpoint class (qa:Issue is not qa:VerificationSuite or qa:Step)
+    <https://wod.wiki/qa/issue/BAD-ISS-01> bridge:seedNoun wod:Note .
+}

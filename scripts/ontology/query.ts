@@ -3,13 +3,22 @@
  * Bidirectional Ontology Graph Query & Chain Projection CLI
  *
  * Usage:
+ *   bun run ontology:query -- --pyramid
+ *   bun run ontology:query -- --slice domain
+ *   bun run ontology:query -- --node wod:SessionRun
  *   bun run ontology:query -- --journey JRN-01
  *   bun run ontology:query -- --file apps/playground/app/tour/HomeTour.tsx
  *   bun run ontology:query -- --symbol SessionRun
+ *   bun run ontology:query -- --issue WW-010
  *   bun run ontology:query -- --chains
  */
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
+import {
+  MultiGraphStore,
+  loadRegisteredDataset,
+  type RegisteredDataset,
+} from './system-loader';
 
 const REPO_ROOT = path.resolve(import.meta.dir, '../..');
 const GENERATED_DIR = path.join(REPO_ROOT, 'ontology/generated');
@@ -19,127 +28,6 @@ interface Triple {
   p: string;
   o: string;
   isLiteral: boolean;
-}
-
-function expandTerm(tok: string): string {
-  if (tok === 'a') return 'rdf:type';
-  if (tok.startsWith('<') && tok.endsWith('>')) return tok.slice(1, -1);
-  return tok;
-}
-
-function unescapeLiteral(s: string): string {
-  return s.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-}
-
-/**
- * Fast Turtle triple loader for generated instance files (flat subject-predicate-object
- * statements with `;` and `,` separators).
- */
-function parseGeneratedTtl(filePath: string): Triple[] {
-  if (!fs.existsSync(filePath)) return [];
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const triples: Triple[] = [];
-
-  // Tokenize cleanly respecting strings and <IRIs>
-  const tokens: Array<{ type: 'iri' | 'str' | 'sym' | 'punct'; val: string }> = [];
-  let i = 0;
-  const len = raw.length;
-  while (i < len) {
-    const ch = raw[i];
-    if (/\s/.test(ch)) {
-      i++;
-      continue;
-    }
-    if (ch === '#') {
-      while (i < len && raw[i] !== '\n') i++;
-      continue;
-    }
-    if (ch === '<') {
-      const end = raw.indexOf('>', i + 1);
-      if (end !== -1) {
-        tokens.push({ type: 'iri', val: raw.slice(i + 1, end) });
-        i = end + 1;
-        continue;
-      }
-    }
-    if (ch === '"') {
-      i++;
-      let val = '';
-      while (i < len && raw[i] !== '"') {
-        if (raw[i] === '\\' && i + 1 < len) {
-          val += '\\' + raw[i + 1];
-          i += 2;
-        } else {
-          val += raw[i++];
-        }
-      }
-      i++;
-      // skip optional ^^datatype or @lang
-      if (raw[i] === '^' && raw[i + 1] === '^') {
-        i += 2;
-        while (i < len && !/[\s;,.]/.test(raw[i])) i++;
-      } else if (raw[i] === '@') {
-        while (i < len && !/[\s;,.]/.test(raw[i])) i++;
-      }
-      tokens.push({ type: 'str', val: unescapeLiteral(val) });
-      continue;
-    }
-    if (ch === ';' || ch === ',' || (ch === '.' && (i + 1 >= len || /\s/.test(raw[i + 1])))) {
-      tokens.push({ type: 'punct', val: ch });
-      i++;
-      continue;
-    }
-    const m = raw.slice(i).match(/^[^\s;,"<>]+/);
-    if (m) {
-      tokens.push({ type: 'sym', val: m[0] });
-      i += m[0].length;
-      continue;
-    }
-    i++;
-  }
-
-  let pos = 0;
-  while (pos < tokens.length) {
-    const t = tokens[pos];
-    if (t.type === 'sym' && (t.val === '@prefix' || t.val === '@base')) {
-      pos += 3;
-      if (tokens[pos]?.val === '.') pos++;
-      continue;
-    }
-    if (t.type === 'punct' && t.val === '.') {
-      pos++;
-      continue;
-    }
-    const subj = expandTerm(tokens[pos++]?.val ?? '');
-    while (pos < tokens.length && tokens[pos].val !== '.') {
-      const pred = expandTerm(tokens[pos++]?.val ?? '');
-      while (pos < tokens.length) {
-        const objTok = tokens[pos++];
-        if (!objTok) break;
-        const isLit = objTok.type === 'str' || /^(true|false|-?\d+(\.\d+)?)$/.test(objTok.val);
-        triples.push({
-          s: subj,
-          p: pred,
-          o: objTok.type === 'str' ? objTok.val : expandTerm(objTok.val),
-          isLiteral: isLit,
-        });
-        if (tokens[pos]?.val === ',') {
-          pos++;
-        } else {
-          break;
-        }
-      }
-      if (tokens[pos]?.val === ';') {
-        pos++;
-        if (tokens[pos]?.val === '.') break;
-      } else {
-        break;
-      }
-    }
-    if (tokens[pos]?.val === '.') pos++;
-  }
-
-  return triples;
 }
 
 class GraphStore {
@@ -184,26 +72,223 @@ class GraphStore {
   }
 }
 
+function formatQueryTerm(mg: MultiGraphStore, iri: string): string {
+  const compacted = mg.compact(iri);
+  return compacted !== iri && !compacted.includes('/') ? compacted : iri;
+}
+
 function loadStore(): GraphStore {
-  const store = new GraphStore();
-  const seen = new Set<string>();
+  const mg = new MultiGraphStore();
   const files = [
     path.join(GENERATED_DIR, 'code-graph.ttl'),
     path.join(GENERATED_DIR, 'qa-instances.ttl'),
     path.join(GENERATED_DIR, 'bridge-instances.ttl'),
   ];
-  for (const file of files) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
     if (fs.existsSync(file)) {
-      const deduped = parseGeneratedTtl(file).filter((t) => {
-        const k = `${t.s}\0${t.p}\0${t.o}\0${t.isLiteral ? '1' : '0'}`;
-        if (seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      });
-      store.addAll(deduped);
+      mg.loadTurtle(fs.readFileSync(file, 'utf8'), { bnodePrefix: `q${i}_` });
     }
   }
+
+  const store = new GraphStore();
+  const seen = new Set<string>();
+  const triples: Triple[] = [];
+  for (const q of mg.quads()) {
+    const s = formatQueryTerm(mg, q.subject.value);
+    const p = formatQueryTerm(mg, q.predicate.value);
+    const isLiteral = q.object.termType === 'Literal';
+    const o = isLiteral ? q.object.value : formatQueryTerm(mg, q.object.value);
+    const k = `${s}\0${p}\0${o}\0${isLiteral ? '1' : '0'}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    triples.push({ s, p, o, isLiteral });
+  }
+  store.addAll(triples);
   return store;
+}
+
+function queryBySlice(dataset: RegisteredDataset, sliceArg: string, jsonMode: boolean) {
+  const nodes = dataset.materializeNodes();
+  const edges = dataset.materializeEdges(nodes);
+  const qLower = sliceArg.toLowerCase();
+
+  if (qLower === 'all' || qLower === 'list') {
+    const summary = dataset.system.slices.map((s) => ({
+      slug: s.slug,
+      graphIri: s.graphIri,
+      ontologyKind: s.ontologyKind,
+      layerOrder: s.layerOrder,
+      label: s.label,
+      nodeCount: nodes.filter((n) => n.sliceSlug === s.slug).length,
+      nodeKinds: s.nodeKinds.map((nk) => nk.kindSlug),
+    }));
+    if (jsonMode) {
+      console.log(JSON.stringify(summary, null, 2));
+      return;
+    }
+    console.log('\n=== Registered Ontology Slices ===\n');
+    for (const s of summary) {
+      console.log(
+        `  [L${s.layerOrder}] :${s.slug} (${s.ontologyKind}) — ${s.label} (${s.nodeCount} nodes; kinds: ${s.nodeKinds.join(', ')})`,
+      );
+    }
+    return;
+  }
+
+  const slice = dataset.sliceBySlug.get(qLower);
+  if (!slice) {
+    const available = dataset.system.slices.map((s) => s.slug).join(', ');
+    console.error(`Unknown slice "${sliceArg}". Available slices: ${available}`);
+    process.exit(1);
+  }
+
+  const sliceNodes = nodes.filter((n) => n.sliceSlug === slice.slug);
+  const byKind = new Map<string, number>();
+  for (const n of sliceNodes) {
+    byKind.set(n.kindSlug, (byKind.get(n.kindSlug) ?? 0) + 1);
+  }
+  const outboundBridges = dataset.system.bridges
+    .filter((b) => b.sourceGraph === slice.graphIri)
+    .map((b) => ({
+      predicate: dataset.store.compact(b.bridgePredicate),
+      targetSlice: dataset.sliceByGraphIri.get(b.targetGraph)?.slug ?? b.targetGraph,
+      forwardLabel: b.forwardLabel,
+    }));
+  const inboundBridges = dataset.system.bridges
+    .filter((b) => b.targetGraph === slice.graphIri)
+    .map((b) => ({
+      predicate: dataset.store.compact(b.bridgePredicate),
+      sourceSlice: dataset.sliceByGraphIri.get(b.sourceGraph)?.slug ?? b.sourceGraph,
+      inverseLabel: b.inverseLabel,
+    }));
+  const sliceEdges = edges.filter(
+    (e) =>
+      sliceNodes.some((n) => n.iri === e.sourceIri) ||
+      sliceNodes.some((n) => n.iri === e.targetIri),
+  );
+
+  const result = {
+    slug: slice.slug,
+    graphIri: slice.graphIri,
+    ontologyKind: slice.ontologyKind,
+    layerOrder: slice.layerOrder,
+    accentToken: slice.accentToken,
+    label: slice.label,
+    comment: slice.comment,
+    nodeCount: sliceNodes.length,
+    edgeCount: sliceEdges.length,
+    countsByKind: Object.fromEntries([...byKind.entries()].sort(([a], [b]) => a.localeCompare(b))),
+    outboundBridges,
+    inboundBridges,
+    nodes: sliceNodes.slice(0, 50).map((n) => ({ id: n.id, kind: n.kindSlug, label: n.label })),
+  };
+
+  if (jsonMode) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  console.log(`\n=== Slice :${result.slug} [${result.ontologyKind} | L${result.layerOrder}] ===`);
+  console.log(`Label:   ${result.label}`);
+  console.log(`Graph:   ${result.graphIri}`);
+  if (result.comment) console.log(`Summary: ${result.comment}`);
+  console.log(`Nodes:   ${result.nodeCount} | Incident Edges: ${result.edgeCount}`);
+  console.log('Node Kinds:');
+  for (const [k, count] of Object.entries(result.countsByKind)) {
+    console.log(`  - ${k}: ${count}`);
+  }
+  if (outboundBridges.length > 0) {
+    console.log('Outbound Bridges:');
+    for (const b of outboundBridges) {
+      console.log(`  - ${b.predicate} (${b.forwardLabel}) -> :${b.targetSlice}`);
+    }
+  }
+  if (inboundBridges.length > 0) {
+    console.log('Inbound Bridges:');
+    for (const b of inboundBridges) {
+      console.log(`  - :${b.sourceSlice} -> ${b.predicate} (${b.inverseLabel})`);
+    }
+  }
+  if (result.nodes.length > 0) {
+    console.log(`Sample Nodes (showing ${result.nodes.length}/${result.nodeCount}):`);
+    for (const n of result.nodes.slice(0, 20)) {
+      console.log(`  - [${n.kind}] ${n.id} (${n.label})`);
+    }
+  }
+}
+
+function queryByNode(dataset: RegisteredDataset, nodeQuery: string, jsonMode: boolean) {
+  const nodes = dataset.materializeNodes();
+  const qLower = nodeQuery.toLowerCase();
+  const exact = nodes.filter(
+    (n) => n.id.toLowerCase() === qLower || n.iri.toLowerCase() === qLower,
+  );
+  const matches =
+    exact.length > 0
+      ? exact
+      : nodes.filter(
+          (n) =>
+            n.id.toLowerCase().includes(qLower) ||
+            n.label.toLowerCase().includes(qLower) ||
+            n.iri.toLowerCase().includes(qLower),
+        );
+
+  if (matches.length === 0) {
+    console.error(`No ontology node found matching "${nodeQuery}".`);
+    process.exit(1);
+  }
+
+  const edges = dataset.materializeEdges(nodes);
+  const results = matches.slice(0, 10).map((n) => {
+    const outgoing = edges
+      .filter((e) => e.sourceIri === n.iri)
+      .map((e) => ({
+        predicate: e.predicateCurie,
+        targetId: e.targetId ?? e.targetIri,
+        category: e.category,
+        derived: e.derived,
+      }));
+    const incoming = edges
+      .filter((e) => e.targetIri === n.iri)
+      .map((e) => ({
+        predicate: e.predicateCurie,
+        sourceId: e.sourceId,
+        category: e.category,
+        derived: e.derived,
+      }));
+    return {
+      id: n.id,
+      iri: n.iri,
+      slice: n.sliceSlug,
+      kind: n.kindSlug,
+      badge: n.badgeLabel,
+      label: n.label,
+      summary: n.summary,
+      outgoing,
+      incoming,
+    };
+  });
+
+  if (jsonMode) {
+    console.log(JSON.stringify(results, null, 2));
+    return;
+  }
+
+  for (const r of results) {
+    console.log(`\n=== Node: ${r.id} [:${r.slice} / ${r.badge}] ===`);
+    console.log(`Label:   ${r.label}`);
+    console.log(`IRI:     ${r.iri}`);
+    if (r.summary) console.log(`Summary: ${r.summary}`);
+    console.log(`Outgoing Edges (${r.outgoing.length}):`);
+    for (const e of r.outgoing.slice(0, 20)) {
+      console.log(`  -> ${e.predicate} ${e.targetId} [${e.category}${e.derived ? ', derived' : ''}]`);
+    }
+    console.log(`Incoming Edges (${r.incoming.length}):`);
+    for (const e of r.incoming.slice(0, 20)) {
+      console.log(`  <- ${e.sourceId} ${e.predicate} [${e.category}${e.derived ? ', derived' : ''}]`);
+    }
+  }
 }
 
 interface JourneyView {
@@ -934,27 +1019,42 @@ function getFlag(name: string): string | undefined {
   return idx !== -1 && idx + 1 < args.length ? args[idx + 1] : undefined;
 }
 
-const store = loadStore();
 const journeyArg = getFlag('--journey');
 const fileArg = getFlag('--file');
 const symbolArg = getFlag('--symbol');
 const issueArg = getFlag('--issue');
+const sliceArg = getFlag('--slice');
+const nodeArg = getFlag('--node');
 const chainsFlag = args.includes('--chains');
 const pyramidFlag = args.includes('--pyramid');
 
-if (pyramidFlag) {
+if (sliceArg) {
+  const dataset = loadRegisteredDataset(REPO_ROOT);
+  queryBySlice(dataset, sliceArg, jsonMode);
+} else if (nodeArg) {
+  const dataset = loadRegisteredDataset(REPO_ROOT);
+  queryByNode(dataset, nodeArg, jsonMode);
+} else if (pyramidFlag) {
+  const store = loadStore();
   reportPyramid(store, jsonMode);
 } else if (journeyArg) {
+  const store = loadStore();
   queryByJourney(store, journeyArg, jsonMode);
 } else if (fileArg) {
+  const store = loadStore();
   queryByFile(store, fileArg, jsonMode);
 } else if (symbolArg) {
+  const store = loadStore();
   queryBySymbol(store, symbolArg, jsonMode);
 } else if (issueArg) {
+  const store = loadStore();
   queryByIssue(store, issueArg, jsonMode);
 } else if (chainsFlag) {
+  const store = loadStore();
   generateChainsMarkdown(store);
 } else {
-  console.log('Usage: bun run ontology:query -- [--pyramid | --journey <id> | --file <path> | --symbol <name> | --issue <id> | --chains] [--json]');
+  console.log(
+    'Usage: bun run ontology:query -- [--pyramid | --slice <slug|list> | --node <id> | --journey <id> | --file <path> | --symbol <name> | --issue <id> | --chains] [--json]',
+  );
   process.exit(1);
 }

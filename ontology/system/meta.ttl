@@ -1,0 +1,248 @@
+# wod.wiki System Meta-Ontology (`sys:`)
+# Named Graph: <https://wod.wiki/graph/system>
+# ---------------------------------------------------------------------------
+# Reusable meta-ontology vocabulary declaring Sub-Ontologies, their behavioral
+# kinds (Meta, Global, Local, Generated), edge-carrier Bridge Graphs, walkable
+# Node Kinds, explicit Local <-> Local Graph Bridges, and Generated inbound
+# Link Contracts.
+#
+# Drives both build-time cross-graph validation (`ontology/validate.sh`) and
+# zero-hardcoding graph compilation & navigation (`scripts/ontology/*`).
+# ---------------------------------------------------------------------------
+
+@prefix sys:   <https://wod.wiki/ontology/system#> .
+@prefix ufo:   <https://wod.wiki/ontology/patterns#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/system> a owl:Ontology ;
+    rdfs:label "wod.wiki System Meta-Ontology (sys:)" ;
+    owl:versionInfo "0.4.0" ;
+    rdfs:comment "Meta-level ontology declaring Sub-Ontology named graphs, OntologyKind contracts, walkable NodeKinds, GraphBridges, and LinkContracts." .
+
+# === Core Meta-Classes =====================================================
+
+sys:OntologySystem a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Ontology System" ;
+    rdfs:comment "Top-level registry describing a multi-graph RDF dataset, its managed/external namespaces, Sub-Ontologies, Bridge Graphs, Graph Bridges, and Link Contracts." .
+
+sys:OntologyGraph a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Sub-Ontology Graph" ;
+    rdfs:comment "A registered RDF named graph representing a Meta, Global, Local, or Generated Sub-Ontology slice." .
+
+sys:OntologyKind a owl:Class ;
+    ufo:stereotype ufo:Mode ;
+    rdfs:label "Ontology Kind" ;
+    rdfs:comment "Behavioral classification governing cross-graph validation and constellation rendering for a sys:OntologyGraph." .
+
+sys:MetaOntology a sys:OntologyKind ;
+    rdfs:label "Meta" ;
+    rdfs:comment "Declares the dataset registry, Sub-Ontologies, node selectors, bridges, and link contracts." .
+
+sys:GlobalOntology a sys:OntologyKind ;
+    rdfs:label "Global" ;
+    rdfs:comment "Foundational cross-cutting vocabulary referenceable outbound from any slice without per-slice sys:GraphBridge declarations." .
+
+sys:LocalOntology a sys:OntologyKind ;
+    rdfs:label "Local" ;
+    rdfs:comment "Bounded-context slice whose cross-graph edges to other Local slices must match an explicit sys:GraphBridge." .
+
+sys:GeneratedOntology a sys:OntologyKind ;
+    rdfs:label "Generated" ;
+    rdfs:comment "Build-derived artifact slice globally targetable from any slice exclusively via declared sys:LinkContract predicates (or rdfs:subPropertyOf* specializations)." .
+
+sys:BridgeGraph a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Bridge Graph" ;
+    rdfs:comment "Edge-carrier RDF named graph holding cross-graph assertion triples without appearing as a node-owning slice." .
+
+sys:NodeKind a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Node Kind" ;
+    rdfs:comment "Walkable entity descriptor within a sys:OntologyGraph, specifying how nodes are selected, badged, keyed, and labeled." .
+
+sys:SelectorMode a owl:Class ;
+    ufo:stereotype ufo:Mode ;
+    rdfs:label "Selector Mode" ;
+    rdfs:comment "Strategy used by a sys:NodeKind to extract walkable nodes from its owning Sub-Ontology graph." .
+
+sys:InstanceSelector a sys:SelectorMode ;
+    rdfs:label "Instance Selector" ;
+    rdfs:comment "Selects ABox instances matching ?node rdf:type/rdfs:subClassOf* ?targetClass." .
+
+sys:DefinedClassSelector a sys:SelectorMode ;
+    rdfs:label "Defined Class Selector" ;
+    rdfs:comment "Selects TBox owl:Class definitions in the slice and projects intra-slice owl:ObjectProperty domain -> range and rdfs:subClassOf edges." .
+
+sys:GraphBridge a owl:Class ;
+    ufo:stereotype ufo:Relator ;
+    rdfs:label "Graph Bridge" ;
+    rdfs:comment "Explicit dual-duty cross-graph contract authorizing a predicate between two Sub-Ontologies (primarily Local <-> Local or Generated -> Local) and supplying UI navigation labels." .
+
+sys:LinkContract a owl:Class ;
+    ufo:stereotype ufo:Relator ;
+    rdfs:label "Link Contract" ;
+    rdfs:comment "Explicit inbound attachment contract on a sys:GeneratedOntology authorizing a super-property (and its rdfs:subPropertyOf* specializations) to target a generated node class." .
+
+# === System & Graph Registry Properties ====================================
+
+sys:managedNamespace a owl:ObjectProperty ;
+    rdfs:label "managed namespace" ;
+    rdfs:domain sys:OntologySystem ;
+    rdfs:comment "IRI prefix managed by this OntologySystem; all cross-graph references within managed namespaces are subject to Stage 1 Dataset Quad Gate enforcement." .
+
+sys:externalNamespace a owl:ObjectProperty ;
+    rdfs:label "external namespace" ;
+    rdfs:domain sys:OntologySystem ;
+    rdfs:comment "Allowlisted external vocabulary IRI prefix (e.g. rdf:, rdfs:, owl:, xsd:, sh:, prov:) exempt from internal ownership checks." .
+
+sys:hasOntologyGraph a owl:ObjectProperty ;
+    rdfs:label "has ontology graph" ;
+    rdfs:domain sys:OntologySystem ;
+    rdfs:range sys:OntologyGraph ;
+    rdfs:comment "Registers a Sub-Ontology named graph in the OntologySystem." .
+
+sys:hasBridgeGraph a owl:ObjectProperty ;
+    rdfs:label "has bridge graph" ;
+    rdfs:domain sys:OntologySystem ;
+    rdfs:range sys:BridgeGraph ;
+    rdfs:comment "Registers an edge-carrier BridgeGraph in the OntologySystem." .
+
+sys:hasGraphBridge a owl:ObjectProperty ;
+    rdfs:label "has graph bridge" ;
+    rdfs:domain sys:OntologySystem ;
+    rdfs:range sys:GraphBridge ;
+    rdfs:comment "Registers an explicit cross-graph sys:GraphBridge rule in the OntologySystem." .
+
+sys:hasLinkContract a owl:ObjectProperty ;
+    rdfs:label "has link contract" ;
+    rdfs:domain sys:OntologySystem ;
+    rdfs:range sys:LinkContract ;
+    rdfs:comment "Registers an explicit sys:LinkContract inbound entrypoint for a Generated ontology." .
+
+sys:graphIri a owl:ObjectProperty ;
+    rdfs:label "graph IRI" ;
+    rdfs:comment "Physical RDF named graph IRI (e.g. wodg:domain) backing a sys:OntologyGraph or sys:BridgeGraph." .
+
+sys:slug a owl:DatatypeProperty ;
+    rdfs:label "slug" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Short durable lowercase identifier for a Sub-Ontology or BridgeGraph (e.g. 'domain', 'architecture', 'workflow')." .
+
+sys:ontologyKind a owl:ObjectProperty ;
+    rdfs:label "ontology kind" ;
+    rdfs:domain sys:OntologyGraph ;
+    rdfs:range sys:OntologyKind ;
+    rdfs:comment "Assigns one of the four behavioral sys:OntologyKind values to a sys:OntologyGraph." .
+
+sys:layerOrder a owl:DatatypeProperty ;
+    rdfs:label "layer order" ;
+    rdfs:domain sys:OntologyGraph ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Vertical architectural layer rank (0 for Meta, 1..N for user-navigable slices) controlling layout ordering in the Layered Graph Walker." .
+
+sys:accentToken a owl:DatatypeProperty ;
+    rdfs:label "accent token" ;
+    rdfs:domain sys:OntologyGraph ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Semantic palette token (e.g. 'violet', 'amber', 'sky', 'emerald', 'indigo', 'cyan', 'slate') used to style a slice in the viewer." .
+
+sys:schemaGlob a owl:DatatypeProperty ;
+    rdfs:label "schema glob" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Ontology-directory-relative glob matching committed Turtle schema/instance files belonging to this graph." .
+
+sys:generatedGlob a owl:DatatypeProperty ;
+    rdfs:label "generated glob" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Optional ontology-directory-relative glob matching build-derived Turtle files loaded into this graph when present (or required under --require-generated)." .
+
+# === NodeKind Properties ===================================================
+
+sys:hasNodeKind a owl:ObjectProperty ;
+    rdfs:label "has node kind" ;
+    rdfs:domain sys:OntologyGraph ;
+    rdfs:range sys:NodeKind ;
+    rdfs:comment "Associates a walkable sys:NodeKind selector with its owning sys:OntologyGraph." .
+
+sys:kindSlug a owl:DatatypeProperty ;
+    rdfs:label "kind slug" ;
+    rdfs:domain sys:NodeKind ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Short durable node-kind slug used in deep-link node IDs and filter pills (e.g. 'package', 'workflow', 'journey', 'symbol')." .
+
+sys:badgeLabel a owl:DatatypeProperty ;
+    rdfs:label "badge label" ;
+    rdfs:domain sys:NodeKind ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Human-readable badge label displayed on node cards and palette entries." .
+
+sys:selectorMode a owl:ObjectProperty ;
+    rdfs:label "selector mode" ;
+    rdfs:domain sys:NodeKind ;
+    rdfs:range sys:SelectorMode ;
+    rdfs:comment "Selects sys:InstanceSelector or sys:DefinedClassSelector for extracting nodes of this kind." .
+
+sys:targetClass a owl:ObjectProperty ;
+    rdfs:label "target class" ;
+    rdfs:comment "Target owl:Class (union OR under rdfs:subClassOf* closure) for a sys:NodeKind, sys:GraphBridge, or sys:LinkContract." .
+
+sys:sourceClass a owl:ObjectProperty ;
+    rdfs:label "source class" ;
+    rdfs:domain sys:GraphBridge ;
+    rdfs:comment "Allowed source owl:Class (union OR under rdfs:subClassOf* closure, supporting owl:Class punning) for a sys:GraphBridge." .
+
+sys:idProperty a owl:ObjectProperty ;
+    rdfs:label "ID property" ;
+    rdfs:domain sys:NodeKind ;
+    rdfs:comment "Optional datatype property providing the canonical short identifier for nodes of this kind." .
+
+sys:labelProperty a owl:ObjectProperty ;
+    rdfs:label "label property" ;
+    rdfs:domain sys:NodeKind ;
+    rdfs:comment "Optional datatype property preferred over rdfs:label when titling nodes of this kind." .
+
+# === GraphBridge & LinkContract Properties =================================
+
+sys:bridgePredicate a owl:ObjectProperty ;
+    rdfs:label "bridge predicate" ;
+    rdfs:domain sys:GraphBridge ;
+    rdfs:comment "RDF predicate authorized by this sys:GraphBridge." .
+
+sys:linkPredicate a owl:ObjectProperty ;
+    rdfs:label "link predicate" ;
+    rdfs:domain sys:LinkContract ;
+    rdfs:comment "Canonical RDF super-property (or specialized predicate) authorized by this sys:LinkContract." .
+
+sys:sourceGraph a owl:ObjectProperty ;
+    rdfs:label "source graph" ;
+    rdfs:domain sys:GraphBridge ;
+    rdfs:comment "Source named graph IRI (e.g. wodg:workflow) for a sys:GraphBridge." .
+
+sys:targetGraph a owl:ObjectProperty ;
+    rdfs:label "target graph" ;
+    rdfs:comment "Target named graph IRI (e.g. wodg:domain or wodg:code) for a sys:GraphBridge or sys:LinkContract." .
+
+sys:forwardLabel a owl:DatatypeProperty ;
+    rdfs:label "forward label" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Directional verb phrase shown when traversing this predicate forward in the Space command palette." .
+
+sys:inverseLabel a owl:DatatypeProperty ;
+    rdfs:label "inverse label" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Directional verb phrase shown when traversing this predicate in reverse in the Space command palette." .
+
+sys:navPriority a owl:DatatypeProperty ;
+    rdfs:label "navigation priority" ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Numeric ordering hint (lower ranks higher) for sorting connection groups in the Space command palette." .
+
+sys:allowHistoricalMissingTarget a owl:DatatypeProperty ;
+    rdfs:label "allow historical missing target" ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "When true on a sys:LinkContract or historical provenance predicate (e.g. bridge:rootCause, bridge:specFile), missing targets in Generated :code are reported as non-fatal historical drift and rendered as Unresolved Ghost Nodes rather than failing Stage 1 validation." .

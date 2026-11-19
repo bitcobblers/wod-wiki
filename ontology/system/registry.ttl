@@ -1,0 +1,637 @@
+# wod.wiki System Meta-Ontology Registry (`ontology/system/registry.ttl`)
+# Named Graph: <https://wod.wiki/graph/system>
+# ---------------------------------------------------------------------------
+# Single source of truth for WOD Wiki's multi-graph RDF dataset:
+#   - 1 Meta ontology    (:system, layer 0)
+#   - 6 User-navigable Sub-Ontologies:
+#       1. :patterns     (Global)
+#       2. :workflow     (Local)
+#       3. :domain       (Local — unified lang/engine/core/app/wql)
+#       4. :qa           (Local)
+#       5. :architecture (Local)
+#       6. :code         (Generated)
+#   - 1 Edge-carrier BridgeGraph (wodg:bridge)
+#   - Explicit Local <-> Local (and Generated -> Local) sys:GraphBridges
+#   - Explicit Generated (:code) sys:LinkContracts
+# ---------------------------------------------------------------------------
+
+@prefix sys:     <https://wod.wiki/ontology/system#> .
+@prefix wodg:    <https://wod.wiki/graph/> .
+@prefix wod:     <https://wod.wiki/ontology#> .
+@prefix ufo:     <https://wod.wiki/ontology/patterns#> .
+@prefix wf:      <https://wod.wiki/ontology/workflow#> .
+@prefix qa:      <https://wod.wiki/ontology/qa#> .
+@prefix arch:    <https://wod.wiki/ontology/architecture#> .
+@prefix code:    <https://wod.wiki/ontology/code#> .
+@prefix bridge:  <https://wod.wiki/ontology/bridge#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/system/registry> a owl:Ontology ;
+    rdfs:label "wod.wiki System Meta-Ontology Registry" ;
+    owl:versionInfo "0.4.0" ;
+    owl:imports <https://wod.wiki/ontology/system> .
+
+# === Top-Level Dataset System ==============================================
+
+<https://wod.wiki/dataset> a sys:OntologySystem ;
+    rdfs:label "WOD Wiki Unified Ontology System" ;
+    owl:versionInfo "0.4.0" ;
+    rdfs:comment "6-slice Layered Ontology System spanning Patterns, Workflow, Domain, QA, Architecture, and Generated Code." ;
+    sys:managedNamespace <https://wod.wiki/> ;
+    sys:externalNamespace
+        <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ,
+        <http://www.w3.org/2000/01/rdf-schema#> ,
+        <http://www.w3.org/2002/07/owl#> ,
+        <http://www.w3.org/2001/XMLSchema#> ,
+        <http://www.w3.org/ns/shacl#> ,
+        <http://www.w3.org/2004/02/skos/core#> ,
+        <http://www.w3.org/ns/prov#> ,
+        <http://www.w3.org/ns/sosa/> ,
+        <http://qudt.org/schema/qudt/> ,
+        <http://qudt.org/vocab/unit/> ,
+        <http://ns.ottr.xyz/0.4/> ,
+        <http://purl.org/dc/terms/> ,
+        <http://rdfs.org/ns/void#> ;
+    sys:hasOntologyGraph
+        sys:graph_system ,
+        sys:graph_patterns ,
+        sys:graph_workflow ,
+        sys:graph_domain ,
+        sys:graph_qa ,
+        sys:graph_architecture ,
+        sys:graph_code ;
+    sys:hasBridgeGraph
+        sys:bridge_graph ;
+    sys:hasGraphBridge
+        sys:bridge_wf_orchestrates_class ,
+        sys:bridge_wf_delivered_on_surface ,
+        sys:bridge_wf_governed_by_decision ,
+        sys:bridge_wf_verified_by_suite ,
+        sys:bridge_arch_owns_domain_class ,
+        sys:bridge_arch_shapes_domain_class ,
+        sys:bridge_arch_verified_at_seam ,
+        sys:bridge_qa_seed_noun ,
+        sys:bridge_qa_domain_mapping ,
+        sys:bridge_code_implements_domain_class ;
+    sys:hasLinkContract
+        sys:lc_code_file ,
+        sys:lc_code_symbol ,
+        sys:lc_code_route ,
+        sys:lc_code_testid ,
+        sys:lc_code_tool ,
+        sys:lc_code_story ,
+        sys:lc_qa_root_cause ,
+        sys:lc_qa_spec_file .
+
+# === 0. :system (MetaOntology) =============================================
+
+sys:graph_system a sys:OntologyGraph ;
+    sys:graphIri wodg:system ;
+    sys:slug "system" ;
+    sys:ontologyKind sys:MetaOntology ;
+    sys:layerOrder 0 ;
+    sys:accentToken "slate" ;
+    rdfs:label "System Meta-Ontology" ;
+    rdfs:comment "Declares registered Sub-Ontologies, OntologyKinds, walkable NodeKinds, GraphBridges, and LinkContracts." ;
+    sys:schemaGlob "system/meta.ttl" , "system/registry.ttl" ;
+    sys:hasNodeKind
+        sys:nk_ontology_graph ,
+        sys:nk_graph_bridge ,
+        sys:nk_link_contract .
+
+sys:nk_ontology_graph a sys:NodeKind ;
+    sys:kindSlug "slice" ;
+    sys:badgeLabel "Sub-Ontology" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass sys:OntologyGraph ;
+    sys:idProperty sys:slug ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_graph_bridge a sys:NodeKind ;
+    sys:kindSlug "bridge" ;
+    sys:badgeLabel "Graph Bridge" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass sys:GraphBridge ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_link_contract a sys:NodeKind ;
+    sys:kindSlug "link-contract" ;
+    sys:badgeLabel "Link Contract" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass sys:LinkContract ;
+    sys:labelProperty rdfs:label .
+
+# === 1. :patterns (GlobalOntology) =========================================
+
+sys:graph_patterns a sys:OntologyGraph ;
+    sys:graphIri wodg:patterns ;
+    sys:slug "patterns" ;
+    sys:ontologyKind sys:GlobalOntology ;
+    sys:layerOrder 1 ;
+    sys:accentToken "violet" ;
+    rdfs:label "Patterns" ;
+    rdfs:comment "Foundational UFO/OntoUML stereotypes and OTTR design pattern templates, globally referenceable from any slice." ;
+    sys:schemaGlob "patterns/*.ttl" ;
+    sys:hasNodeKind
+        sys:nk_stereotype ,
+        sys:nk_pattern_template .
+
+sys:nk_stereotype a sys:NodeKind ;
+    sys:kindSlug "stereotype" ;
+    sys:badgeLabel "Stereotype" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass ufo:Stereotype ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_pattern_template a sys:NodeKind ;
+    sys:kindSlug "pattern" ;
+    sys:badgeLabel "Pattern" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass ufo:PatternTemplate ;
+    sys:labelProperty rdfs:label .
+
+# Navigation metadata for Global ontology outbound predicates
+ufo:stereotype
+    sys:forwardLabel "has stereotype" ;
+    sys:inverseLabel "stereotypes" ;
+    sys:navPriority 90 .
+
+ufo:instantiatesPattern
+    sys:forwardLabel "instantiates pattern" ;
+    sys:inverseLabel "instantiated by" ;
+    sys:navPriority 91 .
+
+# === 2. :workflow (LocalOntology) ==========================================
+
+sys:graph_workflow a sys:OntologyGraph ;
+    sys:graphIri wodg:workflow ;
+    sys:slug "workflow" ;
+    sys:ontologyKind sys:LocalOntology ;
+    sys:layerOrder 2 ;
+    sys:accentToken "amber" ;
+    rdfs:label "Workflow" ;
+    rdfs:comment "Canonical product workflows and actors across Journal, Execution, Properties, Notebooks, Feeds, Analytics, and Agent Co-Driving." ;
+    sys:schemaGlob "workflow/*.ttl" ;
+    sys:hasNodeKind
+        sys:nk_workflow ,
+        sys:nk_actor .
+
+sys:nk_workflow a sys:NodeKind ;
+    sys:kindSlug "workflow" ;
+    sys:badgeLabel "Workflow" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass wf:Workflow ;
+    sys:idProperty wf:workflowId ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_actor a sys:NodeKind ;
+    sys:kindSlug "actor" ;
+    sys:badgeLabel "Actor" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass wf:Actor ;
+    sys:idProperty wf:actorId ;
+    sys:labelProperty rdfs:label .
+
+# === 3. :domain (LocalOntology) ============================================
+
+sys:graph_domain a sys:OntologyGraph ;
+    sys:graphIri wodg:domain ;
+    sys:slug "domain" ;
+    sys:ontologyKind sys:LocalOntology ;
+    sys:layerOrder 3 ;
+    sys:accentToken "sky" ;
+    rdfs:label "Domain" ;
+    rdfs:comment "Unified WOD Wiki domain TBox across Whiteboard Language, Engine Runtime, Core Models, App Content, and WQL." ;
+    sys:schemaGlob
+        "ontology.ttl" ,
+        "lang/*.ttl" ,
+        "engine/*.ttl" ,
+        "core/*.ttl" ,
+        "app/*.ttl" ,
+        "wql/*.ttl" ;
+    sys:hasNodeKind sys:nk_domain_class .
+
+sys:nk_domain_class a sys:NodeKind ;
+    sys:kindSlug "class" ;
+    sys:badgeLabel "Domain Class" ;
+    sys:selectorMode sys:DefinedClassSelector ;
+    sys:targetClass owl:Class ;
+    sys:labelProperty rdfs:label .
+
+# === 4. :qa (LocalOntology) ================================================
+
+sys:graph_qa a sys:OntologyGraph ;
+    sys:graphIri wodg:qa ;
+    sys:slug "qa" ;
+    sys:ontologyKind sys:LocalOntology ;
+    sys:layerOrder 4 ;
+    sys:accentToken "emerald" ;
+    rdfs:label "QA & Verification" ;
+    rdfs:comment "Nested Tier 1–3 verification suites (Journeys, StoryTests, HostSuites, DomainScenarioSuites, StorageConformanceSuites, FixtureTableSuites), QA Domains, Runs, and Issues." ;
+    sys:schemaGlob "qa/qa-schema.ttl" , "qa/qa-snapshot.ttl" ;
+    sys:generatedGlob "generated/qa-instances.ttl" ;
+    sys:hasNodeKind
+        sys:nk_qa_domain ,
+        sys:nk_qa_journey ,
+        sys:nk_qa_story_test ,
+        sys:nk_qa_host_suite ,
+        sys:nk_qa_domain_scenario_suite ,
+        sys:nk_qa_storage_conformance_suite ,
+        sys:nk_qa_fixture_table_suite ,
+        sys:nk_qa_run ,
+        sys:nk_qa_issue .
+
+sys:nk_qa_domain a sys:NodeKind ;
+    sys:kindSlug "qa-domain" ;
+    sys:badgeLabel "QA Domain" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass qa:Domain ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_qa_journey a sys:NodeKind ;
+    sys:kindSlug "journey" ;
+    sys:badgeLabel "Journey" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass qa:Journey ;
+    sys:idProperty qa:journeyId ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_qa_story_test a sys:NodeKind ;
+    sys:kindSlug "story-test" ;
+    sys:badgeLabel "Story Test" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass qa:StoryTest ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_qa_host_suite a sys:NodeKind ;
+    sys:kindSlug "host-suite" ;
+    sys:badgeLabel "Host Suite" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass qa:HostSuite ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_qa_domain_scenario_suite a sys:NodeKind ;
+    sys:kindSlug "domain-suite" ;
+    sys:badgeLabel "Domain Suite" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass qa:DomainScenarioSuite ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_qa_storage_conformance_suite a sys:NodeKind ;
+    sys:kindSlug "storage-suite" ;
+    sys:badgeLabel "Storage Suite" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass qa:StorageConformanceSuite ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_qa_fixture_table_suite a sys:NodeKind ;
+    sys:kindSlug "fixture-suite" ;
+    sys:badgeLabel "Fixture Suite" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass qa:FixtureTableSuite ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_qa_run a sys:NodeKind ;
+    sys:kindSlug "qa-run" ;
+    sys:badgeLabel "QA Run" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass qa:Run ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_qa_issue a sys:NodeKind ;
+    sys:kindSlug "issue" ;
+    sys:badgeLabel "Issue" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass qa:Issue ;
+    sys:idProperty qa:issueId ;
+    sys:labelProperty rdfs:label .
+
+# === 5. :architecture (LocalOntology) ======================================
+
+sys:graph_architecture a sys:OntologyGraph ;
+    sys:graphIri wodg:architecture ;
+    sys:slug "architecture" ;
+    sys:ontologyKind sys:LocalOntology ;
+    sys:layerOrder 5 ;
+    sys:accentToken "indigo" ;
+    rdfs:label "Architecture" ;
+    rdfs:comment "Workspace packages, package.json exports subpath boundaries, host surfaces, storage adapters, and Architecture Decision Records." ;
+    sys:schemaGlob "architecture/*.ttl" ;
+    sys:generatedGlob "generated/architecture-instances.ttl" ;
+    sys:hasNodeKind
+        sys:nk_workspace_package ,
+        sys:nk_subpath_boundary ,
+        sys:nk_host_surface ,
+        sys:nk_storage_adapter ,
+        sys:nk_architecture_decision .
+
+sys:nk_workspace_package a sys:NodeKind ;
+    sys:kindSlug "package" ;
+    sys:badgeLabel "Package" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass arch:WorkspacePackage ;
+    sys:idProperty arch:packageName ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_subpath_boundary a sys:NodeKind ;
+    sys:kindSlug "boundary" ;
+    sys:badgeLabel "Subpath Boundary" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass arch:SubpathBoundary ;
+    sys:idProperty arch:exportSubpath ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_host_surface a sys:NodeKind ;
+    sys:kindSlug "surface" ;
+    sys:badgeLabel "Host Surface" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass arch:HostSurface ;
+    sys:idProperty arch:surfaceId ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_storage_adapter a sys:NodeKind ;
+    sys:kindSlug "adapter" ;
+    sys:badgeLabel "Storage Adapter" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass arch:StorageAdapter ;
+    sys:idProperty arch:adapterId ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_architecture_decision a sys:NodeKind ;
+    sys:kindSlug "adr" ;
+    sys:badgeLabel "ADR" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass arch:ArchitectureDecision ;
+    sys:idProperty arch:adrNumber ;
+    sys:labelProperty rdfs:label .
+
+# === 6. :code (GeneratedOntology) ==========================================
+
+sys:graph_code a sys:OntologyGraph ;
+    sys:graphIri wodg:code ;
+    sys:slug "code" ;
+    sys:ontologyKind sys:GeneratedOntology ;
+    sys:layerOrder 6 ;
+    sys:accentToken "cyan" ;
+    rdfs:label "Code Graph" ;
+    rdfs:comment "Build-derived SCIP-style files, symbols, routes, TEST_IDS, WebMCP tools, and Storybook stories." ;
+    sys:schemaGlob "code/code-schema.ttl" ;
+    sys:generatedGlob "generated/code-graph.ttl" ;
+    sys:hasNodeKind
+        sys:nk_code_file ,
+        sys:nk_code_symbol ,
+        sys:nk_code_route ,
+        sys:nk_code_testid ,
+        sys:nk_code_tool ,
+        sys:nk_code_story .
+
+sys:nk_code_file a sys:NodeKind ;
+    sys:kindSlug "file" ;
+    sys:badgeLabel "File" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass code:File ;
+    sys:idProperty code:filePath ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_code_symbol a sys:NodeKind ;
+    sys:kindSlug "symbol" ;
+    sys:badgeLabel "Symbol" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass code:Symbol ;
+    sys:idProperty code:scipId ;
+    sys:labelProperty code:symbolName .
+
+sys:nk_code_route a sys:NodeKind ;
+    sys:kindSlug "route" ;
+    sys:badgeLabel "Route" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass code:Route ;
+    sys:idProperty code:routePath ;
+    sys:labelProperty rdfs:label .
+
+sys:nk_code_testid a sys:NodeKind ;
+    sys:kindSlug "testid" ;
+    sys:badgeLabel "Test ID" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass code:TestId ;
+    sys:idProperty code:testIdValue ;
+    sys:labelProperty code:testIdKey .
+
+sys:nk_code_tool a sys:NodeKind ;
+    sys:kindSlug "tool" ;
+    sys:badgeLabel "WebMCP Tool" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass code:WebMcpTool ;
+    sys:idProperty code:toolName ;
+    sys:labelProperty code:toolTitle .
+
+sys:nk_code_story a sys:NodeKind ;
+    sys:kindSlug "story" ;
+    sys:badgeLabel "Story" ;
+    sys:selectorMode sys:InstanceSelector ;
+    sys:targetClass code:Story ;
+    sys:idProperty code:storyId ;
+    sys:labelProperty rdfs:label .
+
+# === Edge-Carrier BridgeGraph (wodg:bridge) ================================
+
+sys:bridge_graph a sys:BridgeGraph ;
+    sys:graphIri wodg:bridge ;
+    sys:slug "bridge" ;
+    rdfs:label "Cross-Graph Bridge Assertions" ;
+    rdfs:comment "Edge-carrier named graph storing cross-graph assertion triples without owning standalone canvas nodes." ;
+    sys:schemaGlob "bridge/bridge.ttl" , "bridge/changesets-applied.ttl" ;
+    sys:generatedGlob "generated/bridge-instances.ttl" .
+
+# === Explicit Graph Bridges (Local <-> Local & Generated -> Local) =========
+
+sys:bridge_wf_orchestrates_class a sys:GraphBridge ;
+    rdfs:label "Workflow orchestrates Domain Class" ;
+    sys:bridgePredicate wf:orchestratesClass ;
+    sys:sourceGraph wodg:workflow ;
+    sys:targetGraph wodg:domain ;
+    sys:sourceClass wf:Workflow ;
+    sys:targetClass owl:Class ;
+    sys:forwardLabel "orchestrates" ;
+    sys:inverseLabel "orchestrated by" ;
+    sys:navPriority 10 .
+
+sys:bridge_wf_delivered_on_surface a sys:GraphBridge ;
+    rdfs:label "Workflow delivered on Host Surface" ;
+    sys:bridgePredicate wf:deliveredOnSurface ;
+    sys:sourceGraph wodg:workflow ;
+    sys:targetGraph wodg:architecture ;
+    sys:sourceClass wf:Workflow ;
+    sys:targetClass arch:HostSurface ;
+    sys:forwardLabel "delivered on" ;
+    sys:inverseLabel "delivers workflow" ;
+    sys:navPriority 12 .
+
+sys:bridge_wf_governed_by_decision a sys:GraphBridge ;
+    rdfs:label "Workflow governed by ADR" ;
+    sys:bridgePredicate wf:governedByDecision ;
+    sys:sourceGraph wodg:workflow ;
+    sys:targetGraph wodg:architecture ;
+    sys:sourceClass wf:Workflow ;
+    sys:targetClass arch:ArchitectureDecision ;
+    sys:forwardLabel "governed by" ;
+    sys:inverseLabel "governs workflow" ;
+    sys:navPriority 14 .
+
+sys:bridge_wf_verified_by_suite a sys:GraphBridge ;
+    rdfs:label "Workflow verified by QA Suite" ;
+    sys:bridgePredicate wf:verifiedBySuite ;
+    sys:sourceGraph wodg:workflow ;
+    sys:targetGraph wodg:qa ;
+    sys:sourceClass wf:Workflow ;
+    sys:targetClass qa:VerificationSuite ;
+    sys:forwardLabel "verified by" ;
+    sys:inverseLabel "verifies workflow" ;
+    sys:navPriority 11 .
+
+sys:bridge_arch_owns_domain_class a sys:GraphBridge ;
+    rdfs:label "Workspace Package owns Domain Class" ;
+    sys:bridgePredicate arch:ownsDomainClass ;
+    sys:sourceGraph wodg:architecture ;
+    sys:targetGraph wodg:domain ;
+    sys:sourceClass arch:WorkspacePackage ;
+    sys:targetClass owl:Class ;
+    sys:forwardLabel "owns domain class" ;
+    sys:inverseLabel "owned by package" ;
+    sys:navPriority 20 .
+
+sys:bridge_arch_shapes_domain_class a sys:GraphBridge ;
+    rdfs:label "ADR shapes Domain Class" ;
+    sys:bridgePredicate arch:shapesDomainClass ;
+    sys:sourceGraph wodg:architecture ;
+    sys:targetGraph wodg:domain ;
+    sys:sourceClass arch:ArchitectureDecision ;
+    sys:targetClass owl:Class ;
+    sys:forwardLabel "shapes domain class" ;
+    sys:inverseLabel "shaped by ADR" ;
+    sys:navPriority 22 .
+
+sys:bridge_arch_verified_at_seam a sys:GraphBridge ;
+    rdfs:label "Architecture component verified at QA Seam" ;
+    sys:bridgePredicate arch:verifiedAtSeam ;
+    sys:sourceGraph wodg:architecture ;
+    sys:targetGraph wodg:qa ;
+    sys:sourceClass arch:WorkspacePackage , arch:HostSurface , arch:StorageAdapter ;
+    sys:targetClass qa:VerificationSuite ;
+    sys:forwardLabel "verified at seam" ;
+    sys:inverseLabel "verifies component" ;
+    sys:navPriority 24 .
+
+sys:bridge_qa_seed_noun a sys:GraphBridge ;
+    rdfs:label "QA Suite or Step seeds Domain Class" ;
+    sys:bridgePredicate bridge:seedNoun ;
+    sys:sourceGraph wodg:qa ;
+    sys:targetGraph wodg:domain ;
+    sys:sourceClass qa:VerificationSuite , qa:Step ;
+    sys:targetClass owl:Class ;
+    sys:forwardLabel "seeds domain class" ;
+    sys:inverseLabel "seeded by QA" ;
+    sys:navPriority 30 .
+
+sys:bridge_qa_domain_mapping a sys:GraphBridge ;
+    rdfs:label "QA Domain maps to Domain Class or Ontology" ;
+    sys:bridgePredicate bridge:domainMapping ;
+    sys:sourceGraph wodg:qa ;
+    sys:targetGraph wodg:domain ;
+    sys:sourceClass qa:Domain ;
+    sys:targetClass owl:Class , owl:Ontology ;
+    sys:forwardLabel "maps to domain" ;
+    sys:inverseLabel "covered by QA domain" ;
+    sys:navPriority 32 .
+
+sys:bridge_code_implements_domain_class a sys:GraphBridge ;
+    rdfs:label "Code Symbol implements Domain Class" ;
+    sys:bridgePredicate bridge:implementsDomainClass ;
+    sys:sourceGraph wodg:code ;
+    sys:targetGraph wodg:domain ;
+    sys:sourceClass code:Symbol ;
+    sys:targetClass owl:Class ;
+    sys:forwardLabel "implements" ;
+    sys:inverseLabel "implemented by" ;
+    sys:navPriority 15 .
+
+# === Generated Ontology (:code) Link Contracts =============================
+
+sys:lc_code_file a sys:LinkContract ;
+    rdfs:label "Links to Source File" ;
+    sys:linkPredicate code:linksToFile ;
+    sys:targetGraph wodg:code ;
+    sys:targetClass code:File ;
+    sys:forwardLabel "links to file" ;
+    sys:inverseLabel "referenced by" ;
+    sys:navPriority 40 .
+
+sys:lc_code_symbol a sys:LinkContract ;
+    rdfs:label "Links to Code Symbol" ;
+    sys:linkPredicate code:linksToSymbol ;
+    sys:targetGraph wodg:code ;
+    sys:targetClass code:Symbol ;
+    sys:forwardLabel "links to symbol" ;
+    sys:inverseLabel "referenced by" ;
+    sys:navPriority 41 .
+
+sys:lc_code_route a sys:LinkContract ;
+    rdfs:label "Links to Application Route" ;
+    sys:linkPredicate code:linksToRoute ;
+    sys:targetGraph wodg:code ;
+    sys:targetClass code:Route ;
+    sys:forwardLabel "links to route" ;
+    sys:inverseLabel "referenced by" ;
+    sys:navPriority 42 .
+
+sys:lc_code_testid a sys:LinkContract ;
+    rdfs:label "Links to UI Test ID" ;
+    sys:linkPredicate code:linksToTestId ;
+    sys:targetGraph wodg:code ;
+    sys:targetClass code:TestId ;
+    sys:forwardLabel "links to test ID" ;
+    sys:inverseLabel "referenced by" ;
+    sys:navPriority 43 .
+
+sys:lc_code_tool a sys:LinkContract ;
+    rdfs:label "Links to WebMCP Tool" ;
+    sys:linkPredicate code:linksToTool ;
+    sys:targetGraph wodg:code ;
+    sys:targetClass code:WebMcpTool ;
+    sys:forwardLabel "links to tool" ;
+    sys:inverseLabel "referenced by" ;
+    sys:navPriority 44 .
+
+sys:lc_code_story a sys:LinkContract ;
+    rdfs:label "Links to Storybook Story" ;
+    sys:linkPredicate code:linksToStory ;
+    sys:targetGraph wodg:code ;
+    sys:targetClass code:Story ;
+    sys:forwardLabel "links to story" ;
+    sys:inverseLabel "referenced by" ;
+    sys:navPriority 45 .
+
+# Historical QA provenance specializations (missing targets in :code are
+# non-fatal drift rendered as Unresolved Ghost Nodes in explorer.html)
+sys:lc_qa_root_cause a sys:LinkContract ;
+    rdfs:label "QA Issue Root Cause (Historical Provenance)" ;
+    sys:linkPredicate bridge:rootCause ;
+    sys:targetGraph wodg:code ;
+    sys:targetClass code:File , code:Symbol ;
+    sys:forwardLabel "root cause" ;
+    sys:inverseLabel "root cause of" ;
+    sys:navPriority 35 ;
+    sys:allowHistoricalMissingTarget true .
+
+sys:lc_qa_spec_file a sys:LinkContract ;
+    rdfs:label "QA Journey Spec File (Allows Historical Snapshot Specs)" ;
+    sys:linkPredicate bridge:specFile ;
+    sys:targetGraph wodg:code ;
+    sys:targetClass code:File ;
+    sys:forwardLabel "specified in" ;
+    sys:inverseLabel "specifies journey" ;
+    sys:navPriority 36 ;
+    sys:allowHistoricalMissingTarget true .

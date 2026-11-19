@@ -1,0 +1,276 @@
+# wod.wiki ontology — :workflow named graph (Product Workflows & Actors)
+# Named Graph: <https://wod.wiki/graph/workflow>
+# ---------------------------------------------------------------------------
+# Models canonical product capabilities (wf:Workflow) and user/agent actors
+# (wf:Actor) across Journal, Execution, Properties, Notebooks, Feeds,
+# Analytics, and Agent Co-Driving, bridged to :domain, :architecture, and :qa.
+# ---------------------------------------------------------------------------
+
+@prefix wf:   <https://wod.wiki/ontology/workflow#> .
+@prefix sys:  <https://wod.wiki/ontology/system#> .
+@prefix wod:  <https://wod.wiki/ontology#> .
+@prefix arch: <https://wod.wiki/ontology/architecture#> .
+@prefix qa:   <https://wod.wiki/ontology/qa#> .
+@prefix ufo:  <https://wod.wiki/ontology/patterns#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/workflow> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — :workflow named graph" ;
+    owl:versionInfo "0.4.0" ;
+    rdfs:comment "Canonical product workflows and actors bridged to :domain classes, :architecture surfaces/ADRs, and :qa verification suites." .
+
+# === Classes ==============================================================
+
+wf:Workflow a owl:Class ;
+    ufo:stereotype ufo:Event ;
+    rdfs:label "Product Workflow" ;
+    rdfs:comment "An end-to-end user or agent capability spanning one or more domain nouns, host surfaces, and verification suites." .
+
+wf:Actor a owl:Class ;
+    ufo:stereotype ufo:Role ;
+    rdfs:label "Workflow Actor" ;
+    rdfs:comment "A human or autonomous agent role that initiates or participates in WOD Wiki workflows." .
+
+# === Datatype Properties ==================================================
+
+wf:workflowId a owl:DatatypeProperty ;
+    rdfs:label "workflow ID" ;
+    rdfs:domain wf:Workflow ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Short durable kebab-case identifier for a wf:Workflow." .
+
+wf:workflowArea a owl:DatatypeProperty ;
+    rdfs:label "workflow area" ;
+    rdfs:domain wf:Workflow ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Functional product area (journal, runtime, properties, notebooks, feeds, analytics, agent)." .
+
+wf:actorId a owl:DatatypeProperty ;
+    rdfs:label "actor ID" ;
+    rdfs:domain wf:Actor ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Short durable kebab-case identifier for a wf:Actor." .
+
+# === Intra-Slice Object Properties ========================================
+
+wf:performedBy a owl:ObjectProperty ;
+    rdfs:label "performed by" ;
+    rdfs:domain wf:Workflow ;
+    rdfs:range wf:Actor ;
+    sys:forwardLabel "performed by" ;
+    sys:inverseLabel "performs workflow" ;
+    sys:navPriority 15 ;
+    rdfs:comment "Links a wf:Workflow to the wf:Actor role(s) executing it." .
+
+wf:enablesWorkflow a owl:ObjectProperty ;
+    rdfs:label "enables workflow" ;
+    rdfs:domain wf:Workflow ;
+    rdfs:range wf:Workflow ;
+    sys:forwardLabel "enables" ;
+    sys:inverseLabel "enabled by" ;
+    sys:navPriority 16 ;
+    rdfs:comment "Lifecycle chaining edge indicating that completing one workflow feeds into or unlocks another." .
+
+# === Cross-Graph Bridge Properties (Local <-> Local) =======================
+
+wf:orchestratesClass a owl:ObjectProperty ;
+    rdfs:label "orchestrates domain class" ;
+    rdfs:domain wf:Workflow ;
+    rdfs:range owl:Class ;
+    rdfs:comment "Links a wf:Workflow to a :domain owl:Class it creates, mutates, or queries." .
+
+wf:deliveredOnSurface a owl:ObjectProperty ;
+    rdfs:label "delivered on surface" ;
+    rdfs:domain wf:Workflow ;
+    rdfs:range arch:HostSurface ;
+    rdfs:comment "Links a wf:Workflow to an :architecture HostSurface where it executes." .
+
+wf:governedByDecision a owl:ObjectProperty ;
+    rdfs:label "governed by ADR" ;
+    rdfs:domain wf:Workflow ;
+    rdfs:range arch:ArchitectureDecision ;
+    rdfs:comment "Links a wf:Workflow to an :architecture ArchitectureDecision governing its invariants." .
+
+wf:verifiedBySuite a owl:ObjectProperty ;
+    rdfs:label "verified by QA suite" ;
+    rdfs:domain wf:Workflow ;
+    rdfs:range qa:VerificationSuite ;
+    rdfs:comment "Links a wf:Workflow to a :qa VerificationSuite proving its end-to-end contract." .
+
+# === Actors (4) ============================================================
+
+wf:actor_athlete a wf:Actor ;
+    wf:actorId "athlete" ;
+    rdfs:label "Athlete" ;
+    rdfs:comment "End user authoring daily workout notes, running live workout timers, and reviewing training analytics." .
+
+wf:actor_curator a wf:Actor ;
+    wf:actorId "curator-coach" ;
+    rdfs:label "Curator / Coach" ;
+    rdfs:comment "Program author organizing workouts into notebooks, defining scoped movement/equipment overrides, and curating benchmarks." .
+
+wf:actor_publisher a wf:Actor ;
+    wf:actorId "feed-publisher" ;
+    rdfs:label "Feed Publisher" ;
+    rdfs:comment "Publisher compiling public notebooks into portable feeds and static seed corpora for subscribers." .
+
+wf:actor_agent a wf:Actor ;
+    wf:actorId "co-driving-agent" ;
+    rdfs:label "Co-Driving Agent" ;
+    rdfs:comment "AI assistant co-driving WOD Wiki via Browser WebMCP (@ui-sdk/react/agent + Playground UI tools), HTTP/stdio MCP, or the wod CLI." .
+
+# === Canonical Product Workflows (13) ======================================
+
+wf:wf_cold_boot_home_tour a wf:Workflow ;
+    wf:workflowId "cold-boot-home-tour" ;
+    wf:workflowArea "journal" ;
+    rdfs:label "Cold Boot & Guided Home Tour" ;
+    rdfs:comment "Instant first-paint rendering of the bundle-owned home tour while the Feed Sync Web Worker hydrates seed notes in IndexedDB." ;
+    wf:performedBy wf:actor_athlete ;
+    wf:enablesWorkflow wf:wf_daily_note_authoring , wf:wf_live_session_execution ;
+    wf:orchestratesClass wod:Page , wod:Note , wod:Feed ;
+    wf:deliveredOnSurface arch:surface_playground , arch:surface_feed_worker ;
+    wf:governedByDecision arch:adr_0001 , arch:adr_0002 , arch:adr_0004 ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/JRN-01> .
+
+wf:wf_daily_note_authoring a wf:Workflow ;
+    wf:workflowId "daily-note-authoring" ;
+    wf:workflowArea "journal" ;
+    rdfs:label "Daily Note Authoring & Unload-Safe Autosave" ;
+    rdfs:comment "Authoring Markdown and Whiteboard Script workout blocks on a journal day with CodeMirror 6, block revision pinning, and unmount-flush persistence." ;
+    wf:performedBy wf:actor_athlete , wf:actor_agent ;
+    wf:enablesWorkflow wf:wf_live_session_execution , wf:wf_notebook_curation ;
+    wf:orchestratesClass wod:Note , wod:NoteSegment , wod:Page , wod:PageNote , wod:ScriptBlock , wod:Statement ;
+    wf:deliveredOnSurface arch:surface_playground , arch:surface_webmcp , arch:surface_cli_mcp ;
+    wf:governedByDecision arch:adr_0006 ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/JRN-02> .
+
+wf:wf_portable_intake_export a wf:Workflow ;
+    wf:workflowId "portable-intake-export" ;
+    wf:workflowArea "journal" ;
+    rdfs:label "Portable Markdown/ZIP Intake & Backup Export" ;
+    rdfs:comment "Importing and exporting workout journals, notes, and attached session telemetry via lossless Markdown + JSONL/CSV and ZIP bundles." ;
+    wf:performedBy wf:actor_athlete , wf:actor_publisher , wf:actor_agent ;
+    wf:enablesWorkflow wf:wf_daily_note_authoring , wf:wf_wql_analytics_dashboards ;
+    wf:orchestratesClass wod:Note , wod:SessionRecord , wod:EventRecord ;
+    wf:deliveredOnSurface arch:surface_playground , arch:surface_cli_mcp ;
+    wf:governedByDecision arch:adr_0005 ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/JRN-05> , <https://wod.wiki/qa/journey/FED-04> .
+
+wf:wf_live_session_execution a wf:Workflow ;
+    wf:workflowId "live-session-execution" ;
+    wf:workflowArea "runtime" ;
+    rdfs:label "Pinned Workout Session Execution & Clock Projection" ;
+    rdfs:comment "JIT-compiling a workout block onto RuntimeStack, driving wall-clock or FastClock timers across responsive/Cast surfaces, and recording pinned SessionRecord/EventRecord telemetry." ;
+    wf:performedBy wf:actor_athlete , wf:actor_agent ;
+    wf:enablesWorkflow wf:wf_metric_shakeout_evaluation , wf:wf_wql_analytics_dashboards ;
+    wf:orchestratesClass wod:ScriptRuntime , wod:RuntimeStack , wod:RuntimeBlock , wod:RuntimeClock , wod:SessionRun , wod:SessionRecord , wod:WorkoutEvent , wod:EventRecord ;
+    wf:deliveredOnSurface arch:surface_playground , arch:surface_cast_receiver , arch:surface_webmcp , arch:surface_cli_mcp ;
+    wf:governedByDecision arch:adr_0003 , arch:adr_0006 ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/RUN-01> , <https://wod.wiki/qa/journey/RUN-02> .
+
+wf:wf_metric_shakeout_evaluation a wf:Workflow ;
+    wf:workflowId "metric-shakeout-evaluation" ;
+    wf:workflowArea "runtime" ;
+    rdfs:label "Metric Shake-Out & Stacked Property Evaluation" ;
+    rdfs:comment "Resolving typed metrics (reps, load, duration, distance, calories) across MetricOrigin precedence levels and projecting derived telemetry facts." ;
+    wf:performedBy wf:actor_athlete ;
+    wf:enablesWorkflow wf:wf_wql_analytics_dashboards ;
+    wf:orchestratesClass wod:Metric , wod:MetricObservation , wod:OutputEmitter , wod:EventRecord ;
+    wf:deliveredOnSurface arch:surface_playground , arch:surface_cli_mcp ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/RUN-01> .
+
+wf:wf_effort_equipment_catalog a wf:Workflow ;
+    wf:workflowId "effort-equipment-catalog" ;
+    wf:workflowArea "properties" ;
+    rdfs:label "Effort & Equipment Catalog Management" ;
+    rdfs:comment "Managing movement slugs, aliases, equipment requirements, and inline backlinks so authored scripts resolve efforts immediately." ;
+    wf:performedBy wf:actor_athlete , wf:actor_curator ;
+    wf:enablesWorkflow wf:wf_daily_note_authoring , wf:wf_scoped_property_overrides ;
+    wf:orchestratesClass wod:Effort , wod:Equipment , wod:Tag , wod:TagType , wod:NoteTag ;
+    wf:deliveredOnSurface arch:surface_playground , arch:surface_cli_mcp ;
+    wf:governedByDecision arch:adr_0006 ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/PRP-01> , <https://wod.wiki/qa/journey/PRP-02> , <https://wod.wiki/qa/journey/PRP-03> .
+
+wf:wf_scoped_property_overrides a wf:Workflow ;
+    wf:workflowId "scoped-property-overrides" ;
+    wf:workflowArea "properties" ;
+    rdfs:label "Scoped Property Overrides & Precedence Stacking" ;
+    rdfs:comment "Layering notebook-scoped overrides for efforts, equipment, and tags across notebook/defaults -> Feed/Notebook -> notebook/custom." ;
+    wf:performedBy wf:actor_curator , wf:actor_athlete , wf:actor_agent ;
+    wf:enablesWorkflow wf:wf_notebook_curation ;
+    wf:orchestratesClass wod:Effort , wod:Equipment , wod:Tag , wod:Notebook ;
+    wf:deliveredOnSurface arch:surface_playground , arch:surface_cli_mcp ;
+    wf:governedByDecision arch:adr_0006 ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/PRP-04> .
+
+wf:wf_notebook_curation a wf:Workflow ;
+    wf:workflowId "notebook-curation" ;
+    wf:workflowArea "notebooks" ;
+    rdfs:label "Notebook Curation, N:M Promotion & Publication Visibility" ;
+    rdfs:comment "Organizing notes into hierarchical notebooks with N:M membership while preserving notebook/journal permanence and toggling publication visibility." ;
+    wf:performedBy wf:actor_curator , wf:actor_publisher ;
+    wf:enablesWorkflow wf:wf_feed_subscription_sync , wf:wf_clone_with_provenance ;
+    wf:orchestratesClass wod:Notebook , wod:Note , wod:Page , wod:PageNote , wod:Collection ;
+    wf:deliveredOnSurface arch:surface_playground , arch:surface_cli_mcp ;
+    wf:governedByDecision arch:adr_0005 , arch:adr_0006 ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/NBK-01> , <https://wod.wiki/qa/journey/NBK-02> , <https://wod.wiki/qa/journey/NBK-03> , <https://wod.wiki/qa/journey/FED-03> .
+
+wf:wf_clone_with_provenance a wf:Workflow ;
+    wf:workflowId "clone-with-provenance" ;
+    wf:workflowArea "notebooks" ;
+    rdfs:label "Clone-to-Journal with Upstream Note Provenance" ;
+    rdfs:comment "Cloning read-only Seed or Feed workouts into a writable user journal/notebook while recording structured upstream NoteProvenance." ;
+    wf:performedBy wf:actor_athlete , wf:actor_agent ;
+    wf:enablesWorkflow wf:wf_live_session_execution ;
+    wf:orchestratesClass wod:Note , wod:Notebook , wod:Feed ;
+    wf:deliveredOnSurface arch:surface_playground , arch:surface_webmcp , arch:surface_cli_mcp ;
+    wf:governedByDecision arch:adr_0006 ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/NBK-02> , <https://wod.wiki/qa/journey/RUN-02> .
+
+wf:wf_feed_subscription_sync a wf:Workflow ;
+    wf:workflowId "feed-subscription-sync" ;
+    wf:workflowArea "feeds" ;
+    rdfs:label "Two-Tier Feed Subscription & Background Worker Sync" ;
+    rdfs:comment "Subscribing to external workout feeds, auto-syncing updates in the background Web Worker, and publishing public notebooks as feeds." ;
+    wf:performedBy wf:actor_athlete , wf:actor_publisher ;
+    wf:enablesWorkflow wf:wf_clone_with_provenance ;
+    wf:orchestratesClass wod:Feed , wod:Notebook , wod:Note ;
+    wf:deliveredOnSurface arch:surface_playground , arch:surface_feed_worker , arch:surface_api_server , arch:surface_cli_mcp ;
+    wf:governedByDecision arch:adr_0001 , arch:adr_0002 , arch:adr_0005 ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/FED-01> , <https://wod.wiki/qa/journey/FED-03> .
+
+wf:wf_wql_analytics_dashboards a wf:Workflow ;
+    wf:workflowId "wql-analytics-dashboards" ;
+    wf:workflowArea "analytics" ;
+    rdfs:label "Entity-Scoped WQL Analytics & Dashboard Promotion" ;
+    rdfs:comment "Authoring find, aggregate, and pipeline WQL queries, promoting queries to custom dashboards, and comparing training volume/intensity over time." ;
+    wf:performedBy wf:actor_athlete , wf:actor_curator , wf:actor_agent ;
+    wf:orchestratesClass wod:WQLQuery , wod:AnalyticsDataPoint , wod:Dashboard , wod:DashboardWidget , wod:QuerySource ;
+    wf:deliveredOnSurface arch:surface_playground , arch:surface_webmcp , arch:surface_cli_mcp ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/ANL-04> , <https://wod.wiki/qa/journey/ANL-05> .
+
+wf:wf_agent_codriving_parity a wf:Workflow ;
+    wf:workflowId "agent-codriving-parity" ;
+    wf:workflowArea "agent" ;
+    rdfs:label "First-Class Agent Co-Driving & Action Parity" ;
+    rdfs:comment "Co-driving Playground UI via WebMCP (@ui-sdk/react/agent snapshot/act/query + Playground UI tools), HTTP/stdio MCP, and wod CLI with Tier 2 destructive confirmation gates." ;
+    wf:performedBy wf:actor_agent , wf:actor_athlete ;
+    wf:enablesWorkflow wf:wf_daily_note_authoring , wf:wf_live_session_execution , wf:wf_wql_analytics_dashboards ;
+    wf:orchestratesClass wod:Note , wod:SessionRecord , wod:WQLQuery , wod:Configuration ;
+    wf:deliveredOnSurface arch:surface_webmcp , arch:surface_cli_mcp , arch:surface_api_server , arch:surface_playground ;
+    wf:governedByDecision arch:adr_0005 , arch:adr_0006 ;
+    wf:verifiedBySuite <https://wod.wiki/qa/journey/JRN-06> .
+
+wf:wf_visual_component_verification a wf:Workflow ;
+    wf:workflowId "visual-component-verification" ;
+    wf:workflowArea "agent" ;
+    rdfs:label "Deterministic Visual Organism & Accessibility Verification" ;
+    rdfs:comment "Authoring and verifying shared UI organisms and @ui-sdk/react primitives in Storybook 10 with deterministic domainState presets and WCAG a11y checks." ;
+    wf:performedBy wf:actor_curator , wf:actor_agent ;
+    wf:orchestratesClass wod:Note , wod:SessionRecord , wod:Dashboard ;
+    wf:deliveredOnSurface arch:surface_storybook ;
+    wf:governedByDecision arch:adr_0003 .

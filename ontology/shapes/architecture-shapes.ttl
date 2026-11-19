@@ -1,0 +1,112 @@
+# SHACL validation shapes for the :architecture Sub-Ontology
+# ---------------------------------------------------------------------------
+
+@prefix arch: <https://wod.wiki/ontology/architecture#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+arch:WorkspacePackageShape a sh:NodeShape ;
+    sh:targetClass arch:WorkspacePackage ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "An arch:WorkspacePackage must declare an rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path arch:packageName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^@bitcobblers/wod-wiki-[a-z0-9-]+$" ;
+        sh:message "An arch:WorkspacePackage must declare a canonical '@bitcobblers/wod-wiki-*' arch:packageName." ;
+    ] ;
+    sh:property [
+        sh:path arch:packageDir ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^packages/[a-z0-9-]+$" ;
+        sh:message "An arch:WorkspacePackage must declare a repo-relative 'packages/<name>' arch:packageDir." ;
+    ] .
+
+arch:SubpathBoundaryShape a sh:NodeShape ;
+    sh:targetClass arch:SubpathBoundary ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "An arch:SubpathBoundary must declare an rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path arch:exportSubpath ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "An arch:SubpathBoundary must declare exactly one arch:exportSubpath." ;
+    ] .
+
+arch:HostSurfaceShape a sh:NodeShape ;
+    sh:targetClass arch:HostSurface ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "An arch:HostSurface must declare an rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path arch:surfaceId ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z][a-z0-9-]*$" ;
+        sh:message "An arch:HostSurface must declare a lowercase kebab-case arch:surfaceId." ;
+    ] .
+
+arch:StorageAdapterShape a sh:NodeShape ;
+    sh:targetClass arch:StorageAdapter ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "An arch:StorageAdapter must declare an rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path arch:adapterId ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z][a-z0-9-]*$" ;
+        sh:message "An arch:StorageAdapter must declare a lowercase kebab-case arch:adapterId." ;
+    ] ;
+    sh:property [
+        sh:path arch:implementsAdapterFor ;
+        sh:minCount 1 ;
+        sh:class arch:WorkspacePackage ;
+        sh:message "An arch:StorageAdapter must link via arch:implementsAdapterFor to its owning arch:WorkspacePackage." ;
+    ] .
+
+arch:ArchitectureDecisionShape a sh:NodeShape ;
+    sh:targetClass arch:ArchitectureDecision ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "An arch:ArchitectureDecision must declare an rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path arch:adrNumber ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[0-9]{4}$" ;
+        sh:message "An arch:ArchitectureDecision must declare a 4-digit arch:adrNumber (e.g. '0008')." ;
+    ] ;
+    sh:property [
+        sh:path arch:adrStatus ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( "Accepted" "Proposed" "Deprecated" "Superseded" ) ;
+        sh:message "An arch:ArchitectureDecision must declare a valid arch:adrStatus." ;
+    ] .

@@ -1,6 +1,10 @@
+@prefix sys:    <https://wod.wiki/ontology/system#> .
+@prefix wodg:   <https://wod.wiki/graph/> .
 @prefix wod:    <https://wod.wiki/ontology#> .
 @prefix ufo:    <https://wod.wiki/ontology/patterns#> .
+@prefix wf:     <https://wod.wiki/ontology/workflow#> .
 @prefix qa:     <https://wod.wiki/ontology/qa#> .
+@prefix arch:   <https://wod.wiki/ontology/architecture#> .
 @prefix code:   <https://wod.wiki/ontology/code#> .
 @prefix bridge: <https://wod.wiki/ontology/bridge#> .
 @prefix owl:    <http://www.w3.org/2002/07/owl#> .
@@ -253,6 +257,47 @@
 
 <https://wod.wiki/qa/story/design-system-design-tokens--palette-and-typography/beat/Prove> a qa:Step ;
     rdfs:label "Prove: visual/render baseline" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/saved-workout-note--default> a qa:StoryTest ;
+    rdfs:label "Saved workout note / Default" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/saved-workout-note--default/beat/Seed>, <https://wod.wiki/qa/story/saved-workout-note--default/beat/Enter>, <https://wod.wiki/qa/story/saved-workout-note--default/beat/Sense>, <https://wod.wiki/qa/story/saved-workout-note--default/beat/Drive>, <https://wod.wiki/qa/story/saved-workout-note--default/beat/Prove> .
+
+<https://wod.wiki/qa/story/saved-workout-note--default/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: props/args (wod:Note, wod:Session)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/saved-workout-note--default/beat/Enter> .
+
+<https://wod.wiki/qa/story/saved-workout-note--default/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: PrimitivesShowcase" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/saved-workout-note--default/beat/Sense> .
+
+<https://wod.wiki/qa/story/saved-workout-note--default/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: rendered DOM" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/saved-workout-note--default/beat/Drive> .
+
+<https://wod.wiki/qa/story/saved-workout-note--default/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: click" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/saved-workout-note--default/beat/Prove> .
+
+<https://wod.wiki/qa/story/saved-workout-note--default/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 1 expect() assertion(s)" ;
     qa:hasBeat qa:Prove ;
     qa:stepIndex 5 ;
     qa:beatOrder 5 .
@@ -4972,7 +5017,7 @@
     qa:hasStep <https://wod.wiki/qa/journey/JRN-01/beat/Seed>, <https://wod.wiki/qa/journey/JRN-01/beat/Enter>, <https://wod.wiki/qa/journey/JRN-01/beat/Sense>, <https://wod.wiki/qa/journey/JRN-01/beat/Drive>, <https://wod.wiki/qa/journey/JRN-01/beat/Prove> .
 
 <https://wod.wiki/qa/journey/JRN-01/beat/Seed> a qa:Step ;
-    rdfs:label "Seed: wod:Dashboard, wod:Metric, wod:Page, wod:Session" ;
+    rdfs:label "Seed: wod:Dashboard, wod:Feed, wod:Metric, wod:Page, wod:Session" ;
     qa:hasBeat qa:Seed ;
     qa:beatOrder 1 ;
     qa:nextStep <https://wod.wiki/qa/journey/JRN-01/beat/Enter> .
