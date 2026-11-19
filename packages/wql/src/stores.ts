@@ -262,6 +262,6 @@ export interface QueryServiceStores {
   feedCatalogStore?: FeedCatalogQueryStore;
   /** Optional session store so `:session{}` reconciles in-progress sessions with 0 events. */
   sessionStore?: {
-    getAll(): Promise<Array<{ id: string; noteId: string; startedAt?: number; completedAt?: number; createdAt?: number }>>;
+    getAll(): Promise<Array<{ id: string; noteId: string; startedAt?: number; completedAt?: number; duration?: number; createdAt?: number }>>;
   };
 }

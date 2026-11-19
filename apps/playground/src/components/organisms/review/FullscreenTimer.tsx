@@ -419,7 +419,11 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
         : completedSegments.map((seg, idx) => {
             const ctx = (seg as Segment & { context?: Record<string, unknown> }).context;
             const started = seg.absoluteStartTime ?? Date.now();
-            const ended = started + Math.max(0, (seg.duration ?? 0) * 1000);
+            const durationSec =
+              seg.endTime !== undefined && seg.startTime !== undefined && seg.endTime > seg.startTime
+                ? seg.endTime - seg.startTime
+                : (seg.elapsed && seg.elapsed > 0 ? seg.elapsed : (seg.duration ?? 0));
+            const ended = started + Math.max(0, durationSec * 1000);
             return {
               id: `${effectiveId}:${seg.id ?? idx}`,
               grain: 'event',
@@ -436,6 +440,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
             } as unknown as EventRecord;
           });
     const timestamp = events[0]?.timeSpan?.started ?? Date.now();
+    const durationMs = lastReportRef.current?.results.duration;
     return {
       parsed: {
         family: 'find',
@@ -448,6 +453,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
           resultId: effectiveId,
           noteId: '',
           timestamp,
+          ...(typeof durationMs === 'number' ? { durationMs } : {}),
           events,
         },
       ],
