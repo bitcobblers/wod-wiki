@@ -269,6 +269,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   // content (home hero + runway window) must each seed their own blocks — a
   // module-level dedupe swallows the second editor's seed entirely.
   const lastBlocksJsonRef = useRef("");
+  // Queue of local doc snapshots emitted via onChange that have not yet echoed
+  // back through the controlled `value` prop. Prevents rapid keystrokes (e.g.
+  // X{Enter}Y) from racing with React's async render queue and overwriting the
+  // live CodeMirror doc + resetting selection to 0.
+  const pendingEmittedValuesRef = useRef<string[]>([]);
   // Per-editor completion wiring lives at module scope (below) and rides in
   // baseExtensions: the mode-sync effect applies a full StateEffect.reconfigure
   // after mount, so facet values mounted anywhere else would be dropped (the
@@ -807,6 +812,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             (t) => t.annotation(externalValueSyncAnnotation) === true,
           );
           if (!isExternalValueSync) {
+            pendingEmittedValuesRef.current.push(identity.rawContent);
             onChange(identity.rawContent);
           }
           onDocUpdate?.(update);
@@ -969,22 +975,32 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     const view = viewRef.current;
     if (!view) return;
     const identity = view.state.field(sectionField);
-    if (value !== identity.rawContent) {
-      const rev = Math.max(1, sourceRevision);
-      const expected = noteBlocks ? reconcileNoteBlocks(value, { sourceRevision: rev, blocks: noteBlocks, registeredWidgets: widgetComponents ? [...widgetComponents.keys()] : KNOWN_SECTION_WIDGETS }) : undefined;
-      const validRestore = expected && noteBlocks && Object.keys(expected).length === Object.keys(noteBlocks).length
-        && Object.entries(noteBlocks).every(([id, b]) => {
-          const r = expected[id];
-          return r && r.from === b.from && r.to === b.to && r.kind === b.kind && r.dialect === b.dialect && r.sport === b.sport;
-        });
-      view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: value },
-        annotations: externalValueSyncAnnotation.of(true),
-        ...(validRestore ? { effects: sectionRestore.of({ rawContent: value, blocks: noteBlocks, sourceRevision: rev }) } : {}),
-      });
-    } else if (noteBlocks && sourceRevision !== identity.sourceRevision) {
-      view.dispatch({ effects: sectionSaved.of({ blocks: noteBlocks, sourceRevision: Math.max(1, sourceRevision) }) });
+    const pending = pendingEmittedValuesRef.current;
+    if (value === identity.rawContent) {
+      pending.length = 0;
+      if (noteBlocks && sourceRevision !== identity.sourceRevision) {
+        view.dispatch({ effects: sectionSaved.of({ blocks: noteBlocks, sourceRevision: Math.max(1, sourceRevision) }) });
+      }
+      return;
     }
+    const echoIdx = pending.indexOf(value);
+    if (echoIdx !== -1) {
+      pending.splice(0, echoIdx + 1);
+      return;
+    }
+    pending.length = 0;
+    const rev = Math.max(1, sourceRevision);
+    const expected = noteBlocks ? reconcileNoteBlocks(value, { sourceRevision: rev, blocks: noteBlocks, registeredWidgets: widgetComponents ? [...widgetComponents.keys()] : KNOWN_SECTION_WIDGETS }) : undefined;
+    const validRestore = expected && noteBlocks && Object.keys(expected).length === Object.keys(noteBlocks).length
+      && Object.entries(noteBlocks).every(([id, b]) => {
+        const r = expected[id];
+        return r && r.from === b.from && r.to === b.to && r.kind === b.kind && r.dialect === b.dialect && r.sport === b.sport;
+      });
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: value },
+      annotations: externalValueSyncAnnotation.of(true),
+      ...(validRestore ? { effects: sectionRestore.of({ rawContent: value, blocks: noteBlocks, sourceRevision: rev }) } : {}),
+    });
   }, [value, noteBlocks, sourceRevision]);
 
   // Sync theme
