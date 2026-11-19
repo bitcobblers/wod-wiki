@@ -6,7 +6,8 @@
  * actually observes.
  */
 import { afterEach, describe, expect, it } from 'bun:test'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { useEffect, useState } from 'react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useBatchedItems } from './useBatchedItems'
 
 class MockIntersectionObserver {
@@ -114,5 +115,55 @@ describe('useBatchedItems', () => {
     act(() => hooks!.growTo(99))
     expect(visible()).toBe('0,1,2,3,4,5,6,7,8,9')
     expect(hasMore()).toBe(false)
+  })
+
+  it('does not reset growth when clicked immediately upon DOM commit before passive effects flush', async () => {
+    setupIO()
+    function AsyncHarness() {
+      const [xs, setXs] = useState<number[]>([])
+      const { visible: batchVisible, hasMore: more, sentinelRef, growTo } = useBatchedItems(xs, 3)
+      useEffect(() => {
+        const timer = setTimeout(() => {
+          void Promise.resolve().then(() => setXs(items(10)))
+        }, 0)
+        return () => clearTimeout(timer)
+      }, [])
+      return (
+        <div>
+          <output data-testid="visible">{batchVisible.join(',')}</output>
+          {more && (
+            <div ref={sentinelRef}>
+              <button type="button" data-testid="more" onClick={() => growTo(batchVisible.length + 3)}>
+                Show more
+              </button>
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    let resolveClick!: () => void
+    const clicked = new Promise<void>(resolve => {
+      resolveClick = resolve
+    })
+    const observer = new MutationObserver(() => {
+      const btn = screen.queryByTestId('more')
+      if (!btn) return
+      observer.disconnect()
+      act(() => {
+        fireEvent.click(btn)
+      })
+      resolveClick()
+    })
+
+    try {
+      render(<AsyncHarness />)
+      observer.observe(document.body, { childList: true, subtree: true })
+      await clicked
+      await act(async () => {})
+      expect(visible()).toBe('0,1,2,3,4,5')
+    } finally {
+      observer.disconnect()
+    }
   })
 })
