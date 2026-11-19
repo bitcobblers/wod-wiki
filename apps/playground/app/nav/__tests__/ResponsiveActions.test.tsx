@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { memo } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { ResponsiveActions, ResponsiveActionsProvider, NavbarActions } from '../ResponsiveActions';
@@ -151,10 +151,22 @@ describe('ResponsiveActions dock trigger', () => {
     const dock = trigger.closest('[data-testid="actions-dock"]')!;
     // Stack top→bottom: buttons (primary + search), sheet, ⋮ at the corner.
     expect(dock.lastElementChild).toBe(trigger);
-    const sheet = dock.querySelector('[role="dialog"]')!;
+    // Closed sheet stays mounted and hidden without exposing role="dialog" (WW-087).
+    expect(dock.querySelector('[role="dialog"]')).toBeNull();
+    const sheetId = trigger.getAttribute('aria-controls');
+    expect(sheetId).toBeTruthy();
+    const sheet = document.getElementById(sheetId!);
     expect(sheet).not.toBeNull();
-    expect(sheet.hidden).toBe(true);
-    expect([...dock.children].indexOf(sheet)).toBeLessThan([...dock.children].indexOf(trigger));
+    expect(sheet!.hidden).toBe(true);
+    expect([...dock.children].indexOf(sheet!)).toBeLessThan([...dock.children].indexOf(trigger));
+
+    // Opening the overflow trigger exposes the sheet as a dialog above ⋮.
+    fireEvent.click(trigger);
+    const openSheet = dock.querySelector<HTMLElement>('[role="dialog"]');
+    expect(openSheet).toBe(sheet);
+    expect(openSheet!.hidden).toBe(false);
+    expect(openSheet!.getAttribute('aria-modal')).toBe('true');
+    expect([...dock.children].indexOf(openSheet!)).toBeLessThan([...dock.children].indexOf(trigger));
   });
 });
 

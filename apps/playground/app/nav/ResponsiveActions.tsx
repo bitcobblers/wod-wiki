@@ -237,6 +237,7 @@ function ResponsiveActionsDock({
   const viewport = useVisualViewportRect()
   const [sheetOpen, setSheetOpen] = useState(false)
   const closeSheet = useCallback(() => setSheetOpen(false), [])
+  const sheetId = useId()
   const sheetRef = useRef<HTMLDivElement>(null)
   const activeContentRef = useRef<HTMLDivElement>(null)
   const globalContentRef = useRef<HTMLDivElement>(null)
@@ -304,6 +305,7 @@ function ResponsiveActionsDock({
         />
       )}
       <div
+        id={sheetId}
         ref={sheetRef}
         role={sheetOpen && showOverflow ? 'dialog' : undefined}
         aria-modal={sheetOpen && showOverflow ? true : undefined}
@@ -343,6 +345,7 @@ function ResponsiveActionsDock({
           aria-label={active?.label ?? globalActions?.label ?? 'Page options'}
           title={active?.label ?? globalActions?.label ?? 'Page options'}
           aria-expanded={sheetOpen}
+          aria-controls={sheetId}
           data-testid="actions-overflow"
           className={cn(
             'relative z-40 flex size-12 items-center justify-center rounded-full',
