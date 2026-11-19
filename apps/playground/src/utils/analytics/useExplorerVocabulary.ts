@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { queryService } from "@/services/queryService";
 
-const KNOWN_METRIC_KEYS = ['totalVolume', 'tis', 'sessionLoad', 'totalReps'];
+const KNOWN_METRIC_KEYS = ['totalVolume', 'tis', 'sessionLoad', 'totalReps', 'note'];
 const KNOWN_TAG_KEYS = ['effort', 'discipline', 'intensity', 'tags', 'note', 'origin'];
 
 export interface ExplorerVocabulary {

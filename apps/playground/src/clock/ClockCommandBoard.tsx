@@ -219,6 +219,11 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
   }, [entry?.fieldId, getFocusProps]);
   const entryError = snapshot.error ?? draftError;
   const rep = snapshot.reps.find((r) => r.occurrenceId === snapshot.selectedOccurrenceId) ?? null;
+  const canEditReps =
+    snapshot.phase === 'live' &&
+    snapshot.status !== 'completed' &&
+    snapshot.selectedOccurrenceId !== null &&
+    rep !== null;
   const showReps =
     snapshot.reps.length > 0 && (snapshot.phase === 'live' || snapshot.phase === 'collection');
 
@@ -255,7 +260,10 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
             type="button"
             data-testid={TEST_IDS.CLOCK_REP_MINUS}
             aria-label="Remove one rep"
-            className="h-11 w-11 min-h-11 min-w-11 rounded-full border border-border text-base font-semibold hover:bg-accent"
+            title="Subtract one rep"
+            disabled={!canEditReps}
+            aria-disabled={!canEditReps}
+            className="h-11 w-11 min-h-11 min-w-11 rounded-full border border-border text-base font-semibold hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
             {...focus(`board-reps-minus-${snapshot.selectedOccurrenceId ?? ''}`)}
             onClick={() =>
               dispatch({ kind: 'reps-adjust', occurrenceId: snapshot.selectedOccurrenceId ?? '', delta: -1 })
@@ -267,7 +275,10 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
             type="button"
             data-testid={TEST_IDS.CLOCK_REP_PLUS}
             aria-label="Add one rep"
-            className="h-11 w-11 min-h-11 min-w-11 rounded-full border border-border text-base font-semibold hover:bg-accent"
+            title="Add one rep"
+            disabled={!canEditReps}
+            aria-disabled={!canEditReps}
+            className="h-11 w-11 min-h-11 min-w-11 rounded-full border border-border text-base font-semibold hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
             {...focus(`board-reps-plus-${snapshot.selectedOccurrenceId ?? ''}`)}
             onClick={() =>
               dispatch({ kind: 'reps-adjust', occurrenceId: snapshot.selectedOccurrenceId ?? '', delta: 1 })
@@ -349,11 +360,13 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
                   type="button"
                   aria-label={`Digit ${digit}`}
                   title={`Digit ${digit}`}
+                  disabled={!canEditReps}
+                  aria-disabled={!canEditReps}
                   onClick={() => {
                     if (draft.length < 5) writeClockDraft(draft + digit);
                   }}
                   {...focus(`board-keypad-${digit}`)}
-                  className="min-h-11 min-w-11 w-full rounded-md border border-border bg-muted/40 font-mono text-sm font-semibold hover:bg-accent active:scale-95"
+                  className="min-h-11 min-w-11 w-full rounded-md border border-border bg-muted/40 font-mono text-sm font-semibold hover:bg-accent active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {digit}
                 </button>
@@ -362,10 +375,11 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
                 type="button"
                 aria-label="Backspace"
                 title="Backspace"
-                disabled={draft.length === 0}
+                disabled={!canEditReps || draft.length === 0}
+                aria-disabled={!canEditReps || draft.length === 0}
                 onClick={() => writeClockDraft(draft.slice(0, -1))}
                 {...focus('board-keypad-back')}
-                className="min-h-11 min-w-11 w-full rounded-md border border-border px-2 text-xs font-medium hover:bg-accent disabled:opacity-40"
+                className="min-h-11 min-w-11 w-full rounded-md border border-border px-2 text-xs font-medium hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 ⌫
               </button>
@@ -373,7 +387,8 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
                 type="button"
                 aria-label="Set reps"
                 title="Set reps"
-                disabled={draft.length === 0}
+                disabled={!canEditReps || draft.length === 0}
+                aria-disabled={!canEditReps || draft.length === 0}
                 onClick={() => {
                   const value = Number.parseInt(draft, 10);
                   if (!Number.isSafeInteger(value) || value < 0) return;
@@ -382,7 +397,7 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
                   }
                 }}
                 {...focus('board-keypad-set')}
-                className="min-h-11 min-w-11 w-full rounded-md bg-primary px-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                className="min-h-11 min-w-11 w-full rounded-md bg-primary px-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Set
               </button>

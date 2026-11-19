@@ -98,6 +98,20 @@ export function civilMonday(iso: string): string {
   return civilDateAdd(iso, -back);
 }
 
+/** First civil day (`YYYY-MM-01`) of the month containing `iso`. */
+export function civilMonthStart(iso: string): string {
+  const { y, m } = civilParts(iso);
+  return `${y}-${String(m).padStart(2, '0')}-01`;
+}
+
+/** Add `months` (may be negative) to the month starting `iso`, returning `YYYY-MM-01`. */
+export function civilMonthAdd(iso: string, months: number): string {
+  const { y, m } = civilParts(iso);
+  const shifted = new Date(Date.UTC(y, m - 1 + months, 1));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-01`;
+}
+
 /** Offset (ms) of `timeZone` at `instant`: local = UTC + offset. */
 function zonedOffset(instant: number, timeZone: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {

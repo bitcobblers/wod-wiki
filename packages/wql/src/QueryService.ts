@@ -65,6 +65,8 @@ import {
   civilDateDiff,
   civilDateOf,
   civilMonday,
+  civilMonthAdd,
+  civilMonthStart,
   inRange,
   resolveWindowRange,
   zonedNoon,
@@ -1005,6 +1007,7 @@ function dimValue(
 ): string {
   if (dim === 'day') return row.metricDate ?? civilDateOf(row.timestamp, ctx.timeZone);
   if (dim === 'week') return civilMonday(row.metricDate ?? civilDateOf(row.timestamp, ctx.timeZone));
+  if (dim === 'month') return civilMonthStart(row.metricDate ?? civilDateOf(row.timestamp, ctx.timeZone));
   if (dim === 'session') return row.resultId;
   const raw = factTagValue(row, dim, dimsOrNoteTags);
   if (raw === undefined) return UNASSIGNED;
@@ -2306,6 +2309,10 @@ export class QueryService {
     // the store is authoritative (finalize-owns, ticket 005).
     if (parsed.join) return this.runJoined(parsed, options);
 
+    if (parsed.agg === 'count' && parsed.metric === 'note') {
+      return this.runNoteCountAggregate(parsed, options);
+    }
+
     // Stage 1: SELECT — window-first hybrid (ticket 003): a time window
     // fetches through by-timestamp, the one proven culling index; all-time
     // queries scan. by-metric is never used — ticket 001 measured it
@@ -2341,6 +2348,54 @@ export class QueryService {
       }
     }
     return this.aggregateEventRows(parsed, eventRows, options, range);
+  }
+
+  private async runNoteCountAggregate(
+    parsed: ParsedAggregateQuery,
+    options: QueryOptions,
+  ): Promise<QueryResult> {
+    const ctx = runContext(options);
+    const range = resolveAggregateRange(parsed, options, ctx);
+    const findQuery: ParsedFindQuery = {
+      family: 'find',
+      raw: parsed.raw,
+      target: 'note',
+      filters: parsed.filters,
+      ...(parsed.window ? { window: parsed.window } : {}),
+    };
+    const findRes = await this.runFind(findQuery, {
+      context: ctx,
+      ...(range ? { range } : {}),
+    });
+
+    const points: AnalyticsDataPoint[] = findRes.notes.map((note) => {
+      const ts = noteEffectiveTimestamp(note, findRes.placements?.[note.id], ctx.timeZone);
+      const itemOrigin = notebookOriginOfItem(note);
+      const dimensions: Record<string, string> = {};
+      if (note.type) dimensions.type = note.type;
+      if (itemOrigin) dimensions.origin = itemOrigin;
+      if (note.sourceId) dimensions.notebook = note.sourceId;
+      return {
+        id: note.id,
+        noteId: note.id,
+        blockId: '',
+        blockVersion: 0,
+        resultId: note.id,
+        type: 'note',
+        label: note.title || note.id,
+        metricKey: 'note',
+        value: 1,
+        grain: 'event',
+        timestamp: ts,
+        createdAt: note.createdAt,
+        metricDate: civilDateOf(ts, ctx.timeZone),
+        ...(itemOrigin === 'user' ? { origin: 'user' as const } : {}),
+        ...(Object.keys(dimensions).length > 0 ? { dimensions } : {}),
+      };
+    });
+
+    const factDims = await this.loadFactDimensions(points, [], parsed.groupBy);
+    return this.buildResult(points, parsed, options, factDims, range);
   }
 
   /**
@@ -2620,8 +2675,8 @@ export class QueryService {
     // keeps its epoch-aligned width (a deliberately distinct kind, not a
     // calendar week). Display timestamps (local noon / epoch midpoint) are
     // presentation-only — never join keys.
-    const timeDim = parsed.groupBy.find((d) => d === 'day' || d === 'week');
-    const tagDims = parsed.groupBy.filter((d) => d !== 'day' && d !== 'week');
+    const timeDim = parsed.groupBy.find((d) => d === 'day' || d === 'week' || d === 'month');
+    const tagDims = parsed.groupBy.filter((d) => d !== 'day' && d !== 'week' && d !== 'month');
     const rollup = parsed.rollup;
 
     /** The observation's own temporal anchor: its recorded metric date when
@@ -2632,6 +2687,7 @@ export class QueryService {
     const bucketKey = (row: AnalyticsDataPoint): string => {
       if (timeDim === 'day') return `d:${anchorDate(row)}`;
       if (timeDim === 'week') return `w:${civilMonday(anchorDate(row))}`;
+      if (timeDim === 'month') return `m:${civilMonthStart(anchorDate(row))}`;
       if (rollup) {
         const ad = anchorDate(row);
         if (rollup.unit === 'w') {
@@ -2652,7 +2708,7 @@ export class QueryService {
     };
     /** Presentation-only representative instant for a structural key. */
     const bucketDisplayTs = (key: string): number => {
-      if (key.startsWith('d:') || key.startsWith('w:')) return zonedNoon(key.slice(2), ctx.timeZone);
+      if (key.startsWith('d:') || key.startsWith('w:') || key.startsWith('m:')) return zonedNoon(key.slice(2), ctx.timeZone);
       return Number.MAX_SAFE_INTEGER;
     };
 
@@ -2663,7 +2719,7 @@ export class QueryService {
     // instant. No domain generation for rollup (duration buckets are
     // observed-only) or ungrouped queries.
     const MAX_DOMAIN = 10_000;
-    const bareDate = (key: string): string => (key.startsWith('d:') || key.startsWith('w:') ? key.slice(2) : key);
+    const bareDate = (key: string): string => (key.startsWith('d:') || key.startsWith('w:') || key.startsWith('m:') ? key.slice(2) : key);
     const calendarDomain = (observed: string[]): string[] => {
       const activeDim = timeDim ?? (rollup?.unit === 'w' ? 'week' : rollup?.unit === 'd' ? 'day' : undefined);
       if (!activeDim || observed.length === 0) return observed;
@@ -2673,14 +2729,34 @@ export class QueryService {
             endIso: range.endExclusive ? civilDateOf(range.end - 1, ctx.timeZone) : civilDateOf(range.end, ctx.timeZone),
           }
         : { startIso: bareDate(observed[0]!), endIso: bareDate(observed[observed.length - 1]!) };
-      const first = activeDim === 'week' ? civilMonday(bounds.startIso) : bounds.startIso;
-      const last = activeDim === 'week' ? civilMonday(bounds.endIso) : bounds.endIso;
+      const first =
+        activeDim === 'month'
+          ? civilMonthStart(bounds.startIso)
+          : activeDim === 'week'
+            ? civilMonday(bounds.startIso)
+            : bounds.startIso;
+      const last =
+        activeDim === 'month'
+          ? civilMonthStart(bounds.endIso)
+          : activeDim === 'week'
+            ? civilMonday(bounds.endIso)
+            : bounds.endIso;
       const step = activeDim === 'week' ? 7 * (rollup?.size ?? 1) : (rollup?.size ?? 1);
       const span = civilDateDiff(first, last);
-      if (span < 0 || span / step > MAX_DOMAIN) return observed;
+      if (span < 0 || (activeDim !== 'month' && span / step > MAX_DOMAIN)) return observed;
       const domain: string[] = [];
-      for (let cursor = first; ; cursor = civilDateAdd(cursor, step)) {
-        domain.push(activeDim === 'week' ? `w:${cursor}` : `d:${cursor}`);
+      for (
+        let cursor = first;
+        domain.length <= MAX_DOMAIN;
+        cursor = activeDim === 'month' ? civilMonthAdd(cursor, 1) : civilDateAdd(cursor, step)
+      ) {
+        domain.push(
+          activeDim === 'month'
+            ? `m:${cursor}`
+            : activeDim === 'week'
+              ? `w:${cursor}`
+              : `d:${cursor}`,
+        );
         if (cursor >= last) break;
       }
       return domain;

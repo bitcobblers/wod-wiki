@@ -55,7 +55,7 @@ export const WQL_CONTENT_ONLY_KEYS = ['type', 'text', 'source', 'notebook', 'con
 export const WQL_EFFORT_FILTER_KEYS = ['effort', 'discipline', 'intensity', 'origin', 'text'] as const;
 
 /** Virtual dimensions — time buckets and stream positions, not fact fields. */
-export const WQL_VIRTUAL_DIMS = ['day', 'week', 'session', 'round'] as const;
+export const WQL_VIRTUAL_DIMS = ['day', 'week', 'month', 'session', 'round'] as const;
 export type WqlVirtualDim = (typeof WQL_VIRTUAL_DIMS)[number];
 
 /**

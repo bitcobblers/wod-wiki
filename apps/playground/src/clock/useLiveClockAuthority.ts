@@ -104,18 +104,19 @@ export function useLiveClockAuthority({
     });
   }, [runtime, stackTick, repTick]);
 
-  // Auto-select a lone movement; grouped movements require explicit selection.
-  // Selection follows occurrences across segment transitions and resets when
-  // the selected occurrence rotates out (new round).
+  const effectiveSelectedId =
+    executionStatus === 'completed'
+      ? null
+      : reps.length === 1
+        ? reps[0]!.occurrenceId
+        : selectedId !== null && reps.some((r) => r.occurrenceId === selectedId)
+          ? selectedId
+          : null;
+
+  // Keep state synchronized with effectiveSelectedId across transitions.
   useEffect(() => {
-    if (reps.length === 1) {
-      setSelectedId(reps[0]!.occurrenceId);
-      return;
-    }
-    setSelectedId((prev) =>
-      prev !== null && reps.some((r) => r.occurrenceId === prev) ? prev : null,
-    );
-  }, [reps]);
+    setSelectedId(effectiveSelectedId);
+  }, [effectiveSelectedId]);
 
   // Transient context errors ("No rep movements", "Select a movement first")
   // describe the occurrence list at rejection time — once occurrences exist
@@ -152,12 +153,12 @@ export function useLiveClockAuthority({
       canStop,
       stopRequested,
       reps,
-      selectedOccurrenceId: selectedId,
+      selectedOccurrenceId: effectiveSelectedId,
       entry,
       error,
       saving,
     };
-  }, [enabled, runtime, phase, status, canNext, canStop, stopRequested, reps, selectedId, entry, error, saving]);
+  }, [enabled, runtime, phase, status, canNext, canStop, stopRequested, reps, effectiveSelectedId, entry, error, saving]);
 
   const handler = useCallback(
     (command: ClockCommand): boolean => {
@@ -230,7 +231,7 @@ export function useLiveClockAuthority({
           if (entryState !== null || stopRequested) return false;
           // Grouped movements require explicit target selection — never
           // silently credit the first movement.
-          const target = selectedId ?? (reps.length === 1 ? reps[0]!.occurrenceId : null);
+          const target = effectiveSelectedId;
           if (target === null) {
             setError(reps.length > 1 ? 'Select a movement first' : 'No rep movements to record');
             return false;
@@ -270,13 +271,20 @@ export function useLiveClockAuthority({
           return true;
         case 'reps-adjust': {
           if (entryState !== null || stopRequested) return false;
-          const occurrenceId = command.occurrenceId !== '' ? command.occurrenceId : selectedId;
+          if (st === 'completed' || phase === 'review') {
+            setError('Workout completed — rep controls are inactive');
+            return false;
+          }
+          const occurrenceId = command.occurrenceId !== '' ? command.occurrenceId : effectiveSelectedId;
           if (occurrenceId === null) {
             setError(reps.length > 1 ? 'Select a movement first' : 'No rep movements');
             return false;
           }
           const found = findOccurred(occurrenceId);
-          if (!found) return false;
+          if (!found) {
+            setError('Movement no longer active');
+            return false;
+          }
           const nextValue = (readActualReps(found.block, found.occurrence) ?? 0) + command.delta;
           if (nextValue < 0) return true; // clamped at zero — consumed no-op
           commitActualReps(found.block, nextValue, found.occurrence);
@@ -286,13 +294,24 @@ export function useLiveClockAuthority({
         }
         case 'reps-set': {
           if (entryState !== null || stopRequested) return false;
+          if (st === 'completed' || phase === 'review') {
+            setError('Workout completed — rep controls are inactive');
+            return false;
+          }
           if (!Number.isSafeInteger(command.value) || command.value < 0) {
             setError('Reps must be a whole number of 0 or more');
             return false;
           }
-          const occurrenceId = command.occurrenceId !== '' ? command.occurrenceId : selectedId;
+          const occurrenceId = command.occurrenceId !== '' ? command.occurrenceId : effectiveSelectedId;
+          if (occurrenceId === null) {
+            setError(reps.length > 1 ? 'Select a movement first' : 'No rep movements');
+            return false;
+          }
           const found = findOccurred(occurrenceId);
-          if (!found) return false;
+          if (!found) {
+            setError('Movement no longer active');
+            return false;
+          }
           commitActualReps(found.block, command.value, found.occurrence);
           setRepTick((t) => t + 1);
           setError(null);

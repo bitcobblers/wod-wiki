@@ -884,10 +884,14 @@ function parseAggregateQuery(raw: string, opts: { colon: boolean; inheritedMetri
   // has no note text or source. Every other non-structural key is a
   // candidate custom dimension resolved at runtime (factTagValue falls
   // back to row.dimensions), so it is NOT rejected here.
-  const contentKeys = base.filters
-    .filter((f) => f.kind !== 'spreadParam' && !f.key.startsWith('$'))
-    .map((f) => f.key)
-    .filter((k) => (WQL_CONTENT_ONLY_KEYS as readonly string[]).includes(k));
+  // Exception: `count:note{...}` aggregates directly over the Note plane.
+  const isNoteCount = base.agg === 'count' && base.metric === 'note';
+  const contentKeys = isNoteCount
+    ? []
+    : base.filters
+        .filter((f) => f.kind !== 'spreadParam' && !f.key.startsWith('$'))
+        .map((f) => f.key)
+        .filter((k) => (WQL_CONTENT_ONLY_KEYS as readonly string[]).includes(k));
   if (contentKeys.length > 0) {
     base.error = `Content filter key(s) ${contentKeys.map(k => `"${k}"`).join(', ')} cannot narrow an aggregate — facts carry effort/dimension data, not note text. Aggregate dims: ${WQL_TAG_KEYS.join(', ')}, plus any custom dimension.`;
     return base;

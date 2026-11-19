@@ -71,7 +71,7 @@ const TARGET_KEYS: Readonly<Record<string, readonly string[]>> = Object.fromEntr
 );
 /** `round` resolves through custom fact dimensions; absent rows group under
  *  the UNASSIGNED sentinel, matching the open dimension policy. */
-const AGGREGATE_DIMENSIONS = ['day', 'week', 'session', 'round', ...WQL_TAG_KEYS];
+const AGGREGATE_DIMENSIONS = ['day', 'week', 'month', 'session', 'round', ...WQL_TAG_KEYS];
 const TABLE_DIMENSIONS = ['date', 'effort', 'discipline', ...WQL_METRIC_FAMILIES, ...WQL_METRIC_AGGREGATES, ...WQL_CALC_TARGETS];
 
 /** Guided clause types, including structural clauses honored by their consumers. */

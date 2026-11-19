@@ -534,4 +534,18 @@ describe('AnalyticsExplorerPage', () => {
     // the re-run itself so a slow scheduler can't lose the race.
     await waitFor(() => expect(runQueryCalls.length).toBeGreaterThan(callsBeforePurge));
   });
+
+  it('WW-095: renders at most one Purge sample data banner when sample data is loaded and the query returns empty', async () => {
+    sampleDataPresent = true;
+    runQueryImpl = async (raw: string) => resultOf(raw);
+
+    renderPage('sum:totalVolume{effort:nonexistent_ww095}');
+
+    await waitFor(() => expect(screen.queryByText('Loading…')).toBeNull());
+    await waitFor(() => expect(screen.queryAllByText('Sample data loaded').length).toBe(1));
+    await waitFor(() =>
+      expect(screen.getByText(/Sample data is loaded, but no facts matched/i)).toBeDefined(),
+    );
+    expect(screen.getAllByRole('button', { name: /Purge sample data/i })).toHaveLength(1);
+  });
 });

@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryLocation, MetricType, type IRuntimeBlock, type IScriptRuntime } from '@bitcobblers/wod-wiki-engine';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { TEST_IDS } from '@/lib/testIds';
 import { ClockCommandBoard } from './ClockCommandBoard';
+import { useLiveClockAuthority } from './useLiveClockAuthority';
 import type { ClockSnapshot } from './clockCommands';
 
 afterEach(() => {
@@ -69,5 +71,97 @@ describe('WW-096: ClockCommandBoard >=44px touch targets & keypad accessibility'
     expect(backBtn.className).toContain('min-w-11');
     expect(setBtn.className).toContain('min-h-11');
     expect(setBtn.className).toContain('min-w-11');
+  });
+});
+
+describe('WW-097: Completed / inactive rep controls expose disabled state and feedback', () => {
+  it('sets descriptive titles on +/- and disables rep controls when completed or unselected', () => {
+    const { rerender } = render(
+      <ClockCommandBoard
+        snapshot={makeSnapshot({ status: 'completed' })}
+        dispatch={() => false}
+      />,
+    );
+
+    const minusBtn = screen.getByTestId(TEST_IDS.CLOCK_REP_MINUS) as HTMLButtonElement;
+    const plusBtn = screen.getByTestId(TEST_IDS.CLOCK_REP_PLUS) as HTMLButtonElement;
+    expect(minusBtn.getAttribute('title')).toBe('Subtract one rep');
+    expect(plusBtn.getAttribute('title')).toBe('Add one rep');
+    expect(minusBtn.disabled).toBe(true);
+    expect(plusBtn.disabled).toBe(true);
+    expect(minusBtn.getAttribute('aria-disabled')).toBe('true');
+    expect(plusBtn.getAttribute('aria-disabled')).toBe('true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keypad' }));
+    const digit1 = screen.getByRole('button', { name: 'Digit 1' }) as HTMLButtonElement;
+    expect(digit1.disabled).toBe(true);
+    expect(digit1.getAttribute('aria-disabled')).toBe('true');
+
+    rerender(
+      <ClockCommandBoard
+        snapshot={makeSnapshot({ status: 'running', selectedOccurrenceId: null })}
+        dispatch={() => false}
+      />,
+    );
+    expect((screen.getByTestId(TEST_IDS.CLOCK_REP_PLUS) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('useLiveClockAuthority surfaces an explicit error and clears stale selection when target is completed or missing', async () => {
+    const resultLocs: InstanceType<typeof MemoryLocation>[] = [];
+    const block: IRuntimeBlock = {
+      key: { toString: () => 'rung-1' },
+      sourceIds: [1],
+      label: 'Thrusters 21',
+      blockType: 'effort',
+      isComplete: false,
+      getMemoryByTag: (tag: string) =>
+        tag === 'metric:display'
+          ? [new MemoryLocation('metric:display', [{ type: MetricType.Rep, value: 21, origin: 'parser', image: '21' }, { type: MetricType.Effort, value: 'Thrusters', origin: 'parser', image: 'Thrusters' }])]
+          : tag === 'metric:result'
+            ? resultLocs
+            : [],
+      pushMemory: (loc: InstanceType<typeof MemoryLocation>) => { resultLocs.push(loc); },
+    } as unknown as IRuntimeBlock;
+
+    const stackListeners = new Set<() => void>();
+    const blocks: IRuntimeBlock[] = [block];
+    const runtime = {
+      stack: { blocks },
+      subscribeToStack: (cb: () => void) => {
+        stackListeners.add(cb);
+        return () => stackListeners.delete(cb);
+      },
+    } as unknown as IScriptRuntime;
+
+    let authorityRef!: ReturnType<typeof useLiveClockAuthority>;
+    function Harness({ status }: { status: 'running' | 'completed' }) {
+      const auth = useLiveClockAuthority({
+        runtime,
+        executionStatus: status,
+        actions: { next: () => {}, start: () => {}, playback: () => {}, stop: () => {} },
+      });
+      authorityRef = auth;
+      return auth.snapshot ? (
+        <ClockCommandBoard snapshot={auth.snapshot} dispatch={auth.dispatch} />
+      ) : null;
+    }
+
+    const { rerender } = render(<Harness status="running" />);
+    expect(authorityRef.snapshot?.selectedOccurrenceId).toBe('rung-1');
+
+    // Simulate ladder completion while UI dispatches an adjust against the stale id
+    (block as { isComplete: boolean }).isComplete = true;
+    await act(async () => {
+      for (const cb of stackListeners) cb();
+    });
+    rerender(<Harness status="completed" />);
+
+    expect(authorityRef.snapshot?.selectedOccurrenceId).toBeNull();
+    let handled = false;
+    await act(async () => {
+      handled = authorityRef.dispatch({ kind: 'reps-adjust', occurrenceId: 'rung-1', delta: 1 });
+    });
+    expect(handled).toBe(false);
+    expect(authorityRef.snapshot?.error).toBeTruthy();
   });
 });

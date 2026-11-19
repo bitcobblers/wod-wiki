@@ -143,6 +143,7 @@ const TIME_DOMAIN_BLOCK_TYPES = new Set(['Timer']);
 export function getActualRepTargets(runtime: IScriptRuntime): ActualRepTarget[] {
   const targets: ActualRepTarget[] = [];
   for (const block of runtime.stack.blocks) {
+    if (block.isComplete) continue;
     // Parent loops/containers own children on the stack — never count them;
     // Timer covers pure timers and rest (time-domain, not rep-countable).
     const blockType = block.blockType ?? '';
@@ -203,6 +204,7 @@ export function findActualRepOccurrence(
   occurrenceId: string,
 ): { block: IRuntimeBlock; occurrence: ActualOccurrenceSelector | undefined } | undefined {
   for (const block of runtime.stack.blocks) {
+    if (block.isComplete) continue;
     const blockKey = block.key.toString();
     if (occurrenceId === blockKey) return { block, occurrence: undefined };
     if (occurrenceId.startsWith(`${blockKey}:`)) {
