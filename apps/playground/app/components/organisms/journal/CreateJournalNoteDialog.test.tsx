@@ -10,8 +10,11 @@ import type { CreateJournalNoteInput } from '../../../services/journalNotes'
 import * as journalNotesModule from '../../../services/journalNotes'
 import * as NotebookServiceModule from '@/services/NotebookService'
 import * as createPlaygroundPageModule from '../../../services/createPlaygroundPage'
+import * as storageServiceModule from '@/services/storage'
+import * as scriptNotebooksModule from '@/repositories/script-notebooks'
 import type { CommitReferenceNoteInput } from '@/repositories/referenceNotes'
 import * as referenceNotesModule from '@/repositories/referenceNotes'
+import { TEST_IDS } from '@/lib/testIds'
 
 import { CreateJournalNoteDialog } from './CreateJournalNoteDialog'
 
@@ -199,5 +202,79 @@ describe('CreateJournalNoteDialog unified wizard', () => {
       title: 'heavy-breathing',
       expectedSourceRevision: 0,
     })
+  })
+
+  it('WW-020: includes optional note body typed in Create a note dialog (blank and template modes)', async () => {
+    spyOn(scriptNotebooksModule, 'getScriptNotebooks').mockImplementation(async () => [])
+    spyOn(storageServiceModule.storageService, 'getAllNotes').mockImplementation(async () => [
+      {
+        id: 'tpl-fran-1',
+        title: 'Fran Template',
+        rawContent: '# Fran\n\n```wod\n21-15-9\n  Thrusters\n  Pullups\n```',
+        notebookId: 'notebook/strength',
+        tags: ['template'],
+        createdAt: 1,
+        updatedAt: 1,
+        sourceRevision: 1,
+        blocks: {},
+      } as never,
+    ])
+
+    const { unmount } = render(
+      <MemoryRouter>
+        <CreateJournalNoteDialog
+          open={true}
+          onOpenChange={() => {}}
+          defaultKind="journal"
+          defaultDate="2099-08-04"
+        />
+      </MemoryRouter>,
+    )
+
+    const titleInput = screen.getByTestId(TEST_IDS.ENTRY_CREATE_TITLE_INPUT) as HTMLInputElement
+    const bodyInput = screen.getByTestId(TEST_IDS.ENTRY_CREATE_BODY_INPUT) as HTMLTextAreaElement
+    expect(screen.getByLabelText(/Content/i).getAttribute('data-testid')).toBe(TEST_IDS.ENTRY_CREATE_BODY_INPUT)
+
+    fireEvent.change(titleInput, { target: { value: 'WW020 Dialog Body Test' } })
+    fireEvent.change(bodyInput, { target: { value: 'For Time:\n10 Burpees\n10 Air Squats' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(createNoteMock).toHaveBeenCalledTimes(1)
+    })
+    const blankPayload = createNoteMock.mock.calls[0]?.[0]
+    expect(blankPayload?.title).toBe('WW020 Dialog Body Test')
+    expect(blankPayload?.rawContent).toBe('For Time:\n10 Burpees\n10 Air Squats')
+    unmount()
+
+    // Re-open with a notebook template selected and verify typed body is preserved alongside template text
+    render(
+      <MemoryRouter>
+        <CreateJournalNoteDialog
+          open={true}
+          onOpenChange={() => {}}
+          defaultKind="journal"
+          defaultDate="2099-08-04"
+        />
+      </MemoryRouter>,
+    )
+
+    const templateInput = screen.getByTestId('journal-create-template')
+    fireEvent.focus(templateInput)
+    fireEvent.change(templateInput, { target: { value: 'Fran Template' } })
+    const templateOption = await screen.findByText('Fran Template')
+    fireEvent.click(templateOption)
+
+    fireEvent.change(screen.getByTestId(TEST_IDS.ENTRY_CREATE_BODY_INPUT), {
+      target: { value: 'Scaled to 65lb' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(createNoteMock).toHaveBeenCalledTimes(2)
+    })
+    const templatePayload = createNoteMock.mock.calls[1]?.[0]
+    expect(templatePayload?.rawContent).toContain('21-15-9')
+    expect(templatePayload?.rawContent).toContain('Scaled to 65lb')
   })
 })

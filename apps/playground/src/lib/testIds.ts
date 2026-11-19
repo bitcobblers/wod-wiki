@@ -158,6 +158,7 @@ export const TEST_IDS = {
 
   // ── Entry & Notebook creation / placement dialogs ──────────────────────────
   ENTRY_CREATE_TITLE_INPUT: 'entry-create-title-input',
+  ENTRY_CREATE_BODY_INPUT: 'entry-create-body-input',
   ENTRY_CREATE_DATE_INPUT: 'entry-create-date-input',
   ENTRY_CREATE_SUBMIT_BTN: 'entry-create-submit-btn',
   ENTRY_CREATE_CANCEL_BTN: 'entry-create-cancel-btn',
