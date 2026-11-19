@@ -1,0 +1,262 @@
+# SHACL validation shapes for the System Meta-Ontology (`ontology/system/*.ttl`)
+# ---------------------------------------------------------------------------
+# Enforces structural completeness of sys:OntologySystem, sys:OntologyGraph,
+# sys:BridgeGraph, sys:NodeKind, sys:GraphBridge, and sys:LinkContract.
+# ---------------------------------------------------------------------------
+
+@prefix sys:  <https://wod.wiki/ontology/system#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+sys:OntologySystemShape a sh:NodeShape ;
+    sh:targetClass sys:OntologySystem ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A sys:OntologySystem must declare a human-readable rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path sys:managedNamespace ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:OntologySystem must declare at least one sys:managedNamespace IRI." ;
+    ] ;
+    sh:property [
+        sh:path sys:hasOntologyGraph ;
+        sh:minCount 1 ;
+        sh:class sys:OntologyGraph ;
+        sh:message "A sys:OntologySystem must register at least one sys:OntologyGraph." ;
+    ] .
+
+sys:OntologyGraphShape a sh:NodeShape ;
+    sh:targetClass sys:OntologyGraph ;
+    sh:property [
+        sh:path sys:graphIri ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:OntologyGraph must declare exactly one sys:graphIri IRI." ;
+    ] ;
+    sh:property [
+        sh:path sys:slug ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z][a-z0-9-]*$" ;
+        sh:message "A sys:OntologyGraph must declare a lowercase kebab/alphanumeric sys:slug." ;
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A sys:OntologyGraph must declare an rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path sys:ontologyKind ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( sys:MetaOntology sys:GlobalOntology sys:LocalOntology sys:GeneratedOntology ) ;
+        sh:message "A sys:OntologyGraph must declare exactly one valid sys:ontologyKind (Meta, Global, Local, or Generated)." ;
+    ] ;
+    sh:property [
+        sh:path sys:layerOrder ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:minInclusive 0 ;
+        sh:message "A sys:OntologyGraph must declare exactly one non-negative integer sys:layerOrder." ;
+    ] ;
+    sh:property [
+        sh:path sys:accentToken ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A sys:OntologyGraph must declare exactly one sys:accentToken." ;
+    ] ;
+    sh:property [
+        sh:path sys:schemaGlob ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A sys:OntologyGraph must declare at least one sys:schemaGlob." ;
+    ] ;
+    sh:property [
+        sh:path sys:generatedGlob ;
+        sh:datatype xsd:string ;
+        sh:message "sys:generatedGlob values must be xsd:string path globs." ;
+    ] ;
+    sh:property [
+        sh:path sys:hasNodeKind ;
+        sh:minCount 1 ;
+        sh:class sys:NodeKind ;
+        sh:message "A sys:OntologyGraph must declare at least one walkable sys:NodeKind." ;
+    ] .
+
+sys:BridgeGraphShape a sh:NodeShape ;
+    sh:targetClass sys:BridgeGraph ;
+    sh:property [
+        sh:path sys:graphIri ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:BridgeGraph must declare exactly one sys:graphIri IRI." ;
+    ] ;
+    sh:property [
+        sh:path sys:slug ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z][a-z0-9-]*$" ;
+        sh:message "A sys:BridgeGraph must declare a lowercase kebab/alphanumeric sys:slug." ;
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A sys:BridgeGraph must declare an rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path sys:schemaGlob ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A sys:BridgeGraph must declare at least one sys:schemaGlob." ;
+    ] .
+
+sys:NodeKindShape a sh:NodeShape ;
+    sh:targetClass sys:NodeKind ;
+    sh:property [
+        sh:path sys:kindSlug ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z][a-z0-9-]*$" ;
+        sh:message "A sys:NodeKind must declare a lowercase kebab/alphanumeric sys:kindSlug." ;
+    ] ;
+    sh:property [
+        sh:path sys:badgeLabel ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A sys:NodeKind must declare exactly one sys:badgeLabel." ;
+    ] ;
+    sh:property [
+        sh:path sys:selectorMode ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( sys:InstanceSelector sys:DefinedClassSelector ) ;
+        sh:message "A sys:NodeKind must declare sys:selectorMode as either sys:InstanceSelector or sys:DefinedClassSelector." ;
+    ] ;
+    sh:property [
+        sh:path sys:targetClass ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:NodeKind must declare at least one sys:targetClass IRI." ;
+    ] .
+
+sys:GraphBridgeShape a sh:NodeShape ;
+    sh:targetClass sys:GraphBridge ;
+    sh:property [
+        sh:path sys:bridgePredicate ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:GraphBridge must declare exactly one sys:bridgePredicate IRI." ;
+    ] ;
+    sh:property [
+        sh:path sys:sourceGraph ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:GraphBridge must declare exactly one sys:sourceGraph IRI." ;
+    ] ;
+    sh:property [
+        sh:path sys:targetGraph ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:GraphBridge must declare exactly one sys:targetGraph IRI." ;
+    ] ;
+    sh:property [
+        sh:path sys:sourceClass ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:GraphBridge must declare at least one sys:sourceClass IRI." ;
+    ] ;
+    sh:property [
+        sh:path sys:targetClass ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:GraphBridge must declare at least one sys:targetClass IRI." ;
+    ] ;
+    sh:property [
+        sh:path sys:forwardLabel ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A sys:GraphBridge must declare exactly one sys:forwardLabel." ;
+    ] ;
+    sh:property [
+        sh:path sys:inverseLabel ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A sys:GraphBridge must declare exactly one sys:inverseLabel." ;
+    ] ;
+    sh:property [
+        sh:path sys:navPriority ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:message "A sys:GraphBridge must declare an integer sys:navPriority." ;
+    ] .
+
+sys:LinkContractShape a sh:NodeShape ;
+    sh:targetClass sys:LinkContract ;
+    sh:property [
+        sh:path sys:linkPredicate ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:LinkContract must declare exactly one sys:linkPredicate IRI." ;
+    ] ;
+    sh:property [
+        sh:path sys:targetGraph ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:LinkContract must declare exactly one sys:targetGraph IRI." ;
+    ] ;
+    sh:property [
+        sh:path sys:targetClass ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A sys:LinkContract must declare at least one sys:targetClass IRI." ;
+    ] ;
+    sh:property [
+        sh:path sys:forwardLabel ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A sys:LinkContract must declare exactly one sys:forwardLabel." ;
+    ] ;
+    sh:property [
+        sh:path sys:inverseLabel ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A sys:LinkContract must declare exactly one sys:inverseLabel." ;
+    ] ;
+    sh:property [
+        sh:path sys:navPriority ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:integer ;
+        sh:message "A sys:LinkContract must declare an integer sys:navPriority." ;
+    ] ;
+    sh:property [
+        sh:path sys:allowHistoricalMissingTarget ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+        sh:message "sys:allowHistoricalMissingTarget must be a single xsd:boolean value." ;
+    ] .

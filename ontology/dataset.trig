@@ -1,60 +1,96 @@
-# wod.wiki Unified 5-Named-Graph RDF Dataset Manifest (TriG)
+# wod.wiki Unified Multi-Graph RDF Dataset Manifest (TriG)
 # ---------------------------------------------------------------------------
-# Unifies the three previously disconnected islands into 5 named graphs:
-#   1. wodg:patterns — <https://wod.wiki/graph/patterns>  (ontology/patterns/ufo-patterns.ttl)
-#   2. wodg:domain   — <https://wod.wiki/graph/domain>    (ontology/ontology.ttl + modules)
-#   3. wodg:qa       — <https://wod.wiki/graph/qa>        (ontology/qa/qa-schema.ttl + generated/qa-instances.ttl)
-#   4. wodg:code     — <https://wod.wiki/graph/code>      (ontology/code/code-schema.ttl + generated/code-graph.ttl)
-#   5. wodg:bridge   — <https://wod.wiki/graph/bridge>    (ontology/bridge/bridge.ttl + generated/bridge-instances.ttl)
+# Declares the System Meta-Ontology (:system), 6 user-navigable Sub-Ontologies,
+# and the edge-carrier BridgeGraph (:bridge):
+#   0. wodg:system       — <https://wod.wiki/graph/system>       (Meta)
+#   1. wodg:patterns     — <https://wod.wiki/graph/patterns>     (Global)
+#   2. wodg:workflow     — <https://wod.wiki/graph/workflow>     (Local)
+#   3. wodg:domain       — <https://wod.wiki/graph/domain>       (Local)
+#   4. wodg:qa           — <https://wod.wiki/graph/qa>           (Local)
+#   5. wodg:architecture — <https://wod.wiki/graph/architecture> (Local)
+#   6. wodg:code         — <https://wod.wiki/graph/code>         (Generated)
+#   -. wodg:bridge       — <https://wod.wiki/graph/bridge>       (BridgeGraph)
 # ---------------------------------------------------------------------------
 
-@prefix wodg:   <https://wod.wiki/graph/> .
-@prefix wod:    <https://wod.wiki/ontology#> .
-@prefix ufo:    <https://wod.wiki/ontology/patterns#> .
-@prefix qa:     <https://wod.wiki/ontology/qa#> .
-@prefix code:   <https://wod.wiki/ontology/code#> .
-@prefix bridge: <https://wod.wiki/ontology/bridge#> .
-@prefix owl:    <http://www.w3.org/2002/07/owl#> .
-@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix wodg:    <https://wod.wiki/graph/> .
+@prefix sys:     <https://wod.wiki/ontology/system#> .
+@prefix wod:     <https://wod.wiki/ontology#> .
+@prefix ufo:     <https://wod.wiki/ontology/patterns#> .
+@prefix wf:      <https://wod.wiki/ontology/workflow#> .
+@prefix qa:      <https://wod.wiki/ontology/qa#> .
+@prefix arch:    <https://wod.wiki/ontology/architecture#> .
+@prefix code:    <https://wod.wiki/ontology/code#> .
+@prefix bridge:  <https://wod.wiki/ontology/bridge#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
-@prefix void:   <http://rdfs.org/ns/void#> .
+@prefix void:    <http://rdfs.org/ns/void#> .
 
-# Default graph: dataset catalog & named-graph registry
-<https://wod.wiki/dataset> a void:Dataset ;
+# Default graph: dataset catalog & named-graph manifest
+<https://wod.wiki/dataset> a void:Dataset , sys:OntologySystem ;
     rdfs:label "wod.wiki Unified Ontology Dataset" ;
-    owl:versionInfo "0.3.0" ;
-    dcterms:hasPart wodg:patterns , wodg:domain , wodg:qa , wodg:code , wodg:bridge .
+    owl:versionInfo "0.4.0" ;
+    dcterms:hasPart
+        wodg:system ,
+        wodg:patterns ,
+        wodg:workflow ,
+        wodg:domain ,
+        wodg:qa ,
+        wodg:architecture ,
+        wodg:code ,
+        wodg:bridge .
+
+wodg:system {
+    <https://wod.wiki/graph/system> a owl:Ontology ;
+        sys:ontologyKind sys:MetaOntology ;
+        rdfs:label ":system — System Meta-Ontology & slice registry" ;
+        owl:imports <https://wod.wiki/ontology/system> , <https://wod.wiki/ontology/system/registry> .
+}
 
 wodg:patterns {
     <https://wod.wiki/graph/patterns> a owl:Ontology ;
+        sys:ontologyKind sys:GlobalOntology ;
         rdfs:label ":patterns — UFO stereotypes & OTTR templates" ;
         owl:imports <https://wod.wiki/ontology/patterns/ufo> .
 }
 
+wodg:workflow {
+    <https://wod.wiki/graph/workflow> a owl:Ontology ;
+        sys:ontologyKind sys:LocalOntology ;
+        rdfs:label ":workflow — Product workflows & actors" ;
+        owl:imports <https://wod.wiki/ontology/workflow> .
+}
+
 wodg:domain {
     <https://wod.wiki/graph/domain> a owl:Ontology ;
-        bridge:hermesLevel bridge:O1DomainOntology ;
+        sys:ontologyKind sys:LocalOntology ;
         rdfs:label ":domain — wod.wiki domain nouns & engine activities" ;
         owl:imports <https://wod.wiki/ontology> .
 }
 
 wodg:qa {
     <https://wod.wiki/graph/qa> a owl:Ontology ;
-        bridge:hermesLevel bridge:O2TestOntology ;
-        rdfs:label ":qa — QA domains, 5-beat journeys, runs & issues" ;
+        sys:ontologyKind sys:LocalOntology ;
+        rdfs:label ":qa — QA domains, Tier 1–3 suites, 5-beat journeys, runs & issues" ;
         owl:imports <https://wod.wiki/ontology/qa> .
+}
+
+wodg:architecture {
+    <https://wod.wiki/graph/architecture> a owl:Ontology ;
+        sys:ontologyKind sys:LocalOntology ;
+        rdfs:label ":architecture — workspace packages, subpath boundaries, surfaces, adapters & ADRs" ;
+        owl:imports <https://wod.wiki/ontology/architecture> .
 }
 
 wodg:code {
     <https://wod.wiki/graph/code> a owl:Ontology ;
-        bridge:hermesLevel bridge:O3CodeGraph ;
-        rdfs:label ":code — SCIP-style files, symbols, testIds, routes & WebMCP tools" ;
+        sys:ontologyKind sys:GeneratedOntology ;
+        rdfs:label ":code — SCIP-style files, symbols, testIds, routes, stories & WebMCP tools" ;
         owl:imports <https://wod.wiki/ontology/code> .
 }
 
 wodg:bridge {
     <https://wod.wiki/graph/bridge> a owl:Ontology ;
-        bridge:hermesLevel bridge:O4BridgeGraph ;
-        rdfs:label ":bridge — cross-graph alignment & Hermes O1-O5 edges" ;
+        rdfs:label ":bridge — cross-graph assertion carrier" ;
         owl:imports <https://wod.wiki/ontology/bridge> .
 }

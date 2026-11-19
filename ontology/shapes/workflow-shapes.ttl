@@ -1,0 +1,66 @@
+# SHACL validation shapes for the :workflow Sub-Ontology
+# ---------------------------------------------------------------------------
+
+@prefix wf:   <https://wod.wiki/ontology/workflow#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+wf:WorkflowShape a sh:NodeShape ;
+    sh:targetClass wf:Workflow ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A wf:Workflow must declare a human-readable rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path wf:workflowId ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z][a-z0-9-]*$" ;
+        sh:message "A wf:Workflow must declare a lowercase kebab-case wf:workflowId." ;
+    ] ;
+    sh:property [
+        sh:path wf:workflowArea ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( "journal" "runtime" "properties" "notebooks" "feeds" "analytics" "agent" ) ;
+        sh:message "A wf:Workflow must belong to a canonical wf:workflowArea." ;
+    ] ;
+    sh:property [
+        sh:path wf:performedBy ;
+        sh:minCount 1 ;
+        sh:class wf:Actor ;
+        sh:message "A wf:Workflow must be performedBy at least one wf:Actor." ;
+    ] ;
+    sh:property [
+        sh:path wf:orchestratesClass ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A wf:Workflow must orchestrate at least one :domain owl:Class." ;
+    ] ;
+    sh:property [
+        sh:path wf:deliveredOnSurface ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:IRI ;
+        sh:message "A wf:Workflow must be deliveredOnSurface at least one arch:HostSurface." ;
+    ] .
+
+wf:ActorShape a sh:NodeShape ;
+    sh:targetClass wf:Actor ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "A wf:Actor must declare an rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path wf:actorId ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z][a-z0-9-]*$" ;
+        sh:message "A wf:Actor must declare a lowercase kebab-case wf:actorId." ;
+    ] .

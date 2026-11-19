@@ -1,0 +1,564 @@
+# wod.wiki ontology — :architecture named graph (Packages, Boundaries, Surfaces, Adapters & ADRs)
+# Named Graph: <https://wod.wiki/graph/architecture>
+# ---------------------------------------------------------------------------
+# Curated architectural topology of the WOD Wiki monorepo:
+#   - 7 Workspace Packages (packages/*)
+#   - Subpath Isolation Boundaries (package.json exports subpaths)
+#   - 7 Host Surfaces (Playground SPA, Feed Sync Web Worker, Cast Receiver,
+#     Storybook Workbench, Hono API Server, wod CLI & stdio MCP, Browser WebMCP)
+#   - 4 Storage Adapters (InMemoryStorage, SqlStorage, IndexedDBStorage, ApiStorage)
+#   - 8 Architecture Decision Records (ADR-0001 .. ADR-0008)
+#
+# Mechanical package.json exports/dependencies, ADR file links, and file
+# containment are auto-extracted into ontology/generated/architecture-instances.ttl
+# by scripts/ontology/index-code-graph.ts.
+# ---------------------------------------------------------------------------
+
+@prefix arch:   <https://wod.wiki/ontology/architecture#> .
+@prefix sys:    <https://wod.wiki/ontology/system#> .
+@prefix wod:    <https://wod.wiki/ontology#> .
+@prefix qa:     <https://wod.wiki/ontology/qa#> .
+@prefix code:   <https://wod.wiki/ontology/code#> .
+@prefix ufo:    <https://wod.wiki/ontology/patterns#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+
+<https://wod.wiki/ontology/architecture> a owl:Ontology ;
+    rdfs:label "wod.wiki ontology — :architecture named graph" ;
+    owl:versionInfo "0.4.0" ;
+    rdfs:comment "Monorepo packages, subpath isolation boundaries, host surfaces, storage adapters, and Architecture Decision Records." .
+
+# === Classes ==============================================================
+
+arch:WorkspacePackage a owl:Class ;
+    ufo:stereotype ufo:Kind ;
+    rdfs:label "Workspace Package" ;
+    rdfs:comment "A publishable or internal Bun workspace package under packages/*." .
+
+arch:SubpathBoundary a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Subpath Boundary" ;
+    rdfs:comment "An explicit package.json exports subpath enforcing runtime/environment isolation (e.g. headless '.' vs '/react' vs '/server' vs '/primitives')." .
+
+arch:HostSurface a owl:Class ;
+    ufo:stereotype ufo:Kind ;
+    rdfs:label "Host Surface" ;
+    rdfs:comment "An execution host or user/agent interaction surface (SPA, Web Worker, Cast Receiver, Storybook, HTTP API, CLI/MCP, Browser WebMCP)." .
+
+arch:StorageAdapter a owl:Class ;
+    ufo:stereotype ufo:Role ;
+    rdfs:label "Storage Adapter" ;
+    rdfs:comment "A concrete IStorage persistence adapter verified by the Tier 1b Storage Conformance Suite." .
+
+arch:ArchitectureDecision a owl:Class ;
+    ufo:stereotype ufo:InformationObject ;
+    rdfs:label "Architecture Decision Record" ;
+    rdfs:comment "A numbered ADR in docs/adrs/000*.md recording a binding architectural decision." .
+
+# === Datatype Properties ==================================================
+
+arch:packageName a owl:DatatypeProperty ;
+    rdfs:label "package name" ;
+    rdfs:domain arch:WorkspacePackage ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Canonical npm/Bun package name (e.g. '@bitcobblers/wod-wiki-engine')." .
+
+arch:packageDir a owl:DatatypeProperty ;
+    rdfs:label "package directory" ;
+    rdfs:domain arch:WorkspacePackage ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Repo-relative workspace directory (e.g. 'packages/engine')." .
+
+arch:exportSubpath a owl:DatatypeProperty ;
+    rdfs:label "export subpath" ;
+    rdfs:domain arch:SubpathBoundary ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Subpath key in package.json exports (e.g. '.', './react', './primitives', './extensions', './server')." .
+
+arch:runtimeEnvironment a owl:DatatypeProperty ;
+    rdfs:label "runtime environment" ;
+    rdfs:domain arch:SubpathBoundary ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Target runtime isolation guarantee (e.g. 'headless', 'browser-react', 'node-bun-server', 'browser-idb', 'test-only')." .
+
+arch:surfaceId a owl:DatatypeProperty ;
+    rdfs:label "surface ID" ;
+    rdfs:domain arch:HostSurface ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Short durable identifier for a HostSurface." .
+
+arch:adapterId a owl:DatatypeProperty ;
+    rdfs:label "adapter ID" ;
+    rdfs:domain arch:StorageAdapter ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Short durable identifier for a StorageAdapter." .
+
+arch:adrNumber a owl:DatatypeProperty ;
+    rdfs:label "ADR number" ;
+    rdfs:domain arch:ArchitectureDecision ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Four-digit ADR number string (e.g. '0001' .. '0008')." .
+
+arch:adrStatus a owl:DatatypeProperty ;
+    rdfs:label "ADR status" ;
+    rdfs:domain arch:ArchitectureDecision ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Lifecycle status of the ADR (e.g. 'Accepted', 'Proposed', 'Superseded')." .
+
+# === Intra-Slice Object Properties ========================================
+
+arch:dependsOnPackage a owl:ObjectProperty ;
+    rdfs:label "depends on package" ;
+    rdfs:domain arch:WorkspacePackage ;
+    rdfs:range arch:WorkspacePackage ;
+    sys:forwardLabel "depends on" ;
+    sys:inverseLabel "depended on by" ;
+    sys:navPriority 50 ;
+    rdfs:comment "Workspace dependency edge between two packages/*." .
+
+arch:exposesBoundary a owl:ObjectProperty ;
+    rdfs:label "exposes boundary" ;
+    rdfs:domain arch:WorkspacePackage ;
+    rdfs:range arch:SubpathBoundary ;
+    sys:forwardLabel "exposes boundary" ;
+    sys:inverseLabel "exposed by package" ;
+    sys:navPriority 51 ;
+    rdfs:comment "Links a WorkspacePackage to an exports SubpathBoundary it publishes." .
+
+arch:consumesBoundary a owl:ObjectProperty ;
+    rdfs:label "consumes boundary" ;
+    rdfs:domain arch:HostSurface ;
+    rdfs:range arch:SubpathBoundary ;
+    sys:forwardLabel "consumes boundary" ;
+    sys:inverseLabel "consumed by surface" ;
+    sys:navPriority 52 ;
+    rdfs:comment "Links a HostSurface to a package SubpathBoundary it imports at runtime." .
+
+arch:mountsInSurface a owl:ObjectProperty ;
+    rdfs:label "mounts in surface" ;
+    rdfs:domain arch:StorageAdapter ;
+    rdfs:range arch:HostSurface ;
+    sys:forwardLabel "mounts in surface" ;
+    sys:inverseLabel "mounts adapter" ;
+    sys:navPriority 53 ;
+    rdfs:comment "Links a StorageAdapter to a HostSurface where it runs." .
+
+arch:implementsAdapterFor a owl:ObjectProperty ;
+    rdfs:label "implements adapter for" ;
+    rdfs:domain arch:StorageAdapter ;
+    rdfs:range arch:WorkspacePackage ;
+    sys:forwardLabel "implemented in package" ;
+    sys:inverseLabel "provides adapter" ;
+    sys:navPriority 54 ;
+    rdfs:comment "Links a StorageAdapter to the WorkspacePackage that defines its implementation." .
+
+arch:governedByAdr a owl:ObjectProperty ;
+    rdfs:label "governed by ADR" ;
+    rdfs:range arch:ArchitectureDecision ;
+    sys:forwardLabel "governed by ADR" ;
+    sys:inverseLabel "governs" ;
+    sys:navPriority 55 ;
+    rdfs:comment "Links a package, boundary, surface, or adapter to an ArchitectureDecision that governs its contract." .
+
+# === Cross-Graph Bridge Properties (Local <-> Local) =======================
+
+arch:ownsDomainClass a owl:ObjectProperty ;
+    rdfs:label "owns domain class" ;
+    rdfs:domain arch:WorkspacePackage ;
+    rdfs:range owl:Class ;
+    rdfs:comment "Links a WorkspacePackage to a :domain owl:Class whose canonical TypeScript model/logic it owns." .
+
+arch:shapesDomainClass a owl:ObjectProperty ;
+    rdfs:label "shapes domain class" ;
+    rdfs:domain arch:ArchitectureDecision ;
+    rdfs:range owl:Class ;
+    rdfs:comment "Links an ArchitectureDecision to a :domain owl:Class whose lifecycle or contract it defines." .
+
+arch:verifiedAtSeam a owl:ObjectProperty ;
+    rdfs:label "verified at seam" ;
+    rdfs:range qa:VerificationSuite ;
+    rdfs:comment "Links a WorkspacePackage, HostSurface, or StorageAdapter to a :qa VerificationSuite proving its seam contract." .
+
+# === :code LinkContract Subproperties =====================================
+
+arch:adrFile a owl:ObjectProperty ;
+    rdfs:subPropertyOf code:linksToFile ;
+    rdfs:domain arch:ArchitectureDecision ;
+    rdfs:range code:File ;
+    sys:forwardLabel "ADR document" ;
+    sys:inverseLabel "documents ADR" ;
+    sys:navPriority 46 ;
+    rdfs:comment "Links an ArchitectureDecision to its Markdown file in docs/adrs/." .
+
+arch:entryFile a owl:ObjectProperty ;
+    rdfs:subPropertyOf code:linksToFile ;
+    rdfs:range code:File ;
+    sys:forwardLabel "entry file" ;
+    sys:inverseLabel "entrypoint of" ;
+    sys:navPriority 47 ;
+    rdfs:comment "Links a WorkspacePackage, SubpathBoundary, HostSurface, or StorageAdapter to its source entrypoint code:File." .
+
+arch:containsFile a owl:ObjectProperty ;
+    rdfs:subPropertyOf code:linksToFile ;
+    rdfs:domain arch:WorkspacePackage ;
+    rdfs:range code:File ;
+    sys:forwardLabel "contains file" ;
+    sys:inverseLabel "belongs to package" ;
+    sys:navPriority 48 ;
+    rdfs:comment "Links a WorkspacePackage to source files residing under its directory." .
+
+arch:exposesRoute a owl:ObjectProperty ;
+    rdfs:subPropertyOf code:linksToRoute ;
+    rdfs:domain arch:HostSurface ;
+    rdfs:range code:Route ;
+    sys:forwardLabel "exposes route" ;
+    sys:inverseLabel "exposed by surface" ;
+    sys:navPriority 49 ;
+    rdfs:comment "Links a HostSurface to a code:Route it serves or mounts." .
+
+arch:exposesTool a owl:ObjectProperty ;
+    rdfs:subPropertyOf code:linksToTool ;
+    rdfs:domain arch:HostSurface ;
+    rdfs:range code:WebMcpTool ;
+    sys:forwardLabel "exposes tool" ;
+    sys:inverseLabel "exposed by surface" ;
+    sys:navPriority 49 ;
+    rdfs:comment "Links a HostSurface to a code:WebMcpTool it registers for agent execution." .
+
+# === Workspace Packages (packages/*) =======================================
+
+arch:pkg_core a arch:WorkspacePackage ;
+    arch:packageName "@bitcobblers/wod-wiki-core" ;
+    arch:packageDir "packages/core" ;
+    rdfs:label "@bitcobblers/wod-wiki-core" ;
+    rdfs:comment "Core domain models, storage contracts (IStorage), portability codecs (.zip/.jsonl), and @bitcobblers/wod-wiki-core/testing builders." ;
+    arch:exposesBoundary arch:boundary_core_root , arch:boundary_core_testing ;
+    arch:ownsDomainClass wod:Note , wod:NoteSegment , wod:Page , wod:PageNote , wod:Notebook , wod:Feed , wod:Tag , wod:TagType , wod:NoteTag , wod:SessionRecord , wod:EventRecord , wod:BlockContentHash , wod:FieldCatalogEntry , wod:FieldSourceRecord , wod:FieldValueRecord ;
+    arch:governedByAdr arch:adr_0001 , arch:adr_0005 , arch:adr_0006 ;
+    arch:entryFile <https://wod.wiki/code/file/packages/core/src/index.ts> .
+
+arch:pkg_lang a arch:WorkspacePackage ;
+    arch:packageName "@bitcobblers/wod-wiki-lang" ;
+    arch:packageDir "packages/lang" ;
+    rdfs:label "@bitcobblers/wod-wiki-lang" ;
+    rdfs:comment "Lezer Whiteboard Script grammar, syntax parser, semantic classifier, dialects, and effort/metric models (zero DOM/React in root)." ;
+    arch:dependsOnPackage arch:pkg_core ;
+    arch:exposesBoundary arch:boundary_lang_root , arch:boundary_lang_react ;
+    arch:ownsDomainClass wod:Effort , wod:Equipment , wod:Metric , wod:MetricObservation , wod:ScriptBlock , wod:Statement , wod:Dialect ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/PRP-01> , <https://wod.wiki/qa/journey/PRP-03> ;
+    arch:entryFile <https://wod.wiki/code/file/packages/lang/src/index.ts> .
+
+arch:pkg_wql a arch:WorkspacePackage ;
+    arch:packageName "@bitcobblers/wod-wiki-wql" ;
+    arch:packageDir "packages/wql" ;
+    rdfs:label "@bitcobblers/wod-wiki-wql" ;
+    rdfs:comment "Lezer WQL parser, derivation engine, selector/aggregator planner, and QueryService." ;
+    arch:dependsOnPackage arch:pkg_core ;
+    arch:exposesBoundary arch:boundary_wql_root ;
+    arch:ownsDomainClass wod:WQLQuery , wod:AnalyticsDataPoint , wod:Dashboard , wod:DashboardWidget , wod:QuerySource ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/ANL-04> , <https://wod.wiki/qa/journey/ANL-05> ;
+    arch:entryFile <https://wod.wiki/code/file/packages/wql/src/index.ts> .
+
+arch:pkg_storage a arch:WorkspacePackage ;
+    arch:packageName "@bitcobblers/wod-wiki-storage" ;
+    arch:packageDir "packages/storage" ;
+    rdfs:label "@bitcobblers/wod-wiki-storage" ;
+    rdfs:comment "IStorage implementations across InMemoryStorage, SqlStorage (SQLite), and IndexedDBStorage." ;
+    arch:dependsOnPackage arch:pkg_wql , arch:pkg_core , arch:pkg_lang ;
+    arch:exposesBoundary arch:boundary_storage_root , arch:boundary_storage_sql , arch:boundary_storage_idb , arch:boundary_storage_sql_node ;
+    arch:governedByAdr arch:adr_0005 , arch:adr_0006 ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/FED-04> ;
+    arch:entryFile <https://wod.wiki/code/file/packages/storage/src/index.ts> .
+
+arch:pkg_engine a arch:WorkspacePackage ;
+    arch:packageName "@bitcobblers/wod-wiki-engine" ;
+    arch:packageDir "packages/engine" ;
+    rdfs:label "@bitcobblers/wod-wiki-engine" ;
+    rdfs:comment "JIT workout compiler, RuntimeStack, Metric Shake-Out Queue, Session/Feed/Seed services, portable DOMAIN_AGENT_TOOLS, and React bindings (/react)." ;
+    arch:dependsOnPackage arch:pkg_core , arch:pkg_lang , arch:pkg_storage , arch:pkg_wql ;
+    arch:exposesBoundary arch:boundary_engine_root , arch:boundary_engine_react , arch:boundary_engine_agent ;
+    arch:ownsDomainClass wod:ScriptRuntime , wod:RuntimeStack , wod:RuntimeBlock , wod:RuntimeClock , wod:OutputEmitter , wod:Activity , wod:RuntimeAction , wod:SessionRun , wod:WorkoutEvent ;
+    arch:governedByAdr arch:adr_0001 , arch:adr_0002 , arch:adr_0003 , arch:adr_0006 ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/RUN-01> , <https://wod.wiki/qa/journey/RUN-02> , <https://wod.wiki/qa/journey/FED-01> ;
+    arch:entryFile <https://wod.wiki/code/file/packages/engine/src/index.ts> .
+
+arch:pkg_ui a arch:WorkspacePackage ;
+    arch:packageName "@bitcobblers/wod-wiki-ui" ;
+    arch:packageDir "packages/ui" ;
+    rdfs:label "@bitcobblers/wod-wiki-ui" ;
+    rdfs:comment "Shared React + CodeMirror 6 + Tailwind UI components, @ui-sdk/react-backed ./primitives, and CodeMirror ./extensions." ;
+    arch:dependsOnPackage arch:pkg_core , arch:pkg_lang , arch:pkg_wql ;
+    arch:exposesBoundary arch:boundary_ui_root , arch:boundary_ui_primitives , arch:boundary_ui_extensions , arch:boundary_ui_styles ;
+    arch:governedByAdr arch:adr_0003 ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/JRN-01> , <https://wod.wiki/qa/journey/JRN-06> ;
+    arch:entryFile <https://wod.wiki/code/file/packages/ui/src/index.ts> .
+
+arch:pkg_tools a arch:WorkspacePackage ;
+    arch:packageName "@bitcobblers/wod-wiki-tools" ;
+    arch:packageDir "packages/tools" ;
+    rdfs:label "@bitcobblers/wod-wiki-tools" ;
+    rdfs:comment "Seed compiler, wod CLI (--json & stdio MCP), packaged skills, and shared Hono HTTP server (./server)." ;
+    arch:dependsOnPackage arch:pkg_core , arch:pkg_engine , arch:pkg_lang , arch:pkg_storage , arch:pkg_wql ;
+    arch:exposesBoundary arch:boundary_tools_root , arch:boundary_tools_server ;
+    arch:governedByAdr arch:adr_0001 , arch:adr_0005 ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/FED-03> ;
+    arch:entryFile <https://wod.wiki/code/file/packages/tools/src/index.ts> .
+
+# === Subpath Isolation Boundaries (package.json exports) ===================
+
+arch:boundary_core_root a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-core" ;
+    arch:runtimeEnvironment "headless" ;
+    rdfs:label "core (.) — Headless Models & Codecs" ;
+    rdfs:comment "Zero-DOM domain models, IStorage interfaces, and portable ZIP/JSONL/Markdown codecs." .
+
+arch:boundary_core_testing a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-core/testing" ;
+    arch:runtimeEnvironment "test-only" ;
+    rdfs:label "core/testing — DomainWorld Builders" ;
+    rdfs:comment "Deterministic test-data builders for Tier 1–3 suites and Storybook domainStates." .
+
+arch:boundary_lang_root a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-lang" ;
+    arch:runtimeEnvironment "headless" ;
+    rdfs:label "lang (.) — Zero-DOM Grammar & Parser" ;
+    rdfs:comment "Pure Lezer parser, semantic classifier, and dialect stack safe for Web Workers and CLI." .
+
+arch:boundary_lang_react a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-lang/react" ;
+    arch:runtimeEnvironment "browser-react" ;
+    rdfs:label "lang/react — React Language Hooks" ;
+    rdfs:comment "React bindings over the Whiteboard Script parser." .
+
+arch:boundary_wql_root a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-wql" ;
+    arch:runtimeEnvironment "headless" ;
+    rdfs:label "wql (.) — WQL Parser & QueryService" ;
+    rdfs:comment "Headless WQL grammar, planner, and aggregate/find execution engine." .
+
+arch:boundary_storage_root a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-storage" ;
+    arch:runtimeEnvironment "headless" ;
+    rdfs:label "storage (.) — InMemory & Shared Contracts" ;
+    rdfs:comment "Portable InMemoryStorage and shared storage utilities." .
+
+arch:boundary_storage_sql a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-storage/sql" ;
+    arch:runtimeEnvironment "node-bun-server" ;
+    rdfs:label "storage/sql — Bun SQLite Adapter" ;
+    rdfs:comment "SQLite-backed SqlStorage adapter for CLI and hosted API server." .
+
+arch:boundary_storage_sql_node a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-storage/sql/node" ;
+    arch:runtimeEnvironment "node-bun-server" ;
+    rdfs:label "storage/sql/node — Node SQLite Adapter" ;
+    rdfs:comment "Node-compatible SQLite SqlStorage entrypoint." .
+
+arch:boundary_storage_idb a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-storage/idb" ;
+    arch:runtimeEnvironment "browser-idb" ;
+    rdfs:label "storage/idb — Browser IndexedDB Adapter" ;
+    rdfs:comment "Browser IndexedDBStorage adapter used by Playground SPA and Feed Sync Web Worker." .
+
+arch:boundary_engine_root a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-engine" ;
+    arch:runtimeEnvironment "headless" ;
+    rdfs:label "engine (.) — Headless Runtime & Services" ;
+    rdfs:comment "Zero-DOM/React JIT compiler, RuntimeStack, Metric Shake-Out Queue, and Seed/Feed/Session services safe for Web Workers and CLI." .
+
+arch:boundary_engine_react a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-engine/react" ;
+    arch:runtimeEnvironment "browser-react" ;
+    rdfs:label "engine/react — React Runtime Hooks & Providers" ;
+    rdfs:comment "React hooks and providers bridging RuntimeStack and storage into Playground and Storybook." .
+
+arch:boundary_engine_agent a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-engine/agent" ;
+    arch:runtimeEnvironment "headless" ;
+    rdfs:label "engine/agent — Portable AgentToolSpec Manifest" ;
+    rdfs:comment "Shared DOMAIN_AGENT_TOOLS schemas, Zod-to-JSON-Schema converter, and Tier 2 confirmation helpers consumed by WebMCP, MCP, and CLI." .
+
+arch:boundary_ui_root a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-ui" ;
+    arch:runtimeEnvironment "browser-react" ;
+    rdfs:label "ui (.) — Shared React UI & Widgets" ;
+    rdfs:comment "Shared Workout UI components, WQL dashboard widgets, and editor dialogs." .
+
+arch:boundary_ui_primitives a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-ui/primitives" ;
+    arch:runtimeEnvironment "browser-react" ;
+    rdfs:label "ui/primitives — @ui-sdk/react Design Primitives" ;
+    rdfs:comment "Agent-ready design-system primitives (Button, Badge, Card, Dialog, Input, Overlays) built on @ui-sdk/react and @ui-sdk/core." .
+
+arch:boundary_ui_extensions a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-ui/extensions" ;
+    arch:runtimeEnvironment "browser-react" ;
+    rdfs:label "ui/extensions — CodeMirror 6 Extensions" ;
+    rdfs:comment "CodeMirror 6 WhiteboardScript syntax highlighting, block decorations, and editor extensions." .
+
+arch:boundary_ui_styles a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-ui/styles.css" ;
+    arch:runtimeEnvironment "browser-react" ;
+    rdfs:label "ui/styles.css — Shared Stylesheet" ;
+    rdfs:comment "Shared Tailwind and primitive stylesheet bundle." .
+
+arch:boundary_tools_root a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-tools" ;
+    arch:runtimeEnvironment "node-bun-server" ;
+    rdfs:label "tools (.) — Seed Compiler & CLI" ;
+    rdfs:comment "Seed corpus compiler, wod CLI commands, and stdio MCP entrypoint." .
+
+arch:boundary_tools_server a arch:SubpathBoundary ;
+    arch:exportSubpath "@bitcobblers/wod-wiki-tools/server" ;
+    arch:runtimeEnvironment "node-bun-server" ;
+    rdfs:label "tools/server — Shared Hono HTTP & /api/mcp Handler" ;
+    rdfs:comment "Shared Hono HTTP server handler serving API, hosted SPA assets, and HTTP MCP (/api/mcp)." .
+
+# === Host Surfaces (7) =====================================================
+
+arch:surface_playground a arch:HostSurface ;
+    arch:surfaceId "playground-spa" ;
+    rdfs:label "Playground SPA" ;
+    rdfs:comment "Primary Vite + React workout journal, notebook streams, CodeMirror 6 editor, live timer, and WQL analytics dashboards (apps/playground)." ;
+    arch:consumesBoundary arch:boundary_core_root , arch:boundary_lang_root , arch:boundary_wql_root , arch:boundary_storage_idb , arch:boundary_engine_root , arch:boundary_engine_react , arch:boundary_engine_agent , arch:boundary_ui_root , arch:boundary_ui_primitives , arch:boundary_ui_extensions ;
+    arch:governedByAdr arch:adr_0002 , arch:adr_0003 , arch:adr_0004 , arch:adr_0006 ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/JRN-01> , <https://wod.wiki/qa/journey/JRN-02> , <https://wod.wiki/qa/journey/NBK-01> , <https://wod.wiki/qa/journey/NBK-03> ;
+    arch:exposesRoute <https://wod.wiki/code/route/root> , <https://wod.wiki/code/route/journal> , <https://wod.wiki/code/route/notebooks> , <https://wod.wiki/code/route/dashboards> .
+
+arch:surface_feed_worker a arch:HostSurface ;
+    arch:surfaceId "feed-sync-worker" ;
+    rdfs:label "Feed Sync Web Worker" ;
+    rdfs:comment "Dedicated browser Web Worker performing cold-boot seed sync and two-tier feed subscription sync off the main UI thread using headless engine/storage entrypoints." ;
+    arch:consumesBoundary arch:boundary_core_root , arch:boundary_lang_root , arch:boundary_storage_idb , arch:boundary_engine_root ;
+    arch:governedByAdr arch:adr_0001 , arch:adr_0002 , arch:adr_0004 , arch:adr_0005 ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/JRN-01> , <https://wod.wiki/qa/journey/FED-01> .
+
+arch:surface_cast_receiver a arch:HostSurface ;
+    arch:surfaceId "cast-receiver" ;
+    rdfs:label "Cast Receiver" ;
+    rdfs:comment "Chromecast / TV display receiver surface (apps/playground/src/receiver-rpc.tsx) projecting live workout clock snapshots without importing @mcp-b/*." ;
+    arch:consumesBoundary arch:boundary_core_root , arch:boundary_engine_root , arch:boundary_engine_react ;
+    arch:governedByAdr arch:adr_0003 .
+
+arch:surface_storybook a arch:HostSurface ;
+    arch:surfaceId "storybook-workbench" ;
+    rdfs:label "Storybook Workbench" ;
+    rdfs:comment "Storybook 10 visual workbench and Tier 2b deterministic component test runner using parameters.domainState and @storybook/addon-a11y (apps/storybook)." ;
+    arch:consumesBoundary arch:boundary_core_testing , arch:boundary_storage_root , arch:boundary_engine_react , arch:boundary_ui_root , arch:boundary_ui_primitives , arch:boundary_ui_extensions ;
+    arch:governedByAdr arch:adr_0003 .
+
+arch:surface_api_server a arch:HostSurface ;
+    arch:surfaceId "hono-api-server" ;
+    rdfs:label "Hono API Server" ;
+    rdfs:comment "Bun/Hono HTTP server (apps/api wrapping @bitcobblers/wod-wiki-tools/server) hosting REST storage API, static Playground bundle, and HTTP MCP (/api/mcp)." ;
+    arch:consumesBoundary arch:boundary_tools_server , arch:boundary_storage_sql , arch:boundary_engine_agent , arch:boundary_wql_root ;
+    arch:governedByAdr arch:adr_0005 .
+
+arch:surface_cli_mcp a arch:HostSurface ;
+    arch:surfaceId "wod-cli-mcp" ;
+    rdfs:label "wod CLI & stdio MCP" ;
+    rdfs:comment "Headless CLI (`wod --json`, exit-code-4 confirmation gates) and stdio MCP server (`wod mcp`) sharing DOMAIN_AGENT_TOOLS." ;
+    arch:consumesBoundary arch:boundary_tools_root , arch:boundary_storage_sql , arch:boundary_engine_root , arch:boundary_engine_agent ;
+    arch:governedByAdr arch:adr_0005 ;
+    arch:exposesTool <https://wod.wiki/code/tool/wod_parse_script> , <https://wod.wiki/code/tool/wod_query_wql> , <https://wod.wiki/code/tool/wod_session_run_headless> .
+
+arch:surface_webmcp a arch:HostSurface ;
+    arch:surfaceId "browser-webmcp-bridge" ;
+    rdfs:label "Browser WebMCP Bridge" ;
+    rdfs:comment "Playground in-browser navigator.modelContext bridge dynamically mounted via surfaceBridges.ts, exposing 22 DOMAIN_AGENT_TOOLS, 9 Playground UI tools, and 3 @ui-sdk/react/agent tools (snapshot, act, query)." ;
+    arch:consumesBoundary arch:boundary_engine_agent , arch:boundary_ui_primitives ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/JRN-06> ;
+    arch:exposesTool <https://wod.wiki/code/tool/ui_get_view_context> , <https://wod.wiki/code/tool/ui_navigate> , <https://wod.wiki/code/tool/ui_clock_control> , <https://wod.wiki/code/tool/wod_parse_script> , <https://wod.wiki/code/tool/wod_query_wql> .
+
+# === Storage Adapters (4) ==================================================
+
+arch:adapter_inmemory a arch:StorageAdapter ;
+    arch:adapterId "in-memory" ;
+    rdfs:label "InMemoryStorage" ;
+    rdfs:comment "Ephemeral in-memory IStorage adapter used for Tier 1a/1b/1c headless scenarios, Tier 2a JSDOM host tests, and Storybook domainStates." ;
+    arch:implementsAdapterFor arch:pkg_storage ;
+    arch:mountsInSurface arch:surface_storybook ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/FED-04> .
+
+arch:adapter_sql a arch:StorageAdapter ;
+    arch:adapterId "sqlite" ;
+    rdfs:label "SqlStorage" ;
+    rdfs:comment "SQLite-backed IStorage adapter used by wod CLI, stdio MCP, and the Hono API server." ;
+    arch:implementsAdapterFor arch:pkg_storage ;
+    arch:mountsInSurface arch:surface_api_server , arch:surface_cli_mcp ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/FED-04> .
+
+arch:adapter_idb a arch:StorageAdapter ;
+    arch:adapterId "indexeddb" ;
+    rdfs:label "IndexedDBStorage" ;
+    rdfs:comment "Browser IndexedDB IStorage adapter powering offline-first Playground persistence and Web Worker seed/feed synchronization." ;
+    arch:implementsAdapterFor arch:pkg_storage ;
+    arch:mountsInSurface arch:surface_playground , arch:surface_feed_worker ;
+    arch:governedByAdr arch:adr_0002 , arch:adr_0004 ;
+    arch:verifiedAtSeam <https://wod.wiki/qa/journey/JRN-02> , <https://wod.wiki/qa/journey/FED-01> .
+
+arch:adapter_api a arch:StorageAdapter ;
+    arch:adapterId "api-http" ;
+    rdfs:label "ApiStorage" ;
+    rdfs:comment "HTTP client IStorage adapter delegating persistence operations to the Hono API server." ;
+    arch:implementsAdapterFor arch:pkg_storage ;
+    arch:mountsInSurface arch:surface_playground , arch:surface_api_server ;
+    arch:governedByAdr arch:adr_0005 .
+
+# === Architecture Decision Records (ADR-0001 .. ADR-0008) ==================
+
+arch:adr_0001 a arch:ArchitectureDecision ;
+    arch:adrNumber "0001" ;
+    arch:adrStatus "Accepted" ;
+    rdfs:label "ADR-0001: Feed Seed Data Contract" ;
+    rdfs:comment "Defines the publisher-to-engine static seed manifest, content hashing, and chunked corpus contract." ;
+    arch:shapesDomainClass wod:Feed , wod:Note , wod:NoteSegment .
+
+arch:adr_0002 a arch:ArchitectureDecision ;
+    arch:adrNumber "0002" ;
+    arch:adrStatus "Accepted" ;
+    rdfs:label "ADR-0002: Feed Lifecycle in the App" ;
+    rdfs:comment "Defines consumer-side cold-boot seed sync, background worker readiness, and incremental subscription updates." ;
+    arch:shapesDomainClass wod:Feed , wod:Notebook .
+
+arch:adr_0003 a arch:ArchitectureDecision ;
+    arch:adrNumber "0003" ;
+    arch:adrStatus "Accepted" ;
+    rdfs:label "ADR-0003: Timer Surface Tiers" ;
+    rdfs:comment "Defines responsive timer display tiers across mobile, desktop, fullscreen overlay, and Cast TV receiver surfaces." ;
+    arch:shapesDomainClass wod:RuntimeClock , wod:SessionRun .
+
+arch:adr_0004 a arch:ArchitectureDecision ;
+    arch:adrNumber "0004" ;
+    arch:adrStatus "Accepted" ;
+    rdfs:label "ADR-0004: Bundle-Owned Home Route" ;
+    rdfs:comment "Establishes instant cold-boot rendering of the bundle-owned home tour route without blocking on seed worker hydration." ;
+    arch:shapesDomainClass wod:Page , wod:Note .
+
+arch:adr_0005 a arch:ArchitectureDecision ;
+    arch:adrNumber "0005" ;
+    arch:adrStatus "Accepted" ;
+    rdfs:label "ADR-0005: Portable Data Formats & Distributed Feeds" ;
+    rdfs:comment "Defines Markdown + JSONL/CSV portable codecs, ZIP backup/restore, publication visibility, and distributed feed planes." ;
+    arch:shapesDomainClass wod:Note , wod:SessionRecord , wod:EventRecord , wod:Feed .
+
+arch:adr_0006 a arch:ArchitectureDecision ;
+    arch:adrNumber "0006" ;
+    arch:adrStatus "Accepted" ;
+    rdfs:label "ADR-0006: Content Lifecycle, N:M Notebook Membership & Scoped Overrides" ;
+    rdfs:comment "Establishes permanent notebook/journal ownership, N:M notebook promotion, upstream NoteProvenance on clone, and layered property override precedence." ;
+    arch:shapesDomainClass wod:Note , wod:Notebook , wod:PageNote , wod:Effort , wod:Equipment , wod:Tag .
+
+arch:adr_0007 a arch:ArchitectureDecision ;
+    arch:adrNumber "0007" ;
+    arch:adrStatus "Accepted" ;
+    rdfs:label "ADR-0007: Python/uv Stack Exception for Ontology Validation" ;
+    rdfs:comment "Documents the scoped offline uv + rdflib + pyshacl exception for SHACL-SPARQL validation while keeping repo tooling pure Bun/TypeScript." .
+
+arch:adr_0008 a arch:ArchitectureDecision ;
+    arch:adrNumber "0008" ;
+    arch:adrStatus "Accepted" ;
+    rdfs:label "ADR-0008: System Meta-Ontology & 4-Kind Slice Governance" ;
+    rdfs:comment "Introduces sys: (Meta, Global, Local, Generated), explicit Local <-> Local sys:GraphBridges, Generated sys:LinkContracts with historical drift tolerance, and zero-hardcoding graph compilation." .

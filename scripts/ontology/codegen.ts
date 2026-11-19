@@ -1,391 +1,46 @@
 #!/usr/bin/env bun
 /**
  * Ontology Codegen — parses all Turtle (.ttl) schemas in ontology/
- * (domain, patterns, qa, code, bridge, shapes) and generates TypeScript
- * interfaces, class/stereotype metadata, metric vocabulary, and SHACL-derived
- * runtime validation helpers in ontology/generated/ontology-types.ts.
+ * (system, patterns, workflow, domain, qa, architecture, code, bridge, shapes)
+ * via shared `scripts/ontology/system-loader.ts` and generates TypeScript
+ * interfaces, class/stereotype/slice/bridge metadata, metric vocabulary, and
+ * SHACL-derived runtime validation helpers in ontology/generated/ontology-types.ts.
  */
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
+import {
+  MultiGraphStore,
+  OWL,
+  RDF,
+  RDFS,
+  SH_NS,
+  loadOntologySystem,
+  type OntologySystemConfig,
+} from './system-loader';
 
 const REPO_ROOT = path.resolve(import.meta.dir, '../..');
 const ONTOLOGY_DIR = path.join(REPO_ROOT, 'ontology');
 const OUTPUT_FILE = path.join(ONTOLOGY_DIR, 'generated/ontology-types.ts');
 
-// ── Lightweight Turtle Tokenizer & Parser ──────────────────────────────────
-
-type TokenType =
-  | 'PREFIX_KW'
-  | 'BASE_KW'
-  | 'IRI'
-  | 'PNAME'
-  | 'STRING'
-  | 'NUMBER'
-  | 'BOOL'
-  | 'A'
-  | 'SEMI'
-  | 'COMMA'
-  | 'DOT'
-  | 'LBRACKET'
-  | 'RBRACKET'
-  | 'LPAREN'
-  | 'RPAREN'
-  | 'LANG_TAG'
-  | 'DATATYPE_HAT';
-
-interface Token {
-  type: TokenType;
-  value: string;
-}
-
-function tokenizeTurtle(input: string): Token[] {
-  const tokens: Token[] = [];
-  let i = 0;
-  const len = input.length;
-
-  while (i < len) {
-    const ch = input[i];
-
-    // Whitespace
-    if (/\s/.test(ch)) {
-      i++;
-      continue;
-    }
-
-    // Comment
-    if (ch === '#') {
-      while (i < len && input[i] !== '\n') i++;
-      continue;
-    }
-
-    // Punctuation
-    if (ch === ';') {
-      tokens.push({ type: 'SEMI', value: ';' });
-      i++;
-      continue;
-    }
-    if (ch === ',') {
-      tokens.push({ type: 'COMMA', value: ',' });
-      i++;
-      continue;
-    }
-    if (ch === '[') {
-      tokens.push({ type: 'LBRACKET', value: '[' });
-      i++;
-      continue;
-    }
-    if (ch === ']') {
-      tokens.push({ type: 'RBRACKET', value: ']' });
-      i++;
-      continue;
-    }
-    if (ch === '(') {
-      tokens.push({ type: 'LPAREN', value: '(' });
-      i++;
-      continue;
-    }
-    if (ch === ')') {
-      tokens.push({ type: 'RPAREN', value: ')' });
-      i++;
-      continue;
-    }
-    if (ch === '^' && input[i + 1] === '^') {
-      tokens.push({ type: 'DATATYPE_HAT', value: '^^' });
-      i += 2;
-      continue;
-    }
-
-    // @prefix / @base / @lang
-    if (ch === '@') {
-      if (input.startsWith('@prefix', i)) {
-        tokens.push({ type: 'PREFIX_KW', value: '@prefix' });
-        i += 7;
-        continue;
-      }
-      if (input.startsWith('@base', i)) {
-        tokens.push({ type: 'BASE_KW', value: '@base' });
-        i += 5;
-        continue;
-      }
-      const langMatch = input.slice(i).match(/^@[a-zA-Z]+(?:-[a-zA-Z0-9]+)*/);
-      if (langMatch) {
-        tokens.push({ type: 'LANG_TAG', value: langMatch[0] });
-        i += langMatch[0].length;
-        continue;
-      }
-    }
-
-    // IRI <...>
-    if (ch === '<') {
-      const end = input.indexOf('>', i + 1);
-      if (end !== -1) {
-        tokens.push({ type: 'IRI', value: input.slice(i + 1, end) });
-        i = end + 1;
-        continue;
-      }
-    }
-
-    // Long string """...""" or '''...'''
-    if (input.startsWith('"""', i) || input.startsWith("'''", i)) {
-      const quote = input.slice(i, i + 3);
-      i += 3;
-      let val = '';
-      while (i < len && !input.startsWith(quote, i)) {
-        if (input[i] === '\\' && i + 1 < len) {
-          val += input[i + 1];
-          i += 2;
-        } else {
-          val += input[i++];
-        }
-      }
-      i += 3;
-      tokens.push({ type: 'STRING', value: val });
-      continue;
-    }
-
-    // Short string "..." or '...'
-    if (ch === '"' || ch === "'") {
-      const quote = ch;
-      i++;
-      let val = '';
-      while (i < len && input[i] !== quote) {
-        if (input[i] === '\\' && i + 1 < len) {
-          const esc = input[i + 1];
-          val += esc === 'n' ? '\n' : esc === 't' ? '\t' : esc;
-          i += 2;
-        } else {
-          val += input[i++];
-        }
-      }
-      i++;
-      tokens.push({ type: 'STRING', value: val });
-      continue;
-    }
-
-    // Dot (statement terminator, not decimal)
-    if (ch === '.' && (i + 1 >= len || !/\d/.test(input[i + 1]))) {
-      tokens.push({ type: 'DOT', value: '.' });
-      i++;
-      continue;
-    }
-
-    // Number
-    const numMatch = input.slice(i).match(/^[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?/);
-    if (numMatch && (i + numMatch[0].length >= len || /[\s;,.()\]^]/.test(input[i + numMatch[0].length]))) {
-      tokens.push({ type: 'NUMBER', value: numMatch[0] });
-      i += numMatch[0].length;
-      continue;
-    }
-
-    // Prefixed name, keyword `a`, boolean, or PREFIX/BASE
-    const wordMatch = input.slice(i).match(/^[^\s;,.()[\]<>"{}^]+/);
-    if (wordMatch) {
-      const word = wordMatch[0];
-      i += word.length;
-      if (word === 'a') {
-        tokens.push({ type: 'A', value: 'a' });
-      } else if (word === 'true' || word === 'false') {
-        tokens.push({ type: 'BOOL', value: word });
-      } else if (word.toUpperCase() === 'PREFIX') {
-        tokens.push({ type: 'PREFIX_KW', value: 'PREFIX' });
-      } else if (word.toUpperCase() === 'BASE') {
-        tokens.push({ type: 'BASE_KW', value: 'BASE' });
-      } else {
-        tokens.push({ type: 'PNAME', value: word });
-      }
-      continue;
-    }
-
-    i++;
-  }
-
-  return tokens;
-}
-
-type RdfValue =
-  | { kind: 'iri'; value: string; curie: string }
-  | { kind: 'literal'; value: string; datatype?: string }
-  | { kind: 'bnode'; id: string; props: Map<string, RdfValue[]> }
-  | { kind: 'list'; items: RdfValue[] };
-
-interface Triple {
-  subject: string;
-  predicate: string;
-  object: RdfValue;
-}
-
-const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
-
-function parseTurtleFile(filePath: string, sharedPrefixes: Map<string, string>): Triple[] {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const tokens = tokenizeTurtle(raw);
-  const prefixes = new Map<string, string>(sharedPrefixes);
-  const triples: Triple[] = [];
-  let pos = 0;
-  let bnodeSeq = 0;
-
-  function peek(): Token | undefined {
-    return tokens[pos];
-  }
-  function next(): Token | undefined {
-    return tokens[pos++];
-  }
-
-  function resolveName(tok: Token): { iri: string; curie: string } {
-    if (tok.type === 'IRI') {
-      for (const [pfx, ns] of prefixes.entries()) {
-        if (tok.value.startsWith(ns)) {
-          return { iri: tok.value, curie: `${pfx}:${tok.value.slice(ns.length)}` };
-        }
-      }
-      return { iri: tok.value, curie: tok.value };
-    }
-    if (tok.type === 'A') {
-      return { iri: RDF_TYPE, curie: 'rdf:type' };
-    }
-    const colon = tok.value.indexOf(':');
-    if (colon !== -1) {
-      const pfx = tok.value.slice(0, colon);
-      const local = tok.value.slice(colon + 1);
-      const ns = prefixes.get(pfx);
-      if (ns) {
-        return { iri: `${ns}${local}`, curie: tok.value };
-      }
-    }
-    return { iri: tok.value, curie: tok.value };
-  }
-
-  function parseObject(): RdfValue {
-    const tok = peek();
-    if (!tok) return { kind: 'literal', value: '' };
-
-    if (tok.type === 'LBRACKET') {
-      next();
-      const id = `_:b${++bnodeSeq}`;
-      const props = new Map<string, RdfValue[]>();
-      while (peek() && peek()!.type !== 'RBRACKET') {
-        const predTok = next()!;
-        const pred = resolveName(predTok).iri;
-        const objs: RdfValue[] = [];
-        while (peek()) {
-          objs.push(parseObject());
-          if (peek()?.type === 'COMMA') {
-            next();
-          } else {
-            break;
-          }
-        }
-        const existing = props.get(pred) ?? [];
-        props.set(pred, [...existing, ...objs]);
-        if (peek()?.type === 'SEMI') {
-          next();
-        } else {
-          break;
-        }
-      }
-      if (peek()?.type === 'RBRACKET') next();
-      return { kind: 'bnode', id, props };
-    }
-
-    if (tok.type === 'LPAREN') {
-      next();
-      const items: RdfValue[] = [];
-      while (peek() && peek()!.type !== 'RPAREN') {
-        items.push(parseObject());
-      }
-      if (peek()?.type === 'RPAREN') next();
-      return { kind: 'list', items };
-    }
-
-    if (tok.type === 'STRING') {
-      next();
-      let datatype: string | undefined;
-      if (peek()?.type === 'DATATYPE_HAT') {
-        next();
-        const dtTok = next();
-        if (dtTok) datatype = resolveName(dtTok).curie;
-      } else if (peek()?.type === 'LANG_TAG') {
-        next();
-      }
-      return { kind: 'literal', value: tok.value, datatype };
-    }
-
-    if (tok.type === 'NUMBER' || tok.type === 'BOOL') {
-      next();
-      return {
-        kind: 'literal',
-        value: tok.value,
-        datatype: tok.type === 'BOOL' ? 'xsd:boolean' : tok.value.includes('.') ? 'xsd:decimal' : 'xsd:integer',
-      };
-    }
-
-    next();
-    const { iri, curie } = resolveName(tok);
-    return { kind: 'iri', value: iri, curie };
-  }
-
-  while (pos < tokens.length) {
-    const tok = peek()!;
-    if (tok.type === 'PREFIX_KW') {
-      next();
-      const pfxTok = next();
-      const iriTok = next();
-      if (pfxTok && iriTok) {
-        const pfx = pfxTok.value.replace(/:$/, '');
-        prefixes.set(pfx, iriTok.value);
-        sharedPrefixes.set(pfx, iriTok.value);
-      }
-      if (peek()?.type === 'DOT') next();
-      continue;
-    }
-    if (tok.type === 'BASE_KW') {
-      next();
-      next();
-      if (peek()?.type === 'DOT') next();
-      continue;
-    }
-    if (tok.type === 'DOT') {
-      next();
-      continue;
-    }
-
-    // Subject
-    const subjObj = parseObject();
-    const subject = subjObj.kind === 'iri' ? subjObj.curie : subjObj.kind === 'bnode' ? subjObj.id : '';
-
-    // Predicate-Object list
-    while (peek() && peek()!.type !== 'DOT') {
-      const predTok = next()!;
-      const predicate = resolveName(predTok).curie;
-      while (peek()) {
-        const obj = parseObject();
-        if (subject) {
-          triples.push({ subject, predicate, object: obj });
-        }
-        if (peek()?.type === 'COMMA') {
-          next();
-        } else {
-          break;
-        }
-      }
-      if (peek()?.type === 'SEMI') {
-        next();
-        if (peek()?.type === 'DOT') break;
-      } else {
-        break;
-      }
-    }
-    if (peek()?.type === 'DOT') next();
-  }
-
-  return triples;
-}
-
-// ── Schema Extraction ──────────────────────────────────────────────────────
+const SH = {
+  NodeShape: `${SH_NS}NodeShape`,
+  targetClass: `${SH_NS}targetClass`,
+  property: `${SH_NS}property`,
+  path: `${SH_NS}path`,
+  minCount: `${SH_NS}minCount`,
+  maxCount: `${SH_NS}maxCount`,
+  datatype: `${SH_NS}datatype`,
+  class: `${SH_NS}class`,
+  in: `${SH_NS}in`,
+  minInclusive: `${SH_NS}minInclusive`,
+  message: `${SH_NS}message`,
+} as const;
 
 function walkTtlFiles(dir: string, out: string[] = []): string[] {
   if (!fs.existsSync(dir)) return out;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const entry of fs
+    .readdirSync(dir, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name))) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (['examples', 'generated', 'changesets', 'graphs'].includes(entry.name)) continue;
@@ -437,24 +92,6 @@ interface MetricDef {
   allowedUnits: string[];
 }
 
-const DEFAULT_PREFIXES = new Map<string, string>([
-  ['wod', 'https://wod.wiki/ontology#'],
-  ['ufo', 'https://wod.wiki/ontology/patterns#'],
-  ['qa', 'https://wod.wiki/ontology/qa#'],
-  ['code', 'https://wod.wiki/ontology/code#'],
-  ['bridge', 'https://wod.wiki/ontology/bridge#'],
-  ['owl', 'http://www.w3.org/2002/07/owl#'],
-  ['rdf', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'],
-  ['rdfs', 'http://www.w3.org/2000/01/rdf-schema#'],
-  ['xsd', 'http://www.w3.org/2001/XMLSchema#'],
-  ['sh', 'http://www.w3.org/ns/shacl#'],
-  ['sosa', 'http://www.w3.org/ns/sosa/'],
-  ['skos', 'http://www.w3.org/2004/02/skos/core#'],
-  ['prov', 'http://www.w3.org/ns/prov#'],
-  ['qudt', 'http://qudt.org/schema/qudt/'],
-  ['unit', 'http://qudt.org/vocab/unit/'],
-]);
-
 function toTsInterfaceName(curie: string): string {
   const [ns, local] = curie.includes(':') ? curie.split(':', 2) : ['wod', curie];
   const cleanLocal = local.replace(/[^A-Za-z0-9]/g, '');
@@ -467,27 +104,6 @@ function toTsInterfaceName(curie: string): string {
 function toFieldName(curie: string): string {
   const local = curie.includes(':') ? curie.split(':', 2)[1] : curie;
   return local.replace(/[^A-Za-z0-9_]/g, '_');
-}
-
-function expandCurie(curie: string, prefixes: Map<string, string>): string {
-  if (curie.startsWith('http://') || curie.startsWith('https://')) return curie;
-  const idx = curie.indexOf(':');
-  if (idx !== -1) {
-    const pfx = curie.slice(0, idx);
-    const local = curie.slice(idx + 1);
-    const ns = prefixes.get(pfx);
-    if (ns) return `${ns}${local}`;
-  }
-  return curie;
-}
-
-function normalizeCurie(iriOrCurie: string, prefixes: Map<string, string>): string {
-  for (const [pfx, ns] of prefixes.entries()) {
-    if (iriOrCurie.startsWith(ns)) {
-      return `${pfx}:${iriOrCurie.slice(ns.length)}`;
-    }
-  }
-  return iriOrCurie;
 }
 
 function xsdToTs(dt?: string): string {
@@ -513,15 +129,35 @@ function xsdToTs(dt?: string): string {
 
 export function runCodegen() {
   const ttlFiles = walkTtlFiles(ONTOLOGY_DIR);
-  const prefixes = new Map<string, string>(DEFAULT_PREFIXES);
-  const allTriples: Array<Triple & { sourceFile: string }> = [];
+  const store = new MultiGraphStore();
+  store.addPrefixes({
+    sosa: 'http://www.w3.org/ns/sosa/',
+    skos: 'http://www.w3.org/2004/02/skos/core#',
+    prov: 'http://www.w3.org/ns/prov#',
+    qudt: 'http://qudt.org/schema/qudt/',
+    unit: 'http://qudt.org/vocab/unit/',
+  });
 
-  for (const file of ttlFiles) {
+  const subjectFirstModule = new Map<string, string>();
+
+  for (let idx = 0; idx < ttlFiles.length; idx++) {
+    const file = ttlFiles[idx];
     const rel = path.relative(ONTOLOGY_DIR, file).replace(/\\/g, '/');
-    const triples = parseTurtleFile(file, prefixes);
-    for (const t of triples) {
-      allTriples.push({ ...t, sourceFile: rel });
+    const modName = rel.replace(/\.ttl$/, '');
+    const raw = fs.readFileSync(file, 'utf8');
+    store.loadTurtle(raw, { graph: modName, bnodePrefix: `cg${idx + 1}_` });
+    for (const q of store.quads({ graph: modName })) {
+      if (q.subject.termType === 'NamedNode' && !subjectFirstModule.has(q.subject.value)) {
+        subjectFirstModule.set(q.subject.value, modName);
+      }
     }
+  }
+
+  let systemConfig: OntologySystemConfig | undefined;
+  const registryPath = path.join(ONTOLOGY_DIR, 'system/registry.ttl');
+  if (fs.existsSync(registryPath)) {
+    systemConfig = loadOntologySystem(REPO_ROOT);
+    store.addPrefixes(systemConfig.prefixes);
   }
 
   const classes = new Map<string, ClassDef>();
@@ -529,109 +165,107 @@ export function runCodegen() {
   const shapesByTarget = new Map<string, ShapeConstraint[]>();
   const metrics = new Map<string, MetricDef>();
 
-  // Group triples by subject
-  const bySubject = new Map<string, Array<Triple & { sourceFile: string }>>();
-  for (const t of allTriples) {
-    const list = bySubject.get(t.subject) ?? [];
-    list.push(t);
-    bySubject.set(t.subject, list);
-  }
+  const allTypedSubjects = [...new Set(store.subjects(RDF.type))]
+    .filter((s) => !s.startsWith('_:'))
+    .sort((a, b) => a.localeCompare(b));
 
-  for (const [subj, subjTriples] of bySubject.entries()) {
-    const types = subjTriples
-      .filter((t) => t.predicate === 'rdf:type' && t.object.kind === 'iri')
-      .map((t) => (t.object as { kind: 'iri'; curie: string }).curie);
+  for (const iri of allTypedSubjects) {
+    const curie = store.compact(iri);
+    const types = store.typesOf(iri);
+    const moduleName = subjectFirstModule.get(iri) ?? 'unknown';
 
-    const getStr = (pred: string) => {
-      const hit = subjTriples.find((t) => t.predicate === pred && t.object.kind === 'literal');
-      return hit && hit.object.kind === 'literal' ? hit.object.value : '';
-    };
-    const getIris = (pred: string) =>
-      subjTriples
-        .filter((t) => t.predicate === pred && t.object.kind === 'iri')
-        .map((t) => (t.object as { kind: 'iri'; curie: string }).curie);
-
-    const moduleName = subjTriples[0]?.sourceFile.replace(/\.ttl$/, '') ?? 'unknown';
-
-    if (types.includes('owl:Class') || types.includes('rdfs:Class')) {
-      const stereotype = getIris('ufo:stereotype')[0];
-      classes.set(subj, {
-        curie: subj,
-        iri: expandCurie(subj, prefixes),
-        tsName: toTsInterfaceName(subj),
-        label: getStr('rdfs:label') || subj,
-        comment: getStr('rdfs:comment'),
+    if (types.includes(OWL.Class) || types.includes(RDFS.Class)) {
+      const stereoIri = store.iriValue(iri, 'ufo:stereotype');
+      classes.set(curie, {
+        curie,
+        iri,
+        tsName: toTsInterfaceName(curie),
+        label: store.literalValue(iri, RDFS.label) ?? curie,
+        comment: store.literalValue(iri, RDFS.comment) ?? '',
         module: moduleName,
-        stereotype,
-        superClasses: getIris('rdfs:subClassOf'),
+        ...(stereoIri ? { stereotype: store.compact(stereoIri) } : {}),
+        superClasses: store
+          .iriValues(iri, RDFS.subClassOf)
+          .map((sc) => store.compact(sc))
+          .sort((a, b) => a.localeCompare(b)),
       });
     }
 
     if (
-      types.includes('owl:ObjectProperty') ||
-      types.includes('owl:DatatypeProperty') ||
-      types.includes('owl:AnnotationProperty')
+      types.includes(OWL.ObjectProperty) ||
+      types.includes(OWL.DatatypeProperty) ||
+      types.includes(OWL.AnnotationProperty)
     ) {
-      const kind = types.includes('owl:ObjectProperty')
+      const kind = types.includes(OWL.ObjectProperty)
         ? 'object'
-        : types.includes('owl:DatatypeProperty')
+        : types.includes(OWL.DatatypeProperty)
           ? 'datatype'
           : 'annotation';
-      props.set(subj, {
-        curie: subj,
-        iri: expandCurie(subj, prefixes),
-        fieldName: toFieldName(subj),
+      props.set(curie, {
+        curie,
+        iri,
+        fieldName: toFieldName(curie),
         kind,
-        label: getStr('rdfs:label') || subj,
-        comment: getStr('rdfs:comment'),
-        domains: getIris('rdfs:domain'),
-        ranges: getIris('rdfs:range'),
+        label: store.literalValue(iri, RDFS.label) ?? curie,
+        comment: store.literalValue(iri, RDFS.comment) ?? '',
+        domains: store
+          .iriValues(iri, RDFS.domain)
+          .map((d) => store.compact(d))
+          .sort((a, b) => a.localeCompare(b)),
+        ranges: store
+          .iriValues(iri, RDFS.range)
+          .map((r) => store.compact(r))
+          .sort((a, b) => a.localeCompare(b)),
       });
     }
 
-    if (types.includes('wod:Metric')) {
-      metrics.set(subj, {
-        curie: subj,
-        label: getStr('rdfs:label') || subj,
-        allowedUnits: getIris('wod:allowedUnit'),
+    if (types.includes(store.expand('wod:Metric'))) {
+      metrics.set(curie, {
+        curie,
+        label: store.literalValue(iri, RDFS.label) ?? curie,
+        allowedUnits: store
+          .iriValues(iri, 'wod:allowedUnit')
+          .map((u) => store.compact(u))
+          .sort((a, b) => a.localeCompare(b)),
       });
     }
 
-    if (types.includes('sh:NodeShape')) {
-      const targetClasses = getIris('sh:targetClass');
-      const propBlocks = subjTriples.filter(
-        (t) => t.predicate === 'sh:property' && t.object.kind === 'bnode',
-      );
+    if (types.includes(SH.NodeShape)) {
+      const targetClasses = store.iriValues(iri, SH.targetClass).map((t) => store.compact(t));
+      const propNodes = store
+        .objects(iri, SH.property)
+        .filter((o) => o.termType === 'BlankNode' || o.termType === 'NamedNode');
+
       for (const tc of targetClasses) {
         const list = shapesByTarget.get(tc) ?? [];
-        for (const pb of propBlocks) {
-          if (pb.object.kind !== 'bnode') continue;
-          const bprops = pb.object.props;
-          const getBVal = (fullPred: string) => bprops.get(fullPred)?.[0];
-          const pathVal = getBVal('http://www.w3.org/ns/shacl#path');
-          if (!pathVal || pathVal.kind !== 'iri') continue;
-          const pathCurie = normalizeCurie(pathVal.value, prefixes);
-          const minC = getBVal('http://www.w3.org/ns/shacl#minCount');
-          const maxC = getBVal('http://www.w3.org/ns/shacl#maxCount');
-          const dtV = getBVal('http://www.w3.org/ns/shacl#datatype');
-          const clsV = getBVal('http://www.w3.org/ns/shacl#class');
-          const inV = getBVal('http://www.w3.org/ns/shacl#in');
-          const minInc = getBVal('http://www.w3.org/ns/shacl#minInclusive');
-          const msgV = getBVal('http://www.w3.org/ns/shacl#message');
+        for (const pn of propNodes) {
+          const pathIri = store.iriValue(pn.value, SH.path);
+          if (!pathIri) continue;
+          const pathCurie = store.compact(pathIri);
+          const minCount = store.numberValue(pn.value, SH.minCount);
+          const maxCount = store.numberValue(pn.value, SH.maxCount);
+          const dtIri = store.iriValue(pn.value, SH.datatype);
+          const clsIri = store.iriValue(pn.value, SH.class);
+          const inHead = store.objects(pn.value, SH.in)[0];
+          const allowedValues = inHead
+            ? store
+                .readList(inHead)
+                .map((it) => (it.termType === 'Literal' ? it.value : store.compact(it.value)))
+                .filter(Boolean)
+            : undefined;
+          const minInclusive = store.numberValue(pn.value, SH.minInclusive);
+          const message = store.literalValue(pn.value, SH.message);
 
           list.push({
             path: pathCurie,
             fieldName: toFieldName(pathCurie),
-            minCount: minC?.kind === 'literal' ? Number(minC.value) : undefined,
-            maxCount: maxC?.kind === 'literal' ? Number(maxC.value) : undefined,
-            datatype: dtV?.kind === 'iri' ? normalizeCurie(dtV.value, prefixes) : undefined,
-            targetClass: clsV?.kind === 'iri' ? normalizeCurie(clsV.value, prefixes) : undefined,
-            allowedValues:
-              inV?.kind === 'list'
-                ? inV.items.map((it) => (it.kind === 'literal' ? it.value : it.kind === 'iri' ? it.curie : '')).filter(Boolean)
-                : undefined,
-            minInclusive: minInc?.kind === 'literal' ? Number(minInc.value) : undefined,
-            message: msgV?.kind === 'literal' ? msgV.value : undefined,
+            minCount,
+            maxCount,
+            datatype: dtIri ? store.compact(dtIri) : undefined,
+            targetClass: clsIri ? store.compact(clsIri) : undefined,
+            allowedValues: allowedValues && allowedValues.length > 0 ? allowedValues : undefined,
+            minInclusive,
+            message,
           });
         }
         shapesByTarget.set(tc, list);
@@ -639,13 +273,42 @@ export function runCodegen() {
     }
   }
 
+  const slicesExport = (systemConfig?.slices ?? []).map((s) => ({
+    slug: s.slug,
+    graphIri: s.graphIri,
+    ontologyKind: s.ontologyKind,
+    label: s.label,
+    comment: s.comment,
+    layerOrder: s.layerOrder,
+    accentToken: s.accentToken,
+    nodeKinds: s.nodeKinds.map((nk) => ({
+      kindSlug: nk.kindSlug,
+      badgeLabel: nk.badgeLabel,
+      selectorMode: nk.selectorMode,
+      targetClasses: nk.targetClasses.map((tc) => store.compact(tc)),
+    })),
+  }));
+
+  const bridgesExport = (systemConfig?.bridges ?? []).map((b) => ({
+    predicate: store.compact(b.bridgePredicate),
+    predicateIri: b.bridgePredicate,
+    sourceGraph: b.sourceGraph,
+    targetGraph: b.targetGraph,
+    sourceClasses: b.sourceClasses.map((c) => store.compact(c)),
+    targetClasses: b.targetClasses.map((c) => store.compact(c)),
+    forwardLabel: b.forwardLabel,
+    inverseLabel: b.inverseLabel,
+    navPriority: b.navPriority,
+    allowHistoricalMissingTarget: b.allowHistoricalMissingTarget,
+  }));
+
   // Build TypeScript output
   const lines: string[] = [
     '/* eslint-disable */',
     '/**',
     ' * AUTO-GENERATED by scripts/ontology/codegen.ts — DO NOT EDIT BY HAND.',
     ` * Parsed ${ttlFiles.length} Turtle schema files from ontology/.`,
-    ` * Classes: ${classes.size} | Properties: ${props.size} | Shapes: ${shapesByTarget.size} | Metrics: ${metrics.size}`,
+    ` * Slices: ${slicesExport.length} | Bridges: ${bridgesExport.length} | Classes: ${classes.size} | Properties: ${props.size} | Shapes: ${shapesByTarget.size} | Metrics: ${metrics.size}`,
     ' */',
     '',
     'export type UfoStereotypeCurie =',
@@ -659,6 +322,37 @@ export function runCodegen() {
     "  | 'ufo:Quantity'",
     "  | 'ufo:InformationObject'",
     '  | (string & {});',
+    '',
+    "export type OntologySliceKind = 'meta' | 'global' | 'local' | 'generated';",
+    '',
+    'export interface OntologySliceMeta {',
+    '  slug: string;',
+    '  graphIri: string;',
+    '  ontologyKind: OntologySliceKind;',
+    '  label: string;',
+    '  comment: string;',
+    '  layerOrder: number;',
+    '  accentToken: string;',
+    '  nodeKinds: readonly {',
+    '    kindSlug: string;',
+    '    badgeLabel: string;',
+    "    selectorMode: 'instance' | 'definedClass';",
+    '    targetClasses: readonly string[];',
+    '  }[];',
+    '}',
+    '',
+    'export interface OntologyBridgeMeta {',
+    '  predicate: string;',
+    '  predicateIri: string;',
+    '  sourceGraph: string;',
+    '  targetGraph: string;',
+    '  sourceClasses: readonly string[];',
+    '  targetClasses: readonly string[];',
+    '  forwardLabel: string;',
+    '  inverseLabel: string;',
+    '  navPriority: number;',
+    '  allowHistoricalMissingTarget: boolean;',
+    '}',
     '',
     'export interface OntologyClassMeta {',
     '  curie: string;',
@@ -700,6 +394,18 @@ export function runCodegen() {
     '  allowedUnits: readonly string[];',
     '}',
     '',
+    `export const ONTOLOGY_SLICES: readonly OntologySliceMeta[] = ${JSON.stringify(
+      slicesExport,
+      null,
+      2,
+    )};`,
+    '',
+    `export const ONTOLOGY_BRIDGES: readonly OntologyBridgeMeta[] = ${JSON.stringify(
+      bridgesExport,
+      null,
+      2,
+    )};`,
+    '',
     `export const ONTOLOGY_CLASSES: Record<string, OntologyClassMeta> = ${JSON.stringify(
       Object.fromEntries([...classes.entries()].sort(([a], [b]) => a.localeCompare(b))),
       null,
@@ -732,7 +438,9 @@ export function runCodegen() {
 
   // Emit interface for each class
   for (const [, cls] of [...classes.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    const knownParents = cls.superClasses.filter((sc) => classes.has(sc)).map((sc) => classes.get(sc)!.tsName);
+    const knownParents = cls.superClasses
+      .filter((sc) => classes.has(sc))
+      .map((sc) => classes.get(sc)!.tsName);
     const extendsClause = knownParents.length > 0 ? ` extends ${knownParents.join(', ')}` : '';
     const domainProps = [...props.values()].filter((p) => p.domains.includes(cls.curie));
     const constraints = shapesByTarget.get(cls.curie) ?? [];
@@ -741,7 +449,6 @@ export function runCodegen() {
       constraintByField.set(c.fieldName, c);
     }
 
-    // Collect all field names from domain properties + shape constraints
     const fieldNames = new Set<string>([
       ...domainProps.map((p) => p.fieldName),
       ...constraints.map((c) => c.fieldName),
@@ -795,7 +502,9 @@ export function runCodegen() {
   lines.push('  return ONTOLOGY_CLASSES[curie];');
   lines.push('}');
   lines.push('');
-  lines.push('export function getClassesByStereotype(stereotype: UfoStereotypeCurie): OntologyClassMeta[] {');
+  lines.push(
+    'export function getClassesByStereotype(stereotype: UfoStereotypeCurie): OntologyClassMeta[] {',
+  );
   lines.push('  return Object.values(ONTOLOGY_CLASSES).filter((c) => c.stereotype === stereotype);');
   lines.push('}');
   lines.push('');
@@ -821,34 +530,48 @@ export function runCodegen() {
   lines.push('    const constraints = ONTOLOGY_SHAPES[cls] ?? [];');
   lines.push('    for (const c of constraints) {');
   lines.push('      const raw = instance[c.fieldName];');
-  lines.push('      const values = raw === undefined || raw === null ? [] : Array.isArray(raw) ? raw : [raw];');
+  lines.push(
+    '      const values = raw === undefined || raw === null ? [] : Array.isArray(raw) ? raw : [raw];',
+  );
   lines.push('      if (c.minCount !== undefined && values.length < c.minCount) {');
   lines.push('        errors.push({');
   lines.push('          field: c.fieldName,');
   lines.push('          path: c.path,');
-  lines.push('          message: c.message ?? `${c.path} requires at least ${c.minCount} value(s).`,');
+  lines.push(
+    '          message: c.message ?? `${c.path} requires at least ${c.minCount} value(s).`,',
+  );
   lines.push('        });');
   lines.push('      }');
   lines.push('      if (c.maxCount !== undefined && values.length > c.maxCount) {');
   lines.push('        errors.push({');
   lines.push('          field: c.fieldName,');
   lines.push('          path: c.path,');
-  lines.push('          message: c.message ?? `${c.path} allows at most ${c.maxCount} value(s).`,');
+  lines.push(
+    '          message: c.message ?? `${c.path} allows at most ${c.maxCount} value(s).`,',
+  );
   lines.push('        });');
   lines.push('      }');
   lines.push('      for (const v of values) {');
-  lines.push('        if (c.allowedValues && c.allowedValues.length > 0 && !c.allowedValues.includes(String(v))) {');
+  lines.push(
+    '        if (c.allowedValues && c.allowedValues.length > 0 && !c.allowedValues.includes(String(v))) {',
+  );
   lines.push('          errors.push({');
   lines.push('            field: c.fieldName,');
   lines.push('            path: c.path,');
-  lines.push('            message: c.message ?? `${c.path} value "${String(v)}" must be one of [${c.allowedValues.join(", ")}].`,');
+  lines.push(
+    '            message: c.message ?? `${c.path} value "${String(v)}" must be one of [${c.allowedValues.join(", ")}].`,',
+  );
   lines.push('          });');
   lines.push('        }');
-  lines.push('        if (c.minInclusive !== undefined && (typeof v !== "number" || v < c.minInclusive)) {');
+  lines.push(
+    '        if (c.minInclusive !== undefined && (typeof v !== "number" || v < c.minInclusive)) {',
+  );
   lines.push('          errors.push({');
   lines.push('            field: c.fieldName,');
   lines.push('            path: c.path,');
-  lines.push('            message: c.message ?? `${c.path} must be >= ${c.minInclusive}.`,');
+  lines.push(
+    '            message: c.message ?? `${c.path} must be >= ${c.minInclusive}.`,',
+  );
   lines.push('          });');
   lines.push('        }');
   lines.push('      }');
@@ -861,7 +584,7 @@ export function runCodegen() {
   fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
   fs.writeFileSync(OUTPUT_FILE, lines.join('\n'), 'utf8');
   console.log(
-    `Generated ${path.relative(REPO_ROOT, OUTPUT_FILE)}: ${classes.size} classes, ${props.size} properties, ${shapesByTarget.size} shaped targets, ${metrics.size} metrics.`,
+    `Generated ${path.relative(REPO_ROOT, OUTPUT_FILE)}: ${slicesExport.length} slices, ${bridgesExport.length} bridges, ${classes.size} classes, ${props.size} properties, ${shapesByTarget.size} shaped targets, ${metrics.size} metrics.`,
   );
 }
 

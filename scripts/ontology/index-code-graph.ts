@@ -1,25 +1,37 @@
 #!/usr/bin/env bun
 /**
- * Code Graph + QA + Bridge Indexer
+ * Code Graph + Architecture + QA + Bridge Indexer
  *
  * Scans:
- *  - packages/ & apps/playground/ (TypeScript files & exported symbols -> :code)
+ *  - packages/, apps/playground/, apps/api/, apps/storybook/, docs/adrs/, e2e/ (files & exported symbols -> :code)
  *  - apps/playground/src/lib/testIds.ts (TEST_IDS -> code:TestId)
  *  - apps/playground/src/lib/routes.ts (ROUTE_PATTERNS -> code:Route)
  *  - packages/engine/src/agent/manifest.ts (DOMAIN_AGENT_TOOLS -> code:WebMcpTool)
+ *  - apps/playground/app/agent/uiToolSpecs.ts (exportPlaygroundUiToolsManifest() -> code:WebMcpTool)
+ *  - packages/<pkg>/package.json & docs/adrs/<adr>.md (:architecture packages, subpath exports, deps, ADRs)
  *  - e2e/specs/** and e2e/live-app/** (:qa Journeys, 5-beat chains, :bridge links)
- *  - docs/qa-walkthrough/findings.json (if present -> :qa Issues/Runs, :bridge rootCause)
+ *  - ontology/qa/qa-snapshot.ttl / docs/qa-walkthrough/findings.json (:qa Issues/Runs, :bridge rootCause)
  *
  * Emits:
  *  - ontology/generated/code-graph.ttl
+ *  - ontology/generated/architecture-instances.ttl
  *  - ontology/generated/qa-instances.ttl
  *  - ontology/generated/bridge-instances.ttl
  *  - ontology/generated/unified-dataset.trig
  */
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
+import { DOMAIN_AGENT_TOOLS } from '../../packages/engine/src/agent/manifest';
 import { TEST_IDS } from '../../apps/playground/src/lib/testIds';
 import { ROUTE_PATTERNS } from '../../apps/playground/src/lib/routes';
+import {
+  MultiGraphStore,
+  RDF,
+  loadOntologySystem,
+} from './system-loader';
+
+const REPO_ROOT = path.resolve(import.meta.dir, '../..');
+const GENERATED_DIR = path.join(REPO_ROOT, 'ontology/generated');
 
 interface ExtractedTool {
   name: string;
@@ -32,76 +44,97 @@ interface ExtractedTool {
   isUiTool: boolean;
 }
 
-function extractAgentTools(): ExtractedTool[] {
+function findDomainToolFile(toolName: string): string {
   const toolsDir = path.join(REPO_ROOT, 'packages/engine/src/agent/tools');
-  const tools: ExtractedTool[] = [];
-  if (!fs.existsSync(toolsDir)) return tools;
-  for (const file of fs.readdirSync(toolsDir).filter((f) => f.endsWith('.ts')).sort()) {
-    const abs = path.join(toolsDir, file);
-    const rel = path.relative(REPO_ROOT, abs).replace(/\\/g, '/');
-    const src = fs.readFileSync(abs, 'utf8');
-    const blocks = src.split(/defineAgentTool\s*\(/).slice(1);
-    for (const block of blocks) {
-      const head = block.slice(0, 1200);
-      const name = head.match(/\bname:\s*['"]([a-z0-9_]+)['"]/)?.[1];
-      const title = head.match(/\btitle:\s*['"]([^'"]+)['"]/)?.[1];
-      const domain = head.match(/\bdomain:\s*['"]([^'"]+)['"]/)?.[1];
-      const tier = head.match(/\btier:\s*(\d+)/)?.[1];
-      const cliEquivalent = head.match(/\bcliEquivalent:\s*['"]([^'"]+)['"]/)?.[1];
-      if (name && title && domain && tier !== undefined) {
-        tools.push({
-          name,
-          title,
-          domain,
-          tier: Number(tier),
-          cliEquivalent: cliEquivalent ?? `wod ${name.replace(/^wod_/, '').replace(/_/g, ' ')} --json`,
-          relPath: rel,
-          isUiTool: false,
-        });
+  if (fs.existsSync(toolsDir)) {
+    for (const file of fs.readdirSync(toolsDir).filter((f) => f.endsWith('.ts')).sort()) {
+      const abs = path.join(toolsDir, file);
+      const src = fs.readFileSync(abs, 'utf8');
+      if (src.includes(`'${toolName}'`) || src.includes(`"${toolName}"`)) {
+        return path.relative(REPO_ROOT, abs).replace(/\\/g, '/');
       }
     }
   }
-  return tools;
+  return 'packages/engine/src/agent/manifest.ts';
 }
 
-function extractUiAgentTools(): ExtractedTool[] {
+function extractAgentTools(): ExtractedTool[] {
+  return [...DOMAIN_AGENT_TOOLS]
+    .map((tool): ExtractedTool => ({
+      name: tool.name,
+      title: tool.title,
+      domain: tool.domain,
+      tier: tool.tier,
+      cliEquivalent:
+        tool.cliEquivalent ?? `wod ${tool.name.replace(/^wod_/, '').replace(/_/g, ' ')} --json`,
+      relPath: findDomainToolFile(tool.name),
+      isUiTool: false,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function extractUiAgentTools(): Promise<ExtractedTool[]> {
   const relPath = 'apps/playground/app/agent/uiToolSpecs.ts';
-  const absPath = path.join(REPO_ROOT, relPath);
-  if (!fs.existsSync(absPath)) return [];
-  const src = fs.readFileSync(absPath, 'utf8');
-  const fnIdx = src.indexOf('export function exportPlaygroundUiToolsManifest');
-  const body = fnIdx !== -1 ? src.slice(fnIdx) : src;
-  const tools: ExtractedTool[] = [];
-  const blocks = body.split(/\{\s*\r?\n\s*name:\s*/).slice(1);
-  for (const block of blocks) {
-    const head = `name: ${block.slice(0, 1400)}`;
-    const name = head.match(/\bname:\s*['"]([a-z0-9_]+)['"]/)?.[1];
-    const title = head.match(/\btitle:\s*['"]([^'"]+)['"]/)?.[1];
-    const tier = head.match(/\btier:\s*(\d+)/)?.[1];
-    const mountScope = head.match(/\bmountScope:\s*['"]([^'"]+)['"]/)?.[1];
-    if (name && title) {
-      tools.push({
-        name,
-        title,
-        domain: 'ui',
-        tier: tier !== undefined ? Number(tier) : 1,
-        cliEquivalent: `playwright:${name}`,
-        relPath,
-        ...(mountScope ? { mountScope } : {}),
-        isUiTool: true,
-      });
+  try {
+    const mod = await import('../../apps/playground/app/agent/uiToolSpecs');
+    if (typeof mod.exportPlaygroundUiToolsManifest === 'function') {
+      const entries = mod.exportPlaygroundUiToolsManifest();
+      return entries
+        .map((entry): ExtractedTool => ({
+          name: entry.name,
+          title: entry.title,
+          domain: 'ui',
+          tier: entry.tier,
+          cliEquivalent: `playwright:${entry.name}`,
+          relPath,
+          ...(entry.mountScope ? { mountScope: entry.mountScope } : {}),
+          isUiTool: true,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `Warning: direct import of ${relPath} failed (${msg}); falling back to agent-capabilities.json.`,
+    );
+  }
+
+  // Fallback when peer deps (e.g. @ui-sdk/react/agent) are not yet installed in node_modules
+  const capPath = path.join(REPO_ROOT, 'apps/playground/public/.well-known/agent-capabilities.json');
+  if (fs.existsSync(capPath)) {
+    try {
+      const cap = JSON.parse(fs.readFileSync(capPath, 'utf8')) as {
+        uiTools?: Array<{ name: string; title: string; tier?: number; mountScope?: string }>;
+      };
+      if (Array.isArray(cap.uiTools)) {
+        return cap.uiTools
+          .map((entry): ExtractedTool => ({
+            name: entry.name,
+            title: entry.title,
+            domain: 'ui',
+            tier: entry.tier ?? 1,
+            cliEquivalent: `playwright:${entry.name}`,
+            relPath,
+            ...(entry.mountScope ? { mountScope: entry.mountScope } : {}),
+            isUiTool: true,
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+      }
+    } catch {
+      // ignore malformed fallback JSON
     }
   }
-  return tools;
+  return [];
 }
 
-const REPO_ROOT = path.resolve(import.meta.dir, '../..');
-const GENERATED_DIR = path.join(REPO_ROOT, 'ontology/generated');
-
 const PREFIXES = `
+@prefix sys:    <https://wod.wiki/ontology/system#> .
+@prefix wodg:   <https://wod.wiki/graph/> .
 @prefix wod:    <https://wod.wiki/ontology#> .
 @prefix ufo:    <https://wod.wiki/ontology/patterns#> .
+@prefix wf:     <https://wod.wiki/ontology/workflow#> .
 @prefix qa:     <https://wod.wiki/ontology/qa#> .
+@prefix arch:   <https://wod.wiki/ontology/architecture#> .
 @prefix code:   <https://wod.wiki/ontology/code#> .
 @prefix bridge: <https://wod.wiki/ontology/bridge#> .
 @prefix owl:    <http://www.w3.org/2002/07/owl#> .
@@ -398,18 +431,28 @@ export async function buildUnifiedGraph() {
   const testIdMap = new Map(flatTestIds.map((t) => [t.key, t.value]));
   const knownTestIdValues = new Set(flatTestIds.map((t) => t.value));
 
-  // 1. Index Files & Symbols in packages/, apps/playground/, e2e/
-  const sourceRoots = ['packages', 'apps/playground/app', 'apps/playground/src', 'e2e'];
+  // 1. Index Files & Symbols in packages/, apps/, docs/adrs/, e2e/
+  const sourceRoots = [
+    'packages',
+    'apps/playground/app',
+    'apps/playground/src',
+    'apps/api/src',
+    'apps/storybook',
+    'docs/adrs',
+    'e2e',
+  ];
   const allCodeFiles: string[] = [];
   for (const root of sourceRoots) {
     walkFiles(path.join(REPO_ROOT, root), new Set(['.ts', '.tsx', '.md']), allCodeFiles);
   }
 
+  const indexedRelPaths = new Set<string>();
   const symbolIndexByName = new Map<string, ExtractedSymbol[]>();
   const fileLineCounts = new Map<string, number>();
 
   for (const abs of allCodeFiles) {
     const rel = path.relative(REPO_ROOT, abs).replace(/\\/g, '/');
+    indexedRelPaths.add(rel);
     const isTest = /\.(test|spec)\.(ts|tsx)$/.test(rel) || rel.includes('/__tests__/');
     const isSpecMd = rel.startsWith('e2e/specs/') && rel.endsWith('.md');
     const isE2eTs = (rel.startsWith('e2e/live-app/') || rel.startsWith('e2e/regression/')) && rel.endsWith('.e2e.ts');
@@ -505,7 +548,7 @@ export async function buildUnifiedGraph() {
 
   // 4. Index WebMCP / Domain Agent Tools & UI WebMCP Tools
   const domainTools = extractAgentTools();
-  const uiTools = extractUiAgentTools();
+  const uiTools = await extractUiAgentTools();
   const agentTools = [...domainTools, ...uiTools];
   const allToolNames = new Map(agentTools.map((t) => [t.name, toolIri(t.name)]));
 
@@ -1188,116 +1231,24 @@ export async function buildUnifiedGraph() {
 
   const qaTtl = await fetchQaOntologyTtl();
   if (qaTtl && qaTtl.includes('<https://wod.wiki/qa/')) {
-    // Parse canonical multi-line Turtle snapshot (<https://wod.wiki/qa/...>)
-    interface SnapTriple {
-      s: string;
-      p: string;
-      o: string;
-      isLiteral: boolean;
-      datatype?: string;
-    }
-    const tokens: Array<{ type: 'iri' | 'str' | 'sym' | 'punct'; val: string; dt?: string }> = [];
-    let ti = 0;
-    const tlen = qaTtl.length;
-    while (ti < tlen) {
-      const ch = qaTtl[ti];
-      if (/\s/.test(ch)) {
-        ti++;
-        continue;
-      }
-      if (ch === '#') {
-        while (ti < tlen && qaTtl[ti] !== '\n') ti++;
-        continue;
-      }
-      if (ch === '<') {
-        const end = qaTtl.indexOf('>', ti + 1);
-        if (end !== -1) {
-          tokens.push({ type: 'iri', val: qaTtl.slice(ti, end + 1) });
-          ti = end + 1;
-          continue;
-        }
-      }
-      if (ch === '"') {
-        ti++;
-        let val = '';
-        while (ti < tlen && qaTtl[ti] !== '"') {
-          if (qaTtl[ti] === '\\' && ti + 1 < tlen) {
-            const nxt = qaTtl[ti + 1];
-            val += nxt === 'n' ? '\n' : nxt === '"' ? '"' : nxt === '\\' ? '\\' : nxt;
-            ti += 2;
-          } else {
-            val += qaTtl[ti++];
-          }
-        }
-        ti++;
-        let dt: string | undefined;
-        if (qaTtl[ti] === '^' && qaTtl[ti + 1] === '^') {
-          ti += 2;
-          const ds = ti;
-          while (ti < tlen && !/[\s;,.]/.test(qaTtl[ti])) ti++;
-          dt = qaTtl.slice(ds, ti);
-        } else if (qaTtl[ti] === '@') {
-          while (ti < tlen && !/[\s;,.]/.test(qaTtl[ti])) ti++;
-        }
-        tokens.push({ type: 'str', val, dt });
-        continue;
-      }
-      if (ch === ';' || ch === ',' || (ch === '.' && (ti + 1 >= tlen || /\s/.test(qaTtl[ti + 1])))) {
-        tokens.push({ type: 'punct', val: ch });
-        ti++;
-        continue;
-      }
-      const m = qaTtl.slice(ti).match(/^[^\s;,"<>]+/);
-      if (m) {
-        tokens.push({ type: 'sym', val: m[0] });
-        ti += m[0].length;
-        continue;
-      }
-      ti++;
-    }
+    // Parse canonical multi-line Turtle snapshot via shared system-loader
+    const snapStore = new MultiGraphStore();
+    snapStore.loadTurtle(qaTtl);
 
-    const snapBySubj = new Map<string, SnapTriple[]>();
-    let pos = 0;
-    while (pos < tokens.length) {
-      const t = tokens[pos];
-      if (t.type === 'sym' && (t.val === '@prefix' || t.val === '@base')) {
-        pos += 3;
-        if (tokens[pos]?.val === '.') pos++;
-        continue;
-      }
-      if (t.type === 'punct' && t.val === '.') {
-        pos++;
-        continue;
-      }
-      const subj = tokens[pos++]?.val ?? '';
-      while (pos < tokens.length && tokens[pos].val !== '.') {
-        if (tokens[pos]?.type === 'punct' && tokens[pos].val === ';') {
-          pos++;
-          continue;
-        }
-        const rawPred = tokens[pos++]?.val ?? '';
-        const pred = rawPred === 'a' ? 'rdf:type' : rawPred;
-        while (pos < tokens.length) {
-          const objTok = tokens[pos++];
-          if (!objTok) break;
-          const isLit = objTok.type === 'str' || /^(true|false|-?\d+(\.\d+)?)$/.test(objTok.val);
-          const list = snapBySubj.get(subj) ?? [];
-          list.push({ s: subj, p: pred, o: objTok.val, isLiteral: isLit, datatype: objTok.dt });
-          snapBySubj.set(subj, list);
-          if (tokens[pos]?.val === ',') {
-            pos++;
-          } else {
-            break;
-          }
-        }
-        if (tokens[pos]?.val === ';') {
-          pos++;
-          if (tokens[pos]?.val === '.') break;
-        } else {
-          break;
-        }
-      }
-      if (tokens[pos]?.val === '.') pos++;
+    const formatSnapTerm = (term: { termType: string; value: string }): string => {
+      if (term.termType === 'Literal') return term.value;
+      const compacted = snapStore.compact(term.value);
+      return compacted !== term.value && !compacted.includes('/') ? compacted : `<${term.value}>`;
+    };
+
+    const snapBySubj = new Map<string, Array<{ s: string; p: string; o: string; isLiteral: boolean }>>();
+    for (const q of snapStore.quads()) {
+      const s = formatSnapTerm(q.subject);
+      const p = snapStore.compact(q.predicate.value);
+      const o = formatSnapTerm(q.object);
+      const list = snapBySubj.get(s) ?? [];
+      list.push({ s, p, o, isLiteral: q.object.termType === 'Literal' });
+      snapBySubj.set(s, list);
     }
 
     const valsOf = (s: string, p: string) => (snapBySubj.get(s) ?? []).filter((x) => x.p === p).map((x) => x.o);
@@ -1589,43 +1540,286 @@ export async function buildUnifiedGraph() {
     }
   }
 
+  // 7. Auto-index :architecture instances (packages/*/package.json deps + exports boundaries, docs/adrs/*.md, file containment)
+  const archLines: string[] = [
+    PREFIXES,
+    '',
+    '# AUTO-GENERATED by scripts/ontology/index-code-graph.ts — DO NOT EDIT BY HAND',
+    '# Mechanical :architecture instances extracted from packages/*/package.json and docs/adrs/*.md',
+    '',
+  ];
+
+  // Reuse curated IRIs from ontology/architecture/architecture.ttl when present
+  const curatedPkgIriByName = new Map<string, string>();
+  const curatedBoundaryIriBySubpath = new Map<string, string>();
+  const curatedAdrIriByNumber = new Map<string, string>();
+  const curatedArchPath = path.join(REPO_ROOT, 'ontology/architecture/architecture.ttl');
+  if (fs.existsSync(curatedArchPath)) {
+    const archStore = new MultiGraphStore();
+    archStore.loadTurtle(fs.readFileSync(curatedArchPath, 'utf8'));
+    const formatRef = (iri: string): string => {
+      const compact = archStore.compact(iri);
+      return compact !== iri && !compact.includes('/') ? compact : `<${iri}>`;
+    };
+    for (const s of archStore.subjects(RDF.type, 'arch:WorkspacePackage')) {
+      const name = archStore.literalValue(s, 'arch:packageName');
+      if (name) curatedPkgIriByName.set(name, formatRef(s));
+    }
+    for (const s of archStore.subjects(RDF.type, 'arch:SubpathBoundary')) {
+      const sp = archStore.literalValue(s, 'arch:exportSubpath');
+      if (sp) curatedBoundaryIriBySubpath.set(sp, formatRef(s));
+    }
+    for (const s of archStore.subjects(RDF.type, 'arch:ArchitectureDecision')) {
+      const num = archStore.literalValue(s, 'arch:adrNumber');
+      if (num) curatedAdrIriByNumber.set(num, formatRef(s));
+    }
+  }
+
+  interface WorkspacePkgInfo {
+    dirName: string;
+    name: string;
+    iri: string;
+    deps: string[];
+    exportsMap: Record<string, unknown>;
+  }
+
+  const packagesDir = path.join(REPO_ROOT, 'packages');
+  const workspacePkgs: WorkspacePkgInfo[] = [];
+  const pkgByName = new Map<string, WorkspacePkgInfo>();
+
+  if (fs.existsSync(packagesDir)) {
+    for (const entry of fs
+      .readdirSync(packagesDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .sort((a, b) => a.name.localeCompare(b.name))) {
+      const pkgJsonPath = path.join(packagesDir, entry.name, 'package.json');
+      if (!fs.existsSync(pkgJsonPath)) continue;
+      const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')) as {
+        name?: string;
+        dependencies?: Record<string, string>;
+        peerDependencies?: Record<string, string>;
+        exports?: Record<string, unknown>;
+      };
+      const pkgName = pkgJson.name ?? `@bitcobblers/wod-wiki-${entry.name}`;
+      const iri = curatedPkgIriByName.get(pkgName) ?? `arch:pkg_${encodeSegment(entry.name)}`;
+      const deps = [
+        ...Object.keys(pkgJson.dependencies ?? {}),
+        ...Object.keys(pkgJson.peerDependencies ?? {}),
+      ]
+        .filter((d) => d.startsWith('@bitcobblers/wod-wiki-'))
+        .sort();
+      const info: WorkspacePkgInfo = {
+        dirName: entry.name,
+        name: pkgName,
+        iri,
+        deps: [...new Set(deps)],
+        exportsMap: pkgJson.exports ?? {},
+      };
+      workspacePkgs.push(info);
+      pkgByName.set(pkgName, info);
+    }
+  }
+
+  const resolveExportEntryRel = (pkgDir: string, rawTarget: unknown): string | undefined => {
+    let target: string | undefined;
+    if (typeof rawTarget === 'string') {
+      target = rawTarget;
+    } else if (rawTarget && typeof rawTarget === 'object') {
+      const obj = rawTarget as Record<string, unknown>;
+      const pick = obj.bun ?? obj.import ?? obj.default ?? obj.types;
+      if (typeof pick === 'string') target = pick;
+    }
+    if (!target) return undefined;
+    const clean = target.replace(/^\.\//, '');
+    const candidates = [
+      `packages/${pkgDir}/${clean}`,
+      `packages/${pkgDir}/${clean.replace(/^dist\//, 'src/').replace(/\.js$/, '.ts')}`,
+      `packages/${pkgDir}/${clean.replace(/^dist\//, 'src/').replace(/\.js$/, '.tsx')}`,
+      `packages/${pkgDir}/${clean.replace(/^dist\//, 'src/').replace(/\.d\.ts$/, '.ts')}`,
+    ];
+    return candidates.find((c) => indexedRelPaths.has(c));
+  };
+
+  let archBoundaryCount = 0;
+  let archAdrCount = 0;
+
+  for (const pkg of workspacePkgs) {
+    archLines.push(
+      `${pkg.iri} a arch:WorkspacePackage ;`,
+      `    rdfs:label "${esc(pkg.name)}" ;`,
+      `    arch:packageName "${esc(pkg.name)}" .`,
+      '',
+    );
+    for (const depName of pkg.deps) {
+      const depPkg = pkgByName.get(depName);
+      if (depPkg && depPkg.iri !== pkg.iri) {
+        archLines.push(`${pkg.iri} arch:dependsOnPackage ${depPkg.iri} .`);
+      }
+    }
+
+    // Export subpath boundaries from package.json `exports`
+    for (const [subpathKey, rawTarget] of Object.entries(pkg.exportsMap).sort(([a], [b]) =>
+      a.localeCompare(b),
+    )) {
+      if (subpathKey.endsWith('.css') || subpathKey.endsWith('.json')) continue;
+      const exportSubpath =
+        subpathKey === '.' ? pkg.name : `${pkg.name}/${subpathKey.replace(/^\.\//, '')}`;
+      const subSlug =
+        subpathKey === '.' ? 'root' : subpathKey.replace(/^\.\//, '').replace(/[^A-Za-z0-9]+/g, '_');
+      const bIri =
+        curatedBoundaryIriBySubpath.get(exportSubpath) ??
+        `arch:boundary_${encodeSegment(pkg.dirName)}_${subSlug}`;
+      const entryRel = resolveExportEntryRel(pkg.dirName, rawTarget);
+      archBoundaryCount++;
+      archLines.push(
+        `${bIri} a arch:SubpathBoundary ;`,
+        `    rdfs:label "${esc(exportSubpath)}" ;`,
+        `    arch:exportSubpath "${esc(exportSubpath)}"${entryRel ? ` ;\n    arch:entryFile ${fileIri(entryRel)}` : ''} .`,
+        `${pkg.iri} arch:exposesBoundary ${bIri} .`,
+        '',
+      );
+    }
+
+    // Package -> code:File containment (src/ files)
+    const pkgPrefix = `packages/${pkg.dirName}/src/`;
+    const pkgFiles = [...indexedRelPaths]
+      .filter((rel) => rel.startsWith(pkgPrefix))
+      .sort();
+    for (const rel of pkgFiles) {
+      archLines.push(`${pkg.iri} arch:containsFile ${fileIri(rel)} .`);
+    }
+    if (pkgFiles.length > 0) archLines.push('');
+  }
+
+  // Architecture Decision Records (docs/adrs/*.md)
+  const adrsDir = path.join(REPO_ROOT, 'docs/adrs');
+  if (fs.existsSync(adrsDir)) {
+    for (const file of fs
+      .readdirSync(adrsDir)
+      .filter((f) => /^\d{4}-.*\.md$/.test(f))
+      .sort()) {
+      const rel = `docs/adrs/${file}`;
+      const numMatch = file.match(/^(\d{4})-/);
+      if (!numMatch) continue;
+      const adrCode = numMatch[1];
+      const adrNum = `ADR-${adrCode}`;
+      const content = fs.readFileSync(path.join(adrsDir, file), 'utf8');
+      const titleMatch = content.match(/^#\s+(.+)$/m);
+      const title = titleMatch ? titleMatch[1].trim() : adrNum;
+      const aIri =
+        curatedAdrIriByNumber.get(adrCode) ??
+        curatedAdrIriByNumber.get(adrNum) ??
+        `arch:${adrNum}`;
+      archAdrCount++;
+      archLines.push(
+        `${aIri} a arch:ArchitectureDecision ;`,
+        `    rdfs:label "${esc(title)}" ;`,
+        `    arch:adrNumber "${esc(adrCode)}"${indexedRelPaths.has(rel) ? ` ;\n    arch:adrFile ${fileIri(rel)}` : ''} .`,
+        '',
+      );
+    }
+  }
+
   // Write output files
   fs.mkdirSync(GENERATED_DIR, { recursive: true });
   const codeOut = path.join(GENERATED_DIR, 'code-graph.ttl');
+  const archOut = path.join(GENERATED_DIR, 'architecture-instances.ttl');
   const qaOut = path.join(GENERATED_DIR, 'qa-instances.ttl');
   const bridgeOut = path.join(GENERATED_DIR, 'bridge-instances.ttl');
   const trigOut = path.join(GENERATED_DIR, 'unified-dataset.trig');
 
   fs.writeFileSync(codeOut, codeLines.join('\n') + '\n', 'utf8');
+  fs.writeFileSync(archOut, archLines.join('\n') + '\n', 'utf8');
   fs.writeFileSync(qaOut, qaLines.join('\n') + '\n', 'utf8');
   fs.writeFileSync(bridgeOut, bridgeLines.join('\n') + '\n', 'utf8');
 
-  // Build unified-dataset.trig combining schema + instance graphs
-  const stripPrefixes = (ttl: string) =>
-    ttl
-      .split(/\r?\n/)
-      .filter((l) => !l.trim().startsWith('@prefix '))
-      .join('\n');
+  // Build unified-dataset.trig dynamically from ontology/system/registry.ttl
+  const system = loadOntologySystem(REPO_ROOT);
+  const collectedPrefixes = new Map<string, string>();
+  const graphBlocks: string[] = [];
+
+  const expandGraphGlobs = (globs: readonly string[]): string[] => {
+    const out = new Set<string>();
+    for (const pattern of globs) {
+      const g = new Bun.Glob(pattern);
+      let matched = false;
+      for (const rel of g.scanSync({ cwd: REPO_ROOT, onlyFiles: true })) {
+        out.add(rel.split(path.sep).join('/'));
+        matched = true;
+      }
+      if (!matched && !pattern.startsWith('ontology/')) {
+        const ontDir = path.join(REPO_ROOT, 'ontology');
+        if (fs.existsSync(ontDir)) {
+          for (const rel of g.scanSync({ cwd: ontDir, onlyFiles: true })) {
+            out.add(`ontology/${rel.split(path.sep).join('/')}`);
+          }
+        }
+      }
+    }
+    return [...out].sort((a, b) => a.localeCompare(b));
+  };
+
+  const extractBodyAndPrefixes = (ttl: string): string => {
+    const bodyLines: string[] = [];
+    for (const line of ttl.split(/\r?\n/)) {
+      const pMatch = line.trim().match(/^@prefix\s+([A-Za-z0-9_-]*):\s*<([^>]+)>\s*\.$/);
+      if (pMatch) {
+        if (!collectedPrefixes.has(pMatch[1])) {
+          collectedPrefixes.set(pMatch[1], pMatch[2]);
+        }
+        continue;
+      }
+      bodyLines.push(line);
+    }
+    return bodyLines.join('\n').trim();
+  };
+
+  const allGraphs: Array<{ graphIri: string; slug: string; globs: string[] }> = [
+    ...system.slices.map((s) => ({
+      graphIri: s.graphIri,
+      slug: s.slug,
+      globs: [...s.schemaGlobs, ...s.generatedGlobs],
+    })),
+    ...system.bridgeGraphs.map((bg) => ({
+      graphIri: bg.graphIri,
+      slug: bg.slug,
+      globs: [...bg.schemaGlobs, ...bg.generatedGlobs],
+    })),
+  ];
+
+  for (const g of allGraphs) {
+    const matchedFiles = expandGraphGlobs(g.globs).filter((f) => f.endsWith('.ttl'));
+    const chunks: string[] = [];
+    for (const rel of matchedFiles) {
+      const raw = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
+      const body = extractBodyAndPrefixes(raw);
+      if (body.length > 0) {
+        chunks.push(`# --- ${rel} ---\n${body}`);
+      }
+    }
+    if (chunks.length > 0) {
+      graphBlocks.push(`<${g.graphIri}> {\n${chunks.join('\n\n')}\n}`);
+    }
+  }
+
+  const unifiedPrefixLines = [...collectedPrefixes.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([pfx, ns]) => `@prefix ${pfx}: <${ns}> .`);
 
   const trigParts: string[] = [
-    PREFIXES,
+    ...unifiedPrefixLines,
     '',
-    '# Unified 5-Named-Graph Dataset (patterns, domain, code, qa, bridge)',
+    `# Unified Multi-Graph Dataset (${allGraphs.map((g) => ':' + g.slug).join(', ')})`,
     '',
-    `<https://wod.wiki/graph/code> {\n${stripPrefixes(codeLines.join('\n'))}\n}`,
-    '',
-    `<https://wod.wiki/graph/qa> {\n${stripPrefixes(qaLines.join('\n'))}\n}`,
-    '',
-    `<https://wod.wiki/graph/bridge> {\n${stripPrefixes(bridgeLines.join('\n'))}\n}`,
-    '',
+    ...graphBlocks.flatMap((blk) => [blk, '']),
   ];
   fs.writeFileSync(trigOut, trigParts.join('\n'), 'utf8');
 
   console.log(
-    `Indexed code+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${knownRoutes.size} routes, ${agentTools.length} WebMCP tools (${uiTools.length} UI), ${suiteCount} verification suites, ${indexedStories.length} stories, ${domains.size} domains, ${journeyById.size + proposedCount} journeys (${journeyById.size} authored, ${proposedCount} proposed), ${runCount} runs, ${issueCount} issues, ${rootCauseCount} rootCause edges.`,
+    `Indexed code+arch+qa+bridge graphs: ${allCodeFiles.length} files, ${symbolIndexByName.size} unique symbols, ${flatTestIds.length} testIds, ${knownRoutes.size} routes, ${agentTools.length} WebMCP tools (${uiTools.length} UI), ${workspacePkgs.length} packages, ${archBoundaryCount} subpath boundaries, ${archAdrCount} ADRs, ${suiteCount} verification suites, ${indexedStories.length} stories, ${domains.size} domains, ${journeyById.size + proposedCount} journeys (${journeyById.size} authored, ${proposedCount} proposed), ${runCount} runs, ${issueCount} issues, ${rootCauseCount} rootCause edges.`,
   );
   console.log(
-    `Wrote:\n  - ${path.relative(REPO_ROOT, codeOut)}\n  - ${path.relative(REPO_ROOT, qaOut)}\n  - ${path.relative(REPO_ROOT, bridgeOut)}\n  - ${path.relative(REPO_ROOT, trigOut)}`,
+    `Wrote:\n  - ${path.relative(REPO_ROOT, codeOut)}\n  - ${path.relative(REPO_ROOT, archOut)}\n  - ${path.relative(REPO_ROOT, qaOut)}\n  - ${path.relative(REPO_ROOT, bridgeOut)}\n  - ${path.relative(REPO_ROOT, trigOut)}`,
   );
 }
 

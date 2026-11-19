@@ -4,8 +4,10 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
+  analyzeImpact,
   applyChangeset,
   approveChangeset,
+  categorizeFile,
   listChangesets,
   proposeChangeset,
   rejectChangeset,
@@ -192,6 +194,11 @@ describe('ontology changeset engine', () => {
     expect(existsSync(mergedPath)).toBe(true)
     const mergedTtl = readFileSync(mergedPath, 'utf8')
     expect(mergedTtl).toContain('wod:TempoTarget a owl:Class')
+    expect(mergedTtl).toContain('bridge:implementsDomainClass wod:TempoTarget')
+    // Generated :code snapshot triples must NEVER be persisted into ontology/bridge/
+    expect(mergedTtl).not.toContain('a code:File')
+    expect(mergedTtl).not.toContain('a code:Symbol')
+    expect(mergedTtl).not.toContain('a code:TestId')
 
     // Validate merged Turtle syntax with rapper if available
     const rapper = spawnSync('rapper', ['-i', 'turtle', '-c', mergedPath], {
@@ -233,5 +240,56 @@ describe('ontology changeset engine', () => {
       'ontology/bridge/changesets-applied.ttl',
     )
     expect(report.codeFilesRequiringReview).toContain('e2e/specs/')
+  })
+
+  it('categorizes packages/*/package.json and docs/adrs/** as :architecture and maps e2e specs to :qa + :workflow', () => {
+    expect(categorizeFile('packages/ui/package.json')).toBe('architecture')
+    expect(categorizeFile('docs/adrs/0008-system-meta-ontology-and-slice-kinds.md')).toBe(
+      'architecture',
+    )
+    expect(categorizeFile('e2e/specs/journal/daily-note-authoring-and-persistence.md')).toBe(
+      'e2e_specs',
+    )
+
+    const impact = analyzeImpact([
+      {
+        path: 'packages/ui/package.json',
+        status: 'M',
+        category: 'architecture',
+        addedSymbols: [],
+        removedSymbols: [],
+        addedMetrics: [],
+        addedTestIds: [],
+        addedTools: [],
+        addedRoutes: [],
+      },
+      {
+        path: 'docs/adrs/0008-system-meta-ontology-and-slice-kinds.md',
+        status: 'A',
+        category: 'architecture',
+        addedSymbols: [],
+        removedSymbols: [],
+        addedMetrics: [],
+        addedTestIds: [],
+        addedTools: [],
+        addedRoutes: [],
+      },
+      {
+        path: 'e2e/specs/journal/daily-note-authoring-and-persistence.md',
+        status: 'M',
+        category: 'e2e_specs',
+        addedSymbols: [],
+        removedSymbols: [],
+        addedMetrics: [],
+        addedTestIds: [],
+        addedTools: [],
+        addedRoutes: [],
+      },
+    ])
+
+    expect(impact.affectedOntologyModules).toContain('ontology/architecture/')
+    expect(impact.affectedOntologyModules).toContain('ontology/workflow/')
+    expect(impact.affectedOntologyModules).toContain('ontology/qa/')
+    expect(impact.requiresValidation).toBe(true)
   })
 })

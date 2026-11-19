@@ -184,3 +184,38 @@ code:storyComponent a owl:ObjectProperty ;
     rdfs:domain code:Story ;
     rdfs:range code:Symbol ;
     rdfs:comment "Links a code:Story to the React component code:Symbol it renders." .
+
+# === Inbound Link Contract Super-Properties (sys:LinkContract) =============
+# Generated :code nodes are globally targetable from any Sub-Ontology
+# exclusively via these 6 canonical super-properties or predicates declared
+# rdfs:subPropertyOf one of them.
+
+code:linksToFile a owl:ObjectProperty ;
+    rdfs:label "links to file" ;
+    rdfs:range code:File ;
+    rdfs:comment "Canonical sys:LinkContract super-property for any cross-graph reference targeting a code:File in :code." .
+
+code:linksToSymbol a owl:ObjectProperty ;
+    rdfs:label "links to symbol" ;
+    rdfs:range code:Symbol ;
+    rdfs:comment "Canonical sys:LinkContract super-property for any cross-graph reference targeting a code:Symbol in :code." .
+
+code:linksToRoute a owl:ObjectProperty ;
+    rdfs:label "links to route" ;
+    rdfs:range code:Route ;
+    rdfs:comment "Canonical sys:LinkContract super-property for any cross-graph reference targeting a code:Route in :code." .
+
+code:linksToTestId a owl:ObjectProperty ;
+    rdfs:label "links to test ID" ;
+    rdfs:range code:TestId ;
+    rdfs:comment "Canonical sys:LinkContract super-property for any cross-graph reference targeting a code:TestId in :code." .
+
+code:linksToTool a owl:ObjectProperty ;
+    rdfs:label "links to WebMCP tool" ;
+    rdfs:range code:WebMcpTool ;
+    rdfs:comment "Canonical sys:LinkContract super-property for any cross-graph reference targeting a code:WebMcpTool in :code." .
+
+code:linksToStory a owl:ObjectProperty ;
+    rdfs:label "links to story" ;
+    rdfs:range code:Story ;
+    rdfs:comment "Canonical sys:LinkContract super-property for any cross-graph reference targeting a code:Story in :code." .

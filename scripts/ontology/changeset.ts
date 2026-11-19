@@ -32,6 +32,8 @@ export type ChangeCategory =
   | 'lang_metrics'
   | 'wql'
   | 'engine'
+  | 'architecture'
+  | 'workflow'
   | 'test_ids'
   | 'webmcp_tools'
   | 'routes'
@@ -197,6 +199,17 @@ function formatTimestampForId(date: Date): string {
 
 export function categorizeFile(filePath: string): ChangeCategory {
   const norm = filePath.replace(/\\/g, '/')
+  if (
+    /^packages\/[^/]+\/package\.json$/.test(norm) ||
+    /^apps\/[^/]+\/package\.json$/.test(norm) ||
+    norm === 'package.json' ||
+    norm.startsWith('docs/adrs/')
+  ) {
+    return 'architecture'
+  }
+  if (norm.startsWith('docs/workflows/') || norm.startsWith('ontology/workflow/')) {
+    return 'workflow'
+  }
   if (norm.startsWith('packages/lang/src/metrics') || norm.startsWith('packages/lang/src/')) {
     return 'lang_metrics'
   }
@@ -467,6 +480,16 @@ export function analyzeImpact(files: FileChange[]): ImpactAnalysis {
         targets.add(f.path)
         requiresValidation = true
         break
+      case 'architecture':
+        modules.add('ontology/architecture/')
+        targets.add(f.path)
+        requiresValidation = true
+        break
+      case 'workflow':
+        modules.add('ontology/workflow/')
+        targets.add(f.path)
+        requiresValidation = true
+        break
       case 'test_ids':
         modules.add('ontology/code/')
         modules.add('ontology/bridge/')
@@ -489,6 +512,7 @@ export function analyzeImpact(files: FileChange[]): ImpactAnalysis {
         break
       case 'e2e_specs':
         modules.add('ontology/qa/')
+        modules.add('ontology/workflow/')
         modules.add('ontology/bridge/')
         specs.add(f.path)
         requiresValidation = true
@@ -983,14 +1007,30 @@ export function rejectChangeset(
   return parseChangesetTrig(trigPath)
 }
 
+const GENERATED_CODE_TYPE_RE = /\ba\s+code:(?:File|Symbol|TestId|Route|WebMcpTool|Story)\b/
+
+function stripGeneratedCodeStatements(block: string): string {
+  // Split into Turtle statements separated by blank lines or terminating '.'
+  const statements = block
+    .split(/\n\s*\n/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .filter((stmt) => !GENERATED_CODE_TYPE_RE.test(stmt))
+  return statements.join('\n\n')
+}
+
 function extractAddedGraphBlocks(trigContent: string): string[] {
   const blocks: string[] = []
+  // Never merge :added:code into committed ontology/bridge/changesets-applied.ttl;
+  // :code instances are owned exclusively by ontology/generated/code-graph.ttl.
   const graphRe =
-    /<urn:wod:changeset:[^:>]+:added:(?:domain|code|bridge)>\s*\{([\s\S]*?)\n\}/g
+    /<urn:wod:changeset:[^:>]+:added:(?:domain|architecture|workflow|bridge)>\s*\{([\s\S]*?)\n\}/g
   let m: RegExpExecArray | null
   while ((m = graphRe.exec(trigContent)) !== null) {
-    const body = m[1]?.trim()
-    if (body) blocks.push(body)
+    const raw = m[1]?.trim()
+    if (!raw) continue
+    const cleaned = stripGeneratedCodeStatements(raw)
+    if (cleaned) blocks.push(cleaned)
   }
   return blocks
 }
@@ -1115,6 +1155,15 @@ function mapOntologyFileToCodeTargets(ontFile: string): string[] {
   }
   if (norm.startsWith('ontology/bridge/') || norm.startsWith('ontology/qa/')) {
     return ['e2e/specs/', 'e2e/live-app/', 'docs/qa-walkthrough/']
+  }
+  if (norm.startsWith('ontology/architecture/')) {
+    return ['packages/*/package.json', 'docs/adrs/']
+  }
+  if (norm.startsWith('ontology/workflow/')) {
+    return ['e2e/specs/', 'apps/playground/app/']
+  }
+  if (norm.startsWith('ontology/system/')) {
+    return ['scripts/ontology/']
   }
   if (norm.startsWith('ontology/shapes/')) {
     return ['ontology/examples/', 'packages/core/src/models/']
