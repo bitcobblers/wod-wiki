@@ -540,6 +540,7 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
     <FocusedDialog
       onClose={handleClose}
       title={resolvedWorkoutTitle ?? "Workout"}
+      ariaLabel="Workout"
       closeLabel="Exit"
       actions={
         <>

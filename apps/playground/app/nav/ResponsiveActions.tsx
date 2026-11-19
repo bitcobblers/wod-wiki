@@ -305,8 +305,9 @@ function ResponsiveActionsDock({
       )}
       <div
         ref={sheetRef}
-        role="dialog"
-        aria-label={active?.label ?? globalActions?.label ?? 'Page options'}
+        role={sheetOpen && showOverflow ? 'dialog' : undefined}
+        aria-modal={sheetOpen && showOverflow ? true : undefined}
+        aria-label={sheetOpen && showOverflow ? (active?.label ?? globalActions?.label ?? 'Page options') : undefined}
         tabIndex={-1}
         hidden={!sheetOpen || !showOverflow}
         onKeyDown={(e) => {

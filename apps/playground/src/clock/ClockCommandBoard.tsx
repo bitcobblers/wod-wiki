@@ -76,7 +76,7 @@ export const ClockControlModeToggle: React.FC<{
           aria-pressed={active === m}
           onClick={() => select(m)}
           {...getFocusProps?.(`board-keymode-${m}`)}
-          className={`rounded-full px-2 py-0.5 ${active === m ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`min-h-11 min-w-11 rounded-full px-3 py-2 text-xs font-medium ${active === m ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'}`}
         >
           {m === 'navigation' ? 'Nav' : 'Keypad'}
         </button>
@@ -188,7 +188,7 @@ export const ClockKeyCheckDialog: React.FC<{
             ref={closeRef}
             onClick={onClose}
             {...getFocusProps?.('board-keycheck-close')}
-            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
+            className="min-h-11 min-w-11 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-accent"
           >
             Close
           </button>
@@ -293,7 +293,7 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
                   aria-pressed={r.occurrenceId === snapshot.selectedOccurrenceId}
                   {...focus(`board-reps-${r.occurrenceId}`)}
                   onClick={() => dispatch({ kind: 'reps-select', occurrenceId: r.occurrenceId })}
-                  className={`max-w-[9rem] truncate rounded-full border px-2 py-0.5 text-[11px] ${
+                  className={`min-h-11 min-w-11 max-w-[9rem] truncate rounded-full border px-3 py-2 text-xs ${
                     r.occurrenceId === snapshot.selectedOccurrenceId
                       ? 'border-foreground bg-foreground text-background'
                       : 'border-border text-muted-foreground hover:bg-accent'
@@ -307,7 +307,7 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
           <button
             type="button"
             data-testid={TEST_IDS.CLOCK_VALUES_BUTTON}
-            className="ml-auto rounded-full border border-border px-2.5 py-0.5 text-[11px] hover:bg-accent"
+            className="ml-auto min-h-11 min-w-11 rounded-full border border-border px-3 py-2 text-xs font-medium hover:bg-accent"
             {...focus('board-values')}
             onClick={() => dispatch({ kind: 'values-open' })}
           >
@@ -316,18 +316,18 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        <ClockKeyLegend mode={mode} className="min-w-0 flex-1 truncate" />
+      <div className="flex flex-wrap items-center gap-1.5 px-3 py-1">
+        <ClockKeyLegend mode={mode} className="min-w-0 flex-1 truncate px-0" />
         <ClockControlModeToggle
           mode={mode}
           onModeChange={setMode}
           getFocusProps={getFocusProps}
-          className="mr-2 shrink-0"
+          className="shrink-0"
         />
         <button
           type="button"
           data-testid={TEST_IDS.CLOCK_KEY_CHECK_BUTTON}
-          className="mr-2 shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="min-h-11 min-w-11 shrink-0 rounded-full border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
           {...focus('board-key-check')}
           onClick={() => setKeyCheckOpen(true)}
         >
@@ -342,16 +342,18 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
           className="border-t border-border/60 px-3 py-2"
         >
           {snapshot.reps.length > 0 && snapshot.selectedOccurrenceId ? (
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="grid w-full grid-cols-6 gap-1.5">
               {(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const).map((digit) => (
                 <button
                   key={digit}
                   type="button"
+                  aria-label={`Digit ${digit}`}
+                  title={`Digit ${digit}`}
                   onClick={() => {
                     if (draft.length < 5) writeClockDraft(draft + digit);
                   }}
                   {...focus(`board-keypad-${digit}`)}
-                  className="h-9 min-w-9 flex-1 rounded-md border border-border bg-muted/40 font-mono text-sm font-semibold hover:bg-accent active:scale-95"
+                  className="min-h-11 min-w-11 w-full rounded-md border border-border bg-muted/40 font-mono text-sm font-semibold hover:bg-accent active:scale-95"
                 >
                   {digit}
                 </button>
@@ -359,16 +361,18 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
               <button
                 type="button"
                 aria-label="Backspace"
+                title="Backspace"
                 disabled={draft.length === 0}
                 onClick={() => writeClockDraft(draft.slice(0, -1))}
                 {...focus('board-keypad-back')}
-                className="h-9 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-accent disabled:opacity-40"
+                className="min-h-11 min-w-11 w-full rounded-md border border-border px-2 text-xs font-medium hover:bg-accent disabled:opacity-40"
               >
                 ⌫
               </button>
               <button
                 type="button"
                 aria-label="Set reps"
+                title="Set reps"
                 disabled={draft.length === 0}
                 onClick={() => {
                   const value = Number.parseInt(draft, 10);
@@ -378,7 +382,7 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
                   }
                 }}
                 {...focus('board-keypad-set')}
-                className="h-9 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                className="min-h-11 min-w-11 w-full rounded-md bg-primary px-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
               >
                 Set
               </button>
@@ -453,7 +457,7 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
                 type="button"
                 autoFocus
                 data-testid={TEST_IDS.CLOCK_STOP_CONFIRM_CANCEL}
-                className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
+                className="min-h-11 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-accent"
                 {...focus('board-stop-cancel')}
                 onClick={() => dispatch({ kind: 'stop-cancel' })}
               >
@@ -462,7 +466,7 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
               <button
                 type="button"
                 data-testid={TEST_IDS.CLOCK_STOP_CONFIRM_ACCEPT}
-                className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground hover:bg-destructive/90"
+                className="min-h-11 rounded-md bg-destructive px-3 py-2 text-xs font-medium text-destructive-foreground hover:bg-destructive/90"
                 {...focus('board-stop-confirm')}
                 onClick={() => dispatch({ kind: 'stop-confirm' })}
               >
