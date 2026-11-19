@@ -10,6 +10,7 @@ import { TEST_IDS } from '@/lib/testIds';
 
 export interface FocusedDialogProps {
   title?: string;
+  ariaLabel?: string;
   onClose: () => void;
   children: React.ReactNode;
   closeButtonClassName?: string;
@@ -21,6 +22,7 @@ export interface FocusedDialogProps {
 
 export const FocusedDialog: React.FC<FocusedDialogProps> = ({
   title,
+  ariaLabel,
   onClose,
   children,
   closeButtonClassName,
@@ -57,7 +59,7 @@ export const FocusedDialog: React.FC<FocusedDialogProps> = ({
     >
       <DialogContent
         initialFocus="content"
-        aria-label={title ? undefined : 'Workout'}
+        aria-label={ariaLabel ?? title ?? 'Workout'}
         className="fixed inset-0 z-[100] m-0 w-screen max-w-none h-dvh max-h-none p-0 gap-0 rounded-none border-0 shadow-none flex flex-col bg-background text-foreground outline-none"
       >
         {floatingClose || (isMinimal && !title) ? (

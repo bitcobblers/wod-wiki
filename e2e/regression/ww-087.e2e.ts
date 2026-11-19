@@ -34,6 +34,9 @@ test.describe('WW-087 — mobile runtime gate dialog size', () => {
 
     await navigateToRunPage(page, 'ww087-mobile-gate', '```time\nTimer: 1:00\n10 Burpees\n```');
 
+    // Closed Page options mobile overflow sheet must not expose role="dialog".
+    await expect(page.locator('[role="dialog"][aria-label="Page options"]')).toHaveCount(0);
+
     const dialog = page.locator('[role="dialog"][aria-label="Workout"]').first();
     await expect(dialog).toBeAttached({ timeout: 15_000 });
 
