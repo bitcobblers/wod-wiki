@@ -953,4 +953,54 @@ describe('WW-009: structural segment titles vs real round numbers', () => {
     const entry = unifiedEventToEntry(roundEvent, { index: 4 })
     expect(entry.title).toBe('Round 2')
   })
+
+  it('WW-051: prefers authoritative run.durationMs and excludes structural waiting-to-start spans in card duration', () => {
+    const t0 = new Date(2026, 10, 19, 10, 0, 0).getTime()
+    const baseEvents: EventRecord[] = [
+      {
+        id: 'r1:gate',
+        resultId: 'r1',
+        noteId: 'n-ww051',
+        timestamp: t0,
+        outputType: 'segment',
+        sourceBlockKey: 'waiting-to-start',
+        stackLevel: 1,
+        timeSpan: { started: t0 - 15_000, ended: t0 },
+        metrics: [{ type: 'label', value: 'Ready to Start', image: 'Ready to Start' }],
+      } as EventRecord,
+      {
+        id: 'r1:work',
+        resultId: 'r1',
+        noteId: 'n-ww051',
+        timestamp: t0 + 25_000,
+        outputType: 'segment',
+        effortSlug: 'burpees',
+        sourceBlockKey: 'work-1',
+        stackLevel: 1,
+        timeSpan: { started: t0, ended: t0 + 25_000 },
+        metrics: [{ type: 'elapsed', value: 25_000 }],
+      } as EventRecord,
+    ]
+
+    const authoritativeRun: RowsRun & { durationMs?: number } = {
+      resultId: 'r1',
+      noteId: 'n-ww051',
+      timestamp: t0 + 25_000,
+      durationMs: 25_000,
+      events: baseEvents,
+    }
+    const authoritativeEntry = rowsRunToEntry(authoritativeRun)
+    expect(authoritativeEntry.subtitle).toContain('00:25')
+    expect(authoritativeEntry.subtitle).not.toContain('00:40')
+
+    const fallbackRun: RowsRun = {
+      resultId: 'r1',
+      noteId: 'n-ww051',
+      timestamp: t0 + 25_000,
+      events: baseEvents,
+    }
+    const fallbackEntry = rowsRunToEntry(fallbackRun)
+    expect(fallbackEntry.subtitle).toContain('00:25')
+    expect(fallbackEntry.subtitle).not.toContain('00:40')
+  })
 })

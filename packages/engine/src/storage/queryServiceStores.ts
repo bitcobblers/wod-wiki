@@ -272,6 +272,7 @@ export function buildQueryServiceStoresFromStorage(
         noteId: s.noteId,
         startedAt: s.startTime,
         ...(s.completed ? { completedAt: s.endTime } : {}),
+        ...(typeof s.duration === 'number' ? { duration: s.duration } : {}),
         createdAt: s.createdAt,
       }));
     },

@@ -32,7 +32,7 @@ function toMs(value: unknown): number {
 async function getSegmentSpans(
   page: import('@playwright/test').Page,
   resultId: string,
-): Promise<Array<{ sourceBlockKey: string; span: SegmentSpan | null }>> {
+): Promise<Array<{ sourceBlockKey: string; effortSlug: string | null; span: SegmentSpan | null }>> {
   return page.evaluate(
     async ({ dbName, rid }) => {
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -53,8 +53,10 @@ async function getSegmentSpans(
           .map((r) => {
             const key = String(r.sourceBlockKey ?? '');
             const ts = r.timeSpan as { started?: unknown; ended?: unknown } | undefined;
+            const slug = typeof r.effortSlug === 'string' && r.effortSlug.length > 0 ? r.effortSlug : null;
             return {
               sourceBlockKey: key,
+              effortSlug: slug,
               span:
                 ts && ts.started !== undefined && ts.ended !== undefined
                   ? { started: ts.started as number, ended: ts.ended as number }
@@ -65,7 +67,7 @@ async function getSegmentSpans(
             };
           })
           .filter((r) => !r.structural)
-          .map(({ sourceBlockKey, span }) => ({ sourceBlockKey, span }));
+          .map(({ sourceBlockKey, effortSlug, span }) => ({ sourceBlockKey, effortSlug, span }));
       } finally {
         db.close();
       }
@@ -111,18 +113,28 @@ test.describe('WW-051 — session timing across lifecycle paths', () => {
     expect(session.id).toBeTruthy();
 
     const segments = await getSegmentSpans(page, session.id!);
-    // The run advanced through at least two movements, so at least two real
-    // splits must exist — not just 'Start' rows.
-    expect(segments.length).toBeGreaterThanOrEqual(2);
-    const spans = segments.map((s) => s.span);
-    for (const span of spans) {
-      // Defect: spans persist empty/zero, so this is null or a zero-length span.
-      expect(span, 'every split persists a real time span').not.toBeNull();
-      expect(toMs(span!.ended)).toBeGreaterThan(toMs(span!.started));
+    for (const seg of segments) {
+      expect(seg.span, 'every segment persists a real time span').not.toBeNull();
+      expect(toMs(seg.span!.ended)).toBeGreaterThan(toMs(seg.span!.started));
     }
-    const starts = spans.map((s) => toMs(s!.started));
-    for (let i = 1; i < starts.length; i++) {
-      expect(starts[i]!).toBeGreaterThan(starts[i - 1]!);
+
+    // The run advanced through at least two movements, so at least two real
+    // leaf movement splits must exist — not just 'Start' rows — and start in
+    // strictly increasing order (enclosing container blocks pop last via LIFO).
+    const leafSplits = segments.filter((s) => Boolean(s.effortSlug));
+    expect(leafSplits.length).toBeGreaterThanOrEqual(2);
+    const leafStarts = leafSplits.map((s) => toMs(s.span!.started));
+    const leafEnds = leafSplits.map((s) => toMs(s.span!.ended));
+    for (let i = 1; i < leafStarts.length; i++) {
+      expect(leafStarts[i]!).toBeGreaterThan(leafStarts[i - 1]!);
+    }
+
+    const firstLeafStart = Math.min(...leafStarts);
+    const lastLeafEnd = Math.max(...leafEnds);
+    const containers = segments.filter((s) => !s.effortSlug);
+    for (const container of containers) {
+      expect(toMs(container.span!.started)).toBeLessThanOrEqual(firstLeafStart);
+      expect(toMs(container.span!.ended)).toBeGreaterThanOrEqual(lastLeafEnd);
     }
   });
 
