@@ -702,6 +702,11 @@ function classifyMetric(m: MetricLike) {
 
   if (type === 'distance' || name === 'distance') return { kind: 'distance' as const, val }
   if (type === 'tis' || name === 'tis') return { kind: 'tis' as const, val }
+  if (type === 'elapsed' || name === 'elapsed' || canonicalKey === 'elapsed') {
+    const unit = trimmedUnit?.toLowerCase()
+    const elapsedMs = unit === 's' || unit === 'sec' || unit === 'seconds' ? val * 1000 : val
+    return { kind: 'elapsed' as const, val: elapsedMs }
+  }
   if (type === 'duration' || name === 'duration') return { kind: 'duration' as const, val }
   return null
 }
@@ -736,23 +741,25 @@ function extractRunMetrics(run: RowsRun) {
   let segmentLoadTotal = 0
   let segmentLoadUnit: string | undefined
   let workoutVolume: { val: number; unit: string } | undefined
+  let workoutElapsedMs: number | undefined
   let sessionLoadAu: number | undefined
   let maxTis = 0
   let segmentCount = 0
   const effortSlugs = new Set<string>()
 
   for (const event of run.events) {
-    if (event.outputType === 'segment' && !isStructuralSegmentEvent(event)) {
+    const isNonStructuralSegment = event.outputType === 'segment' && !isStructuralSegmentEvent(event)
+    if (isNonStructuralSegment) {
       segmentCount++
+      if (event.timeSpan?.started != null) {
+        if (event.timeSpan.started < minStart) minStart = event.timeSpan.started
+        if (event.timeSpan.ended != null && event.timeSpan.ended > maxEnd) {
+          maxEnd = event.timeSpan.ended
+        }
+      }
     }
     if (event.effortSlug) {
       effortSlugs.add(event.effortSlug)
-    }
-    if (event.timeSpan?.started != null) {
-      if (event.timeSpan.started < minStart) minStart = event.timeSpan.started
-      if (event.timeSpan.ended != null && event.timeSpan.ended > maxEnd) {
-        maxEnd = event.timeSpan.ended
-      }
     }
     if (Array.isArray(event.metrics)) {
       for (const m of event.metrics as MetricLike[]) {
@@ -765,6 +772,8 @@ function extractRunMetrics(run: RowsRun) {
         } else if (event.outputType === 'analytics') {
           if (classified.kind === 'volume' && classified.val > 0 && !isGroupedAnalyticsEvent(event, m)) {
             workoutVolume = { val: classified.val, unit: classified.unit }
+          } else if (classified.kind === 'elapsed' && classified.val > 0 && !isGroupedAnalyticsEvent(event, m)) {
+            workoutElapsedMs = classified.val
           }
         } else {
           if (classified.kind === 'rep') {
@@ -777,9 +786,14 @@ function extractRunMetrics(run: RowsRun) {
       }
     }
   }
-  const elapsedMs = (Number.isFinite(minStart) && Number.isFinite(maxEnd) && maxEnd > minStart)
+  const authoritativeMs =
+    typeof run.durationMs === 'number' && Number.isFinite(run.durationMs) && run.durationMs > 0
+      ? run.durationMs
+      : undefined
+  const spanMs = (Number.isFinite(minStart) && Number.isFinite(maxEnd) && maxEnd > minStart)
     ? maxEnd - minStart
     : undefined
+  const elapsedMs = authoritativeMs ?? workoutElapsedMs ?? spanMs
 
   const resolvedVolume =
     workoutVolume ??

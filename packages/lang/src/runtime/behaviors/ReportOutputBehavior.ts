@@ -178,6 +178,23 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
         return metrics;
     }
 
+    private resolveFallbackTiming(
+        ctx: IBehaviorContext,
+        nowMs: number,
+    ): { started: number; ended: number; elapsedMs: number } | null {
+        if (ctx.block.blockType === 'WaitingToStart') return null;
+        const timing = (ctx.block as { executionTiming?: { startTime?: Date } }).executionTiming;
+        const execStartMs = timing?.startTime?.getTime();
+        if (execStartMs === undefined || !Number.isFinite(execStartMs) || execStartMs > nowMs) {
+            return null;
+        }
+        return {
+            started: execStartMs,
+            ended: nowMs,
+            elapsedMs: Math.max(0, nowMs - execStartMs),
+        };
+    }
+
     private computeTimeResults(
         ctx: IBehaviorContext,
         timer: TimerState | undefined,
@@ -190,15 +207,18 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
 
         if (timer && timer.spans.length > 0) {
             const elapsed = calculateElapsed(timer, nowMs);
-            const firstStart = timer.spans[0].started;
-            const lastSpan = timer.spans[timer.spans.length - 1];
+            const closedSpans = timer.spans.map((s) =>
+                s.ended !== undefined ? s : new TimeSpan(s.started, nowMs),
+            );
+            const firstStart = closedSpans[0].started;
+            const lastSpan = closedSpans[closedSpans.length - 1];
             const lastEnd = lastSpan.ended ?? nowMs;
             const total = Math.max(0, lastEnd - firstStart);
 
             const metrics = MetricContainer.empty(blockKey).add(
                 new ElapsedMetric(elapsed, blockKey, now),
                 new TotalMetric(total, blockKey, now),
-                new SpansMetric([...timer.spans], blockKey, now),
+                new SpansMetric(closedSpans, blockKey, now),
                 new SystemTimeMetric(this._now.now(), blockKey),
             );
             if (round) {
@@ -207,17 +227,61 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
             return metrics;
         }
 
-        const degenerateSpan = new TimeSpan(nowMs, nowMs);
+        const fallback = this.resolveFallbackTiming(ctx, nowMs);
+        const span = fallback ? new TimeSpan(fallback.started, fallback.ended) : new TimeSpan(nowMs, nowMs);
+        const fallbackElapsed = fallback?.elapsedMs ?? 0;
         const metrics = MetricContainer.empty(blockKey).add(
-            new ElapsedMetric(0, blockKey, now),
-            new TotalMetric(0, blockKey, now),
-            new SpansMetric([degenerateSpan], blockKey, now),
+            new ElapsedMetric(fallbackElapsed, blockKey, now),
+            new TotalMetric(fallbackElapsed, blockKey, now),
+            new SpansMetric([span], blockKey, now),
             new SystemTimeMetric(this._now.now(), blockKey),
         );
         if (round) {
             metrics.add(new CurrentRoundMetric(round.current, round.total, blockKey, now, customRoundLabel));
         }
         return metrics;
+    }
+
+    private buildWeightedSplitGroups(
+        firstStart: number,
+        totalElapsed: number,
+        totalDuration: number,
+        now: Date,
+        blockKey: string,
+        round: RoundState | undefined,
+        groups: MetricContainer[],
+        customRoundLabel?: string,
+    ): MetricContainer[] {
+        const weights = groups.map(group => {
+            const reps = group
+                .filter(f => f.type === MetricType.Rep && typeof f.value === 'number')
+                .reduce((sum, f) => sum + (f.value as number), 0);
+            return reps > 0 ? reps : 1;
+        });
+        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+
+        let currentOffsetMs = 0;
+        return groups.map((group, i) => {
+            const weight = weights[i];
+            const ratio = weight / totalWeight;
+            const groupElapsed = Math.round(totalElapsed * ratio);
+            const groupTotal = Math.round(totalDuration * ratio);
+
+            const groupStart = firstStart + currentOffsetMs;
+            const groupEnd = groupStart + groupTotal;
+            currentOffsetMs += groupTotal;
+
+            const groupFragments = group.clone().add(
+                new ElapsedMetric(groupElapsed, blockKey, now),
+                new TotalMetric(groupTotal, blockKey, now),
+                new SpansMetric([new TimeSpan(groupStart, groupEnd)], blockKey, now),
+                new SystemTimeMetric(this._now.now(), blockKey),
+            );
+            if (round) {
+                groupFragments.add(new CurrentRoundMetric(round.current, round.total, blockKey, now, customRoundLabel));
+            }
+            return groupFragments;
+        });
     }
 
     private computeSplitTimeResults(
@@ -232,6 +296,19 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
         const round = ctx.getMemoryByTag('round')[0]?.metrics[0] as unknown as RoundState | undefined;
 
         if (!timer || timer.spans.length === 0) {
+            const fallback = this.resolveFallbackTiming(ctx, nowMs);
+            if (fallback) {
+                return this.buildWeightedSplitGroups(
+                    fallback.started,
+                    fallback.elapsedMs,
+                    fallback.elapsedMs,
+                    now,
+                    blockKey,
+                    round,
+                    groups,
+                    customRoundLabel,
+                );
+            }
             return groups.map((group) => {
                 const groupFragments = group.clone().add(
                     new ElapsedMetric(0, blockKey, now),
@@ -251,39 +328,16 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
         const lastEnd = timer.spans[timer.spans.length - 1].ended ?? nowMs;
         const totalDuration = lastEnd - firstStart;
 
-        // 1. Calculate weights for each group based on reps
-        const weights = groups.map(group => {
-            const reps = group
-                .filter(f => f.type === MetricType.Rep && typeof f.value === 'number')
-                .reduce((sum, f) => sum + (f.value as number), 0);
-            return reps > 0 ? reps : 1; // Default to 1 if no reps
-        });
-        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-
-        // 2. Distribute time and create virtual spans
-        let currentOffsetMs = 0;
-        return groups.map((group, i) => {
-            const weight = weights[i];
-            const ratio = weight / totalWeight;
-            const groupElapsed = Math.round(totalElapsed * ratio);
-            const groupTotal = Math.round(totalDuration * ratio);
-
-            // Create virtual spans for this group starting at an offset from firstStart
-            const groupStart = firstStart + currentOffsetMs;
-            const groupEnd = groupStart + groupTotal;
-            currentOffsetMs += groupTotal;
-
-            const groupFragments = group.clone().add(
-                new ElapsedMetric(groupElapsed, blockKey, now),
-                new TotalMetric(groupTotal, blockKey, now),
-                new SpansMetric([new TimeSpan(groupStart, groupEnd)], blockKey, now),
-                new SystemTimeMetric(this._now.now(), blockKey),
-            );
-            if (round) {
-                groupFragments.add(new CurrentRoundMetric(round.current, round.total, blockKey, now, customRoundLabel));
-            }
-            return groupFragments;
-        });
+        return this.buildWeightedSplitGroups(
+            firstStart,
+            totalElapsed,
+            totalDuration,
+            now,
+            blockKey,
+            round,
+            groups,
+            customRoundLabel,
+        );
     }
 
     private writeResultMemory(ctx: IBehaviorContext, resultFragments: MetricContainer): void {

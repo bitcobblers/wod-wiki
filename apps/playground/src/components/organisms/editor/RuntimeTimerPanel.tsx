@@ -563,13 +563,13 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
 
     const results: Sessions = buildSessions(allOutputs, {
       startTime: execution.startTime ?? undefined,
-      elapsedTime: execution.elapsedTime,
+      elapsedTime: execution.getElapsedTime(),
       completed,
       now: runtime.nowProvider,
     });
 
     void onComplete?.(block.id, results);
-  }, [block.id, execution.elapsedTime, execution.startTime, onComplete, runtime]);
+  }, [block.id, execution, onComplete, runtime]);
 
   // The active cast transport comes from the process-wide registry, not
   // CastTransportContext — that provider wraps only the cast button, so it
@@ -629,13 +629,13 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
         const allOutputs = runtime?.getOutputStatements() || [];
         const segmentCount = countSegmentOutputs(allOutputs);
         const reviewMessage = buildCompletedRuntimeProjection({
-          totalDurationMs: execution.elapsedTime,
+          totalDurationMs: execution.getElapsedTime(),
           segmentCount,
         });
         try { castTransport.send(reviewMessage); } catch { /* ignore */ }
       }
     }
-  }, [execution.status, execution.elapsedTime, createdAt, handleComplete, castTransport, runtime]);
+  }, [execution, createdAt, handleComplete, castTransport, runtime]);
 
   // Halt + report shared by Stop and host-driven stops; a stack drained
   // before the halt is a natural finish, not a partial. Exiting at the
@@ -677,7 +677,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     runtime.finalizeAnalytics();
     const results = buildSessions(runtime.getOutputStatements(), {
       startTime: execution.startTime ?? undefined,
-      elapsedTime: execution.elapsedTime,
+      elapsedTime: execution.getElapsedTime(),
       completed: false,
       now: runtime.nowProvider,
     });
@@ -688,13 +688,13 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
       data: results,
       createdAt: Date.now(),
     });
-  }, [runtime, execution.elapsedTime, execution.startTime, block.id, resolvedSessionId, resolvedNoteId]);
+  }, [runtime, execution, block.id, resolvedSessionId, resolvedNoteId]);
   const unloadStateRef = useRef({
     isLive: isLiveRun,
     sessionId: resolvedSessionId,
     noteId: resolvedNoteId,
     workoutTitle: workoutIdentity.workoutTitle,
-    elapsedMs: execution.elapsedTime,
+    elapsedMs: execution.getElapsedTime(),
     stopAndReport,
     stagePartialUnload,
   });
@@ -703,7 +703,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     sessionId: resolvedSessionId,
     noteId: resolvedNoteId,
     workoutTitle: workoutIdentity.workoutTitle,
-    elapsedMs: execution.elapsedTime,
+    elapsedMs: execution.getElapsedTime(),
     stopAndReport,
     stagePartialUnload,
   };

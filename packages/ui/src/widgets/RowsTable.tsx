@@ -66,13 +66,21 @@ export function RowsTable({
 
   const runs = useMemo(
     () =>
-      result.runs.map((run) => ({
-        run,
-        // Event rows are the promoted statement snapshots — structurally the
-        // same shape as stored output statements.
-        statements: run.events as unknown as OutputStatementRow[],
-        startTime: run.events[0]?.timeSpan?.started ?? run.timestamp,
-      })),
+      result.runs.map((run) => {
+        const firstActive = run.events.find(
+          (e) =>
+            e.outputType === 'segment' &&
+            !String(e.sourceBlockKey ?? '').toLowerCase().startsWith('waiting-to-start') &&
+            e.timeSpan?.started !== undefined,
+        );
+        return {
+          run,
+          // Event rows are the promoted statement snapshots — structurally the
+          // same shape as stored output statements.
+          statements: run.events as unknown as OutputStatementRow[],
+          startTime: firstActive?.timeSpan?.started ?? run.events[0]?.timeSpan?.started ?? run.timestamp,
+        };
+      }),
     [result],
   );
 

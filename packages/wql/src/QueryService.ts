@@ -822,6 +822,8 @@ export interface RowsRun {
   noteId: string;
   /** Canonical workout time (result.createdAt under the unified model). */
   timestamp: number;
+  /** Authoritative persisted session duration in milliseconds when known. */
+  durationMs?: number;
   events: EventRecord[];
 }
 
@@ -1387,6 +1389,12 @@ export class QueryService {
           [],
         )
       : EMPTY_FACT_DIMS;
+    const sessionMetaById = new Map<string, { duration?: number }>();
+    const allSessions = this.sessionStore ? await this.sessionStore.getAll() : [];
+    for (const s of allSessions) {
+      sessionMetaById.set(s.id, { duration: s.duration });
+    }
+
     let runs: RowsRun[] = groups
       .map(([resultId, rows]) => {
         let events = rows;
@@ -1405,24 +1413,31 @@ export class QueryService {
           });
           if (!matchingSession) events = [];
         }
+        const meta = sessionMetaById.get(resultId);
         return {
           resultId,
           noteId: rows[0].noteId,
           timestamp: sessionCompletedAt(rows),
+          ...(typeof meta?.duration === 'number' && Number.isFinite(meta.duration) ? { durationMs: meta.duration } : {}),
           events,
         };
       })
       .filter((run) => run.events.length > 0);
     if (this.sessionStore && planeFilters.length === 0 && normalizedFactFilters.length === 0 && blockIds.length === 0) {
       const seen = new Set(runs.map((r) => r.resultId));
-      const allSessions = await this.sessionStore.getAll();
       for (const s of allSessions) {
         if (seen.has(s.id)) continue;
         if (resultIds.length > 0 && !resultIds.includes(s.id)) continue;
         if (noteIds.length > 0 && !noteIds.includes(s.noteId)) continue;
         const ts = s.completedAt ?? s.startedAt ?? s.createdAt ?? 0;
         if ((parsed.window || options.range) && !effectiveTimeWindow(ts, parsed.window, options.range, ctx)) continue;
-        runs.push({ resultId: s.id, noteId: s.noteId, timestamp: ts, events: [] });
+        runs.push({
+          resultId: s.id,
+          noteId: s.noteId,
+          timestamp: ts,
+          ...(typeof s.duration === 'number' && Number.isFinite(s.duration) ? { durationMs: s.duration } : {}),
+          events: [],
+        });
       }
       runs.sort((a, b) => b.timestamp - a.timestamp);
     }

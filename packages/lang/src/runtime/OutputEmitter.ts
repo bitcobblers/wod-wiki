@@ -434,8 +434,16 @@ export class OutputEmitter {
             }
 
 
-            const fallbackStartMs = block.executionTiming?.startTime?.getTime() ?? fallbackEndMs;
-            const timeSpan = new TimeSpan(fallbackStartMs, fallbackEndMs);
+            const recordedSpans = resultFragments
+                .filter((m) => m.type === MetricType.Spans && Array.isArray(m.value))
+                .flatMap((m) => m.value as Array<{ started?: number; ended?: number }>)
+                .filter((s): s is { started: number; ended?: number } => typeof s?.started === 'number' && Number.isFinite(s.started));
+            const timeSpan = recordedSpans.length > 0
+                ? new TimeSpan(
+                    Math.min(...recordedSpans.map((s) => s.started)),
+                    Math.max(...recordedSpans.map((s) => (typeof s.ended === 'number' && Number.isFinite(s.ended) ? s.ended : fallbackEndMs))),
+                )
+                : new TimeSpan(block.executionTiming?.startTime?.getTime() ?? fallbackEndMs, fallbackEndMs);
 
             this.add(new OutputStatement({
                 outputType: 'segment',
