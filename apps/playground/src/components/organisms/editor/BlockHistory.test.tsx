@@ -92,4 +92,35 @@ describe('saved block history', () => {
     expect(restored.blocks.removed.id).toBe('removed');
     expect(restored.rawContent.slice(restored.blocks.removed.from, restored.blocks.removed.to)).toBe(revision.rawContent);
   });
+
+  it('omits saved version source blocks from the DOM while collapsed and mounts them when toggled open', async () => {
+    const { persistence, second } = await harness();
+    render(<BlockHistory noteId={second.id} blocks={second.blocks} persistence={persistence} />);
+
+    expect(screen.queryByLabelText('Compare saved version source')).toBeNull();
+    expect(screen.queryByLabelText('With saved version source')).toBeNull();
+
+    fireEvent.click(screen.getByText('Saved block history'));
+    await waitFor(() => expect(screen.getByLabelText('Compare saved version source').textContent).toContain('10 Pushups'));
+    expect(screen.getByLabelText('With saved version source').textContent).toContain('20 Pushups');
+
+    fireEvent.click(screen.getByText('Saved block history'));
+    expect(screen.queryByLabelText('Compare saved version source')).toBeNull();
+    expect(screen.queryByLabelText('With saved version source')).toBeNull();
+  });
+
+  it('orders block occurrences by document position rather than lexicographical blockId', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const persistence = new IndexedDBNotePersistence(service);
+    const source = '```time\n10 Pushups\n```\n\n```time\n20 Squats\n```';
+    const ids = ['zzz-first', 'aaa-second'];
+    const blocks = reconcileNoteBlocks(source, { sourceRevision: 1, createId: () => ids.shift()! });
+    const saved = await persistence.saveNote({ noteId: 'ordered-blocks', rawContent: source, blocks, expectedSourceRevision: 0 });
+
+    render(<BlockHistory noteId={saved.id} blocks={saved.blocks} persistence={persistence} />);
+    fireEvent.click(screen.getByText('Saved block history'));
+
+    await waitFor(() => expect(screen.getByLabelText('Compare saved version source').textContent).toContain('10 Pushups'));
+    expect(screen.getByLabelText('Compare saved version source').textContent).not.toContain('20 Squats');
+  });
 });

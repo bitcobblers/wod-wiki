@@ -38,6 +38,7 @@ export interface BlockHistoryProps {
 }
 
 export function BlockHistory({ noteId, sourceRevision, blocks = {}, persistence = notePersistence, onRevert }: BlockHistoryProps) {
+  const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<BlockRevision[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [leftVersion, setLeftVersion] = useState(0);
@@ -45,6 +46,7 @@ export function BlockHistory({ noteId, sourceRevision, blocks = {}, persistence 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
+    if (!open) return;
     let cancelled = false;
     setError(null);
     persistence.getNoteBlockHistory(noteId).then(history => {
@@ -52,8 +54,15 @@ export function BlockHistory({ noteId, sourceRevision, blocks = {}, persistence 
       setRows(history.toSorted((a, b) => a.savedAt - b.savedAt || a.version - b.version));
     }).catch(error => { if (!cancelled) setError(error instanceof Error ? error.message : String(error)); });
     return () => { cancelled = true; };
-  }, [noteId, sourceRevision, persistence]);
-  const ids = Array.from(new Set(rows.map(row => row.blockId)));
+  }, [open, noteId, sourceRevision, persistence]);
+  const ids = Array.from(new Set(rows.map(row => row.blockId))).sort((a, b) => {
+    const fromA = blocks[a]?.from;
+    const fromB = blocks[b]?.from;
+    if (fromA !== undefined && fromB !== undefined) return fromA - fromB;
+    if (fromA !== undefined) return -1;
+    if (fromB !== undefined) return 1;
+    return 0;
+  });
   const blockId = ids.includes(selectedId) ? selectedId : ids[0] ?? '';
   const versions = rows.filter(row => row.blockId === blockId).toSorted((a, b) => a.version - b.version);
   const formatBlockOption = (id: string, index: number): string => {
@@ -81,9 +90,17 @@ export function BlockHistory({ noteId, sourceRevision, blocks = {}, persistence 
       setBusy(false);
     }
   };
-  return <details className="rounded-lg border border-border p-3">
-    <summary className="cursor-pointer font-medium focus-visible:ring-2">Saved block history</summary>
-    <div className="mt-3 space-y-3">
+  return <details open={open} onToggle={event => setOpen(event.currentTarget.open)} className="rounded-lg border border-border p-3">
+    <summary
+      className="cursor-pointer font-medium focus-visible:ring-2"
+      onClick={event => {
+        event.preventDefault();
+        setOpen(prev => !prev);
+      }}
+    >
+      Saved block history
+    </summary>
+    {open && <div className="mt-3 space-y-3">
       {error && <p role="alert">{error}</p>}
       {ids.length === 0 ? <p className="text-sm text-muted-foreground">No saved actionable blocks.</p> : <>
         <label className="block text-sm">Block occurrence
@@ -103,6 +120,6 @@ export function BlockHistory({ noteId, sourceRevision, blocks = {}, persistence 
         <p role="status" aria-live="polite" className="text-sm">{left?.rawContent === right?.rawContent && left?.kind === right?.kind && left?.dialect === right?.dialect && left?.sport === right?.sport ? 'Saved states are identical.' : 'Saved states differ.'}</p>
         {onRevert && left && <button type="button" disabled={busy} className="rounded border px-3 py-2 hover:bg-accent focus-visible:ring-2 disabled:opacity-50" onClick={() => void revert()}>{busy ? 'Saving…' : `Restore v${left.version} as a new saved version`}</button>}
       </>}
-    </div>
+    </div>}
   </details>;
 }

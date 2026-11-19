@@ -44,13 +44,13 @@ test.describe('NBK-04 — Cross-Route Notebook, Playground Widgets, Theme & Date
       // 1. Desktop widget rendering + annotations
       await page.setViewportSize({ width: 1440, height: 900 });
       await app.goto(`/playground/${TEST_PAGE_NAME}`);
-      const editor = page.locator('.cm-content[contenteditable="true"]').first();
+      const editor = page.getByRole('textbox', { name: 'Note editor' });
       await expect(editor).toContainText('Wod.Wiki Playground');
-      await expect(page.getByTestId('widget-preview-surface').first()).toBeVisible({ timeout: 10_000 });
-      await expect(page.getByRole('heading', { name: 'Code example', exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Run this example' })).toBeVisible();
-      await expect(page.getByText('repeat the indented workout block 3 times')).toBeVisible();
-      await expect(page.getByText('Ready to try it?')).toBeVisible();
+      await expect(editor.getByTestId('widget-preview-surface').first()).toBeVisible({ timeout: 10_000 });
+      await expect(editor.getByRole('heading', { name: 'Code example', exact: true })).toBeVisible();
+      await expect(editor.getByRole('button', { name: 'Run this example' })).toBeVisible();
+      await expect(editor.getByText('repeat the indented workout block 3 times')).toBeVisible();
+      await expect(editor.getByText('Ready to try it?')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 
       // 2. Dark / light mode switch on /settings/appearance
