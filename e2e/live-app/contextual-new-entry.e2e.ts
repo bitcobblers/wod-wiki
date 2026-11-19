@@ -46,11 +46,13 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await dialog.getByTestId('new-entry-playground').click();
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/playground\/[^/]+$/);
-    await expect(page.locator('.cm-content')).toBeVisible();
+    await expect(page.locator('#create-journal-note-form')).toHaveCount(0);
+    const playgroundEditor = page.getByRole('textbox', { name: 'Note editor' });
+    await expect(playgroundEditor).toBeVisible();
     await expect(page.getByTestId('new-entry-combo')).toHaveCount(0);
     await page.getByRole('button', { name: 'Page options' }).click();
     await page.getByRole('button', { name: 'Add timer', exact: true }).click();
-    await expect(page.locator('.cm-content').getByText('10:00', { exact: true }).first()).toBeVisible();
+    await expect(playgroundEditor.getByText('10:00', { exact: true }).first()).toBeVisible();
 
     // 3. Create a blank Journal Note and add a timer
     await app.journal.openStream();
@@ -58,10 +60,12 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/note\/[0-9a-f-]+\?edit=1$/);
     const createdJournalNoteId = new URL(page.url()).pathname.replace(/^\/note\//, '');
-    await expect(page.locator('.cm-content')).toBeVisible();
+    await expect(page.locator('#create-journal-note-form')).toHaveCount(0);
+    const journalEditor = page.getByRole('textbox', { name: 'Note editor' });
+    await expect(journalEditor).toBeVisible();
     await page.getByRole('button', { name: 'Page options' }).click();
     await page.getByRole('button', { name: 'Add timer', exact: true }).click();
-    await expect(page.locator('.cm-content').getByText('10:00', { exact: true }).first()).toBeVisible();
+    await expect(journalEditor.getByText('10:00', { exact: true }).first()).toBeVisible();
     await deleteNoteByRouteId(page, createdJournalNoteId);
 
     // 4. Create a Note inside a custom Notebook
@@ -71,7 +75,8 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/notebook\/combo-notes\/[0-9a-f-]+$/);
-    await expect(page.locator('.cm-content')).toContainText('Untitled note');
+    await expect(page.locator('#create-journal-note-form')).toHaveCount(0);
+    await expect(page.getByRole('textbox', { name: 'Note editor' })).toContainText('Untitled note');
     await expect(
       page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'combo-notes' }),
     ).toBeVisible();
@@ -142,7 +147,8 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/note\/[0-9a-f-]+\?edit=1$/);
     const noteId = new URL(page.url()).pathname.replace(/^\/note\//, '');
-    const editor = page.locator('.cm-content');
+    await expect(page.locator('#create-journal-note-form')).toHaveCount(0);
+    const editor = page.getByRole('textbox', { name: 'Note editor' });
     await expect(editor).toBeVisible();
 
     await editor.click();
