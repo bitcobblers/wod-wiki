@@ -58,6 +58,8 @@ export interface DashboardViewProps {
   /** Optional execution range (ms epoch). Omit to use each query's own window. */
   rangeStart?: number;
   rangeEnd?: number;
+  /** Optional invalidation key — changing it re-runs widget queries. */
+  refreshKey?: number | string;
   preferredUnit?: string;
   /** Optional click handler for opening a note/block from content-plane widgets. */
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
@@ -128,6 +130,7 @@ export function DashboardView({
   onResizeWidget,
   rangeStart,
   rangeEnd,
+  refreshKey,
   preferredUnit,
   onOpenNote,
   noteHref,
@@ -262,7 +265,7 @@ export function DashboardView({
     return () => {
       cancelled = true;
     };
-  }, [resolvedKey, resolved, executor, onEnsureRollupFacts, rangeStart, rangeEnd, preferredUnit]);
+  }, [resolvedKey, resolved, executor, onEnsureRollupFacts, rangeStart, rangeEnd, preferredUnit, refreshKey]);
 
   return (
     <div data-testid="dashboard-view">

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import { QueryService, type EventStore, type NoteQueryStore } from '@bitcobblers/wod-wiki-wql';
 import type { StorageService } from '@/services/storage';
-import { loadSampleData, purgeSampleData, hasSampleData, setSampleDataService } from '@/services/analytics/sample';
+import { loadSampleData, onSampleDataChanged, purgeSampleData, hasSampleData, setSampleDataService } from '@/services/analytics/sample';
+import { isBootImportPending } from '@/services/feed/feedReadiness';
 import type { AnalyticsDataPoint, EventRecord, Note } from '@/types/storage';
 
 import { InMemoryStorage, StorageService as RealStorageService } from '@/services/storage';
@@ -215,5 +216,46 @@ describe('sample analytics dataset', () => {
 
     const userTags = await service.getTagsForNote(userNoteId);
     expect(userTags.map(t => t.label)).toContain('user-data');
+  });
+
+  it('WW-056 & WW-019: populates Benchmark PR Board queries, tags notes benchmark, signals importPending, and fires onSampleDataChanged', async () => {
+    await purgeSampleData();
+    const pendingTransitions: boolean[] = [];
+    let changeNotifications = 0;
+    const unsubChange = onSampleDataChanged(() => {
+      changeNotifications += 1;
+    });
+
+    const origWithTx = service.withTransaction.bind(service);
+    const spiedService = Object.create(service) as StorageService;
+    spiedService.withTransaction = async (stores, fn) => {
+      pendingTransitions.push(isBootImportPending());
+      return origWithTx(stores, fn);
+    };
+    setSampleDataService(spiedService);
+
+    try {
+      await loadSampleData();
+      expect(pendingTransitions.some(Boolean)).toBe(true);
+      expect(isBootImportPending()).toBe(false);
+      expect(changeNotifications).toBeGreaterThanOrEqual(1);
+
+      const query = queryService(service);
+      const benchmarkScores = await query.runQuery('last:elapsed{tags:benchmark} by {effort}');
+      expect(benchmarkScores.series.length).toBeGreaterThanOrEqual(3);
+
+      const franTrend = await query.runQuery('last:elapsed{effort:fran} by {week}');
+      expect(franTrend.series.length).toBeGreaterThan(0);
+      expect(franTrend.series[0]!.points.some((p) => !p.missing && p.value > 0)).toBe(true);
+
+      const e1rmTrend = await query.runQuery('avg:calc.e1rm{effort:back-squat} by {week}');
+      expect(e1rmTrend.series.length).toBeGreaterThan(0);
+
+      await purgeSampleData();
+      expect(changeNotifications).toBeGreaterThanOrEqual(2);
+    } finally {
+      unsubChange();
+      setSampleDataService(service);
+    }
   });
 });

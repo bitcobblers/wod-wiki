@@ -1,26 +1,23 @@
 /**
- * Sample analytics dataset (PRD #767 §5).
+ * Sample analytics dataset (PRD #767 §5, WW-056, WW-019).
  *
- * Persistence mechanism: each session is written as a Session with
- * synthetic runtime logs, then flushed to the unified event store via
- * `appendEvents(toEventRows(...))` + `finalizeSummaries(resultId,
- * toSummaryEventRows(...))`. Every session is backed by a Note tagged `sample`
- * in the `note_tags` store.
- *
- * Purge removes sample-tagged live notes and analytics events. Immutable
- * revisions and Session pins remain available until an explicit store wipe.
+ * Delegates corpus generation to `@bitcobblers/wod-wiki-engine`'s canonical
+ * `sampleCorpus` so prebuilt dashboards (Benchmark PR Board, Strength
+ * Progression, Recovery & Readiness, Climbing, Endurance, Training Block) all
+ * receive identical benchmark tags, session-level `effortSlug`s, and calc
+ * rollups, while signaling `feedReadiness` import activity while running.
  */
 import { eventsToStoredLogs, toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import { MetricType, blockContentId, parseNoteBundleFromJsonl, reconcileNoteBlocks, serializeNoteBundleToJsonl, type NoteTelemetryBundle } from '@bitcobblers/wod-wiki-core';
-import type { StoredOutputStatement } from '@/components/Editor/types';
+import { blockContentId, parseNoteBundleFromJsonl, reconcileNoteBlocks, serializeNoteBundleToJsonl, type NoteTelemetryBundle } from '@bitcobblers/wod-wiki-core';
+import { SAMPLE_TAG, buildSessionLogs, generateSampleSessions, type SampleSession } from '@bitcobblers/wod-wiki-engine';
 import type { Session } from '@/types/storage';
+import { beginImportActivity, endImportActivity } from '@/services/feed/feedReadiness';
 import { storageService, type StorageService } from '@/services/storage';
 
 /**
- * Backing store, injectable for tests. The full bun suite has sibling files
- * that stub this module process-globally via mock.module; tests construct a
- * real instance through the '?real' specifier and install it here (same
- * documented-exception pattern as queryService.integration.test.ts).
+ * Backing store, injectable for tests. The full suite has sibling files
+ * that stub this module process-globally; tests construct a real instance and
+ * install it here (same pattern as queryService integration tests).
  */
 let service: StorageService = storageService;
 
@@ -28,310 +25,49 @@ export function setSampleDataService(instance: StorageService): void {
   service = instance;
 }
 
-const SAMPLE_TAG = 'sample';
+const SAMPLE_BROADCAST_CHANNEL = 'wodwiki.sample';
+const sampleChangeListeners = new Set<() => void>();
+let sampleChannel: BroadcastChannel | null = null;
 
-const DAY = 86_400_000;
-const WEEK = 7 * DAY;
-const LB_TO_KG = 0.453592;
-
-interface SampleMovement {
-  effortSlug: string;
-  discipline: string;
-  reps: number;
-  /** Pounds; 0 for bodyweight movements. */
-  loadLbs: number;
-  /** Approximate seconds spent in motion for this movement. */
-  tisSeconds: number;
-  /** Distance in meters, when the movement is distance-bearing (rowing, running, etc.). */
-  distanceMeters?: number;
-}
-
-interface SampleSession {
-  noteId: string;
-  title: string;
-  workoutType: 'fran' | 'cindy' | 'annie' | 'rowing' | 'running' | 'strength' | 'recoveryRun';
-  timestamp: number;
-  durationSeconds: number;
-  movements: SampleMovement[];
-}
-
-function round1(n: number): number {
-  return Math.round(n * 10) / 10;
-}
-
-const INTENSITY_BY_EFFORT: Record<string, 'low' | 'moderate' | 'high'> = {
-  'thruster': 'high',
-  'pull-up': 'high',
-  'push-up': 'moderate',
-  'air-squat': 'moderate',
-  'double-under': 'high',
-  'sit-up': 'low',
-  'rowing': 'moderate',
-  'running': 'moderate',
-  'recovery-run': 'low',
-  'back-squat': 'high',
-  'deadlift': 'high',
-};
-
-const SESSION_INTENSITY: Record<SampleSession['workoutType'], 'low' | 'moderate' | 'high'> = {
-  fran: 'high',
-  cindy: 'moderate',
-  annie: 'moderate',
-  rowing: 'moderate',
-  running: 'moderate',
-  strength: 'high',
-  recoveryRun: 'low',
-};
-
-function franMovement(reps: number, loadLbs: number, effortSlug: string, discipline: string): SampleMovement {
-  const secondsPerRep = effortSlug === 'thruster' ? 2.2 : 1.6;
-  return {
-    effortSlug,
-    discipline,
-    reps,
-    loadLbs,
-    tisSeconds: round1(reps * secondsPerRep),
-  };
-}
-
-function buildFran(now: number, weekOffset: number, attempt: number): SampleSession {
-  // Slight improvement trend: duration drops ~5% per attempt; load rises.
-  const baseDuration = 330 - attempt * 16;
-  const durationSeconds = Math.max(180, round1(baseDuration + (Math.random() - 0.5) * 20));
-  const loadLbs = 95 + attempt * 5;
-  const thrusterReps = 45;
-  const pullUpReps = 45;
-  return {
-    noteId: `sample-fran-${weekOffset}-${crypto.randomUUID()}`,
-    title: `Sample — Fran (week ${16 - weekOffset})`,
-    workoutType: 'fran',
-    timestamp: now - weekOffset * WEEK,
-    durationSeconds,
-    movements: [
-      franMovement(thrusterReps, loadLbs, 'thruster', 'strength'),
-      franMovement(pullUpReps, 0, 'pull-up', 'gymnastics'),
-    ],
-  };
-}
-
-function buildCindy(now: number, weekOffset: number, attempt: number): SampleSession {
-  // Capacity improves slightly: a few more rounds each attempt.
-  const rounds = 10 + attempt + Math.round((Math.random() - 0.5) * 2);
-  const clampedRounds = Math.max(8, rounds);
-  return {
-    noteId: `sample-cindy-${weekOffset}-${crypto.randomUUID()}`,
-    title: `Sample — Cindy (week ${16 - weekOffset})`,
-    workoutType: 'cindy',
-    timestamp: now - weekOffset * WEEK,
-    durationSeconds: 1200,
-    movements: [
-      { effortSlug: 'pull-up', discipline: 'gymnastics', reps: clampedRounds * 5, loadLbs: 0, tisSeconds: round1(clampedRounds * 5 * 1.5) },
-      { effortSlug: 'push-up', discipline: 'gymnastics', reps: clampedRounds * 10, loadLbs: 0, tisSeconds: round1(clampedRounds * 10 * 1.2) },
-      { effortSlug: 'air-squat', discipline: 'bodyweight', reps: clampedRounds * 15, loadLbs: 0, tisSeconds: round1(clampedRounds * 15 * 1.1) },
-    ],
-  };
-}
-
-function buildAnnie(now: number, weekOffset: number, attempt: number): SampleSession {
-  const baseDuration = 540 - attempt * 22;
-  const durationSeconds = Math.max(360, round1(baseDuration + (Math.random() - 0.5) * 30));
-  const reps = 150;
-  return {
-    noteId: `sample-annie-${weekOffset}-${crypto.randomUUID()}`,
-    title: `Sample — Annie (week ${16 - weekOffset})`,
-    workoutType: 'annie',
-    timestamp: now - weekOffset * WEEK,
-    durationSeconds,
-    movements: [
-      { effortSlug: 'double-under', discipline: 'gymnastics', reps, loadLbs: 0, tisSeconds: round1(reps * 0.5) },
-      { effortSlug: 'sit-up', discipline: 'bodyweight', reps, loadLbs: 0, tisSeconds: round1(reps * 1.3) },
-    ],
-  };
-}
-
-function buildStrengthAccessory(now: number, weekOffset: number, attempt: number): SampleSession {
-  // Linear progression: load rises 5 lb per week.
-  const baseBackSquat = 135 + attempt * 5;
-  const baseDeadlift = 185 + attempt * 5;
-  const backSquatReps = 25; // 5x5
-  const deadliftReps = 15; // 3x5
-  return {
-    noteId: `sample-strength-${weekOffset}-${crypto.randomUUID()}`,
-    title: `Sample — Strength accessory (week ${16 - weekOffset})`,
-    workoutType: 'strength',
-    timestamp: now - weekOffset * WEEK,
-    durationSeconds: 1800,
-    movements: [
-      { effortSlug: 'back-squat', discipline: 'strength', reps: backSquatReps, loadLbs: baseBackSquat, tisSeconds: round1(backSquatReps * 2.5) },
-      { effortSlug: 'deadlift', discipline: 'strength', reps: deadliftReps, loadLbs: baseDeadlift, tisSeconds: round1(deadliftReps * 2.8) },
-    ],
-  };
-}
-
-function buildRowing(now: number, weekOffset: number, attempt: number): SampleSession {
-  const distanceMeters = 2000 + attempt * 250;
-  const durationSeconds = round1(distanceMeters / 2.0 + (Math.random() - 0.5) * 30);
-  return {
-    noteId: `sample-rowing-${weekOffset}-${crypto.randomUUID()}`,
-    title: `Sample — Rowing (week ${16 - weekOffset})`,
-    workoutType: 'rowing',
-    timestamp: now - weekOffset * WEEK,
-    durationSeconds,
-    movements: [
-      { effortSlug: 'rowing', discipline: 'rowing', reps: 1, loadLbs: 0, tisSeconds: durationSeconds, distanceMeters },
-    ],
-  };
-}
-
-function buildRunning(now: number, weekOffset: number, attempt: number): SampleSession {
-  const distanceMeters = 5000 + attempt * 500;
-  const durationSeconds = round1(distanceMeters / 2.8 + (Math.random() - 0.5) * 60);
-  return {
-    noteId: `sample-running-${weekOffset}-${crypto.randomUUID()}`,
-    title: `Sample — Running (week ${16 - weekOffset})`,
-    workoutType: 'running',
-    timestamp: now - weekOffset * WEEK,
-    durationSeconds,
-    movements: [
-      { effortSlug: 'running', discipline: 'running', reps: 1, loadLbs: 0, tisSeconds: durationSeconds, distanceMeters },
-    ],
-  };
-}
-
-function buildRecoveryRun(now: number, weekOffset: number, attempt: number): SampleSession {
-  const distanceMeters = 3000 + attempt * 50;
-  const durationSeconds = round1(distanceMeters / 2.2 + (Math.random() - 0.5) * 60);
-  return {
-    noteId: `sample-recovery-run-${weekOffset}-${crypto.randomUUID()}`,
-    title: `Sample — Recovery run (week ${16 - weekOffset})`,
-    workoutType: 'recoveryRun',
-    timestamp: now - weekOffset * WEEK,
-    durationSeconds,
-    movements: [
-      { effortSlug: 'recovery-run', discipline: 'running', reps: 1, loadLbs: 0, tisSeconds: durationSeconds, distanceMeters },
-    ],
-  };
-}
-
-function generateSessions(now: number): SampleSession[] {
-  const sessions: SampleSession[] = [];
-  // 16-week training block with Fran/Cindy/Annie anchors, plus rowing,
-  // running, and weekly strength accessory / recovery runs to densify
-  // volume, intensity, and distance history.
-  for (let weekOffset = 0; weekOffset < 16; weekOffset++) {
-    const block = Math.floor(weekOffset / 4);
-    // Loaded strength accessory every week drives a rising tonnage trend.
-    sessions.push(buildStrengthAccessory(now, weekOffset, weekOffset));
-    // Benchmark / conditioning rotation.
-    if (weekOffset % 4 === 0) {
-      sessions.push(buildFran(now, weekOffset, block));
-    } else if (weekOffset % 4 === 1) {
-      sessions.push(buildCindy(now, weekOffset, block));
-    } else if (weekOffset % 4 === 2) {
-      sessions.push(buildAnnie(now, weekOffset, block));
-    } else if (weekOffset === 3 || weekOffset === 11) {
-      sessions.push(buildRowing(now, weekOffset, block));
-    } else if (weekOffset === 7 || weekOffset === 15) {
-      sessions.push(buildRunning(now, weekOffset, block));
-    }
-    // Recovery run every week adds low-intensity mileage.
-    sessions.push(buildRecoveryRun(now, weekOffset, weekOffset));
-  }
-  return sessions.sort((a, b) => a.timestamp - b.timestamp);
-}
-
-function buildSessionLogs(session: SampleSession): StoredOutputStatement[] {
-  const startedAt = session.timestamp;
-  const sessionIntensity = SESSION_INTENSITY[session.workoutType];
-  const totalReps = session.movements.reduce((sum, m) => sum + m.reps, 0);
-  const totalVolume = session.movements.reduce((sum, m) => sum + m.reps * m.loadLbs, 0);
-  const totalTis = session.movements.reduce((sum, m) => sum + m.tisSeconds, 0);
-  const totalDistance = session.movements.reduce((sum, m) => sum + (m.distanceMeters ?? 0), 0);
-  const sessionLoad = round1(totalVolume / 100 + totalReps + session.durationSeconds / 10);
-
-  const logs: StoredOutputStatement[] = [];
-
-  const push = (
-    label: string,
-    value: number,
-    unit: string,
-    canonicalKey: string,
-    tags?: { effortSlug?: string; discipline?: string; intensityTier?: string },
-  ) => {
-    const metadata: Record<string, unknown> = { canonicalKey };
-    if (tags?.effortSlug) metadata.effortSlug = tags.effortSlug;
-    if (tags?.discipline) metadata.effortDiscipline = tags.discipline;
-    if (tags?.intensityTier) metadata.effortIntensityTier = tags.intensityTier;
-
-    const output: StoredOutputStatement = {
-      id: logs.length,
-      outputType: 'analytics',
-      timeSpan: { started: startedAt },
-      metrics: [
-        { type: MetricType.Label, value: label, origin: 'analyzed' },
-        { type: MetricType.Metric, value, unit, metadata, origin: 'analyzed' },
-      ],
-      sourceBlockKey: '',
-      stackLevel: 0,
+function ensureSampleChannel(): void {
+  if (sampleChannel || typeof BroadcastChannel === 'undefined') return;
+  try {
+    sampleChannel = new BroadcastChannel(SAMPLE_BROADCAST_CHANNEL);
+    sampleChannel.onmessage = (event) => {
+      if ((event.data as { kind?: string } | null)?.kind === 'sample-changed') {
+        for (const listener of sampleChangeListeners) listener();
+      }
     };
-    logs.push(output);
-  };
-
-  push('Elapsed time', session.durationSeconds, 's', 'elapsed', { intensityTier: sessionIntensity });
-  push('Total reps', totalReps, 'reps', 'totalReps', { intensityTier: sessionIntensity });
-  push('Time in motion', round1(totalTis), 's', 'tis', { intensityTier: sessionIntensity });
-  if (totalVolume > 0) {
-    // Canonical mass unit is kg (WW-030): stored lb values made the catalog
-    // disagree with chart units.
-    push('Total volume', round1(totalVolume * LB_TO_KG), 'kg', 'totalVolume', { intensityTier: sessionIntensity });
+  } catch {
+    // Cross-tab BroadcastChannel unavailable; in-tab listeners still receive notifications.
   }
-  if (totalDistance > 0) {
-    const distanceDiscipline = session.movements.find((m) => m.distanceMeters && m.distanceMeters > 0)?.discipline;
-    push('Total distance', round1(totalDistance), 'm', 'totalDistance', { discipline: distanceDiscipline, intensityTier: sessionIntensity });
-  }
-  push('Session load', sessionLoad, 'AU', 'sessionLoad', { intensityTier: sessionIntensity });
+}
 
-  // Per-effort outputs for `by {effort}` / `by {discipline}` queries.
-  for (const m of session.movements) {
-    const movementVolume = m.reps * m.loadLbs;
-    const movementIntensity = INTENSITY_BY_EFFORT[m.effortSlug] ?? 'moderate';
-    const tags = { effortSlug: m.effortSlug, discipline: m.discipline, intensityTier: movementIntensity };
-    push('Total reps', m.reps, 'reps', 'totalReps', tags);
-    push('Time in motion', m.tisSeconds, 's', 'tis', tags);
-    if (movementVolume > 0) {
-      push('Total volume', round1(movementVolume * LB_TO_KG), 'kg', 'totalVolume', tags);
+function notifySampleDataChanged(): void {
+  for (const listener of sampleChangeListeners) {
+    listener();
+  }
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      const ch = new BroadcastChannel(SAMPLE_BROADCAST_CHANNEL);
+      ch.postMessage({ kind: 'sample-changed' });
+      ch.close();
+    } catch {
+      // Cross-tab BroadcastChannel unavailable; in-tab listeners already notified.
     }
-    push('Session load', round1(movementVolume / 100 + m.reps + m.tisSeconds / 10), 'AU', 'sessionLoad', tags);
   }
+}
 
-  // Wellness-derived daily rollups (WW-028): the Recovery & Readiness
-  // dashboard queries calc.readiness/hrv/sleep/soreness/monotony/acwr, which
-  // no workout output produces. Values are deterministic per sample day (all
-  // sessions of a week share one timestamp → identical rollups) so charts
-  // render rich, plausible trends without Math.random drift between
-  // export/import round-trips. Units match the calc seeds' outputs ('pts'
-  // carries ms/h magnitudes) so the duration system-default policy never
-  // rescales them.
-  const dayPhase = (salt: number): number => {
-    const x = Math.sin((session.timestamp / DAY) * (12.9898 + salt) + salt * 78.233) * 43758.5453;
-    return x - Math.floor(x);
+export function onSampleDataChanged(listener: () => void): () => void {
+  sampleChangeListeners.add(listener);
+  ensureSampleChannel();
+  return () => {
+    sampleChangeListeners.delete(listener);
+    if (sampleChangeListeners.size === 0 && sampleChannel) {
+      sampleChannel.close();
+      sampleChannel = null;
+    }
   };
-  const soreness = 2 + Math.round(dayPhase(1) * 4); // rating 2–6
-  const sleepHours = round1(6.8 + dayPhase(2) * 1.6); // h 6.8–8.4
-  const hrvMs = Math.round(52 + dayPhase(3) * 22); // ms 52–74
-  // Composite readiness: soreness-inverted 40% / sleep 30% / HRV 30% —
-  // the same algebra the calc engine's readiness seed publishes.
-  const readiness = round1(((10 - soreness) / 10) * 40 + (sleepHours / 8) * 30 + (hrvMs / 90) * 30);
-  const monotony = round1(1.1 + dayPhase(4) * 0.7); // ratio 1.1–1.8
-  const acwr = round1(0.85 + dayPhase(5) * 0.4); // ratio 0.85–1.25
-  push('Readiness', readiness, 'pts', 'calc.readiness', { intensityTier: sessionIntensity });
-  push('HRV', hrvMs, 'pts', 'calc.hrv', { intensityTier: sessionIntensity });
-  push('Sleep', sleepHours, 'pts', 'calc.sleep', { intensityTier: sessionIntensity });
-  push('Soreness', soreness, 'rating', 'calc.soreness', { intensityTier: sessionIntensity });
-  push('Monotony', monotony, 'ratio', 'calc.monotony', { intensityTier: sessionIntensity });
-  push('ACWR', acwr, 'ratio', 'calc.acwr', { intensityTier: sessionIntensity });
-
-  return logs;
 }
 
 function buildSampleResult(session: SampleSession, contentId: string, createdAt: number): Session {
@@ -374,6 +110,7 @@ function buildSampleBundle(session: SampleSession, now: number) {
   };
   const rawEvents = toEventRows(logs, identity);
   const summaries = toSummaryEventRows(logs, identity);
+  const tags = Array.from(new Set([SAMPLE_TAG, ...session.tags]));
   const bundle: NoteTelemetryBundle = {
     note: {
       id: session.noteId,
@@ -384,13 +121,13 @@ function buildSampleBundle(session: SampleSession, now: number) {
       rawContent,
       sourceRevision: 1,
       blocks,
-      tags: [SAMPLE_TAG],
+      tags,
       type: 'playground',
     },
     sessions: [result],
     events: [...rawEvents, ...summaries],
   };
-  return { bundle, rawContent, blocks, result, rawEvents, summaries };
+  return { bundle, rawContent, blocks, result, rawEvents, summaries, tags };
 }
 
 async function getSampleTagId(): Promise<string | undefined> {
@@ -413,29 +150,35 @@ export async function hasSampleData(): Promise<boolean> {
 let inflightLoadSampleData: Promise<{ facts: number }> | null = null;
 
 async function loadSampleDataImpl(): Promise<{ facts: number }> {
-  if (await hasSampleData()) {
-    const noteIds = await getSampleNoteIds();
-    const events = await service.scanAll();
-    return { facts: events.filter((event) => event.grain === 'summary' && noteIds.includes(event.noteId)).length };
+  beginImportActivity('Loading sample data…');
+  try {
+    if (await hasSampleData()) {
+      const noteIds = await getSampleNoteIds();
+      const events = await service.scanAll();
+      return { facts: events.filter((event) => event.grain === 'summary' && noteIds.includes(event.noteId)).length };
+    }
+
+    const now = Date.now();
+    const sessions = generateSampleSessions(now);
+    let factsWritten = 0;
+
+    for (const session of sessions) {
+      const sample = buildSampleBundle(session, now);
+      factsWritten += await service.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'tags', 'note_tags', 'tag_types', 'sessions', 'events'], async scoped => {
+        await scoped.saveNoteSource({ noteId: session.noteId, rawContent: sample.rawContent, blocks: sample.blocks, expectedSourceRevision: 0, metadata: { title: session.title, tags: sample.tags }, noteType: 'playground', createdAt: session.timestamp });
+        await scoped.setNoteTags(session.noteId, sample.tags);
+        await scoped.saveSession(sample.result);
+        await scoped.appendEvents(sample.rawEvents);
+        await scoped.finalizeSummaries(sample.result.id, sample.summaries);
+        return sample.summaries.length;
+      });
+    }
+
+    notifySampleDataChanged();
+    return { facts: factsWritten };
+  } finally {
+    endImportActivity();
   }
-
-  const now = Date.now();
-  const sessions = generateSessions(now);
-  let factsWritten = 0;
-
-  for (const session of sessions) {
-    const sample = buildSampleBundle(session, now);
-    factsWritten += await service.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'tags', 'note_tags', 'tag_types', 'sessions', 'events'], async scoped => {
-      await scoped.saveNoteSource({ noteId: session.noteId, rawContent: sample.rawContent, blocks: sample.blocks, expectedSourceRevision: 0, metadata: { title: session.title }, noteType: 'playground', createdAt: session.timestamp });
-      await scoped.setNoteTags(session.noteId, [SAMPLE_TAG]);
-      await scoped.saveSession(sample.result);
-      await scoped.appendEvents(sample.rawEvents);
-      await scoped.finalizeSummaries(sample.result.id, sample.summaries);
-      return sample.summaries.length;
-    });
-  }
-
-  return { facts: factsWritten };
 }
 
 export function loadSampleData(): Promise<{ facts: number }> {
@@ -447,7 +190,7 @@ export function loadSampleData(): Promise<{ facts: number }> {
 }
 
 export function exportSampleDataAsJsonl(now: number = Date.now()): string {
-  return generateSessions(now)
+  return generateSampleSessions(now)
     .map((session) => serializeNoteBundleToJsonl(buildSampleBundle(session, now).bundle))
     .join('\n');
 }
@@ -455,67 +198,81 @@ export function exportSampleDataAsJsonl(now: number = Date.now()): string {
 export async function importSampleDataFromJsonl(jsonlText: string): Promise<{ notes: number; sessions: number; facts: number }> {
   const parsed = parseNoteBundleFromJsonl(jsonlText);
   if (parsed.errors.length > 0) throw new Error(`Invalid sample JSONL: ${parsed.errors.join('; ')}`);
-  let notes = 0;
-  let sessions = 0;
-  let facts = 0;
 
-  for (const bundle of parsed.bundles) {
-    const note = bundle.note;
-    if (!note) throw new Error('Sample JSONL bundle is missing its note');
-    await service.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'tags', 'note_tags', 'tag_types', 'sessions', 'events'], async scoped => {
-      const previous = await scoped.getNote(note.id);
-      await scoped.saveNoteSource({
-        noteId: note.id,
-        rawContent: note.rawContent,
-        blocks: note.blocks,
-        expectedSourceRevision: previous?.sourceRevision ?? 0,
-        metadata: { title: note.title, targetDate: note.targetDate, tags: [SAMPLE_TAG] },
-        noteType: 'playground',
-        createdAt: note.createdAt,
-      });
-      await scoped.setNoteTags(note.id, [SAMPLE_TAG]);
-      for (const session of bundle.sessions) {
-        const rows = bundle.events.filter((event) => event.resultId === session.id);
-        const raw = rows.filter((event) => event.grain === 'event');
-        const suppliedSummaries = rows.filter((event) => event.grain === 'summary');
-        const summaries = suppliedSummaries.length > 0 ? suppliedSummaries : toSummaryEventRows(eventsToStoredLogs(raw), {
-          noteId: session.noteId,
-          resultId: session.id,
-          blockId: session.blockId,
-          blockVersion: session.blockVersion,
-          blockContentId: session.blockContentId,
-          origin: session.origin,
-          pageId: session.pageId,
-          workoutTimestamp: session.startTime,
+  beginImportActivity('Importing sample data…');
+  try {
+    let notes = 0;
+    let sessions = 0;
+    let facts = 0;
+
+    for (const bundle of parsed.bundles) {
+      const note = bundle.note;
+      if (!note) throw new Error('Sample JSONL bundle is missing its note');
+      const tags = Array.from(new Set([SAMPLE_TAG, ...(note.tags ?? [])]));
+      await service.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'tags', 'note_tags', 'tag_types', 'sessions', 'events'], async scoped => {
+        const previous = await scoped.getNote(note.id);
+        await scoped.saveNoteSource({
+          noteId: note.id,
+          rawContent: note.rawContent,
+          blocks: note.blocks,
+          expectedSourceRevision: previous?.sourceRevision ?? 0,
+          metadata: { title: note.title, targetDate: note.targetDate, tags },
+          noteType: 'playground',
+          createdAt: note.createdAt,
         });
-        await scoped.saveSession(session);
-        await scoped.appendEvents(raw);
-        await scoped.finalizeSummaries(session.id, summaries);
-        sessions++;
-        facts += summaries.length;
-      }
-    });
-    notes++;
+        await scoped.setNoteTags(note.id, tags);
+        for (const session of bundle.sessions) {
+          const rows = bundle.events.filter((event) => event.resultId === session.id);
+          const raw = rows.filter((event) => event.grain === 'event');
+          const suppliedSummaries = rows.filter((event) => event.grain === 'summary');
+          const summaries = suppliedSummaries.length > 0 ? suppliedSummaries : toSummaryEventRows(eventsToStoredLogs(raw), {
+            noteId: session.noteId,
+            resultId: session.id,
+            blockId: session.blockId,
+            blockVersion: session.blockVersion,
+            blockContentId: session.blockContentId,
+            origin: session.origin,
+            pageId: session.pageId,
+            workoutTimestamp: session.startTime,
+          });
+          await scoped.saveSession(session);
+          await scoped.appendEvents(raw);
+          await scoped.finalizeSummaries(session.id, summaries);
+          sessions++;
+          facts += summaries.length;
+        }
+      });
+      notes++;
+    }
+    notifySampleDataChanged();
+    return { notes, sessions, facts };
+  } finally {
+    endImportActivity();
   }
-  return { notes, sessions, facts };
 }
 
 export async function purgeSampleData(): Promise<void> {
-  const noteIds = await getSampleNoteIds();
-  if (noteIds.length === 0) return;
+  beginImportActivity('Purging sample data…');
+  try {
+    const noteIds = await getSampleNoteIds();
+    if (noteIds.length === 0) return;
 
-  // Removing a sample Note does not garbage-collect its pinned history.
-  for (const noteId of noteIds) {
-    await service.deleteEvents((await service.getEventsForNote(noteId)).map(event => event.id));
-    await service.deleteNote(noteId);
-  }
-
-  // Drop the shared sample tag if nothing links to it anymore.
-  const notes = await service.getNotesForTag(SAMPLE_TAG);
-  if (notes.length === 0) {
-    const tagId = await getSampleTagId();
-    if (tagId) {
-      await service.deleteTag(tagId);
+    // Removing a sample Note does not garbage-collect its pinned history.
+    for (const noteId of noteIds) {
+      await service.deleteEvents((await service.getEventsForNote(noteId)).map(event => event.id));
+      await service.deleteNote(noteId);
     }
+
+    // Drop the shared sample tag if nothing links to it anymore.
+    const notes = await service.getNotesForTag(SAMPLE_TAG);
+    if (notes.length === 0) {
+      const tagId = await getSampleTagId();
+      if (tagId) {
+        await service.deleteTag(tagId);
+      }
+    }
+    notifySampleDataChanged();
+  } finally {
+    endImportActivity();
   }
 }
