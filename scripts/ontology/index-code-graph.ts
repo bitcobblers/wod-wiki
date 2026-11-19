@@ -21,7 +21,6 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { DOMAIN_AGENT_TOOLS } from '../../packages/engine/src/agent/manifest';
 import { TEST_IDS } from '../../apps/playground/src/lib/testIds';
 import { ROUTE_PATTERNS } from '../../apps/playground/src/lib/routes';
 import {
@@ -58,19 +57,93 @@ function findDomainToolFile(toolName: string): string {
   return 'packages/engine/src/agent/manifest.ts';
 }
 
-function extractAgentTools(): ExtractedTool[] {
-  return [...DOMAIN_AGENT_TOOLS]
-    .map((tool): ExtractedTool => ({
-      name: tool.name,
-      title: tool.title,
-      domain: tool.domain,
-      tier: tool.tier,
-      cliEquivalent:
-        tool.cliEquivalent ?? `wod ${tool.name.replace(/^wod_/, '').replace(/_/g, ' ')} --json`,
-      relPath: findDomainToolFile(tool.name),
-      isUiTool: false,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+async function extractAgentTools(): Promise<ExtractedTool[]> {
+  try {
+    const mod = await import('../../packages/engine/src/agent/manifest');
+    if (Array.isArray(mod.DOMAIN_AGENT_TOOLS)) {
+      return [...mod.DOMAIN_AGENT_TOOLS]
+        .map((tool): ExtractedTool => ({
+          name: tool.name,
+          title: tool.title,
+          domain: tool.domain,
+          tier: tool.tier,
+          cliEquivalent:
+            tool.cliEquivalent ?? `wod ${tool.name.replace(/^wod_/, '').replace(/_/g, ' ')} --json`,
+          relPath: findDomainToolFile(tool.name),
+          isUiTool: false,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `Warning: direct import of packages/engine/src/agent/manifest.ts failed (${msg}); falling back to agent-capabilities.json.`,
+    );
+  }
+
+  // Fallback when workspace package dist/ builds are not yet present (e.g. Build Deploy Ontology job)
+  const capPath = path.join(REPO_ROOT, 'apps/playground/public/.well-known/agent-capabilities.json');
+  if (fs.existsSync(capPath)) {
+    try {
+      const cap = JSON.parse(fs.readFileSync(capPath, 'utf8')) as {
+        domainTools?: Array<{
+          name: string;
+          title: string;
+          domain?: string;
+          tier?: number;
+          cliEquivalent?: string;
+        }>;
+      };
+      if (Array.isArray(cap.domainTools)) {
+        return cap.domainTools
+          .map((tool): ExtractedTool => ({
+            name: tool.name,
+            title: tool.title,
+            domain: tool.domain ?? 'domain',
+            tier: tool.tier ?? 1,
+            cliEquivalent:
+              tool.cliEquivalent ?? `wod ${tool.name.replace(/^wod_/, '').replace(/_/g, ' ')} --json`,
+            relPath: findDomainToolFile(tool.name),
+            isUiTool: false,
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+      }
+    } catch {
+      // ignore malformed fallback JSON
+    }
+  }
+
+  // Last-resort static scan of packages/engine/src/agent/tools/*.ts
+  const toolsDir = path.join(REPO_ROOT, 'packages/engine/src/agent/tools');
+  const tools: ExtractedTool[] = [];
+  if (fs.existsSync(toolsDir)) {
+    for (const file of fs.readdirSync(toolsDir).filter((f) => f.endsWith('.ts')).sort()) {
+      const abs = path.join(toolsDir, file);
+      const rel = path.relative(REPO_ROOT, abs).replace(/\\/g, '/');
+      const src = fs.readFileSync(abs, 'utf8');
+      const blocks = src.split(/defineAgentTool\s*\(/).slice(1);
+      for (const block of blocks) {
+        const head = block.slice(0, 1200);
+        const name = head.match(/\bname:\s*['"]([a-z0-9_]+)['"]/)?.[1];
+        const title = head.match(/\btitle:\s*['"]([^'"]+)['"]/)?.[1];
+        const domain = head.match(/\bdomain:\s*['"]([^'"]+)['"]/)?.[1];
+        const tier = head.match(/\btier:\s*(\d+)/)?.[1];
+        const cliEquivalent = head.match(/\bcliEquivalent:\s*['"]([^'"]+)['"]/)?.[1];
+        if (name && title && domain && tier !== undefined) {
+          tools.push({
+            name,
+            title,
+            domain,
+            tier: Number(tier),
+            cliEquivalent: cliEquivalent ?? `wod ${name.replace(/^wod_/, '').replace(/_/g, ' ')} --json`,
+            relPath: rel,
+            isUiTool: false,
+          });
+        }
+      }
+    }
+  }
+  return tools.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 async function extractUiAgentTools(): Promise<ExtractedTool[]> {
@@ -547,7 +620,7 @@ export async function buildUnifiedGraph() {
   }
 
   // 4. Index WebMCP / Domain Agent Tools & UI WebMCP Tools
-  const domainTools = extractAgentTools();
+  const domainTools = await extractAgentTools();
   const uiTools = await extractUiAgentTools();
   const agentTools = [...domainTools, ...uiTools];
   const allToolNames = new Map(agentTools.map((t) => [t.name, toolIri(t.name)]));

@@ -8,6 +8,7 @@ exclude:
   - name: All
     paths:
       - docs
+      - .agents/skills
       - ontology/generated
       - apps/playground/public
       - apps/storybook/public
