@@ -40,7 +40,7 @@ describe('SidebarLayout mobile folding zones', () => {
 
   it('renders content column with xl max-width cap and 2xl release', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/pages']}>
         <NuqsAdapter>
           <NavProvider tree={[]}>
             <SidebarLayout navbar={<div>Navbar</div>} sidebar={<div>Sidebar</div>}>
@@ -54,6 +54,26 @@ describe('SidebarLayout mobile folding zones', () => {
     const contentColumn = contentEl.closest('[class*="xl:max-w-"]');
     expect(contentColumn).not.toBeNull();
     expect(contentColumn?.className).toContain('xl:max-w-[984px]');
+    expect(contentColumn?.className).toContain('2xl:max-w-none');
+  });
+
+  it('renders the home route content column wide (no xl cap)', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <NuqsAdapter>
+          <NavProvider tree={[]}>
+            <SidebarLayout navbar={<div>Navbar</div>} sidebar={<div>Sidebar</div>}>
+              <div>Content</div>
+            </SidebarLayout>
+          </NavProvider>
+        </NuqsAdapter>
+      </MemoryRouter>,
+    );
+    const contentEl = screen.getByText('Content');
+    const contentColumn = contentEl.closest('[class*="xl:max-w-"]');
+    expect(contentColumn).not.toBeNull();
+    expect(contentColumn?.className).toContain('xl:max-w-none');
+    expect(contentColumn?.className).not.toContain('xl:max-w-[984px]');
     expect(contentColumn?.className).toContain('2xl:max-w-none');
   });
 

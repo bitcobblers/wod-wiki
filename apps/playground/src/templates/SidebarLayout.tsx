@@ -201,6 +201,10 @@ export function SidebarLayout({
     l3Items,
     l3Actions = [],
   } = useNav()
+  // The home route suppresses the 240px L2 sidebar (hideDesktopSidebar), so the
+  // xl cap — budgeted for rail + sidebar — would strand the remainder as dead
+  // space. It renders wide instead; every other route keeps the cap.
+  const isFullWidthRoute = useLocation().pathname === '/'
   const showRightDrawer = Boolean(navState?.rightDrawerOpen)
   const setShowRightDrawer = useCallback(
     (open: boolean) => dispatch({ type: 'SET_RIGHT_DRAWER', open }),
@@ -281,8 +285,9 @@ export function SidebarLayout({
         {/* Content column — on desktop, page headers (StickyPageHeader) own lg:top-0.
             On mobile, this sticky navbar carries the hamburger drawer trigger.
             At xl (1280px), content halts growth at 984px (1280px viewport - 56px rail - 240px sidebar),
-            allowing right-side space to grow until the 240px secondary rail mounts at 2xl (1520px). */}
-        <div className="flex flex-1 flex-col min-w-0 xl:max-w-[984px] 2xl:max-w-none">
+            allowing right-side space to grow until the 240px secondary rail mounts at 2xl (1520px).
+            The home route (isFullWidthRoute) skips the cap: it has no L2 sidebar to budget for. */}
+        <div className={cn('flex flex-1 flex-col min-w-0 2xl:max-w-none', isFullWidthRoute ? 'xl:max-w-none' : 'xl:max-w-[984px]')}>
           <header data-page-sticky-boundary="true" className="lg:hidden sticky top-0 z-20 flex items-center px-2 sm:px-4 bg-card">
             <div className="py-2.5 shrink-0">
               <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation" title="Open navigation" data-testid={TEST_IDS.MOBILE_NAV_OPEN}>
