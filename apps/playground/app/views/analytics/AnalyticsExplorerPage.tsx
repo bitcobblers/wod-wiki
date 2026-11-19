@@ -19,7 +19,7 @@
  * analytics queries through `queryService.runQuery` with range/unit options
  * (calc.* metrics resolve directly against the unified event store).
  */
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertCircle, CalendarIcon, CheckCircle2, ChevronDown, ChevronRight, Save } from 'lucide-react';
 import { queryService } from '@/services/queryService';
 import { TEST_IDS } from '@/lib/testIds';
@@ -63,6 +63,8 @@ import type { NavItemL3 } from '../../nav/navTypes';
 import { ResponsiveActions } from '../../nav/ResponsiveActions';
 import { MobileNewEntryCombo } from '../../pages/shared/NewEntryCombo';
 import { SampleDataPrompt } from './SampleDataPrompt';
+import { onSampleDataChanged } from '@/services/analytics/sample';
+import { useFeedImportPending } from '@/services/feed/feedReadiness';
 import { cn } from '@/lib/utils';
 import { registerActiveExplorerBridge, setSurfaceBusy } from '@/agent/surfaceBridges';
 
@@ -241,6 +243,22 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   }, [recordsWql]);
 
   const [refreshKey, setRefreshKey] = useState(0);
+  const [samplePendingAction, setSamplePendingAction] = useState<'load' | 'purge' | null>(null);
+  const feedImportPending = useFeedImportPending();
+  const prevImportPendingRef = useRef(feedImportPending);
+
+  useEffect(() => {
+    const unsubscribe = onSampleDataChanged(() => setRefreshKey((k) => k + 1));
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (prevImportPendingRef.current && !feedImportPending) {
+      setRefreshKey((k) => k + 1);
+    }
+    prevImportPendingRef.current = feedImportPending;
+  }, [feedImportPending]);
+
   const [anatomyOpen, setAnatomyOpen] = useState(false);
   const [recordsOpen, setRecordsOpen] = useState(false);
 
@@ -584,14 +602,27 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
                         {inspectPipelineButton}
                       </div>
                     ) : loading ? (
-                      <WqlEmptyState result={undefined} />
+                      <div className="h-full flex flex-col items-center justify-center gap-2">
+                        <WqlEmptyState result={undefined} className="h-auto" />
+                        {samplePendingAction !== null && (
+                          <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
+                            {samplePendingAction === 'load' ? 'Loading sample data…' : 'Purging sample data…'}
+                          </p>
+                        )}
+                      </div>
                     ) : shape.kind === 'error' ? (
                       <div className="h-full flex items-center justify-center text-sm text-destructive font-mono px-4 text-center">
                         {shape.message}
                       </div>
                     ) : shape.kind === 'empty' ? (
                       <div className="h-full flex flex-wrap items-center justify-center gap-6">
-                        <SampleDataPrompt result={result} refreshKey={refreshKey} onChanged={() => setRefreshKey(k => k + 1)} />
+                        <SampleDataPrompt
+                          result={result}
+                          refreshKey={refreshKey}
+                          hideBannerWhenLoaded={true}
+                          onPendingChange={setSamplePendingAction}
+                          onChanged={() => setRefreshKey((k) => k + 1)}
+                        />
                         {inspectPipelineButton}
                       </div>
                     ) : shape.kind === 'scalar' ? (

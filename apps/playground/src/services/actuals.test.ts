@@ -233,4 +233,35 @@ describe('actuals on grouped movement blocks', () => {
     expect(targets[0].occurrenceId).toBe('row');
     expect(targets[0].target).toBeNull();
   });
+
+  it('WW-097: excludes completed blocks from getActualRepTargets and findActualRepOccurrence', () => {
+    const activeBlock = {
+      key: { toString: () => 'active-rung' },
+      sourceIds: [1],
+      label: 'Thrusters 9',
+      blockType: 'effort',
+      isComplete: false,
+      getMemoryByTag: (tag: string) =>
+        tag === 'metric:display'
+          ? [new MemoryLocation('metric:display', [repMetric(9), effortMetric('Thrusters')])]
+          : [],
+    } as unknown as IRuntimeBlock;
+    const completedBlock = {
+      key: { toString: () => 'completed-rung' },
+      sourceIds: [2],
+      label: 'Thrusters 21',
+      blockType: 'effort',
+      isComplete: true,
+      getMemoryByTag: (tag: string) =>
+        tag === 'metric:display'
+          ? [new MemoryLocation('metric:display', [repMetric(21), effortMetric('Thrusters')])]
+          : [],
+    } as unknown as IRuntimeBlock;
+
+    const runtime = { stack: { blocks: [completedBlock, activeBlock] } } as unknown as IScriptRuntime;
+    const targets = getActualRepTargets(runtime);
+    expect(targets.map((t) => t.occurrenceId)).toEqual(['active-rung']);
+    expect(findActualRepOccurrence(runtime, 'completed-rung')).toBeUndefined();
+    expect(findActualRepOccurrence(runtime, 'active-rung')?.block).toBe(activeBlock);
+  });
 });

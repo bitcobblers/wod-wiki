@@ -84,6 +84,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
   "virtualDimensions": [
     "day",
     "week",
+    "month",
     "session",
     "round"
   ],

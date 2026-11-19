@@ -18,7 +18,7 @@ export function PipelineAnatomy({ result }: PipelineAnatomyProps) {
   const { parsed, stages } = result;
   if (parsed.error) return null;
 
-  const timeDim = parsed.groupBy.find((d) => d === 'day' || d === 'week');
+  const timeDim = parsed.groupBy.find((d) => d === 'day' || d === 'week' || d === 'month');
   const bucketDesc = timeDim
     ? `by ${timeDim}`
     : parsed.rollup

@@ -76,7 +76,10 @@ export function setScopeFilter(query: string, scope: string | null): string {
 export function setMetricQuery(query: string, metric: string): string {
   const parsed = parseQuery(query);
   if (parsed.error) return query;
-  if (isAggregateQuery(parsed)) return serialize({ ...parsed, metric });
+  if (isAggregateQuery(parsed)) {
+    const nextAgg = metric === 'note' ? 'count' : parsed.agg;
+    return serialize({ ...parsed, agg: nextAgg, metric });
+  }
   if (!isFindQuery(parsed)) return query;
 
   const sourceHead = /^:(journal|notebooks|playground)(?:[{\s]|$)/.exec(query.trim())?.[1];
@@ -91,7 +94,7 @@ export function setMetricQuery(query: string, metric: string): string {
   return serialize({
     family: 'aggregate',
     raw: '',
-    agg: 'sum',
+    agg: metric === 'note' ? 'count' : 'sum',
     metric,
     filters: factFilters,
     groupBy: ['week'],
