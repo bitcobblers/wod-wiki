@@ -50,6 +50,7 @@ export const FocusedDialog: React.FC<FocusedDialogProps> = ({
   return (
     <Dialog
       open
+      dismissible={false}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) onClose();
       }}

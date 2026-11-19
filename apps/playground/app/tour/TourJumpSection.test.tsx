@@ -346,4 +346,19 @@ describe('TourJumpSection', () => {
     expect(notebookSubscribed.has('sport-crossfit#notebook.crossfit-games')).toBe(true)
     expect(synced).toContain('sport-crossfit')
   })
+
+  it('offers Clear filters when subscribed-only and feed filter yield an empty feed list', () => {
+    renderSection()
+    fireEvent.click(screen.getByTestId('jump-filters-toggle'))
+    fireEvent.change(screen.getByTestId('filter-feed-source'), { target: { value: 'sport-crossfit' } })
+    fireEvent.click(screen.getByTestId('filter-subscribed-only'))
+
+    expect(screen.getByTestId('jump-empty')).toBeTruthy()
+    const clearBtn = screen.getByTestId('jump-clear-filters')
+    expect(clearBtn).toBeTruthy()
+
+    fireEvent.click(clearBtn)
+    expect(screen.queryByTestId('jump-empty')).toBeNull()
+    expect(screen.getByTestId('feed-card-sport-crossfit')).toBeTruthy()
+  })
 })

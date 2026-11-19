@@ -119,5 +119,26 @@ describe('Journal workout cloning & read-only Session intake', () => {
     expect(await storageService.getSessionsForNote('seed-helen-id')).toHaveLength(0);
     // WW-052: prepareJournalSessionRun no longer persists a 0s phantom session row before the run starts.
     expect(await storageService.getSessionsForNote(started.note.id)).toHaveLength(0);
+
+    const finished = await persistence.finishSession(started.session.id, {
+      startTime: 10_000,
+      endTime: 70_000,
+      duration: 60_000,
+      completed: true,
+      logs: [
+        {
+          id: 1,
+          outputType: 'segment',
+          timeSpan: { started: 10_000, ended: 70_000 },
+          metrics: [{ type: 'rep', value: 21, origin: 'runtime' }],
+          sourceBlockKey: '1',
+          stackLevel: 0,
+        },
+      ],
+    });
+    expect(finished.status).toBe('completed');
+    expect(finished.noteId).toBe(started.note.id);
+    expect(await storageService.getSessionsForNote(started.note.id)).toHaveLength(1);
+    expect((await storageService.getEventsByResult(started.session.id)).length).toBeGreaterThan(0);
   });
 });

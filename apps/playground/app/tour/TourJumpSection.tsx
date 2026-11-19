@@ -17,7 +17,7 @@
  * disabled until at least one feed has been synced; re-sync and removal live
  * in Settings → Sync.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
@@ -38,6 +38,7 @@ import { syncFeedSource, readFeedCoverage } from '@/services/feed/feedSync'
 import { feedProgressLabel } from '@/services/feed/feedProgress'
 import { useSeedContent } from '@/services/content/seedContent'
 import { cn } from '@/lib/utils'
+import { TEST_IDS } from '@/lib/testIds'
 import { TaglineHeader } from './TaglineHeader'
 import { FeedCard } from '../views/notebook-gallery/FeedCard'
 import { MarqueeRow } from '../views/notebook-gallery/MarqueeRow'
@@ -99,7 +100,7 @@ export interface TourJumpSectionFeedDeps {
   readFeedCoverage: typeof readFeedCoverage
 }
 
-export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSectionFeedDeps> } = {}) {
+export const TourJumpSection = memo(function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSectionFeedDeps> } = {}) {
   const deps = useMemo<TourJumpSectionFeedDeps>(() => ({
     isNotebookSubscribed,
     setNotebookSubscribed,
@@ -172,7 +173,7 @@ export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSecti
         onProgress: (e) => setStatus({ text: feedProgressLabel(e), tone: 'muted' }),
       })
       if (outcome === 'imported' || outcome === 'current') {
-        const persisted = setFeedSubscribed(feedId, true)
+        const persisted = deps.setFeedSubscribed(feedId, true)
         setStatus({
           text: !persisted
             ? 'Subscribed for this session only — browser storage is unavailable.'
@@ -216,7 +217,9 @@ export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSecti
     void navigate(notePath(note.id))
   }, [navigate])
 
-  const hasFilters = Boolean(search.trim())
+  const hasFilters = Boolean(search.trim() || selectedFeedId || subscribedOnly)
+  const hasAdvancedFilters = Boolean(selectedFeedId || subscribedOnly || sort !== 'updated')
+  const feedSources = useMemo(() => listFeedSources(), [])
 
   return (
     <section
@@ -260,24 +263,33 @@ export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSecti
             )}
           </label>
 
-          {/* Advanced filters (subscribed toggle, feed select, sort) live
-              behind one disclosure; search stays on the primary path. */}
           <button
             type="button"
             onClick={() => setFiltersOpen((open) => !open)}
             aria-expanded={filtersOpen}
             aria-controls="jump-filters-panel"
-            data-testid="jump-filters-toggle"
-            className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            data-testid={TEST_IDS.tour.JUMP_FILTERS_TOGGLE}
+            className={cn(
+              'ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-full border bg-background px-3 text-[10px] font-black uppercase tracking-widest transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+              hasAdvancedFilters
+                ? 'border-primary/50 text-foreground hover:border-primary'
+                : 'border-border text-muted-foreground hover:border-foreground/25 hover:text-foreground',
+            )}
           >
             Filters
+            {hasAdvancedFilters && !filtersOpen && (
+              <span className="size-1.5 rounded-full bg-primary" aria-hidden />
+            )}
             <ChevronDown className={cn('size-3.5 transition-transform', filtersOpen && 'rotate-180')} aria-hidden />
           </button>
 
-          <div id="jump-filters-panel" data-testid="jump-filters-panel" className="flex w-full flex-wrap items-center gap-2">
+          <div
+            id="jump-filters-panel"
+            data-testid={TEST_IDS.tour.JUMP_FILTERS_PANEL}
+            className={cn('w-full flex-wrap items-center gap-2 pt-1', filtersOpen ? 'flex' : 'hidden')}
+          >
             {filtersOpen && (
               <>
-                {/* Subscribed only toggle */}
                 <label className="flex min-h-11 items-center gap-2 cursor-pointer select-none text-muted-foreground hover:text-foreground px-2">
                   <input
                     type="checkbox"
@@ -289,7 +301,6 @@ export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSecti
                   <span className="text-[10px] font-black uppercase tracking-widest">Subscribed only</span>
                 </label>
 
-                {/* Feed selector */}
                 <select
                   value={selectedFeedId ?? ''}
                   onChange={(e) => setSelectedFeedId(e.target.value ? e.target.value : undefined)}
@@ -298,7 +309,7 @@ export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSecti
                   className="min-h-11 h-11 rounded-full border border-border bg-background px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground outline-none transition-colors hover:border-foreground/25 focus:border-primary/50"
                 >
                   <option value="">All feeds</option>
-                  {listFeedSources().map((s) => (
+                  {feedSources.map((s) => (
                     <option key={s.id} value={s.id}>{s.label}</option>
                   ))}
                 </select>
@@ -441,7 +452,7 @@ export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSecti
                   type="button"
                   data-testid="jump-clear-filters"
                   onClick={() => { setSearch(''); setSelectedFeedId(undefined); setSubscribedOnly(false) }}
-                  className="mt-3 h-8 rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+                  className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full border border-border px-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
                 >
                   Clear filters
                 </button>
@@ -458,4 +469,4 @@ export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSecti
       </div>
     </section>
   )
-}
+})

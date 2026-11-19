@@ -16,6 +16,8 @@
  */
 import { useMemo } from 'react'
 import { Play } from 'lucide-react'
+import { Button } from '@bitcobblers/wod-wiki-ui/primitives'
+import { TEST_IDS } from '@/lib/testIds'
 import type { Sessions } from '@/components/Editor/types'
 
 // ── Derivation ──────────────────────────────────────────────────────────────
@@ -122,15 +124,14 @@ export function InsightsRunCta({ onRun }: { onRun: () => void }) {
         Run the workout and this window turns your run into data — rest vs. work,
         how fast you answered the clock, round by round.
       </p>
-      <button
-        type="button"
+      <Button
         onClick={onRun}
         data-testid="tour-insights-run"
-        className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow transition-colors hover:bg-primary/90"
+        className="min-h-11 rounded-full px-5 py-2.5 text-sm font-semibold shadow"
       >
-        <Play className="size-4" />
+        <Play className="size-4" aria-hidden />
         Run to view the results
-      </button>
+      </Button>
     </div>
   )
 }
@@ -141,24 +142,21 @@ export interface TourSessionInsightsProps {
   onRun: () => void
 }
 
-/** A run was recorded but carried nothing measurable. The save happened, so
- *  the pre-run CTA would be a lie — say what actually happened instead. */
 export function InsightsRecordedState({ onRun }: { onRun: () => void }) {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center" data-testid="tour-insights-recorded">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center" data-testid={TEST_IDS.tour.INSIGHTS_RECORDED}>
       <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
         Your run was saved — but this workout has nothing to measure yet. A line with a
         timer or a Next click turns into insights.
       </p>
-      <button
-        type="button"
+      <Button
         onClick={onRun}
-        data-testid="tour-insights-again"
-        className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow transition-colors hover:bg-primary/90"
+        data-testid={TEST_IDS.tour.INSIGHTS_AGAIN}
+        className="min-h-11 rounded-full px-5 py-2.5 text-sm font-semibold shadow"
       >
-        <Play className="size-4" />
+        <Play className="size-4" aria-hidden />
         Run again
-      </button>
+      </Button>
     </div>
   )
 }
@@ -215,7 +213,7 @@ export function TourSessionInsights({ result, onRun }: TourSessionInsightsProps)
       <div className="grid gap-3 sm:grid-cols-2">
         <div data-testid="tour-insights-impatience" className="rounded-xl border border-border bg-card p-4">
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Impatience Score</p>
-          <p className="mt-2 text-2xl font-black tracking-tight text-foreground">
+          <p className="mt-2 text-2xl font-black tracking-tight tabular-nums text-foreground">
             {fmtSeconds(impatienceMs)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -226,7 +224,7 @@ export function TourSessionInsights({ result, onRun }: TourSessionInsightsProps)
         </div>
         <div data-testid="tour-insights-reaction" className="rounded-xl border border-border bg-card p-4">
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Reaction Time</p>
-          <p className="mt-2 text-2xl font-black tracking-tight text-foreground">
+          <p className="mt-2 text-2xl font-black tracking-tight tabular-nums text-foreground">
             {reactions.length > 0 ? fmtSeconds(avgReaction) : '—'}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">

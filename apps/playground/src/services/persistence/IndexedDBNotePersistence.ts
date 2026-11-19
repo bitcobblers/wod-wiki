@@ -46,6 +46,7 @@ import {
 } from './types';
 
 const BLOCK_OPTIONS = { registeredWidgets: KNOWN_SECTION_WIDGETS };
+const preparedJournalSessions = new Map<string, Session>();
 const MUTATION_STORES = [
   'notes',
   'block_revisions',
@@ -363,6 +364,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
         startedAt: session.startTime,
         origin: session.origin,
       });
+      preparedJournalSessions.set(prepared.session.id, prepared.session);
       return {
         note: prepared.note,
         revision: prepared.revision,
@@ -401,8 +403,9 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
 
   async finishSession(sessionId: string, data: Sessions, createdAt?: number): Promise<Session> {
     await this.provider.persistenceReady;
-    return this.storage.withTransaction(['sessions', 'block_revisions', 'events'], async scoped => {
-      const previous = await scoped.getSessionById(sessionId);
+    const finished = await this.storage.withTransaction(['sessions', 'block_revisions', 'events', 'notebook_links'], async scoped => {
+      const storedPrevious = await scoped.getSessionById(sessionId);
+      const previous = storedPrevious ?? preparedJournalSessions.get(sessionId);
       if (!previous) throw new NotePersistenceError('RESULT_NOT_FOUND', `Session not found: ${sessionId}`);
       const revision = await scoped.getBlockRevision(previous.noteId, previous.blockId, previous.blockVersion);
       if (!revision) throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Pinned workout revision is missing');
@@ -419,6 +422,17 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
         createdAt: createdAt ?? previous.createdAt,
       };
       await scoped.saveSession(session);
+      if (!storedPrevious && session.notebookIds?.length) {
+        const links = session.notebookIds.map((notebookId) => ({
+          id: `${notebookId}:session:${session.id}`,
+          notebookId,
+          targetKind: 'session' as const,
+          targetId: session.id,
+          noteId: session.noteId,
+          createdAt: session.createdAt,
+        }));
+        await scoped.storage.readwrite('notebook_links').putMany(links);
+      }
       if (data.logs?.length) {
         const identity = {
           noteId: session.noteId,
@@ -435,6 +449,8 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       }
       return session;
     });
+    preparedJournalSessions.delete(sessionId);
+    return finished;
   }
 
   async getBlockRevision(noteId: string, blockId: string, version: number): Promise<BlockRevision | undefined> {

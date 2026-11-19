@@ -716,27 +716,31 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
       data-testid={TEST_IDS.tour.SECTION_EDITOR}
       className="flex w-full flex-col items-center px-5 py-8 text-center lg:px-10 xl:py-10 2xl:px-16"
     >
-      {whyShrunk && (
-        <button
-          type="button"
-          onClick={handleWatchAgain}
-          data-testid={TEST_IDS.tour.WHY_WATCH_AGAIN}
-          className="inline-flex items-center gap-1.5 rounded-t-lg border border-b-0 border-border bg-muted/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <Play className="size-3" />
-          Watch again
-        </button>
-      )}
-      {docEdited && (
-        <button
-          type="button"
-          onClick={resetEditorToArrival}
-          data-testid={TEST_IDS.tour.EDITOR_RESET_EDITED}
-          className="inline-flex items-center gap-1.5 rounded-t-lg border border-b-0 border-border bg-muted/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <RotateCcw className="size-3" />
-          Edited — reset to the welcome doc
-        </button>
+      {(whyShrunk || docEdited) && (
+        <div className="flex flex-wrap items-end justify-center gap-2">
+          {whyShrunk && (
+            <button
+              type="button"
+              onClick={handleWatchAgain}
+              data-testid={TEST_IDS.tour.WHY_WATCH_AGAIN}
+              className="relative inline-flex min-h-9 items-center gap-1.5 rounded-t-lg border border-b-0 border-border bg-muted/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-['']"
+            >
+              <Play className="size-3" aria-hidden />
+              Watch again
+            </button>
+          )}
+          {docEdited && (
+            <button
+              type="button"
+              onClick={resetEditorToArrival}
+              data-testid={TEST_IDS.tour.EDITOR_RESET_EDITED}
+              className="relative inline-flex min-h-9 items-center gap-1.5 rounded-t-lg border border-b-0 border-border bg-muted/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-['']"
+            >
+              <RotateCcw className="size-3" aria-hidden />
+              Edited — reset to the welcome doc
+            </button>
+          )}
+        </div>
       )}
       {editorPane}
     </div>

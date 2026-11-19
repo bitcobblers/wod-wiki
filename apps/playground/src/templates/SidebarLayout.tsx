@@ -76,11 +76,11 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
         if (!nextOpen) close()
       }}
     >
-      <DrawerBackdrop className="bg-black/30 dark:bg-black/30 lg:hidden" />
+      <DrawerBackdrop className="bg-black/30 dark:bg-black/30 transition-none data-[closed]:hidden lg:hidden" />
       <DrawerContent
         initialFocus="content"
         data-testid={TEST_IDS.MOBILE_NAV_DRAWER}
-        className="w-full max-w-none h-dvh max-h-dvh p-0 gap-0 rounded-none border-0 bg-card lg:hidden"
+        className="w-full max-w-none h-dvh max-h-dvh p-0 gap-0 rounded-none border-0 bg-card transition-none data-[closed]:hidden lg:hidden"
       >
         <DrawerTitle className="sr-only">Navigation</DrawerTitle>
         <NavigationDrawerProvider close={close}>
@@ -128,12 +128,12 @@ function RightL3Drawer({ open, close, children }: React.PropsWithChildren<{ open
         if (!nextOpen) close()
       }}
     >
-      <DrawerBackdrop className="bg-black/25 dark:bg-black/40 2xl:hidden" />
+      <DrawerBackdrop className="bg-black/25 dark:bg-black/40 transition-none data-[closed]:hidden 2xl:hidden" />
       <DrawerContent
         initialFocus="content"
         data-testid="l3-right-drawer"
         aria-label="Page options panel"
-        className="w-full lg:w-80 max-w-none h-dvh max-h-dvh p-0 gap-0 rounded-none border-0 lg:border-l lg:border-border/60 bg-card lg:shadow-2xl flex flex-col 2xl:hidden"
+        className="w-full lg:w-80 max-w-none h-dvh max-h-dvh p-0 gap-0 rounded-none border-0 lg:border-l lg:border-border/60 bg-card lg:shadow-2xl flex flex-col transition-none data-[closed]:hidden 2xl:hidden"
       >
         <NavigationDrawerProvider close={close}>
           <div className="flex items-center justify-between border-b border-border/40 px-4 py-2.5">

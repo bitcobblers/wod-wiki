@@ -13,7 +13,7 @@
  * IntersectionObserver band centred on the viewport flips the scope.
  * Mobile: each step renders its copy followed by its pane, sequentially.
  */
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Tabs, TabsList, TabsPanel, TabsTab } from '@bitcobblers/wod-wiki-ui/primitives'
 import { MacOSChrome } from '../components/atoms/MacOSChrome'
@@ -90,7 +90,7 @@ export interface InsightsDashboardsSectionProps {
   onBackToEditor: () => void
 }
 
-export function InsightsDashboardsSection({ session, onRun, onBackToEditor }: InsightsDashboardsSectionProps) {
+export const InsightsDashboardsSection = memo(function InsightsDashboardsSection({ session, onRun, onBackToEditor }: InsightsDashboardsSectionProps) {
   const [scope, setScope] = useState<Scope>('analytics')
   const [slide, setSlide] = useState(0)
   const active = DASHBOARD_SLIDES[slide]
@@ -260,4 +260,4 @@ export function InsightsDashboardsSection({ session, onRun, onBackToEditor }: In
       )}
     </section>
   )
-}
+})

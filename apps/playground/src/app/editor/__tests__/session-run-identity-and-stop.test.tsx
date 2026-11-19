@@ -103,6 +103,16 @@ title: Helen Benchmark
     fireEvent.click(screen.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE));
     expect(await screen.findByTestId(TEST_IDS.CLOCK_STOP_CONFIRM)).toBeDefined();
     expect(screen.queryByTestId('stop-confirm')).toBeNull();
+
+    // Cancel confirmation, then verify Escape also opens CLOCK_STOP_CONFIRM without closing FocusedDialog
+    fireEvent.click(screen.getByTestId(TEST_IDS.CLOCK_STOP_CONFIRM_CANCEL));
+    await waitFor(() => {
+      expect(screen.queryByTestId(TEST_IDS.CLOCK_STOP_CONFIRM)).toBeNull();
+    });
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    expect(await screen.findByTestId(TEST_IDS.CLOCK_STOP_CONFIRM)).toBeDefined();
+    expect(onClose).not.toHaveBeenCalled();
+
     await host.cleanup();
   });
 });
