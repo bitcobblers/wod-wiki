@@ -26,19 +26,34 @@ export interface BatchedItems<T> {
 }
 
 export function useBatchedItems<T>(items: T[], batchSize = LIBRARY_BATCH_SIZE): BatchedItems<T> {
-  const [count, setCount] = useState(batchSize)
+  const [state, setState] = useState<{ items: T[]; batchSize: number; count: number }>(() => ({
+    items,
+    batchSize,
+    count: batchSize,
+  }))
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
-  // New result set → start from the first batch again.
-  useEffect(() => {
-    setCount(batchSize)
-  }, [items, batchSize])
-
+  // New result set (or batch size) → immediately derive the first batch on render
+  // rather than resetting in a passive useEffect (which can clobber an early growTo/click).
+  const count = state.items === items && state.batchSize === batchSize ? state.count : batchSize
   const hasMore = count < items.length
 
+  const updateCount = useCallback(
+    (computeNext: (base: number) => number) => {
+      setState(prev => {
+        const sameInput = prev.items === items && prev.batchSize === batchSize
+        const base = sameInput ? prev.count : batchSize
+        const next = computeNext(base)
+        if (sameInput && prev.count === next) return prev
+        return { items, batchSize, count: next }
+      })
+    },
+    [items, batchSize],
+  )
+
   const growTo = useCallback(
-    (n: number) => setCount(c => Math.max(c, Math.min(Math.max(n, 0), items.length))),
-    [items.length],
+    (n: number) => updateCount(base => Math.max(base, Math.min(Math.max(n, 0), items.length))),
+    [updateCount, items.length],
   )
 
   useEffect(() => {
@@ -47,14 +62,14 @@ export function useBatchedItems<T>(items: T[], batchSize = LIBRARY_BATCH_SIZE): 
     const observer = new IntersectionObserver(
       entries => {
         if (entries.some(e => e.isIntersecting)) {
-          setCount(c => Math.min(c + batchSize, items.length))
+          updateCount(base => Math.min(base + batchSize, items.length))
         }
       },
       { rootMargin: '400px' },
     )
     observer.observe(node)
     return () => observer.disconnect()
-  }, [hasMore, items.length, batchSize])
+  }, [hasMore, items.length, batchSize, updateCount])
 
   return { visible: items.slice(0, count), hasMore, sentinelRef, total: items.length, growTo }
 }
