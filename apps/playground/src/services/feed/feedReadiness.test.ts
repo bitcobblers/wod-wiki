@@ -8,6 +8,9 @@ import { feedFixture as fixture } from './feedFixture';
 import { resetFeedSubscriptionsForTest, setFeedAutoSync, setFeedSubscribed } from './feedSubscriptions';
 import type { IFeedSource, SeedChunkPayload } from './IFeedSource';
 import {
+  beginImportActivity,
+  endImportActivity,
+  getActiveImportLabel,
   getFeedReadiness,
   getFeedSyncProgress,
   isBootImportPending,
@@ -133,7 +136,7 @@ describe('feedReadiness', () => {
     expect(snapshot()).toBe('ready');
   });
 
-  it('markFeedFirstPaint ungates readiness while keeping bootImportPending true until settled (WW-019)', () => {
+  it('keeps feedReadiness preparing after markFeedFirstPaint while bootImportPending is true, then settles atomically to ready (WW-019)', () => {
     const { result } = renderHook(() => useFeedImportPending());
     expect(isBootImportPending()).toBe(false);
     expect(result.current).toBe(false);
@@ -142,19 +145,47 @@ describe('feedReadiness', () => {
     expect(snapshot()).toBe('preparing');
     expect(isBootImportPending()).toBe(true);
     expect(result.current).toBe(true);
+    expect(document.documentElement.dataset.feedState).toBe('preparing');
+    expect(document.documentElement.dataset.feedImportPending).toBe('true');
 
+    // Canvas first-paint MUST NOT prematurely flip data-feed-state to 'ready' while importPending is true.
     act(() => markFeedFirstPaint());
-    expect(snapshot()).toBe('ready');
+    expect(snapshot()).toBe('preparing');
+    expect(document.documentElement.dataset.feedState).toBe('preparing');
     expect(isBootImportPending()).toBe(true);
     expect(result.current).toBe(true);
 
     act(() => markFeedSyncSettled('imported'));
     expect(snapshot()).toBe('ready');
+    expect(document.documentElement.dataset.feedState).toBe('ready');
     expect(isBootImportPending()).toBe(false);
     expect(result.current).toBe(false);
   });
 
-  it('startFeedBootstrap holds bootImportPending across both core and default subscribed feeds on cold boot (WW-019)', async () => {
+  it('tracks ref-counted non-boot import activity via beginImportActivity/endImportActivity and html[data-feed-import-pending] (WW-019)', () => {
+    const { result } = renderHook(() => useFeedImportPending());
+    expect(isBootImportPending()).toBe(false);
+    expect(getActiveImportLabel()).toBeNull();
+
+    act(() => beginImportActivity('Loading sample data…'));
+    expect(isBootImportPending()).toBe(true);
+    expect(result.current).toBe(true);
+    expect(getActiveImportLabel()).toBe('Loading sample data…');
+    expect(document.documentElement.dataset.feedImportPending).toBe('true');
+
+    act(() => beginImportActivity('Updating…'));
+    act(() => endImportActivity());
+    expect(isBootImportPending()).toBe(true);
+    expect(document.documentElement.dataset.feedImportPending).toBe('true');
+
+    act(() => endImportActivity());
+    expect(isBootImportPending()).toBe(false);
+    expect(result.current).toBe(false);
+    expect(getActiveImportLabel()).toBeNull();
+    expect(document.documentElement.dataset.feedImportPending).toBeUndefined();
+  });
+
+  it('startFeedBootstrap holds preparing + bootImportPending across both core and default subscribed feeds on cold boot (WW-019)', async () => {
     localStorage.clear();
     resetFeedSubscriptionsForTest();
     const storage = new InMemoryFeedStorage();
@@ -192,9 +223,8 @@ describe('feedReadiness', () => {
     try {
       await sampleRequested.promise;
 
-      // First-paint ungated the UI shell (`ready`), AND core finished, yet
-      // subscribed sample feed is still importing — bootImportPending MUST stay true!
-      expect(getFeedReadiness()).toBe('ready');
+      // Subscribed sample feed is still importing — readiness MUST stay 'preparing' and bootImportPending MUST stay true!
+      expect(getFeedReadiness()).toBe('preparing');
       expect(isBootImportPending()).toBe(true);
     } finally {
       heldSample.resolve(samplePayload);
@@ -286,14 +316,36 @@ describe('feedReadiness', () => {
       await sampleRequested.promise;
 
       // Core checkpoint exists (returning visitor) but the newly subscribed
-      // auto-sync feed never imported — bootImportPending MUST stay true.
-      expect(getFeedReadiness()).toBe('ready');
+      // auto-sync feed never imported — gate and bootImportPending stay held until it lands.
+      expect(getFeedReadiness()).toBe('preparing');
       expect(isBootImportPending()).toBe(true);
     } finally {
       heldSample.resolve(samplePayload);
       await done;
     }
 
+    expect(getFeedReadiness()).toBe('ready');
+    expect(isBootImportPending()).toBe(false);
+  });
+
+  it('startFeedBootstrap settles to ready (not error) when core is committed and a pending auto-sync feed fails offline', async () => {
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    const storage = new InMemoryFeedStorage();
+    await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('core')), seedVersion: 1, builtAt: new Date(1).toISOString() });
+    const coreSrc = fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas');
+    const failingSource: IFeedSource = {
+      fetchManifest: () => Promise.reject(new Error('offline')),
+      fetchChunk: () => Promise.reject(new Error('offline')),
+    };
+    setFeedSubscribed('samples-movement', true);
+    setFeedAutoSync('samples-movement', true);
+    const sources: FeedSourceSpec[] = [
+      { source: coreSrc, id: 'core', label: 'Core', url: 'https://feed.test/core/', embeddedVersion: 1 },
+      { source: failingSource, id: 'samples-movement', label: 'Samples', url: 'https://feed.test/samples/', embeddedVersion: 0, autoImport: false },
+    ];
+
+    await startFeedBootstrap({ sources, storage, isEnabled: () => true });
     expect(getFeedReadiness()).toBe('ready');
     expect(isBootImportPending()).toBe(false);
   });

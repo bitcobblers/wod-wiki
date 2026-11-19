@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { setupPlaygroundTestHost, type PlaygroundHostHandle } from '@/testing/host'
+import { generateSampleSessions } from '@bitcobblers/wod-wiki-engine'
 import { loadSampleData, setSampleDataService, hasSampleData } from '@/services/analytics/sample'
 import { SampleDataPrompt } from './SampleDataPrompt'
 
@@ -97,9 +98,7 @@ describe('SampleDataPrompt pending state & idempotency (WW-006)', () => {
     expect(first.facts).toBeGreaterThan(0)
     expect(second).toEqual(first)
 
-    // 16 weeks * 3 sessions/week = 48 sessions; without deduplication, concurrent
-    // calls before the first finishes would run 96 transactions and double-import!
-    expect(txCount).toBe(48)
+    expect(txCount).toBe(generateSampleSessions().length)
     expect(await hasSampleData()).toBe(true)
   })
 })

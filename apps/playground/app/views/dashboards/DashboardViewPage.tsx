@@ -17,7 +17,7 @@
  *
  * The bare /dashboard route (no slug) is the WQL explorer — a separate page.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
@@ -45,8 +45,11 @@ import { notifyDashboardsChanged } from '../../services/dashboardEvents';
 import { parseFrontmatter, serializeFrontmatter } from '@/lib/frontmatter';
 import { storageService } from '@/services/storage';
 import { setSurfaceBusy } from '@/agent/surfaceBridges';
+import { onSampleDataChanged } from '@/services/analytics/sample';
+import { onResultSaved } from '@/services/resultRecorder';
+import { SEED_BROADCAST_CHANNEL } from '@/types/seed';
 import { feedProgressLabel } from '@/services/feed/feedProgress';
-import { useFeedSyncProgress } from '@/services/feed/feedReadiness';
+import { useFeedImportPending, useFeedSyncProgress } from '@/services/feed/feedReadiness';
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import {
   StickyPageHeader,
@@ -99,6 +102,42 @@ export function DashboardViewPage() {
 
   // refreshKey forces re-resolution after a clone or an edit write-back.
   const [refreshKey, setRefreshKey] = useState(0);
+  // dataRefreshKey invalidates widget queries & empty-state probes on store writes
+  // (saved workout runs, sample data load/purge, or finished feed imports) without
+  // reloading the underlying dashboard note definition.
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
+  const feedImportPending = useFeedImportPending();
+  const prevFeedImportPending = useRef(feedImportPending);
+  useEffect(() => {
+    if (prevFeedImportPending.current && !feedImportPending) {
+      setDataRefreshKey((k) => k + 1);
+    }
+    prevFeedImportPending.current = feedImportPending;
+  }, [feedImportPending]);
+
+  useEffect(() => {
+    const bump = () => setDataRefreshKey((k) => k + 1);
+    const unsubResult = onResultSaved(bump);
+    const unsubSample = onSampleDataChanged(bump);
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        channel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);
+        channel.onmessage = (event) => {
+          const kind = (event.data as { kind?: string } | null)?.kind;
+          if (kind === 'seed-imported' || kind === 'seed-removed') bump();
+        };
+      } catch {
+        // Cross-tab seed broadcast unavailable; in-tab subscriptions stay active.
+      }
+    }
+    return () => {
+      unsubResult();
+      unsubSample();
+      channel?.close();
+    };
+  }, []);
+
   // Board-emptiness probe: an O(1) event count gates the fresh-profile CTA
   // card — widgets render their own empty states once facts exist.
   const [hasFacts, setHasFacts] = useState<boolean | null>(null);
@@ -108,7 +147,7 @@ export function DashboardViewPage() {
       if (!cancelled) setHasFacts(n > 0);
     });
     return () => { cancelled = true; };
-  }, [refreshKey]);
+  }, [refreshKey, dataRefreshKey]);
   const { source, loading } = useDashboardSource(slug, refreshKey);
 
   const parsed = useMemo(() => {
@@ -548,15 +587,15 @@ export function DashboardViewPage() {
         {hasFacts === false ? (
           <SampleDataPrompt
             layout="card"
-            refreshKey={refreshKey}
-            onChanged={() => setRefreshKey((k) => k + 1)}
+            refreshKey={refreshKey + dataRefreshKey}
+            onChanged={() => setDataRefreshKey((k) => k + 1)}
           />
         ) : (
           <div className="mb-4">
             <SampleDataPrompt
               layout="banner"
-              refreshKey={refreshKey}
-              onChanged={() => setRefreshKey((k) => k + 1)}
+              refreshKey={refreshKey + dataRefreshKey}
+              onChanged={() => setDataRefreshKey((k) => k + 1)}
             />
           </div>
         )}
@@ -578,6 +617,7 @@ export function DashboardViewPage() {
             onOpenInExplorer={(w, q) => navigate(analyticsExplorerPath({ q }))}
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
+            refreshKey={`${refreshKey}:${dataRefreshKey}`}
             preferredUnit={preferredUnit}
             onLoadingChange={setWidgetsLoading}
             noteHref={(item) => {
