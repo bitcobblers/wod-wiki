@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AlertCircle, CalendarIcon, CheckCircle2, ChevronDown, ChevronRight, Save } from 'lucide-react';
 import { queryService } from '@/services/queryService';
+import { TEST_IDS } from '@/lib/testIds';
 import { parseQuery, serialize, isAggregateQuery, isFindQuery, type QueryResult, type TagFilter } from '@bitcobblers/wod-wiki-engine';
 import { StickyPageHeader, StickyGroupHeader, useStickyBoundaryOffset } from '@/panels/page-shells';
 import { searchEntries } from '../../lib/entrySearch';
@@ -503,7 +504,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
           {submittedInvalid && (
             <div
               role="alert"
-              data-testid="explorer-invalid-url-alert"
+              data-testid={TEST_IDS.EXPLORER_INVALID_URL_ALERT}
               className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
             >
               <span>

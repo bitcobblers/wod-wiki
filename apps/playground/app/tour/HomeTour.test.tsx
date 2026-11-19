@@ -577,7 +577,7 @@ describe('HomeTour', () => {
         await Promise.resolve()
       })
 
-      // Dirty the editor so the reset has something to discard.
+      // Dirty the editor: the visitor's own document survives the trip back.
       await act(async () => {
         fireEvent.change(
           within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor') as HTMLTextAreaElement,
@@ -591,11 +591,15 @@ describe('HomeTour', () => {
         await Promise.resolve()
       })
 
-      // Runtime reset: the editor is back to the arrival document…
+      // The edited document is still the visitor's — the reset chip is the
+      // explicit way back to the arrival content.
       await waitFor(() =>
-        expect((within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor') as HTMLTextAreaElement).value).toBe(BARE_WELCOME),
+        expect((within(screen.getByTestId('tour-section-editor')).getByTestId('mock-note-editor') as HTMLTextAreaElement).value).toBe('DIRTY DOCUMENT'),
       )
-      // …and the page glides up to the editor viewport.
+      expect(
+        within(screen.getByTestId('tour-section-editor')).getByTestId('tour-editor-reset-edited'),
+      ).toBeTruthy()
+      // The page glides up to the editor viewport.
       expect(scrollMock).toHaveBeenCalled()
     } finally {
       windowWithScroll.scrollTo = previousScrollTo

@@ -4,7 +4,7 @@
  * clicking opens the fullscreen YouTubeLightbox, exactly like the guide
  * watch buttons. Under it, a paragraph hands off to the live demo below.
  */
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { ChevronDown, Play, X } from 'lucide-react'
 import { YouTubeLightbox } from './YouTubeLightbox'
 
@@ -12,7 +12,7 @@ import { YouTubeLightbox } from './YouTubeLightbox'
 // "Why Wod Wiki?" cut when it ships (same component, no other change).
 const WHY_VIDEO_ID = 'dQw4w9WgXcQ'
 
-export function TourWhyVideo({ onWatched }: { onWatched?: () => void }) {
+export const TourWhyVideo = memo(function TourWhyVideo({ onWatched }: { onWatched?: () => void }) {
   const [playing, setPlaying] = useState(false)
 
   // ponytail: "watched" = the lightbox was closed — the nocookie embed
@@ -47,7 +47,10 @@ export function TourWhyVideo({ onWatched }: { onWatched?: () => void }) {
           <img
             src={`https://i.ytimg.com/vi/${WHY_VIDEO_ID}/hqdefault.jpg`}
             alt="Why Wod Wiki? video thumbnail"
-            loading="lazy"
+            width={480}
+            height={360}
+            fetchPriority="high"
+            decoding="async"
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
           />
           <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
@@ -90,6 +93,6 @@ export function TourWhyVideo({ onWatched }: { onWatched?: () => void }) {
       )}
     </div>
   )
-}
+})
 
 export default TourWhyVideo

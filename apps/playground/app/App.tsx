@@ -11,7 +11,7 @@ import { DebugModeProvider } from '@/contexts/DebugModeContext'
 import { AudioProvider } from '@/contexts/AudioContext'
 import { EffortRegistryProvider } from './contexts/EffortRegistryContext'
 import { EquipmentRegistryProvider } from './contexts/EquipmentRegistryContext'
-import { Toaster } from '@/components/atoms/primitives/toaster'
+import { Button, WodOverlayHost } from '@bitcobblers/wod-wiki-ui/primitives'
 import { NavProvider, useNav } from './nav/NavContext'
 import { buildAppNavTree } from './nav/appNavTree'
 import { recordRecentVisit } from './nav/panels/ConditionsNavPanel'
@@ -27,7 +27,6 @@ import { profileService } from '@/services/storage'
 import { initSeedContentBroadcast, invalidateSeedContent } from '@/services/content/seedContent'
 import { loadTagIndex } from '@/services/tags/tagCatalogue'
 import { startFieldCatalogBackfill } from './services/fieldCatalog'
-import { Button } from '@/components/atoms/primitives/button'
 import type { WorkoutItem } from './lib/workoutIndex'
 import { AgentConfirmHost } from './agent/AgentConfirmHost'
 import { AgentStateScript } from './agent/AgentStateScript'
@@ -142,7 +141,7 @@ export function App() {
             <BrowserRouter>
               <NuqsAdapter>
               <GlobalState />
-              <Toaster />
+              <WodOverlayHost />
               <NavProvider tree={navTree}>
                 <ScrollToTop />
                 <PlaygroundAgentProvider />

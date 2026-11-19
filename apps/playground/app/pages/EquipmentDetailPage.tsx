@@ -15,8 +15,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { notebookSlugFromId, toNotebookId } from '@bitcobblers/wod-wiki-engine';
 import { DocumentDuplicateIcon } from '@heroicons/react/20/solid';
-import { Button } from '@/components/atoms/primitives/button';
-import { Badge } from '@/components/atoms/primitives/badge';
+import { Button, Badge } from "@bitcobblers/wod-wiki-ui/primitives";
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { useTheme } from '@/contexts/ThemeProvider';
 import { JournalPageShell } from '@/panels/page-shells';
@@ -381,7 +380,7 @@ export function EquipmentDetailPage() {
             {(contextData.efforts.length > 0 || contextData.related.length > 0 || contextData.backlinks.length > 0) && (
               <section
                 aria-label="Backlinks and usage"
-                data-testid="equipment-inline-backlinks"
+                data-testid={TEST_IDS.EQUIPMENT_INLINE_BACKLINKS}
                 className="mt-6 border-t border-border pt-4 space-y-3"
               >
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

@@ -40,7 +40,7 @@ describe('SidebarLayout mobile folding zones', () => {
 
   it('renders content column with xl max-width cap and 2xl release', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/pages']}>
         <NuqsAdapter>
           <NavProvider tree={[]}>
             <SidebarLayout navbar={<div>Navbar</div>} sidebar={<div>Sidebar</div>}>
@@ -54,6 +54,26 @@ describe('SidebarLayout mobile folding zones', () => {
     const contentColumn = contentEl.closest('[class*="xl:max-w-"]');
     expect(contentColumn).not.toBeNull();
     expect(contentColumn?.className).toContain('xl:max-w-[984px]');
+    expect(contentColumn?.className).toContain('2xl:max-w-none');
+  });
+
+  it('renders the home route content column wide (no xl cap)', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <NuqsAdapter>
+          <NavProvider tree={[]}>
+            <SidebarLayout navbar={<div>Navbar</div>} sidebar={<div>Sidebar</div>}>
+              <div>Content</div>
+            </SidebarLayout>
+          </NavProvider>
+        </NuqsAdapter>
+      </MemoryRouter>,
+    );
+    const contentEl = screen.getByText('Content');
+    const contentColumn = contentEl.closest('[class*="xl:max-w-"]');
+    expect(contentColumn).not.toBeNull();
+    expect(contentColumn?.className).toContain('xl:max-w-none');
+    expect(contentColumn?.className).not.toContain('xl:max-w-[984px]');
     expect(contentColumn?.className).toContain('2xl:max-w-none');
   });
 
@@ -80,9 +100,11 @@ describe('SidebarLayout mobile folding zones', () => {
     expect(classes).not.toContain('xl:flex');
   });
 
-  it('exports centralized PAGE_SHELL_CONTAINER_CLASS with xl cap and no ultrawide cap', () => {
-    expect(PAGE_SHELL_CONTAINER_CLASS).toContain('xl:max-w-[984px]');
-    expect(PAGE_SHELL_CONTAINER_CLASS).toContain('2xl:max-w-none');
+  it('owns the width measure in the layout column, leaving the shell card uncapped', () => {
+    // One owner for the measure: the column caps app routes at 984px and the
+    // home route grows to fill; the shell card inherits whichever column it
+    // renders in, so it must not carry a second, contradictory cap.
+    expect(PAGE_SHELL_CONTAINER_CLASS).not.toContain('max-w-[984px]');
     expect(PAGE_SHELL_CONTAINER_CLASS).not.toContain('3xl:max-w');
     expect(PAGE_SHELL_CONTENT_SURFACE_CLASS).toContain('bg-background');
   });

@@ -8,9 +8,11 @@
  *  2. Attribution — while shared content is active the editor header reads
  *     `shared by: {by}` (fallback `anonymous`).
  *  3. Reset button — clears the stored script and restores welcome-1.md.
- *  4. Editor re-entry — always resets the editor to the initial load content
- *     (shared script while active, else welcome-1.md); the initial viewport
- *     entry is arrival, not a re-entry.
+ *  4. Editor re-entry — resets the editor to the initial load content
+ *     (shared script while active, else welcome-1.md) only when the visitor
+ *     has not edited it; an edited document survives the re-entry and the
+ *     "Edited — reset" chip restores the initial content on demand. The
+ *     initial viewport entry is arrival, not a re-entry.
  *
  * The CodeMirror editor is injected through HomeTour's `editorSlot` seam —
  * a controlled textarea — instead of a module mock. Hooks and services run
@@ -186,7 +188,7 @@ describe('HomeTour arrival & hero-reset contract', () => {
     expect(screen.queryByText(/shared by/)).toBeNull()
   })
 
-  it('resets the editor to the initial content when the editor section re-enters the viewport', async () => {
+  it('keeps the visitor edits when the editor section re-enters the viewport', async () => {
     await renderHomeTour()
 
     fireEvent.change(editorInput(), { target: { value: 'MY EDITS' } })
@@ -196,8 +198,26 @@ describe('HomeTour arrival & hero-reset contract', () => {
     await simulateEditorVisibility(false)
     expect(editorInput().value).toBe('MY EDITS')
 
-    // Re-entry resets, discarding the in-progress edits.
+    // Re-entry keeps the edits — they are the visitor's work, not stale state.
     await simulateEditorVisibility(true)
+    expect(editorInput().value).toBe('MY EDITS')
+  })
+
+  it('offers an explicit reset back to the initial content once the document is edited', async () => {
+    await renderHomeTour()
+
+    fireEvent.change(editorInput(), { target: { value: 'MY EDITS' } })
+    await simulateEditorVisibility(false)
+    await simulateEditorVisibility(true)
+
+    const reset = screen.getByTestId('tour-editor-reset-edited')
+    expect(reset.textContent).toContain('Edited')
+
+    await act(async () => {
+      fireEvent.click(reset)
+      await Promise.resolve()
+    })
+
     expect(editorInput().value).toBe(WELCOME)
   })
 
@@ -212,7 +232,7 @@ describe('HomeTour arrival & hero-reset contract', () => {
     expect(editorInput().value).toBe('MY EDITS')
   })
 
-  it('resets to the shared script (not welcome-1.md) on editor re-entry while shared', async () => {
+  it('keeps edits on re-entry while shared and resets to the shared script on demand', async () => {
     seedShared({ content: SHARED, by: 'serge' })
     await renderHomeTour()
     expect(editorInput().value).toBe(SHARED)
@@ -220,6 +240,12 @@ describe('HomeTour arrival & hero-reset contract', () => {
     fireEvent.change(editorInput(), { target: { value: 'MY EDITS' } })
     await simulateEditorVisibility(false)
     await simulateEditorVisibility(true)
+    expect(editorInput().value).toBe('MY EDITS')
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tour-editor-reset-edited'))
+      await Promise.resolve()
+    })
     expect(editorInput().value).toBe(SHARED)
   })
 })

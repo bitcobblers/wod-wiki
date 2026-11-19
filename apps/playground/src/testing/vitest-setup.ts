@@ -41,7 +41,7 @@ if (typeof window !== 'undefined') {
     window.scrollTo = () => {};
   }
   if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = ((query: string) => ({
+    const matchMediaStub = ((query: string) => ({
       matches: false,
       media: query,
       onchange: null,
@@ -51,6 +51,8 @@ if (typeof window !== 'undefined') {
       removeEventListener: () => {},
       dispatchEvent: () => false,
     })) as typeof window.matchMedia;
+    window.matchMedia = matchMediaStub;
+    globalThis.matchMedia = matchMediaStub;
   }
   const docRec = document as unknown as Record<string, unknown>;
   if (typeof docRec.queryCommandSupported !== 'function') {
@@ -70,6 +72,21 @@ if (typeof window !== 'undefined') {
       });
     }
   }
+  HTMLElement.prototype.showPopover = function () {};
+  HTMLElement.prototype.hidePopover = function () {};
+  Element.prototype.getAnimations = () => [];
+  Element.prototype.scrollIntoView = function () {};
+  Element.prototype.checkVisibility = () => true;
+  if (typeof Element.prototype.getClientRects !== 'function') {
+    Element.prototype.getClientRects = () => [] as unknown as DOMRectList;
+  }
+  document.elementFromPoint = () => null;
+  document.elementsFromPoint = () => [];
+  document.head.append(
+    Object.assign(document.createElement('style'), {
+      textContent: '[popover] { display: block !important }',
+    }),
+  );
 }
 
 if (typeof globalThis.ResizeObserver === 'undefined') {

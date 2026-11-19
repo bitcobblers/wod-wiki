@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState, type SyntheticEvent } from 'react';
-import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
+import {
+  Button,
+  Drawer,
+  DrawerBackdrop,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+  Input,
+} from '@bitcobblers/wod-wiki-ui/primitives';
+import { X } from 'lucide-react';
 import {
   isNonPublishableNotebook,
   isPublishableNotebookLanding,
@@ -122,8 +132,6 @@ export function NotePromotionSheet({
       void loadSheetState();
     }
   }, [open, loadSheetState]);
-
-  if (!open) return null;
 
   const activeUserNotebooks = userNotebooks.filter((nb) => linkedIds.includes(nb.id));
   const primaryUserNotebook =
@@ -279,60 +287,51 @@ export function NotePromotionSheet({
     }
   };
 
-  const content = (
-    <div
-      className="fixed inset-0 z-[80] flex items-end lg:items-center justify-center bg-black/25"
-      onClick={() => onOpenChange(false)}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerBackdrop className="bg-black/30" />
+      <DrawerContent
+        initialFocus="content"
         aria-label="Notebook promotion and publication visibility"
         data-testid="publication-pill-popover"
-        onClick={(e) => e.stopPropagation()}
-        className="w-full lg:max-w-md max-h-[85dvh] overflow-y-auto rounded-t-xl lg:rounded-xl border border-[#EAEAEA] dark:border-zinc-800 bg-[#FFFFFF] dark:bg-zinc-950 text-[#111111] dark:text-zinc-100 p-5 sm:p-6 space-y-5"
+        className="w-full lg:max-w-md max-h-[85dvh] overflow-y-auto rounded-t-xl border border-border bg-card text-foreground p-5 sm:p-6 space-y-5"
       >
-        {/* Mobile grab handle */}
-        <div className="mx-auto h-1 w-10 rounded-full bg-[#EAEAEA] dark:bg-zinc-800 lg:hidden" />
+        <div aria-hidden="true" className="mx-auto h-1 w-10 rounded-full bg-border lg:hidden" />
 
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-[#EAEAEA] dark:border-zinc-800 pb-3.5">
+        <div className="flex items-start justify-between gap-3 border-b border-border pb-3.5">
           <div className="space-y-0.5">
-            <h3 className="text-sm font-semibold tracking-tight">Notebooks &amp; Publication</h3>
-            <p className="text-xs text-[#787774] dark:text-zinc-400">
+            <DrawerTitle className="text-sm font-semibold tracking-tight">
+              Notebooks &amp; Publication
+            </DrawerTitle>
+            <DrawerDescription className="text-xs text-muted-foreground">
               {summary.visibility} · Journal stays private
-            </p>
+            </DrawerDescription>
           </div>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
+          <DrawerClose
             aria-label="Close promotion sheet"
-            className="min-h-9 min-w-9 inline-flex items-center justify-center rounded-md border border-[#EAEAEA] dark:border-zinc-800 text-xs font-mono text-[#787774] hover:text-[#111111] dark:hover:text-zinc-100"
+            className="min-h-9 min-w-9 h-auto w-auto p-0 inline-flex items-center justify-center rounded-md border border-border bg-transparent text-xs font-mono text-muted-foreground hover:text-foreground"
           >
-            <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75">
-              <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
-            </svg>
-          </button>
+            <X className="size-3.5" aria-hidden="true" />
+          </DrawerClose>
         </div>
 
-        {/* Upstream Provenance Banner */}
         {provenance && (
           <div
-            className="flex items-center justify-between gap-2 rounded-lg border border-[#EAEAEA] dark:border-zinc-800 bg-[#FBFBFA] dark:bg-zinc-900 px-3 py-2.5 text-xs"
+            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-xs"
             data-testid="promotion-provenance-row"
           >
-            <span className="font-mono text-[11px] uppercase tracking-wider text-[#787774]">Origin</span>
+            <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Origin</span>
             {provenance.exists ? (
               <Link
                 to={`/note/${provenance.sourceNoteId}`}
                 onClick={() => onOpenChange(false)}
-                className="rounded-full bg-[#E1F3FE] text-[#1F6C9F] px-2.5 py-0.5 font-mono text-[11px] hover:underline"
+                className="rounded-full bg-primary/15 text-primary px-2.5 py-0.5 font-mono text-[11px] hover:underline"
               >
                 {provenance.title ?? provenance.sourceNoteId}
                 {provenance.sourceVersion !== undefined ? ` · v${provenance.sourceVersion}` : ''}
               </Link>
             ) : (
-              <span className="rounded-full bg-[#FBF3DB] text-[#956400] px-2.5 py-0.5 font-mono text-[11px]">
+              <span className="rounded-full bg-warning/15 text-warning px-2.5 py-0.5 font-mono text-[11px]">
                 {provenance.sourceNotebookId?.replace(/^notebook\//, '') ?? provenance.sourceNoteId}
                 {provenance.sourceVersion !== undefined ? ` · v${provenance.sourceVersion}` : ''} (archived)
               </span>
@@ -340,49 +339,45 @@ export function NotePromotionSheet({
           </div>
         )}
 
-        {/* Read-only upstream notice vs Many-to-many Notebook Promotion */}
         {isReadOnlyFeedNote ? (
-          <div className="rounded-lg border border-[#EAEAEA] dark:border-zinc-800 bg-[#FBFBFA] dark:bg-zinc-900 p-4 space-y-3">
-            <p className="text-xs text-[#787774] dark:text-zinc-400 leading-relaxed">
+          <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               Read-only upstream Note. Running any workout on this Note automatically snapshots a versioned copy into your private Journal, or you can clone it directly.
             </p>
             {onCloneRequest && (
-              <button
-                type="button"
+              <Button
                 onClick={() => {
                   onOpenChange(false);
                   onCloneRequest();
                 }}
                 data-testid="promotion-clone-readonly-btn"
-                className="min-h-11 w-full rounded-md bg-[#111111] text-white text-xs font-medium px-4 py-2 hover:bg-[#333333] transition-colors"
+                className="min-h-11 w-full text-xs"
               >
                 Clone to Journal
-              </button>
+              </Button>
             )}
           </div>
         ) : (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="font-mono text-[11px] uppercase tracking-wider text-[#787774]">
+              <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                 Notebook Membership (Many-to-Many)
               </span>
             </div>
 
-            {/* Locked private Journal anchor */}
-            <div className="flex items-center justify-between min-h-11 rounded-lg border border-[#EAEAEA] dark:border-zinc-800 bg-[#F7F6F3] dark:bg-zinc-900 px-3 py-2 text-xs">
+            <div className="flex items-center justify-between min-h-11 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
               <div className="flex items-center gap-2">
-                <svg className="size-3.5 text-[#787774]" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75">
+                <svg className="size-3.5 text-muted-foreground" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
                   <rect x="3.5" y="7" width="9" height="6.5" rx="1.25" />
                   <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
                 </svg>
                 <span className="font-medium">Journal</span>
               </div>
-              <span className="rounded-full bg-[#EAEAEA] dark:bg-zinc-800 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[#787774]">
+              <span className="rounded-full bg-muted px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                 Private · Permanent
               </span>
             </div>
 
-            {/* User Notebooks multi-select list */}
             {userNotebooks.length > 0 && (
               <div className="space-y-1.5">
                 {userNotebooks.map((nb) => {
@@ -392,7 +387,7 @@ export function NotePromotionSheet({
                     <div
                       key={nb.id}
                       data-testid={`promotion-notebook-chip-${nb.id}`}
-                      className="flex items-center justify-between gap-2 min-h-11 rounded-lg border border-[#EAEAEA] dark:border-zinc-800 px-3 py-2 text-xs"
+                      className="flex items-center justify-between gap-2 min-h-11 rounded-lg border border-border px-3 py-2 text-xs"
                     >
                       <button
                         type="button"
@@ -403,27 +398,27 @@ export function NotePromotionSheet({
                         <span
                           className={`inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] border ${
                             isMember
-                              ? 'border-[#111111] bg-[#111111] text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950'
-                              : 'border-[#EAEAEA] dark:border-zinc-700 bg-transparent'
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-border bg-transparent'
                           }`}
                         >
                           {isMember && (
-                            <svg className="size-2.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                            <svg className="size-2.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                               <path d="M2.5 6l2.5 2.5 4.5-5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                           )}
                         </span>
                         <div className="min-w-0">
                           <div className="font-medium truncate">{nb.title}</div>
-                          <div className="font-mono text-[10px] text-[#787774]">notebook/{nb.slug}</div>
+                          <div className="font-mono text-[10px] text-muted-foreground">notebook/{nb.slug}</div>
                         </div>
                       </button>
 
                       {isMember && (
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer shrink-0 min-h-9 px-2 rounded-md border border-[#EAEAEA] dark:border-zinc-800 bg-[#FBFBFA] dark:bg-zinc-900">
+                        <label className="inline-flex items-center gap-1.5 cursor-pointer shrink-0 min-h-9 px-2 rounded-md border border-border bg-muted/30">
                           <input
                             type="checkbox"
-                            className="size-3.5 accent-[#111111]"
+                            className="size-3.5 accent-primary"
                             checked={nb.isPublic}
                             disabled={busy}
                             onChange={(e) => void handleToggleNotebookPublic(nb.id, e.target.checked)}
@@ -444,16 +439,15 @@ export function NotePromotionSheet({
               </div>
             )}
 
-            {/* Fallback Public Notebook toggle when note has a pre-stamped single notebookId without a landing row */}
             {hydrated && primaryUserNotebook && !userNotebooks.some((u) => u.id === primaryUserNotebook.id) && (
-              <label className="flex items-center justify-between gap-2 min-h-11 rounded-lg border border-[#EAEAEA] dark:border-zinc-800 px-3 py-2 cursor-pointer text-xs">
+              <label className="flex items-center justify-between gap-2 min-h-11 rounded-lg border border-border px-3 py-2 cursor-pointer text-xs">
                 <div>
                   <div className="font-medium">Public Notebook</div>
-                  <div className="font-mono text-[10px] text-[#787774]">notebook/{primaryUserNotebook.slug}</div>
+                  <div className="font-mono text-[10px] text-muted-foreground">notebook/{primaryUserNotebook.slug}</div>
                 </div>
                 <input
                   type="checkbox"
-                  className="size-4 accent-[#111111]"
+                  className="size-4 accent-primary"
                   checked={summary.notebookPublic}
                   disabled={busy}
                   onChange={(e) => void handleToggleNotebookPublic(primaryUserNotebook.id, e.target.checked)}
@@ -462,46 +456,44 @@ export function NotePromotionSheet({
               </label>
             )}
 
-            {/* Quick-create user Notebook inline */}
             <form onSubmit={(e) => void handleCreateAndPromote(e)} className="flex items-center gap-2 pt-1">
-              <input
+              <Input
                 type="text"
                 value={newNotebookName}
-                onChange={(e) => setNewNotebookName(e.target.value)}
+                onValueChange={setNewNotebookName}
                 placeholder="Promote to new Notebook..."
                 aria-label="New Notebook name"
                 data-testid="promotion-new-notebook-input"
-                className="min-h-11 flex-1 rounded-md border border-[#EAEAEA] dark:border-zinc-800 bg-[#FBFBFA] dark:bg-zinc-900 px-3 text-xs focus:outline-none focus:border-[#111111]"
+                className="min-h-11 h-11 flex-1 text-xs"
               />
-              <button
+              <Button
                 type="submit"
                 disabled={busy || !newNotebookName.trim()}
                 data-testid="promotion-new-notebook-submit"
-                className="min-h-11 rounded-md bg-[#111111] text-white px-3.5 text-xs font-medium disabled:opacity-40 hover:bg-[#333333] transition-colors"
+                className="min-h-11 px-3.5 text-xs"
               >
                 + Promote
-              </button>
+              </Button>
             </form>
           </div>
         )}
 
-        {/* Attached Sessions Section */}
-        <div className="space-y-2 border-t border-[#EAEAEA] dark:border-zinc-800 pt-4">
+        <div className="space-y-2 border-t border-border pt-4">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[11px] uppercase tracking-wider text-[#787774]">
+            <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
               Attached Sessions
             </span>
-            <span className="font-mono text-[11px] text-[#787774]">
+            <span className="font-mono text-[11px] text-muted-foreground">
               {summary.publicSessions} of {noteSessions.length} shared
             </span>
           </div>
 
           {localSessions.length === 0 ? (
-            <p className="text-xs text-[#787774]">
+            <p className="text-xs text-muted-foreground">
               No recorded Sessions yet. Sessions stay private unless opted in.
             </p>
           ) : (
-            <ul className="max-h-44 overflow-y-auto divide-y divide-[#EAEAEA] dark:divide-zinc-800 rounded-lg border border-[#EAEAEA] dark:border-zinc-800">
+            <ul className="max-h-44 overflow-y-auto divide-y divide-border rounded-lg border border-border">
               {localSessions.map((sess) => {
                 const dateStr = new Date(sess.startTime || sess.createdAt).toLocaleDateString();
                 const durSec = Math.round((sess.duration || 0) / 1000);
@@ -509,14 +501,14 @@ export function NotePromotionSheet({
                   <li key={sess.id} className="flex items-center justify-between gap-2 min-h-11 px-3 py-2 text-xs">
                     <div className="min-w-0">
                       <div className="font-medium truncate">{dateStr}</div>
-                      <div className="font-mono text-[10px] text-[#787774]">
+                      <div className="font-mono text-[10px] text-muted-foreground">
                         {durSec}s · {sess.completed ? 'completed' : 'partial'}
                       </div>
                     </div>
                     <label className="inline-flex items-center gap-1.5 cursor-pointer shrink-0 min-h-9">
                       <input
                         type="checkbox"
-                        className="size-3.5 accent-[#111111]"
+                        className="size-3.5 accent-primary"
                         checked={sess.public === true}
                         disabled={busy}
                         onChange={(e) => void handleToggleSessionPublic(sess, e.target.checked)}
@@ -533,53 +525,49 @@ export function NotePromotionSheet({
           )}
 
           {!summary.notebookPublic && summary.publicSessions > 0 && (
-            <p className="rounded-md bg-[#FBF3DB] text-[#956400] px-3 py-2 text-[11px]">
+            <p className="rounded-md bg-warning/15 text-warning px-3 py-2 text-[11px]">
               Shared Sessions stay Private until at least one linked user Notebook is marked Public.
             </p>
           )}
         </div>
 
-        {/* Outbound Publish / Export Actions */}
         {summary.notebookPublic && !isReadOnlyFeedNote && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-[#EAEAEA] dark:border-zinc-800 pt-4">
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
             {storageBackend === 'api' ? (
-              <button
-                type="button"
+              <Button
                 disabled={busy}
                 onClick={() => void handlePublishAction('server')}
                 data-testid="publication-publish-server-btn"
-                className="min-h-11 flex-1 rounded-md bg-[#111111] text-white text-xs font-medium px-4 hover:bg-[#333333] disabled:opacity-50 transition-colors"
+                className="min-h-11 flex-1 text-xs px-4"
               >
                 Publish to Server Feed
-              </button>
+              </Button>
             ) : (
               <>
-                <button
-                  type="button"
+                <Button
                   disabled={busy}
                   onClick={() => void handlePublishAction('zip')}
                   data-testid="publication-export-repo-zip-btn"
-                  className="min-h-11 flex-1 rounded-md bg-[#111111] text-white text-xs font-medium px-4 hover:bg-[#333333] disabled:opacity-50 transition-colors"
+                  className="min-h-11 flex-1 text-xs px-4"
                 >
                   Export Feed Repo (.zip)
-                </button>
+                </Button>
                 {supportsDirectoryPicker() && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="outline"
                     disabled={busy}
                     onClick={() => void handlePublishAction('folder')}
                     data-testid="publication-export-repo-folder-btn"
-                    className="min-h-11 rounded-md border border-[#EAEAEA] dark:border-zinc-800 px-3.5 text-xs font-medium hover:bg-[#F7F6F3] dark:hover:bg-zinc-900 disabled:opacity-50 transition-colors"
+                    className="min-h-11 px-3.5 text-xs"
                   >
                     Folder
-                  </button>
+                  </Button>
                 )}
               </>
             )}
           </div>
         )}
-      </div>
-    </div>
+      </DrawerContent>
+    </Drawer>
   );
-  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 }

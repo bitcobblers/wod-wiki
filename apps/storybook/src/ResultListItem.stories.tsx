@@ -2,8 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { ResultListItem } from '@/components/molecules/ResultListItem';
 import { WorkoutActionButton } from '@/components/molecules/WorkoutActionButton';
-import { Button } from '@/components/atoms/primitives/button';
-import { Badge } from '@/components/atoms/primitives/badge';
+import { Button, Badge } from "@bitcobblers/wod-wiki-ui/primitives";
 
 const meta: Meta<typeof ResultListItem> = {
   title: 'Playground/Molecules/ResultListItem',

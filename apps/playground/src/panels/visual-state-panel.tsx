@@ -5,7 +5,7 @@ import {
     useScriptRuntime,
 } from '@bitcobblers/wod-wiki-engine/react';
 import { RuntimeStackView, LookaheadView } from '@/components/atoms/VisualStateComponents';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/atoms/primitives/card';
+import { Card, CardContent, CardHeader, CardTitle } from "@bitcobblers/wod-wiki-ui/primitives";
 import { useDebugMode } from '@/contexts/DebugModeContext';
 import { usePanelSize } from '@/panels/panel-system/PanelSizeContext';
 import { cn } from '@/lib/utils';

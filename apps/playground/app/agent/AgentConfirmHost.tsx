@@ -2,14 +2,15 @@ import React, { useSyncExternalStore } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import type { AgentConfirmationRequest } from '@bitcobblers/wod-wiki-engine/agent';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-} from '@/components/atoms/primitives/dialog';
-import { Button } from '@/components/atoms/primitives/button';
+} from '@bitcobblers/wod-wiki-ui/primitives';
 
 interface PendingConfirmation {
   id: number;
@@ -56,12 +57,6 @@ export interface WebMcpExecuteOptionsLike {
   requestUserInteraction?: <T>(cb: () => Promise<T>) => Promise<T>;
 }
 
-/**
- * Tier 2 destructive confirmation gate for WebMCP tools.
- * Uses `client.requestUserInteraction(...)` when supplied by a WebMCP host,
- * rendering a Radix confirmation modal so an agent can never silently delete
- * user data or terminate an active workout session without human approval.
- */
 export async function requestAgentConfirmation(
   request: AgentConfirmationRequest,
   executeOptions?: unknown,
@@ -90,49 +85,50 @@ export const AgentConfirmHost: React.FC = () => {
   if (!pending) return null;
 
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) pending.resolve(false);
-      }}
-    >
-      <DialogContent data-testid="agent-confirm-dialog">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="size-5 shrink-0" aria-hidden="true" />
-            Confirm Agent Action
-          </DialogTitle>
-          <DialogDescription>
-            An AI agent requested a destructive operation (<strong>{pending.request.action}</strong>).
-          </DialogDescription>
-        </DialogHeader>
+    <div data-agent-hidden="">
+      <AlertDialog
+        open
+        onOpenChange={(open) => {
+          if (!open) pending.resolve(false);
+        }}
+      >
+        <AlertDialogBackdrop />
+        <AlertDialogContent data-testid="agent-confirm-dialog">
+          <DialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="size-5 shrink-0" aria-hidden="true" />
+              Confirm Agent Action
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              An AI agent requested a destructive operation (<strong>{pending.request.action}</strong>).
+            </AlertDialogDescription>
+          </DialogHeader>
 
-        <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs space-y-1">
-          <div className="font-medium text-foreground">{pending.request.summary}</div>
-          <div className="font-mono text-muted-foreground">
-            Target: <span data-testid="agent-confirm-target">{pending.request.targetId}</span>
+          <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs space-y-1">
+            <div className="font-medium text-foreground">{pending.request.summary}</div>
+            <div className="font-mono text-muted-foreground">
+              Target: <span data-testid="agent-confirm-target">{pending.request.targetId}</span>
+            </div>
           </div>
-        </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            type="button"
-            variant="outline"
-            data-testid="agent-confirm-cancel"
-            onClick={() => pending.resolve(false)}
-          >
-            Deny
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            data-testid="agent-confirm-approve"
-            onClick={() => pending.resolve(true)}
-          >
-            Approve Action
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogClose
+              data-testid="agent-confirm-cancel"
+              onClick={() => pending.resolve(false)}
+            >
+              Deny
+            </AlertDialogClose>
+            <AlertDialogClose
+              value="confirm"
+              data-variant="destructive"
+              data-testid="agent-confirm-approve"
+              onClick={() => pending.resolve(true)}
+            >
+              Approve Action
+            </AlertDialogClose>
+          </DialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 };

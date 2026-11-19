@@ -45,7 +45,7 @@ describe('deriveSessionInsights', () => {
   it('splits countdown spans from next-click spans and samples reactions', () => {
     const insights = deriveSessionInsights(homeRun())!
     expect(insights.impatienceMs).toBe(0)
-    expect(insights.impatiences).toEqual([])
+    expect(insights.earlyClicks).toEqual([])
     expect(insights.reactions).toEqual([1800, 42000])
     expect(insights.totalMs).toBe(46800)
     expect(insights.segments).toHaveLength(3)
@@ -82,7 +82,7 @@ describe('deriveSessionInsights', () => {
     } as unknown as Sessions
     const insights = deriveSessionInsights(session)!
     expect(insights.impatienceMs).toBe(0)
-    expect(insights.impatiences).toEqual([])
+    expect(insights.earlyClicks).toEqual([])
     expect(insights.reactions).toEqual([])
   })
 
@@ -99,12 +99,40 @@ describe('deriveSessionInsights', () => {
     } as unknown as Sessions
     const insights = deriveSessionInsights(session)!
     // 3s set time − 1s elapsed = 2s early; the expired countdown scores 0.
-    expect(insights.impatiences).toEqual([2000])
+    expect(insights.earlyClicks).toEqual([2000])
     expect(insights.impatienceMs).toBe(2000)
   })
 
   it('returns null when nothing is measurable', () => {
     expect(deriveSessionInsights({ startTime: 0, endTime: 0, duration: 0, completed: true, logs: [] } as Sessions)).toBeNull()
+  })
+
+  it('does not score impatience for a countdown that was never armed', () => {
+    // The runtime records entering a countdown line whose timer was already
+    // due as a user-advance against a 21ms timer — charging the visitor for
+    // opening the block is not impatience.
+    const enteredAlreadyDue = {
+      startTime: 1000,
+      endTime: 1021,
+      duration: 21,
+      completed: true,
+      logs: [
+        segment({
+          line: 1,
+          completionReason: 'user-advance',
+          timeSpan: { started: 1000, ended: 1021 },
+          metrics: [
+            { type: 'duration', value: 3000, origin: 'parser' },
+            { type: 'effort', value: 'Count Down', origin: 'parser' },
+            { type: 'elapsed', value: 21, origin: 'runtime' },
+            { type: 'total', value: 21, origin: 'runtime' },
+          ],
+        }),
+      ],
+    } as unknown as Sessions
+    const insights = deriveSessionInsights(enteredAlreadyDue)!
+    expect(insights.earlyClicks).toEqual([])
+    expect(insights.impatienceMs).toBe(0)
   })
 })
 
@@ -154,14 +182,17 @@ describe('TourSessionInsights pane', () => {
     cleanup()
   })
 
-  it('renders the CTA when a recorded run has no measurable spans', () => {
+  it('shows the saved-run state when a recorded run has no measurable spans', () => {
     render(
       <TourSessionInsights
         result={{ startTime: 0, endTime: 0, duration: 0, completed: true, logs: [] } as Sessions}
         onRun={() => {}}
       />,
     )
-    expect(screen.getByTestId('tour-insights-empty')).toBeTruthy()
+    // The run was saved — the pre-run CTA would be a lie.
+    expect(screen.queryByTestId('tour-insights-empty')).toBeNull()
+    expect(screen.getByTestId('tour-insights-recorded').textContent).toContain('Your run was saved')
+    expect(screen.getByTestId('tour-insights-again').textContent).toContain('Run again')
     cleanup()
   })
 })

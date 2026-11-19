@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button } from '@/components/atoms/primitives/button';
-import { Input } from '@/components/atoms/primitives/input';
+import { Button, Input } from '@bitcobblers/wod-wiki-ui/primitives';
 import { HttpFeedSource } from '@/services/feed/HttpFeedSource';
 import { addCustomFeedSource, normalizeFeedUrl } from '@/services/feed/feedSources';
 import { setFeedAutoSync, setFeedSubscribed } from '@/services/feed/feedSubscriptions';
@@ -169,8 +168,9 @@ export function FeedIntakeBanner({
         </p>
         <div className="flex items-center gap-2">
           <Input
+            aria-label="Custom feed URL"
             value={customInputUrl}
-            onChange={(e) => setCustomInputUrl(e.target.value)}
+            onValueChange={setCustomInputUrl}
             placeholder="https://example.com/seed/"
             className="text-xs h-8 flex-1"
           />

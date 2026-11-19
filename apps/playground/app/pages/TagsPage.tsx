@@ -20,7 +20,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { BUILTIN_CALCS, findTagContributionCycles } from '@bitcobblers/wod-wiki-engine';
 import type { Tag, TagContribution, TagTypeRecord } from '@bitcobblers/wod-wiki-core';
 import { Plus, Trash2 } from 'lucide-react';
-import { Button } from '@/components/atoms/primitives/button';
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { storageService } from '@/services/storage';
 import { loadTagIndex, refreshTagIndex } from '@/services/tags/tagCatalogue';
 import { useTagIndex } from '@/hooks/useTagIndex';

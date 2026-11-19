@@ -43,12 +43,13 @@ describe('WW-091 — Link-as-Alias picker on cold load', () => {
     expect(notFound).toBeTruthy();
 
     fireEvent.click(screen.getByTestId(TEST_IDS.EFFORT_NOT_FOUND_ALIAS_BTN));
-    const select = await screen.findByTestId(TEST_IDS.EFFORT_NOT_FOUND_ALIAS_SELECT);
+    const selectTrigger = await screen.findByTestId(TEST_IDS.EFFORT_NOT_FOUND_ALIAS_SELECT);
+    fireEvent.click(selectTrigger);
 
     await waitFor(() => {
-      const options = Array.from(select.querySelectorAll('option'));
+      const options = screen.getAllByRole('option');
       expect(options.length).toBeGreaterThan(0);
-      expect(options.some((opt) => opt.getAttribute('value') === 'burpee')).toBe(true);
+      expect(options.some((opt) => opt.textContent?.includes('burpee'))).toBe(true);
     });
   });
 });

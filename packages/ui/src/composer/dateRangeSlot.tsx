@@ -1,5 +1,8 @@
-import { useId, useState } from 'react';
+import { Field, FieldLabel } from '@ui-sdk/react/field';
+import { Input } from '@ui-sdk/react/input';
+import { useState } from 'react';
 import { parseQuery } from '@bitcobblers/wod-wiki-wql';
+import { Button } from '../primitives/button';
 import type {
   CustomSlotDefinition,
   CustomSlotEditorProps,
@@ -13,12 +16,8 @@ export interface DateRange {
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function DateRangeEditor({ value, onChange, onClose }: CustomSlotEditorProps<DateRange>) {
-  const id = useId();
   const [start, setStart] = useState(value?.start ?? '');
   const [end, setEnd] = useState(value?.end ?? '');
-  // Real grammar + civil-calendar validation: the parser rejects 02-30,
-  // month 13, and other regex-passing strings via Date component round-trip.
-  // The shape check only guards which message to show, not acceptance.
   const shaped = ISO_DATE.test(start) && ISO_DATE.test(end);
   const parseError = shaped
     ? parseQuery(`:note from ${start} to ${end}`).error
@@ -30,32 +29,30 @@ function DateRangeEditor({ value, onChange, onClose }: CustomSlotEditorProps<Dat
   return (
     <div className="space-y-2 text-xs" data-testid="date-range-editor">
       <div className="grid grid-cols-2 gap-1.5">
-        <div>
-          <label htmlFor={`${id}-start`} className="text-[10px] uppercase font-bold text-muted-foreground">
+        <Field>
+          <FieldLabel className="text-[10px] uppercase font-bold text-muted-foreground">
             Start
-          </label>
-          <input
-            id={`${id}-start`}
+          </FieldLabel>
+          <Input
             type="date"
             value={start}
-            onChange={(e) => setStart(e.target.value)}
-            className="w-full min-h-12 rounded border border-border bg-background px-1.5 text-base font-mono"
+            onValueChange={setStart}
+            className="w-full min-h-12 h-12 rounded border border-border bg-background px-1.5 text-base font-mono"
             data-testid="date-range-start"
           />
-        </div>
-        <div>
-          <label htmlFor={`${id}-end`} className="text-[10px] uppercase font-bold text-muted-foreground">
+        </Field>
+        <Field>
+          <FieldLabel className="text-[10px] uppercase font-bold text-muted-foreground">
             End
-          </label>
-          <input
-            id={`${id}-end`}
+          </FieldLabel>
+          <Input
             type="date"
             value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            className="w-full min-h-12 rounded border border-border bg-background px-1.5 text-base font-mono"
+            onValueChange={setEnd}
+            className="w-full min-h-12 h-12 rounded border border-border bg-background px-1.5 text-base font-mono"
             data-testid="date-range-end"
           />
-        </div>
+        </Field>
       </div>
       {error && (
         <p role="alert" className="text-[11px] text-destructive" data-testid="date-range-error">
@@ -67,22 +64,23 @@ function DateRangeEditor({ value, onChange, onClose }: CustomSlotEditorProps<Dat
           {ready ? `daterange:${start}_${end}` : 'daterange: <start>_<end>'}
         </code>
         <div className="flex gap-1.5 shrink-0">
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={onClose}
-            className="min-h-12 px-3 rounded border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="min-h-12 px-3 text-muted-foreground hover:text-foreground"
           >
             Cancel
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            size="sm"
             disabled={!ready}
             onClick={() => onChange({ start, end })}
-            className="min-h-12 px-3 rounded bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-40"
+            className="min-h-12 px-3"
             data-testid="date-range-apply"
           >
             Set Range
-          </button>
+          </Button>
         </div>
       </div>
     </div>

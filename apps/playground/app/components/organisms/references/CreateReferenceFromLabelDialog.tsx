@@ -14,8 +14,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui';
 import { effortToDocument, equipmentToDocument, slugifyRefLabel, type IEffort } from '@bitcobblers/wod-wiki-lang';
-import { Button } from '@/components/atoms/primitives/button';
-import { Input } from '@/components/atoms/primitives/input';
+import {
+  Button,
+  Field,
+  FieldLabel,
+  Input,
+  SegmentedControl,
+  SegmentedControlItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectItemIndicator,
+  SelectTrigger,
+  SelectValue,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { DEFAULT_TAG_TYPES } from '@/services/storage/StorageService';
 import { storageService } from '@/services/storage';
@@ -294,25 +306,25 @@ export function CreateReferenceFromLabelDialog({
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Create as
           </span>
-          <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1" role="radiogroup" aria-label="Reference kind">
+          <SegmentedControl
+            aria-label="Reference kind"
+            value={kind}
+            onValueChange={(next) => {
+              if (next) handleKindChange(next as CreatableReferenceKind);
+            }}
+            className="grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1"
+          >
             {(['effort', 'equipment', 'tag'] as const).map((option) => (
-              <button
+              <SegmentedControlItem
                 key={option}
-                type="button"
-                role="radio"
-                aria-checked={kind === option}
+                value={option}
                 data-testid={`create-reference-kind-${option}`}
-                onClick={() => handleKindChange(option)}
-                className={
-                  kind === option
-                    ? 'rounded-md bg-background px-2.5 py-1.5 text-xs font-semibold capitalize text-foreground shadow-sm'
-                    : 'rounded-md px-2.5 py-1.5 text-xs font-medium capitalize text-muted-foreground hover:text-foreground'
-                }
+                className="rounded-md px-2.5 py-1.5 text-xs font-medium capitalize text-muted-foreground hover:text-foreground data-checked:bg-background data-checked:font-semibold data-checked:text-foreground data-checked:shadow-sm"
               >
                 {option}
-              </button>
+              </SegmentedControlItem>
             ))}
-          </div>
+          </SegmentedControl>
         </div>
 
         {wordParts.length > 0 && (
@@ -334,46 +346,54 @@ export function CreateReferenceFromLabelDialog({
           </div>
         )}
 
-        <label className="flex flex-col gap-1 text-xs font-medium text-foreground">
-          <span>{kind === 'tag' ? 'Tag name' : 'Display label'}</span>
+        <Field className="gap-1">
+          <FieldLabel className="text-xs font-medium text-foreground">
+            {kind === 'tag' ? 'Tag name' : 'Display label'}
+          </FieldLabel>
           <Input
             value={label}
-            onChange={(e) => handleLabelChange(e.target.value)}
+            onValueChange={handleLabelChange}
             data-testid="create-reference-label"
             placeholder={kind === 'tag' ? 'grip-endurance' : 'Macebell 360'}
           />
-        </label>
+        </Field>
 
-        <label className="flex flex-col gap-1 text-xs font-medium text-foreground">
-          <span>Slug</span>
+        <Field className="gap-1">
+          <FieldLabel className="text-xs font-medium text-foreground">Slug</FieldLabel>
           <Input
             value={slug}
-            onChange={(e) => {
+            onValueChange={(next) => {
               setSlugTouched(true);
-              setSlug(e.target.value);
+              setSlug(next);
             }}
             data-testid="create-reference-slug"
             className="font-mono text-xs"
             placeholder="macebell-360"
           />
-        </label>
+        </Field>
 
         {kind === 'tag' && (
-          <label className="flex flex-col gap-1 text-xs font-medium text-foreground">
-            <span>Category</span>
-            <select
+          <Field className="gap-1">
+            <FieldLabel className="text-xs font-medium text-foreground">Category</FieldLabel>
+            <Select
               value={tagCategory}
-              onChange={(e) => setTagCategory(e.target.value)}
-              data-testid="create-reference-tag-category"
-              className="h-9 rounded-md border border-input bg-background px-2.5 text-xs text-foreground"
+              onValueChange={(next) => {
+                if (next) setTagCategory(next);
+              }}
             >
-              {availableCategories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger data-testid="create-reference-tag-category" className="h-9 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableCategories.map((cat) => (
+                  <SelectItem key={cat} value={cat} className="text-xs">
+                    {cat}
+                    <SelectItemIndicator />
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
         )}
 
         {error && (

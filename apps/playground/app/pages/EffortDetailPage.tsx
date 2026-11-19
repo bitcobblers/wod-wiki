@@ -25,17 +25,25 @@ import {
   saveScopedPropertyOverride,
   toNotebookId,
 } from '@bitcobblers/wod-wiki-engine';
-import { Button } from '@/components/atoms/primitives/button';
-import { Badge } from '@/components/atoms/primitives/badge';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+  Badge,
+  Button,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-} from '@/components/atoms/primitives/dialog';
-import { Select } from '@/components/atoms/primitives/select';
+  Field,
+  FieldLabel,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { useTheme } from '@/contexts/ThemeProvider';
 import { JournalPageShell } from '@/panels/page-shells';
@@ -57,7 +65,6 @@ import { effortsPath, parseEffortRouteOptions, effortPath, dayPath } from '../li
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import type { MenuSpec } from '../nav/menuModel';
 import { toast } from '@/hooks/use-toast';
-import { ToastAction } from '@/components/atoms/primitives/toast';
 import { TEST_IDS } from '@/lib/testIds';
 import { shareBlock } from '../services/openInPlayground';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
@@ -469,11 +476,10 @@ export function EffortDetailPage() {
       toast({
         title: 'Scheduled',
         description: `Added to journal for ${dateKey}`,
-        action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(dayPath(dateKey))}>
-            Open
-          </ToastAction>
-        ),
+        action: {
+          label: 'Open',
+          onAction: () => navigate(dayPath(dateKey)),
+        },
       });
     } catch {
       toast({ title: 'Error', description: 'Could not schedule workout', variant: 'destructive' });
@@ -681,22 +687,30 @@ export function EffortDetailPage() {
           </div>
         ) : (
           <div className="w-full space-y-4 p-4 border rounded-lg bg-card text-left">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">
+            <Field className="space-y-1">
+              <FieldLabel className="text-xs font-medium text-foreground">
                 Select target effort for &ldquo;{slug}&rdquo;:
-              </label>
+              </FieldLabel>
               <Select
-                value={selectedTargetSlug}
-                onChange={(e) => setSelectedTargetSlug(e.target.value)}
-                data-testid={TEST_IDS.EFFORT_NOT_FOUND_ALIAS_SELECT}
+                value={selectedTargetSlug || null}
+                onValueChange={(next) => setSelectedTargetSlug(next ?? '')}
+                items={existingEfforts.map((e) => ({
+                  value: e.slug,
+                  label: `${e.label} (${e.slug})`,
+                }))}
               >
-                {existingEfforts.map((e) => (
-                  <option key={e.slug} value={e.slug}>
-                    {e.label} ({e.slug})
-                  </option>
-                ))}
+                <SelectTrigger data-testid={TEST_IDS.EFFORT_NOT_FOUND_ALIAS_SELECT}>
+                  <SelectValue placeholder="Choose an effort" />
+                </SelectTrigger>
+                <SelectContent>
+                  {existingEfforts.map((e) => (
+                    <SelectItem key={e.slug} value={e.slug}>
+                      {e.label} ({e.slug})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
-            </div>
+            </Field>
             <div className="flex justify-end gap-2">
               <Button
                 variant="ghost"
@@ -885,7 +899,7 @@ export function EffortDetailPage() {
           }
         }}
       />
-      <Dialog
+      <AlertDialog
         open={confirmDeleteOpen}
         onOpenChange={(open) => {
           if (!deletingEffort) {
@@ -894,14 +908,15 @@ export function EffortDetailPage() {
           }
         }}
       >
-        <DialogContent data-testid="effort-delete-dialog">
+        <AlertDialogBackdrop />
+        <AlertDialogContent data-testid="effort-delete-dialog">
           <DialogHeader>
-            <DialogTitle>{scopedNotebookId ? 'Delete scoped override?' : 'Delete custom effort?'}</DialogTitle>
-            <DialogDescription>
+            <AlertDialogTitle>{scopedNotebookId ? 'Delete scoped override?' : 'Delete custom effort?'}</AlertDialogTitle>
+            <AlertDialogDescription>
               {scopedNotebookId
                 ? `Remove the ${notebookSlugFromId(scopedNotebookId)} override for "${effort.label}"? The bundled catalog definition remains untouched.`
                 : `Permanently delete custom effort "${effort.label}"? Bundled efforts and your workout sessions remain untouched.`}
-            </DialogDescription>
+            </AlertDialogDescription>
           </DialogHeader>
           {deleteError && (
             <p role="alert" className="text-sm text-destructive">
@@ -909,33 +924,26 @@ export function EffortDetailPage() {
             </p>
           )}
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
+            <AlertDialogClose
               disabled={deletingEffort}
-              onClick={() => {
-                setConfirmDeleteOpen(false);
-                setDeleteError(null);
-              }}
+              onClick={() => setDeleteError(null)}
               data-testid="effort-delete-cancel"
             >
               Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
+            </AlertDialogClose>
+            <AlertDialogClose
+              value="confirm"
+              data-variant="destructive"
               disabled={deletingEffort}
-              aria-busy={deletingEffort}
-              onClick={() => {
-                void handleConfirmDelete();
-              }}
+              data-agent-confirm={`Deletes effort "${effort.label}"`}
+              action={() => handleConfirmDelete()}
               data-testid="effort-delete-confirm"
             >
               {deletingEffort ? 'Deleting…' : scopedNotebookId ? 'Delete override' : 'Delete effort'}
-            </Button>
+            </AlertDialogClose>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

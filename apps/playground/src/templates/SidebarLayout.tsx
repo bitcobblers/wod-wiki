@@ -1,7 +1,13 @@
 'use client'
 
-import * as Headless from '@headlessui/react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Drawer,
+  DrawerBackdrop,
+  DrawerClose,
+  DrawerContent,
+  DrawerTitle,
+} from '@bitcobblers/wod-wiki-ui/primitives'
 import { useLocation } from 'react-router-dom'
 import { SlidersHorizontal } from 'lucide-react'
 import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine'
@@ -63,99 +69,87 @@ function DrawerApplyFooter() {
 
 function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChildren<{ open: boolean; close: () => void; onSearch?: () => void }>) {
   return (
-    // z-50 lifts the whole dialog (backdrop + panel) above the mobile
-    // thumb dock (z-40) and query footer (z-30); relative anchors the
-    // Headless stacking context.
-    <Headless.Dialog open={open} onClose={close} className="fixed inset-0 z-50 lg:hidden">
-      <Headless.DialogBackdrop
-        transition
-        className="fixed inset-0 bg-black/30 dark:bg-black/30 transition data-closed:opacity-0 data-enter:duration-300 data-enter:ease-out data-leave:duration-200 data-leave:ease-in"
-      />
-      <Headless.DialogPanel
-        transition
+    <Drawer
+      side="start"
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) close()
+      }}
+    >
+      <DrawerBackdrop className="bg-black/30 dark:bg-black/30 transition-none data-[closed]:hidden lg:hidden" />
+      <DrawerContent
+        initialFocus="content"
         data-testid={TEST_IDS.MOBILE_NAV_DRAWER}
-        className="fixed inset-y-0 left-0 w-full transition duration-300 ease-out data-closed:-translate-x-full"
+        className="w-full max-w-none h-dvh max-h-dvh p-0 gap-0 rounded-none border-0 bg-card transition-none data-[closed]:hidden lg:hidden"
       >
-        {/* Full-viewport edge-to-edge drawer; the close seam lets rail/filter
-            flows dismiss explicitly while plain navigation keeps it open. */}
+        <DrawerTitle className="sr-only">Navigation</DrawerTitle>
         <NavigationDrawerProvider close={close}>
-        <div className="flex h-full min-h-0 bg-card">
-          {/* Same icon rail as desktop, fixed 56px, beside the L2 panel.
-              Hit areas bumped to 44px for touch; close runs before
-              create/search so two focus traps never stack. */}
-          <div className="flex h-full w-14 shrink-0 flex-col items-center border-r border-zinc-950/5 bg-background/72 py-3 dark:border-white/5 [&_a]:size-11 [&_button]:size-11">
-            <AppRail
-              onSearch={() => {
-                close()
-                onSearch?.()
-              }}
-            />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex items-center px-4 pt-3">
-              <Headless.CloseButton as={NavbarItem} aria-label="Close navigation" title="Close navigation" data-testid={TEST_IDS.MOBILE_NAV_CLOSE}>
-                <CloseMenuIcon />
-                <span className="sr-only">Close navigation</span>
-              </Headless.CloseButton>
+          <div className="flex h-full min-h-0 bg-card">
+            <div className="flex h-full w-14 shrink-0 flex-col items-center border-r border-zinc-950/5 bg-background/72 py-3 dark:border-white/5 [&_a]:size-11 [&_button]:size-11">
+              <AppRail
+                onSearch={() => {
+                  close()
+                  onSearch?.()
+                }}
+              />
             </div>
-            {/* No own overflow: SidebarBody inside {children} is the single
-                scroll viewport so section headers/footers stick to it. */}
-            <div className="flex min-h-0 flex-1 flex-col">
-              {children}
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="flex items-center px-4 pt-3">
+                <DrawerClose
+                  render={
+                    <NavbarItem
+                      aria-label="Close navigation"
+                      title="Close navigation"
+                      data-testid={TEST_IDS.MOBILE_NAV_CLOSE}
+                    />
+                  }
+                >
+                  <CloseMenuIcon />
+                </DrawerClose>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col">
+                {children}
+              </div>
+              <DrawerApplyFooter />
             </div>
-            <DrawerApplyFooter />
           </div>
-        </div>
         </NavigationDrawerProvider>
-      </Headless.DialogPanel>
-    </Headless.Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }
 
-/**
- * RightL3Drawer — the unified < 2xl L3 slide-over surface.
- *
- * Below `lg` (mobile), slides in full-width (`w-full`) with the bottom Apply
- * footer; between `lg` and `2xl` (1024px–1519px), slides in as a `w-80`
- * right-docked sheet triggered by `L3DrawerTrigger` ("Page options") or `⌘.`.
- * Hosts the exact same `<SecondaryNav />` component as the `2xl+` inline rail.
- */
 function RightL3Drawer({ open, close, children }: React.PropsWithChildren<{ open: boolean; close: () => void }>) {
-  useEffect(() => {
-    if (!open) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        close()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, close])
-
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-50 2xl:hidden" data-testid="l3-right-drawer">
-      <div
-        aria-hidden="true"
-        onClick={close}
-        className="fixed inset-0 bg-black/25 dark:bg-black/40 transition-opacity"
-      />
-      <div
-        role="region"
+    <Drawer
+      side="end"
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) close()
+      }}
+    >
+      <DrawerBackdrop className="bg-black/25 dark:bg-black/40 transition-none data-[closed]:hidden 2xl:hidden" />
+      <DrawerContent
+        initialFocus="content"
+        data-testid="l3-right-drawer"
         aria-label="Page options panel"
-        className="fixed inset-y-0 right-0 flex h-full min-h-0 w-full lg:w-80 flex-col bg-card lg:border-l lg:border-border/60 lg:shadow-2xl animate-in slide-in-from-right duration-200"
+        className="w-full lg:w-80 max-w-none h-dvh max-h-dvh p-0 gap-0 rounded-none border-0 lg:border-l lg:border-border/60 bg-card lg:shadow-2xl flex flex-col transition-none data-[closed]:hidden 2xl:hidden"
       >
         <NavigationDrawerProvider close={close}>
           <div className="flex items-center justify-between border-b border-border/40 px-4 py-2.5">
-            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            <DrawerTitle className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
               Page options
-            </span>
-            <NavbarItem onClick={close} aria-label="Close page options" title="Close page options">
+            </DrawerTitle>
+            <DrawerClose
+              render={
+                <NavbarItem
+                  aria-label="Close page options"
+                  title="Close page options"
+                />
+              }
+            >
               <CloseMenuIcon />
-              <span className="sr-only">Close page options</span>
-            </NavbarItem>
+            </DrawerClose>
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             {children}
@@ -170,8 +164,8 @@ function RightL3Drawer({ open, close, children }: React.PropsWithChildren<{ open
             </button>
           </div>
         </NavigationDrawerProvider>
-      </div>
-    </div>
+      </DrawerContent>
+    </Drawer>
   )
 }
 
@@ -207,6 +201,10 @@ export function SidebarLayout({
     l3Items,
     l3Actions = [],
   } = useNav()
+  // The home route suppresses the 240px L2 sidebar (hideDesktopSidebar), so the
+  // xl cap — budgeted for rail + sidebar — would strand the remainder as dead
+  // space. It renders wide instead; every other route keeps the cap.
+  const isFullWidthRoute = useLocation().pathname === '/'
   const showRightDrawer = Boolean(navState?.rightDrawerOpen)
   const setShowRightDrawer = useCallback(
     (open: boolean) => dispatch({ type: 'SET_RIGHT_DRAWER', open }),
@@ -287,8 +285,9 @@ export function SidebarLayout({
         {/* Content column — on desktop, page headers (StickyPageHeader) own lg:top-0.
             On mobile, this sticky navbar carries the hamburger drawer trigger.
             At xl (1280px), content halts growth at 984px (1280px viewport - 56px rail - 240px sidebar),
-            allowing right-side space to grow until the 240px secondary rail mounts at 2xl (1520px). */}
-        <div className="flex flex-1 flex-col min-w-0 xl:max-w-[984px] 2xl:max-w-none">
+            allowing right-side space to grow until the 240px secondary rail mounts at 2xl (1520px).
+            The home route (isFullWidthRoute) skips the cap: it has no L2 sidebar to budget for. */}
+        <div className={cn('flex flex-1 flex-col min-w-0 2xl:max-w-none', isFullWidthRoute ? 'xl:max-w-none' : 'xl:max-w-[984px]')}>
           <header data-page-sticky-boundary="true" className="lg:hidden sticky top-0 z-20 flex items-center px-2 sm:px-4 bg-card">
             <div className="py-2.5 shrink-0">
               <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation" title="Open navigation" data-testid={TEST_IDS.MOBILE_NAV_OPEN}>

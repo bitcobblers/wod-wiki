@@ -28,7 +28,7 @@ import { useScriptBlockResults } from '@/components/Editor/hooks/useScriptBlockR
 import { useScriptLineResults } from '@/components/Editor/hooks/useScriptLineResults';
 import type { LineExecutionSummary } from '@/components/Editor/hooks/useScriptLineResults';
 import { History, Activity } from "lucide-react";
-import { Button } from "@/components/atoms/primitives/button";
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { ButtonGroup } from "@/components/molecules/ButtonGroup";
 import type { INavActivation } from "@/nav/navTypes";
 import { TEST_IDS } from "@/lib/testIds";

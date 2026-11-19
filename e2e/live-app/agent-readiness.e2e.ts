@@ -15,7 +15,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
     expect(llmsRes.status()).toBe(200);
     const llmsBody = await llmsRes.text();
     expect(llmsBody).toContain('navigator.modelContext');
-    expect(llmsBody).toContain('22 portable domain tools + 9 live React UI/Clock tools');
+    expect(llmsBody).toContain('22 portable domain tools + 12 live React UI/Clock tools');
 
     const capRes = await page.request.get('/.well-known/agent-capabilities.json');
     expect(capRes.status()).toBe(200);
@@ -24,7 +24,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       uiTools: unknown[];
     };
     expect(capJson.domainTools).toHaveLength(22);
-    expect(capJson.uiTools).toHaveLength(9);
+    expect(capJson.uiTools).toHaveLength(12);
 
     // Layer 2 hydration, landmark busy state, and embedded view-state script
     await expect(page.locator('body')).toHaveAttribute('data-app-hydrated', 'true');
@@ -48,6 +48,9 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
     expect(journalTools).toContain('wod_note_upsert');
     expect(journalTools).toContain('ui_preferences');
     expect(journalTools).toContain('ui_set_stream_query');
+    expect(journalTools).toContain('snapshot');
+    expect(journalTools).toContain('act');
+    expect(journalTools).toContain('query');
     expect(journalTools).not.toContain('ui_set_explorer_query');
     expect(journalTools).not.toContain('ui_editor_draft');
     expect(journalTools).not.toContain('ui_clock_control');

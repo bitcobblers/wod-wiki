@@ -1,5 +1,5 @@
 import { Volume2, VolumeX } from 'lucide-react';
-import { Button } from '@/components/atoms/primitives/button';
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { useAudio } from '@/contexts/AudioContext';
 
 export function AudioToggle() {

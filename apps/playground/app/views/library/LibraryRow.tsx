@@ -9,7 +9,15 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Loader2, Copy, Share2, Pencil, Trash2 } from 'lucide-react'
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/atoms/primitives/dropdown-menu'
+import {
+  Menu,
+  MenuContent,
+  MenuGroup,
+  MenuGroupLabel,
+  MenuItem,
+  MenuSeparator,
+  MenuTrigger,
+} from '@bitcobblers/wod-wiki-ui/primitives'
 import type { Entry } from '../../lib/entryMapper'
 import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryNotebookHref } from '../../lib/entryActions'
 import { entryCanRun } from '../../lib/entryRun'
@@ -481,32 +489,35 @@ export function MoveToNotebookMenu({
   onMove: (notebookId: string) => void
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
+    <div onClick={(e) => e.stopPropagation()}>
+      <Menu>
+        <MenuTrigger
+          aria-label="Move to notebook"
           title="Move to notebook"
           data-testid={triggerTestId}
-          className={triggerClassName}
+          className={`${triggerClassName} border-0 bg-transparent p-0`}
         >
-          <FolderInput className="size-3.5" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Move to notebook</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {targets.map((target) => (
-          <DropdownMenuItem
-            key={target.id}
-            data-testid={`${itemTestIdPrefix}${target.id}`}
-            onClick={() => onMove(target.id)}
-          >
-            <span className="w-5 text-center">{target.icon}</span>
-            <span className="flex-1 truncate">{target.name}</span>
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <FolderInput className="size-3.5" aria-hidden="true" />
+        </MenuTrigger>
+        <MenuContent align="end" sideOffset={6}>
+          <MenuGroup>
+            <MenuGroupLabel>Move to notebook</MenuGroupLabel>
+            <MenuSeparator />
+            {targets.map((target) => (
+              <MenuItem
+                key={target.id}
+                value={target.id}
+                data-testid={`${itemTestIdPrefix}${target.id}`}
+                onClick={() => onMove(target.id)}
+              >
+                <span className="w-5 text-center">{target.icon}</span>
+                <span className="flex-1 truncate">{target.name}</span>
+              </MenuItem>
+            ))}
+          </MenuGroup>
+        </MenuContent>
+      </Menu>
+    </div>
   )
 }
 

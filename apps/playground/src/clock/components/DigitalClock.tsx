@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
-import { Card, CardContent, CardHeader } from '@/components/atoms/primitives/card';
-import { Badge } from '@/components/atoms/primitives/badge';
+import { Card, CardContent, CardHeader, Badge } from "@bitcobblers/wod-wiki-ui/primitives";
 import { ClockIcon, ArrowRightIcon } from '@phosphor-icons/react';
 import { useTimerElapsed } from '@bitcobblers/wod-wiki-engine/react';
 import { formatTimePrecise, formatTimeHHMMSS } from '@bitcobblers/wod-wiki-engine';

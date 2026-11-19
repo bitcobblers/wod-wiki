@@ -11,7 +11,7 @@ import { useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryState } from 'nuqs'
 import { ArchiveRestore, AlertCircle } from 'lucide-react'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { ROUTE_PATTERNS, settingsPath } from '@/lib/routes'
 import { toast } from '@/hooks/use-toast'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'

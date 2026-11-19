@@ -20,7 +20,7 @@ import {
   TriangleAlertIcon,
 } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
 import { useFeedImportPending, useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'

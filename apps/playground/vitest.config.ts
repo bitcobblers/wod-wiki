@@ -31,6 +31,7 @@ export default defineConfig({
       { find: '@bitcobblers/wod-wiki-engine', replacement: resolve(rootDir, 'packages/engine/src/index.ts') },
       { find: '@bitcobblers/wod-wiki-tools/server', replacement: resolve(rootDir, 'packages/tools/src/server/app.ts') },
       { find: '@bitcobblers/wod-wiki-tools', replacement: resolve(rootDir, 'packages/tools/src/index.ts') },
+      { find: '@bitcobblers/wod-wiki-ui/primitives', replacement: resolve(rootDir, 'packages/ui/src/primitives/index.ts') },
       { find: '@bitcobblers/wod-wiki-ui/extensions', replacement: resolve(rootDir, 'packages/ui/src/extensions/index.ts') },
       { find: '@bitcobblers/wod-wiki-ui', replacement: resolve(rootDir, 'packages/ui/src/index.ts') },
       { find: /^@\/(.*)$/, replacement: `${resolve(import.meta.dirname, 'src')}/$1` },

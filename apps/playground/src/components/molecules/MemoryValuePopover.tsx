@@ -1,5 +1,12 @@
-import React, { Fragment, useMemo, useState, useCallback } from 'react';
-import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
+import React, { useMemo, useState, useCallback } from 'react';
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+} from '@bitcobblers/wod-wiki-ui/primitives';
+import { X } from 'lucide-react';
 
 export interface MemoryValueData {
   /** The raw value to display in the popover */
@@ -146,118 +153,87 @@ export const MemoryValueDialog: React.FC<{
   if (!data) return null;
 
   return (
-    <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-[200]" onClose={onClose}>
-        {/* Backdrop */}
-        <TransitionChild
-          as={Fragment}
-          enter="ease-out duration-150"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-100"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-black/25 dark:bg-black/25" />
-        </TransitionChild>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+    >
+      <DialogBackdrop className="bg-black/25 dark:bg-black/25" />
+      <DialogContent className="w-full max-w-md overflow-hidden rounded-lg shadow-xl border border-border bg-popover text-popover-foreground p-0 gap-0">
+        <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                data.isValid ? 'bg-signal-positive' : 'bg-signal-negative'
+              }`}
+            />
+            <DialogTitle className="text-sm font-semibold truncate" title={data.label}>
+              {data.label}
+            </DialogTitle>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${getTypeBadgeColor(data.type)}`}>
+              {data.type}
+            </span>
+          </div>
+          <DialogClose
+            aria-label="Close"
+            className="h-auto w-auto border-0 bg-transparent text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted/50 transition-colors"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
+          </DialogClose>
+        </div>
 
-        {/* Dialog content */}
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
-            <TransitionChild
-              as={Fragment}
-              enter="ease-out duration-150"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-100"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-lg shadow-xl border border-border bg-popover text-popover-foreground p-0 transition-all">
-                {/* Header */}
-                <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <div
-                      className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                        data.isValid ? 'bg-signal-positive' : 'bg-signal-negative'
-                      }`}
-                    />
-                    <span className="text-sm font-semibold truncate" title={data.label}>
-                      {data.label}
-                    </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${getTypeBadgeColor(data.type)}`}>
-                      {data.type}
-                    </span>
-                  </div>
-                  <button
-                    onClick={onClose}
-                    className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted/50 transition-colors"
-                    aria-label="Close"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                
-                {/* Owner info */}
-                <div className="px-3 py-2 border-b border-border/50 bg-muted/10">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-medium">Owner:</span>
-                    <span className="font-mono truncate" title={data.ownerLabel || data.ownerId}>
-                      {data.ownerLabel || data.ownerId}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Content */}
-                <div className="p-3 max-h-80 overflow-auto">
-                  {isComplexValue ? (
-                    <div className="space-y-2">
-                      <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                        Object Structure
-                      </div>
-                      <pre className="bg-muted/50 p-2 rounded border border-border/50 text-xs font-mono overflow-auto max-h-60">
-                        <SyntaxHighlightedJson json={jsonString} />
-                      </pre>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                        Value
-                      </div>
-                      <div className="bg-muted/50 p-2 rounded border border-border/50 font-mono text-sm break-all">
-                        <span className={
-                          typeof data.value === 'string' ? 'text-green-600 dark:text-green-400' :
-                          typeof data.value === 'number' ? 'text-amber-600 dark:text-amber-400' :
-                          typeof data.value === 'boolean' ? 'text-purple-600 dark:text-purple-400' :
-                          data.value === null ? 'text-muted-foreground' : ''
-                        }>
-                          {data.displayValue}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Footer */}
-                <div className="px-3 py-2 border-t border-border bg-muted/20 flex justify-between items-center text-[10px] text-muted-foreground">
-                  <span className={data.isValid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                    {data.isValid ? '● Valid' : '● Invalid'}
-                  </span>
-                  <span className="font-mono">
-                    {typeof data.value === 'object' && data.value !== null
-                      ? `${Array.isArray(data.value) ? 'Array' : 'Object'}[${Object.keys(data.value).length}]`
-                      : typeof data.value
-                    }
-                  </span>
-                </div>
-              </DialogPanel>
-            </TransitionChild>
+        <div className="px-3 py-2 border-b border-border/50 bg-muted/10">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-medium">Owner:</span>
+            <span className="font-mono truncate" title={data.ownerLabel || data.ownerId}>
+              {data.ownerLabel || data.ownerId}
+            </span>
           </div>
         </div>
-      </Dialog>
-    </Transition>
+
+        <div className="p-3 max-h-80 overflow-auto">
+          {isComplexValue ? (
+            <div className="space-y-2">
+              <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                Object Structure
+              </div>
+              <pre className="bg-muted/50 p-2 rounded border border-border/50 text-xs font-mono overflow-auto max-h-60">
+                <SyntaxHighlightedJson json={jsonString} />
+              </pre>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                Value
+              </div>
+              <div className="bg-muted/50 p-2 rounded border border-border/50 font-mono text-sm break-all">
+                <span className={
+                  typeof data.value === 'string' ? 'text-green-600 dark:text-green-400' :
+                  typeof data.value === 'number' ? 'text-amber-600 dark:text-amber-400' :
+                  typeof data.value === 'boolean' ? 'text-purple-600 dark:text-purple-400' :
+                  data.value === null ? 'text-muted-foreground' : ''
+                }>
+                  {data.displayValue}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-3 py-2 border-t border-border bg-muted/20 flex justify-between items-center text-[10px] text-muted-foreground">
+          <span className={data.isValid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+            {data.isValid ? '● Valid' : '● Invalid'}
+          </span>
+          <span className="font-mono">
+            {typeof data.value === 'object' && data.value !== null
+              ? `${Array.isArray(data.value) ? 'Array' : 'Object'}[${Object.keys(data.value).length}]`
+              : typeof data.value
+            }
+          </span>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

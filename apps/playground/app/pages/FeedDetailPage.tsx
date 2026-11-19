@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { Link, useNavigate } from 'react-router-dom';
 import { CloudDownload, ExternalLink, Layers, RefreshCw } from 'lucide-react';
 import { resolveEntityScope } from '@bitcobblers/wod-wiki-wql';
-import { Button } from '@/components/atoms/primitives/button';
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import { toast } from '@/hooks/use-toast';
 import { L3DrawerTrigger } from '@/panels/page-shells';

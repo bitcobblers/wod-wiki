@@ -40,7 +40,6 @@ import { shareBlock, openBlockInPlayground } from '../services/openInPlayground'
 import { PageActions } from './shared/PageActions';
 import { ResponsiveActions } from '../nav/ResponsiveActions';
 import { toast } from '@/hooks/use-toast';
-import { ToastAction } from '@/components/atoms/primitives/toast';
 import { localDateKey } from '@/lib/dateFormat';
 
 export interface NotebookItemPageProps {
@@ -136,11 +135,10 @@ export function NotebookItemPage({
       toast({
         title: 'Added to journal',
         description: journalNote.journalDate === today ? `Added to today's journal` : `Added to ${journalNote.journalDate}`,
-        action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(dayPath(journalNote.journalDate ?? today))}>
-            Open
-          </ToastAction>
-        ),
+        action: {
+          label: 'Open',
+          onAction: () => navigate(dayPath(journalNote.journalDate ?? today)),
+        },
       });
     } catch {
       toast({ title: 'Error', description: 'Could not add to journal', variant: 'destructive' });
@@ -167,11 +165,10 @@ export function NotebookItemPage({
       toast({
         title: 'Scheduled',
         description: `Added to journal for ${dateKey}`,
-        action: (
-          <ToastAction altText="Open journal" onClick={() => navigate(dayPath(dateKey))}>
-            Open
-          </ToastAction>
-        ),
+        action: {
+          label: 'Open',
+          onAction: () => navigate(dayPath(dateKey)),
+        },
       });
     } catch {
       toast({ title: 'Error', description: 'Could not schedule workout', variant: 'destructive' });

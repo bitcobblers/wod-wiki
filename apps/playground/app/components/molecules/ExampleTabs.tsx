@@ -1,24 +1,21 @@
-import React from 'react'
-import { cn } from '@/lib/utils'
+import React from 'react';
+import {
+  SegmentedControl,
+  SegmentedControlIndicator,
+  SegmentedControlItem,
+} from '@bitcobblers/wod-wiki-ui/primitives';
+import { cn } from '@/lib/utils';
 
-/**
- * A single example tab. `anchor`/`badge` are optional (ADR-0010, Contrast
- * Effect): a tab marked `anchor` is the option the surface recommends. Anchor
- * styling only differentiates *inactive* tabs — an actively-selected tab always
- * wins on the `selected` branch, so the active-vs-anchor hierarchy is preserved.
- */
 export interface ExampleTab {
-  label: string
-  /** Marks this tab as the recommended option (elevated styling when inactive). */
-  anchor?: boolean
-  /** Optional pill shown on the tab, e.g. "MOST POPULAR". */
-  badge?: string
+  label: string;
+  anchor?: boolean;
+  badge?: string;
 }
 
 interface ExampleTabsProps {
-  examples: Array<ExampleTab>
-  activeIndex: number
-  onSelect: (index: number) => void
+  examples: Array<ExampleTab>;
+  activeIndex: number;
+  onSelect: (index: number) => void;
 }
 
 export const ExampleTabs: React.FC<ExampleTabsProps> = ({
@@ -26,24 +23,27 @@ export const ExampleTabs: React.FC<ExampleTabsProps> = ({
   activeIndex,
   onSelect,
 }) => {
-  if (examples.length === 0) return null
+  if (examples.length === 0) return null;
 
-  // The badge is a nudge, not a permanent fixture: once the user has made a
-  // selection on a non-default tab, the anchor's badge has done its job. We
-  // keep it simple and always render the badge on the anchor tab while it is
-  // inactive (an actively-chosen anchor no longer needs the "recommended" hint).
   return (
     <div className="mt-6 rounded-2xl border border-border/70 bg-card/80 backdrop-blur-sm">
-      <div className="flex flex-wrap items-center gap-2 px-3 py-3">
+      <SegmentedControl
+        aria-label="Workout examples"
+        value={String(activeIndex)}
+        onValueChange={(next) => {
+          if (next !== null) onSelect(Number(next));
+        }}
+        className="flex flex-wrap items-center gap-2 px-3 py-3 border-0 bg-transparent p-0"
+      >
+        <SegmentedControlIndicator />
         {examples.map((example, index) => {
-          const selected = index === activeIndex
-          const isAnchor = example.anchor === true && !selected
-          const showBadge = Boolean(example.badge) && isAnchor
+          const selected = index === activeIndex;
+          const isAnchor = example.anchor === true && !selected;
+          const showBadge = Boolean(example.badge) && isAnchor;
           return (
-            <button
+            <SegmentedControlItem
               key={`${example.label}-${index}`}
-              type="button"
-              onClick={() => onSelect(index)}
+              value={String(index)}
               aria-current={selected ? 'true' : undefined}
               className={cn(
                 'relative rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] transition-all active:scale-95',
@@ -60,10 +60,10 @@ export const ExampleTabs: React.FC<ExampleTabsProps> = ({
                   {example.badge}
                 </span>
               ) : null}
-            </button>
-          )
+            </SegmentedControlItem>
+          );
         })}
-      </div>
+      </SegmentedControl>
     </div>
-  )
-}
+  );
+};

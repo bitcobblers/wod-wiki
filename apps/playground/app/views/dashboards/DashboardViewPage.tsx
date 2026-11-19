@@ -20,8 +20,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/atoms/primitives/dialog';
+import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+  DialogFooter,
+  DialogHeader,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { queryService } from '@/services/queryService';
+import { TEST_IDS } from '@/lib/testIds';
 import {
   useAnalyticsUnitPreference,
   DashboardView,
@@ -582,36 +592,33 @@ export function DashboardViewPage() {
 
         </div>
       </div>
-      <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
-        <DialogContent className="max-w-sm">
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogBackdrop />
+        <AlertDialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete dashboard</DialogTitle>
-            <DialogDescription>
+            <AlertDialogTitle>Delete dashboard</AlertDialogTitle>
+            <AlertDialogDescription>
               Delete &quot;{document?.title || source.title}&quot; from your vault? Widgets and
               tokens are removed with the note — prebuilt dashboards and your workout notes are
               never touched.
-            </DialogDescription>
+            </AlertDialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <button
-              type="button"
-              data-testid="cancel-delete-dashboard"
-              onClick={() => setConfirmDeleteOpen(false)}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
+            <AlertDialogClose data-testid="cancel-delete-dashboard">
               Cancel
-            </button>
-            <button
-              type="button"
-              data-testid="confirm-delete-dashboard"
-              onClick={() => void handleDeleteDashboard()}
-              className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+            </AlertDialogClose>
+            <AlertDialogClose
+              value="confirm"
+              data-variant="destructive"
+              data-testid={TEST_IDS.CONFIRM_DELETE_DASHBOARD}
+              data-agent-confirm={`Deletes dashboard "${document?.title || source.title}" from your vault`}
+              action={() => handleDeleteDashboard()}
             >
               Delete dashboard
-            </button>
+            </AlertDialogClose>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </AlertDialogContent>
+      </AlertDialog>
       <WidgetComposerDialog
         open={composer !== null}
         onClose={() => setComposer(null)}

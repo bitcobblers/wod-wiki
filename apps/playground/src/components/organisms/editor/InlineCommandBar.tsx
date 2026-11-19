@@ -15,7 +15,7 @@ import { commandsForAffordance, type ScriptCommand } from "@/components/Editor/o
 import type { ScriptBlock, FenceDialect } from "@/components/Editor/types";
 import { runAffordance } from "@/components/Editor/types/section";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/atoms/primitives/button";
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { ButtonGroup } from "@/components/molecules/ButtonGroup";
 import type { INavActivation } from "@/nav/navTypes";
 import { TEST_IDS } from "@/lib/testIds";

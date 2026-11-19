@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
-import { Button } from '@/components/atoms/primitives/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-} from '@/components/atoms/primitives/dialog'
+} from '@bitcobblers/wod-wiki-ui/primitives'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
+import { TEST_IDS } from '@/lib/testIds'
 import { exportNote } from '@/services/ExportImportService'
 import type { HistoryRecord } from '@/types/history'
 import { NotePlacementDialog, type NotePlacementMode } from '../../components/organisms/journal/NotePlacementDialog'
@@ -275,7 +277,7 @@ export function useNoteActions(options: UseNoteActionsOptions) {
           }}
         />
       )}
-      <Dialog
+      <AlertDialog
         open={confirmDeleteOpen}
         onOpenChange={(open) => {
           if (!deletingNote) {
@@ -284,12 +286,13 @@ export function useNoteActions(options: UseNoteActionsOptions) {
           }
         }}
       >
-        <DialogContent data-testid="note-delete-dialog">
+        <AlertDialogBackdrop />
+        <AlertDialogContent data-testid={TEST_IDS.NOTE_DELETE_DIALOG}>
           <DialogHeader>
-            <DialogTitle>Delete note?</DialogTitle>
-            <DialogDescription>
+            <AlertDialogTitle>Delete note?</AlertDialogTitle>
+            <AlertDialogDescription>
               Permanently delete &ldquo;{entry.title || 'Untitled note'}&rdquo;? This cannot be undone.
-            </DialogDescription>
+            </AlertDialogDescription>
           </DialogHeader>
           {deleteError && (
             <p role="alert" className="text-sm text-destructive">
@@ -297,33 +300,26 @@ export function useNoteActions(options: UseNoteActionsOptions) {
             </p>
           )}
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
+            <AlertDialogClose
               disabled={deletingNote}
-              onClick={() => {
-                setConfirmDeleteOpen(false)
-                setDeleteError(null)
-              }}
-              data-testid="note-delete-cancel"
+              onClick={() => setDeleteError(null)}
+              data-testid={TEST_IDS.NOTE_DELETE_CANCEL}
             >
               Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
+            </AlertDialogClose>
+            <AlertDialogClose
+              value="confirm"
+              data-variant="destructive"
               disabled={deletingNote}
-              aria-busy={deletingNote}
-              onClick={() => {
-                void handleConfirmDelete()
-              }}
-              data-testid="note-delete-confirm"
+              data-agent-confirm={`Deletes note "${entry.title || 'Untitled note'}" permanently`}
+              action={() => handleConfirmDelete()}
+              data-testid={TEST_IDS.NOTE_DELETE_CONFIRM}
             >
-              {deletingNote ? 'Deleting…' : 'Delete note'}
-            </Button>
+              {deletingNote ? 'Deleting…' : 'Delete forever'}
+            </AlertDialogClose>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   ) : null
 

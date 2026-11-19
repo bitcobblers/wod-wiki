@@ -22,7 +22,6 @@ import {
   type SyncProgressItem,
 } from '@/services/syncActivity'
 import { toast } from '@/hooks/use-toast'
-import { ToastAction } from '@/components/atoms/primitives/toast'
 import { ROUTE_PATTERNS } from '../lib/routes'
 import { getFeedUpdates, subscribeFeedUpdates } from '@/services/feed/feedSync'
 
@@ -97,11 +96,10 @@ function notifyResult(result: NonNullable<SyncActivitySnapshot['result']>, navig
     description: parts.length > 0
       ? `${parts.join(', ')} — feeds can be refreshed anytime.`
       : 'Nothing new — feeds can be refreshed anytime.',
-    action: (
-      <ToastAction altText="Open notebooks" onClick={() => navigate('/notebooks')}>
-        Open notebooks
-      </ToastAction>
-    ),
+    action: {
+      label: 'Open notebooks',
+      onAction: () => navigate('/notebooks'),
+    },
   })
 }
 
@@ -116,7 +114,10 @@ export function SyncActivityNotifier() {
       toast({
         title: 'Notebook updates',
         description: snapshot.updates.map(update => `${update.label}: ${update.state === 'updated' ? 'updated' : update.state === 'error' ? 'sync failed' : 'update available'}`).join('; '),
-        action: <ToastAction altText="Manage notebook updates" onClick={() => navigate(ROUTE_PATTERNS.notebooks)}>Review updates</ToastAction>,
+        action: {
+          label: 'Review updates',
+          onAction: () => navigate(ROUTE_PATTERNS.notebooks),
+        },
       })
     }
     check()
@@ -133,7 +134,6 @@ export function SyncActivityNotifier() {
       }
       if (activity.error && activity.error !== lastSeenError) {
         lastSeenError = activity.error
-        // Keep sync errors actionable without sending database failures to feeds.
         const message = activity.error.toLowerCase()
         const settingsPath = /turso|database|token|libsql/.test(message)
           ? ROUTE_PATTERNS.settingsStorage
@@ -144,11 +144,10 @@ export function SyncActivityNotifier() {
           title: 'Sync failed',
           description: activity.error,
           variant: 'destructive',
-          action: (
-            <ToastAction altText="Open settings" onClick={() => navigate(settingsPath)}>
-              Settings
-            </ToastAction>
-          ),
+          action: {
+            label: 'Settings',
+            onAction: () => navigate(settingsPath),
+          },
         })
       }
     }

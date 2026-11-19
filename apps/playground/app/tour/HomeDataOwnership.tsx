@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertCircle, CheckCircle2, Cloud, CloudDownload, Database, RefreshCw, Server } from 'lucide-react'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { cn } from '@/lib/utils'
 import { readDataSettings, storageBackend, type DataSettingsRead, type StorageProvider } from '@/services/storage'
 import { demoFeedSources, type DemoFeedSource } from '@/services/feed/feedSources'

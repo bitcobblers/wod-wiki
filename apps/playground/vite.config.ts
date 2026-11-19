@@ -144,6 +144,7 @@ export default defineConfig({
             // zero build step. Most-specific first; dirs expand to their subtree.
             { find: '@bitcobblers/wod-wiki-lang/react', replacement: resolve(import.meta.dirname, '../../packages/lang/src/react.ts') },
             { find: /^@bitcobblers\/wod-wiki-ui\/styles\.css$/, replacement: resolve(import.meta.dirname, '../../packages/ui/src/styles.css') },
+            { find: /^@bitcobblers\/wod-wiki-ui\/primitives$/, replacement: resolve(import.meta.dirname, '../../packages/ui/src/primitives/index.ts') },
             { find: /^@bitcobblers\/wod-wiki-ui\/extensions$/, replacement: resolve(import.meta.dirname, '../../packages/ui/src/extensions/index.ts') },
             { find: '@bitcobblers/wod-wiki-core', replacement: resolve(import.meta.dirname, '../../packages/core/src') },
             { find: '@bitcobblers/wod-wiki-lang', replacement: resolve(import.meta.dirname, '../../packages/lang/src') },

@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState, type SyntheticEvent } from 'react'
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { TEST_IDS } from '@/lib/testIds'
 import { cn } from '@/lib/utils'
 import type { HistoryRecord } from '@/types/history';

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState, type SyntheticEvent } from 'react';
-import { createPortal } from 'react-dom';
 import {
   isNonPublishableNotebook,
   isPublishableNotebookLanding,
@@ -14,6 +13,17 @@ import {
   saveScopedPropertyOverride,
 } from '@bitcobblers/wod-wiki-engine';
 import type { IStorage } from '@bitcobblers/wod-wiki-storage';
+import {
+  Button,
+  Drawer,
+  DrawerBackdrop,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+  Input,
+} from '@bitcobblers/wod-wiki-ui/primitives';
+import { X } from 'lucide-react';
 import { storage } from '@/hooks/useBrowserServices';
 import { toast } from '@/hooks/use-toast';
 
@@ -34,7 +44,6 @@ interface TargetNotebookItem {
   title: string;
   hasExistingOverride: boolean;
 }
-
 
 export function PropertyOverrideSheet({
   open,
@@ -92,8 +101,6 @@ export function PropertyOverrideSheet({
     }
   }, [open, loadTargets]);
 
-  if (!open) return null;
-
   const handleSelectTarget = async (targetNotebookId: string) => {
     if (busy) return;
     setBusy(true);
@@ -145,43 +152,36 @@ export function PropertyOverrideSheet({
     }
   };
 
-  const content = (
-    <div
-      className="fixed inset-0 z-[80] flex items-end lg:items-center justify-center bg-black/25"
-      onClick={() => onOpenChange(false)}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerBackdrop className="bg-black/30" />
+      <DrawerContent
+        initialFocus="content"
         aria-label={`Override ${label}`}
         data-testid="property-override-sheet"
-        onClick={(e) => e.stopPropagation()}
-        className="w-full lg:max-w-md max-h-[85dvh] overflow-y-auto rounded-t-xl lg:rounded-xl border border-[#EAEAEA] dark:border-zinc-800 bg-[#FFFFFF] dark:bg-zinc-950 text-[#111111] dark:text-zinc-100 p-5 sm:p-6 space-y-5"
+        className="w-full lg:max-w-md max-h-[85dvh] overflow-y-auto rounded-t-xl border border-border bg-card text-foreground p-5 sm:p-6 space-y-5"
       >
-        <div className="mx-auto h-1 w-10 rounded-full bg-[#EAEAEA] dark:bg-zinc-800 lg:hidden" />
+        <div aria-hidden="true" className="mx-auto h-1 w-10 rounded-full bg-border lg:hidden" />
 
-        <div className="flex items-start justify-between gap-3 border-b border-[#EAEAEA] dark:border-zinc-800 pb-3.5">
+        <div className="flex items-start justify-between gap-3 border-b border-border pb-3.5">
           <div className="space-y-0.5">
-            <h3 className="text-sm font-semibold tracking-tight">Override {label}</h3>
-            <p className="font-mono text-[11px] text-[#787774]">
+            <DrawerTitle className="text-sm font-semibold tracking-tight">
+              Override {label}
+            </DrawerTitle>
+            <DrawerDescription className="font-mono text-[11px] text-muted-foreground">
               Canonical slug: {slug}
-            </p>
+            </DrawerDescription>
           </div>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
+          <DrawerClose
             aria-label="Close override sheet"
-            className="min-h-9 min-w-9 inline-flex items-center justify-center rounded-md border border-[#EAEAEA] dark:border-zinc-800 text-xs font-mono text-[#787774] hover:text-[#111111]"
+            className="min-h-9 min-w-9 h-auto w-auto p-0 inline-flex items-center justify-center rounded-md border border-border bg-transparent text-xs font-mono text-muted-foreground hover:text-foreground"
           >
-            <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75">
-              <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
-            </svg>
-          </button>
+            <X className="size-3.5" aria-hidden="true" />
+          </DrawerClose>
         </div>
 
-        {/* Option 1: Personal Runtime (`notebook/custom`) */}
         <div className="space-y-2">
-          <span className="font-mono text-[11px] uppercase tracking-wider text-[#787774]">
+          <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
             Personal Runtime
           </span>
           <button
@@ -189,25 +189,24 @@ export function PropertyOverrideSheet({
             disabled={busy}
             onClick={() => void handleSelectTarget('notebook/custom')}
             data-testid="override-target-notebook/custom"
-            className="w-full min-h-12 text-left rounded-lg border border-[#EAEAEA] dark:border-zinc-800 bg-[#FBFBFA] dark:bg-zinc-900 hover:border-[#111111] p-3.5 transition-colors flex items-center justify-between gap-3"
+            className="w-full min-h-12 text-left rounded-lg border border-border bg-muted/30 hover:border-foreground p-3.5 transition-colors flex items-center justify-between gap-3"
           >
             <div className="space-y-0.5">
               <div className="text-xs font-semibold">My Custom Runtime (notebook/custom)</div>
-              <div className="text-[11px] text-[#787774]">
+              <div className="text-[11px] text-muted-foreground">
                 Processes workouts in your personal runtime using this definition on the same canonical slug.
               </div>
             </div>
             {customHasOverride && (
-              <span className="shrink-0 rounded-full bg-[#EDF3EC] text-[#346538] px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider">
+              <span className="shrink-0 rounded-full bg-success/15 text-success px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider">
                 Active
               </span>
             )}
           </button>
         </div>
 
-        {/* Option 2: Shared User Notebooks */}
-        <div className="space-y-2 border-t border-[#EAEAEA] dark:border-zinc-800 pt-4">
-          <span className="font-mono text-[11px] uppercase tracking-wider text-[#787774]">
+        <div className="space-y-2 border-t border-border pt-4">
+          <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
             Shared User Notebooks (Promoted on Publish)
           </span>
 
@@ -220,14 +219,14 @@ export function PropertyOverrideSheet({
                   disabled={busy}
                   onClick={() => void handleSelectTarget(nb.id)}
                   data-testid={`override-target-${nb.id}`}
-                  className="w-full min-h-11 text-left rounded-lg border border-[#EAEAEA] dark:border-zinc-800 hover:border-[#111111] px-3.5 py-2.5 transition-colors flex items-center justify-between gap-3 text-xs"
+                  className="w-full min-h-11 text-left rounded-lg border border-border hover:border-foreground px-3.5 py-2.5 transition-colors flex items-center justify-between gap-3 text-xs"
                 >
                   <div>
                     <div className="font-medium">{nb.title}</div>
-                    <div className="font-mono text-[10px] text-[#787774]">notebook/{nb.slug}</div>
+                    <div className="font-mono text-[10px] text-muted-foreground">notebook/{nb.slug}</div>
                   </div>
                   {nb.hasExistingOverride && (
-                    <span className="rounded-full bg-[#E1F3FE] text-[#1F6C9F] px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider">
+                    <span className="rounded-full bg-primary/15 text-primary px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider">
                       Overridden
                     </span>
                   )}
@@ -237,27 +236,26 @@ export function PropertyOverrideSheet({
           )}
 
           <form onSubmit={(e) => void handleCreateAndOverride(e)} className="flex items-center gap-2 pt-1">
-            <input
+            <Input
               type="text"
               value={newNotebookName}
-              onChange={(e) => setNewNotebookName(e.target.value)}
+              onValueChange={setNewNotebookName}
               placeholder="Override in new Notebook..."
               aria-label="New shared Notebook name"
               data-testid="override-new-notebook-input"
-              className="min-h-11 flex-1 rounded-md border border-[#EAEAEA] dark:border-zinc-800 bg-[#FBFBFA] dark:bg-zinc-900 px-3 text-xs focus:outline-none focus:border-[#111111]"
+              className="min-h-11 h-11 flex-1 text-xs"
             />
-            <button
+            <Button
               type="submit"
               disabled={busy || !newNotebookName.trim()}
               data-testid="override-new-notebook-submit"
-              className="min-h-11 rounded-md bg-[#111111] text-white px-3.5 text-xs font-medium disabled:opacity-40 hover:bg-[#333333] transition-colors"
+              className="min-h-11 px-3.5 text-xs"
             >
               Save
-            </button>
+            </Button>
           </form>
         </div>
-      </div>
-    </div>
+      </DrawerContent>
+    </Drawer>
   );
-  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 }

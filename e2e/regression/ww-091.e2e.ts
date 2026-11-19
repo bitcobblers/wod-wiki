@@ -30,17 +30,15 @@ test.describe('WW-091 — Link-as-Alias picker on cold load', () => {
     await page.getByTestId(TEST_IDS.EFFORT_NOT_FOUND_ALIAS_BTN).click();
     const aliasSelect = page.getByTestId(TEST_IDS.EFFORT_NOT_FOUND_ALIAS_SELECT);
     await expect(aliasSelect).toBeVisible();
+    await aliasSelect.click();
 
-    // The picker must populate with the registered efforts (with the defect
-    // it stays at 0 options no matter how long the page sits).
     await expect
-      .poll(async () => aliasSelect.locator('option').count(), { timeout: 15_000 })
+      .poll(async () => page.getByRole('option').count(), { timeout: 15_000 })
       .toBeGreaterThan(0);
-    await expect(aliasSelect.locator('option[value="burpee"]')).toHaveCount(1);
+    const burpeeOption = page.getByRole('option', { name: /\(burpee\)/i });
+    await expect(burpeeOption).toBeVisible();
 
-    // And the flow completes: selecting a target enables Confirm Link, which
-    // resolves the unknown slug to the canonical effort.
-    await aliasSelect.selectOption('burpee');
+    await burpeeOption.click();
     const confirm = page.getByTestId(TEST_IDS.EFFORT_NOT_FOUND_ALIAS_CONFIRM);
     await expect(confirm).toBeEnabled();
     await confirm.click();

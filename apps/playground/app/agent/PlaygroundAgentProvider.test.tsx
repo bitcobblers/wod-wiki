@@ -3,9 +3,17 @@
  * `modelContext.executeTool` call shapes agents actually use, so arguments
  * reach tool handlers instead of being defaulted to `{}` by the polyfill.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { fireEvent, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Button } from '@bitcobblers/wod-wiki-ui/primitives';
 import { renderWithPlaygroundHost, type PlaygroundRenderResult } from '@/testing/host';
-import { PlaygroundAgentProvider, installModelContextExecuteToolAdapter } from './PlaygroundAgentProvider';
+import { SettingsPage } from '../pages/SettingsPage';
+import { AgentConfirmHost } from './AgentConfirmHost';
+import {
+  PlaygroundAgentProvider,
+  installModelContextExecuteToolAdapter,
+  uiSdkAgent,
+} from './PlaygroundAgentProvider';
 
 interface FakeRegisteredTool {
   name: string;
@@ -169,6 +177,85 @@ describe('PlaygroundAgentProvider modelContext wiring (WW-025)', () => {
       await expect(navFake.mc.executeTool('ui_navigate', { path: '/journal' })).resolves.toBeTruthy();
       expect(navFake.calls[0].args[0]).toBe(navTools[0]);
       expect(navFake.calls[0].args[1]).toEqual({ path: '/journal' });
+    } finally {
+      await host?.cleanup();
+    }
+  });
+
+  it('registers ui-sdk snapshot/act/query tools and drives Settings controls + AgentConfirmHost gate', async () => {
+    const registeredNames: string[] = [];
+    const docFake = makeFakeModelContext([]);
+    docFake.mc.registerTool = async (tool?: { name?: string }) => {
+      if (tool?.name) registeredNames.push(tool.name);
+      return { unregister() {} };
+    };
+    (document as unknown as Record<string, unknown>).modelContext = docFake.mc;
+    const onDanger = vi.fn();
+
+    let host: PlaygroundRenderResult | undefined;
+    try {
+      host = await renderWithPlaygroundHost(
+        <>
+          <PlaygroundAgentProvider />
+          <AgentConfirmHost />
+          <SettingsPage />
+          <Button
+            variant="destructive"
+            data-agent-confirm="Permanently deletes the test notebook"
+            onClick={onDanger}
+          >
+            Delete test notebook
+          </Button>
+        </>,
+        { route: '/settings/system' },
+      );
+
+      expect(registeredNames).toEqual(expect.arrayContaining(['snapshot', 'act', 'query']));
+
+      const components = uiSdkAgent
+        .snapshot()
+        .filter((entry) => !entry.offPage && entry.component !== 'more');
+      for (const entry of components) {
+        expect(entry.label, `${entry.component} ${entry.ref} has no name`).toBeTruthy();
+      }
+      const labels = components.map((entry) => entry.label);
+      for (const expected of [
+        'Workout Sound Effects',
+        'Debug Mode',
+        'Share Anonymous Usage Statistics',
+        'Reset & Clear Cache',
+        'Delete test notebook',
+      ]) {
+        expect(labels, `${expected} missing from snapshot`).toContain(expected);
+      }
+
+      const debugSwitch = screen.getByTestId('debug-mode-toggle');
+      const beforeDebug = debugSwitch.getAttribute('aria-checked');
+      const toggleResult = await uiSdkAgent.act({
+        steps: [{ ref: 'Debug Mode', action: 'toggle' }],
+      });
+      expect(toggleResult.ok, toggleResult.error?.message).toBe(true);
+      expect(debugSwitch.getAttribute('aria-checked')).toBe(
+        beforeDebug === 'true' ? 'false' : 'true',
+      );
+
+      const deniedPromise = uiSdkAgent.act({
+        steps: [{ ref: 'Delete test notebook', action: 'press' }],
+      });
+      const denyBtn = await screen.findByTestId('agent-confirm-cancel');
+      fireEvent.click(denyBtn);
+      const deniedResult = await deniedPromise;
+      expect(deniedResult.ok).toBe(false);
+      expect(onDanger).not.toHaveBeenCalled();
+
+      const approvedPromise = uiSdkAgent.act({
+        steps: [{ ref: 'Delete test notebook', action: 'press' }],
+      });
+      const approveBtn = await screen.findByTestId('agent-confirm-approve');
+      fireEvent.click(approveBtn);
+      const approvedResult = await approvedPromise;
+      expect(approvedResult.ok, approvedResult.error?.message).toBe(true);
+      expect(onDanger).toHaveBeenCalledTimes(1);
     } finally {
       await host?.cleanup();
     }

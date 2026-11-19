@@ -44,7 +44,6 @@ import { createJournalNoteFromWorkout } from '../services/journalWorkout'
 import { CalendarCard } from '@/components/atoms/CalendarCard'
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui'
 import { toast } from '@/hooks/use-toast'
-import { ToastAction } from '@/components/atoms/primitives/toast'
 import { DEFAULT_PLAYGROUND_CONTENT } from '../templates/defaultPlaygroundContent'
 import { formatPlaygroundPageTitle } from '@/lib/playgroundDisplay'
 import { localDateKey } from '@/lib/dateFormat'
@@ -157,11 +156,10 @@ export function PlaygroundNotePage({
         toast({
           title: 'Added to journal',
           description: journalNote.journalDate === today ? "Added to today's journal" : `Added to ${journalNote.journalDate}`,
-          action: (
-            <ToastAction altText="Open journal" onClick={() => navigate(dayPath(journalNote.journalDate ?? today))}>
-              Open
-            </ToastAction>
-          ),
+          action: {
+            label: 'Open',
+            onAction: () => navigate(dayPath(journalNote.journalDate ?? today)),
+          },
         })
       } catch {
         toast({ title: 'Error', description: 'Could not add to journal', variant: 'destructive' })
@@ -188,11 +186,10 @@ export function PlaygroundNotePage({
         toast({
           title: 'Moved to journal',
           description: `This playground now lives on ${dateKey}.`,
-          action: (
-            <ToastAction altText="Open journal" onClick={() => navigate(dayPath(dateKey))}>
-              Open
-            </ToastAction>
-          ),
+          action: {
+            label: 'Open',
+            onAction: () => navigate(dayPath(dateKey)),
+          },
         })
         void navigate(notePath(runtimeNoteId))
       } catch {
@@ -221,11 +218,10 @@ export function PlaygroundNotePage({
         toast({
           title: 'Scheduled',
           description: `Added to journal for ${dateKey}`,
-          action: (
-            <ToastAction altText="Open journal" onClick={() => navigate(dayPath(dateKey))}>
-              Open
-            </ToastAction>
-          ),
+          action: {
+            label: 'Open',
+            onAction: () => navigate(dayPath(dateKey)),
+          },
         })
       } catch {
         toast({ title: 'Error', description: 'Could not schedule workout', variant: 'destructive' })

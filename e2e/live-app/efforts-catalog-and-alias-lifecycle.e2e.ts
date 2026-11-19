@@ -218,7 +218,8 @@ test.describe('PRP-01 — Efforts Catalog & Alias Lifecycle', () => {
     await app.page.getByTestId(TEST_IDS.EFFORT_NOT_FOUND_ALIAS_BTN).click();
     const aliasSelect = app.page.getByTestId(TEST_IDS.EFFORT_NOT_FOUND_ALIAS_SELECT);
     await expect(aliasSelect).toBeVisible();
-    await aliasSelect.selectOption(createdSlug);
+    await aliasSelect.click();
+    await app.page.getByRole('option', { name: new RegExp(`\\(${createdSlug}\\)`) }).click();
     await app.page.getByTestId(TEST_IDS.EFFORT_NOT_FOUND_ALIAS_CONFIRM).click();
 
     await expect(app.page).toHaveURL(new RegExp(`/effort/${createdSlug}$`), { timeout: 15_000 });

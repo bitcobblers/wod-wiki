@@ -13,7 +13,7 @@
 import React from 'react';
 import { ScriptBlock } from '@/components/Editor/types';
 import { StatementList } from './StatementList';
-import { Button } from '@/components/atoms/primitives/button';
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { Play } from 'lucide-react';
 
 export type WorkoutContextMode = 'edit' | 'run' | 'review';

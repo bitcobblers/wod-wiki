@@ -10,8 +10,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button } from '@/components/atoms/primitives/button';
-import { Badge } from '@/components/atoms/primitives/badge';
+import { Button, Badge } from "@bitcobblers/wod-wiki-ui/primitives";
 import { X, Bug } from 'lucide-react';
 import { RuntimeAdapter, RuntimeLogger } from '@/hooks/useRuntimeDebug';
 import type { IScriptRuntime } from '@/hooks/useRuntimeTimer';

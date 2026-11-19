@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import * as Dialog from '@radix-ui/react-dialog';
+import {
+  Button,
+  Dialog,
+  DialogBackdrop,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { SlidersHorizontal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePaletteStore } from './palette-store';
@@ -348,24 +355,25 @@ export const PaletteShell: React.FC = () => {
         </span>
       )}
       <div className="flex-1" />
-      <button
-        type="button"
+      <Button
+        variant="outline"
+        size="sm"
         onClick={_dismiss}
         data-testid="palette-cancel"
-        className="min-h-12 rounded-md border border-border bg-background px-4 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="min-h-12 px-4 text-xs font-semibold text-muted-foreground hover:text-foreground"
       >
         Cancel
-      </button>
+      </Button>
       {wqlConfig.onApply && (
-        <button
-          type="button"
+        <Button
+          size="sm"
           onClick={() => applyQuery()}
           disabled={!validity.valid}
           data-testid="palette-apply-query"
-          className="min-h-12 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+          className="min-h-12 px-4 text-xs font-semibold"
         >
           Apply query
-        </button>
+        </Button>
       )}
     </div>
   ) : undefined;
@@ -375,45 +383,45 @@ export const PaletteShell: React.FC = () => {
   }, [_dismiss]);
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={handleDialogOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm" />
-        <Dialog.Content
-          className={`fixed inset-x-0 z-[200] mx-auto flex w-full flex-col outline-none max-lg:bottom-[var(--palette-bottom,0px)] max-lg:top-0 max-lg:h-[var(--palette-height,100dvh)] max-lg:max-h-[var(--palette-height,100dvh)] max-lg:min-h-[var(--palette-height,100dvh)] max-lg:rounded-none max-lg:pt-[env(safe-area-inset-top,0px)] lg:top-[10%] lg:max-h-[80vh] lg:rounded-xl ${wqlConfig ? 'max-w-2xl' : 'max-w-xl'}`}
-          style={
-            {
-              '--palette-bottom': sheetBottom,
-              '--palette-height': sheetHeight,
-              '--palette-min-h': sheetHeight,
-              '--palette-max-h': sheetHeight,
-            } as React.CSSProperties
-          }
-        >
-          <Dialog.Title className="sr-only">Command Palette</Dialog.Title>
-          <Dialog.Description className="sr-only">
-            Search and navigate. Press Escape to close.
-          </Dialog.Description>
+    <Dialog
+      open={isOpen}
+      onOpenChange={handleDialogOpenChange}
+    >
+      <DialogBackdrop className="z-[200] bg-black/50 backdrop-blur-sm" />
+      <DialogContent
+        initialFocus={isDesktop ? undefined : 'content'}
+        className={`fixed inset-x-0 z-[200] mx-auto my-0 p-0 gap-0 border-0 shadow-none bg-transparent flex w-full flex-col outline-none max-lg:bottom-[var(--palette-bottom,0px)] max-lg:top-0 max-lg:h-[var(--palette-height,100dvh)] max-lg:max-h-[var(--palette-height,100dvh)] max-lg:min-h-[var(--palette-height,100dvh)] max-lg:w-screen max-lg:rounded-none max-lg:pt-[env(safe-area-inset-top,0px)] lg:top-[10%] lg:bottom-auto lg:max-h-[80vh] lg:rounded-xl ${wqlConfig ? 'lg:max-w-2xl' : 'lg:max-w-xl'}`}
+        style={
+          {
+            '--palette-bottom': sheetBottom,
+            '--palette-height': sheetHeight,
+            '--palette-min-h': sheetHeight,
+            '--palette-max-h': sheetHeight,
+          } as React.CSSProperties
+        }
+      >
+        <DialogTitle className="sr-only">Command Palette</DialogTitle>
+        <DialogDescription className="sr-only">
+          Search and navigate. Press Escape to close.
+        </DialogDescription>
 
-          {/* flex-1/min-h-0: lets the results list shrink + scroll inside the
-              sheet's max-height instead of overflowing under the footer. */}
-          <CommandListView
-            className="min-h-0 flex-1 border-border bg-card dark:bg-card"
-            items={results}
-            query={query}
-            onQueryChange={handleQueryChange}
-            onSelect={handleSelect}
-            isOpen={true}
-            onClose={_dismiss}
-            mobileClose
-            placeholder={request?.placeholder ?? 'Search…'}
-            searchRow={searchRow}
-            footer={footer}
-            filterResults={!wqlConfig}
-            header={request?.header}
-            emptyState={emptyState}
-          />
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        <CommandListView
+          className="min-h-0 flex-1 border-border bg-card dark:bg-card"
+          items={results}
+          query={query}
+          onQueryChange={handleQueryChange}
+          onSelect={handleSelect}
+          isOpen={true}
+          onClose={_dismiss}
+          mobileClose
+          placeholder={request?.placeholder ?? 'Search…'}
+          searchRow={searchRow}
+          footer={footer}
+          filterResults={!wqlConfig}
+          header={request?.header}
+          emptyState={emptyState}
+        />
+      </DialogContent>
+    </Dialog>
   );
 };

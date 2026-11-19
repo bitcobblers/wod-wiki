@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react'
 import { EditorDialog, resolveQueryDraft } from '@bitcobblers/wod-wiki-ui'
 import { RotateCcw } from 'lucide-react'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import {
   clearRouteWqlConfig,
   readRouteWqlConfig,

@@ -15,7 +15,7 @@ import { formatDateKey } from '../services/dateUtils';
 import { CreateJournalNoteDialog } from '../components/organisms/journal/CreateJournalNoteDialog';
 import { clearParkedRun, findParkedRunByDate, parkRun, pendingRuntimes, takeParkedRun } from '../runtimeStore';
 import { ResponsiveActions } from '../nav/ResponsiveActions'
-import { Button } from '@/components/atoms/primitives/button'
+import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { sessionQueryInsert, sessionQueryWql } from '@bitcobblers/wod-wiki-ui/extensions';
 import { useNotePageNav, wirePageIndexLinks, type NoteHelpfulAction } from './shared/useNotePageNav';
 import { buildNoteHelpfulActionsForEntry, useNoteActions } from './shared/useNoteActions';

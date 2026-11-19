@@ -221,6 +221,7 @@ describe('TourJumpSection', () => {
   it('name sort reorders the cards inside both rows', () => {
     renderSection()
 
+    fireEvent.click(screen.getByTestId('jump-filters-toggle'))
     fireEvent.click(screen.getByTestId('package-sort-name'))
     const expected = feedCardIds()
     const half = Math.ceil(expected.length / 2)
@@ -282,6 +283,7 @@ describe('TourJumpSection', () => {
 
   it('filters by subscribed only and by feed', () => {
     renderSection()
+    fireEvent.click(screen.getByTestId('jump-filters-toggle'))
     // Default: subscribedOnly is false, all seeds shown
     expect(screen.getByTestId('feed-card-sport-crossfit')).toBeTruthy()
     expect(screen.getByTestId('feed-card-sport-swimming')).toBeTruthy()
@@ -308,6 +310,32 @@ describe('TourJumpSection', () => {
     expect(screen.queryAllByTestId('feed-card-sport-crossfit').length).toBeGreaterThan(0)
   })
 
+  it('collapses advanced filters behind a disclosure that announces its state', () => {
+    renderSection()
+
+    // Collapsed by default: search visible, advanced controls absent.
+    const toggle = screen.getByTestId('jump-filters-toggle')
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(toggle.getAttribute('aria-controls')).toBe('jump-filters-panel')
+    expect(screen.getByTestId('package-search-input')).toBeTruthy()
+    expect(screen.queryByTestId('filter-subscribed-only')).toBeNull()
+    expect(screen.queryByTestId('filter-feed-source')).toBeNull()
+    expect(screen.queryByTestId('package-sort-updated')).toBeNull()
+
+    // Expanding reveals the advanced controls and updates the announcement.
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByTestId('jump-filters-panel')).toBeTruthy()
+    expect(screen.getByTestId('filter-subscribed-only')).toBeTruthy()
+    expect(screen.getByTestId('filter-feed-source')).toBeTruthy()
+    expect(screen.getByTestId('package-sort-updated')).toBeTruthy()
+
+    // Collapsing again hides them.
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByTestId('filter-feed-source')).toBeNull()
+  })
+
   it('toggles individual notebook subscription and updates chip state', () => {
     renderSection()
     const toggleBtn = screen.getByTestId('feed-card-sport-crossfit-notebook-toggle-community-crossfit-games')
@@ -317,5 +345,20 @@ describe('TourJumpSection', () => {
     fireEvent.click(toggleBtn)
     expect(notebookSubscribed.has('sport-crossfit#notebook.crossfit-games')).toBe(true)
     expect(synced).toContain('sport-crossfit')
+  })
+
+  it('offers Clear filters when subscribed-only and feed filter yield an empty feed list', () => {
+    renderSection()
+    fireEvent.click(screen.getByTestId('jump-filters-toggle'))
+    fireEvent.change(screen.getByTestId('filter-feed-source'), { target: { value: 'sport-crossfit' } })
+    fireEvent.click(screen.getByTestId('filter-subscribed-only'))
+
+    expect(screen.getByTestId('jump-empty')).toBeTruthy()
+    const clearBtn = screen.getByTestId('jump-clear-filters')
+    expect(clearBtn).toBeTruthy()
+
+    fireEvent.click(clearBtn)
+    expect(screen.queryByTestId('jump-empty')).toBeNull()
+    expect(screen.getByTestId('feed-card-sport-crossfit')).toBeTruthy()
   })
 })

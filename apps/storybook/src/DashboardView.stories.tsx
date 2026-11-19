@@ -109,11 +109,11 @@ export const Default: Story = {
 
     // Unit conversion parity gate (N1): $unit control changes query output and unit labels
     await expect(canvas.getByText(/17,600/)).toBeVisible();
-    const kgBtn = canvas.getByRole('button', { name: 'kg' });
+    const kgBtn = canvas.getByRole('radio', { name: 'kg' });
     await userEvent.click(kgBtn);
     await expect(canvas.getByText(/8,000/)).toBeVisible();
     // Range control switching updates date window points
-    const fourWeeksBtn = canvas.getByRole('button', { name: '4w' });
+    const fourWeeksBtn = canvas.getByRole('radio', { name: '4w' });
     await userEvent.click(fourWeeksBtn);
     await expect(canvas.queryByText(/no data for this range/i)).toBeNull();
   },

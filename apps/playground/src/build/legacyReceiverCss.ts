@@ -151,14 +151,19 @@ function lowerUnits(root: postcss.Root): void {
 export function lowerReceiverCss(css: string, filename: string): { code: string; map?: string } {
     const root = postcss.parse(css, { from: filename });
 
-    // 1a. @layer blocks: unwrap in document order.
-    root.walkAtRules('layer', (rule) => {
-        if (rule.nodes && rule.nodes.length > 0) {
-            rule.replaceWith(...rule.nodes);
-        } else {
-            rule.remove();
-        }
-    });
+    // 1a. @layer blocks: unwrap in document order (loop for nested @layer imports).
+    let hadLayer = true;
+    while (hadLayer) {
+        hadLayer = false;
+        root.walkAtRules('layer', (rule) => {
+            hadLayer = true;
+            if (rule.nodes && rule.nodes.length > 0) {
+                rule.replaceWith(...rule.nodes);
+            } else {
+                rule.remove();
+            }
+        });
+    }
     // 1b. @property registrations.
     root.walkAtRules('property', (rule) => {
         rule.remove();

@@ -10,8 +10,17 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { TabGroup, TabList, Tab, TabPanels, TabPanel } from '@headlessui/react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/atoms/Dialog';
+import {
+    Dialog,
+    DialogBackdrop,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    Tabs,
+    TabsList,
+    TabsPanel,
+    TabsTab,
+} from '@bitcobblers/wod-wiki-ui/primitives';
 import { cn } from '@/lib/utils';
 import type { IRuntimeBlock, IScriptRuntime } from '@/hooks/useRuntimeTimer';
 import type { ICodeStatement } from '@bitcobblers/wod-wiki-engine';
@@ -32,22 +41,16 @@ export const BlockDebugDialog: React.FC<BlockDebugDialogProps> = ({
     block,
     runtime,
 }) => {
-    const [activeTab, setActiveTab] = useState(0);
-
-    // ── Code Statements ──────────────────────────────────────────
+    const [activeTab, setActiveTab] = useState<string>('Statements');
 
     const codeStatements = useMemo((): ICodeStatement[] => {
         if (!runtime.script || !block.sourceIds.length) return [];
         return runtime.script.getIds(block.sourceIds);
     }, [runtime.script, block.sourceIds]);
 
-    // ── Behaviors ────────────────────────────────────────────────
-
     const behaviorNames = useMemo(() => {
         return block.behaviors.map(b => b.constructor.name);
     }, [block.behaviors]);
-
-    // ── Memory Locations ─────────────────────────────────────────
 
     const memoryLocations = useMemo(() => {
         return block.getAllMemory();
@@ -55,6 +58,7 @@ export const BlockDebugDialog: React.FC<BlockDebugDialogProps> = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogBackdrop />
             <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
                 <DialogHeader>
                     <DialogTitle>
@@ -72,41 +76,41 @@ export const BlockDebugDialog: React.FC<BlockDebugDialogProps> = ({
                     </div>
                 </DialogHeader>
 
-                <TabGroup selectedIndex={activeTab} onChange={setActiveTab}>
-                    <TabList className="flex border-b border-border gap-0">
+                <Tabs
+                    value={activeTab}
+                    onValueChange={(next) => {
+                        if (next) setActiveTab(next);
+                    }}
+                    className="flex flex-col flex-1 min-h-0"
+                >
+                    <TabsList aria-label="Block debug views" className="flex border-b border-border gap-0">
                         {TAB_NAMES.map((name) => (
-                            <Tab
+                            <TabsTab
                                 key={name}
-                                className={({ selected }) => cn(
-                                    'px-4 py-2 text-sm font-medium transition-colors outline-none',
-                                    'border-b-2 -mb-px',
-                                    selected
-                                        ? 'border-primary text-foreground'
-                                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                                value={name}
+                                className={cn(
+                                    'px-4 py-2 text-sm font-medium transition-colors outline-none border-b-2 -mb-px text-muted-foreground hover:text-foreground hover:border-border data-selected:border-primary data-selected:text-foreground border-transparent',
                                 )}
                             >
                                 {name}
-                            </Tab>
+                            </TabsTab>
                         ))}
-                    </TabList>
+                    </TabsList>
 
-                    <TabPanels className="flex-1 min-h-0 overflow-y-auto mt-2">
-                        {/* ── Tab 1: Code Statements ─── */}
-                        <TabPanel>
+                    <div className="flex-1 min-h-0 overflow-y-auto mt-2">
+                        <TabsPanel value="Statements">
                             <StatementsTab statements={codeStatements} />
-                        </TabPanel>
+                        </TabsPanel>
 
-                        {/* ── Tab 2: Behaviors ─── */}
-                        <TabPanel>
+                        <TabsPanel value="Behaviors">
                             <BehaviorsTab names={behaviorNames} />
-                        </TabPanel>
+                        </TabsPanel>
 
-                        {/* ── Tab 3: Memory ─── */}
-                        <TabPanel>
+                        <TabsPanel value="Memory">
                             <MemoryTab block={block} locations={memoryLocations} />
-                        </TabPanel>
-                    </TabPanels>
-                </TabGroup>
+                        </TabsPanel>
+                    </div>
+                </Tabs>
             </DialogContent>
         </Dialog>
     );

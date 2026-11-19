@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { agentTools } from '@ui-sdk/react/agent';
 import {
   zodSchemaToJsonSchema,
   type AgentUiToolManifestEntry,
@@ -260,5 +261,22 @@ export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: zodSchemaToJsonSchema(uiSetExplorerQuerySchema),
     },
+    ...agentTools.map(
+      (tool): AgentUiToolManifestEntry => ({
+        name: tool.name,
+        title: `UI-SDK ${tool.name[0]!.toUpperCase()}${tool.name.slice(1)}`,
+        description: tool.description,
+        tier: tool.name === 'act' ? 1 : 0,
+        surfaces: ['webmcp'],
+        mountScope: 'always (Playground shell via @ui-sdk/react/agent)',
+        annotations: {
+          readOnlyHint: tool.name !== 'act',
+          destructiveHint: false,
+          idempotentHint: tool.name !== 'act',
+          openWorldHint: false,
+        },
+        inputSchema: tool.inputSchema as Record<string, unknown>,
+      }),
+    ),
   ];
 }

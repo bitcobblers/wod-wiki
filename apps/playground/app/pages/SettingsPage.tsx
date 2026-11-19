@@ -59,8 +59,19 @@ import { ProfileSection } from './ProfileSection'
 import { DataSection } from './DataSection'
 import { SyncSection } from './SyncSection'
 import { SoundProfilesSettingsSection } from './SoundProfilesSettingsSection'
-import { Switch } from '@/components/atoms/primitives/switch'
-import { Button } from '@/components/atoms/primitives/button'
+import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+  Button,
+  DialogFooter,
+  DialogHeader,
+  Switch,
+  SwitchThumb,
+} from '@bitcobblers/wod-wiki-ui/primitives'
 import { cn } from '@/lib/utils'
 import { readDataSettings, storage, storageBackend, storageService } from '@/services/storage'
 import type { Tag, TagTypeRecord } from '@/types/storage'
@@ -359,8 +370,6 @@ function SystemSection() {
   const [isResetting, setIsResetting] = useState(false)
   const [resetError, setResetError] = useState<string | null>(null)
 
-  // Reset scope follows the active data location: a remote connection means
-  // the wipe clears the server/Turso database, not just this device.
   const savedSettings = readDataSettings()
   const resetTarget =
     storageBackend === 'api'
@@ -368,19 +377,6 @@ function SystemSection() {
       : savedSettings.state === 'turso'
         ? `your Turso database (${savedSettings.url})`
         : null
-
-  // Handle Escape key to close modal
-  useEffect(() => {
-    if (!isResetConfirmOpen) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setIsResetConfirmOpen(false)
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isResetConfirmOpen])
 
   const handleConfirmReset = async () => {
     setIsResetting(true)
@@ -415,16 +411,21 @@ function SystemSection() {
             <p className="text-sm font-medium text-foreground font-mono">v{APP_VERSION}</p>
             <p className="text-xs text-muted-foreground">Wod Wiki playground build</p>
           </div>
-          <Button asChild variant="outline" size="sm" className="gap-2">
-            <a
-              href={releaseUrlFor(APP_VERSION)}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="settings-release-link"
-            >
-              <ExternalLink className="size-3.5" />
-              <span>Release notes</span>
-            </a>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            render={
+              <a
+                href={releaseUrlFor(APP_VERSION)}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="settings-release-link"
+              />
+            }
+          >
+            <ExternalLink className="size-3.5" aria-hidden="true" />
+            <span>Release notes</span>
           </Button>
         </div>
       </section>
@@ -459,8 +460,10 @@ function SystemSection() {
               id="sound-switch"
               data-testid="sound-toggle"
               checked={isAudioEnabled}
-              onChange={toggleAudio}
-            />
+              onCheckedChange={() => toggleAudio()}
+            >
+              <SwitchThumb />
+            </Switch>
           </div>
 
           <div className="pt-3 border-t border-border/50 flex items-center justify-between">
@@ -506,8 +509,10 @@ function SystemSection() {
               id="debug-switch"
               data-testid="debug-mode-toggle"
               checked={isDebugMode}
-              onChange={toggleDebugMode}
-            />
+              onCheckedChange={() => toggleDebugMode()}
+            >
+              <SwitchThumb />
+            </Switch>
           </div>
         </div>
 
@@ -540,8 +545,10 @@ function SystemSection() {
               id="telemetry-switch"
               data-testid="telemetry-toggle"
               checked={isTelemetryConsent}
-              onChange={setTelemetryConsent}
-            />
+              onCheckedChange={setTelemetryConsent}
+            >
+              <SwitchThumb />
+            </Switch>
           </div>
         </div>
       </section>
@@ -596,26 +603,23 @@ function SystemSection() {
         </div>
       </section>
 
-      {/* Confirmation Modal */}
-      {isResetConfirmOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
-          onClick={e => {
-            if (e.target === e.currentTarget && !isResetting) setIsResetConfirmOpen(false)
-          }}
+      <AlertDialog
+        open={isResetConfirmOpen}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !isResetting) setIsResetConfirmOpen(false)
+        }}
+      >
+        <AlertDialogBackdrop />
+        <AlertDialogContent
+          className="sm:max-w-md"
           data-testid="reset-confirmation-modal"
         >
-          <div
-            className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl flex flex-col gap-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="reset-modal-title"
-          >
-            <div className="flex items-center gap-2.5 text-destructive font-semibold text-base" id="reset-modal-title">
-              <AlertTriangle className="size-5" />
+          <DialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2.5 text-destructive font-semibold text-base">
+              <AlertTriangle className="size-5" aria-hidden="true" />
               Reset All Application Data?
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
               {resetTarget ? (
                 <>
                   This permanently deletes every note, result, cached effort, and local setting stored
@@ -627,40 +631,38 @@ function SystemSection() {
                   from your browser storage. This returns Wod Wiki to its first-run state and cannot be undone.
                 </>
               )}
+            </AlertDialogDescription>
+          </DialogHeader>
+          {resetError && (
+            <p role="alert" className="text-xs text-destructive" data-testid="reset-error">
+              Reset failed: {resetError} — your data and connection were left untouched; try again.
             </p>
-            {resetError && (
-              <p role="alert" className="text-xs text-destructive" data-testid="reset-error">
-                Reset failed: {resetError} — your data and connection were left untouched; try again.
-              </p>
-            )}
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsResetConfirmOpen(false)}
-                disabled={isResetting}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleConfirmReset}
-                disabled={isResetting}
-                data-testid="confirm-reset-button"
-                className="gap-2"
-              >
-                {isResetting ? (
-                  <span>Resetting…</span>
-                ) : (
-                  <>
-                    <RotateCcw className="size-4" />
-                    <span>Yes, Reset Everything</span>
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+          )}
+          <DialogFooter className="pt-2">
+            <AlertDialogClose disabled={isResetting}>
+              Cancel
+            </AlertDialogClose>
+            <AlertDialogClose
+              value="confirm"
+              data-variant="destructive"
+              disabled={isResetting}
+              action={() => handleConfirmReset()}
+              data-testid="confirm-reset-button"
+              data-agent-confirm="Permanently wipes all notes, workout results, custom efforts, and local settings"
+              className="gap-2"
+            >
+              {isResetting ? (
+                <span>Resetting…</span>
+              ) : (
+                <>
+                  <RotateCcw className="size-4" aria-hidden="true" />
+                  <span>Yes, Reset Everything</span>
+                </>
+              )}
+            </AlertDialogClose>
+          </DialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
