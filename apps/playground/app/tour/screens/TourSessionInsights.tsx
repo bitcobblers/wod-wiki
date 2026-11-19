@@ -35,7 +35,7 @@ export interface SessionInsights {
   /** Total planned-but-unwaited countdown time (set time minus elapsed). */
   impatienceMs: number
   /** Per early Next click on a countdown: ms clicked before time was due. */
-  impatiences: number[]
+  earlyClicks: number[]
   /** Per Next click: ms the line waited. */
   reactions: number[]
 }
@@ -45,11 +45,19 @@ interface MetricLike {
   value?: unknown
 }
 
+/**
+ * How close a segment's own timer total must be to the line's planned
+ * duration for the countdown to count as armed. A timer armed with less than
+ * this share of its planned time never ran (the block was entered with the
+ * countdown already due), so an early Next on it is not impatience.
+ */
+const ARMED_TOLERANCE = 0.9
+
 /** Parse a segment log into insights; null when nothing is measurable. */
 export function deriveSessionInsights(result: Sessions): SessionInsights | null {
   const base = Number.isFinite(result.startTime) ? result.startTime : 0
   const segments: InsightSegment[] = []
-  const impatiences: number[] = []
+  const earlyClicks: number[] = []
   for (const log of result.logs ?? []) {
     if (log.outputType !== 'segment') continue
     if (log.stackLevel !== 1 || log.line == null) continue
@@ -65,8 +73,17 @@ export function deriveSessionInsights(result: Sessions): SessionInsights | null 
     if (!kind) continue
     if (kind === 'clock' && log.completionReason === 'user-advance') {
       const planned = metrics.find((m) => m.type === 'duration' && typeof m.value === 'number')?.value as number | undefined
-      const early = (planned ?? 0) - (span.ended - span.started)
-      if (early > 0) impatiences.push(early)
+      // A countdown counts as impatience only when it was actually armed with
+      // its planned time. The runtime records entering a countdown line whose
+      // timer was already due as a user-advance against a timer that never
+      // ran, and scoring that as an early click charges the visitor for
+      // opening the block.
+      const timerTotal = metrics.find((m) => m.type === 'total' && typeof m.value === 'number')?.value as number | undefined
+      const armed = planned !== undefined && (timerTotal === undefined || timerTotal >= planned * ARMED_TOLERANCE)
+      if (armed && planned !== undefined) {
+        const early = planned - (span.ended - span.started)
+        if (early > 0) earlyClicks.push(early)
+      }
     }
     segments.push({
       start: span.started - base,
@@ -76,12 +93,12 @@ export function deriveSessionInsights(result: Sessions): SessionInsights | null 
     })
   }
   if (segments.length === 0) return null
-  const impatienceMs = impatiences.reduce((a, b) => a + b, 0)
+  const impatienceMs = earlyClicks.reduce((a, b) => a + b, 0)
   const totalMs = Number.isFinite(result.duration) && result.duration > 0
     ? result.duration
     : Math.max(...segments.map((s) => s.end))
   const reactions = segments.filter((s) => s.kind === 'next').map((s) => s.end - s.start)
-  return { segments, totalMs, impatienceMs, impatiences, reactions }
+  return { segments, totalMs, impatienceMs, earlyClicks, reactions }
 }
 
 // ── Formatting ──────────────────────────────────────────────────────────────
@@ -124,17 +141,43 @@ export interface TourSessionInsightsProps {
   onRun: () => void
 }
 
+/** A run was recorded but carried nothing measurable. The save happened, so
+ *  the pre-run CTA would be a lie — say what actually happened instead. */
+export function InsightsRecordedState({ onRun }: { onRun: () => void }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center" data-testid="tour-insights-recorded">
+      <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+        Your run was saved — but this workout has nothing to measure yet. A line with a
+        timer or a Next click turns into insights.
+      </p>
+      <button
+        type="button"
+        onClick={onRun}
+        data-testid="tour-insights-again"
+        className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow transition-colors hover:bg-primary/90"
+      >
+        <Play className="size-4" />
+        Run again
+      </button>
+    </div>
+  )
+}
+
 export function TourSessionInsights({ result, onRun }: TourSessionInsightsProps) {
   const insights = useMemo(() => (result ? deriveSessionInsights(result) : null), [result])
 
-  if (!result || !insights) {
+  if (!result) {
     return <InsightsRunCta onRun={onRun} />
   }
 
-  const { segments, totalMs, impatienceMs, impatiences, reactions } = insights
+  if (!insights) {
+    return <InsightsRecordedState onRun={onRun} />
+  }
+
+  const { segments, totalMs, impatienceMs, earlyClicks, reactions } = insights
   const avgReaction = reactions.length > 0 ? reactions.reduce((a, b) => a + b, 0) / reactions.length : 0
   const maxReaction = reactions.length > 0 ? Math.max(...reactions) : 0
-  const maxImpatience = impatiences.length > 0 ? Math.max(...impatiences) : 0
+  const maxImpatience = earlyClicks.length > 0 ? Math.max(...earlyClicks) : 0
 
   return (
     <div className="flex h-full w-full flex-col gap-4 overflow-y-auto p-4" data-testid="tour-insights">
@@ -176,9 +219,9 @@ export function TourSessionInsights({ result, onRun }: TourSessionInsightsProps)
             {fmtSeconds(impatienceMs)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {impatiences.length === 0
+            {earlyClicks.length === 0
               ? 'every countdown ran to zero'
-              : `${impatiences.length} early click${impatiences.length === 1 ? '' : 's'}${impatiences.length > 1 ? ` · worst ${fmtSeconds(maxImpatience)}` : ''}`}
+              : `${earlyClicks.length} early click${earlyClicks.length === 1 ? '' : 's'}${earlyClicks.length > 1 ? ` · worst ${fmtSeconds(maxImpatience)}` : ''}`}
           </p>
         </div>
         <div data-testid="tour-insights-reaction" className="rounded-xl border border-border bg-card p-4">
@@ -187,8 +230,9 @@ export function TourSessionInsights({ result, onRun }: TourSessionInsightsProps)
             {reactions.length > 0 ? fmtSeconds(avgReaction) : '—'}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {reactions.length} click{reactions.length === 1 ? '' : 's'}
-            {reactions.length > 1 ? ` · slowest ${fmtSeconds(maxReaction)}` : ''}
+            {reactions.length === 0
+              ? 'no Next clicks yet'
+              : `${reactions.length} click${reactions.length === 1 ? '' : 's'}${reactions.length > 1 ? ` · slowest ${fmtSeconds(maxReaction)}` : ''}`}
           </p>
         </div>
       </div>

@@ -30,7 +30,6 @@
  */
 
 import { useState, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useQueryState } from 'nuqs';
 import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown';
@@ -87,10 +86,6 @@ export function CanvasPage({
 }: CanvasPageProps) {
   const hasSections = !!(sections && sections.length > 0);
   const useStickyNavMode = hasSections && !title;
-
-  // Home renders wide (no 240px L2 sidebar to budget for) — mirrors
-  // SidebarLayout's isFullWidthRoute so the shell card matches its column.
-  const isFullWidthRoute = useLocation().pathname === '/';
 
   // ── Title-bar mode: URL-synced active section ──────────────────────────
   // shallow:true avoids full router re-renders on scroll-driven updates.
@@ -190,7 +185,6 @@ export function CanvasPage({
       <div className={cn(
         PAGE_SHELL_CONTAINER_CLASS,
         PAGE_SHELL_CONTENT_SURFACE_CLASS,
-        isFullWidthRoute && 'xl:max-w-none',
       )}>
         <StickyPageHeader
           title={title!}

@@ -248,6 +248,79 @@ test.describe('JRN-01 — Cold Boot & Home Tour', () => {
     { width: 1280, height: 900 },
     { width: 375, height: 812 },
   ]) {
+    test(`Home Tour keeps an edited document across re-entry, offers an explicit reset, and collapses the feed filters behind a disclosure at ${viewport.width}x${viewport.height}`, async ({
+      app,
+    }) => {
+      test.setTimeout(90_000);
+      const { page } = app;
+      await page.setViewportSize(viewport);
+      await app.goto('/');
+      await dismissSettledSyncToasts(page);
+
+      const editor = page.locator('[data-gate-id="editor-pane"] .cm-content').first();
+      await editor.click();
+      await page.keyboard.press('End');
+      await page.keyboard.type('5 Air Squats');
+      await expect(editor).toContainText('5 Air Squats');
+
+      // Scrolling away and back must not discard the visitor's document.
+      await page.getByTestId('tour-section-editor').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      await page.evaluate(() => document.getElementById('tour-section-insights')?.scrollIntoView({ block: 'center' }));
+      await page.getByTestId('tour-section-editor').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await expect(editor).toContainText('5 Air Squats');
+
+      // The explicit reset is the only way back to the arrival document.
+      const reset = page.getByTestId('tour-editor-reset-edited');
+      await expect(reset).toBeVisible();
+      await reset.click();
+      await expect(editor).not.toContainText('5 Air Squats');
+      await expect(editor).toContainText('0:03 Count Down');
+
+      // Feed filters live behind one disclosure.
+      await page.getByTestId('tour-jump-section').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      const toggle = page.getByTestId('jump-filters-toggle');
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.getByTestId('filter-subscribed-only')).toHaveCount(0);
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.getByTestId('filter-subscribed-only')).toBeVisible();
+
+      app.assertCleanConsole();
+    });
+  }
+
+  test('The home route spends the full content width at desktop while app routes keep their measure', async ({
+    app,
+  }) => {
+    test.setTimeout(90_000);
+    const { page } = app;
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await app.goto('/');
+    await dismissSettledSyncToasts(page);
+
+    const heroWidth = await page.getByTestId('tour-hero').evaluate((el) => el.getBoundingClientRect().width);
+    const railWidth = await page
+      .locator('nav')
+      .first()
+      .evaluate((el) => el.getBoundingClientRect().width)
+      .catch(() => 56);
+    expect(heroWidth, 'home content spans the width left of the icon rail').toBeGreaterThan(1440 - railWidth - 8);
+
+    await app.goto('/pages');
+    const pagesWidth = await page
+      .locator('.flex.flex-1.flex-col.min-w-0')
+      .first()
+      .evaluate((el) => el.getBoundingClientRect().width)
+      .catch(() => 0);
+    expect(pagesWidth, 'app routes keep the 984px measure').toBeLessThanOrEqual(984);
+
+    app.assertCleanConsole();
+  });
+
+  for (const viewport of [
+    { width: 1280, height: 900 },
+    { width: 375, height: 812 },
+  ]) {
     test(`Home Tour meets WCAG A and AA rules at ${viewport.width}x${viewport.height}`, async ({ app }) => {
       test.setTimeout(90_000);
       const { page } = app;

@@ -25,6 +25,7 @@ import {
   CalendarPlus,
   Search,
   X,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
 import { telemetry, HOME_EVENTS } from '@/services/telemetry'
@@ -110,6 +111,7 @@ export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSecti
   }), [feedDeps])
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [sort, setSort] = useState<NotebookSort>('updated')
   const [importingFeedId, setImportingFeedId] = useState<string | null>(null)
   const [statuses, setStatuses] = useState<Record<string, { text: string; tone: 'muted' | 'error' }>>({})
@@ -258,51 +260,71 @@ export function TourJumpSection({ feedDeps }: { feedDeps?: Partial<TourJumpSecti
             )}
           </label>
 
-          {/* Subscribed only toggle */}
-          <label className="flex min-h-11 items-center gap-2 cursor-pointer select-none text-muted-foreground hover:text-foreground px-2">
-            <input
-              type="checkbox"
-              checked={subscribedOnly}
-              onChange={(e) => setSubscribedOnly(e.target.checked)}
-              data-testid="filter-subscribed-only"
-              className="size-4 accent-primary rounded"
-            />
-            <span className="text-[10px] font-black uppercase tracking-widest">Subscribed only</span>
-          </label>
-
-          {/* Feed selector */}
-          <select
-            value={selectedFeedId ?? ''}
-            onChange={(e) => setSelectedFeedId(e.target.value ? e.target.value : undefined)}
-            aria-label="Filter by feed"
-            data-testid="filter-feed-source"
-            className="min-h-11 h-11 rounded-full border border-border bg-background px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground outline-none transition-colors hover:border-foreground/25 focus:border-primary/50"
+          {/* Advanced filters (subscribed toggle, feed select, sort) live
+              behind one disclosure; search stays on the primary path. */}
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            aria-controls="jump-filters-panel"
+            data-testid="jump-filters-toggle"
+            className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            <option value="">All feeds</option>
-            {listFeedSources().map((s) => (
-              <option key={s.id} value={s.id}>{s.label}</option>
-            ))}
-          </select>
+            Filters
+            <ChevronDown className={cn('size-3.5 transition-transform', filtersOpen && 'rotate-180')} aria-hidden />
+          </button>
 
-          <div className="ml-auto flex items-center gap-1.5" role="group" aria-label="Sort feeds">
-            {SORT_OPTIONS.map(option => {
-              const active = sort === option.value
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={active}
-                  data-testid={`package-sort-${option.value}`}
-                  onClick={() => setSort(option.value)}
-                  className={cn(
-                    'inline-flex min-h-11 items-center justify-center rounded-full px-3 text-[10px] font-black uppercase tracking-widest transition-colors',
-                    active ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground',
-                  )}
+          <div id="jump-filters-panel" data-testid="jump-filters-panel" className="flex w-full flex-wrap items-center gap-2">
+            {filtersOpen && (
+              <>
+                {/* Subscribed only toggle */}
+                <label className="flex min-h-11 items-center gap-2 cursor-pointer select-none text-muted-foreground hover:text-foreground px-2">
+                  <input
+                    type="checkbox"
+                    checked={subscribedOnly}
+                    onChange={(e) => setSubscribedOnly(e.target.checked)}
+                    data-testid="filter-subscribed-only"
+                    className="size-4 accent-primary rounded"
+                  />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Subscribed only</span>
+                </label>
+
+                {/* Feed selector */}
+                <select
+                  value={selectedFeedId ?? ''}
+                  onChange={(e) => setSelectedFeedId(e.target.value ? e.target.value : undefined)}
+                  aria-label="Filter by feed"
+                  data-testid="filter-feed-source"
+                  className="min-h-11 h-11 rounded-full border border-border bg-background px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground outline-none transition-colors hover:border-foreground/25 focus:border-primary/50"
                 >
-                  {option.label}
-                </button>
-              )
-            })}
+                  <option value="">All feeds</option>
+                  {listFeedSources().map((s) => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+
+                <div className="flex items-center gap-1.5" role="group" aria-label="Sort feeds">
+                  {SORT_OPTIONS.map(option => {
+                    const active = sort === option.value
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={active}
+                        data-testid={`package-sort-${option.value}`}
+                        onClick={() => setSort(option.value)}
+                        className={cn(
+                          'inline-flex min-h-11 items-center justify-center rounded-full px-3 text-[10px] font-black uppercase tracking-widest transition-colors',
+                          active ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

@@ -37,3 +37,19 @@ Given a Visitor on '/' after fonts and core Seed readiness settle at 1280×900 d
 
 1. Visitor audits '/' with axe-core (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`).
 - expect: Zero WCAG A or AA violations are reported and the browser console stays clean.
+
+### Scenario 4: Home Tour keeps a visitor's edited document, offers an explicit reset, and collapses the feed filters behind one disclosure
+
+Given a Visitor on '/' at 1280×900 desktop and 375×812 mobile viewports:
+
+1. Visitor types a line into the welcome document, scrolls to Session Insights and back to the editor section, then activates the `Edited — reset` chip.
+2. Visitor scrolls to 'Library & Community Feeds' and activates the `Filters` disclosure.
+- expect: Step 1 keeps the typed line in the editor across the round trip, shows the `Edited — reset` chip while the document is edited, and restores the arrival document (`0:03 Count Down`) when the chip is activated.
+- expect: Step 2 shows the disclosure collapsed with `aria-expanded="false"` and the subscribed-only toggle, feed select and sort chips absent; activating it reveals them and flips `aria-expanded` to `"true"`.
+
+### Scenario 5: The home route spends the full content width at desktop
+
+Given a Visitor on '/' at 1440×900 desktop:
+
+1. Visitor measures the home content column against the viewport.
+- expect: The content column and every tour section span the full width between the 56px icon rail and the viewport edge — the home route is not capped at the 984px app-page measure — while app routes such as `/pages` keep that cap.

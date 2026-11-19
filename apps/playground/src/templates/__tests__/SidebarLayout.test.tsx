@@ -100,9 +100,11 @@ describe('SidebarLayout mobile folding zones', () => {
     expect(classes).not.toContain('xl:flex');
   });
 
-  it('exports centralized PAGE_SHELL_CONTAINER_CLASS with xl cap and no ultrawide cap', () => {
-    expect(PAGE_SHELL_CONTAINER_CLASS).toContain('xl:max-w-[984px]');
-    expect(PAGE_SHELL_CONTAINER_CLASS).toContain('2xl:max-w-none');
+  it('owns the width measure in the layout column, leaving the shell card uncapped', () => {
+    // One owner for the measure: the column caps app routes at 984px and the
+    // home route grows to fill; the shell card inherits whichever column it
+    // renders in, so it must not carry a second, contradictory cap.
+    expect(PAGE_SHELL_CONTAINER_CLASS).not.toContain('max-w-[984px]');
     expect(PAGE_SHELL_CONTAINER_CLASS).not.toContain('3xl:max-w');
     expect(PAGE_SHELL_CONTENT_SURFACE_CLASS).toContain('bg-background');
   });

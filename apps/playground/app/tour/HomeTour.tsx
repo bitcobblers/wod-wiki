@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ComponentProps } from 'react'
 import { Link } from 'react-router-dom'
-import { Play } from 'lucide-react'
+import { Play, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { clearHomeShared, loadHomeShared, type HomeSharedScript } from '../services/homeSharedScript'
 import { resolveSource } from '../canvas/canvasUtils'
@@ -364,6 +364,11 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
   }, [prefersReducedMotion])
 
   const editorLeftRef = useRef(false)
+  // The visitor's own edits survive leaving and re-entering the editor: a
+  // silent wipe of their work is the one thing the landing page must not do.
+  const docEdited = doc !== initialContent
+  const docEditedRef = useRef(docEdited)
+  docEditedRef.current = docEdited
   const resetEditorToArrival = useCallback(() => {
     requestStop({ kind: 'apply-doc', doc: initialContent })
   }, [initialContent, requestStop])
@@ -375,7 +380,9 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
       if (entry.isIntersecting) {
         if (editorLeftRef.current && !fullscreenOpenRef.current) {
           editorLeftRef.current = false
-          resetEditorToArrival()
+          // Only restore the arrival document when it was not edited — an
+          // edited document is the visitor's work, not stale state.
+          if (!docEditedRef.current) resetEditorToArrival()
         }
       } else {
         editorLeftRef.current = true
@@ -401,13 +408,15 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
       pendingCollapseCleanupRef.current()
       pendingCollapseCleanupRef.current = null
     }
-    resetEditorToArrival()
+    // Back to the editor keeps the visitor's document: the runtime is reset
+    // for another run, but an edited workout is theirs to run again.
+    requestStop({ kind: 'apply-doc', doc: docRef.current })
     const el = document.getElementById('tour-section-editor')
     const sentinel = heroRef.current
     if (!el || !sentinel || typeof window.scrollTo !== 'function') return
     const headerBottom = sentinel.getBoundingClientRect().top + window.scrollY
     window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - headerBottom), behavior: prefersReducedMotion ? 'auto' : 'smooth' })
-  }, [prefersReducedMotion, resetEditorToArrival])
+  }, [prefersReducedMotion, requestStop])
 
   // ── Quest + challenge hooks ──
   qsAutoComplete({
@@ -712,10 +721,21 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
           type="button"
           onClick={handleWatchAgain}
           data-testid={TEST_IDS.tour.WHY_WATCH_AGAIN}
-          className="inline-flex items-center gap-1.5 rounded-t-lg border border-b-0 border-border bg-muted/40 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex items-center gap-1.5 rounded-t-lg border border-b-0 border-border bg-muted/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
         >
           <Play className="size-3" />
           Watch again
+        </button>
+      )}
+      {docEdited && (
+        <button
+          type="button"
+          onClick={resetEditorToArrival}
+          data-testid={TEST_IDS.tour.EDITOR_RESET_EDITED}
+          className="inline-flex items-center gap-1.5 rounded-t-lg border border-b-0 border-border bg-muted/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <RotateCcw className="size-3" />
+          Edited — reset to the welcome doc
         </button>
       )}
       {editorPane}

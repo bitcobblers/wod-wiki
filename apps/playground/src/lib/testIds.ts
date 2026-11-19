@@ -222,6 +222,7 @@ export const TEST_IDS = {
     HERO: 'tour-hero',
     HERO_RESET_SHARED: 'tour-hero-reset-shared',
     SECTION_EDITOR: 'tour-section-editor',
+    EDITOR_RESET_EDITED: 'tour-editor-reset-edited',
     WHY_WATCH_AGAIN: 'tour-why-watch-again',
     WHY_VIDEO: 'tour-why-video',
     WHY_VIDEO_SKIP: 'tour-why-video-skip',
