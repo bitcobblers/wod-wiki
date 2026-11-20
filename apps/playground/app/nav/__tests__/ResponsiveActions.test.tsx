@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { memo } from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import { setFabAlignment } from '../../lib/fabAlignment';
 import { ResponsiveActions, ResponsiveActionsProvider, NavbarActions } from '../ResponsiveActions';
 
 let isMobile = true;
@@ -149,7 +150,7 @@ describe('ResponsiveActions dock trigger', () => {
 
     const trigger = screen.getByTestId('actions-overflow');
     const dock = trigger.closest('[data-testid="actions-dock"]')!;
-    // Stack top→bottom: buttons (primary + search), sheet, ⋮ at the corner.
+    // Stack top→bottom: sheet, buttons (search + primary), ⋮ at the corner.
     expect(dock.lastElementChild).toBe(trigger);
     // Closed sheet stays mounted and hidden without exposing role="dialog" (WW-087).
     expect(dock.querySelector('[role="dialog"]')).toBeNull();
@@ -158,27 +159,33 @@ describe('ResponsiveActions dock trigger', () => {
     const sheet = document.getElementById(sheetId!);
     expect(sheet).not.toBeNull();
     expect(sheet!.hidden).toBe(true);
-    expect([...dock.children].indexOf(sheet!)).toBeLessThan([...dock.children].indexOf(trigger));
+    const searchFab = screen.getByTestId('search-fab');
+    const buttonsContainer = searchFab.parentElement!;
+    expect([...dock.children].indexOf(sheet!)).toBeLessThan([...dock.children].indexOf(buttonsContainer));
+    expect([...dock.children].indexOf(buttonsContainer)).toBeLessThan([...dock.children].indexOf(trigger));
 
-    // Opening the overflow trigger exposes the sheet as a dialog above ⋮.
+    // Opening the overflow trigger exposes the sheet as a dialog above the button stack and ⋮.
     fireEvent.click(trigger);
     const openSheet = dock.querySelector<HTMLElement>('[role="dialog"]');
     expect(openSheet).toBe(sheet);
     expect(openSheet!.hidden).toBe(false);
     expect(openSheet!.getAttribute('aria-modal')).toBe('true');
+    expect([...dock.children].indexOf(openSheet!)).toBeLessThan([...dock.children].indexOf(buttonsContainer));
     expect([...dock.children].indexOf(openSheet!)).toBeLessThan([...dock.children].indexOf(trigger));
   });
 });
 
-describe('ResponsiveActions mobile layout', () => {
+describe('ResponsiveActions mobile fixed thumb dock', () => {
   beforeEach(() => {
     installMobileMatchMedia();
+    setFabAlignment('right');
   });
   afterEach(() => {
     cleanup();
+    setFabAlignment('right');
   });
 
-  it('keeps the action row in normal document flow instead of positioned overlays', () => {
+  it('pins the thumb dock fixed to the corner with --thumb-dock-lift and honors fabAlignment', () => {
     render(
       <Shell>
         <ResponsiveActions fallback label="Page options">
@@ -188,7 +195,177 @@ describe('ResponsiveActions mobile layout', () => {
     );
 
     const dock = screen.getByTestId('actions-dock');
-    expect(dock.className).toContain('relative');
-    expect(dock.className).not.toContain('fixed');
+    expect(dock.className).toContain('fixed');
+    expect(dock.className).toContain('z-30');
+    expect(dock.className).toContain('lg:hidden');
+    expect(dock.className).toContain('w-auto');
+    expect(dock.className).toContain('right-4');
+    expect(dock.className).toContain('items-end');
+    expect(dock.className).not.toContain('relative');
+    expect(dock.className).not.toContain('mt-4');
+    expect(dock.className).not.toContain('w-full');
+    expect(dock.getAttribute('style')).toContain('--thumb-dock-lift');
+    expect(dock.getAttribute('style')).toContain('safe-area-inset-bottom');
+
+    act(() => {
+      setFabAlignment('left');
+    });
+    expect(dock.className).toContain('left-4');
+    expect(dock.className).toContain('items-start');
+    expect(dock.className).not.toContain('right-4');
+  });
+
+  it('orders the overflow sheet above primary/search/trigger and caps sheet height with --thumb-dock-lift', () => {
+    render(
+      <Shell>
+        <ResponsiveActions primary={<button type="button">New Note</button>} label="Note actions">
+          <button type="button">Duplicate</button>
+        </ResponsiveActions>
+      </Shell>,
+    );
+
+    const dock = screen.getByTestId('actions-dock');
+    const trigger = screen.getByTestId('actions-overflow');
+    const sheetId = trigger.getAttribute('aria-controls')!;
+    const sheet = document.getElementById(sheetId)!;
+    const searchFab = screen.getByTestId('search-fab');
+    const primaryBtn = screen.getByRole('button', { name: 'New Note' });
+    const buttonsCluster = searchFab.parentElement!;
+
+    expect(buttonsCluster.contains(primaryBtn)).toBe(true);
+    const children = [...dock.children];
+    expect(children.indexOf(sheet)).toBeLessThan(children.indexOf(buttonsCluster));
+    expect(children.indexOf(buttonsCluster)).toBeLessThan(children.indexOf(trigger));
+    expect(dock.lastElementChild).toBe(trigger);
+
+    fireEvent.click(trigger);
+    expect(sheet.hidden).toBe(false);
+    expect(sheet.getAttribute('style')).toContain('8rem');
+    expect(sheet.getAttribute('style')).toContain('--thumb-dock-lift');
+  });
+
+  it('auto-yields (invisible pointer-events-none) and closes sheet when mobile-wheel-composer or mobile-typing-bar mounts', async () => {
+    function Harness({ showWheel, showTyping }: { showWheel?: boolean; showTyping?: boolean }) {
+      return (
+        <Shell>
+          <ResponsiveActions fallback label="Page options">
+            <button type="button">Download</button>
+          </ResponsiveActions>
+          {showWheel && <div data-testid="mobile-wheel-composer">Wheel</div>}
+          {showTyping && <div data-testid="mobile-typing-bar">Typing</div>}
+        </Shell>
+      );
+    }
+
+    const { rerender } = render(<Harness />);
+    const dock = screen.getByTestId('actions-dock');
+    const trigger = screen.getByTestId('actions-overflow');
+
+    expect(dock.className).not.toContain('invisible');
+    expect(dock.className).not.toContain('pointer-events-none');
+
+    fireEvent.click(trigger);
+    const sheet = document.getElementById(trigger.getAttribute('aria-controls')!)!;
+    expect(sheet.hidden).toBe(false);
+
+    rerender(<Harness showWheel />);
+    await waitFor(() => {
+      expect(dock.className).toContain('invisible');
+      expect(dock.className).toContain('pointer-events-none');
+      expect(sheet.hidden).toBe(true);
+    });
+
+    rerender(<Harness />);
+    await waitFor(() => {
+      expect(dock.className).not.toContain('invisible');
+      expect(dock.className).not.toContain('pointer-events-none');
+    });
+
+    rerender(<Harness showTyping />);
+    await waitFor(() => {
+      expect(dock.className).toContain('invisible');
+      expect(dock.className).toContain('pointer-events-none');
+    });
+  });
+
+  it('auto-yields when results-mobile-bar is visible in the DOM', async () => {
+    function Harness({ showResultsBar, hidden }: { showResultsBar: boolean; hidden?: boolean }) {
+      return (
+        <Shell>
+          <ResponsiveActions fallback label="Page options">
+            <button type="button">Download</button>
+          </ResponsiveActions>
+          {showResultsBar && (
+            <div data-testid="results-mobile-bar" hidden={hidden}>
+              Results Bar
+            </div>
+          )}
+        </Shell>
+      );
+    }
+
+    const { rerender } = render(<Harness showResultsBar={false} />);
+    const dock = screen.getByTestId('actions-dock');
+    expect(dock.className).not.toContain('invisible');
+
+    rerender(<Harness showResultsBar={true} />);
+    await waitFor(() => {
+      expect(dock.className).toContain('invisible');
+      expect(dock.className).toContain('pointer-events-none');
+    });
+
+    rerender(<Harness showResultsBar={true} hidden />);
+    await waitFor(() => {
+      expect(dock.className).not.toContain('invisible');
+    });
+  });
+
+  it('auto-yields when a visible .cm-frontmatter-preview input geometrically intersects the dock footprint', async () => {
+    let inputRect: DOMRect = new DOMRect(200, 680, 140, 36);
+    const dockRect: DOMRect = new DOMRect(300, 660, 56, 120);
+
+    const origInnerHeight = window.innerHeight;
+    const origInnerWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 812 });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 });
+
+    try {
+      render(
+        <Shell>
+          <ResponsiveActions fallback label="Page options">
+            <button type="button">Download</button>
+          </ResponsiveActions>
+          <div className="cm-frontmatter-preview">
+            <input aria-label="Value for metrics.met" defaultValue="5" />
+          </div>
+        </Shell>,
+      );
+
+      const dock = screen.getByTestId('actions-dock');
+      const input = document.querySelector<HTMLInputElement>('.cm-frontmatter-preview input')!;
+      dock.getBoundingClientRect = () => dockRect;
+      input.getBoundingClientRect = () => inputRect;
+
+      act(() => {
+        window.dispatchEvent(new Event('scroll'));
+      });
+      await waitFor(() => {
+        expect(dock.className).toContain('invisible');
+        expect(dock.className).toContain('pointer-events-none');
+      });
+
+      // Scroll input above the dock footprint (no longer intersecting)
+      inputRect = new DOMRect(200, 100, 140, 36);
+      act(() => {
+        window.dispatchEvent(new Event('scroll'));
+      });
+      await waitFor(() => {
+        expect(dock.className).not.toContain('invisible');
+        expect(dock.className).not.toContain('pointer-events-none');
+      });
+    } finally {
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: origInnerHeight });
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: origInnerWidth });
+    }
   });
 });

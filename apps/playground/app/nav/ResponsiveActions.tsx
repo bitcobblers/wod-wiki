@@ -216,13 +216,15 @@ export function NavbarActions() {
 }
 
 /**
- * The single mounted mobile action row. Stays within document flow so it
- * cannot cover or intercept editable fields; sticky bottom alignment keeps
- * it reachable without a fixed overlay. Renders nothing on desktop — page
- * headers own actions there. Stack, top to bottom: page primary, search FAB,
- * overflow sheet (slides up from the ⋮), ⋮ trigger at the corner. The ⋮
- * renders only when the sheet has real rows — measured live from the
- * always-mounted (hidden while closed) sheet — so empty pages never show it.
+ * The single mounted mobile dock. Fixed thumb-zone cluster anchored to the
+ * fabAlignment corner; lifts above MobileQueryFooter via `--thumb-dock-lift`
+ * and respects bottom safe-area insets. Renders nothing on desktop — page
+ * headers own actions there. Auto-yields (`invisible pointer-events-none`)
+ * whenever mobile editor decks, `results-mobile-bar`, or visible
+ * `.cm-frontmatter-preview` inputs occupy its corner footprint. Stack, top to
+ * bottom: overflow sheet (expands upward above the controls), search FAB,
+ * page primary, ⋮ trigger at the corner. The ⋮ renders only when registered
+ * page/fallback children exist.
  */
 
 function ResponsiveActionsDock({
@@ -236,11 +238,15 @@ function ResponsiveActionsDock({
   const [alignment] = useFabAlignment()
   const viewport = useVisualViewportRect()
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [yieldToOverlay, setYieldToOverlay] = useState(false)
   const closeSheet = useCallback(() => setSheetOpen(false), [])
   const sheetId = useId()
+  const dockRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
   const activeContentRef = useRef<HTMLDivElement>(null)
   const globalContentRef = useRef<HTMLDivElement>(null)
+  const sheetOpenRef = useRef(sheetOpen)
+  sheetOpenRef.current = sheetOpen
   // Most recent page registration wins; the most recent fallback supplies
   // the global Page options rows merged into every page's sheet.
   const active = useMemo(() => {
@@ -256,6 +262,100 @@ function ResponsiveActionsDock({
     return undefined
   }, [registrations])
 
+  const evaluateYield = useCallback(() => {
+    if (typeof document === 'undefined' || !isMobile) {
+      setYieldToOverlay((prev) => (prev ? false : prev))
+      return
+    }
+    const hasEditorOverlay = Boolean(
+      document.querySelector('[data-testid="mobile-wheel-composer"], [data-testid="mobile-typing-bar"]'),
+    )
+    if (hasEditorOverlay) {
+      setSheetOpen((open) => (open ? false : open))
+      setYieldToOverlay((prev) => (prev ? prev : true))
+      return
+    }
+    const resultsBar = document.querySelector<HTMLElement>('[data-testid="results-mobile-bar"]')
+    if (resultsBar && !resultsBar.hidden) {
+      const rcs = window.getComputedStyle(resultsBar)
+      if (rcs.display !== 'none' && rcs.visibility !== 'hidden') {
+        setSheetOpen((open) => (open ? false : open))
+        setYieldToOverlay((prev) => (prev ? prev : true))
+        return
+      }
+    }
+    if (!sheetOpenRef.current && dockRef.current) {
+      const dr = dockRef.current.getBoundingClientRect()
+      if (dr.width > 0 && dr.height > 0) {
+        const inputs = document.querySelectorAll<HTMLInputElement>('.cm-frontmatter-preview input')
+        for (const input of inputs) {
+          const ir = input.getBoundingClientRect()
+          if (ir.width <= 4 || ir.height <= 4) continue
+          if (
+            ir.bottom <= 0 ||
+            ir.top >= window.innerHeight ||
+            ir.right <= 0 ||
+            ir.left >= window.innerWidth
+          ) {
+            continue
+          }
+          const ics = window.getComputedStyle(input)
+          if (ics.display === 'none' || ics.visibility === 'hidden') continue
+          const overlaps =
+            ir.left < dr.right + 4 &&
+            dr.left - 4 < ir.right &&
+            ir.top < dr.bottom + 4 &&
+            dr.top - 4 < ir.bottom
+          if (overlaps) {
+            setYieldToOverlay((prev) => (prev ? prev : true))
+            return
+          }
+        }
+      }
+    }
+    setYieldToOverlay((prev) => (prev ? false : prev))
+  }, [isMobile])
+
+  useLayoutEffect(() => {
+    evaluateYield()
+  }, [evaluateYield, alignment, sheetOpen, active, globalActions, onSearch, viewport.height])
+
+  useEffect(() => {
+    if (!isMobile || typeof document === 'undefined' || !document.body) return
+    evaluateYield()
+    const observer = new MutationObserver((mutations) => {
+      if (dockRef.current && mutations.every((m) => dockRef.current!.contains(m.target))) {
+        return
+      }
+      evaluateYield()
+    })
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['hidden', 'style', 'class'],
+    })
+    const rootObserver = new MutationObserver(() => {
+      evaluateYield()
+    })
+    rootObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style'],
+    })
+    window.addEventListener('scroll', evaluateYield, { passive: true, capture: true })
+    window.addEventListener('resize', evaluateYield, { passive: true })
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', evaluateYield)
+    vv?.addEventListener('scroll', evaluateYield)
+    return () => {
+      observer.disconnect()
+      rootObserver.disconnect()
+      window.removeEventListener('scroll', evaluateYield, { capture: true })
+      window.removeEventListener('resize', evaluateYield)
+      vv?.removeEventListener('resize', evaluateYield)
+      vv?.removeEventListener('scroll', evaluateYield)
+    }
+  }, [isMobile, evaluateYield])
 
   // Focus the sheet when it opens so keyboard users land inside it.
   useLayoutEffect(() => {
@@ -270,31 +370,28 @@ function ResponsiveActionsDock({
   if (!isMobile) return null
   if (!onSearch && !active && !globalActions) return null
 
+  const viewportHeightCss = viewport.height === null ? '100dvh' : `${viewport.height}px`
 
   return (
     <div
+      ref={dockRef}
       data-testid="actions-dock"
+      aria-hidden={yieldToOverlay || undefined}
       className={cn(
-        'lg:hidden relative z-40 mt-4 flex flex-col items-center gap-2',
-        'transition-[transform,visibility] duration-200 ease-out',
-        alignment === 'left' ? 'self-start items-start' : 'self-end items-end',
+        'fixed z-30 lg:hidden flex flex-col gap-2 w-auto',
+        'transition-opacity duration-150 ease-out',
+        alignment === 'left' ? 'left-4 items-start' : 'right-4 items-end',
+        yieldToOverlay && 'invisible pointer-events-none',
       )}
+      style={{
+        bottom: 'calc(1rem + var(--thumb-dock-lift, 0px) + env(safe-area-inset-bottom, 0px))',
+        maxHeight: `calc(${viewportHeightCss} - 2rem - var(--thumb-dock-lift, 0px) - env(safe-area-inset-bottom, 0px))`,
+      }}
     >
-      {/* Bottom-up: Search, contextual primary, then the … menu. */}
-      <div className="relative z-40 flex flex-col items-center gap-2">
-        {onSearch && <SearchFab onOpen={() => { setSheetOpen(false); onSearch() }} />}
-        {active?.primary && (
-          <div className="[&_button]:min-h-11 [&_button]:min-w-11">{active.primary}</div>
-        )}
-      </div>
-
-      {/* Overflow sheet slides up from the ⋮: rows sit underneath the
-          buttons, directly above the trigger. Always mounted (hidden while
-          closed) so the trigger's visibility is measured live — pages with
-          no rows never get a ⋮, matching the sticky header. Page rows stack
-          first at ≥44px touch targets; the global Page options rows
-          (secondary nav, On this page, download) follow under a rule. Cast
-          lives in the navbar, never here. */}
+      {/* Overflow sheet expands upward above the primary/search/trigger stack.
+          Always mounted (hidden while closed) without exposing role="dialog"
+          until open (WW-087). Page rows stack first at ≥44px touch targets;
+          global Page options rows follow under a rule. */}
       {sheetOpen && showOverflow && (
         <button
           type="button"
@@ -320,10 +417,12 @@ function ResponsiveActionsDock({
         }}
         className={cn(
           sheetOpen && showOverflow ? 'flex' : 'hidden',
-          'relative z-40 w-60 max-w-[calc(100vw-2rem)] flex-col gap-3 overflow-y-auto rounded-2xl bg-card p-3 shadow-xl ring-1 ring-foreground/5 outline-none',
+          'relative z-40 min-h-0 w-60 max-w-[calc(100vw-2rem)] flex-col gap-3 overflow-y-auto rounded-2xl bg-card p-3 shadow-xl ring-1 ring-foreground/5 outline-none',
           '[&_button]:min-h-11 [&_button]:min-w-11',
         )}
-        style={{ maxHeight: `calc(${viewport.height === null ? '100dvh' : `${viewport.height}px`} - 6rem - env(safe-area-inset-bottom))` }}
+        style={{
+          maxHeight: `calc(${viewportHeightCss} - 8rem - var(--thumb-dock-lift, 0px) - env(safe-area-inset-bottom, 0px))`,
+        }}
       >
         <NavigationDrawerProvider close={closeSheet}>
           <div ref={activeContentRef} className="contents">
@@ -338,6 +437,21 @@ function ResponsiveActionsDock({
         </NavigationDrawerProvider>
       </div>
 
+      {/* Bottom-up: Search, contextual primary, then the ⋮ trigger at the corner. */}
+      {(onSearch || active?.primary) && (
+        <div
+          className={cn(
+            'relative z-40 flex shrink-0 flex-col gap-2',
+            alignment === 'left' ? 'items-start' : 'items-end',
+          )}
+        >
+          {onSearch && <SearchFab onOpen={() => { setSheetOpen(false); onSearch() }} />}
+          {active?.primary && (
+            <div className="[&_button]:min-h-11 [&_button]:min-w-11">{active.primary}</div>
+          )}
+        </div>
+      )}
+
       {showOverflow && (
         <button
           type="button"
@@ -348,7 +462,7 @@ function ResponsiveActionsDock({
           aria-controls={sheetId}
           data-testid="actions-overflow"
           className={cn(
-            'relative z-40 flex size-12 items-center justify-center rounded-full',
+            'relative z-40 flex size-12 shrink-0 items-center justify-center rounded-full',
             'bg-card text-foreground shadow-lg ring-1 ring-foreground/10',
             'hover:bg-muted active:scale-95 transition-all',
             'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',

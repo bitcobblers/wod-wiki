@@ -11,6 +11,7 @@ import * as correctionModule from '@/services/analytics/captureMetricCorrection'
 import * as seedContentModule from '@/services/content/seedContent';
 import * as useDashboardsModule from '../hooks/useDashboards';
 import { MainLandmark } from '@/templates/SidebarLayout';
+import { MobileQuerySlotProvider, MobileQuerySlotTarget } from '@/panels/page-shells';
 import { SessionResultsPage } from './SessionResultsPage';
 
 if (typeof globalThis.requestAnimationFrame !== 'function') {
@@ -136,16 +137,33 @@ const PRIOR_RUN: RowsRun = {
   },
 };
 
-function renderAt(path: string) {
-  return render(
+function renderAt(path: string, withMobileSlot = false) {
+  const tree = (
     <MemoryRouter initialEntries={[path]}>
       <MainLandmark>
         <Routes>
           <Route path="/results/:sessionId" element={<SessionResultsPage />} />
         </Routes>
       </MainLandmark>
-    </MemoryRouter>,
+      {withMobileSlot && <MobileQuerySlotTarget />}
+    </MemoryRouter>
   );
+  return render(withMobileSlot ? <MobileQuerySlotProvider>{tree}</MobileQuerySlotProvider> : tree);
+}
+
+const originalMatchMedia = window.matchMedia;
+
+function setMobileViewport(matches: boolean) {
+  window.matchMedia = ((query: string) => ({
+    matches,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as typeof window.matchMedia;
 }
 
 describe('SessionResultsPage', () => {
@@ -199,6 +217,7 @@ describe('SessionResultsPage', () => {
   afterEach(() => {
     cleanup();
     mock.restore();
+    window.matchMedia = originalMatchMedia;
     act(() => resetFeedReadinessForTest());
   });
 
@@ -254,5 +273,31 @@ describe('SessionResultsPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('main').getAttribute('data-agent-status')).toBe('ready');
     });
+  });
+
+  it('renders RESULTS_MOBILE_BAR below lg (lg:hidden) lifted by --thumb-dock-lift above MobileQueryFooter', async () => {
+    setMobileViewport(true);
+    renderAt('/results/res-fran-1', true);
+
+    const mobileBar = await screen.findByTestId(TEST_IDS.RESULTS_MOBILE_BAR);
+    expect(mobileBar.className).toContain('lg:hidden');
+    expect(mobileBar.className).not.toContain('sm:hidden');
+    expect(mobileBar.className).toContain('sticky');
+    expect(mobileBar.className).toContain('z-[25]');
+    expect(mobileBar.getAttribute('style')).toContain('bottom: var(--thumb-dock-lift, 0px)');
+
+    // Scroll wrapper clears both RESULTS_MOBILE_BAR and MobileQueryFooter below lg
+    const scrollWrapper = mobileBar.previousElementSibling as HTMLElement;
+    expect(scrollWrapper.className).toContain('pb-32');
+    expect(scrollWrapper.className).toContain('lg:pb-8');
+    expect(scrollWrapper.className).not.toContain('sm:pb-8');
+
+    expect(within(mobileBar).getByText('RPE 8/10')).toBeDefined();
+    expect(within(mobileBar).getByRole('button', { name: /Source/i })).toBeDefined();
+    expect(within(mobileBar).getByTestId(TEST_IDS.RESULTS_ADD_DASHBOARD_BTN)).toBeDefined();
+
+    // Compact StreamQueryBar is portaled cleanly into the mobile slot alongside the bar
+    const mobileSlot = screen.getByTestId('mobile-query-slot');
+    expect(mobileSlot.children.length).toBeGreaterThan(0);
   });
 });

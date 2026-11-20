@@ -8,7 +8,7 @@
  */
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Loader2, Copy, Share2, Pencil, Trash2 } from 'lucide-react'
+import { ArrowUpRight, FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Loader2, Copy, Share2, Pencil, Trash2 } from 'lucide-react'
 import {
   Menu,
   MenuContent,
@@ -352,7 +352,7 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
   return (
     <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity max-sm:basis-full max-sm:justify-end max-sm:pt-1" onClick={e => e.stopPropagation()}>
       <ActionButton title={notebookHref ? "Details" : "Open"} testId="action-open" onClick={() => navigate(entryOpenHref(entry))}>
-        <PlayIcon className="size-3.5" />
+        <ArrowUpRight className="size-3.5" aria-hidden="true" />
       </ActionButton>
       {(entry.kind === 'feed' || entry.kind === 'notebook') && entry.feedId !== 'local' && entry.feedId !== 'core' && onToggleSubscribe && (
         <button
@@ -543,6 +543,7 @@ function ActionButton({ title, testId, onClick, children }: ActionButtonProps) {
     <button
       type="button"
       title={title}
+      aria-label={title}
       onClick={onClick}
       data-testid={testId}
       className="size-8 max-sm:min-h-11 max-sm:min-w-11 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"

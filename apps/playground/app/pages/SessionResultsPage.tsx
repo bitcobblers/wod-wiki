@@ -540,7 +540,7 @@ function SessionResultsPageInner({ sessionId }: { sessionId: string }) {
           mobileSlot,
         )}
 
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 px-4 py-5 pb-24 sm:px-6 lg:px-8 sm:pb-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 px-4 py-5 pb-32 sm:px-6 lg:px-8 lg:pb-8">
         {queryError && (
           <div
             role="alert"
@@ -633,7 +633,8 @@ function SessionResultsPageInner({ sessionId }: { sessionId: string }) {
       {isMobile && baseRun && (
         <div
           data-testid={TEST_IDS.RESULTS_MOBILE_BAR}
-          className="sticky bottom-0 z-20 flex items-center justify-between gap-2 border-t border-border bg-background/95 px-4 py-2.5 backdrop-blur-sm sm:hidden"
+          style={{ bottom: 'var(--thumb-dock-lift, 0px)' }}
+          className="sticky z-[25] flex items-center justify-between gap-2 border-t border-border bg-background/95 px-4 py-2.5 backdrop-blur-sm lg:hidden"
         >
           <RpePopoverControl
             rpe={summary?.rpe ?? null}
