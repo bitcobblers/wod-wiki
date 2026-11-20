@@ -69,8 +69,14 @@ export const SelectionFormatBar: React.FC<SelectionFormatBarProps> = ({
 
     const centerLeft = (startCoords.left + endCoords.right) / 2 - editorRect.left;
     const clampedLeft = Math.max(96, Math.min(editorRect.width - 96, centerLeft));
+    const startLine = view.state.doc.lineAt(sel.from);
+    const lineAboveIsHeading =
+      startLine.number > 1 && /^#{1,6}\s/.test(view.state.doc.line(startLine.number - 1).text);
     const rawTop = startCoords.top - editorRect.top - 38;
-    const top = rawTop < 4 ? endCoords.bottom - editorRect.top + 6 : rawTop;
+    const top =
+      rawTop < 48 || lineAboveIsHeading
+        ? endCoords.bottom - editorRect.top + 6
+        : rawTop;
 
     setPos({ top, left: clampedLeft });
   }, [view, cursorVersion, disabled]);
@@ -134,7 +140,7 @@ export const SelectionFormatBar: React.FC<SelectionFormatBarProps> = ({
     },
     {
       id: "link",
-      label: "Insert link (Ctrl+K)",
+      label: "Insert link (Ctrl+Shift+K)",
       Icon: LinkSimpleIcon,
       run: () => {
         insertMarkdownLinkCommand(view);

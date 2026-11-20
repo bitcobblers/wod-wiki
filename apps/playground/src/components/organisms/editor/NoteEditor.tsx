@@ -87,6 +87,7 @@ import { createAttachmentUrlExtension, createFileDropHandler, createFrontmatterS
 
 import { entryOpenHref } from '../../../../app/lib/entryActions';
 import { toEntry, blockToEntry } from '../../../../app/lib/entryMapper';
+import * as NavContextModule from '../../../../app/nav/NavContext';
 import { OverlayTrack } from "@/components/organisms/editor/OverlayTrack";
 import { useOverlayWidthState } from "@/components/Editor/overlays/useOverlayWidthState";
 import type { OverlaySlotProps } from "@/components/organisms/editor/OverlayTrack";
@@ -227,7 +228,7 @@ export interface NoteEditorProps {
   activeSectionId?: string | null;
   /** Placeholder text shown when the document is empty */
   placeholder?: string;
-  /** Initial open state for Option B docked inspector drawer (Ctrl+Shift+I). */
+  /** Initial open state for Option B docked inspector drawer (Ctrl+Alt+I / Cmd+Alt+I). */
   defaultInspectorDrawerOpen?: boolean;
   /** Drawer layout mode: viewport-fixed docked right or inline beside the editor. */
   inspectorDrawerLayout?: "docked-right" | "inline";
@@ -236,6 +237,23 @@ export interface EditorIdentitySnapshot {
   rawContent: string;
   blocks: Record<string, NoteBlock>;
   sourceRevision: number;
+}
+
+type InspectorNavDispatch = (action: { type: "SET_INSPECTOR_DRAWER"; open: boolean }) => void;
+
+interface OptionalNavHandle {
+  navState?: { rightDrawerOpen?: boolean; inspectorDrawerOpen?: boolean };
+  dispatch?: InspectorNavDispatch;
+}
+
+function useOptionalNavCompat(): OptionalNavHandle | null {
+  const externalUseOptionalNav = (
+    NavContextModule as { useOptionalNav?: () => OptionalNavHandle | null }
+  ).useOptionalNav;
+  const fallbackCtx = React.useContext(
+    NavContextModule.NavContext as unknown as React.Context<OptionalNavHandle | null>,
+  );
+  return externalUseOptionalNav ? externalUseOptionalNav() : (fallbackCtx ?? null);
 }
 
 
@@ -483,24 +501,67 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       if (event.defaultPrevented) return;
       const wrapper = editorWrapperRef.current;
       const activeEl = document.activeElement;
-      if (wrapper && activeEl && activeEl !== document.body && !wrapper.contains(activeEl)) {
+      if (!wrapper || !activeEl || !wrapper.contains(activeEl)) {
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "i") {
+      const isModAltI =
+        (event.ctrlKey || event.metaKey) &&
+        event.altKey &&
+        !event.shiftKey &&
+        (event.key.toLowerCase() === "i" || event.code === "KeyI");
+      const isAltDot =
+        event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        (event.key === "." || event.code === "Period");
+
+      if (isModAltI) {
         event.preventDefault();
+        event.stopPropagation();
         setDrawerOpen((prev) => {
           const next = !prev;
           if (next) setPopoverOpen(false);
           return next;
         });
-      } else if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key === ".") {
+      } else if (isAltDot) {
         event.preventDefault();
+        event.stopPropagation();
         openUnifiedInspectorRef.current();
       }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [readonly, isMobileViewport]);
+
+  const nav = useOptionalNavCompat();
+  const navDispatch = nav?.dispatch;
+  const rightDrawerOpen = Boolean(nav?.navState?.rightDrawerOpen);
+  const effectiveDrawerOpen = !readonly && !isMobileViewport && drawerOpen;
+  const prevSyncedInspectorRef = useRef(false);
+
+  useEffect(() => {
+    if (!navDispatch) return;
+    if (effectiveDrawerOpen !== prevSyncedInspectorRef.current) {
+      prevSyncedInspectorRef.current = effectiveDrawerOpen;
+      navDispatch({ type: "SET_INSPECTOR_DRAWER", open: effectiveDrawerOpen });
+    }
+  }, [navDispatch, effectiveDrawerOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (prevSyncedInspectorRef.current) {
+        prevSyncedInspectorRef.current = false;
+        navDispatch?.({ type: "SET_INSPECTOR_DRAWER", open: false });
+      }
+    };
+  }, [navDispatch]);
+
+  useEffect(() => {
+    if (rightDrawerOpen) {
+      setDrawerOpen(false);
+    }
+  }, [rightDrawerOpen]);
 
   // Re-measure CodeMirror geometry and inline panel bounds when the drawer opens or closes
   useEffect(() => {
@@ -519,6 +580,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       if (!e.matches) {
         setIsWheelOpen(false);
         setIsMobileTypingMode(false);
+      } else {
+        setPopoverOpen(false);
+        setDrawerOpen(false);
       }
     };
     setIsMobileViewport(mql.matches);
@@ -861,7 +925,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           },
         },
         {
-          key: "Ctrl-.",
+          key: "Alt-.",
           run: () => {
             if (readonlyRef.current) return false;
             openUnifiedInspectorRef.current();
@@ -869,7 +933,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           },
         },
         {
-          key: "Mod-Shift-i",
+          key: "Mod-Alt-i",
           run: () => {
             if (readonlyRef.current) return false;
             setDrawerOpen((prev) => {
@@ -1018,21 +1082,29 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       // File drop handler
       createFileDropHandler(noteId, notePersistence),
 
-      // Focus / blur handlers — sync mobile wheel deck and host blur callback
+      // Focus / blur handlers — sync mobile wheel deck, close stale completions, and host blur callback
       EditorView.domEventHandlers({
-        focus: () => {
+        focus: (_event, view) => {
           if (
             typeof window !== "undefined" &&
             typeof window.matchMedia === "function" &&
             window.matchMedia("(max-width: 1023px)").matches &&
             !readonly
           ) {
+            const sec = activeCursorSection(view.state);
+            const isStructured =
+              sec?.type === "time" || sec?.type === "log" || sec?.type === "query";
+            view.contentDOM.setAttribute("inputmode", isStructured ? "none" : "text");
             setIsWheelOpen(true);
+            setIsMobileTypingMode(!isStructured);
           }
           return false;
         },
-        blur: (event) => {
+        blur: (event, view) => {
           const related = event.relatedTarget as HTMLElement | null;
+          if (!related || !related.closest(".cm-tooltip")) {
+            closeCompletion(view);
+          }
           if (!related || !editorRef.current?.contains(related)) {
             setIsWheelOpen(false);
             setIsMobileTypingMode(false);
@@ -1107,6 +1179,23 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           setCursorLine(line.number);
           const { sections: secs } = update.state.field(sectionField);
           setSections(secs);
+
+          if (
+            update.selectionSet &&
+            isMobileViewportRef.current &&
+            !readonlyRef.current &&
+            update.transactions.some((t) => t.isUserEvent("select.pointer"))
+          ) {
+            const prevSec = activeCursorSection(update.startState);
+            const prevStructured =
+              prevSec?.type === "time" || prevSec?.type === "log" || prevSec?.type === "query";
+            const nextStructured =
+              cursorSec?.type === "time" || cursorSec?.type === "log" || cursorSec?.type === "query";
+            if (prevStructured !== nextStructured) {
+              update.view.contentDOM.setAttribute("inputmode", nextStructured ? "none" : "text");
+              setIsMobileTypingMode(!nextStructured);
+            }
+          }
         }
       }),
 

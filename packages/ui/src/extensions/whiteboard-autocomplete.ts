@@ -344,7 +344,7 @@ export const wodEditorKeymap = keymap.of([
     run: (view) => toggleInlineMarkdown(view, "`"),
   },
   {
-    key: "Mod-k",
+    key: "Mod-Shift-k",
     run: insertMarkdownLinkCommand,
   },
 ]);

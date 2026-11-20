@@ -3,6 +3,7 @@ import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { AlertTriangle, Clock, Keyboard, PanelRightClose, Settings2 } from 'lucide-react';
 import type { NotebookScopeSnapshot } from '@/components/organisms/editor/wheelSources';
+import { useStickyBoundaryOffset } from '@/panels/page-shells';
 import { TEST_IDS } from '@/lib/testIds';
 import { cn } from '@/lib/utils';
 import { TokenInspectorPanel } from './TokenInspectorPanel';
@@ -46,6 +47,7 @@ export const WhiteboardInspectorDrawer: React.FC<WhiteboardInspectorDrawerProps>
   onStepToken,
 }) => {
   const [useScrubber, setUseScrubber] = useState(true);
+  const stickyTop = useStickyBoundaryOffset(65);
 
   const sectionType = inspection.section?.type;
   const isWorkoutSection = sectionType === 'time' || sectionType === 'log';
@@ -73,10 +75,11 @@ export const WhiteboardInspectorDrawer: React.FC<WhiteboardInspectorDrawerProps>
       role="complementary"
       aria-label="Focused Token Inspector Drawer"
       data-testid={TEST_IDS.EDITOR_INSPECTOR_DRAWER}
+      style={layout === 'docked-right' ? { top: stickyTop } : undefined}
       className={cn(
         'flex flex-col overflow-hidden border-l border-border bg-card text-card-foreground',
         layout === 'docked-right'
-          ? 'fixed top-12 right-0 bottom-0 z-30 w-[340px] max-w-[92vw] shadow-xl'
+          ? 'fixed right-0 bottom-0 z-30 w-[340px] max-w-[92vw] shadow-xl'
           : 'w-[340px] max-w-full shrink-0',
       )}
     >
@@ -96,7 +99,7 @@ export const WhiteboardInspectorDrawer: React.FC<WhiteboardInspectorDrawerProps>
             {lastEditDiff && (
               <span
                 data-testid={TEST_IDS.EDITOR_INSPECTOR_DIFF_BADGE}
-                className="inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-primary"
+                className="inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-medium text-primary"
                 title={`Last change: ${lastEditDiff.from} -> ${lastEditDiff.to}`}
               >
                 {lastEditDiff.from} → {lastEditDiff.to}
@@ -108,7 +111,7 @@ export const WhiteboardInspectorDrawer: React.FC<WhiteboardInspectorDrawerProps>
           type="button"
           onClick={onClose}
           aria-label="Close inspector drawer"
-          title="Close Inspector Drawer (Ctrl+Shift+I)"
+          title="Close Inspector Drawer (Ctrl+Alt+I / Cmd+Alt+I)"
           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
         >
           <PanelRightClose className="h-4 w-4" />
@@ -172,7 +175,7 @@ export const WhiteboardInspectorDrawer: React.FC<WhiteboardInspectorDrawerProps>
                     )}
                   >
                     <div className="flex min-w-0 items-center gap-1.5">
-                      <span className="w-5 shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+                      <span className="w-5 shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
                         {row.lineNum}
                       </span>
                       <span
@@ -192,7 +195,7 @@ export const WhiteboardInspectorDrawer: React.FC<WhiteboardInspectorDrawerProps>
                         />
                       )}
                       {row.durationLabel && (
-                        <span className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-foreground tabular-nums">
+                        <span className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[11px] text-foreground tabular-nums">
                           {row.durationLabel}
                         </span>
                       )}
@@ -210,8 +213,8 @@ export const WhiteboardInspectorDrawer: React.FC<WhiteboardInspectorDrawerProps>
         <span className="inline-flex items-center gap-1 font-medium text-foreground">
           <Keyboard className="h-3 w-3" />
         </span>
-        <span>Ctrl+. Popover</span>
-        <span>Ctrl+Shift+I Drawer</span>
+        <span>Alt+. Popover</span>
+        <span>Ctrl+Alt+I / Cmd+Alt+I Drawer</span>
         <span>Ctrl+←/→ Step</span>
         <span>Alt+↑/↓ Value</span>
       </div>

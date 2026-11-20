@@ -109,7 +109,7 @@ afterEach(async () => {
 });
 
 describe('Unified Whiteboard Syntax Inspector & Prose Completions', () => {
-  it('opens Option A popover from chip click & Ctrl+., mutates tokens, and closes on Escape', async () => {
+  it('opens Option A popover from chip click & Alt+. (leaving Ctrl+. for L3), mutates tokens, and closes on Escape', async () => {
     const doc = '# Session\n\n```time\n10:00 15 Kettlebell Swing @24kg\n```';
     const { view, restoreCoords } = mountEditor(doc);
 
@@ -149,9 +149,24 @@ describe('Unified Whiteboard Syntax Inspector & Prose Completions', () => {
         expect(screen.queryByTestId(TEST_IDS.EDITOR_INSPECTOR_POPOVER)).toBeNull();
       });
 
-      // Ctrl+. reopens unified popover at cursor
+      // Ctrl+. does NOT open Option A popover (owned by SidebarLayout L3)
       act(() => {
         fireEvent.keyDown(document, { key: '.', ctrlKey: true });
+      });
+      expect(screen.queryByTestId(TEST_IDS.EDITOR_INSPECTOR_POPOVER)).toBeNull();
+
+      // Alt+. does NOT fire when focus is outside NoteEditor on document.body
+      act(() => {
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        document.body.focus();
+        fireEvent.keyDown(document, { key: '.', altKey: true });
+      });
+      expect(screen.queryByTestId(TEST_IDS.EDITOR_INSPECTOR_POPOVER)).toBeNull();
+
+      // Alt+. reopens unified popover when focused inside NoteEditor
+      act(() => {
+        view.focus();
+        fireEvent.keyDown(document, { key: '.', altKey: true });
       });
       await waitFor(() => {
         expect(screen.getByTestId(TEST_IDS.EDITOR_INSPECTOR_POPOVER)).toBeDefined();
@@ -161,7 +176,7 @@ describe('Unified Whiteboard Syntax Inspector & Prose Completions', () => {
     }
   });
 
-  it('toggles Option B inspector drawer, shows live diff badge, and lists block timeline rows', async () => {
+  it('toggles Option B inspector drawer via Mod+Alt+I, shows live diff badge, and lists block timeline rows', async () => {
     const doc = '```time\n10:00 15 Kettlebell Swing @24kg\n  *1:00 Rest\n```';
     const { view, restoreCoords } = mountEditor(doc);
 
@@ -196,9 +211,15 @@ describe('Unified Whiteboard Syntax Inspector & Prose Completions', () => {
         });
       }
 
-      // Ctrl+Shift+I closes drawer
+      // Ctrl+Shift+I does NOT close drawer (rebound to Mod+Alt+I to avoid DevTools clash)
       act(() => {
         fireEvent.keyDown(document, { key: 'I', ctrlKey: true, shiftKey: true });
+      });
+      expect(screen.getByTestId(TEST_IDS.EDITOR_INSPECTOR_DRAWER)).toBeDefined();
+
+      // Mod+Alt+I closes drawer
+      act(() => {
+        fireEvent.keyDown(document, { key: 'i', ctrlKey: true, altKey: true });
       });
       await waitFor(() => {
         expect(screen.queryByTestId(TEST_IDS.EDITOR_INSPECTOR_DRAWER)).toBeNull();
@@ -248,11 +269,12 @@ describe('Unified Whiteboard Syntax Inspector & Prose Completions', () => {
         expect(view.state.doc.toString()).toContain('(21-15-9)');
       });
 
-      // Open Effort token inspector and test fuzzy alias query `kbs`
+      // Open Effort token inspector via Mod+Alt+I and test fuzzy alias query `kbs`
       const swingPos = view.state.doc.toString().indexOf('Kettlebell Swing') + 2;
       act(() => {
         view.dispatch({ selection: { anchor: swingPos } });
-        fireEvent.keyDown(document, { key: 'I', ctrlKey: true, shiftKey: true });
+        view.focus();
+        fireEvent.keyDown(document, { key: 'i', ctrlKey: true, altKey: true });
       });
 
       const searchInput = await screen.findByLabelText('Search effort catalog');
@@ -266,6 +288,93 @@ describe('Unified Whiteboard Syntax Inspector & Prose Completions', () => {
       });
     } finally {
       restoreCoords();
+    }
+  });
+
+  it('renders WqlComposer in mode="query" and updates only the YAML query line', async () => {
+    const doc = '# Analytics\n\n```query\nview: summary\nquery: sum:totalVolume{}\n```';
+    const { view, restoreCoords } = mountEditor(doc);
+
+    try {
+      const qPos = doc.indexOf('sum:totalVolume{}') + 2;
+      act(() => {
+        view.dispatch({ selection: { anchor: qPos } });
+        view.focus();
+        fireEvent.keyDown(document, { key: '.', altKey: true });
+      });
+
+      const popover = await screen.findByTestId(TEST_IDS.EDITOR_INSPECTOR_POPOVER);
+      expect(popover).toBeDefined();
+      expect(await screen.findByTestId('wql-composer')).toBeDefined();
+
+      // Expand quick-seed presets and seed "Find Sessions" -> preserves `view: summary`
+      const presetsBtn = screen.getByRole('button', { name: /Quick-seed presets/i });
+      act(() => {
+        fireEvent.click(presetsBtn);
+      });
+      const findSessionsBtn = await screen.findByRole('button', { name: /Find Sessions/i });
+      act(() => {
+        fireEvent.click(findSessionsBtn);
+      });
+
+      await waitFor(() => {
+        const updated = view.state.doc.toString();
+        expect(updated).toContain('view: summary');
+        expect(updated).toContain('query: find session{} last 4w');
+      });
+    } finally {
+      restoreCoords();
+    }
+  });
+
+  it('closes active autocomplete when NoteEditor blurs and positions SelectionFormatBar below headings', async () => {
+    const doc = '# Heading\nSubheading text';
+    const { view, restoreCoords } = mountEditor(doc);
+    restoreCoords();
+
+    const spyFocus = spyOn(document, 'hasFocus').mockReturnValue(true);
+    const spyCoords = spyOn(view, 'coordsAtPos').mockReturnValue({
+      left: 40,
+      right: 120,
+      top: 100,
+      bottom: 120,
+    });
+    const spyRect = spyOn(view.dom, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      left: 0,
+      right: 500,
+      bottom: 300,
+      width: 500,
+      height: 300,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    try {
+      const subStart = doc.indexOf('Subheading');
+      act(() => {
+        view.focus();
+        view.dispatch({ selection: { anchor: subStart, head: subStart + 10 } });
+      });
+
+      const bar = await screen.findByTestId('selection-format-bar');
+      // Even though rawTop (100 - 38 = 62) >= 48, line above is H1 (`# Heading`) -> flips below (`120 + 6 = 126px`)
+      expect(bar.style.top).toBe('126px');
+      expect(screen.getByRole('button', { name: 'Insert link (Ctrl+Shift+K)' })).toBeDefined();
+
+      // Trigger completion and blur NoteEditor -> completion closes
+      act(() => {
+        startCompletion(view);
+      });
+      act(() => {
+        fireEvent.blur(view.contentDOM);
+      });
+      expect(currentCompletions(view.state)).toHaveLength(0);
+    } finally {
+      spyFocus.mockRestore();
+      spyCoords.mockRestore();
+      spyRect.mockRestore();
     }
   });
 

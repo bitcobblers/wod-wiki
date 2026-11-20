@@ -279,4 +279,50 @@ describe('MobileWheelComposer in NoteEditor', () => {
     });
     expect(view.state.doc.toString()).toContain('*');
   });
+
+  it('opens prose directly in typing mode (inputmode="text" + mobile-typing-bar) and workout blocks in deck mode with safe-area padding', async () => {
+    const doc = '# Morning Notes\n\nFeeling strong today.\n\n```time\n10:00 15 Kettlebell Swing\n```';
+    let view: EditorView | undefined;
+    render(
+      <NoteEditor
+        value={doc}
+        onChange={() => {}}
+        onViewCreated={(v) => {
+          view = v;
+        }}
+      />,
+    );
+    if (!view) throw new Error('Editor did not mount');
+
+    // Focusing inside Markdown prose enters typing mode directly without an extra Type tap
+    const prosePos = doc.indexOf('Feeling strong') + 2;
+    act(() => {
+      view!.dispatch({ selection: { anchor: prosePos } });
+      view!.contentDOM.focus();
+      fireEvent.focus(view!.contentDOM);
+    });
+
+    const typingBar = await screen.findByTestId('mobile-typing-bar');
+    expect(typingBar.className).toContain('pb-[env(safe-area-inset-bottom,0px)]');
+    expect(screen.queryByTestId('mobile-wheel-composer')).toBeNull();
+    await waitFor(() => {
+      expect(view!.contentDOM.getAttribute('inputmode')).toBe('text');
+    });
+
+    // Blur, move selection inside ```time workout fence, and focus -> enters 3-region wheel deck
+    const workoutPos = doc.indexOf('10:00') + 1;
+    act(() => {
+      fireEvent.blur(view!.contentDOM);
+      view!.dispatch({ selection: { anchor: workoutPos } });
+      view!.contentDOM.focus();
+      fireEvent.focus(view!.contentDOM);
+    });
+
+    const deck = await screen.findByTestId('mobile-wheel-composer');
+    expect(deck.className).toContain('pb-[env(safe-area-inset-bottom,0px)]');
+    expect(screen.queryByTestId('mobile-typing-bar')).toBeNull();
+    await waitFor(() => {
+      expect(view!.contentDOM.getAttribute('inputmode')).toBe('none');
+    });
+  });
 });

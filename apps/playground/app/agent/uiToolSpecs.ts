@@ -304,7 +304,7 @@ export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
       name: 'ui_editor_inspector',
       title: 'Inspect or Control Whiteboard Token Inspector & Drawer',
       description:
-        'Read parsed cursor-line tokens and inline lint fixes, open or close the Option A anchored token inspector popover, or toggle the Option B right inspector drawer (`Ctrl+Shift+I`).',
+        'Read parsed cursor-line tokens and inline lint fixes, open or close the Option A anchored token inspector popover (`Alt+.`), or toggle the Option B right inspector drawer (`Ctrl+Alt+I` / `Cmd+Alt+I`).',
       tier: 1,
       surfaces: ['webmcp'],
       mountScope: 'mounted Note editor (NoteEditor)',

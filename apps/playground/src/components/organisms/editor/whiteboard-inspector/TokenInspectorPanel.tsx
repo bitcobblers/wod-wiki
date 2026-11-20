@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { EditorView } from '@codemirror/view';
 import {
   AlertTriangle,
@@ -23,8 +23,16 @@ import {
 } from '@/app/editor/noteEditorServices';
 import { catalogueReload } from '@/app/editor/catalogueReload';
 import type { NotebookScopeSnapshot } from '@/components/organisms/editor/wheelSources';
+import { queryService } from '@/hooks/useCastSignaling';
 import { TEST_IDS } from '@/lib/testIds';
 import { cn } from '@/lib/utils';
+import {
+  extractBlockQueries,
+  patchBlockQuery,
+  WqlComposer,
+  type WqlExecutor,
+} from '@bitcobblers/wod-wiki-ui';
+import { isFindQuery } from '@bitcobblers/wod-wiki-wql';
 import { TokenScrubber, type ScrubberOption } from './TokenScrubber';
 import {
   ACTION_CUES,
@@ -83,6 +91,18 @@ export interface TokenInspectorPanelProps {
 const CHOICE_BASE =
   'inline-flex items-center justify-center rounded-full border text-xs font-medium transition-colors cursor-pointer whitespace-nowrap tabular-nums';
 
+const QUERY_SEED_PRESETS = [
+  { label: 'Total Reps', val: 'sum:reps{} last 4w every week | :bar{}' },
+  { label: 'Total Volume', val: 'sum:totalVolume{} every week | :timeseries{}' },
+  { label: 'Find Sessions', val: 'find session{} last 4w' },
+  { label: 'Find Notes', val: 'find note{tags:benchmark} last 8w' },
+] as const;
+
+const YAML_CONFIG_KEY_RE = /^\s*(?:view|limit|title|chart|span|unit|range|groupBy|columns|sort)\s*:/m;
+
+const executeWqlQuery: WqlExecutor = (ast) =>
+  isFindQuery(ast) ? queryService.runFind(ast) : queryService.runQuery(ast.raw);
+
 export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
   view,
   mode,
@@ -108,11 +128,50 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
   const [wikiResults, setWikiResults] = useState<Array<{ noteId: string; title: string; summary: string }>>([]);
   const [pendingAction, setPendingAction] = useState(false);
 
+  const querySection = inspection.section?.type === 'query' ? inspection.section : null;
+  const hasQuerySectionRange = Boolean(
+    view &&
+      querySection &&
+      querySection.contentFrom !== undefined &&
+      querySection.contentTo !== undefined,
+  );
+  const rawQueryBody =
+    hasQuerySectionRange && view && querySection
+      ? view.state.doc.sliceString(querySection.contentFrom!, querySection.contentTo!)
+      : inspection.lineText;
+
+  const queryExtraction = useMemo(() => {
+    const extracted = extractBlockQueries(rawQueryBody);
+    const hasYamlQueryKey = /^\s*query\s*:/m.test(rawQueryBody);
+    const hasOtherYamlConfig = YAML_CONFIG_KEY_RE.test(rawQueryBody);
+    let currentQuery: string;
+    if (hasYamlQueryKey || (extracted.length > 0 && !hasOtherYamlConfig)) {
+      currentQuery = extracted[0]?.query ?? '';
+    } else if (hasOtherYamlConfig) {
+      currentQuery = '';
+    } else {
+      currentQuery = rawQueryBody.trim();
+    }
+    return { extracted, hasYamlQueryKey, hasOtherYamlConfig, currentQuery };
+  }, [rawQueryBody]);
+
+  const [showQueryPresets, setShowQueryPresets] = useState<boolean>(
+    () => !queryExtraction.currentQuery.trim(),
+  );
+  const currentQueryRef = useRef(queryExtraction.currentQuery);
+  currentQueryRef.current = queryExtraction.currentQuery;
+
   // Reset transient search when switching target token or mode
   useEffect(() => {
     setSearchQuery('');
     setShowAliasPicker(false);
   }, [token?.id, mode]);
+
+  useEffect(() => {
+    if (mode === 'query') {
+      setShowQueryPresets(!currentQueryRef.current.trim());
+    }
+  }, [mode, querySection?.id]);
 
   useEffect(() => {
     if (mode !== 'wiki') return;
@@ -567,37 +626,95 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
     }
 
     if (mode === 'query') {
-      const stages = [
-        { label: 'Total Reps (last 4w)', val: 'sum:reps{} last 4w every week | :bar{}' },
-        { label: 'Total Volume', val: 'sum:totalVolume{} every week | :timeseries{}' },
-        { label: 'Find Sessions', val: 'find session{} last 4w' },
-        { label: 'Find Notes', val: 'find note{tags:benchmark} last 8w' },
-      ];
+      const handleWriteQuery = (nextWql: string, toastMsg?: string) => {
+        if (!view || nextWql === queryExtraction.currentQuery) return;
+        if (hasQuerySectionRange && querySection) {
+          let nextBody: string;
+          if (
+            queryExtraction.extracted.length > 0 &&
+            (queryExtraction.hasYamlQueryKey || !queryExtraction.hasOtherYamlConfig)
+          ) {
+            nextBody = patchBlockQuery(rawQueryBody, nextWql, 0);
+          } else if (queryExtraction.hasOtherYamlConfig) {
+            const base = rawQueryBody.trimEnd();
+            nextBody = base ? `${base}\nquery: ${nextWql}\n` : `query: ${nextWql}\n`;
+          } else {
+            const base = rawQueryBody.trimEnd();
+            nextBody = base
+              ? `${base}\n${nextWql}\n`
+              : nextWql
+                ? `${nextWql}\n`
+                : '';
+          }
+          view.dispatch({
+            changes: {
+              from: querySection.contentFrom!,
+              to: querySection.contentTo!,
+              insert: nextBody,
+            },
+            userEvent: 'input.wheel',
+          });
+        } else {
+          const line = view.state.doc.line(inspection.lineNum);
+          view.dispatch({
+            changes: { from: line.from, to: line.to, insert: nextWql },
+            userEvent: 'input.wheel',
+          });
+        }
+        onMutate?.(
+          toastMsg
+            ? { from: queryExtraction.currentQuery || 'empty', to: nextWql }
+            : null,
+          toastMsg ?? 'Updated query',
+        );
+      };
+
       return (
-        <div className="flex flex-col gap-1.5">
-          {stages.map((st) => (
+        <div className="flex flex-col gap-2.5 min-w-0">
+          <WqlComposer
+            surface="sheet"
+            defaultExpanded
+            query={queryExtraction.currentQuery}
+            onQueryChange={(nextWql) => handleWriteQuery(nextWql)}
+            execute={executeWqlQuery}
+            showDiagnostics
+            compact={compact}
+          />
+
+          <div className="flex flex-col gap-1.5 min-w-0 border-t border-border/60 pt-2">
             <button
-              key={st.label}
               type="button"
-              onClick={() => {
-                if (!view) return;
-                const line = view.state.doc.line(inspection.lineNum);
-                view.dispatch({
-                  changes: { from: line.from, to: line.to, insert: st.val },
-                  selection: { anchor: line.from + st.val.length },
-                  userEvent: 'input.wheel',
-                });
-                onMutate?.(null, `Applied ${st.label}`);
-              }}
+              onClick={() => setShowQueryPresets((prev) => !prev)}
+              aria-expanded={showQueryPresets}
               className={cn(
-                'w-full rounded-md border border-border bg-popover hover:bg-muted text-left flex flex-col gap-0.5 cursor-pointer',
-                rowHeight,
+                'inline-flex items-center justify-between gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer',
+                compact ? 'min-h-[44px]' : 'min-h-[28px]',
               )}
             >
-              <span className="text-xs font-semibold text-foreground">{st.label}</span>
-              <span className="text-[11px] font-mono text-muted-foreground truncate">{st.val}</span>
+              <span>Quick-seed presets</span>
+              <span className="text-[11px] font-mono">
+                {showQueryPresets ? 'Hide' : 'Show'}
+              </span>
             </button>
-          ))}
+            {showQueryPresets && (
+              <div className="grid grid-cols-2 gap-1.5 min-w-0">
+                {QUERY_SEED_PRESETS.map((st) => (
+                  <button
+                    key={st.label}
+                    type="button"
+                    onClick={() => handleWriteQuery(st.val, `Applied ${st.label}`)}
+                    className={cn(
+                      'min-w-0 rounded-md border border-border bg-popover hover:bg-muted text-left flex flex-col gap-0.5 cursor-pointer px-2.5 py-1.5',
+                      compact ? 'min-h-[44px]' : 'min-h-[36px]',
+                    )}
+                  >
+                    <span className="text-xs font-semibold text-foreground truncate">{st.label}</span>
+                    <span className="text-[11px] font-mono text-muted-foreground truncate">{st.val}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       );
     }
@@ -1345,7 +1462,7 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
   };
 
   return (
-    <div className="flex flex-col min-h-0">
+    <div className="flex flex-col min-h-0 min-w-0">
       {showHeader && (
         <div className="px-3 py-2.5 border-b border-border bg-popover/70 flex items-start justify-between gap-2 shrink-0">
           <div className="min-w-0">
@@ -1400,7 +1517,7 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
               <button
                 type="button"
                 aria-label="Dock inspector drawer"
-                title="Open Option B Right Inspector Drawer (Ctrl+Shift+I)"
+                title="Open Option B Right Inspector Drawer (Ctrl+Alt+I / Cmd+Alt+I)"
                 onClick={onDockDrawer}
                 className="inline-flex items-center justify-center min-h-[30px] min-w-[30px] rounded-md border border-border bg-card hover:bg-muted text-foreground transition-colors cursor-pointer"
               >
@@ -1423,7 +1540,7 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
 
       <div
         className={cn(
-          'flex flex-col gap-3 min-h-0',
+          'flex flex-col gap-3 min-h-0 min-w-0',
           showFooter ? 'p-3 overflow-y-auto max-h-[380px]' : compact ? 'py-1' : 'p-3',
         )}
       >

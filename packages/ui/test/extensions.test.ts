@@ -464,6 +464,48 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
 
     host.remove();
   });
+
+  it('rebinds Markdown link insertion from Mod-k to Mod-Shift-k so Command Palette owns Mod-k', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const view = new EditorView({
+      state: EditorState.create({ doc: 'workout', extensions: [sectionField, wodEditorKeymap] }),
+      parent: host,
+    });
+    view.dispatch({ selection: EditorSelection.range(0, 7) });
+
+    const modKHandled = runScopeHandlers(view, new KeyboardEvent('keydown', {
+      key: 'k', ctrlKey: true, bubbles: true, cancelable: true,
+    }), 'editor');
+    expect(modKHandled).toBe(false);
+    expect(view.state.doc.toString()).toBe('workout');
+
+    const modShiftKHandled = runScopeHandlers(view, new KeyboardEvent('keydown', {
+      key: 'K', keyCode: 75, ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true,
+    }), 'editor');
+    expect(modShiftKHandled).toBe(true);
+    expect(view.state.doc.toString()).toBe('[workout](https://)');
+
+    view.destroy();
+    host.remove();
+  });
+
+  it('scopes autocompleteTooltipTheme below modal overlays at z-index 45', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const view = new EditorView({
+      state: EditorState.create({ doc: 'test', extensions: [autocompleteTooltipTheme] }),
+      parent: host,
+    });
+    const styleTexts = Array.from(document.head.querySelectorAll('style'))
+      .map((s) => s.textContent ?? '')
+      .join('\n');
+    expect(styleTexts).toContain('z-index: 45');
+    expect(styleTexts).not.toContain('z-index: 250');
+
+    view.destroy();
+    host.remove();
+  });
 });
 
 describe('editor occurrence lineage', () => {

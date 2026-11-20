@@ -354,6 +354,7 @@ export function WqlTextEditor({
   placeholder,
   autoFocus = false,
   dense = false,
+  modalOverlay = true,
   onSlotActivate,
   onCursorClauseChange,
   onCursorStageChange,
@@ -370,6 +371,8 @@ export function WqlTextEditor({
   autoFocus?: boolean;
   /** Compact single-line height (~36px) for inline toolbars; default is roomy 48px. */
   dense?: boolean;
+  /** Elevate `.cm-tooltip` above modal overlays (e.g. PaletteShell `z-[200]`); defaults to `true`. */
+  modalOverlay?: boolean;
   onSlotActivate?: (slot: WqlSlotActivation) => void;
   /** Passive caret-to-clause sync — fires as cursor moves without stealing focus. */
   onCursorClauseChange?: (slot: WqlSlotActivation | null) => void;
@@ -444,6 +447,13 @@ export function WqlTextEditor({
               emitPassiveCursorClause(editor);
               return false;
             },
+            blur: (event, editor) => {
+              const related = event.relatedTarget as HTMLElement | null;
+              if (!related || !related.closest('.cm-tooltip')) {
+                closeCompletion(editor);
+              }
+              return false;
+            },
             keydown: (event, editor) => {
               if (event.isComposing || editor.compositionStarted) return true;
               if (event.key === 'Enter' || (['ArrowDown', 'ArrowUp'].includes(event.key) && completionStatus(editor.state) === 'active')) event.stopPropagation();
@@ -473,13 +483,14 @@ export function WqlTextEditor({
             '.wql-active-segment': { backgroundColor: 'hsl(var(--primary) / 0.11)', boxShadow: 'inset 0 -2px hsl(var(--primary))', borderRadius: '3px', padding: '1px 2px', margin: '0 -2px', fontWeight: '600' },
           }),
           autocompleteTooltipTheme,
+          ...(modalOverlay ? [EditorView.theme({ '.cm-tooltip.cm-tooltip': { zIndex: '250' } })] : []),
         ],
       }),
     });
     view.current = editor;
     if (autoFocus) editor.focus();
     return () => { editor.destroy(); view.current = undefined; };
-  }, [autoFocus, placeholder, dense]);
+  }, [autoFocus, placeholder, dense, modalOverlay]);
 
   useEffect(() => {
     const editor = view.current;

@@ -305,7 +305,7 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
                       data-testid={TEST_IDS.EDITOR_OVERFLOW_ACTIONS_BTN}
                       aria-label="More block actions"
                       aria-expanded={isOverflowOpen}
-                      className="h-8 min-w-[36px] rounded-[5px] px-2 text-foreground bg-card hover:bg-muted border border-border shadow-none"
+                      className="h-8 max-lg:min-h-[44px] min-w-[36px] max-lg:min-w-[44px] rounded-[5px] px-2 text-foreground bg-card hover:bg-muted border border-border shadow-none"
                       onMouseDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -332,7 +332,7 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
                             <button
                               type="button"
                               role="menuitem"
-                              className="w-full min-h-[36px] px-2.5 py-1.5 rounded-[4px] flex items-center gap-2 text-left text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                              className="w-full min-h-[36px] max-lg:min-h-[44px] px-2.5 py-1.5 rounded-[4px] flex items-center gap-2 text-left text-xs font-medium text-foreground hover:bg-muted transition-colors"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -349,7 +349,7 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
                               <button
                                 type="button"
                                 role="menuitem"
-                                className="w-full min-h-[36px] px-2.5 py-1.5 rounded-[4px] flex items-center gap-2 text-left text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                                className="w-full min-h-[36px] max-lg:min-h-[44px] px-2.5 py-1.5 rounded-[4px] flex items-center gap-2 text-left text-xs font-medium text-foreground hover:bg-muted transition-colors"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();

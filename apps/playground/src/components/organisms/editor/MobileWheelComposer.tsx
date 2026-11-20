@@ -397,7 +397,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
       <div
         data-testid="mobile-typing-bar"
         style={{ bottom: `${keyboardOffsetBottom}px` }}
-        className="fixed inset-x-0 z-40 flex flex-col border-t border-border bg-card text-card-foreground shadow-lg select-none"
+        className="fixed inset-x-0 z-40 flex flex-col border-t border-border bg-card text-card-foreground shadow-lg select-none pb-[env(safe-area-inset-bottom,0px)]"
       >
         {/* Persistent Live Token Rail above OS keyboard */}
         <div className="flex min-h-[40px] items-center gap-1.5 overflow-x-auto border-b border-border bg-muted/40 px-2.5 scrollbar-none">
@@ -416,7 +416,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
                   handleReturnToWheel();
                 }}
                 className={cn(
-                  "shrink-0 min-h-[28px] rounded-full border px-2.5 text-xs font-mono tabular-nums transition-colors cursor-pointer",
+                  "shrink-0 min-h-[36px] rounded-full border px-2.5 text-xs font-mono tabular-nums transition-colors cursor-pointer",
                   isActive
                     ? "border-primary bg-primary text-primary-foreground font-semibold"
                     : "border-border bg-background text-muted-foreground hover:text-foreground",
@@ -436,7 +436,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
               data-testid="mobile-return-wheel-btn"
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleReturnToWheel}
-              className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
+              className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
             >
               <SlidersHorizontalIcon weight="bold" className="h-3.5 w-3.5" />
               <span>Deck</span>
@@ -449,7 +449,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
                 aria-label={keySpec.ariaLabel}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleInsertSyntaxKey(keySpec)}
-                className="inline-flex h-10 min-w-[38px] shrink-0 items-center justify-center rounded-md border border-border bg-background px-2 font-mono text-xs font-semibold text-foreground hover:bg-muted cursor-pointer transition-colors"
+                className="inline-flex h-11 min-w-[44px] shrink-0 items-center justify-center rounded-md border border-border bg-background px-2 font-mono text-xs font-semibold text-foreground hover:bg-muted cursor-pointer transition-colors"
               >
                 {keySpec.label}
               </button>
@@ -460,7 +460,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => indentLess(view)}
               aria-label="Outdent line"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground hover:bg-muted cursor-pointer transition-colors"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground hover:bg-muted cursor-pointer transition-colors"
             >
               <TextOutdentIcon weight="bold" className="h-4 w-4" />
             </button>
@@ -469,7 +469,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => indentMore(view)}
               aria-label="Indent line"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground hover:bg-muted cursor-pointer transition-colors"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground hover:bg-muted cursor-pointer transition-colors"
             >
               <TextIndentIcon weight="bold" className="h-4 w-4" />
             </button>
@@ -477,7 +477,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleInsertNewLine}
-              className="inline-flex h-10 shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
+              className="inline-flex h-11 shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
             >
               <PlusIcon weight="bold" className="h-3.5 w-3.5" />
               <span>Line</span>
@@ -489,7 +489,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             data-testid="mobile-wheel-done-btn"
             onMouseDown={(e) => e.preventDefault()}
             onClick={handleDone}
-            className="inline-flex h-10 shrink-0 items-center gap-1 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground cursor-pointer"
+            className="inline-flex h-11 shrink-0 items-center gap-1 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground cursor-pointer"
           >
             <CheckIcon weight="bold" className="h-3.5 w-3.5" />
             <span>Done</span>
@@ -516,7 +516,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
         const t = e.changedTouches[0];
         if (t) onPointerFinish(t.clientX, t.clientY);
       }}
-      className="fixed inset-x-0 bottom-0 z-40 h-[46dvh] max-h-[380px] min-h-[268px] flex flex-col border-t border-border bg-card text-card-foreground shadow-xl select-none"
+      className="fixed inset-x-0 bottom-0 z-40 h-[46dvh] max-h-[380px] min-h-[268px] flex flex-col border-t border-border bg-card text-card-foreground shadow-xl select-none pb-[env(safe-area-inset-bottom,0px)]"
     >
       {/* Region 1: Live Token Rail */}
       <div
@@ -532,7 +532,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             aria-label="Previous slot"
             disabled={model.activeSlotIndex <= 0}
             onClick={() => stepSlot(-1)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-foreground disabled:opacity-35 hover:bg-muted cursor-pointer transition-colors"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border bg-background text-foreground disabled:opacity-35 hover:bg-muted cursor-pointer transition-colors"
           >
             <CaretLeftIcon weight="bold" className="h-4 w-4" />
           </button>
@@ -542,7 +542,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             aria-label="Next slot"
             disabled={model.activeSlotIndex >= model.slots.length - 1}
             onClick={() => stepSlot(1)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-foreground disabled:opacity-35 hover:bg-muted cursor-pointer transition-colors"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border bg-background text-foreground disabled:opacity-35 hover:bg-muted cursor-pointer transition-colors"
           >
             <CaretRightIcon weight="bold" className="h-4 w-4" />
           </button>
@@ -562,7 +562,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
                 data-testid={`mobile-wheel-slot-${slot.kind === "add-metric" ? "add" : idx}`}
                 onClick={() => activateSlot(idx)}
                 className={cn(
-                  "shrink-0 min-h-[38px] rounded-full border px-3 text-xs font-mono tabular-nums transition-colors cursor-pointer",
+                  "shrink-0 min-h-[44px] rounded-full border px-3 text-xs font-mono tabular-nums transition-colors cursor-pointer",
                   isActive
                     ? "border-primary bg-primary text-primary-foreground font-semibold"
                     : isAdd
@@ -582,7 +582,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
                 type="button"
                 data-testid={TEST_IDS.EDITOR_LINT_QUICK_FIX}
                 onClick={() => applyQuickFixInView(view, fix, rep)}
-                className="inline-flex min-h-[38px] shrink-0 items-center gap-1 rounded-full border border-dashed border-destructive/40 bg-destructive/10 px-2.5 text-xs font-mono font-semibold text-destructive hover:bg-destructive hover:text-destructive-foreground cursor-pointer transition-colors"
+                className="inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-full border border-dashed border-destructive/40 bg-destructive/10 px-2.5 text-xs font-mono font-semibold text-destructive hover:bg-destructive hover:text-destructive-foreground cursor-pointer transition-colors"
               >
                 <WarningCircleIcon weight="bold" className="h-3.5 w-3.5 shrink-0" />
                 <span>Fix: {rep}</span>
@@ -597,7 +597,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
               aria-pressed={effectiveMode === "block"}
               onClick={() => setDeckMode((prev) => (prev === "block" ? "token" : "block"))}
               className={cn(
-                "inline-flex min-h-[38px] shrink-0 items-center gap-1 rounded-full border px-2.5 text-xs font-medium cursor-pointer transition-colors",
+                "inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-full border px-2.5 text-xs font-medium cursor-pointer transition-colors",
                 effectiveMode === "block"
                   ? "border-primary bg-primary/15 text-primary font-semibold"
                   : "border-border bg-background text-muted-foreground hover:text-foreground",

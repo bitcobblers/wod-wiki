@@ -1096,7 +1096,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                 data-inspector-trigger="true"
                 data-testid={TEST_IDS.EDITOR_INSPECTOR_DRAWER_TOGGLE}
                 aria-pressed={drawerOpen}
-                title="Toggle Right Inspector Drawer (Ctrl+Shift+I)"
+                title="Toggle Right Inspector Drawer (Ctrl+Alt+I / Cmd+Alt+I)"
                 onClick={onToggleDrawer}
                 className={cn(
                   "pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 min-h-[22px] rounded-full border text-[11px] leading-tight font-medium cursor-pointer whitespace-nowrap transition-colors",
