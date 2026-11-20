@@ -88,9 +88,9 @@ export function JournalPageShell({
           actions={actions}
         />
         {/* Main Editor Content */}
-        <main className="flex-1 min-w-0 max-w-full">
+        <div className="flex-1 min-w-0 max-w-full">
           {editor}
-        </main>
+        </div>
       </div>
 
       {/* Timer dialog overlay */}

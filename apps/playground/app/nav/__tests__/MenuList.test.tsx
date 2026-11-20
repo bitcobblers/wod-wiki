@@ -117,4 +117,40 @@ describe('MenuList', () => {
     fireEvent.click(screen.getByText('Zottman Curl').closest('button')!);
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
+
+  it('enforces >=44px mobile touch targets and 12px section headings', () => {
+    const onRun = mock(() => {});
+    renderMenu([
+      {
+        kind: 'section',
+        id: 'sec-touch',
+        label: 'Efforts',
+        entries: [
+          {
+            kind: 'link',
+            id: 'effort:grace',
+            label: 'Grace',
+            to: '/effort/grace',
+            filterTo: '/notes?q=%3Anote%7Beffort%3Agrace%7D',
+            onRun,
+          },
+        ],
+      },
+    ]);
+
+    const heading = screen.getByText('Efforts');
+    expect(heading.className).toContain('text-xs');
+    expect(heading.className).not.toContain('text-[10px]');
+
+    const rowBtn = screen.getByText('Grace').closest('button')!;
+    expect(rowBtn.className).toContain('max-lg:min-h-11');
+
+    const filterBtn = screen.getByTestId('menu-filter-effort:grace');
+    expect(filterBtn.className).toContain('max-lg:min-h-11');
+    expect(filterBtn.className).toContain('max-lg:min-w-11');
+
+    const runBtn = screen.getByTitle('Start workout');
+    expect(runBtn.className).toContain('max-lg:min-h-11');
+    expect(runBtn.className).toContain('max-lg:min-w-11');
+  });
 });

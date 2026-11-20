@@ -4,8 +4,9 @@ import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import { SidebarLayout } from '../SidebarLayout';
 import { PAGE_SHELL_CONTAINER_CLASS, PAGE_SHELL_CONTENT_SURFACE_CLASS } from '../../panels/page-shells/contentSurface';
-import { NavProvider } from '../../../app/nav/NavContext';
+import { NavContext, NavProvider, initialNavState } from '../../../app/nav/NavContext';
 import { appNavTree } from '../../../app/nav/appNavTree';
+import { TEST_IDS } from '../../lib/testIds';
 
 function NavigateTo({ to, label }: { to: string; label: string }) {
   const navigate = useNavigate();
@@ -208,5 +209,178 @@ describe('SidebarLayout mobile folding zones', () => {
     openDrawer();
     const drawerFrame = document.querySelector<HTMLElement>('.bg-card.h-full');
     expect(within(drawerFrame!).getByText('L2 Sidebar')).toBeTruthy();
+  });
+
+  it('lifts the xl max-width cap when hideDesktopSidebar is set on guide routes', () => {
+    render(
+      <MemoryRouter initialEntries={['/page/guide-start']}>
+        <NuqsAdapter>
+          <NavProvider tree={[]}>
+            <SidebarLayout navbar={<div>Navbar</div>} sidebar={<div>Sidebar</div>} hideDesktopSidebar>
+              <div>Guide Content</div>
+            </SidebarLayout>
+          </NavProvider>
+        </NuqsAdapter>
+      </MemoryRouter>,
+    );
+    const contentColumn = screen.getByText('Guide Content').closest('[class*="xl:max-w-"]');
+    expect(contentColumn).not.toBeNull();
+    expect(contentColumn?.className).toContain('xl:max-w-none');
+    expect(contentColumn?.className).not.toContain('xl:max-w-[984px]');
+  });
+
+  it('renders labeled mobile L1 rail inside MobileSidebar and does not focus the close button on open', () => {
+    render(
+      <MemoryRouter initialEntries={['/journal']}>
+        <NuqsAdapter>
+          <NavProvider tree={appNavTree}>
+            <SidebarLayout navbar={<div>Navbar</div>} sidebar={<div>L2 Sidebar</div>}>
+              <div>Content</div>
+            </SidebarLayout>
+          </NavProvider>
+        </NuqsAdapter>
+      </MemoryRouter>,
+    );
+    openDrawer();
+    const drawer = screen.getByTestId(TEST_IDS.MOBILE_NAV_DRAWER);
+    expect(within(drawer).getByText('Home')).toBeTruthy();
+    expect(within(drawer).getByText('Notebooks')).toBeTruthy();
+    expect(within(drawer).getByText('Search')).toBeTruthy();
+    expect(within(drawer).queryAllByRole('tooltip')).toHaveLength(0);
+
+    const closeBtn = screen.getByTestId(TEST_IDS.MOBILE_NAV_CLOSE);
+    expect(document.activeElement).not.toBe(closeBtn);
+  });
+
+  it('omits RightL3Drawer Apply footer when no stream/analytics controls are active and shows it when streamControls exist', () => {
+    const baseCtx = {
+      tree: [],
+      dispatch: () => {},
+      l3Items: [{ id: 'intro', label: 'Intro', level: 3 as const, action: { type: 'scroll' as const, sectionId: 'intro' } }],
+      setL3Items: () => {},
+      secondarySpec: undefined,
+      setSecondarySpec: () => {},
+      setStreamControls: () => {},
+      scrollToSection: () => {},
+      registerScrollFn: () => {},
+      openCreateJournal: () => {},
+      registerCreateJournal: () => {},
+      setContextNav: () => {},
+    };
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/note/1']}>
+        <NuqsAdapter>
+          <NavContext.Provider
+            value={{
+              ...baseCtx,
+              navState: { ...initialNavState, rightDrawerOpen: true },
+              streamControls: null,
+              analyticsControls: null,
+            }}
+          >
+            <SidebarLayout navbar={<div>Navbar</div>} sidebar={<div>Sidebar</div>}>
+              <div>Note Content</div>
+            </SidebarLayout>
+          </NavContext.Provider>
+        </NuqsAdapter>
+      </MemoryRouter>,
+    );
+
+    const drawerWithoutApply = screen.getByTestId('l3-right-drawer');
+    expect(within(drawerWithoutApply).getByText('Page options').className).toContain('text-xs');
+    expect(within(drawerWithoutApply).queryByRole('button', { name: 'Apply' })).toBeNull();
+    expect(document.activeElement).not.toBe(within(drawerWithoutApply).getByRole('button', { name: 'Close page options' }));
+    unmount();
+
+    render(
+      <MemoryRouter initialEntries={['/journal']}>
+        <NuqsAdapter>
+          <NavContext.Provider
+            value={{
+              ...baseCtx,
+              navState: { ...initialNavState, rightDrawerOpen: true },
+              streamControls: {
+                query: ':journal{}',
+                onQueryChange: () => {},
+                groupDims: [],
+                onToggleGroupDim: () => {},
+                availableGroupDims: [],
+                settings: { level: 'note', layout: 'cards', visibleFields: ['title'] },
+                onLayoutChange: () => {},
+                onToggleField: () => {},
+                level: 'note',
+              },
+              analyticsControls: null,
+            }}
+          >
+            <SidebarLayout navbar={<div>Navbar</div>} sidebar={<div>Sidebar</div>}>
+              <div>Stream Content</div>
+            </SidebarLayout>
+          </NavContext.Provider>
+        </NuqsAdapter>
+      </MemoryRouter>,
+    );
+
+    const drawerWithApply = screen.getByTestId('l3-right-drawer');
+    expect(within(drawerWithApply).getByRole('button', { name: 'Apply' })).toBeTruthy();
+  });
+
+  it('hides the 2xl+ inline L3 aside when inspectorDrawerOpen is true', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/note/1']}>
+        <NuqsAdapter>
+          <NavContext.Provider
+            value={{
+              tree: [],
+              navState: { ...initialNavState, inspectorDrawerOpen: true },
+              dispatch: () => {},
+              l3Items: [],
+              setL3Items: () => {},
+              secondarySpec: [{ kind: 'link', id: 'item-1', label: 'Item 1', to: '/test' }],
+              setSecondarySpec: () => {},
+              setStreamControls: () => {},
+              scrollToSection: () => {},
+              registerScrollFn: () => {},
+              openCreateJournal: () => {},
+              registerCreateJournal: () => {},
+              setContextNav: () => {},
+            }}
+          >
+            <SidebarLayout
+              navbar={<div>Navbar</div>}
+              sidebar={<div>Sidebar</div>}
+              secondary={[{ kind: 'link', id: 'item-1', label: 'Item 1', to: '/test' }]}
+            >
+              <div>Content</div>
+            </SidebarLayout>
+          </NavContext.Provider>
+        </NuqsAdapter>
+      </MemoryRouter>,
+    );
+    expect(container.querySelector('aside')).toBeNull();
+  });
+
+  it('ignores defaultPrevented Cmd+. / Ctrl+. keydown events', () => {
+    render(
+      <MemoryRouter initialEntries={['/note/1']}>
+        <NuqsAdapter>
+          <NavProvider tree={[]}>
+            <SidebarLayout
+              navbar={<div>Navbar</div>}
+              sidebar={<div>Sidebar</div>}
+              secondary={[{ kind: 'link', id: 'item-1', label: 'Item 1', to: '/test' }]}
+            >
+              <div>Content</div>
+            </SidebarLayout>
+          </NavProvider>
+        </NuqsAdapter>
+      </MemoryRouter>,
+    );
+
+    const ev = new KeyboardEvent('keydown', { key: '.', ctrlKey: true, cancelable: true, bubbles: true });
+    ev.preventDefault();
+    window.dispatchEvent(ev);
+    expect(screen.queryByTestId('l3-right-drawer')).toBeNull();
   });
 });

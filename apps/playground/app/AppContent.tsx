@@ -429,12 +429,12 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
     <SidebarLayout
       navbar={
         <Navbar>
-          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 min-w-0 shrink-2 truncate text-sm">
+          <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
             {activeL1 && (
               <button
                 type="button"
                 onClick={() => activeL1?.action?.type === 'route' && navigate(activeL1.action.to)}
-                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                className="min-h-11 inline-flex items-center shrink-0 text-muted-foreground hover:text-foreground transition-colors"
               >
                 {activeL1.label}
               </button>
@@ -443,7 +443,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
               <span aria-hidden="true" className="text-muted-foreground/50 shrink-0">›</span>
             )}
             {crumbTitle && crumbTitle.toLowerCase() !== activeL1?.label.toLowerCase() && (
-              <span className="text-sm font-semibold text-zinc-950 dark:text-white truncate">
+              <span className="min-w-0 truncate text-sm font-semibold text-zinc-950 dark:text-white">
                 {crumbTitle}
               </span>
             )}

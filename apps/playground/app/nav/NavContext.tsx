@@ -43,6 +43,7 @@ export const initialNavState: NavState = {
   activeL3Id: null,
   leftDrawerOpen: false,
   rightDrawerOpen: false,
+  inspectorDrawerOpen: false,
   expandedIds: new Set(),
   journalFilter: { selectedDate: null, selectedTags: [] },
   searchFilter: { scope: 'all' },
@@ -59,7 +60,20 @@ export function navReducer(state: NavState, action: NavStateAction): NavState {
     case 'SET_ACTIVE_L2': return state.activeL2Id === action.id ? state : { ...state, activeL2Id: action.id }
     case 'SET_ACTIVE_L3': return state.activeL3Id === action.id ? state : { ...state, activeL3Id: action.id }
     case 'SET_LEFT_DRAWER':  return state.leftDrawerOpen === action.open ? state : { ...state, leftDrawerOpen: action.open }
-    case 'SET_RIGHT_DRAWER': return state.rightDrawerOpen === action.open ? state : { ...state, rightDrawerOpen: action.open }
+    case 'SET_RIGHT_DRAWER':
+      if (action.open) {
+        return state.rightDrawerOpen && !state.inspectorDrawerOpen
+          ? state
+          : { ...state, rightDrawerOpen: true, inspectorDrawerOpen: false }
+      }
+      return !state.rightDrawerOpen ? state : { ...state, rightDrawerOpen: false }
+    case 'SET_INSPECTOR_DRAWER':
+      if (action.open) {
+        return state.inspectorDrawerOpen && !state.rightDrawerOpen
+          ? state
+          : { ...state, inspectorDrawerOpen: true, rightDrawerOpen: false }
+      }
+      return !state.inspectorDrawerOpen ? state : { ...state, inspectorDrawerOpen: false }
     case 'TOGGLE_EXPANDED': {
       const next = new Set(state.expandedIds)
       if (next.has(action.id)) {
@@ -192,7 +206,7 @@ const defaultScroll = (id: string) => {
   }
 }
 
-export const NavContext = createContext<NavContextValue>({
+const DEFAULT_NAV_CONTEXT: NavContextValue = {
   tree: [],
   navState: initialNavState,
   dispatch: () => {},
@@ -212,10 +226,21 @@ export const NavContext = createContext<NavContextValue>({
   registerScrollFn: () => {},
   openCreateJournal: () => {},
   registerCreateJournal: () => {},
-})
+}
+
+export const NavContext = createContext<NavContextValue>(DEFAULT_NAV_CONTEXT)
 
 export function useNav() {
   return useContext(NavContext)
+}
+
+/**
+ * Returns the nearest NavContext value, or `null` when rendered outside
+ * `NavProvider` (e.g. standalone Storybook stories or isolated editor tests).
+ */
+export function useOptionalNav(): NavContextValue | null {
+  const ctx = useContext(NavContext)
+  return ctx === DEFAULT_NAV_CONTEXT ? null : ctx
 }
 
 /**
@@ -343,6 +368,7 @@ export function NavProvider({ tree, children }: NavProviderProps) {
   useEffect(() => {
     dispatch({ type: 'SET_LEFT_DRAWER', open: false })
     dispatch({ type: 'SET_RIGHT_DRAWER', open: false })
+    dispatch({ type: 'SET_INSPECTOR_DRAWER', open: false })
   }, [location.pathname])
   const setL3Items = useCallback((items: NavItemL3[]) => {
     setL3ItemsInternal((prev) => {

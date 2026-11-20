@@ -10,8 +10,7 @@
  *   - facet navigation (Tags → `/t/:type/:tag`, Efforts → `/effort/:slug`,
  *     Equipment → `/equipment/:slug`, all as 2-part rows whose secondary filter
  *     button opens `/notes?q=:note{...}`).
- *   - live content sync + Unrecognized label creation via `useLiveNoteFacets`
- *     and `openCreateReferenceDialog`.
+ *   - live outbound facet sync via `useLiveNoteFacets` (mutations stay out of L2).
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -22,7 +21,6 @@ import { storageService } from '@/services/storage'
 import type { BlockEffort, BlockEquipment, BlockIndexRow, Note } from '@/types/storage'
 import type { HistoryRecord } from '@/types/history'
 import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity'
-import { openCreateReferenceDialog } from '../../components/organisms/references/CreateReferenceFromLabelDialog'
 import { useOptionalEffortRegistry } from '../../contexts/EffortRegistryContext'
 import { useOptionalEquipmentRegistry } from '../../contexts/EquipmentRegistryContext'
 import { useNav } from '../../nav/NavContext'
@@ -462,7 +460,7 @@ export function effortUsageLinks(rows: BlockEffort[], excludeNoteId?: string, no
   return [...byNote.values()]
 }
 
-function liveFacetsToLinks(live: LiveNoteFacets, noteId?: string): Pick<NoteContextData, 'tags' | 'efforts' | 'equipment' | 'unrecognized'> {
+function liveFacetsToLinks(live: LiveNoteFacets): Pick<NoteContextData, 'tags' | 'efforts' | 'equipment'> {
   return {
     tags: tagLinks(live.tags.map(t => ({ label: t.label, type: t.type }))),
     efforts: live.efforts.map(e => ({
@@ -479,17 +477,6 @@ function liveFacetsToLinks(live: LiveNoteFacets, noteId?: string): Pick<NoteCont
       filterTo: notesFacetFilterPath('equipment', eq.slug),
       filterLabel: `Filter notes by ${eq.label || eq.slug}`,
     })),
-    unrecognized: live.unrecognized.map(item => {
-      const display = item.suggestedKind === 'tag' ? `#${item.rawLabel}` : item.rawLabel
-      return {
-        id: `${item.suggestedKind}:${item.candidateSlug}`,
-        title: display,
-        badge: 'define',
-        onSelect: () => openCreateReferenceDialog({ item, noteId: noteId || undefined }),
-        filterTo: notesFacetFilterPath('text', item.rawLabel),
-        filterLabel: `Search notes mentioning ${item.rawLabel}`,
-      }
-    }),
   }
 }
 
@@ -640,15 +627,15 @@ export function useNoteContextLinks({
     if (liveContent === undefined || !effortsReady || !equipmentReady || !liveFacets.ready) {
       return stored
     }
-    const liveLinks = liveFacetsToLinks(liveFacets, noteId)
+    const liveLinks = liveFacetsToLinks(liveFacets)
     return {
       ...stored,
       tags: liveLinks.tags,
       efforts: liveLinks.efforts,
       equipment: liveLinks.equipment,
-      unrecognized: liveLinks.unrecognized,
+      unrecognized: [],
     }
-  }, [liveContent, effortsReady, equipmentReady, liveFacets, noteId, stored])
+  }, [liveContent, effortsReady, equipmentReady, liveFacets, stored])
 }
 
 // ── L2 registration ──────────────────────────────────────────────────────────
@@ -730,7 +717,6 @@ export function buildNoteContextSpec({
   section('note-context-tags', 'Tags', data.tags)
   section('note-context-efforts', 'Efforts', data.efforts)
   section('note-context-equipment', 'Equipment', data.equipment)
-  section('note-context-unrecognized', 'Unrecognized', data.unrecognized)
   section('note-context-related', relatedLabel, data.related)
   section('note-context-backlinks', 'Journal copies', data.backlinks)
   if (trailingSections) spec.push(...trailingSections)

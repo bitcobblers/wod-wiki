@@ -68,6 +68,7 @@ function DrawerApplyFooter() {
 }
 
 function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChildren<{ open: boolean; close: () => void; onSearch?: () => void }>) {
+  const navBodyRef = useRef<HTMLDivElement>(null)
   return (
     <Drawer
       side="start"
@@ -78,15 +79,16 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
     >
       <DrawerBackdrop className="bg-black/30 dark:bg-black/30 transition-none data-[closed]:hidden lg:hidden" />
       <DrawerContent
-        initialFocus="content"
+        initialFocus={() => navBodyRef.current}
         data-testid={TEST_IDS.MOBILE_NAV_DRAWER}
         className="w-full max-w-none h-dvh max-h-dvh p-0 gap-0 rounded-none border-0 bg-card transition-none data-[closed]:hidden lg:hidden"
       >
         <DrawerTitle className="sr-only">Navigation</DrawerTitle>
         <NavigationDrawerProvider close={close}>
           <div className="flex h-full min-h-0 bg-card">
-            <div className="flex h-full w-14 shrink-0 flex-col items-center border-r border-zinc-950/5 bg-background/72 py-3 dark:border-white/5 [&_a]:size-11 [&_button]:size-11">
+            <div className="flex h-full w-[156px] sm:w-44 shrink-0 flex-col overflow-y-auto border-r border-zinc-950/5 bg-background/72 px-2 py-3 dark:border-white/5">
               <AppRail
+                variant="mobile-list"
                 onSearch={() => {
                   close()
                   onSearch?.()
@@ -94,7 +96,7 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
               />
             </div>
             <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex items-center px-4 pt-3">
+              <div className="flex items-center justify-end px-3 pt-3">
                 <DrawerClose
                   render={
                     <NavbarItem
@@ -107,7 +109,7 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
                   <CloseMenuIcon />
                 </DrawerClose>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col">
+              <div ref={navBodyRef} tabIndex={-1} className="flex min-h-0 flex-1 flex-col outline-none">
                 {children}
               </div>
               <DrawerApplyFooter />
@@ -119,7 +121,13 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
   )
 }
 
-function RightL3Drawer({ open, close, children }: React.PropsWithChildren<{ open: boolean; close: () => void }>) {
+function RightL3Drawer({
+  open,
+  close,
+  showApplyFooter = false,
+  children,
+}: React.PropsWithChildren<{ open: boolean; close: () => void; showApplyFooter?: boolean }>) {
+  const bodyRef = useRef<HTMLDivElement>(null)
   return (
     <Drawer
       side="end"
@@ -130,14 +138,14 @@ function RightL3Drawer({ open, close, children }: React.PropsWithChildren<{ open
     >
       <DrawerBackdrop className="bg-black/25 dark:bg-black/40 transition-none data-[closed]:hidden 2xl:hidden" />
       <DrawerContent
-        initialFocus="content"
+        initialFocus={() => bodyRef.current}
         data-testid="l3-right-drawer"
         aria-label="Page options panel"
         className="w-full lg:w-80 max-w-none h-dvh max-h-dvh p-0 gap-0 rounded-none border-0 lg:border-l lg:border-border/60 bg-card lg:shadow-2xl flex flex-col transition-none data-[closed]:hidden 2xl:hidden"
       >
         <NavigationDrawerProvider close={close}>
           <div className="flex items-center justify-between border-b border-border/40 px-4 py-2.5">
-            <DrawerTitle className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            <DrawerTitle className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
               Page options
             </DrawerTitle>
             <DrawerClose
@@ -151,18 +159,20 @@ function RightL3Drawer({ open, close, children }: React.PropsWithChildren<{ open
               <CloseMenuIcon />
             </DrawerClose>
           </div>
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <div ref={bodyRef} tabIndex={-1} className="flex min-h-0 flex-1 flex-col overflow-y-auto outline-none">
             {children}
           </div>
-          <div className="shrink-0 border-t border-border/50 bg-card p-3 lg:hidden">
-            <button
-              type="button"
-              onClick={close}
-              className="h-11 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground"
-            >
-              Apply
-            </button>
-          </div>
+          {showApplyFooter && (
+            <div className="shrink-0 border-t border-border/50 bg-card p-3 lg:hidden">
+              <button
+                type="button"
+                onClick={close}
+                className="h-11 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground"
+              >
+                Apply
+              </button>
+            </div>
+          )}
         </NavigationDrawerProvider>
       </DrawerContent>
     </Drawer>
@@ -201,10 +211,11 @@ export function SidebarLayout({
     l3Items,
     l3Actions = [],
   } = useNav()
-  // The home route suppresses the 240px L2 sidebar (hideDesktopSidebar), so the
-  // xl cap — budgeted for rail + sidebar — would strand the remainder as dead
-  // space. It renders wide instead; every other route keeps the cap.
-  const isFullWidthRoute = useLocation().pathname === '/'
+  // The home route and guide chapters suppress the 240px L2 sidebar
+  // (hideDesktopSidebar), so the xl cap — budgeted for rail + sidebar — would
+  // strand the remainder as dead space. They render wide instead; every other
+  // route keeps the cap.
+  const isFullWidthRoute = useLocation().pathname === '/' || Boolean(hideDesktopSidebar)
   const showRightDrawer = Boolean(navState?.rightDrawerOpen)
   const setShowRightDrawer = useCallback(
     (open: boolean) => dispatch({ type: 'SET_RIGHT_DRAWER', open }),
@@ -250,6 +261,7 @@ export function SidebarLayout({
   useEffect(() => {
     if (!railHasContent) return
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return
       if ((e.metaKey || e.ctrlKey) && e.key === '.' && !e.shiftKey && !e.altKey) {
         if (window.innerWidth >= 1520) return
         e.preventDefault()
@@ -316,7 +328,7 @@ export function SidebarLayout({
           </header>
 
         <MainLandmark>
-          <div className="grow w-full max-lg:pb-48 lg:overflow-visible">
+          <div className="grow w-full max-lg:pb-28 lg:overflow-visible">
             {children}
           </div>
           {/* Mobile thumb-area footer — pages portal their query bar (the
@@ -329,12 +341,19 @@ export function SidebarLayout({
         </div>
 
         {/* Secondary nav — zone 4; the canonical L3 surface. Desktop (2xl+)
-            renders this rail inline; below 2xl (lg–2xl laptop and < lg mobile)
+            renders this rail inline unless the docked inspector drawer owns
+            the right edge; below 2xl (lg–2xl laptop and < lg mobile)
             RightL3Drawer slides in with the exact same SecondaryNav content. */}
-        <aside className="hidden 2xl:flex w-60 shrink-0 sticky top-0 h-svh flex-col overflow-y-auto bg-background/72 backdrop-blur-sm">
-          <SecondaryNav spec={secondary} pageAction={pageAction} />
-        </aside>
-        <RightL3Drawer open={showRightDrawer} close={closeRightDrawer}>
+        {!navState?.inspectorDrawerOpen && (
+          <aside className="hidden 2xl:flex w-60 shrink-0 sticky top-0 h-svh flex-col overflow-y-auto bg-background/72 backdrop-blur-sm">
+            <SecondaryNav spec={secondary} pageAction={pageAction} />
+          </aside>
+        )}
+        <RightL3Drawer
+          open={showRightDrawer}
+          close={closeRightDrawer}
+          showApplyFooter={Boolean(streamControls || analyticsControls)}
+        >
           <SecondaryNav spec={secondary} pageAction={pageAction} />
         </RightL3Drawer>
 

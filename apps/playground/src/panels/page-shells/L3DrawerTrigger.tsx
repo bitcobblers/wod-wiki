@@ -1,8 +1,30 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
 import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine';
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { useNav } from '../../../app/nav/NavContext';
+
+const DESKTOP_2XL_QUERY = '(min-width: 1520px)';
+
+function useIs2xlViewport(): boolean {
+  const [is2xl, setIs2xl] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(DESKTOP_2XL_QUERY).matches
+      : false,
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mql = window.matchMedia(DESKTOP_2XL_QUERY);
+    setIs2xl(mql.matches);
+    if (typeof mql.addEventListener !== 'function') return;
+    const onChange = (e: MediaQueryListEvent) => setIs2xl(e.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
+  return is2xl;
+}
 
 export interface L3DrawerState {
   railHasContent: boolean;
@@ -60,7 +82,8 @@ export function useL3DrawerState(): L3DrawerState {
  */
 export function L3DrawerTrigger() {
   const { railHasContent, hasAppliedFilters, openRightDrawer } = useL3DrawerState();
-  if (!railHasContent) return null;
+  const is2xl = useIs2xlViewport();
+  if (!railHasContent || is2xl) return null;
 
   return (
     <Button

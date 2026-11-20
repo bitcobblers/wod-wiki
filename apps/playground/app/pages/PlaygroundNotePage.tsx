@@ -50,6 +50,7 @@ import { localDateKey } from '@/lib/dateFormat'
 import { useOnboardingEvents } from '../hooks/useOnboardingEvents'
 import { CalendarPlus } from 'lucide-react'
 import { ResponsiveActions } from '../nav/ResponsiveActions'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { provenanceLink, type ContextNoteLink } from './shared/noteContextLinks'
 
 export interface PlaygroundNotePageProps {
@@ -72,6 +73,7 @@ export function PlaygroundNotePage({
   // (V8 notes), with the composite as the legacy fallback.
   const noteId = pageId('playground', pageName)
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   // ponytail: only seed template on bare /playground route; detail routes stay read-only on load.
   const isDefaultPlayground = !id || id === 'playground'
   const { content, loading, entryId, entryTitle, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange: persistOnChange, onLineChange, onBlur, flush, committedSourceRevision, resetToOriginal } = usePlaygroundContent({
@@ -285,29 +287,32 @@ export function PlaygroundNotePage({
     return () => { cancelled = true }
   }, [runtimeNoteId])
 
-  // The page header is hidden below lg — ResponsiveActions relocates the
-  // primary action to the shared thumb dock and the rest to its overflow
-  // sheet on mobile; on desktop (and standalone) everything renders inline.
-  // Single declaration per breakpoint, no portal duplication.
+  // The page header is hidden below lg — ResponsiveActions relocates desktop
+  // header actions, while Move to journal stays desktop header + L3 Actions so
+  // it is not triplicated into the mobile dock overflow sheet.
   const headerActions = (
     <ResponsiveActions label="Playground actions">
-      <button
-        type="button"
-        onClick={() => setMoveToJournalOpen(true)}
-        title="Move this playground to a journal date"
-        className="inline-flex items-center gap-1 rounded-pill border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent"
-      >
-        <CalendarPlus className="size-3.5" aria-hidden="true" />
-        Move to journal
-      </button>
-      {/* Whiteboard playground sticky: Move to journal + Cast/sync/options.
-          Reset and Clone live in L3 (helpfulActions); dropping `index` lets
-          the ⋯ menu mirror NavContext l3Items (outline + helpful). */}
-      <PageActions
-        mode="playground"
-        currentWorkout={{ name: pageTitle, content }}
-        index={[]}
-      />
+      {!isMobile && (
+        <>
+          <button
+            type="button"
+            onClick={() => setMoveToJournalOpen(true)}
+            title="Move this playground to a journal date"
+            className="inline-flex items-center gap-1 rounded-pill border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent"
+          >
+            <CalendarPlus className="size-3.5" aria-hidden="true" />
+            Move to journal
+          </button>
+          {/* Whiteboard playground sticky: Move to journal + Cast/sync/options.
+              Reset and Clone live in L3 (helpfulActions); dropping `index` lets
+              the ⋯ menu mirror NavContext l3Items (outline + helpful). */}
+          <PageActions
+            mode="playground"
+            currentWorkout={{ name: pageTitle, content }}
+            index={[]}
+          />
+        </>
+      )}
     </ResponsiveActions>
   )
 

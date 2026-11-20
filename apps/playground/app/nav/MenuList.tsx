@@ -124,7 +124,7 @@ function MenuRow({
       type="button"
       onClick={() => onActivate(entry)}
       className={cn(
-        'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors',
+        'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 max-lg:min-h-11 text-left transition-colors',
         !run && !filterTo && 'w-full',
         entry.muted ? 'text-[11.5px]' : 'text-[13px]',
         active
@@ -137,13 +137,13 @@ function MenuRow({
     >
       {entry.icon && <entry.icon className="size-4 shrink-0" />}
       {entry.timestamp && (
-        <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground/60">
+        <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground/60">
           {entry.timestamp}
         </span>
       )}
       <span className="min-w-0 flex-1 line-clamp-2 break-words" title={entry.label}>{entry.label}</span>
       {entry.badge && (
-        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-muted-foreground/80">
+        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-wide text-muted-foreground/80">
           {entry.badge}
         </span>
       )}
@@ -164,7 +164,7 @@ function MenuRow({
           title={filterAria}
           data-testid={`menu-filter-${entry.id}`}
           onClick={() => onFilter(filterTo)}
-          className="flex size-7 max-lg:size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground/55 transition-colors hover:bg-muted hover:text-foreground"
+          className="flex size-7 max-lg:min-h-11 max-lg:min-w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground/55 transition-colors hover:bg-muted hover:text-foreground"
         >
           <ListFilter className="size-3.5" />
         </button>
@@ -175,7 +175,7 @@ function MenuRow({
           aria-label={runTitle}
           title={runTitle}
           onClick={() => entry.onRun?.()}
-          className="flex size-6 max-lg:size-8 shrink-0 items-center justify-center rounded text-primary opacity-70 lg:opacity-0 transition-all group-hover:opacity-100 hover:bg-primary/10"
+          className="flex size-6 max-lg:min-h-11 max-lg:min-w-11 shrink-0 items-center justify-center rounded text-primary opacity-70 lg:opacity-0 transition-all group-hover:opacity-100 hover:bg-primary/10"
         >
           {entry.runIcon === 'link' ? (
             <ArrowTopRightOnSquareIcon className="size-3.5" />
@@ -226,7 +226,7 @@ export function MenuList({
           if (entry.entries.length === 0) return null
           return (
             <div key={entry.id} className="mt-1 flex flex-col gap-0.5 first:mt-0">
-              <div className="px-2 pb-1 pt-3 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              <div className="px-2 pb-1 pt-3 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
                 {entry.label}
               </div>
               <MenuList entries={entry.entries} activeId={activeId} onSection={onSection} />
