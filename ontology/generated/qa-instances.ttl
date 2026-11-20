@@ -3399,7 +3399,7 @@
     qa:nextStep <https://wod.wiki/qa/story/playground-views-libraryrow-entry-types--interactive-entry-row/beat/Sense> .
 
 <https://wod.wiki/qa/story/playground-views-libraryrow-entry-types--interactive-entry-row/beat/Sense> a qa:Step ;
-    rdfs:label "Sense: rendered DOM" ;
+    rdfs:label "Sense: action-add" ;
     qa:hasBeat qa:Sense ;
     qa:stepIndex 3 ;
     qa:beatOrder 3 ;
@@ -4014,7 +4014,7 @@
     qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Sense> .
 
 <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Sense> a qa:Step ;
-    rdfs:label "Sense: editor-token-delete-btn" ;
+    rdfs:label "Sense: editor-token-delete-btn, mobile-wheel-composer" ;
     qa:hasBeat qa:Sense ;
     qa:stepIndex 3 ;
     qa:beatOrder 3 ;
@@ -6798,6 +6798,13 @@
 <https://wod.wiki/qa/suite/apps/playground/app/hooks/useZipProcessor.test.ts> a qa:HostSuite ;
     rdfs:label "useZipProcessor" ;
     qa:suitePath "apps/playground/app/hooks/useZipProcessor.test.ts" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/playground/app/nav/__tests__/PlaygroundNotePageActions.test.tsx> a qa:HostSuite ;
+    rdfs:label "PlaygroundNotePageActions" ;
+    qa:suitePath "apps/playground/app/nav/__tests__/PlaygroundNotePageActions.test.tsx" ;
     qa:tier "T2" ;
     qa:seam "T2a-host" ;
     qa:inDomain <https://wod.wiki/qa/domain/journal> .

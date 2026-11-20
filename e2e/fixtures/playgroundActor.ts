@@ -704,12 +704,12 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
 
         async fillStreamQueryBar(wql: string): Promise<void> {
           const bar = page.getByTestId(TEST_IDS.STREAM_QUERY_BAR);
-          const scopeMap = bar.getByTestId(TEST_IDS.WQL_SCOPE_MAP);
-          if (!(await scopeMap.isVisible())) {
-            await bar.getByTestId(TEST_IDS.WQL_SCOPE_TOGGLE).click();
-            await expect(scopeMap).toBeVisible();
-          }
+          await expect(bar).toBeVisible();
           const editor = bar.getByLabel('WQL', { exact: true });
+          if (!(await editor.isVisible())) {
+            await bar.getByTestId(TEST_IDS.WQL_SCOPE_TOGGLE).click();
+            await expect(editor).toBeVisible();
+          }
           await editor.fill(wql);
           await editor.press('Enter');
         },

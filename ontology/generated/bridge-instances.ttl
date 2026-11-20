@@ -952,6 +952,7 @@ wod:Equipment bridge:story <https://wod.wiki/code/story/playground-views-calenda
 wod:Tag bridge:story <https://wod.wiki/code/story/playground-views-calendar-agenda-planner--calendar-chips-and-month-bar> .
 <https://wod.wiki/qa/story/playground-views-libraryrow-entry-types--interactive-entry-row> bridge:story <https://wod.wiki/code/story/playground-views-libraryrow-entry-types--interactive-entry-row> .
 <https://wod.wiki/qa/story/playground-views-libraryrow-entry-types--interactive-entry-row> bridge:touches <https://wod.wiki/code/file/apps/storybook/src/views/LibraryRow.stories.tsx> .
+<https://wod.wiki/qa/story/playground-views-libraryrow-entry-types--interactive-entry-row> bridge:testId <https://wod.wiki/code/testid/action-add> .
 <https://wod.wiki/qa/story/playground-views-libraryrow-entry-types--all-twelve-content-types-catalog> bridge:story <https://wod.wiki/code/story/playground-views-libraryrow-entry-types--all-twelve-content-types-catalog> .
 <https://wod.wiki/qa/story/playground-views-libraryrow-entry-types--all-twelve-content-types-catalog> bridge:touches <https://wod.wiki/code/file/apps/storybook/src/views/LibraryRow.stories.tsx> .
 <https://wod.wiki/qa/story/playground-views-libraryrow-entry-types--actionable-block-hit-row> bridge:story <https://wod.wiki/code/story/playground-views-libraryrow-entry-types--actionable-block-hit-row> .
@@ -1119,6 +1120,7 @@ wod:Tag bridge:story <https://wod.wiki/code/story/organisms-whiteboardsyntaxedit
 <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck> bridge:touches <https://wod.wiki/code/file/apps/storybook/src/WhiteboardSyntaxEditor.stories.tsx> .
 <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck> bridge:touches <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/NoteEditor.tsx> .
 <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck> bridge:testId <https://wod.wiki/code/testid/editor-token-delete-btn> .
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck> bridge:testId <https://wod.wiki/code/testid/mobile-wheel-composer> .
 <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck> bridge:seedNoun wod:Note .
 wod:Note bridge:story <https://wod.wiki/code/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck> .
 <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck> bridge:seedNoun wod:Notebook .
@@ -2493,6 +2495,8 @@ wod:Query bridge:story <https://wod.wiki/code/story/packages-ui-blocks-wql-examp
 <https://wod.wiki/qa/suite/apps/playground/app/canvas/MarkdownCanvasPage.test.tsx> bridge:seedNoun wod:EventRecord .
 <https://wod.wiki/qa/suite/apps/playground/app/canvas/MarkdownCanvasPage.test.tsx> bridge:seedNoun wod:Metric .
 <https://wod.wiki/qa/suite/apps/playground/app/canvas/MarkdownCanvasPage.test.tsx> bridge:route <https://wod.wiki/code/route/root> .
+<https://wod.wiki/qa/suite/apps/playground/app/canvas/MarkdownCanvasPage.test.tsx> bridge:route <https://wod.wiki/code/route/page__slug> .
+<https://wod.wiki/qa/suite/apps/playground/app/canvas/MarkdownCanvasPage.test.tsx> bridge:route <https://wod.wiki/code/route/page_guide-start> .
 <https://wod.wiki/qa/suite/apps/playground/app/canvas/MarkdownCanvasPage.test.tsx> bridge:webMcpTool <https://wod.wiki/code/tool/act> .
 <https://wod.wiki/qa/suite/apps/playground/app/canvas/MarkdownCanvasPage.test.tsx> bridge:webMcpTool <https://wod.wiki/code/tool/snapshot> .
 <https://wod.wiki/qa/suite/apps/playground/app/components/NoteEditor.editing.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/app/components/NoteEditor.editing.test.tsx> .
@@ -2542,6 +2546,13 @@ wod:Query bridge:story <https://wod.wiki/code/story/packages-ui-blocks-wql-examp
 <https://wod.wiki/qa/suite/apps/playground/app/hooks/useZipProcessor.test.ts> bridge:route <https://wod.wiki/code/route/load_journal> .
 <https://wod.wiki/qa/suite/apps/playground/app/hooks/useZipProcessor.test.ts> bridge:route <https://wod.wiki/code/route/playground__noteId> .
 <https://wod.wiki/qa/suite/apps/playground/app/hooks/useZipProcessor.test.ts> bridge:webMcpTool <https://wod.wiki/code/tool/act> .
+<https://wod.wiki/qa/suite/apps/playground/app/nav/__tests__/PlaygroundNotePageActions.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/app/nav/__tests__/PlaygroundNotePageActions.test.tsx> .
+<https://wod.wiki/qa/suite/apps/playground/app/nav/__tests__/PlaygroundNotePageActions.test.tsx> bridge:seedNoun wod:Note .
+<https://wod.wiki/qa/suite/apps/playground/app/nav/__tests__/PlaygroundNotePageActions.test.tsx> bridge:seedNoun wod:Page .
+<https://wod.wiki/qa/suite/apps/playground/app/nav/__tests__/PlaygroundNotePageActions.test.tsx> bridge:seedNoun wod:Query .
+<https://wod.wiki/qa/suite/apps/playground/app/nav/__tests__/PlaygroundNotePageActions.test.tsx> bridge:route <https://wod.wiki/code/route/playground> .
+<https://wod.wiki/qa/suite/apps/playground/app/nav/__tests__/PlaygroundNotePageActions.test.tsx> bridge:webMcpTool <https://wod.wiki/code/tool/act> .
+<https://wod.wiki/qa/suite/apps/playground/app/nav/__tests__/PlaygroundNotePageActions.test.tsx> bridge:webMcpTool <https://wod.wiki/code/tool/query> .
 <https://wod.wiki/qa/suite/apps/playground/app/pages/__tests__/EffortDetailPage.delete.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/app/pages/__tests__/EffortDetailPage.delete.test.tsx> .
 <https://wod.wiki/qa/suite/apps/playground/app/pages/__tests__/EffortDetailPage.delete.test.tsx> bridge:seedNoun wod:Effort .
 <https://wod.wiki/qa/suite/apps/playground/app/pages/__tests__/EffortDetailPage.delete.test.tsx> bridge:route <https://wod.wiki/code/route/efforts> .
@@ -2607,6 +2618,8 @@ wod:Query bridge:story <https://wod.wiki/code/story/packages-ui-blocks-wql-examp
 <https://wod.wiki/qa/suite/apps/playground/src/components/organisms/editor/whiteboard-inspector/WhiteboardInspector.test.tsx> bridge:touches <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/whiteboard-inspector/WhiteboardInspector.test.tsx> .
 <https://wod.wiki/qa/suite/apps/playground/src/components/organisms/editor/whiteboard-inspector/WhiteboardInspector.test.tsx> bridge:seedNoun wod:Note .
 <https://wod.wiki/qa/suite/apps/playground/src/components/organisms/editor/whiteboard-inspector/WhiteboardInspector.test.tsx> bridge:seedNoun wod:Session .
+<https://wod.wiki/qa/suite/apps/playground/src/components/organisms/editor/whiteboard-inspector/WhiteboardInspector.test.tsx> bridge:seedNoun wod:EventRecord .
+<https://wod.wiki/qa/suite/apps/playground/src/components/organisms/editor/whiteboard-inspector/WhiteboardInspector.test.tsx> bridge:seedNoun wod:Metric .
 <https://wod.wiki/qa/suite/apps/playground/src/components/organisms/editor/whiteboard-inspector/WhiteboardInspector.test.tsx> bridge:seedNoun wod:Effort .
 <https://wod.wiki/qa/suite/apps/playground/src/components/organisms/editor/whiteboard-inspector/WhiteboardInspector.test.tsx> bridge:seedNoun wod:Tag .
 <https://wod.wiki/qa/suite/apps/playground/src/components/organisms/editor/whiteboard-inspector/WhiteboardInspector.test.tsx> bridge:seedNoun wod:Query .

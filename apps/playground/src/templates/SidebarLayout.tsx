@@ -328,7 +328,7 @@ export function SidebarLayout({
           </header>
 
         <MainLandmark>
-          <div className="grow w-full max-lg:pb-28 lg:overflow-visible">
+          <div className="grow w-full max-lg:pb-48 lg:overflow-visible">
             {children}
           </div>
           {/* Mobile thumb-area footer — pages portal their query bar (the

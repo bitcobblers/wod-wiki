@@ -109,7 +109,14 @@ test.describe('PRP-03 — Effort Creation, WQL Syntax Guidance & Mobile Tag Layo
     let revealedPositions = 0;
     const conflicts: string[] = [];
     for (let y = 0; y <= scrollHeight - viewportHeight + 200; y += 200) {
-      await page.evaluate((top) => window.scrollTo(0, top), y);
+      await page.evaluate(
+        (top) =>
+          new Promise<void>((resolve) => {
+            window.scrollTo(0, top);
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          }),
+        y,
+      );
       const stepResult = await page.evaluate(() => {
         const dockEl = document.querySelector<HTMLElement>('[data-testid="actions-dock"]');
         if (!dockEl) return { revealed: false, hits: [] as string[] };

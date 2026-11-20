@@ -4,8 +4,6 @@ import { ROUTE_PATTERNS, LEGACY_REDIRECT_PATTERNS } from './lib/routes';
 import { AppContent } from './AppContent';
 import CalcAuthoringPrototypePage from './pages/CalcAuthoringPrototypePage';
 import QueryBlockComposerPrototypePage from './pages/QueryBlockComposerPrototypePage';
-import WhiteboardEditorPrototypePage from './pages/WhiteboardEditorPrototypePage';
-import ResultsExperiencePrototypePage from './pages/ResultsExperiencePrototypePage';
 import { CalcAuthoringPanel } from '@/components/organisms/calc-authoring/CalcAuthoringPanel';
 import { PlaygroundLandingPage } from './pages/PlaygroundLandingPage';
 import { SyntaxView } from './views/SyntaxView';
@@ -47,8 +45,6 @@ export function AppRoutes({ searchHandlerRef, canvasRouteList = [], rootUnavaila
       />
       <Route path="/proto/calc-authoring" element={<CalcAuthoringPrototypePage />} />
       <Route path="/proto/query-block-composer" element={<QueryBlockComposerPrototypePage />} />
-      <Route path="/proto/whiteboard-editor" element={<WhiteboardEditorPrototypePage />} />
-      <Route path="/proto/results-experience" element={<ResultsExperiencePrototypePage />} />
 
       <Route path="/settings" element={<Navigate to="/settings/appearance" replace />} />
       <Route path="/settings/appearance" element={<AppContent searchHandlerRef={searchHandlerRef} />} />
