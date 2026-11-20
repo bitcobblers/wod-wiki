@@ -15,6 +15,47 @@
 
 # === :qa — Domains, Journeys, 5-Beat Chains, Issues, Runs ===
 
+<https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow> a qa:StoryTest ;
+    rdfs:label "Playground/Views/AddToDashboardSheet / TwoStepConfigurationFlow" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Seed>, <https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Enter>, <https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Sense>, <https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Drive>, <https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Prove> .
+
+<https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Enter> .
+
+<https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: AddToDashboardSheetHarness" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Sense> .
+
+<https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: add-to-dashboard-sheet, add-dashboard-wql-disclosure, add-dashboard-step-next, add-dashboard-mode-new, add-dashboard-new-title" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Drive> .
+
+<https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: waitForHydrated, click" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Prove> .
+
+<https://wod.wiki/qa/story/playground-views-addtodashboardsheet--two-step-configuration-flow/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 3 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
 <https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--default> a qa:StoryTest ;
     rdfs:label "Packages/UI/Widgets/DashboardView / Default" ;
     qa:tier "T2" ;
@@ -93,6 +134,47 @@
 
 <https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--edit-mode-arrange/beat/Prove> a qa:Step ;
     rdfs:label "Prove: 2 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard> a qa:StoryTest ;
+    rdfs:label "Packages/UI/Widgets/DashboardView / WorkoutLinkedDashboard" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Seed>, <https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Enter>, <https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Sense>, <https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Drive>, <https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Enter> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: DashboardHarness" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Sense> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: rendered DOM" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Drive> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: play() mount" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-dashboardview--workout-linked-dashboard/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 4 expect() assertion(s)" ;
     qa:hasBeat qa:Prove ;
     qa:stepIndex 5 ;
     qa:beatOrder 5 .
@@ -1983,6 +2065,47 @@
     qa:stepIndex 5 ;
     qa:beatOrder 5 .
 
+<https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block> a qa:StoryTest ;
+    rdfs:label "Packages/UI/Blocks/QueryBlockView / SessionSummaryBlock" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Seed>, <https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Enter>, <https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Sense>, <https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Drive>, <https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Enter> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: QueryBlockView" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Sense> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: rendered DOM" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Drive> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: play() mount" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-queryblockview--session-summary-block/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 3 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
 <https://wod.wiki/qa/story/playground-molecules-record-type-icons--all-record-types> a qa:StoryTest ;
     rdfs:label "Playground/Molecules/Record Type Icons / AllRecordTypes" ;
     qa:tier "T2" ;
@@ -2270,6 +2393,88 @@
     qa:stepIndex 5 ;
     qa:beatOrder 5 .
 
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook> a qa:StoryTest ;
+    rdfs:label "Packages/UI/Widgets/ResultsSpreadsheetGrid / DesktopWorkbook" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Seed>, <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Enter>, <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Sense>, <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Drive>, <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: props/args" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Enter> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: ResultsSpreadsheetGrid" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Sense> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: rendered DOM" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Drive> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: click, clear, type" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--desktop-workbook/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 7 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview> a qa:StoryTest ;
+    rdfs:label "Packages/UI/Widgets/ResultsSpreadsheetGrid / MobileCardsPreview" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Seed>, <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Enter>, <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Sense>, <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Drive>, <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: props/args" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Enter> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: ResultsSpreadsheetGrid" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Sense> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: rendered DOM" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Drive> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: play() mount" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-widgets-resultsspreadsheetgrid--mobile-cards-preview/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 2 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
 <https://wod.wiki/qa/story/playground-organisms-workout-runtimedebugpanel--embedded-debugger> a qa:StoryTest ;
     rdfs:label "Playground/Organisms/Workout/RuntimeDebugPanel / EmbeddedDebugger" ;
     qa:tier "T2" ;
@@ -2374,7 +2579,7 @@
     qa:nextStep <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--completed-hero-session/beat/Sense> .
 
 <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--completed-hero-session/beat/Sense> a qa:Step ;
-    rdfs:label "Sense: rendered DOM" ;
+    rdfs:label "Sense: output-statements-table" ;
     qa:hasBeat qa:Sense ;
     qa:stepIndex 3 ;
     qa:beatOrder 3 ;
@@ -2471,6 +2676,129 @@
 
 <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--session-with-skipped-dependency-diagnostic/beat/Prove> a qa:Step ;
     rdfs:label "Prove: 3 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown> a qa:StoryTest ;
+    rdfs:label "Playground/Views/Session Detail & Diagnostics / SpreadsheetBreakdown" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Seed>, <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Enter>, <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Sense>, <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Drive>, <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Prove> .
+
+<https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: props/args (wod:Session)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Enter> .
+
+<https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: SessionDetailCard" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Sense> .
+
+<https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: rendered DOM" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Drive> .
+
+<https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: play() mount" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Prove> .
+
+<https://wod.wiki/qa/story/playground-views-session-detail-diagnostics--spreadsheet-breakdown/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 2 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results> a qa:StoryTest ;
+    rdfs:label "Playground/Pages/SessionResultsPage / PopulatedMurphResults" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Seed>, <https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Enter>, <https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Sense>, <https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Drive>, <https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Prove> .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Enter> .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: SessionResultsPage @ /results/:sessionId" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Sense> .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: results-session-kpi-strip, property-table, results-source-drawer-btn, results-source-drawer" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Drive> .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: waitForHydrated, click" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Prove> .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 4 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery> a qa:StoryTest ;
+    rdfs:label "Playground/Pages/SessionResultsPage / MissingSessionRecovery" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Seed>, <https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Enter>, <https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Sense>, <https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Drive>, <https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Prove> .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Enter> .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: SessionResultsPage @ /results/:sessionId" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Sense> .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: results-empty-recovery" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Drive> .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: waitForHydrated" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Prove> .
+
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 2 expect() assertion(s)" ;
     qa:hasBeat qa:Prove ;
     qa:stepIndex 5 ;
     qa:beatOrder 5 .
@@ -2594,6 +2922,88 @@
 
 <https://wod.wiki/qa/story/workbench-database-storage-session-explorer--populated-journal-sessions/beat/Prove> a qa:Step ;
     rdfs:label "Prove: 3 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe> a qa:StoryTest ;
+    rdfs:label "Packages/UI/Blocks/SessionSummaryCard / CompletedWithPrsAndInteractiveRpe" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Seed>, <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Enter>, <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Sense>, <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Drive>, <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: props/args" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Enter> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: SessionSummaryCard" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Sense> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: rendered DOM" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Drive> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: click" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--completed-with-prs-and-interactive-rpe/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 5 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary> a qa:StoryTest ;
+    rdfs:label "Packages/UI/Blocks/SessionSummaryCard / ReadOnlySummary" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Seed>, <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Enter>, <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Sense>, <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Drive>, <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: props/args" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Enter> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: SessionSummaryCard" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Sense> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: rendered DOM" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Drive> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: play() mount" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-sessionsummarycard--read-only-summary/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 2 expect() assertion(s)" ;
     qa:hasBeat qa:Prove ;
     qa:stepIndex 5 ;
     qa:beatOrder 5 .
@@ -4894,6 +5304,47 @@
     qa:stepIndex 5 ;
     qa:beatOrder 5 .
 
+<https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section> a qa:StoryTest ;
+    rdfs:label "Packages/UI/Blocks/WQL Example Gallery / SummarySection" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest false ;
+    qa:hasStep <https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Seed>, <https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Enter>, <https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Sense>, <https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Drive>, <https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: props/args (wod:Query)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Enter> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: Packages/UI/Blocks/WQL Example Gallery" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Sense> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: rendered DOM" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Drive> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: static story render" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--summary-section/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: visual/render baseline" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
 <https://wod.wiki/qa/story/packages-ui-blocks-wql-example-gallery--rows-find-section> a qa:StoryTest ;
     rdfs:label "Packages/UI/Blocks/WQL Example Gallery / RowsFindSection" ;
     qa:tier "T2" ;
@@ -5086,6 +5537,8 @@
     qa:hasBeat qa:Prove ;
     qa:beatOrder 5 .
 
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results> qa:verifiesJourney <https://wod.wiki/qa/journey/ANL-04> .
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery> qa:verifiesJourney <https://wod.wiki/qa/journey/ANL-04> .
 <https://wod.wiki/qa/journey/ANL-01> a qa:Journey ;
     rdfs:label "ANL-01: Per-Surface Query Settings & Explorer Navigation" ;
     qa:tier "T3" ;
@@ -5292,6 +5745,8 @@
     qa:hasBeat qa:Prove ;
     qa:beatOrder 5 .
 
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results> qa:verifiesJourney <https://wod.wiki/qa/journey/FED-04> .
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery> qa:verifiesJourney <https://wod.wiki/qa/journey/FED-04> .
 <https://wod.wiki/qa/journey/FED-03> a qa:Journey ;
     rdfs:label "FED-03: Publication Visibility & Feed Export" ;
     qa:tier "T3" ;
@@ -5925,6 +6380,8 @@
 <https://wod.wiki/qa/story/playground-views-effort-detail--bundled-effort-read-only> qa:verifiesJourney <https://wod.wiki/qa/journey/PRP-04> .
 <https://wod.wiki/qa/story/playground-views-effort-detail--scoped-property-override-effort> qa:verifiesJourney <https://wod.wiki/qa/journey/PRP-04> .
 <https://wod.wiki/qa/story/playground-views-effort-detail--unresolved-effort-alias-prompt> qa:verifiesJourney <https://wod.wiki/qa/journey/PRP-04> .
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results> qa:verifiesJourney <https://wod.wiki/qa/journey/PRP-04> .
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery> qa:verifiesJourney <https://wod.wiki/qa/journey/PRP-04> .
 <https://wod.wiki/qa/journey/PRP-05> a qa:Journey ;
     rdfs:label "PRP-05: Tag Catalog Query Surface & Direct Property Editor" ;
     qa:tier "T3" ;
@@ -6007,6 +6464,8 @@
     qa:hasBeat qa:Prove ;
     qa:beatOrder 5 .
 
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results> qa:verifiesJourney <https://wod.wiki/qa/journey/RUN-02> .
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery> qa:verifiesJourney <https://wod.wiki/qa/journey/RUN-02> .
 <https://wod.wiki/qa/journey/RUN-03> a qa:Journey ;
     rdfs:label "RUN-03: Responsive Timer Surface Tiers & Clock Command Board Keypad" ;
     qa:tier "T3" ;
@@ -6089,6 +6548,8 @@
     qa:hasBeat qa:Prove ;
     qa:beatOrder 5 .
 
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--populated-murph-results> qa:verifiesJourney <https://wod.wiki/qa/journey/RUN-01> .
+<https://wod.wiki/qa/story/playground-pages-sessionresultspage--missing-session-recovery> qa:verifiesJourney <https://wod.wiki/qa/journey/RUN-01> .
 <https://wod.wiki/qa/suite/packages/wql/tests/fixtures/scenarios/01-scalar-volume.md> a qa:FixtureTableSuite ;
     rdfs:label "01-scalar-volume" ;
     qa:suitePath "packages/wql/tests/fixtures/scenarios/01-scalar-volume.md" ;
@@ -6267,6 +6728,13 @@
 <https://wod.wiki/qa/suite/packages/engine/tests/domain/property-notes-and-shakeout.domain.test.ts> a qa:DomainScenarioSuite ;
     rdfs:label "property-notes-and-shakeout" ;
     qa:suitePath "packages/engine/tests/domain/property-notes-and-shakeout.domain.test.ts" ;
+    qa:tier "T1" ;
+    qa:seam "T1c-domain" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/packages/engine/tests/domain/results-extensions.domain.test.ts> a qa:DomainScenarioSuite ;
+    rdfs:label "results-extensions" ;
+    qa:suitePath "packages/engine/tests/domain/results-extensions.domain.test.ts" ;
     qa:tier "T1" ;
     qa:seam "T1c-domain" ;
     qa:inDomain <https://wod.wiki/qa/domain/journal> .

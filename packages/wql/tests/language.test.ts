@@ -31,7 +31,7 @@ async function completeAsync(scm: typeof source, doc: string) {
 
 describe('wqlCompletionSource', () => {
   it('offers heads at the query start, narrowed by prefix', () => {
-    expect(complete('su')).toEqual(['sum']);
+    expect(complete('su')).toEqual(['sum', 'summary']);
     expect(complete('@to')).toEqual(['@today']);
   });
 
@@ -293,8 +293,8 @@ describe('wqlCompletionSource — colon heads', () => {
     expect(complete(':')).toEqual([
       'sum', 'avg', 'min', 'max', 'count', 'last', 'delta',
       'note', 'notes', 'block', 'effort', 'session', 'segment', 'event', 'journal', 'notebook', 'notebooks', 'playground', 'page', 'tag', 'equipment', 'feed', 'feeds', 'dashboard',
-      'timeseries', 'bar', 'stacked-bar', 'table', 'list', 'donut', 'toplist', 'value', 'goal-rings', 'zone-distribution',
-      '@session', '@today', '@note',
+      'summary', 'timeseries', 'bar', 'stacked-bar', 'table', 'list', 'donut', 'toplist', 'value', 'goal-rings', 'zone-distribution',
+      '@session', '@today', '@note', '@block', '@notebook',
     ]);
     expect(complete(':j')).toEqual(['journal']);
   });

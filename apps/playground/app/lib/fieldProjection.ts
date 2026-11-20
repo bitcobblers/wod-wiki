@@ -195,8 +195,20 @@ export const RESULT_FIELDS: readonly FieldDefinition[] = [
     level: 'result',
     defaultVisible: true,
     align: 'center',
-    getValue: e => (e.detail && /\bPR\b/.test(e.detail) ? 'PR' : ''),
+    getValue: e => {
+      if ((e.execution?.prCount ?? 0) > 0) return `${e.execution!.prCount} PR`
+      return e.detail && /\bPR\b/.test(e.detail) ? 'PR' : ''
+    },
     formatValue: v => String(v ?? ''),
+  },
+  {
+    id: 'rpe',
+    label: 'RPE',
+    level: 'result',
+    defaultVisible: false,
+    align: 'right',
+    getValue: e => e.execution?.rpe,
+    formatValue: v => (typeof v === 'number' ? `${v}/10` : ''),
   },
 ]
 

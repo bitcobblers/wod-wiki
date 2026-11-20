@@ -10,6 +10,8 @@ export interface WidgetFrameProps {
   /** Raw WQL for the widget. Hidden by default — only rendered with showQuery. */
   query?: string;
   span?: string;
+  /** Semantic heading level (h2 when top-level inside a page h1, h3 under a section h2). */
+  headingLevel?: 2 | 3;
   /** Show the raw WQL query box (teaching/authoring surfaces). View-first default hides it. */
   showQuery?: boolean;
   /**
@@ -30,7 +32,8 @@ export interface WidgetFrameProps {
   children: ReactNode;
 }
 
-export function WidgetFrame({ id, title, question, query, span, showQuery = false, onInspect, onOpenInExplorer, toolbar, children }: WidgetFrameProps) {
+export function WidgetFrame({ id, title, question, query, span, headingLevel = 2, showQuery = false, onInspect, onOpenInExplorer, toolbar, children }: WidgetFrameProps) {
+  const HeadingTag = headingLevel === 3 ? 'h3' : 'h2';
   return (
     <div
       id={id}
@@ -41,8 +44,8 @@ export function WidgetFrame({ id, title, question, query, span, showQuery = fals
     >
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-          {question && <p className="mt-1 text-xs text-muted-foreground">{question}</p>}
+          <HeadingTag className="text-sm font-semibold text-foreground">{title}</HeadingTag>
+          {question && <p className="mt-1 text-xs text-muted-foreground text-pretty">{question}</p>}
         </div>
         {(onInspect || onOpenInExplorer) && (
           <div className="flex shrink-0 items-center gap-1">

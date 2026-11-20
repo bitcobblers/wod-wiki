@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { TEST_IDS } from '@/lib/testIds';
 import {
   ArrowRight,
   BarChart3,
@@ -70,7 +71,7 @@ export function RpePopoverControl({ rpe, onChange, compact }: RpePopoverControlP
         type="button"
         aria-expanded={open}
         aria-haspopup="dialog"
-        data-testid="proto-rpe-trigger"
+        data-testid={TEST_IDS.PROTO_RESULTS.RPE_TRIGGER}
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
           'inline-flex items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -88,7 +89,7 @@ export function RpePopoverControl({ rpe, onChange, compact }: RpePopoverControlP
         <div
           role="dialog"
           aria-label="Rate session RPE"
-          data-testid="proto-rpe-popover"
+          data-testid={TEST_IDS.PROTO_RESULTS.RPE_POPOVER}
           className="absolute right-0 top-full z-30 mt-1.5 w-72 rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-lg"
         >
           <div className="mb-2 flex items-center justify-between">
@@ -239,7 +240,7 @@ export function SessionSummaryCard({
   return (
     <section
       aria-label={`Session summary for ${fixture.title}`}
-      data-testid="proto-session-summary-card"
+      data-testid={TEST_IDS.PROTO_RESULTS.SESSION_SUMMARY_CARD}
       className={cn(
         'text-card-foreground',
         bare
@@ -278,7 +279,7 @@ export function SessionSummaryCard({
           {showSourceToggle && onToggleSource && (
             <button
               type="button"
-              data-testid="proto-summary-source-toggle"
+              data-testid={TEST_IDS.PROTO_RESULTS.SUMMARY_SOURCE_TOGGLE}
               aria-pressed={isEditingSource}
               onClick={onToggleSource}
               className={cn(
@@ -302,7 +303,7 @@ export function SessionSummaryCard({
             Embedded Markdown Query Block (explicit YAML injection)
           </div>
           <pre
-            data-testid="proto-summary-source-pre"
+            data-testid={TEST_IDS.PROTO_RESULTS.SUMMARY_SOURCE_PRE}
             className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-3 font-mono text-xs text-foreground leading-relaxed"
           >
             {yamlFenceText}
@@ -408,7 +409,7 @@ export function SessionSummaryCard({
               {onOpenAddToDashboard ? (
                 <button
                   type="button"
-                  data-testid="proto-summary-add-dashboard"
+                  data-testid={TEST_IDS.PROTO_RESULTS.SUMMARY_ADD_DASHBOARD}
                   onClick={onOpenAddToDashboard}
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -425,7 +426,7 @@ export function SessionSummaryCard({
               {onOpenSpreadsheet && (
                 <button
                   type="button"
-                  data-testid="proto-summary-open-spreadsheet"
+                  data-testid={TEST_IDS.PROTO_RESULTS.SUMMARY_OPEN_SPREADSHEET}
                   onClick={onOpenSpreadsheet}
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',

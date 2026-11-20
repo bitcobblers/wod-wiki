@@ -61,6 +61,10 @@ export interface DashboardViewProps {
   /** Optional invalidation key — changing it re-runs widget queries. */
   refreshKey?: number | string;
   preferredUnit?: string;
+  /** Optional contextual page sources (`@session`, `@block`, `@notebook`, `@note`). */
+  pageSources?: ReadonlyMap<string, { events: import('@bitcobblers/wod-wiki-core').EventRecord[]; notes: import('@bitcobblers/wod-wiki-core').Note[] }>;
+  /** Optional click handler for opening full session results from summary/session widgets. */
+  onOpenResults?: (ctx: import('../blocks/SessionSummaryCard').SessionActionContext) => void;
   /** Optional click handler for opening a note/block from content-plane widgets. */
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   /** Optional resolver returning the destination href for an item in content-plane widgets. */
@@ -87,7 +91,7 @@ function spanClass(widget: DashboardWidget): string {
   }
   const resolved = resolveWidgetType(widget.type);
   if (resolved === 'value') return 'col-span-1';
-  if (resolved === 'table') return 'col-span-1 md:col-span-2';
+  if (resolved === 'table' || resolved === 'summary') return 'col-span-1 md:col-span-2';
   return 'col-span-1 md:col-span-2 lg:col-span-4';
 }
 
@@ -132,6 +136,8 @@ export function DashboardView({
   rangeEnd,
   refreshKey,
   preferredUnit,
+  pageSources,
+  onOpenResults,
   onOpenNote,
   noteHref,
   onLoadingChange,
@@ -168,8 +174,10 @@ export function DashboardView({
   }, [loading, onLoadingChange]);
 
   const resolvedKey = useMemo(
-    () => resolved.map((r) => `${r.widget.key}:${r.query}`).join('|'),
-    [resolved],
+    () =>
+      resolved.map((r) => `${r.widget.key}:${r.query}`).join('|') +
+      (pageSources ? `:ps=${[...pageSources.keys()].join(',')}` : ''),
+    [resolved, pageSources],
   );
 
   useEffect(() => {
@@ -206,7 +214,8 @@ export function DashboardView({
         }
         const resolvedType = resolveWidgetType(widget.type);
         if (isFindQuery(parsed)) {
-          if (resolvedType !== 'table' && resolvedType !== 'list') {
+          const allowSummary = resolvedType === 'summary' && parsed.target === 'session';
+          if (resolvedType !== 'table' && resolvedType !== 'list' && !allowSummary) {
             next[widget.key] = { error: 'content queries return things — use a table or list widget instead' };
             continue;
           }
@@ -239,7 +248,7 @@ export function DashboardView({
       await Promise.all(
         runnable.map(async ({ widget, query, parsed, attributes }) => {
           try {
-            const runner = new SharedQueryDocumentRunner(host);
+            const runner = new SharedQueryDocumentRunner(host, pageSources ? { pageSources } : undefined);
             const res = await runner.run(query);
             // Merge every shown output — a widget whose document shows
             // several bindings (`show a, b | :stacked-bar{}`) renders all
@@ -265,7 +274,7 @@ export function DashboardView({
     return () => {
       cancelled = true;
     };
-  }, [resolvedKey, resolved, executor, onEnsureRollupFacts, rangeStart, rangeEnd, preferredUnit, refreshKey]);
+  }, [resolvedKey, resolved, executor, onEnsureRollupFacts, rangeStart, rangeEnd, preferredUnit, refreshKey, pageSources]);
 
   return (
     <div data-testid="dashboard-view">
@@ -278,6 +287,7 @@ export function DashboardView({
           const run = runs[widget.key];
           const canArrange = editMode && (onEditWidget || onDuplicateWidget || onRemoveWidget || onMoveWidget || onResizeWidget);
           const before = (headings ?? []).filter((h) => h.beforeWidget === index);
+          const hasH2Before = (headings ?? []).some((h) => h.beforeWidget <= index && h.level <= 2);
           return (
             <Fragment key={widget.key}>
               {before.map((h) => (
@@ -296,6 +306,7 @@ export function DashboardView({
               question={widget.question ?? ''}
               query={query}
               span={spanClass(widget)}
+              headingLevel={hasH2Before ? 3 : 2}
               onInspect={onInspectWidget ? () => onInspectWidget(widget) : undefined}
               onOpenInExplorer={onOpenInExplorer ? () => onOpenInExplorer(widget, query) : undefined}
               toolbar={
@@ -375,6 +386,7 @@ export function DashboardView({
                   }}
                   onOpenNote={onOpenNote}
                   noteHref={noteHref}
+                  onOpenResults={onOpenResults}
                 />
               )}
             </WidgetFrame>

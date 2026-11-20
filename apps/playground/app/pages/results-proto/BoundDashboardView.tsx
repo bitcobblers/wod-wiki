@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { TEST_IDS } from '@/lib/testIds';
 import {
   Bar,
   BarChart,
@@ -185,7 +186,7 @@ export function ProtoWidgetContent({
 
   if (config.vizType === 'bar') {
     return (
-      <div className={cn('w-full', heightClass)} data-testid="proto-chart-bar">
+      <div className={cn('w-full', heightClass)} data-testid={TEST_IDS.PROTO_RESULTS.CHART_BAR}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData.rows} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
             <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
@@ -230,7 +231,7 @@ export function ProtoWidgetContent({
   }
 
   return (
-    <div className={cn('w-full', heightClass)} data-testid="proto-chart-line">
+    <div className={cn('w-full', heightClass)} data-testid={TEST_IDS.PROTO_RESULTS.CHART_LINE}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData.rows} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
           <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
@@ -328,7 +329,7 @@ export function BoundDashboardView({
   };
 
   return (
-    <div className="space-y-4" data-testid="proto-bound-dashboard-view">
+    <div className="space-y-4" data-testid={TEST_IDS.PROTO_RESULTS.BOUND_DASHBOARD_VIEW}>
       {/* Dashboard Selector Strip (flat bar to avoid nested cards) */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -364,7 +365,7 @@ export function BoundDashboardView({
           {!dashboard.editable && (
             <button
               type="button"
-              data-testid="proto-clone-prebuilt-btn"
+              data-testid={TEST_IDS.PROTO_RESULTS.CLONE_PREBUILT_BTN}
               onClick={() => onCloneDashboard(dashboard.slug)}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted transition-colors',
@@ -377,7 +378,7 @@ export function BoundDashboardView({
           )}
           <button
             type="button"
-            data-testid="proto-dashboard-add-widget-btn"
+            data-testid={TEST_IDS.PROTO_RESULTS.DASHBOARD_ADD_WIDGET_BTN}
             onClick={onOpenAddWidget}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors',
@@ -411,7 +412,7 @@ export function BoundDashboardView({
             <span className="shrink-0 font-mono text-muted-foreground">$block</span>
             <select
               aria-label="Dashboard $block token"
-              data-testid="proto-token-block"
+              data-testid={TEST_IDS.PROTO_RESULTS.TOKEN_BLOCK}
               disabled={!dashboard.editable}
               value={dashboard.tokens.block}
               onChange={(e) => onUpdateToken(dashboard.slug, 'block', e.target.value)}
@@ -429,7 +430,7 @@ export function BoundDashboardView({
             <span className="shrink-0 font-mono text-muted-foreground">$notebook</span>
             <select
               aria-label="Dashboard $notebook token"
-              data-testid="proto-token-notebook"
+              data-testid={TEST_IDS.PROTO_RESULTS.TOKEN_NOTEBOOK}
               disabled={!dashboard.editable}
               value={dashboard.tokens.notebook}
               onChange={(e) => onUpdateToken(dashboard.slug, 'notebook', e.target.value)}

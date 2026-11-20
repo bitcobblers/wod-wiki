@@ -82,7 +82,7 @@ export {
   dispatchExpandRuntimePanel,
   type RuntimePanelEntry,
 } from './runtime-panel-state';
-export { sessionQueryWql, sessionQueryFence, sessionQueryInsert } from './sessionQueryBlock';
+export { sessionQueryWql, sessionQueryFence, sessionQueryInsert, type SessionQueryFenceOptions } from './sessionQueryBlock';
 export { smartIncrement } from './smart-increment';
 export {
   wodOverlayPanel,

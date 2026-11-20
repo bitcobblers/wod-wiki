@@ -56,5 +56,5 @@ export { createResultRecorder } from '@/services/resultRecorder';
 export { readSoundProfiles } from '@/services/sound/soundProfiles';
 
 // ── Analytics corrections ─────────────────────────────────────────────────
-export { captureMetricCorrection } from '@/services/analytics/captureMetricCorrection';
+export { captureMetricCorrection, clearMetricCorrection } from '@/services/analytics/captureMetricCorrection';
 export { captureSessionRpe } from '@/services/analytics/captureSessionRpe';

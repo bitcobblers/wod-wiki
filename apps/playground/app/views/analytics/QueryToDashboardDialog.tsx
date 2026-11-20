@@ -12,12 +12,16 @@
  * successful save lands on the dashboard. The outer component gates on
  * `open` so every opening remounts a fresh flow — no stale drafts.
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Copy, Plus } from 'lucide-react'
 import { appendWidget, type WidgetSpec } from '@bitcobblers/wod-wiki-wql'
 import { dashboardSlug, DEFAULT_DASHBOARD_TITLE } from '@bitcobblers/wod-wiki-wql'
 import { parseFrontmatter } from '@/lib/frontmatter'
+import { queryService } from '@/services/queryService'
+import { useSeedContent } from '@/services/content/seedContent'
+import { TEST_IDS } from '@/lib/testIds'
+import { buildDashboardSeeds } from '../../lib/dashboardSeeds'
 import { journalNotes } from '../../services/journalNotes'
 import { dashboardNotes } from '../../services/dashboardNotes'
 import { notifyDashboardsChanged } from '../../services/dashboardEvents'
@@ -50,6 +54,7 @@ export interface QueryToDashboardDialogProps {
 }
 
 const NEW_DASHBOARD = '__new__'
+const CLONE_PREFIX = '__clone__:'
 
 export function QueryToDashboardDialog(props: QueryToDashboardDialogProps) {
   if (!props.open) return null
@@ -66,7 +71,10 @@ function SaveFlow({
 }: QueryToDashboardDialogProps) {
   const navigate = useNavigate()
   const { items, loading } = useDashboardList()
+  const seedFiles = useSeedContent()
+  const seeds = useMemo(() => (seedFiles ? buildDashboardSeeds(seedFiles) : []), [seedFiles])
   const editable = items.filter((d) => d.editable)
+  const prebuilt = items.filter((d) => !d.editable)
   const [destination, setDestination] = useState<string>(
     editable[0]?.slug ?? NEW_DASHBOARD,
   )
@@ -100,6 +108,20 @@ function SaveFlow({
             : dashboardSlug(title)
         close()
         void navigate(dashboardViewPath(resolvedSlug))
+      } else if (destination.startsWith(CLONE_PREFIX)) {
+        const templateSlug = destination.slice(CLONE_PREFIX.length)
+        const seed = seeds.find((s) => s.slug === templateSlug)
+        if (!seed) throw new Error(`Prebuilt dashboard "${templateSlug}" was not found.`)
+        const cloned = await dashboardNotes.cloneDashboard(templateSlug, seed.rawContent)
+        await journalNotes.update(cloned, appendWidget(cloned.rawContent, widget))
+        notifyDashboardsChanged()
+        const { meta } = parseFrontmatter(cloned.rawContent)
+        const resolvedSlug =
+          typeof meta.slug === 'string' && meta.slug.trim()
+            ? dashboardSlug(meta.slug)
+            : templateSlug
+        close()
+        void navigate(dashboardViewPath(resolvedSlug))
       } else {
         // Fresh read at write time — the note may have changed since the
         // catalog listed it; appendWidget never targets stale content.
@@ -125,6 +147,7 @@ function SaveFlow({
       mode="add"
       initialWql={initialQuery}
       subsetQuery={subsetQuery}
+      executor={queryService}
       rangeStart={rangeStart}
       rangeEnd={rangeEnd}
       preferredUnit={preferredUnit}
@@ -155,9 +178,25 @@ function SaveFlow({
                     {d.title}
                   </button>
                 ))}
+                {prebuilt.map((d) => (
+                  <button
+                    key={`clone-${d.slug}`}
+                    type="button"
+                    data-testid={TEST_IDS.DASHBOARD_DEST_CLONE}
+                    aria-pressed={destination === `${CLONE_PREFIX}${d.slug}`}
+                    onClick={() => setDestination(`${CLONE_PREFIX}${d.slug}`)}
+                    className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      destination === `${CLONE_PREFIX}${d.slug}`
+                        ? 'border-primary/60 bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <Copy className="size-3" /> Clone &amp; add: {d.title}
+                  </button>
+                ))}
                 <button
                   type="button"
-                  data-testid="dashboard-dest-new"
+                  data-testid={TEST_IDS.DASHBOARD_DEST_NEW}
                   aria-pressed={destination === NEW_DASHBOARD}
                   onClick={() => setDestination(NEW_DASHBOARD)}
                   className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${

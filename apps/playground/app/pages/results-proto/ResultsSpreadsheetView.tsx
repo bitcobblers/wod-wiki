@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { TEST_IDS } from '@/lib/testIds';
 import {
   ArrowDown,
   ArrowLeft,
@@ -548,7 +549,7 @@ export function ResultsSpreadsheetView({
   return (
     <div
       className={cn('space-y-4', compactMobile && 'pb-20')}
-      data-testid="proto-results-spreadsheet-view"
+      data-testid={TEST_IDS.PROTO_RESULTS.SPREADSHEET_VIEW}
     >
       {/* Dedicated Session Header — zero debug clutter atop the table */}
       <header className="rounded-xl border border-border bg-card px-4 py-3 sm:px-5 sm:py-4 space-y-3">
@@ -556,7 +557,7 @@ export function ResultsSpreadsheetView({
           <div className="flex flex-wrap items-center gap-2 min-w-0">
             <button
               type="button"
-              data-testid="proto-back-to-note"
+              data-testid={TEST_IDS.PROTO_RESULTS.BACK_TO_NOTE}
               onClick={onBackToNote}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -579,7 +580,7 @@ export function ResultsSpreadsheetView({
               <RpePopoverControl rpe={rpe} onChange={onChangeRpe} />
               <button
                 type="button"
-                data-testid="proto-copy-csv"
+                data-testid={TEST_IDS.PROTO_RESULTS.COPY_CSV}
                 onClick={handleCopyCsv}
                 className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -592,7 +593,7 @@ export function ResultsSpreadsheetView({
               </button>
               <button
                 type="button"
-                data-testid="proto-source-drawer-btn"
+                data-testid={TEST_IDS.PROTO_RESULTS.SOURCE_DRAWER_BTN}
                 onClick={() => setSourceDrawerOpen(true)}
                 className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -601,7 +602,7 @@ export function ResultsSpreadsheetView({
               </button>
               <button
                 type="button"
-                data-testid="proto-spreadsheet-add-dashboard"
+                data-testid={TEST_IDS.PROTO_RESULTS.SPREADSHEET_ADD_DASHBOARD}
                 onClick={onOpenAddToDashboard}
                 className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -688,7 +689,7 @@ export function ResultsSpreadsheetView({
       {!fixture.hasSegments && (
         <div
           role="status"
-          data-testid="proto-manual-log-fallback-banner"
+          data-testid={TEST_IDS.PROTO_RESULTS.MANUAL_LOG_FALLBACK_BANNER}
           className="flex items-start gap-2.5 rounded-xl border border-border bg-muted/35 px-4 py-3 text-xs text-foreground"
         >
           <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
@@ -882,7 +883,7 @@ export function ResultsSpreadsheetView({
 
           {compactMobile && mobileDisplay === 'cards' ? (
             /* Optional Mobile Card list view with tap-to-edit bottom sheet */
-            <div className="space-y-2.5" data-testid="proto-mobile-cards-list">
+            <div className="space-y-2.5" data-testid={TEST_IDS.PROTO_RESULTS.MOBILE_CARDS_LIST}>
               {sortedRows.map((row) => (
                 <article
                   key={row.id}
@@ -937,10 +938,10 @@ export function ResultsSpreadsheetView({
             /* True Spreadsheet Grid (Desktop + Mobile Frozen-Left Scrollable Table) */
             <div
               className="overflow-x-auto rounded-xl border border-border bg-card"
-              data-testid="proto-spreadsheet-scroll-container"
+              data-testid={TEST_IDS.PROTO_RESULTS.SPREADSHEET_SCROLL_CONTAINER}
             >
               <table
-                data-testid="proto-results-spreadsheet"
+                data-testid={TEST_IDS.PROTO_RESULTS.RESULTS_SPREADSHEET}
                 className="w-full border-collapse text-left text-xs"
               >
                 <thead>
@@ -1065,7 +1066,7 @@ export function ResultsSpreadsheetView({
                                     type="text"
                                     autoFocus
                                     aria-label={`Edit ${row.movement} ${col.label}`}
-                                    data-testid="proto-inline-cell-input"
+                                    data-testid={TEST_IDS.PROTO_RESULTS.INLINE_CELL_INPUT}
                                     value={inlineEdit.draft}
                                     onChange={(e) =>
                                       setInlineEdit((prev) =>
@@ -1084,7 +1085,7 @@ export function ResultsSpreadsheetView({
                                   />
                                   <button
                                     type="submit"
-                                    data-testid="proto-inline-cell-save"
+                                    data-testid={TEST_IDS.PROTO_RESULTS.INLINE_CELL_SAVE}
                                     className="rounded-md bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
                                   >
                                     Save
@@ -1408,7 +1409,7 @@ export function ResultsSpreadsheetView({
           </button>
           <button
             type="button"
-            data-testid="proto-mobile-add-dashboard"
+            data-testid={TEST_IDS.PROTO_RESULTS.MOBILE_ADD_DASHBOARD}
             onClick={onOpenAddToDashboard}
             className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
           >

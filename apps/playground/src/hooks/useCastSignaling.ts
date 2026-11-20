@@ -35,7 +35,7 @@ export type { IRpcTransport } from '@/services/cast/rpc/IRpcTransport';
 
 // ── Editor preview services ────────────────────────────────────────────────
 export { queryService } from '@/services/queryService';
-export { onResultSaved } from '@/services/resultRecorder';
+export { onResultSaved, notifyResultSaved } from '@/services/resultRecorder';
 
 // ── React hook ─────────────────────────────────────────────────────────────
 

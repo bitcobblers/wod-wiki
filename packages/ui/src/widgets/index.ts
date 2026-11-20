@@ -35,6 +35,18 @@ export {
 export { PRBadge, type PRBadgeProps } from './PRBadge';
 export { RowsTable, type RowsTableProps } from './RowsTable';
 export {
+  ResultsSpreadsheetGrid,
+  buildSpreadsheetRows,
+  type ResultsSpreadsheetGridProps,
+  type SpreadsheetSplitRow,
+  type SpreadsheetEditSheetContext,
+  type SpreadsheetTabId,
+  type ColumnPresetId,
+  type MobileColumnGroupId,
+  type EditableMetricField,
+} from './ResultsSpreadsheetGrid';
+export { resolveWidgetDisplayUnit } from './unitIntegrity';
+export {
   OutputStatementsTable,
   OutputFilterPills,
   type OutputStatementsTableProps,

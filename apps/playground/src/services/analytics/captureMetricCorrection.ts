@@ -14,6 +14,7 @@ import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
 import { storageService } from '@/services/storage';
 import { NotePersistenceError } from '@/services/persistence/types';
+import { notifyResultSaved } from '@/services/resultRecorder';
 import type { StorageService } from '@/services/storage';
 import type { EventRecord } from '@/types/storage';
 
@@ -125,9 +126,82 @@ export async function captureMetricCorrection(
 
   try {
     await persistence.rederiveResultAnalytics(resultId);
+    notifyResultSaved(result);
     return 'captured';
   } catch (err) {
     if (err instanceof NotePersistenceError && err.code === 'BLOCK_REVISION_NOT_FOUND') {
+      notifyResultSaved(result);
+      return 'captured-no-rederive';
+    }
+    throw err;
+  }
+}
+
+export interface ClearMetricCorrectionInput {
+  resultId: string;
+  occurrence: Partial<MetricCorrectionOccurrence> & { blockKey?: string };
+  metricType: string;
+}
+
+/**
+ * Remove user-authored override metrics of `metricType` on the specified
+ * segment occurrence, re-derive session analytics, and notify open views.
+ */
+export async function clearMetricCorrection(
+  input: ClearMetricCorrectionInput,
+  deps: CaptureMetricCorrectionDeps = {},
+): Promise<CaptureMetricCorrectionOutcome> {
+  const { resultId, occurrence, metricType } = input;
+  if (!resultId || !metricType) {
+    throw new TypeError('clearMetricCorrection: resultId and metricType are required');
+  }
+  const storage = deps.storage ?? storageService;
+  const persistence = deps.persistence ?? new IndexedDBNotePersistence(storage);
+
+  const result = await storage.getSessionById(resultId);
+  if (!result) return 'not-found';
+
+  const cleared = await storage.withTransaction(['events'], async (scoped) => {
+    const events = await scoped.getEventsByResult(resultId);
+    const candidates = events.filter((row) =>
+      row.grain === 'event'
+      && row.outputType === 'segment'
+      && (!occurrence?.blockKey || row.sourceBlockKey === occurrence.blockKey)
+      && (occurrence?.sourceStatementId === undefined || row.sourceStatementId === occurrence.sourceStatementId)
+      && (occurrence?.stackLevel === undefined || row.stackLevel === occurrence.stackLevel)
+      && row.metrics.some(
+        (m) => m.origin === 'user' && String(m.type).toLowerCase() === metricType.toLowerCase(),
+      ),
+    );
+    if (candidates.length === 0) return 'not-found' as const;
+
+    const updated: EventRecord[] = [];
+    for (const row of candidates) {
+      const kept = row.metrics.filter(
+        (m) => !(m.origin === 'user' && String(m.type).toLowerCase() === metricType.toLowerCase()),
+      );
+      const instant = row.timeSpan?.started ?? row.timestamp;
+      updated.push({
+        ...row,
+        metrics: kept,
+        ...(row.metricTemporal
+          ? { metricTemporal: kept.map(() => ({ temporalKind: 'instant' as const, instant })) }
+          : {}),
+      });
+    }
+    await scoped.appendEvents(updated);
+    return 'captured' as const;
+  });
+
+  if (cleared === 'not-found') return 'not-found';
+
+  try {
+    await persistence.rederiveResultAnalytics(resultId);
+    notifyResultSaved(result);
+    return 'captured';
+  } catch (err) {
+    if (err instanceof NotePersistenceError && err.code === 'BLOCK_REVISION_NOT_FOUND') {
+      notifyResultSaved(result);
       return 'captured-no-rederive';
     }
     throw err;

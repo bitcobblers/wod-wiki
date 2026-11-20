@@ -59,6 +59,19 @@ export interface ActiveExplorerBridge {
   openQuerySettings: () => void;
 }
 
+export interface ActiveResultsBridge {
+  resultId: string;
+  activeTab: 'splits' | 'movement' | 'compare' | 'raw';
+  mobileViewMode: 'grid' | 'cards';
+  sourceDrawerOpen: boolean;
+  addToDashboardOpen: boolean;
+  setTab: (tab: 'splits' | 'movement' | 'compare' | 'raw') => void;
+  setMobileViewMode: (mode: 'grid' | 'cards') => void;
+  openSourceDrawer: (open?: boolean) => void;
+  openAddToDashboard: () => void;
+  closeModals: () => void;
+}
+
 let currentEditor: ActiveEditorBridge | null = null;
 const editorListeners = new Set<() => void>();
 
@@ -144,6 +157,35 @@ export function subscribeActiveExplorerBridge(listener: () => void): () => void 
 
 export function useActiveExplorerBridge(): ActiveExplorerBridge | null {
   return useSyncExternalStore(subscribeActiveExplorerBridge, getActiveExplorerBridge, () => null);
+}
+
+let currentResults: ActiveResultsBridge | null = null;
+const resultsListeners = new Set<() => void>();
+
+export function registerActiveResultsBridge(bridge: ActiveResultsBridge): () => void {
+  currentResults = bridge;
+  for (const l of resultsListeners) l();
+  return () => {
+    if (currentResults === bridge) {
+      currentResults = null;
+      for (const l of resultsListeners) l();
+    }
+  };
+}
+
+export function getActiveResultsBridge(): ActiveResultsBridge | null {
+  return currentResults;
+}
+
+export function subscribeActiveResultsBridge(listener: () => void): () => void {
+  resultsListeners.add(listener);
+  return () => {
+    resultsListeners.delete(listener);
+  };
+}
+
+export function useActiveResultsBridge(): ActiveResultsBridge | null {
+  return useSyncExternalStore(subscribeActiveResultsBridge, getActiveResultsBridge, () => null);
 }
 
 let busyCounter = 0;

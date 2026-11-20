@@ -176,6 +176,29 @@ export const uiEditorInspectorSchema = z.strictObject({
     .describe('Zero-based index of the token on the current cursor line to target.'),
 });
 
+export const uiResultsControlSchema = z.strictObject({
+  activeTab: z
+    .enum(['splits', 'movement', 'compare', 'raw'])
+    .optional()
+    .describe('Switch the active results workbook tab.'),
+  mobileViewMode: z
+    .enum(['grid', 'cards'])
+    .optional()
+    .describe('Switch the mobile results presentation mode (`grid` or `cards`).'),
+  sourceDrawerOpen: z
+    .boolean()
+    .optional()
+    .describe('Open or close the Pinned Workout Source & History drawer.'),
+  openAddToDashboard: z
+    .boolean()
+    .optional()
+    .describe('Open the 2-step Add to Dashboard promotion sheet for the session.'),
+  closeModals: z
+    .boolean()
+    .optional()
+    .describe('Close any open source drawer or dashboard dialog on the results workbench.'),
+});
+
 export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
   return [
     {
@@ -287,6 +310,17 @@ export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
       mountScope: 'mounted Note editor (NoteEditor)',
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: zodSchemaToJsonSchema(uiEditorInspectorSchema),
+    },
+    {
+      name: 'ui_results_control',
+      title: 'Control Session Results Workbench',
+      description:
+        'Switch workbook tabs (`splits`, `movement`, `compare`, `raw`), mobile layout (`grid`, `cards`), or open the Source & History drawer and Add-to-Dashboard promotion sheet on `/results/:sessionId`.',
+      tier: 1,
+      surfaces: ['webmcp'],
+      mountScope: 'mounted session results workbench (/results/:sessionId)',
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      inputSchema: zodSchemaToJsonSchema(uiResultsControlSchema),
     },
     ...agentTools.map(
       (tool): AgentUiToolManifestEntry => ({

@@ -191,9 +191,19 @@ export function LibraryRow({
               {entry.block.dataType}
             </span>
           )}
-          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 border border-border rounded-full px-1.5 py-0.5">
+          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground border border-border rounded-full px-1.5 py-0.5">
             {kindLabel}
           </span>
+          {entry.kind === 'result' && entry.execution?.rpe != null && (
+            <span className="text-[10px] font-mono font-semibold tabular-nums rounded-full border border-border bg-muted/50 px-2 py-0.5 text-foreground">
+              RPE {entry.execution.rpe}/10
+            </span>
+          )}
+          {entry.kind === 'result' && (entry.execution?.prCount ?? 0) > 0 && (
+            <span className="text-[10px] font-bold uppercase tracking-wider rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-200">
+              {entry.execution!.prCount} PR
+            </span>
+          )}
           {(entry.kind === 'feed' || entry.kind === 'notebook') && entry.feedId !== 'local' && entry.feedId !== 'core' && (
             <span
               className={`text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border ${
@@ -262,7 +272,7 @@ export function LibraryRow({
             </div>
           )}
           {entry.subtitle && showSubtitle && (
-            <span className="text-[10px] text-muted-foreground/60 truncate">{entry.subtitle}</span>
+            <span className="text-[10px] text-muted-foreground truncate">{entry.subtitle}</span>
           )}
         </div>
         {showDetail && (
@@ -284,7 +294,7 @@ export function LibraryRow({
             : undefined
         )
         return effectiveDateLabel && showDate ? (
-          <span className="flex-shrink-0 text-[10px] text-muted-foreground/70 tabular-nums self-start sm:self-auto pt-0.5 sm:pt-0" data-testid="library-row-date">
+          <span className="flex-shrink-0 text-[10px] text-muted-foreground tabular-nums self-start sm:self-auto pt-0.5 sm:pt-0" data-testid="library-row-date">
             {effectiveDateLabel}
           </span>
         ) : null

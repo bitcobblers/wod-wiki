@@ -92,7 +92,7 @@ describe('fieldProjection - field registries per entity level (Ticket 002 requir
   it('defines the required available fields for Result level', () => {
     const fields = getFieldsForLevel('result')
     const fieldIds = fields.map(f => f.id)
-    expect(fieldIds).toEqual(['title', 'elapsedTime', 'totalTonnage', 'tis', 'prBadges'])
+    expect(fieldIds).toEqual(['title', 'elapsedTime', 'totalTonnage', 'tis', 'prBadges', 'rpe'])
   })
 
   it('defines the required available fields for Segment level', () => {

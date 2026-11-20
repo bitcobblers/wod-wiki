@@ -15,6 +15,10 @@
 
 import { getTagIndex } from '@/hooks/useBrowserServices';
 import React, { useEffect, useRef, useMemo, useState, useCallback } from "react";
+import { useOptionalNavigate } from "@/hooks/useOptionalNavigate";
+import type { SessionActionContext } from "@bitcobblers/wod-wiki-ui";
+import { sessionDetailPath } from "@/lib/routes";
+import { AddToDashboardSheet } from "../../../../app/views/analytics/AddToDashboardSheet";
 import { Annotation, EditorState, Prec, StateEffect, type Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 import {
@@ -283,6 +287,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const editorWrapperRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const navigate = useOptionalNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const [dashboardSheetCtx, setDashboardSheetCtx] = useState<SessionActionContext | null>(null);
   const defaultNotePersistenceRef = useRef<INotePersistence | null>(null);
   // Per-instance block-notification dedupe (#885): two editors with identical
   // content (home hero + runway window) must each seed their own blocks — a
@@ -987,6 +995,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                 throw new Error('Result segment not found in storage.');
               }
             },
+        onOpenResults: (ctx) => {
+          const dest = sessionDetailPath(ctx.resultId);
+          if (navigateRef.current) {
+            void navigateRef.current(dest);
+          } else if (typeof window !== 'undefined') {
+            window.location.assign(dest);
+          }
+        },
+        onAddToDashboard: (ctx) => {
+          setDashboardSheetCtx(ctx);
+        },
         noteHref: (item) => {
           const isBlock = 'blockContentId' in item || 'dataType' in item;
           const entry = isBlock
@@ -1575,6 +1594,13 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           />
         )}
       </div>
+      <AddToDashboardSheet
+        open={dashboardSheetCtx !== null}
+        onOpenChange={(open) => {
+          if (!open) setDashboardSheetCtx(null);
+        }}
+        context={dashboardSheetCtx}
+      />
     </>
   );
 };

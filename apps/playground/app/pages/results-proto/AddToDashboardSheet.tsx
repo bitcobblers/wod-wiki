@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { TEST_IDS } from '@/lib/testIds';
 import {
   Activity,
   ArrowLeft,
@@ -182,7 +183,7 @@ function AddToDashboardSheetSession({
           {step === 1 ? (
             <button
               type="button"
-              data-testid="proto-add-dash-next-step"
+              data-testid={TEST_IDS.PROTO_RESULTS.ADD_DASH_NEXT}
               onClick={() => setStep(2)}
               className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
             >
@@ -192,7 +193,7 @@ function AddToDashboardSheetSession({
           ) : (
             <button
               type="button"
-              data-testid="proto-add-dash-confirm"
+              data-testid={TEST_IDS.PROTO_RESULTS.ADD_DASH_CONFIRM}
               onClick={handleSave}
               className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
             >
@@ -209,7 +210,7 @@ function AddToDashboardSheetSession({
         </>
       }
     >
-      <div className="space-y-4" data-testid="proto-add-to-dashboard-sheet">
+      <div className="space-y-4" data-testid={TEST_IDS.PROTO_RESULTS.ADD_DASH_SHEET}>
         {/* Clean 2-Step Switcher */}
         <div
           role="tablist"
@@ -362,7 +363,7 @@ function AddToDashboardSheetSession({
                       <span className="text-muted-foreground">Other notebook:</span>
                       <select
                         aria-label="Choose comparison notebook"
-                        data-testid="proto-other-notebook-select"
+                        data-testid={TEST_IDS.PROTO_RESULTS.OTHER_NOTEBOOK_SELECT}
                         value={config.otherNotebookSlug}
                         onChange={(e) =>
                           updateConfig((p) => ({ ...p, otherNotebookSlug: e.target.value }))
@@ -462,7 +463,7 @@ function AddToDashboardSheetSession({
 
             {/* Step 1D: Live Working Preview (flat surface, zero nested cards) */}
             <div
-              data-testid="proto-add-dash-live-preview"
+              data-testid={TEST_IDS.PROTO_RESULTS.ADD_DASH_LIVE_PREVIEW}
               className="space-y-2 border-t border-border/60 pt-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -632,7 +633,7 @@ function AddToDashboardSheetSession({
                     <span className="font-medium text-muted-foreground">New dashboard title</span>
                     <input
                       type="text"
-                      data-testid="proto-new-dashboard-title"
+                      data-testid={TEST_IDS.PROTO_RESULTS.NEW_DASHBOARD_TITLE}
                       value={newDashboardTitle}
                       onChange={(e) => setNewDashboardTitle(e.target.value)}
                       className="min-h-11 rounded-lg border border-border bg-background px-3 text-xs text-foreground"

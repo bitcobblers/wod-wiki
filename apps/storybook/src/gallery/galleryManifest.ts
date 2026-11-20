@@ -26,6 +26,7 @@ export type GallerySection =
   | 'goal-rings'
   | 'zone-distribution'
   | 'table'
+  | 'summary'
   | 'rows'
   | 'find'
   | 'edge';
@@ -62,6 +63,7 @@ export const SECTION_ORDER: GallerySection[] = [
   'goal-rings',
   'zone-distribution',
   'table',
+  'summary',
   'rows',
   'find',
   'edge',
@@ -108,6 +110,10 @@ export const SECTION_META: Record<GallerySection, { title: string; blurb: string
   table: {
     title: 'Table',
     blurb: 'WqlTable renders whatever shape the query returns: grouped rows or time buckets.',
+  },
+  summary: {
+    title: 'Summary',
+    blurb: 'SessionSummaryCard renders authoritative completion KPIs, movement rollups, and RPE actions.',
   },
   rows: {
     title: 'Rows & Find',
@@ -173,6 +179,9 @@ export const GALLERY_CARDS: GalleryCardDef[] = [
   // ── Table ─────────────────────────────────────────────────────────────
   { section: 'table', widgetType: 'table', title: 'Load by effort', question: 'The breakdown, as rows', journal: 'crossfit', query: 'sum:sessionLoad{} by {effort}' },
   { section: 'table', widgetType: 'table', title: 'Weekly tonnage', question: 'The trend, as rows', journal: 'crossfit', query: 'sum:totalVolume{} by {week}' },
+
+  // ── Summary — authoritative session summary card ───────────────────────
+  { section: 'summary', widgetType: 'summary', title: 'Fran session summary', question: 'How did this workout execute?', journal: 'crossfit', query: ':session{result:res-fran-w0}' },
 
   // ── Rows — raw statement runs through the real RowsTable ──────────────
   { section: 'rows', widgetType: 'rows', title: 'Fran session statements', question: 'The summary facts behind Fran\'s first bar in Weekly tonnage', journal: 'crossfit', query: ':session{result:res-fran-w0}' },

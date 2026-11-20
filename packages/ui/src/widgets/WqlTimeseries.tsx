@@ -12,8 +12,15 @@ import {
 import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { useChartShape } from './useChartShape';
 import { WqlEmptyState } from './WqlEmptyState';
-import { mergeSeries, formatTimestamp, tooltipTimestamp } from './chartData';
+import {
+  mergeSeries,
+  formatTimestamp,
+  tooltipTimestamp,
+  isOrdinalSeriesSet,
+  buildOrdinalChartData,
+} from './chartData';
 import { SERIES_COLORS } from './chartPalette';
+import { resolveWidgetDisplayUnit } from './unitIntegrity';
 
 export interface WqlTimeseriesProps {
   result: QueryResult;
@@ -77,12 +84,17 @@ function resolveTimeseriesUnit(result: QueryResult, unitProp?: string): string |
     return 'ms';
   }
 
-  return unitProp;
+  const resolved = resolveWidgetDisplayUnit(result, unitProp);
+  return resolved || undefined;
 }
 
 export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
   const shape = useChartShape(result);
-  const data = useMemo(() => mergeSeries(result.series), [result]);
+  const isOrdinal = useMemo(() => isOrdinalSeriesSet(result.series), [result.series]);
+  const data = useMemo(
+    () => (isOrdinal ? buildOrdinalChartData(result.series) : mergeSeries(result.series)),
+    [isOrdinal, result],
+  );
   const unit = resolveTimeseriesUnit(result, unitProp);
 
   if (shape.kind !== 'timeseries' && shape.kind !== 'scalar') {
@@ -91,11 +103,11 @@ export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
+      <LineChart data={data as Array<Record<string, number | string | undefined>>} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
         <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
         <XAxis
-          dataKey="ts"
-          tickFormatter={formatTimestamp}
+          dataKey={isOrdinal ? 'label' : 'ts'}
+          tickFormatter={isOrdinal ? (v) => String(v) : formatTimestamp}
           tickLine={false}
           axisLine={{ stroke: 'hsl(var(--border))' }}
           stroke="hsl(var(--muted-foreground))"
@@ -116,7 +128,7 @@ export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
             fontSize: '12px',
             color: 'hsl(var(--popover-foreground))',
           }}
-          labelFormatter={(v) => tooltipTimestamp(v as number)}
+          labelFormatter={isOrdinal ? (v) => String(v) : (v) => tooltipTimestamp(v as number)}
           formatter={(v) => [formatTimeseriesTooltipValue(v as number | string, unit), '']}
         />
         {result.series.length > 1 && (
@@ -130,7 +142,7 @@ export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
             name={s.label}
             stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
             strokeWidth={2}
-            dot={false}
+            dot={isOrdinal ? { r: 3 } : false}
           />
         ))}
       </LineChart>

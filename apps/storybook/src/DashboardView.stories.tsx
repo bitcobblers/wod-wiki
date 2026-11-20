@@ -129,3 +129,36 @@ export const EditModeArrange: Story = {
     await expect(canvas.getByTestId('widget-toolbar-w0')).toBeVisible();
   },
 };
+
+const WORKOUT_LINKED_DASHBOARD_MARKDOWN = [
+  '---',
+  'title: Fran Workout Report',
+  'dashboard: true',
+  '---',
+  '',
+  '# Fran Workout Report',
+  '',
+  'Latest session execution summary',
+  '```query:summary',
+  ':session{result:res-fran-w0}',
+  '```',
+  '',
+  'Split tonnage progression across the session',
+  '```query:timeseries',
+  'sum:totalVolume{effort:fran} by {split}',
+  '```',
+].join('\n');
+
+export const WorkoutLinkedDashboard: Story = {
+  args: {
+    markdown: WORKOUT_LINKED_DASHBOARD_MARKDOWN,
+    editMode: false,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByTestId('dashboard-view-story')).toBeVisible();
+    await expect(canvas.findByTestId('session-summary-card')).resolves.toBeVisible();
+    await expect(canvas.queryByText(/query execution error/i)).toBeNull();
+    await expect(canvas.queryByText(/no data for this range/i)).toBeNull();
+  },
+};

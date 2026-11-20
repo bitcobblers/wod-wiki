@@ -1,4 +1,5 @@
 import { ArrowRight, Code2 } from 'lucide-react';
+import { TEST_IDS } from '@/lib/testIds';
 import { cn } from '@/lib/utils';
 import {
   generateExplicitSummaryFence,
@@ -120,7 +121,7 @@ export function WqlExtensionsView({
   ];
 
   return (
-    <div className="space-y-4" data-testid="proto-wql-extensions-view">
+    <div className="space-y-4" data-testid={TEST_IDS.PROTO_RESULTS.WQL_EXTENSIONS_VIEW}>
       <div className="rounded-xl border border-border bg-card px-4 py-4 sm:px-5 space-y-1">
         <h2 className="text-lg font-bold text-foreground">
           WQL Engine Extensions Needed for Coherent Results &amp; Comparisons

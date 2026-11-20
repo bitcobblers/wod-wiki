@@ -31,7 +31,7 @@ const meta: Meta<typeof QueryBlockView> = {
     },
     widgetType: {
       control: 'select',
-      options: ['', 'value', 'timeseries', 'bar', 'toplist', 'table', 'stacked-bar', 'goal-rings'],
+      options: ['', 'value', 'timeseries', 'bar', 'toplist', 'table', 'stacked-bar', 'goal-rings', 'summary'],
       description: 'Fence-tag widget override (e.g. ```query:bar)',
     },
     readOnly: {
@@ -107,5 +107,22 @@ export const TableQueryInlay: Story = {
     const table = await canvas.findByTestId('tabular-table');
     await expect(table).toBeVisible();
     await expect(table.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
+  },
+};
+
+export const SessionSummaryBlock: Story = {
+  args: {
+    query: ':session{result:res-fran-w0}',
+    widgetType: 'summary',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const root = canvas.getByTestId('query-block-story');
+    await expect(root).toBeVisible();
+    await waitFor(async () => {
+      await expect(canvas.queryByText('Loading…')).toBeNull();
+    });
+    const card = await canvas.findByTestId('session-summary-card');
+    await expect(card).toBeVisible();
   },
 };

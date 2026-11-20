@@ -14,7 +14,9 @@
 
 import {
   QueryService,
+  buildContextualPageSource,
   buildQueryServiceStoresFromStorage,
+  type BuildContextualPageSourceScope,
   type NoteQueryStore,
   type BlockQueryStore,
   type EffortQueryStore,
@@ -265,13 +267,46 @@ class PlaygroundQueryService extends QueryService {
   }
 }
 
+let contextualPageSources: Map<string, PageSourceEntry> | null = null;
+let contextualScopeGeneration = 0;
+
+/**
+ * Populate historical `@session`, `@block`, `@notebook`, and `@note` page
+ * datasets for `/results/:sessionId` and workout-bound dashboards.
+ */
+export async function setContextualPageSources(
+  scope: BuildContextualPageSourceScope,
+): Promise<Map<string, PageSourceEntry>> {
+  const gen = ++contextualScopeGeneration;
+  const built = await buildContextualPageSource(storage, scope);
+  if (gen === contextualScopeGeneration) {
+    contextualPageSources = built as Map<string, PageSourceEntry>;
+  }
+  return built as Map<string, PageSourceEntry>;
+}
+
+/** Clear historical contextual datasets on route exit. */
+export function clearContextualPageSources(): void {
+  contextualScopeGeneration += 1;
+  contextualPageSources = null;
+}
+
+export function getContextualPageSources(): ReadonlyMap<string, PageSourceEntry> | undefined {
+  return contextualPageSources ?? undefined;
+}
+
 export function createQueryService(): QueryService {
   const stores = buildQueryServiceStoresFromStorage(storage, {
     coalesce: true,
     effortStore: new RegistryEffortStore(),
     feedCatalogStore: playgroundFeedCatalogStore,
     datasetStore: {
-      getDataset: (name) => (name === '@session' ? projectLiveSession() : pageSourceRegistry.getDataset(name)),
+      getDataset: (name) => {
+        if (name === '@session') {
+          return projectLiveSession() ?? contextualPageSources?.get('@session');
+        }
+        return contextualPageSources?.get(name) ?? pageSourceRegistry.getDataset(name);
+      },
     },
     isNotebookSubscribed: (feedId, chunkId) => isNotebookSubscribed(feedId, chunkId),
   });

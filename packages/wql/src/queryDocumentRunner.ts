@@ -80,9 +80,18 @@ export interface QueryDocumentRunnerHost {
     }>;
     /** Pipeline execution (`:source | :fn | :chart`, `@dataset | …`) — the
      *  host's QueryService.runPipeline. */
-    runPipeline?(queryText: string, context?: ExecutionContext): Promise<FamilyRunPayload>;
+    runPipeline?(
+        queryText: string,
+        context?: ExecutionContext,
+        pageSources?: PageSourceRegistry | ReadonlyMap<string, PageSourceEntry>,
+    ): Promise<FamilyRunPayload>;
     /** Evaluate pipeline tail stages over an already-evaluated find payload (shared source DAG). */
-    runPipelineFromFind?(sourceFind: FamilyRunPayload, pipeTail: string, context?: ExecutionContext): Promise<FamilyRunPayload>;
+    runPipelineFromFind?(
+        sourceFind: FamilyRunPayload,
+        pipeTail: string,
+        context?: ExecutionContext,
+        pageSources?: PageSourceRegistry | ReadonlyMap<string, PageSourceEntry>,
+    ): Promise<FamilyRunPayload>;
     /** Injected formula evaluator override (engine/app composition adapts
      *  lang's calc evaluator); the built-in pointwise evaluator otherwise. */
     formulaEvaluator?: FormulaEvaluator;
@@ -100,6 +109,8 @@ export interface SharedRunnerOptions {
     rangeEnd?: number;
     /** Active token values (frontmatter controls, dashboard controls). */
     tokens?: Record<string, string>;
+    /** Contextual page datasets (`@session`, `@block`, `@notebook`, `@note`). */
+    pageSources?: PageSourceRegistry | ReadonlyMap<string, PageSourceEntry>;
 }
 
 const ROLLUP_TARGETS = ['calc.acwr', 'calc.monotony', 'calc.strain'];
@@ -197,8 +208,14 @@ export class QueryDocumentRunner {
         const formulaRunner = new FormulaAwareRunner(async (queryText, overrides) => {
             if (overrides.window) {
                 queryText = appendSuffixes(queryText, overrides.window, overrides.groupBy);
+            } else if (overrides.groupBy?.length && !/\bby\s*\{/.test(queryText)) {
+                queryText = `${queryText} by {${overrides.groupBy.join(', ')}}`;
             }
-            return this.host.runAggregate(queryText, { context: captured.context, window: overrides.window });
+            return this.host.runAggregate(queryText, {
+                context: captured.context,
+                window: overrides.window,
+                groupBy: overrides.groupBy,
+            });
         }, {
             // The injected evaluator (ticket 17 seam) wins; the host may also
             // carry one; otherwise the built-in evaluates.
@@ -208,13 +225,13 @@ export class QueryDocumentRunner {
                 return res ?? { error: 'find queries are not supported by this host' };
             },
             runPipeline: async (queryText) => {
-                const res = await this.host.runPipeline?.(queryText, captured.context);
+                const res = await this.host.runPipeline?.(queryText, captured.context, captured.pageSources);
                 return res ?? { error: 'pipeline queries are not supported by this host' };
             },
             ...(this.host.runPipelineFromFind
                 ? {
                       runPipelineFromFind: async (sourceFind: FamilyRunPayload, pipeTail: string) =>
-                          this.host.runPipelineFromFind!(sourceFind, pipeTail, captured.context),
+                          this.host.runPipelineFromFind!(sourceFind, pipeTail, captured.context, captured.pageSources),
                   }
                 : {}),
         });

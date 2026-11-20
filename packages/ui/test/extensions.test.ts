@@ -15,7 +15,9 @@ import {
   sectionSaved,
   sectionRestore,
   registeredSectionWidgets,
+  sessionQueryFence,
   sessionQueryInsert,
+  sessionQueryWql,
   sectionGeometry,
   linkOpen,
   navigationFacet,
@@ -476,8 +478,12 @@ describe('editor occurrence lineage', () => {
     const copied = Object.keys(state.field(sectionField).noteBlocks);
     expect(copied.slice(1)).toEqual(original);
     expect(original).not.toContain(copied[0]);
+    expect(sessionQueryWql('res-1')).toBe(':session{result:res-1}');
+    expect(sessionQueryFence('res-1')).toBe('```query\nview: summary\nquery: :session{result:res-1}\n```');
+    expect(sessionQueryFence('res-1', { view: 'table' })).toBe('```query\n:session{result:res-1}\n```');
     expect(sessionQueryInsert(state, 'removed', 'result')).toBeNull();
     expect(sessionQueryInsert(state, original[1], 'result')?.from).toBe(state.field(sectionField).sections.find(section => section.id === original[1])?.to);
+    expect(sessionQueryInsert(state, original[1], 'result')?.insert).toBe('\n\n```query\nview: summary\nquery: :session{result:result}\n```');
   });
 
   it('creates fresh IDs for ambiguous whole replacements even with identical text', () => {

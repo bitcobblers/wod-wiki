@@ -7,8 +7,10 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { sectionField, type EditorSection } from "./section-state";
 import { setEditorFocused } from "./editor-focus";
+import type { EventRecord, Note } from "@bitcobblers/wod-wiki-core";
 import { resolveQueryExecutionScope } from "@bitcobblers/wod-wiki-wql";
 import { QueryBlockView } from "../blocks/QueryBlockView";
+import type { SessionActionContext } from "../blocks/SessionSummaryCard";
 import type { InlineMetricEditPayload } from "../widgets/OutputStatementsTable";
 import type { QueryExecutor } from "../contracts/query";
 import { patchBlockQuery } from "../utils/blockQueryPatcher";
@@ -81,6 +83,9 @@ export interface QueryBlockPreviewOptions {
   onEditMetric?: (resultId: string, payload: InlineMetricEditPayload) => void | Promise<void>;
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
+  onOpenResults?: (ctx: SessionActionContext) => void;
+  onAddToDashboard?: (ctx?: SessionActionContext) => void;
+  pageSources?: ReadonlyMap<string, { events: EventRecord[]; notes: Note[] }>;
   tokenValues?: Record<string, string>;
   noteId?: string;
 }
@@ -114,7 +119,10 @@ class ReactQueryBlock extends WidgetType {
       this.options?.readOnly === other.options?.readOnly &&
       this.options?.executor === other.options?.executor &&
       this.options?.onOpenNote === other.options?.onOpenNote &&
-      this.options?.noteHref === other.options?.noteHref
+      this.options?.noteHref === other.options?.noteHref &&
+      this.options?.onOpenResults === other.options?.onOpenResults &&
+      this.options?.onAddToDashboard === other.options?.onAddToDashboard &&
+      this.options?.pageSources === other.options?.pageSources
     );
   }
 
@@ -180,6 +188,9 @@ class ReactQueryBlock extends WidgetType {
         onEditMetric={this.options?.onEditMetric}
         onOpenNote={this.options?.onOpenNote}
         noteHref={this.options?.noteHref}
+        onOpenResults={this.options?.onOpenResults}
+        onAddToDashboard={this.options?.onAddToDashboard}
+        pageSources={this.options?.pageSources}
       />,
     );
   }

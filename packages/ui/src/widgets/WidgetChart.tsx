@@ -13,6 +13,9 @@ import { StackedBar } from './StackedBar';
 import { GoalRings } from './GoalRings';
 import { ZoneDistribution } from './ZoneDistribution';
 import { WqlEmptyState } from './WqlEmptyState';
+import { ResultsSpreadsheetGrid } from './ResultsSpreadsheetGrid';
+import { resolveWidgetDisplayUnit } from './unitIntegrity';
+import { SessionSummaryCard, type SessionActionContext } from '../blocks/SessionSummaryCard';
 
 export interface WidgetChartProps {
   /** Raw widget type from the fence suffix; '' picks the dashboard default (table). */
@@ -31,6 +34,10 @@ export interface WidgetChartProps {
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   /** Optional resolver returning the destination href for an item in content-plane list results. */
   noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
+  /** Optional handler to open full spreadsheet results for a session/summary widget. */
+  onOpenResults?: (ctx: SessionActionContext) => void;
+  /** Optional handler to promote a session summary widget to another dashboard. */
+  onAddToDashboard?: (ctx: SessionActionContext) => void;
 }
 
 function inferChartTypeFromResult(result: QueryResult | undefined): string {
@@ -50,6 +57,8 @@ export function WidgetChart({
   inferDefaultShape = false,
   onOpenNote,
   noteHref,
+  onOpenResults,
+  onAddToDashboard,
 }: WidgetChartProps) {
   if (type !== '' && !isDashboardWidgetType(type)) {
     return <WidgetProblemBadge message={unknownWidgetTypeMessage(type)} />;
@@ -65,11 +74,46 @@ export function WidgetChart({
     parsedFamily === 'find' ||
     Boolean(runResult?.notes?.length || runResult?.blocks?.length || runResult?.efforts?.length || runResult?.runs?.length);
 
+  if (resolved === 'summary') {
+    const firstRun = runResult?.runs?.[0];
+    if (firstRun) {
+      return (
+        <SessionSummaryCard
+          bare
+          run={firstRun}
+          noteTitle={label}
+          onOpenResults={onOpenResults}
+          onAddToDashboard={onAddToDashboard}
+        />
+      );
+    }
+    return (
+      <div className="flex items-center justify-center h-full text-xs text-muted-foreground p-4 text-center">
+        No session summary matched this query.
+      </div>
+    );
+  }
+
   if (resolved === 'table' && runResult?.table) {
     return (
       <div className="w-full h-full min-h-[160px]">
         <TabularTable table={runResult.table} />
       </div>
+    );
+  }
+  if (
+    resolved === 'table' &&
+    runResult?.runs &&
+    runResult.runs.length === 1 &&
+    (!result || !('series' in result) || result.series.length === 0)
+  ) {
+    return (
+      <ResultsSpreadsheetGrid
+        run={runResult.runs[0]!}
+        noteTitle={label}
+        readOnly
+        onAddToDashboard={onAddToDashboard}
+      />
     );
   }
   if (resolved === 'table' && hasContentItems && (!result || !('series' in result) || result.series.length === 0)) {
@@ -186,7 +230,7 @@ function WqlDonut({ result, unit, label }: { result: QueryResult; unit?: string;
     fill: SERIES_COLORS[i % SERIES_COLORS.length],
   }));
   const slices = data.filter((d) => d.value > 0);
-  const summaryUnit = result.series[0]?.unit ?? unit ?? '';
+  const summaryUnit = resolveWidgetDisplayUnit(result, unit);
   const summary = slices.length > 0
     ? `${label ?? 'distribution'}: ${slices.map((d) => `${d.name} ${compactNumber(d.value)}${summaryUnit}`).join(', ')}`
     : 'no data';

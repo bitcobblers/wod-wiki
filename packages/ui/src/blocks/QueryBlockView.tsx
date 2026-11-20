@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChartBar, Edit3 } from 'lucide-react';
+import type { EventRecord, Note } from '@bitcobblers/wod-wiki-core';
 import {
   parseQuery,
   parseDocument,
@@ -20,7 +21,8 @@ import {
 import type { QueryExecutor } from '../contracts/query';
 import { RowsTable } from '../widgets/RowsTable';
 import type { InlineMetricEditPayload } from '../widgets/OutputStatementsTable';
-import { RowsResultsChrome } from './RowsResultsChrome';
+import { RowsResultsChrome, useSessionPrHighlights } from './RowsResultsChrome';
+import { SessionSummaryCard, type SessionActionContext } from './SessionSummaryCard';
 import { WidgetChart, WidgetProblemBadge } from '../widgets/WidgetChart';
 import {
   createExecutorDocumentHost,
@@ -52,7 +54,11 @@ export interface QueryBlockViewProps {
   /** Fence-tag presentation attributes (decision 22). */
   attributes?: Record<string, string>;
   /** Optional action for saving this query as a dashboard widget. */
-  onAddToDashboard?: () => void;
+  onAddToDashboard?: (ctx?: SessionActionContext) => void;
+  /** Optional handler to open full spreadsheet results for a session. */
+  onOpenResults?: (ctx: SessionActionContext) => void;
+  /** Optional contextual page sources (`@session`, `@block`, `@notebook`, `@note`). */
+  pageSources?: ReadonlyMap<string, { events: EventRecord[]; notes: Note[] }>;
   /** Optional RPE capture handler. */
   onCaptureRpe?: (resultId: string, rpe: number) => Promise<void>;
   /** Optional inline metric actuals editor (`captureMetricCorrection`). */
@@ -77,6 +83,8 @@ export function QueryBlockView({
   tokenValues,
   attributes,
   onAddToDashboard,
+  onOpenResults,
+  pageSources,
   onCaptureRpe,
   onEditMetric,
   onOpenNote,
@@ -111,7 +119,7 @@ export function QueryBlockView({
 
   const combinedAttributes = useMemo(() => {
     if (!yamlObject) return attributes;
-    return { ...queryBlockAttributes(yamlObject), ...attributes };
+    return { ...queryBlockAttributes(yamlObject).attributes, ...attributes };
   }, [attributes, yamlObject]);
 
   const { query: effectiveQuery, missing } = useMemo(() => {
@@ -166,7 +174,7 @@ export function QueryBlockView({
     const host = createExecutorDocumentHost(executor);
 
     const executeRun = (attemptCount: number) => {
-      const runner = new SharedQueryDocumentRunner(host);
+      const runner = new SharedQueryDocumentRunner(host, pageSources ? { pageSources } : undefined);
       void runner
         .run(effectiveQuery)
         .then((res) => {
@@ -204,7 +212,7 @@ export function QueryBlockView({
       cancelled = true;
       clearTimeout(retryTimer);
     };
-  }, [effectiveQuery, parsed, isMultiLineDoc, syntaxError, effectiveWidgetError, unknownType, missing, executor, rowsRefreshKey, resolvedAttributes]);
+  }, [effectiveQuery, parsed, isMultiLineDoc, syntaxError, effectiveWidgetError, unknownType, missing, executor, rowsRefreshKey, resolvedAttributes, pageSources]);
 
   const canEdit = onSaveQuery !== undefined && !readOnly;
   const onEdit = canEdit ? () => setIsModalOpen(true) : undefined;
@@ -251,7 +259,15 @@ export function QueryBlockView({
           </div>
         </QueryBlockShell>
       ) : (
-        <QueryBlockShell title={yamlObject?.title} description={yamlObject?.description} onEdit={onEdit} onEditSource={effectiveEditSource} readOnly={readOnly} onAddToDashboard={onAddToDashboard}>
+        <QueryBlockShell
+          title={yamlObject?.title}
+          description={yamlObject?.description}
+          onEdit={onEdit}
+          onEditSource={effectiveEditSource}
+          readOnly={readOnly}
+          onAddToDashboard={onAddToDashboard}
+          hideActions={effectiveWidgetType === 'summary' && Boolean(runResult?.runs?.length)}
+        >
           <QueryBlockBody
             parsed={parsed}
             result={runResult}
@@ -270,6 +286,10 @@ export function QueryBlockView({
             onCaptured={() => setRowsRefreshKey((k) => k + 1)}
             onOpenNote={onOpenNote}
             noteHref={noteHref}
+            onOpenResults={onOpenResults}
+            onAddToDashboard={onAddToDashboard}
+            onEditSource={effectiveEditSource}
+            readOnly={readOnly}
           />
         </QueryBlockShell>
       )}
@@ -306,6 +326,10 @@ function QueryBlockBody({
   onCaptured,
   onOpenNote,
   noteHref,
+  onOpenResults,
+  onAddToDashboard,
+  onEditSource,
+  readOnly = false,
 }: {
   parsed: AnyParsedQuery;
   result: WidgetRunResult | undefined;
@@ -324,7 +348,23 @@ function QueryBlockBody({
   onCaptured: () => void;
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
+  onOpenResults?: (ctx: SessionActionContext) => void;
+  onAddToDashboard?: (ctx?: SessionActionContext) => void;
+  onEditSource?: () => void;
+  readOnly?: boolean;
 }) {
+  const effectiveType = widgetType != null && widgetType !== '' ? widgetType : result?.chart?.head ?? '';
+  const summaryRun = result?.runs?.[0];
+  const summaryBlockContentId =
+    summaryRun?.summary?.blockContentId ??
+    summaryRun?.events.find((e) => e.blockContentId)?.blockContentId;
+  const { prHighlights: summaryPrHighlights } = useSessionPrHighlights(
+    summaryRun,
+    summaryBlockContentId,
+    executor,
+    Boolean(effectiveType === 'summary' && yamlComparePr !== false && summaryBlockContentId && executor),
+  );
+
   if (!result) {
     return (
       <div className="text-xs text-muted-foreground py-2">
@@ -335,6 +375,34 @@ function QueryBlockBody({
 
   if (result.table && (widgetType == null || widgetType === '' || widgetType === 'table')) {
     return <WidgetChart type="table" result={result} />;
+  }
+
+  if (effectiveType === 'summary' && result.runs && result.runs.length > 0) {
+    const primaryRun = result.runs[0]!;
+    return (
+      <div className="space-y-2">
+        {result.runs.slice(0, yamlLimit ?? 1).map((run) => (
+          <SessionSummaryCard
+            key={run.resultId}
+            bare
+            run={run}
+            prHighlights={run === primaryRun ? summaryPrHighlights : undefined}
+            readOnly={readOnly}
+            onCaptureRpe={
+              onCaptureRpe
+                ? async (rId, rpe) => {
+                    await onCaptureRpe(rId, rpe);
+                    onCaptured();
+                  }
+                : undefined
+            }
+            onOpenResults={onOpenResults}
+            onAddToDashboard={onAddToDashboard ? (ctx) => onAddToDashboard(ctx) : undefined}
+            onEditSource={!readOnly ? onEditSource : undefined}
+          />
+        ))}
+      </div>
+    );
   }
 
   if (resultId && result.runs && result.runs.length > 0) {
@@ -350,6 +418,8 @@ function QueryBlockBody({
         sort={yamlSort}
         limit={yamlLimit}
         comparePr={yamlComparePr}
+        onOpenResults={onOpenResults}
+        onAddToDashboard={onAddToDashboard ? (ctx) => onAddToDashboard(ctx) : undefined}
       />
     );
   }
@@ -388,8 +458,6 @@ function QueryBlockBody({
     );
   }
 
-  const sinkHead = result.chart?.head;
-  const effectiveType = widgetType != null && widgetType !== '' ? widgetType : sinkHead ?? '';
   const sinkAttributes = Object.fromEntries(
     (result.chart?.filters ?? []).map((f) => [f.key, f.values.map((v) => v.value).join(',')]),
   );
@@ -408,6 +476,8 @@ function QueryBlockBody({
         inferDefaultShape={effectiveType === ''}
         onOpenNote={onOpenNote}
         noteHref={noteHref}
+        onOpenResults={onOpenResults}
+        onAddToDashboard={onAddToDashboard ? (ctx) => onAddToDashboard(ctx) : undefined}
       />
     </div>
   );
@@ -421,6 +491,7 @@ function QueryBlockShell({
   onEditSource,
   readOnly,
   onAddToDashboard,
+  hideActions = false,
 }: {
   title?: string;
   description?: string;
@@ -428,61 +499,67 @@ function QueryBlockShell({
   onEdit?: () => void;
   onEditSource?: () => void;
   readOnly?: boolean;
-  onAddToDashboard?: () => void;
+  onAddToDashboard?: (ctx?: SessionActionContext) => void;
+  hideActions?: boolean;
 }) {
+  const showActions = !hideActions && (Boolean(onAddToDashboard) || Boolean(onEdit && !readOnly) || Boolean(onEditSource && !readOnly));
+  const showHeader = Boolean(title || description || showActions);
+
   return (
-    <div className="relative group/block p-3 rounded-[8px] border border-border bg-card">
-      {(onAddToDashboard || (onEdit && !readOnly) || (onEditSource && !readOnly)) && (
-        <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-          {onEditSource && !readOnly && (
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onEditSource();
-              }}
-              aria-label="Edit query source"
-              title="Edit raw WQL source"
-              data-testid="query-edit-source"
-              className="px-1.5 py-0.5 rounded-[4px] border border-border bg-muted/70 text-[10px] font-mono font-medium text-muted-foreground hover:text-foreground opacity-80 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-            >
-              Source
-            </button>
+    <div className="group/block p-3 rounded-[8px] border border-border bg-card">
+      {showHeader && (
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="min-w-0 flex-1">
+            {title && <div className="text-xs font-semibold text-foreground">{title}</div>}
+            {description && <div className="text-[11px] text-muted-foreground text-pretty">{description}</div>}
+          </div>
+          {showActions && (
+            <div className="flex shrink-0 items-center gap-1">
+              {onEditSource && !readOnly && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onEditSource();
+                  }}
+                  aria-label="Edit query source"
+                  title="Edit raw WQL source"
+                  data-testid="query-edit-source"
+                  className="px-1.5 py-0.5 rounded-[4px] border border-border bg-muted/70 text-[10px] font-mono font-medium text-muted-foreground hover:text-foreground opacity-80 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                >
+                  Source
+                </button>
+              )}
+              {onAddToDashboard && (
+                <button
+                  type="button"
+                  onClick={() => onAddToDashboard()}
+                  aria-label="Add to dashboard"
+                  title="Add to dashboard"
+                  data-testid="query-add-dashboard"
+                  className="p-1 rounded-[4px] border border-border bg-muted/70 text-muted-foreground hover:text-foreground"
+                >
+                  <ChartBar className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {onEdit && !readOnly && (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  aria-label="Edit query in Omni-Composer"
+                  title="Edit query in Omni-Composer"
+                  className="p-1 rounded-[4px] border border-border bg-muted/70 text-muted-foreground hover:text-foreground opacity-70 group-hover/block:opacity-100 focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           )}
-          {onAddToDashboard && (
-            <button
-              type="button"
-              onClick={onAddToDashboard}
-              aria-label="Add to dashboard"
-              title="Add to dashboard"
-              data-testid="query-add-dashboard"
-              className="p-1 rounded-[4px] border border-border bg-muted/70 text-muted-foreground hover:text-foreground"
-            >
-              <ChartBar className="w-3.5 h-3.5" />
-            </button>
-          )}
-          {onEdit && !readOnly && (
-            <button
-              type="button"
-              onClick={onEdit}
-              aria-label="Edit query in Omni-Composer"
-              title="Edit query in Omni-Composer"
-              className="p-1 rounded-[4px] border border-border bg-muted/70 text-muted-foreground hover:text-foreground opacity-0 group-hover/block:opacity-100 focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      )}
-      {(title || description) && (
-        <div className="mb-2 pr-24">
-          {title && <div className="text-xs font-semibold text-foreground">{title}</div>}
-          {description && <div className="text-[11px] text-muted-foreground">{description}</div>}
         </div>
       )}
       {children}

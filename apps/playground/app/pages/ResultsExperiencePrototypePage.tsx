@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { TEST_IDS } from '@/lib/testIds';
 import {
   Code2,
   FileText,
@@ -282,7 +283,7 @@ export default function ResultsExperiencePrototypePage() {
         'min-h-screen bg-background text-foreground',
         isDark && 'dark',
       )}
-      data-testid="results-experience-prototype"
+      data-testid={TEST_IDS.PROTO_RESULTS.PAGE}
     >
       {/* Top Prototype Control Bar */}
       <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
@@ -295,7 +296,7 @@ export default function ResultsExperiencePrototypePage() {
               <span className="text-muted-foreground">Workout:</span>
               <select
                 aria-label="Select prototype workout fixture"
-                data-testid="proto-fixture-select"
+                data-testid={TEST_IDS.PROTO_RESULTS.FIXTURE_SELECT}
                 value={fixtureId}
                 onChange={(e) => handleSelectFixture(e.target.value as FixtureId)}
                 className="min-h-11 sm:min-h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground"
@@ -318,7 +319,7 @@ export default function ResultsExperiencePrototypePage() {
             >
               <button
                 type="button"
-                data-testid="proto-viewport-responsive"
+                data-testid={TEST_IDS.PROTO_RESULTS.VIEWPORT_RESPONSIVE}
                 aria-pressed={viewportMode === 'responsive'}
                 onClick={() => setViewportMode('responsive')}
                 className={cn(
@@ -333,7 +334,7 @@ export default function ResultsExperiencePrototypePage() {
               </button>
               <button
                 type="button"
-                data-testid="proto-viewport-mobile"
+                data-testid={TEST_IDS.PROTO_RESULTS.VIEWPORT_MOBILE}
                 aria-pressed={viewportMode === 'mobile-390'}
                 onClick={() => setViewportMode('mobile-390')}
                 className={cn(
@@ -350,7 +351,7 @@ export default function ResultsExperiencePrototypePage() {
 
             <button
               type="button"
-              data-testid="proto-theme-toggle"
+              data-testid={TEST_IDS.PROTO_RESULTS.THEME_TOGGLE}
               aria-label={isDark ? 'Switch to Mineral light theme' : 'Switch to Arctic Frost dark theme'}
               onClick={toggleTheme}
               className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"

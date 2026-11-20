@@ -44,7 +44,7 @@ describe('Domain — Entity Scope resolution & WQL planes over real SqlStorage',
     const notebook = harness.resolveEntityScope({ noteId: 'notebook/crossfit-girls', label: 'CrossFit Girls' });
     expect(notebook.kind).toBe('notebook');
     expect(notebook.notesWql).toBe(':note{notebook:crossfit-girls}');
-    expect(notebook.sessionsWql).toBe(':session{} where :note{notebook:crossfit-girls}');
+    expect(notebook.sessionsWql).toBe(':session{notebook:crossfit-girls}');
 
     const feed = harness.resolveEntityScope({ noteId: 'feed/wod-science', label: 'WOD Science' });
     expect(feed.kind).toBe('feed');

@@ -80,7 +80,8 @@ import {
   updateWidget,
 } from '@bitcobblers/wod-wiki-wql';
 import { useDashboardSource } from '../../hooks/useDashboards';
-import { analyticsExplorerPath, dashboardsPath } from '../../lib/routes';
+import { analyticsExplorerPath, dashboardsPath, sessionDetailPath } from '../../lib/routes';
+import { clearContextualPageSources, setContextualPageSources } from '@/services/queryService';
 import { useNav } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
 import { ResponsiveActions } from '../../nav/ResponsiveActions';
@@ -429,6 +430,52 @@ export function DashboardViewPage() {
     return { ...base, scope: scopeClause };
   }, [document, scopeQueryDraft]);
 
+  const [contextualPageSources, setContextualPageSourcesState] = useState<
+    Awaited<ReturnType<typeof setContextualPageSources>> | undefined
+  >(undefined);
+
+  useEffect(() => {
+    const sessionToken =
+      typeof effectiveTokenValues.session === 'string' ? effectiveTokenValues.session.trim() : '';
+    const blockToken =
+      typeof effectiveTokenValues.block === 'string' ? effectiveTokenValues.block.trim() : '';
+    const notebookToken =
+      typeof effectiveTokenValues.notebook === 'string' ? effectiveTokenValues.notebook.trim() : '';
+    const hasContextual =
+      (sessionToken !== '' && sessionToken !== 'all') ||
+      (blockToken !== '' && blockToken !== 'all') ||
+      (notebookToken !== '' && notebookToken !== 'all');
+
+    if (!hasContextual) {
+      clearContextualPageSources();
+      setContextualPageSourcesState(undefined);
+      return;
+    }
+
+    let cancelled = false;
+    void setContextualPageSources({
+      resultId: sessionToken && sessionToken !== 'all' ? sessionToken : undefined,
+      blockContentId: blockToken && blockToken !== 'all' ? blockToken : undefined,
+      notebookSlug: notebookToken && notebookToken !== 'all' ? notebookToken : undefined,
+    })
+      .then((sources) => {
+        if (!cancelled) setContextualPageSourcesState(sources);
+      })
+      .catch(() => {
+        if (!cancelled) setContextualPageSourcesState(undefined);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveTokenValues]);
+
+  useEffect(() => {
+    return () => {
+      clearContextualPageSources();
+    };
+  }, []);
+
   // A refresh (new refreshKey) flips the hook to loading=true but KEEPS the
   // previously resolved source — gate the early returns on source-readiness,
   // not on loading alone, or the whole page (composer draft included)
@@ -616,6 +663,7 @@ export function DashboardViewPage() {
             headings={outline.headings}
             executor={queryService}
             tokenValues={effectiveTokenValues}
+            pageSources={contextualPageSources}
             onTokenChange={editable ? handleTokenChange : undefined}
             editMode={editable && editMode}
             onEditWidget={editable ? (w) => setComposer({ mode: 'edit', widget: w, expectedRaw: source.rawContent }) : undefined}
@@ -625,6 +673,7 @@ export function DashboardViewPage() {
             onResizeWidget={editable ? (w, span) => runWidgetOp(source.rawContent, (raw) => resizeWidget(raw, w.key, w.body, span)) : undefined}
             onInspectWidget={!editable ? (w) => setComposer({ mode: 'inspect', widget: w, expectedRaw: source.rawContent }) : undefined}
             onOpenInExplorer={(w, q) => navigate(analyticsExplorerPath({ q }))}
+            onOpenResults={(ctx) => navigate(sessionDetailPath(ctx.resultId))}
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
             refreshKey={`${refreshKey}:${dataRefreshKey}`}

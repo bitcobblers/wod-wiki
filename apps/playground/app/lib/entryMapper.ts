@@ -47,6 +47,8 @@ export interface EntryExecutionData {
   sessionLoadAu?: number
   distanceMeters?: number
   tis?: number
+  rpe?: number
+  prCount?: number
   segmentCount?: number
   events?: EventRecord[]
   metrics?: StoredOutputStatement['metrics']
@@ -799,13 +801,19 @@ function extractRunMetrics(run: RowsRun) {
     workoutVolume ??
     (segmentLoadTotal > 0 ? { val: segmentLoadTotal, unit: segmentLoadUnit ?? 'lbs' } : undefined)
 
+  const summaryRpe = run.summary?.rpe
+  const summaryPrCount = run.summary?.prCount
+  const authoritativeElapsed = run.summary?.elapsedMs ?? elapsedMs
+
   return {
-    elapsedMs,
+    elapsedMs: authoritativeElapsed,
     reps: totalReps > 0 ? totalReps : undefined,
     loadLbs: resolvedVolume?.val,
     volumeUnit: resolvedVolume?.unit,
     sessionLoadAu,
     tis: maxTis > 0 ? maxTis : undefined,
+    rpe: summaryRpe,
+    prCount: summaryPrCount,
     segmentCount: segmentCount > 0 ? segmentCount : undefined,
     effortSlugs: Array.from(effortSlugs),
   }
@@ -832,6 +840,12 @@ export function rowsRunToEntry(run: RowsRun, options?: { noteTitle?: string }): 
   }
   if (metrics.segmentCount != null) {
     subtitleParts.push(`${metrics.segmentCount} splits`)
+  }
+  if (metrics.rpe != null) {
+    subtitleParts.push(`RPE ${metrics.rpe}/10`)
+  }
+  if (metrics.prCount != null && metrics.prCount > 0) {
+    subtitleParts.push(`${metrics.prCount} PR`)
   }
 
   const movements = metrics.effortSlugs.map(formatEffortName)
@@ -870,6 +884,8 @@ export function rowsRunToEntry(run: RowsRun, options?: { noteTitle?: string }): 
       volumeUnit: metrics.volumeUnit,
       sessionLoadAu: metrics.sessionLoadAu,
       tis: metrics.tis,
+      rpe: metrics.rpe,
+      prCount: metrics.prCount,
       segmentCount: metrics.segmentCount,
       events: run.events,
     },

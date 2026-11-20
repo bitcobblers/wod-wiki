@@ -73,6 +73,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
     "intensity",
     "grade",
     "note",
+    "notebook",
     "page",
     "origin",
     "grain",
@@ -86,7 +87,10 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
     "week",
     "month",
     "session",
-    "round"
+    "round",
+    "split",
+    "attempt",
+    "notebook"
   ],
   "contentGroupingDimensions": [
     "date",
@@ -161,6 +165,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "discipline",
       "intensity",
       "grade",
+      "notebook",
       "page",
       "origin",
       "grain",
@@ -177,6 +182,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "intensity",
       "grade",
       "note",
+      "notebook",
       "page",
       "origin",
       "grain",
@@ -196,6 +202,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "intensity",
       "grade",
       "note",
+      "notebook",
       "page",
       "origin",
       "grain",
@@ -1108,7 +1115,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
 
 ---
 
-## Live Browser UI Tools (13 tools — Playground WebMCP only)
+## Live Browser UI Tools (14 tools — Playground WebMCP only)
 
 ### `ui_get_view_context` (Tier 0 — WebMCP UI)
 - **Title**: Get Active UI View Context
@@ -1505,6 +1512,51 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
   "required": [
     "action"
   ],
+  "additionalProperties": false
+}
+```
+
+### `ui_results_control` (Tier 1 — WebMCP UI)
+- **Title**: Control Session Results Workbench
+- **Mount Scope**: mounted session results workbench (/results/:sessionId)
+- **Description**: Switch workbook tabs (`splits`, `movement`, `compare`, `raw`), mobile layout (`grid`, `cards`), or open the Source & History drawer and Add-to-Dashboard promotion sheet on `/results/:sessionId`.
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "activeTab": {
+      "description": "Switch the active results workbook tab.",
+      "type": "string",
+      "enum": [
+        "splits",
+        "movement",
+        "compare",
+        "raw"
+      ]
+    },
+    "mobileViewMode": {
+      "description": "Switch the mobile results presentation mode (`grid` or `cards`).",
+      "type": "string",
+      "enum": [
+        "grid",
+        "cards"
+      ]
+    },
+    "sourceDrawerOpen": {
+      "description": "Open or close the Pinned Workout Source & History drawer.",
+      "type": "boolean"
+    },
+    "openAddToDashboard": {
+      "description": "Open the 2-step Add to Dashboard promotion sheet for the session.",
+      "type": "boolean"
+    },
+    "closeModals": {
+      "description": "Close any open source drawer or dashboard dialog on the results workbench.",
+      "type": "boolean"
+    }
+  },
   "additionalProperties": false
 }
 ```

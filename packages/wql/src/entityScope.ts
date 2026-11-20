@@ -21,6 +21,7 @@ import { PageSourceRegistry, type PageSourceEntry } from './queryDocumentRunner'
 
 export type EntityScopeKind =
   | 'note'
+  | 'block'
   | 'effort'
   | 'equipment'
   | 'tag'
@@ -284,8 +285,8 @@ export function resolveEntityScope(input: ResolveEntityScopeInput): EntityScopeD
       const scopeFilter = `notebook:${safeNb}`;
       const notesWql = `:note{${scopeFilter}}`;
       const blocksWql = `:block{${scopeFilter}}`;
-      const sessionsWql = `:session{} where ${notesWql}`;
-      const recordsWql = `:segment{} where ${notesWql}`;
+      const sessionsWql = `:session{${scopeFilter}}`;
+      const recordsWql = `:segment{${scopeFilter}}`;
       return {
         kind,
         id: `notebook/${nbSlug}`,
@@ -301,6 +302,31 @@ export function resolveEntityScope(input: ResolveEntityScopeInput): EntityScopeD
           scope: scopeFilter,
           notebook: nbSlug,
           metric: 'tis',
+        },
+      };
+    }
+
+    case 'block': {
+      const scopeFilter = `block:${safeSlug}`;
+      const notesWql = `:note{}`;
+      const blocksWql = `:block{block:${safeSlug}}`;
+      const sessionsWql = `:session{${scopeFilter}}`;
+      const recordsWql = `:segment{${scopeFilter}}`;
+      return {
+        kind,
+        id,
+        slug,
+        label,
+        scopeFilter,
+        notesWql,
+        blocksWql,
+        sessionsWql,
+        recordsWql,
+        primaryWql: explicitWql ?? sessionsWql,
+        tokens: {
+          scope: scopeFilter,
+          block: slug,
+          metric: 'totalVolume',
         },
       };
     }
@@ -414,6 +440,13 @@ export interface ResolveQueryExecutionScopeInput {
   pageSources?: PageSourceRegistry | ReadonlyMap<string, PageSourceEntry>;
   noteEvents?: EventRecord[];
   note?: Note;
+  resultId?: string;
+  sessionEvents?: EventRecord[];
+  blockContentId?: string;
+  blockEvents?: EventRecord[];
+  notebookSlug?: string;
+  notebookEvents?: EventRecord[];
+  notebookNotes?: Note[];
 }
 
 export interface QueryExecutionScope {
@@ -426,7 +459,7 @@ export interface QueryExecutionScope {
  * a ```query block or Dashboard Widget.
  *
  * Merge precedence:
- *   1. Entity scope defaults (`note`, `thisnote`, `scope`, `metric`) when `noteId` is given
+ *   1. Entity scope defaults (`note`, `thisnote`, `result`, `block`, `notebook`, `scope`, `metric`)
  *   2. Frontmatter `dashboard.*` token defaults when `rawContent` is given
  *   3. Caller `tokenValues` overrides
  */
@@ -434,10 +467,19 @@ export function resolveQueryExecutionScope(input: ResolveQueryExecutionScopeInpu
   const entityTokens = input.noteId?.trim()
     ? resolveEntityScope({ noteId: input.noteId, rawContent: input.rawContent }).tokens
     : {};
+  const contextTokens: Record<string, string> = {};
+  if (input.resultId?.trim()) contextTokens.result = input.resultId.trim();
+  if (input.blockContentId?.trim()) contextTokens.block = input.blockContentId.trim();
+  if (input.notebookSlug?.trim()) contextTokens.notebook = input.notebookSlug.trim().replace(/^notebook\//, '');
+  if (input.noteId?.trim()) {
+    contextTokens.note = input.noteId.trim();
+    contextTokens.thisnote = input.noteId.trim();
+  }
   const fmMeta = input.rawContent ? (parseFrontmatter(input.rawContent).meta as DashboardMeta) : undefined;
   const fmTokens = fmMeta ? defaultTokenValues(extractDashboardTokens(fmMeta)) : {};
   const tokens: Record<string, string> = {
     ...entityTokens,
+    ...contextTokens,
     ...fmTokens,
     ...(input.tokenValues ?? {}),
   };
@@ -454,6 +496,36 @@ export function resolveQueryExecutionScope(input: ResolveQueryExecutionScopeInpu
     });
   } else if (input.noteId?.trim() && !pageSources.has('@note')) {
     pageSources.set('@note', { events: [], notes: [] });
+  }
+
+  if (input.sessionEvents !== undefined) {
+    const existing = pageSources.get('@session');
+    pageSources.set('@session', {
+      events: input.sessionEvents,
+      notes: input.note ? [input.note] : existing?.notes ?? [],
+    });
+  } else if (input.resultId?.trim() && !pageSources.has('@session')) {
+    pageSources.set('@session', { events: [], notes: input.note ? [input.note] : [] });
+  }
+
+  if (input.blockEvents !== undefined) {
+    const existing = pageSources.get('@block');
+    pageSources.set('@block', {
+      events: input.blockEvents,
+      notes: input.note ? [input.note] : existing?.notes ?? [],
+    });
+  } else if (input.blockContentId?.trim() && !pageSources.has('@block')) {
+    pageSources.set('@block', { events: [], notes: input.note ? [input.note] : [] });
+  }
+
+  if (input.notebookEvents !== undefined || input.notebookNotes !== undefined) {
+    const existing = pageSources.get('@notebook');
+    pageSources.set('@notebook', {
+      events: input.notebookEvents ?? existing?.events ?? [],
+      notes: input.notebookNotes ?? existing?.notes ?? [],
+    });
+  } else if (input.notebookSlug?.trim() && !pageSources.has('@notebook')) {
+    pageSources.set('@notebook', { events: [], notes: [] });
   }
 
   return { tokens, pageSources };

@@ -73,14 +73,85 @@ export interface OutputUnitResolution {
   error?: string;
 }
 
+const METRIC_INTRINSIC_DIMENSIONS: Readonly<Record<string, string>> = {
+  totalvolume: 'mass',
+  volume: 'mass',
+  resistance: 'mass',
+  weight: 'mass',
+  e1rm: 'mass',
+  'calc.e1rm': 'mass',
+  reps: 'count',
+  totalreps: 'count',
+  rounds: 'count',
+  duration: 'duration',
+  elapsed: 'duration',
+  tis: 'duration',
+  'calc.sleep': 'duration',
+  distance: 'distance',
+  totaldistance: 'distance',
+  speed: 'speed',
+  pace: 'pace',
+  energy: 'energy',
+  calories: 'energy',
+  'calc.metminutes': 'ratio',
+  sessionload: 'ratio',
+  'calc.adherence': 'ratio',
+  'calc.acwr': 'ratio',
+  'calc.readiness': 'ratio',
+  'calc.monotony': 'ratio',
+  'calc.strain': 'ratio',
+  'calc.ctl': 'ratio',
+  'calc.atl': 'ratio',
+  'calc.tsb': 'ratio',
+  'calc.hrv': 'ratio',
+  'calc.soreness': 'ratio',
+  'calc.pct1rm': 'ratio',
+  'calc.mvcbw': 'ratio',
+  'calc.sends': 'count',
+};
+
+function intrinsicMetricDimension(metric: string | undefined): string | undefined {
+  if (!metric) return undefined;
+  return METRIC_INTRINSIC_DIMENSIONS[metric.trim().toLowerCase()];
+}
+
+function preserveNamedScale(dimension: string, spellings: ReadonlySet<string>): string | undefined {
+  if (spellings.size === 0) return undefined;
+  if (dimension === 'ratio') {
+    const canonicals = new Set<string>();
+    let firstSpelling: string | undefined;
+    for (const s of spellings) {
+      if (firstSpelling === undefined) firstSpelling = s;
+      canonicals.add(lookupUnit(s)?.canonical ?? s);
+    }
+    if (canonicals.size === 1) {
+      const only = [...canonicals][0]!;
+      if (only === 'au') return [...spellings].some((s) => s === 'AU') ? 'AU' : 'au';
+      if (only === 'pts' || only === '%' || only === 'ratio' || only === 'rating') {
+        return only;
+      }
+      return firstSpelling;
+    }
+  }
+  if (dimension === 'count') {
+    const canonicals = new Set<string>();
+    for (const s of spellings) canonicals.add(lookupUnit(s)?.canonical ?? s);
+    if (canonicals.size === 1 && canonicals.has('rep')) {
+      return 'reps';
+    }
+  }
+  return undefined;
+}
+
 /**
  * Resolve the output unit for an aggregate result (arithmetic contract §5):
  *
  * 1. an explicit `in <unit>` directive wins when it is a known unit and
- *    dimensionally compatible with the observations; incompatible → error
- *    for the affected calculation;
- * 2. otherwise the system default for the observations' dimension
- *    (mass `kg`, distance `m`, duration `s`, …; ratio unitless);
+ *    dimensionally compatible with the observations (and intrinsic metric dimension);
+ *    incompatible → error for the affected calculation;
+ * 2. otherwise a consistent named scale inside `ratio`/`count` (`pts`, `AU`,
+ *    `%`, `reps`) is preserved, else `preferred` applies ONLY when its catalog
+ *    dimension matches the observations' dimension, else system default;
  * 3. observations with no unit at all stay unitless — no first-record
  *    fallback, no reinterpretation of stored measurements.
  */
@@ -89,10 +160,9 @@ export function resolveOutputUnit(
   {
     directive,
     preferred,
-  }: { directive?: string; preferred?: string },
+    metric,
+  }: { directive?: string; preferred?: string; metric?: string },
 ): OutputUnitResolution {
-  void preferred; // retired from the default chain (ticket 13); removed with ticket 19's caller migration
-
   const spellings = new Set<string>();
   for (const fact of facts) {
     const unit = fact.unit ?? fact.metricUnit;
@@ -121,14 +191,28 @@ export function resolveOutputUnit(
     if (dimension && directiveDim !== dimension) {
       return { error: `Output unit "${directive}" is not compatible with this result's dimension`, convert: false };
     }
-    if (dimension) {
-      return { unit: directive, convert: true };
+    if (!dimension) {
+      const metricDim = intrinsicMetricDimension(metric);
+      if (metricDim && directiveDim !== metricDim) {
+        return { error: `Output unit "${directive}" is not compatible with metric "${metric}" (${metricDim})`, convert: false };
+      }
+      return { unit: directive, convert: false };
     }
-    // Dimensionless observations with a directive: nothing to convert.
-    return { unit: directive, convert: false };
+    return { unit: directive, convert: true };
   }
 
   if (dimension) {
+    if (preferred) {
+      const prefDim = dimensionKeyOf(preferred);
+      if (prefDim === dimension) {
+        const prefCanon = lookupUnit(preferred)?.canonical ?? preferred;
+        return { unit: prefCanon, convert: true };
+      }
+    }
+    const preserved = preserveNamedScale(dimension, spellings);
+    if (preserved !== undefined) {
+      return { unit: preserved, convert: false };
+    }
     const fallback = systemDefaultUnit(dimension as Parameters<typeof systemDefaultUnit>[0]);
     return { unit: fallback, convert: fallback !== undefined };
   }

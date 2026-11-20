@@ -63,6 +63,7 @@ import { NotebookDatePage } from './pages/NotebookDatePage'
 import { AnalyticsExplorerPage } from './views/analytics/AnalyticsExplorerPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { DashboardViewPage } from './views/dashboards/DashboardViewPage'
+import { SessionResultsPage } from './pages/SessionResultsPage'
 import { PageActions } from './pages/shared/PageActions'
 import { MobileNewEntryCombo, resolveNewEntryRoute, routeSupportsCreation } from './pages/shared/NewEntryCombo'
 import { PageDownloadAction } from './pages/shared/PageToolbar'
@@ -72,7 +73,6 @@ import { createPlaygroundPage } from './services/createPlaygroundPage'
 import { playgroundPath } from './lib/routes'
 import { appendTimerBlock } from './pages/shared/pageUtils'
 import { useSeedContent } from '@/services/content/seedContent'
-import { SessionSource } from '@/components/organisms/review/SessionSource';
 
 export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<() => void> }) {
   const navigate = useNavigate()
@@ -304,6 +304,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
       />
     ),
     dashboardView: () => <DashboardViewPage />,
+    sessionResults: () => <SessionResultsPage />,
 
     home: () => <HomeView wodFiles={wodFiles} theme={actualTheme} />,
     canvas: () =>
@@ -354,12 +355,12 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
     library: () => {
       const profile = streamProfile ?? applyRouteWqlConfig(resolveStreamProfile(location.pathname))
       return (
-        <><SessionSourceBoundary pathname={location.pathname} /><QueriableStreamView
+        <QueriableStreamView
           key={profile.route}
           profile={profile}
           registerStreamDraft={registerStreamDraft}
           actions={isMobile ? undefined : <PageActions mode="notebook-readonly" showCreate={routeSupportsCreation(location.pathname)} currentWorkout={currentWorkout} index={[]} />}
-        /></>
+        />
       )
     },
     settings: () => <SettingsPage />,
@@ -490,9 +491,4 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
       <SyncActivityNotifier />
     </SidebarLayout>
   )
-}
-
-function SessionSourceBoundary({ pathname }: { pathname: string }) {
-  const match = /^\/results\/([^/]+)\/?$/.exec(pathname);
-  return match ? <SessionSource sessionId={decodeURIComponent(match[1])} /> : null;
 }

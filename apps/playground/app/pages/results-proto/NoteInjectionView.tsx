@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { TEST_IDS } from '@/lib/testIds';
 import {
   ArrowRight,
   BarChart3,
@@ -71,7 +72,7 @@ export function NoteInjectionView({
         'grid gap-6 items-start',
         compactMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]',
       )}
-      data-testid="proto-note-injection-view"
+      data-testid={TEST_IDS.PROTO_RESULTS.NOTE_INJECTION_VIEW}
     >
       {/* Left: Journal Note Document Surface */}
       <div className="space-y-4 min-w-0">
@@ -86,7 +87,7 @@ export function NoteInjectionView({
             >
               <button
                 type="button"
-                data-testid="proto-format-explicit"
+                data-testid={TEST_IDS.PROTO_RESULTS.FORMAT_EXPLICIT}
                 aria-pressed={injectionFormat === 'explicit-summary'}
                 onClick={() => onChangeFormat('explicit-summary')}
                 className={cn(
@@ -101,7 +102,7 @@ export function NoteInjectionView({
               </button>
               <button
                 type="button"
-                data-testid="proto-format-legacy"
+                data-testid={TEST_IDS.PROTO_RESULTS.FORMAT_LEGACY}
                 aria-pressed={injectionFormat === 'legacy-table'}
                 onClick={() => onChangeFormat('legacy-table')}
                 className={cn(
@@ -121,7 +122,7 @@ export function NoteInjectionView({
             {injected && (
               <button
                 type="button"
-                data-testid="proto-open-completion-hero"
+                data-testid={TEST_IDS.PROTO_RESULTS.OPEN_COMPLETION_HERO}
                 onClick={() => setCompletionHeroOpen(true)}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -135,7 +136,7 @@ export function NoteInjectionView({
             {injected && (
               <button
                 type="button"
-                data-testid="proto-reset-run"
+                data-testid={TEST_IDS.PROTO_RESULTS.RESET_RUN}
                 onClick={onResetRun}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -166,7 +167,7 @@ export function NoteInjectionView({
 
           {/* Actionable Workout Block (no overlapping absolute toolbar) */}
           <div
-            data-testid="proto-workout-block"
+            data-testid={TEST_IDS.PROTO_RESULTS.WORKOUT_BLOCK}
             className="rounded-xl border border-border bg-card p-4 space-y-3"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -182,7 +183,7 @@ export function NoteInjectionView({
 
               <button
                 type="button"
-                data-testid="proto-run-workout-btn"
+                data-testid={TEST_IDS.PROTO_RESULTS.RUN_WORKOUT_BTN}
                 onClick={onSimulateRun}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-lg px-3.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -205,7 +206,7 @@ export function NoteInjectionView({
           {/* Post-Execution Injected Query Block */}
           {!injected ? (
             <div
-              data-testid="proto-pre-run-placeholder"
+              data-testid={TEST_IDS.PROTO_RESULTS.PRE_RUN_PLACEHOLDER}
               className="rounded-xl border border-dashed border-border bg-muted/15 px-4 py-5 text-center"
             >
               <p className="text-xs font-medium text-foreground">
@@ -237,7 +238,7 @@ export function NoteInjectionView({
             /* Legacy 1-line :session{result:<id>} table rendering (backward compatible) */
             <section
               aria-label="Legacy 1-line session table"
-              data-testid="proto-legacy-table-block"
+              data-testid={TEST_IDS.PROTO_RESULTS.LEGACY_TABLE_BLOCK}
               className="rounded-xl border border-border bg-background"
             >
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 px-4 py-2.5">
@@ -344,7 +345,7 @@ export function NoteInjectionView({
         </div>
 
         <pre
-          data-testid="proto-note-markdown-source"
+          data-testid={TEST_IDS.PROTO_RESULTS.NOTE_MARKDOWN_SOURCE}
           className="overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/35 p-3 font-mono text-xs leading-relaxed text-muted-foreground"
         >
           {`# ${fixture.noteTitle}\n\n${fixture.proseBefore}\n\n\`\`\`${fixture.wodBlockTag}\n${fixture.wodScript}\n\`\`\``}

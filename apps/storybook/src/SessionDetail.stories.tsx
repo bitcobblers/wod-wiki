@@ -19,9 +19,12 @@ import {
   DEFAULT_OUTPUT_FILTERS,
   OutputFilterPills,
   OutputStatementsTable,
+  ResultsSpreadsheetGrid,
+  SessionSummaryCard,
   normalizeOutputFilter,
 } from '@bitcobblers/wod-wiki-ui';
 import type { EventRecord, Session } from '@bitcobblers/wod-wiki-core';
+import type { RowsRun } from '@bitcobblers/wod-wiki-wql';
 import { notePersistence } from '@/services/persistence';
 import { storageService } from '@/services/storage';
 import { useDatabase } from './database/DatabaseContext';
@@ -200,5 +203,65 @@ export const SessionWithSkippedDependencyDiagnostic: Story = {
     await expect(row).toBeVisible();
     await expect(row).toHaveTextContent('Skipped work: missing required input resistance');
     await expect(canvas.getByTestId('session-detail-title')).toHaveTextContent('Unloaded Deadlift Diagnostic');
+  },
+};
+
+export const SpreadsheetBreakdown: Story = {
+  parameters: { layout: 'padded', database: false },
+  render: () => {
+    const run: RowsRun = {
+      resultId: sessionDetailFixture.session.id,
+      noteId: sessionDetailFixture.note.id,
+      timestamp: sessionDetailFixture.session.startTime,
+      durationMs: sessionDetailFixture.session.duration,
+      events: sessionDetailFixture.statements,
+      summary: {
+        noteTitle: sessionDetailFixture.workoutTitle,
+        blockContentId: sessionDetailFixture.session.blockId,
+        elapsedMs: sessionDetailFixture.session.duration,
+        totalReps: sessionDetailFixture.session.repsCompleted ?? 600,
+        totalVolume: 0,
+        volumeUnit: 'lb',
+        totalDistance: 3218,
+        distanceUnit: 'm',
+        tis: 145,
+        roundsCompleted: 1,
+        splitCount: 3,
+        efforts: ['run', 'pull-up', 'push-up', 'squat'],
+        completed: true,
+        movementRollup: [
+          {
+            effortSlug: 'run',
+            label: 'Run',
+            splits: 2,
+            totalReps: 0,
+            totalVolume: 0,
+            totalDistance: 3218,
+            distanceUnit: 'm',
+            totalElapsedMs: 990_000,
+          },
+          {
+            effortSlug: 'pull-up',
+            label: 'Calisthenics Partition',
+            splits: 1,
+            totalReps: 600,
+            totalVolume: 0,
+            totalDistance: 0,
+            totalElapsedMs: 1_590_000,
+          },
+        ],
+      },
+    };
+    return (
+      <div className="max-w-5xl space-y-5">
+        <SessionSummaryCard run={run} readOnly />
+        <ResultsSpreadsheetGrid run={run} readOnly />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByTestId('session-summary-card')).toBeVisible();
+    await expect(canvas.getByTestId('results-spreadsheet-grid')).toBeVisible();
   },
 };

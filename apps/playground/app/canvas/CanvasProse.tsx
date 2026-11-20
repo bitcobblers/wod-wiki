@@ -15,16 +15,19 @@ import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
 import { Link, useLocation } from 'react-router-dom'
+import { useOptionalNavigate } from '@/hooks/useOptionalNavigate'
 import { cn } from '@/lib/utils'
 import { parseFrontmatter, type ParsedFrontmatter } from '@/lib/frontmatter'
-import { QueryBlockView } from '@bitcobblers/wod-wiki-ui'
+import { QueryBlockView, type SessionActionContext } from '@bitcobblers/wod-wiki-ui'
 import { isFindQuery, parseQuery, parseQueryWidgetSuffix } from '@bitcobblers/wod-wiki-wql'
 import { queryService } from '@/services/queryService'
 import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { entryOpenHref } from '../lib/entryActions'
+import { sessionDetailPath } from '../lib/routes'
 import { wqlStreamHref } from '../lib/wqlLink'
 import { withAffiliateTag } from '@/lib/affiliateLink'
 import { toEntry, blockToEntry } from '../lib/entryMapper'
+import { AddToDashboardSheet } from '../views/analytics/AddToDashboardSheet'
 import { QueryToDashboardDialog } from '../views/analytics/QueryToDashboardDialog'
 
 // ── File-type helpers ─────────────────────────────────────────────────────────
@@ -65,7 +68,9 @@ function CanvasQueryBlock({
 }) {
   const sourcesReady = usePageSourcesReady()
   const location = useLocation()
+  const navigate = useOptionalNavigate()
   const [dashboardOpen, setDashboardOpen] = useState(false)
+  const [sessionDashboardCtx, setSessionDashboardCtx] = useState<SessionActionContext | null>(null)
   const isDashboardPage = /^\/dashboards?(?:\/|$)/.test(location.pathname)
   const parsed = parseQuery(queryText)
   const subsetQuery = !parsed.error && isFindQuery(parsed) ? queryText : null
@@ -84,7 +89,25 @@ function CanvasQueryBlock({
         attributes={attributes}
         executor={queryService}
         readOnly={true}
-        onAddToDashboard={isDashboardPage ? undefined : () => setDashboardOpen(true)}
+        onOpenResults={(ctx) => {
+          const dest = sessionDetailPath(ctx.resultId)
+          if (navigate) {
+            void navigate(dest)
+          } else if (typeof window !== 'undefined') {
+            window.location.assign(dest)
+          }
+        }}
+        onAddToDashboard={
+          isDashboardPage
+            ? undefined
+            : (ctx) => {
+                if (ctx) {
+                  setSessionDashboardCtx(ctx)
+                } else {
+                  setDashboardOpen(true)
+                }
+              }
+        }
         noteHref={(item) => {
           const isBlock = 'blockContentId' in item || 'dataType' in item
           const entry = isBlock
@@ -98,6 +121,13 @@ function CanvasQueryBlock({
         onOpenChange={setDashboardOpen}
         initialQuery={queryText}
         subsetQuery={subsetQuery}
+      />
+      <AddToDashboardSheet
+        open={sessionDashboardCtx !== null}
+        onOpenChange={(open) => {
+          if (!open) setSessionDashboardCtx(null)
+        }}
+        context={sessionDashboardCtx}
       />
     </div>
   )
