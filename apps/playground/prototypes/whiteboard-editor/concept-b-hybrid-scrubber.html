@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Concept B: Hybrid Tactile Scrubber &amp; Block Inspector — WOD Wiki</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./shared.css" />
+  <style>
+    .inspector-rail {
+      width: 332px;
+      flex-shrink: 0;
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .stage-viewport[data-vp="tablet"] .inspector-rail,
+    .stage-viewport[data-vp="mobile"] .inspector-rail {
+      display: none;
+    }
+
+    .rail-panel {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .rail-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .rail-section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--fg);
+      letter-spacing: 0.01em;
+    }
+
+    .diff-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: var(--r-full);
+      background: var(--primary-soft);
+      border: 1px solid var(--m-time-bd);
+      color: var(--primary-active-fg);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .timeline-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .timeline-row {
+      width: 100%;
+      text-align: left;
+      padding: 6px 9px;
+      min-height: 34px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--border-soft);
+      background: var(--popover);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .timeline-row:hover {
+      background: var(--muted);
+    }
+    .timeline-row.is-active {
+      background: var(--primary-soft);
+      border-color: var(--primary);
+      color: var(--primary-active-fg);
+      font-weight: 600;
+    }
+    .timeline-row.is-err {
+      background: var(--m-err-bg);
+      border-color: var(--m-err-bd);
+      color: var(--m-err);
+    }
+
+    .timeline-dur {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      padding: 1px 6px;
+      border-radius: var(--r-full);
+      background: var(--card);
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .shortcut-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 11.5px;
+      color: var(--muted-fg);
+    }
+    .shortcut-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 4px 6px;
+      background: var(--popover);
+      border-radius: 4px;
+    }
+
+    /* 3-Region Bottom Sheet shown on BOTH Mobile AND Tablet (Flex sibling — 0% scroll occlusion) */
+    .hybrid-sheet {
+      position: relative;
+      flex-shrink: 0;
+      z-index: 40;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      box-shadow: var(--shadow-sheet);
+      display: flex;
+      flex-direction: column;
+      max-height: 400px;
+      padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+    }
+    .hybrid-sheet .scrubber-drum {
+      height: 148px;
+    }
+    .hybrid-sheet .scrubber-scroll {
+      padding-block: 52px;
+      padding-block: calc(50cqh - 22px);
+    }
+
+    .sheet-diff-strip {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--border-soft);
+      background: var(--card);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--fg-2);
+    }
+
+    .block-overflow-menu {
+      position: absolute;
+      z-index: 70;
+      width: 196px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      box-shadow: var(--shadow-float);
+      padding: 6px;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .block-overflow-menu.is-open {
+      display: flex;
+    }
+
+    .reopen-fab {
+      position: absolute;
+      right: 14px;
+      bottom: 16px;
+      z-index: 45;
+      box-shadow: var(--shadow-float);
+    }
+
+    .typing-inline-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--field-border);
+      border-radius: var(--r-sm);
+    }
+    .typing-inline-input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      background: transparent;
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <nav class="proto-bar" aria-label="Prototype controls">
+    <div class="proto-bar-group">
+      <a class="proto-back" href="./index.html">All Prototypes</a>
+      <div class="proto-nav" role="navigation" aria-label="Concepts">
+        <a href="./concept-a-token-strip.html">Concept A</a>
+        <a href="./concept-b-hybrid-scrubber.html" class="is-current">Concept B</a>
+        <a href="./concept-c-syntax-lens.html">Concept C</a>
+      </div>
+    </div>
+
+    <div class="proto-bar-group">
+      <div class="proto-seg" role="group" aria-label="Simulated viewport">
+        <button type="button" class="is-active" data-set-vp="desktop">Desktop (1440)</button>
+        <button type="button" data-set-vp="tablet">Tablet (768)</button>
+        <button type="button" data-set-vp="mobile">Mobile (390)</button>
+      </div>
+      <div class="proto-seg" role="group" aria-label="Scenario preset">
+        <button type="button" class="is-active" data-set-scen="emom">EMOM + Strength</button>
+        <button type="button" data-set-scen="empty">Empty Starter</button>
+        <button type="button" data-set-scen="lint">Lint &amp; Repair</button>
+        <button type="button" data-set-scen="prose">Prose &amp; Wiki</button>
+      </div>
+      <button type="button" class="proto-k-btn" id="inspect-shortcut-btn">
+        <span>Focus Inspector</span>
+        <span class="kbd-chip">Ctrl+.</span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="stage-outer">
+    <div class="stage-viewport" id="stage-viewport" data-vp="desktop">
+      <div class="app-frame" id="app-frame">
+        <header class="editor-topbar">
+          <div class="editor-topbar-left">
+            <span class="note-route-badge">/playground</span>
+            <span class="note-doc-title" id="topbar-title">Tuesday Conditioning &amp; Strength</span>
+          </div>
+          <div class="editor-topbar-actions">
+            <button type="button" class="btn btn-secondary mobile-only-btn" id="open-entities-btn">
+              <span id="entities-btn-label">Entities</span>
+            </button>
+            <button type="button" class="icon-btn" id="btn-undo" aria-label="Undo edit" title="Undo"></button>
+            <button type="button" class="icon-btn" id="btn-redo" aria-label="Redo edit" title="Redo"></button>
+          </div>
+        </header>
+
+        <div class="app-workspace">
+          <aside class="entity-sidebar" id="entity-sidebar" aria-label="Note entities outline" style="width:222px"></aside>
+
+          <div class="app-scroll" id="app-scroll">
+            <main class="note-canvas" id="note-canvas"></main>
+          </div>
+
+          <aside class="inspector-rail" id="inspector-rail" aria-label="Syntax and block inspector"></aside>
+        </div>
+
+        <!-- Narrow Block Overflow Menu -->
+        <div class="block-overflow-menu" id="block-overflow-menu" role="dialog" aria-label="Block actions">
+          <button type="button" class="option-row" data-overflow-cmd="Share"><span class="option-row-title">Share workout</span></button>
+          <button type="button" class="option-row" data-overflow-cmd="Added to Today"><span class="option-row-title">+ Add to Today</span></button>
+          <button type="button" class="option-row" data-overflow-cmd="Scheduled"><span class="option-row-title">Schedule</span></button>
+        </div>
+
+        <!-- 3-Region Bottom Sheet (Tablet & Mobile) -->
+        <section class="hybrid-sheet" id="hybrid-sheet" aria-label="Tactile scrubber and block inspector" style="display:none"></section>
+
+        <button type="button" class="btn btn-primary reopen-fab" id="reopen-sheet-btn" style="display:none">Open Inspector</button>
+
+        <!-- Entities Sheet Overlay (Mobile & Tablet) -->
+        <div class="overlay-backdrop" id="entities-backdrop" role="dialog" aria-modal="true" aria-labelledby="entities-sheet-title">
+          <div class="overlay-dialog">
+            <div class="sheet-header">
+              <h2 class="sheet-title" id="entities-sheet-title">Note Entities &amp; Diagnostics</h2>
+              <button type="button" class="icon-btn" id="close-entities-btn" aria-label="Close entities"></button>
+            </div>
+            <div class="sheet-body" id="entities-sheet-body"></div>
+          </div>
+        </div>
+
+        <div class="proto-toast" id="proto-toast" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./shared-editor.js"></script>
+  <script>
+    (function () {
+      var W = window.WhiteboardProto;
+      var ctrl = W.createEditorController('emom');
+
+      var ui = {
+        vp: 'desktop',
+        scen: 'emom',
+        editorMode: 'token', // 'token' | 'add' | 'block' | 'wiki' | 'prose-tag' | 'fm-tag'
+        activeTokenId: null,
+        activeBlockIdx: 0,
+        searchQuery: '',
+        showAliasList: false,
+        lastEditDiff: null, // { from: '*1:00', to: '*2:00' }
+        sheetOpen: true,
+        typingMode: false,
+        entitiesOpen: false,
+        overflowBlockIdx: null,
+        toastTimer: null
+      };
+
+      var stageEl = document.getElementById('stage-viewport');
+      var appFrameEl = document.getElementById('app-frame');
+      var topbarTitleEl = document.getElementById('topbar-title');
+      var sidebarEl = document.getElementById('entity-sidebar');
+      var noteCanvasEl = document.getElementById('note-canvas');
+      var inspectorRail = document.getElementById('inspector-rail');
+      var hybridSheet = document.getElementById('hybrid-sheet');
+      var reopenSheetBtn = document.getElementById('reopen-sheet-btn');
+      var overflowMenu = document.getElementById('block-overflow-menu');
+      var entitiesBackdrop = document.getElementById('entities-backdrop');
+      var entitiesSheetBody = document.getElementById('entities-sheet-body');
+      var entitiesBtnLabel = document.getElementById('entities-btn-label');
+      var btnUndo = document.getElementById('btn-undo');
+      var btnRedo = document.getElementById('btn-redo');
+      var toastEl = document.getElementById('proto-toast');
+
+      document.getElementById('close-entities-btn').innerHTML = W.icons.x(16);
+      btnUndo.innerHTML = W.icons.undo(16);
+      btnRedo.innerHTML = W.icons.redo(16);
+
+      function isSheetViewport() {
+        return ui.vp === 'mobile' || ui.vp === 'tablet' || window.innerWidth <= 900;
+      }
+
+      function showToast(msg) {
+        if (!msg) return;
+        toastEl.innerHTML = W.icons.check(14) + '<span>' + W.escapeHtml(msg) + '</span>';
+        toastEl.classList.add('is-shown');
+        clearTimeout(ui.toastTimer);
+        ui.toastTimer = setTimeout(function () {
+          toastEl.classList.remove('is-shown');
+        }, 2200);
+      }
+
+      function getCurrentLineTokens() {
+        var active = ctrl.getActiveParsed();
+        return active ? active.parsed.tokens : [];
+      }
+
+      function findActiveToken() {
+        var toks = getCurrentLineTokens();
+        if (!toks.length) return null;
+        for (var i = 0; i < toks.length; i++) {
+          if (toks[i].id === ui.activeTokenId) return toks[i];
+        }
+        return toks[0];
+      }
+
+      function ensureDefaultSelection() {
+        var cur = ctrl.getCursor();
+        if (cur.kind === 'wod') {
+          var toks = getCurrentLineTokens();
+          if (ui.editorMode === 'token') {
+            if (!toks.length) {
+              ui.editorMode = 'add';
+              ui.activeTokenId = null;
+            } else if (!toks.some(function (t) { return t.id === ui.activeTokenId; })) {
+              ui.activeTokenId = toks[0].id;
+            }
+          }
+        } else if (cur.kind === 'prose') {
+          if (ui.editorMode !== 'prose-tag' && ui.editorMode !== 'fm-tag') {
+            ui.editorMode = 'wiki';
+          }
+        }
+      }
+
+      function centerScrubbers() {
+        var drums = document.querySelectorAll('.scrubber-scroll');
+        drums.forEach(function (scroller) {
+          var sel = scroller.querySelector('.scrubber-row.is-selected');
+          if (!sel) return;
+          var targetTop = sel.offsetTop - ((scroller.clientHeight - sel.offsetHeight) / 2);
+          scroller.scrollTop = Math.max(0, targetTop);
+        });
+      }
+
+      function updateComposerLift() {
+        if (isSheetViewport() && ui.sheetOpen && hybridSheet.style.display !== 'none') {
+          var h = hybridSheet.getBoundingClientRect().height || 340;
+          appFrameEl.style.setProperty('--composer-lift', (Math.round(h) + 12) + 'px');
+        } else if (isSheetViewport()) {
+          appFrameEl.style.setProperty('--composer-lift', '68px');
+        } else {
+          appFrameEl.style.setProperty('--composer-lift', '18px');
+        }
+      }
+
+      function scrollActiveLineIntoView() {
+        if (!isSheetViewport() || !ui.sheetOpen) return;
+        var activeLine = noteCanvasEl.querySelector('.wod-line-item.is-active, .prose-line-wrap.is-active');
+        if (activeLine && typeof activeLine.scrollIntoView === 'function') {
+          activeLine.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+        }
+      }
+
+      function renderTimelineHtml(blk, bIdx, compiled) {
+        var cur = ctrl.getCursor();
+        return (
+          '<div class="timeline-list">' +
+            (compiled.timeline.length ? compiled.timeline.map(function (item) {
+              var isAct = cur.kind === 'wod' && cur.blockIdx === bIdx && cur.lineIdx === item.lineIdx;
+              var durTxt = item.seconds > 0 ? (Math.floor(item.seconds / 60) + ':' + ((item.seconds % 60) < 10 ? '0' : '') + (item.seconds % 60)) : (item.isRest ? 'Rest' : 'Effort');
+              return (
+                '<button type="button" class="timeline-row' + (isAct ? ' is-active' : '') + (item.hasError ? ' is-err' : '') + '" data-select-wod="' + bIdx + ':' + item.lineIdx + '">' +
+                  '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + W.escapeHtml((item.lineIdx + 1) + '. ' + item.label) + '</span>' +
+                  '<span class="timeline-dur tabular">' + (item.hasError ? 'Error' : W.escapeHtml(durTxt)) + '</span>' +
+                '</button>'
+              );
+            }).join('') : '<div class="editor-head-desc">No statements yet — pick a starter template.</div>') +
+          '</div>'
+        );
+      }
+
+      function renderCanvas() {
+        var doc = ctrl.getDoc();
+        var cats = ctrl.getCatalogs();
+        var cur = ctrl.getCursor();
+        var entities = W.collectNoteEntities(doc, cats);
+
+        topbarTitleEl.textContent = doc.title;
+        btnUndo.disabled = !ctrl.canUndo();
+        btnRedo.disabled = !ctrl.canRedo();
+
+        var warnTotal = entities.unresolved.length + entities.errors.length;
+        entitiesBtnLabel.textContent = warnTotal > 0 ? ('Entities (' + warnTotal + ')') : 'Entities';
+
+        sidebarEl.innerHTML = W.renderSidebarSectionsHtml(entities);
+        entitiesSheetBody.innerHTML = W.renderSidebarSectionsHtml(entities);
+
+        var html = '<h1 class="note-h1">' + W.escapeHtml(doc.title) + '</h1>';
+
+        html +=
+          '<section class="frontmatter-card" aria-label="Note properties">' +
+            '<div class="fm-group">' +
+              '<span class="fm-label">Notebook</span>' +
+              '<span class="fm-pill">' + W.escapeHtml(doc.frontmatter.notebook) + '</span>' +
+            '</div>' +
+            '<div class="fm-group">' +
+              '<span class="fm-label">Tags</span>' +
+              doc.frontmatter.tags.map(function (t) {
+                return '<button type="button" class="fm-pill is-tag" data-fm-toggle="' + W.escapeHtml(t) + '">' + W.escapeHtml(t) + ' ×</button>';
+              }).join('') +
+              '<button type="button" class="fm-pill is-add" data-open-fm-tags="true">+ Tag</button>' +
+            '</div>' +
+          '</section>';
+
+        if (doc.prose.length) {
+          html += '<section class="prose-block" aria-label="Note prose">';
+          doc.prose.forEach(function (pLine, pIdx) {
+            var isAct = cur.kind === 'prose' && cur.lineIdx === pIdx;
+            var hasBold = /\*\*[^*]+\*\*/.test(pLine);
+            var hasItalic = /(^|[^*])\*[^*]+\*([^*]|$)/.test(pLine);
+            var hasStrike = /~~[^~]+~~/.test(pLine);
+            var hasCode = /`[^`]+`/.test(pLine);
+            html +=
+              '<div class="prose-line-wrap' + (isAct ? ' is-active' : '') + '">' +
+                '<button type="button" class="prose-line-btn" data-select-prose="' + pIdx + '">' + W.renderProseRunsHtml(pLine) + '</button>' +
+                (isAct && !isSheetViewport() ? (
+                  '<div class="prose-toolbar" role="toolbar" aria-label="Prose formatting and wiki actions">' +
+                    '<button type="button" class="prose-tool-btn' + (hasBold ? ' is-active' : '') + '" data-prose-fmt="bold">' + W.icons.bold(13) + '<span>Bold</span></button>' +
+                    '<button type="button" class="prose-tool-btn' + (hasItalic ? ' is-active' : '') + '" data-prose-fmt="italic">' + W.icons.italic(13) + '<span>Italic</span></button>' +
+                    '<button type="button" class="prose-tool-btn' + (hasStrike ? ' is-active' : '') + '" data-prose-fmt="strike">' + W.icons.strike(13) + '<span>Strike</span></button>' +
+                    '<button type="button" class="prose-tool-btn' + (hasCode ? ' is-active' : '') + '" data-prose-fmt="code">' + W.icons.code(13) + '<span>Code</span></button>' +
+                    '<button type="button" class="prose-tool-btn' + (ui.editorMode === 'wiki' ? ' is-active' : '') + '" data-open-wiki="true">' + W.icons.wiki(13) + '<span>[[Link]]</span></button>' +
+                    '<button type="button" class="prose-tool-btn' + (ui.editorMode === 'prose-tag' ? ' is-active' : '') + '" data-open-prose-tag="true">' + W.icons.tag(13) + '<span>#Tag</span></button>' +
+                    '<button type="button" class="prose-tool-btn" data-prose-fmt="wrapTimeBlock">' + W.icons.blocks(13) + '<span>Wrap in ```time</span></button>' +
+                  '</div>'
+                ) : '') +
+              '</div>';
+          });
+          html += '</section>';
+        }
+
+        doc.blocks.forEach(function (blk, bIdx) {
+          var compiled = W.compileBlockSummary(blk, cats);
+          var dialectLabel = blk.dialect === 'time' ? 'TIMER' : blk.dialect === 'log' ? 'LOG' : 'QUERY';
+          var isEmptyBlock = blk.lines.length === 1 && !blk.lines[0].trim();
+
+          html +=
+            '<section class="wod-block-card" aria-label="Workout script block ' + (bIdx + 1) + '">' +
+              '<div class="wod-block-header">' +
+                '<div class="wod-fence-group">' +
+                  '<span class="wod-fence-mark">```' + W.escapeHtml(blk.dialect) + '</span>' +
+                  '<button type="button" class="dialect-pill is-' + W.escapeHtml(blk.dialect) + '" data-open-block="' + bIdx + '">' +
+                    W.icons.timer(13) + '<span>' + dialectLabel + '</span>' +
+                  '</button>' +
+                  '<button type="button" class="sport-pill" data-open-block="' + bIdx + '">' +
+                    W.escapeHtml(blk.sport ? (':' + blk.sport) : ':sport') +
+                  '</button>' +
+                  '<span class="wod-summary-text tabular">' + compiled.nonEmptyLines + ' lines · ' + W.escapeHtml(compiled.durLabel) + '</span>' +
+                '</div>' +
+                '<div class="wod-cmd-group">' +
+                  '<button type="button" class="btn btn-primary" data-cmd-play="' + bIdx + '">' + W.icons.play(13) + '<span>Play</span></button>' +
+                  '<div class="wod-cmd-secondary">' +
+                    '<button type="button" class="btn btn-secondary" data-cmd-toast="Shared workout">Share</button>' +
+                    '<button type="button" class="btn btn-secondary" data-cmd-toast="Added to Today">+ Today</button>' +
+                    '<button type="button" class="btn btn-secondary" data-cmd-toast="Scheduled">Schedule</button>' +
+                  '</div>' +
+                  '<button type="button" class="icon-btn wod-cmd-overflow" data-open-overflow="' + bIdx + '" aria-label="More block actions">' + W.icons.more(16) + '</button>' +
+                '</div>' +
+              '</div>';
+
+          if (isEmptyBlock) {
+            html +=
+              '<div class="empty-starter-strip">' +
+                '<div class="starter-prompt">Empty <code>```' + W.escapeHtml(blk.dialect) + '</code> block — start with a verified workout template:</div>' +
+                '<div class="starter-chips">' +
+                  W.TEMPLATES.slice(0, 5).map(function (tpl) {
+                    return '<button type="button" class="choice-pill" data-quick-tpl="' + tpl.id + '" data-b="' + bIdx + '">' + W.icons.sparkles(13) + '<span>' + W.escapeHtml(tpl.name) + '</span></button>';
+                  }).join('') +
+                '</div>' +
+              '</div>';
+          }
+
+          html += '<div class="wod-lines-list">';
+          blk.lines.forEach(function (lineText, lIdx) {
+            var isAct = cur.kind === 'wod' && cur.blockIdx === bIdx && cur.lineIdx === lIdx;
+            var parsed = compiled.parsedLines[lIdx];
+            var hasErr = parsed.errors.length > 0;
+
+            html +=
+              '<div class="wod-line-item' + (isAct ? ' is-active' : '') + (hasErr ? ' has-error' : '') + '">' +
+                '<button type="button" class="wod-line-btn" data-select-wod="' + bIdx + ':' + lIdx + '">' +
+                  '<span class="wod-line-num tabular">' + (lIdx + 1) + '</span>' +
+                  '<span class="wod-code-runs">' + W.renderWodCodeRunsHtml(lineText, parsed, isAct ? ui.activeTokenId : null) + '</span>' +
+                '</button>';
+
+            if (isAct && !isSheetViewport()) {
+              html += '<div class="token-strip-row" role="toolbar" aria-label="Line syntax tokens">';
+              parsed.tokens.forEach(function (tok) {
+                var chip = W.tokenChipLabel(tok);
+                var isChipActive = ui.editorMode === 'token' && ui.activeTokenId === tok.id;
+                html +=
+                  '<button type="button" class="tok-chip' + (isChipActive ? ' is-active' : '') + '" data-kind="' + tok.kind + '"' +
+                    (tok.kind === 'duration' && tok.meta.mode === 'rest' ? ' data-rest="true"' : '') +
+                    ' data-pick-token="' + W.escapeHtml(tok.id) + '">' +
+                    W.icons[chip.icon](13) + '<span>' + W.escapeHtml(chip.text) + '</span>' +
+                  '</button>';
+              });
+              html += '<button type="button" class="tok-chip is-add' + (ui.editorMode === 'add' ? ' is-active' : '') + '" data-pick-add="true">' + W.icons.plus(13) + '<span>Add</span></button></div>';
+            }
+
+            if (isAct && parsed.errors.length) {
+              parsed.errors.forEach(function (err) {
+                html +=
+                  '<div class="lint-banner" role="alert">' +
+                    '<div class="lint-msg">' + W.icons.error(15) + '<span>' + W.escapeHtml(err.message) + '</span></div>' +
+                    '<div class="lint-fixes">' +
+                      err.fixes.map(function (fx) {
+                        return '<button type="button" class="btn btn-primary" data-quick-fix="' + W.escapeHtml(err.token.id) + '" data-fix-val="' + W.escapeHtml(fx) + '">Fix: ' + W.escapeHtml(fx) + '</button>';
+                      }).join('') +
+                    '</div>' +
+                  '</div>';
+              });
+            }
+
+            html += '</div>';
+          });
+          html += '</div>';
+
+          html +=
+            '<div class="wod-block-footer">' +
+              '<button type="button" class="btn btn-secondary" data-add-line="' + bIdx + '">' + W.icons.newline(13) + '<span>+ Line below</span></button>' +
+              '<span class="wod-summary-text">' + (isSheetViewport() ? 'Edit tokens or Block timeline below' : 'Inspector synced in right rail') + '</span>' +
+            '</div>';
+
+          html += '</section>';
+        });
+
+        noteCanvasEl.innerHTML = html;
+      }
+
+      function renderDesktopInspector() {
+        if (isSheetViewport()) {
+          inspectorRail.style.display = 'none';
+          return;
+        }
+        inspectorRail.style.display = 'flex';
+        ensureDefaultSelection();
+
+        var doc = ctrl.getDoc();
+        var cats = ctrl.getCatalogs();
+        var cur = ctrl.getCursor();
+        var blk = doc.blocks[ui.activeBlockIdx || cur.blockIdx || 0];
+        var compiled = blk ? W.compileBlockSummary(blk, cats) : null;
+        var activeTok = findActiveToken();
+
+        var diffHtml = ui.lastEditDiff
+          ? '<span class="diff-badge tabular">' + W.escapeHtml(ui.lastEditDiff.from) + ' → ' + W.escapeHtml(ui.lastEditDiff.to) + '</span>'
+          : '<span class="kbd-chip">' + (activeTok ? W.escapeHtml(activeTok.kind) : 'ready') + '</span>';
+
+        var tokenEditorBody = W.renderTokenEditorHtml({
+          mode: ui.editorMode || 'token',
+          token: activeTok,
+          block: blk,
+          catalogs: cats,
+          activeNotebook: doc.frontmatter.notebook,
+          searchQuery: ui.searchQuery,
+          showAliasList: ui.showAliasList,
+          useScrubber: true,
+          showStepButtons: ui.editorMode === 'token',
+          showClose: false,
+          hideFooter: true
+        });
+
+        var overviewHtml = blk ? (
+          '<div class="rail-panel">' +
+            '<div class="rail-section-head">' +
+              '<span class="rail-section-title">Block Runtime Preview</span>' +
+              '<button type="button" class="btn btn-ghost" data-open-block="' + (ui.activeBlockIdx || cur.blockIdx || 0) + '">Configure</button>' +
+            '</div>' +
+            '<div class="seg-pills">' +
+              ['time', 'log', 'query'].map(function (d) {
+                return '<button type="button" class="choice-pill' + (blk.dialect === d ? ' is-selected' : '') + '" data-ed="set-dialect" data-val="' + d + '">' + d.toUpperCase() + '</button>';
+              }).join('') +
+            '</div>' +
+            renderTimelineHtml(blk, ui.activeBlockIdx || cur.blockIdx || 0, compiled) +
+          '</div>'
+        ) : '';
+
+        var hintsHtml =
+          '<div class="rail-panel" style="border-bottom:none">' +
+            '<div class="rail-section-title">Keyboard Accelerators</div>' +
+            '<div class="shortcut-grid">' +
+              '<div class="shortcut-item"><span>Inspect</span><span class="kbd-chip">Ctrl+.</span></div>' +
+              '<div class="shortcut-item"><span>Step time</span><span class="kbd-chip">Alt+↑/↓</span></div>' +
+              '<div class="shortcut-item"><span>Tags</span><span class="kbd-chip">#</span></div>' +
+              '<div class="shortcut-item"><span>Wiki Link</span><span class="kbd-chip">[[</span></div>' +
+            '</div>' +
+          '</div>';
+
+        inspectorRail.innerHTML =
+          '<div class="rail-panel">' +
+            '<div class="rail-section-head">' +
+              '<span class="rail-section-title">Focused Token Inspector</span>' +
+              diffHtml +
+            '</div>' +
+          '</div>' +
+          '<div>' + tokenEditorBody + '</div>' +
+          overviewHtml +
+          hintsHtml;
+      }
+
+      function renderHybridSheet() {
+        if (!isSheetViewport() || !ui.sheetOpen) {
+          hybridSheet.style.display = 'none';
+          reopenSheetBtn.style.display = isSheetViewport() ? 'inline-flex' : 'none';
+          updateComposerLift();
+          return;
+        }
+        reopenSheetBtn.style.display = 'none';
+        ensureDefaultSelection();
+
+        var doc = ctrl.getDoc();
+        var cats = ctrl.getCatalogs();
+        var cur = ctrl.getCursor();
+        var blk = doc.blocks[cur.blockIdx || 0];
+        var compiled = blk ? W.compileBlockSummary(blk, cats) : null;
+        var activeTok = findActiveToken();
+
+        var railHtml = '';
+        var diffStrip = '';
+        var bodyHtml = '';
+
+        if (cur.kind === 'wod' && blk) {
+          var toks = getCurrentLineTokens();
+          railHtml += '<button type="button" class="tok-chip' + (ui.editorMode === 'block' ? ' is-active' : '') + '" data-sheet-block="true">' + W.icons.layers(13) + '<span>Block</span></button>';
+          toks.forEach(function (tok) {
+            var chip = W.tokenChipLabel(tok);
+            var sel = ui.editorMode === 'token' && activeTok && activeTok.id === tok.id;
+            railHtml +=
+              '<button type="button" class="tok-chip' + (sel ? ' is-active' : '') + '" data-kind="' + tok.kind + '"' +
+                (tok.kind === 'duration' && tok.meta.mode === 'rest' ? ' data-rest="true"' : '') +
+                ' data-pick-token="' + W.escapeHtml(tok.id) + '">' +
+                W.icons[chip.icon](13) + '<span>' + W.escapeHtml(chip.text) + '</span>' +
+              '</button>';
+          });
+          railHtml += '<button type="button" class="tok-chip is-add' + (ui.editorMode === 'add' ? ' is-active' : '') + '" data-pick-add="true">' + W.icons.plus(13) + '<span>Add</span></button>';
+
+          var diffRight = ui.lastEditDiff
+            ? '<span class="diff-badge tabular">' + W.escapeHtml(ui.lastEditDiff.from) + ' → ' + W.escapeHtml(ui.lastEditDiff.to) + '</span>'
+            : '<span class="kbd-chip">' + W.escapeHtml(compiled ? compiled.durLabel : 'Open') + '</span>';
+          diffStrip =
+            '<div class="sheet-diff-strip">' +
+              '<span>Line ' + (cur.lineIdx + 1) + ' · ' + (activeTok ? W.escapeHtml(activeTok.raw) : 'Select token') + '</span>' +
+              diffRight +
+            '</div>';
+
+          if (ui.typingMode) {
+            bodyHtml =
+              '<div class="typing-accessory-row" role="toolbar" aria-label="Syntax symbol keys">' +
+                ['#', '@', '*', ':', '()', '[[', '|'].map(function (sym) {
+                  return '<button type="button" class="kbd-key" data-type-sym="' + W.escapeHtml(sym) + '">' + W.escapeHtml(sym) + '</button>';
+                }).join('') +
+                '<button type="button" class="kbd-key" data-indent="-1" aria-label="Outdent">' + W.icons.outdent(15) + '</button>' +
+                '<button type="button" class="kbd-key" data-indent="1" aria-label="Indent">' + W.icons.indent(15) + '</button>' +
+              '</div>' +
+              '<div class="typing-inline-box">' +
+                '<label class="visually-hidden" for="b-raw-input">Edit raw workout line</label>' +
+                '<input id="b-raw-input" type="text" class="typing-inline-input" data-role="raw-line-input" value="' + W.escapeHtml(blk.lines[cur.lineIdx] || '') + '" />' +
+              '</div>';
+          } else if (ui.editorMode === 'block') {
+            bodyHtml =
+              W.renderTokenEditorHtml({
+                mode: 'block',
+                block: blk,
+                catalogs: cats,
+                activeNotebook: doc.frontmatter.notebook,
+                hideHeader: true,
+                hideFooter: true
+              }) +
+              '<div class="control-section" style="padding:0 12px 12px"><div class="control-label">Compiled Timeline</div>' +
+                renderTimelineHtml(blk, cur.blockIdx, compiled) +
+              '</div>';
+          } else {
+            bodyHtml = W.renderTokenEditorHtml({
+              mode: ui.editorMode || 'token',
+              token: activeTok,
+              block: blk,
+              catalogs: cats,
+              activeNotebook: doc.frontmatter.notebook,
+              searchQuery: ui.searchQuery,
+              showAliasList: ui.showAliasList,
+              useScrubber: true,
+              hideHeader: true,
+              hideFooter: true
+            });
+          }
+        } else if (cur.kind === 'prose') {
+          var pLine = doc.prose[cur.lineIdx] || '';
+          railHtml =
+            '<button type="button" class="prose-tool-btn' + (/\*\*[^*]+\*\*/.test(pLine) ? ' is-active' : '') + '" data-prose-fmt="bold">' + W.icons.bold(13) + '<span>Bold</span></button>' +
+            '<button type="button" class="prose-tool-btn' + (/(^|[^*])\*[^*]+\*/.test(pLine) ? ' is-active' : '') + '" data-prose-fmt="italic">' + W.icons.italic(13) + '<span>Italic</span></button>' +
+            '<button type="button" class="prose-tool-btn' + (/~~[^~]+~~/.test(pLine) ? ' is-active' : '') + '" data-prose-fmt="strike">' + W.icons.strike(13) + '<span>Strike</span></button>' +
+            '<button type="button" class="prose-tool-btn' + (/`[^`]+`/.test(pLine) ? ' is-active' : '') + '" data-prose-fmt="code">' + W.icons.code(13) + '<span>Code</span></button>' +
+            '<button type="button" class="prose-tool-btn' + (ui.editorMode === 'wiki' ? ' is-active' : '') + '" data-open-wiki="true">' + W.icons.wiki(13) + '<span>[[Link]]</span></button>' +
+            '<button type="button" class="prose-tool-btn' + (ui.editorMode === 'prose-tag' ? ' is-active' : '') + '" data-open-prose-tag="true">' + W.icons.tag(13) + '<span>#Tag</span></button>' +
+            '<button type="button" class="prose-tool-btn" data-prose-fmt="wrapTimeBlock">' + W.icons.blocks(13) + '<span>Wrap ```time</span></button>';
+          diffStrip = '<div class="sheet-diff-strip"><span>Prose &amp; Wiki Selection</span><span class="kbd-chip">Line ' + (cur.lineIdx + 1) + '</span></div>';
+          bodyHtml = W.renderTokenEditorHtml({
+            mode: (ui.editorMode === 'prose-tag' || ui.editorMode === 'fm-tag') ? ui.editorMode : 'wiki',
+            block: blk,
+            catalogs: cats,
+            searchQuery: ui.searchQuery,
+            hideHeader: true,
+            hideFooter: true
+          });
+        }
+
+        hybridSheet.innerHTML =
+          '<div class="mobile-deck-rail" role="toolbar" aria-label="Token and block rail">' + railHtml + '</div>' +
+          diffStrip +
+          '<div class="mobile-deck-body">' + bodyHtml + '</div>' +
+          '<div class="mobile-deck-footer">' +
+            '<button type="button" class="btn btn-secondary" data-sheet-act="undo"' + (!ctrl.canUndo() ? ' disabled' : '') + '>' + W.icons.undo(14) + '<span>Undo</span></button>' +
+            '<button type="button" class="btn btn-danger-soft" data-sheet-act="delete"' + (!activeTok ? ' disabled' : '') + '>' + W.icons.trash(14) + '<span>Delete</span></button>' +
+            '<button type="button" class="btn ' + (ui.typingMode ? 'btn-primary' : 'btn-secondary') + '" data-sheet-act="toggle-type">' + W.icons.keyboard(14) + '<span>' + (ui.typingMode ? 'Scrubber' : 'Type') + '</span></button>' +
+            '<button type="button" class="btn btn-primary" data-sheet-act="done"><span>Done</span></button>' +
+          '</div>';
+
+        hybridSheet.style.display = 'flex';
+        updateComposerLift();
+      }
+
+      function renderAll(opts) {
+        renderCanvas();
+        renderDesktopInspector();
+        renderHybridSheet();
+        centerScrubbers();
+        if (opts && opts.scrollIntoView) scrollActiveLineIntoView();
+      }
+
+      function stepToken(delta) {
+        var toks = getCurrentLineTokens();
+        if (!toks.length) return;
+        var idx = 0;
+        for (var i = 0; i < toks.length; i++) {
+          if (toks[i].id === ui.activeTokenId) { idx = i; break; }
+        }
+        var nextIdx = (idx + delta + toks.length) % toks.length;
+        ui.editorMode = 'token';
+        ui.activeTokenId = toks[nextIdx].id;
+        ui.searchQuery = '';
+        ui.showAliasList = false;
+        renderAll({ scrollIntoView: true });
+      }
+
+      function reselectAfterMutation(res, prevRaw, wasInsert) {
+        if (res.reselectRaw && prevRaw && res.reselectRaw !== prevRaw) {
+          ui.lastEditDiff = { from: prevRaw, to: res.reselectRaw };
+        }
+        if (!res.reselectRaw) return;
+        var toks = getCurrentLineTokens();
+        if (wasInsert) {
+          for (var j = toks.length - 1; j >= 0; j--) {
+            if (toks[j].raw === res.reselectRaw) { ui.activeTokenId = toks[j].id; ui.editorMode = 'token'; return; }
+          }
+        } else {
+          for (var i = 0; i < toks.length; i++) {
+            if (toks[i].raw === res.reselectRaw) { ui.activeTokenId = toks[i].id; return; }
+          }
+        }
+        if (toks.length) ui.activeTokenId = toks[0].id;
+      }
+
+      document.addEventListener('click', function (e) {
+        var vpBtn = e.target.closest('[data-set-vp]');
+        if (vpBtn) {
+          ui.vp = vpBtn.getAttribute('data-set-vp');
+          document.querySelectorAll('[data-set-vp]').forEach(function (b) { b.classList.toggle('is-active', b === vpBtn); });
+          stageEl.setAttribute('data-vp', ui.vp);
+          ui.sheetOpen = true;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var scenBtn = e.target.closest('[data-set-scen]');
+        if (scenBtn) {
+          ui.scen = scenBtn.getAttribute('data-set-scen');
+          document.querySelectorAll('[data-set-scen]').forEach(function (b) { b.classList.toggle('is-active', b === scenBtn); });
+          ctrl.loadScenario(ui.scen);
+          ui.activeTokenId = null;
+          ui.editorMode = 'token';
+          ui.lastEditDiff = null;
+          ui.searchQuery = '';
+          ui.typingMode = false;
+          ui.sheetOpen = true;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var wodSel = e.target.closest('[data-select-wod]');
+        if (wodSel) {
+          var parts = wodSel.getAttribute('data-select-wod').split(':');
+          ctrl.setCursor({ kind: 'wod', blockIdx: parseInt(parts[0], 10), lineIdx: parseInt(parts[1], 10) });
+          ui.activeBlockIdx = parseInt(parts[0], 10);
+          ui.activeTokenId = null;
+          ui.editorMode = 'token';
+          ui.lastEditDiff = null;
+          ui.sheetOpen = true;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var proseSel = e.target.closest('[data-select-prose]');
+        if (proseSel) {
+          ctrl.setCursor({ kind: 'prose', lineIdx: parseInt(proseSel.getAttribute('data-select-prose'), 10) });
+          ui.editorMode = 'wiki';
+          ui.sheetOpen = true;
+          ui.typingMode = false;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var pickTok = e.target.closest('[data-pick-token]');
+        if (pickTok) {
+          ui.activeTokenId = pickTok.getAttribute('data-pick-token');
+          ui.editorMode = 'token';
+          ui.typingMode = false;
+          ui.searchQuery = '';
+          ui.showAliasList = false;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        if (e.target.closest('[data-pick-add]')) {
+          ui.editorMode = 'add';
+          ui.typingMode = false;
+          ui.searchQuery = '';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var openBlk = e.target.closest('[data-open-block]');
+        if (openBlk) {
+          ui.activeBlockIdx = parseInt(openBlk.getAttribute('data-open-block'), 10);
+          ui.editorMode = 'block';
+          ui.sheetOpen = true;
+          ui.typingMode = false;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        if (e.target.closest('[data-sheet-block]')) {
+          ui.editorMode = 'block';
+          ui.typingMode = false;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        if (e.target.closest('[data-open-wiki]')) {
+          ui.editorMode = 'wiki';
+          ui.searchQuery = '';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+        if (e.target.closest('[data-open-prose-tag]')) {
+          ui.editorMode = 'prose-tag';
+          ui.searchQuery = '';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+        if (e.target.closest('[data-open-fm-tags]')) {
+          ui.editorMode = 'fm-tag';
+          ui.searchQuery = '';
+          ui.sheetOpen = true;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+        var fmToggle = e.target.closest('[data-fm-toggle]');
+        if (fmToggle) {
+          ctrl.toggleFrontmatterTag(fmToggle.getAttribute('data-fm-toggle'));
+          renderAll({ scrollIntoView: true });
+          showToast('Updated note tags');
+          return;
+        }
+        var proseFmt = e.target.closest('[data-prose-fmt]');
+        if (proseFmt) {
+          var c = ctrl.getCursor();
+          if (c.kind === 'prose') {
+            ctrl.toggleMarkdownFormat(c.lineIdx, proseFmt.getAttribute('data-prose-fmt'));
+            renderAll({ scrollIntoView: true });
+            showToast('Updated formatting');
+          }
+          return;
+        }
+
+        var qFix = e.target.closest('[data-quick-fix]');
+        if (qFix) {
+          var cf = ctrl.getCursor();
+          var toks = getCurrentLineTokens();
+          var tId = qFix.getAttribute('data-quick-fix');
+          var fVal = qFix.getAttribute('data-fix-val');
+          for (var i = 0; i < toks.length; i++) {
+            if (toks[i].id === tId) {
+              var prevR = toks[i].raw;
+              ctrl.replaceToken(cf.blockIdx, cf.lineIdx, toks[i], fVal);
+              ui.lastEditDiff = { from: prevR, to: fVal };
+              renderAll({ scrollIntoView: true });
+              showToast('Fixed → ' + fVal);
+              break;
+            }
+          }
+          return;
+        }
+
+        var qTpl = e.target.closest('[data-quick-tpl]');
+        if (qTpl) {
+          ctrl.insertTemplate(parseInt(qTpl.getAttribute('data-b'), 10), qTpl.getAttribute('data-quick-tpl'));
+          ui.activeTokenId = null;
+          ui.editorMode = 'token';
+          renderAll({ scrollIntoView: true });
+          showToast('Inserted template');
+          return;
+        }
+
+        var addLn = e.target.closest('[data-add-line]');
+        if (addLn) {
+          var bi = parseInt(addLn.getAttribute('data-add-line'), 10);
+          var c2 = ctrl.getCursor();
+          var li = (c2.kind === 'wod' && c2.blockIdx === bi) ? c2.lineIdx : ctrl.getDoc().blocks[bi].lines.length - 1;
+          ctrl.insertLineBelow(bi, li);
+          ui.activeTokenId = null;
+          ui.editorMode = 'add';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var indBtn = e.target.closest('[data-indent]');
+        if (indBtn) {
+          var ci = ctrl.getCursor();
+          if (ci.kind === 'wod') { ctrl.indentLine(ci.blockIdx, ci.lineIdx, parseInt(indBtn.getAttribute('data-indent'), 10)); renderAll(); }
+          return;
+        }
+
+        var symBtn = e.target.closest('[data-type-sym]');
+        if (symBtn) {
+          var cs = ctrl.getCursor();
+          if (cs.kind === 'wod') {
+            var curTxt = ctrl.getDoc().blocks[cs.blockIdx].lines[cs.lineIdx] || '';
+            ctrl.setRawLineText(cs.blockIdx, cs.lineIdx, curTxt + symBtn.getAttribute('data-type-sym'));
+            renderAll({ scrollIntoView: true });
+          }
+          return;
+        }
+
+        var overflowBtn = e.target.closest('[data-open-overflow]');
+        if (overflowBtn) {
+          var obIdx = parseInt(overflowBtn.getAttribute('data-open-overflow'), 10);
+          if (ui.overflowBlockIdx === obIdx) {
+            ui.overflowBlockIdx = null;
+            overflowMenu.classList.remove('is-open');
+          } else {
+            ui.overflowBlockIdx = obIdx;
+            var r = overflowBtn.getBoundingClientRect();
+            var fr = appFrameEl.getBoundingClientRect();
+            overflowMenu.style.top = (r.bottom - fr.top + 6) + 'px';
+            overflowMenu.style.right = Math.max(10, fr.right - r.right) + 'px';
+            overflowMenu.classList.add('is-open');
+          }
+          return;
+        }
+        var overflowCmd = e.target.closest('[data-overflow-cmd]');
+        if (overflowCmd) {
+          ui.overflowBlockIdx = null;
+          overflowMenu.classList.remove('is-open');
+          showToast(overflowCmd.getAttribute('data-overflow-cmd'));
+          return;
+        }
+
+        var navDef = e.target.closest('[data-nav-define]');
+        if (navDef) {
+          ui.entitiesOpen = false;
+          entitiesBackdrop.classList.remove('is-open');
+          ctrl.setCursor({ kind: 'wod', blockIdx: parseInt(navDef.getAttribute('data-b'), 10), lineIdx: parseInt(navDef.getAttribute('data-l'), 10) });
+          ui.activeTokenId = navDef.getAttribute('data-tid');
+          ui.editorMode = 'token';
+          ui.sheetOpen = true;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var navToast = e.target.closest('[data-nav-toast]');
+        if (navToast) { showToast(navToast.getAttribute('data-nav-toast')); return; }
+        if (e.target.closest('[data-cmd-play]')) { showToast('Started live workout timer'); return; }
+        var cmdToast = e.target.closest('[data-cmd-toast]');
+        if (cmdToast) { showToast(cmdToast.getAttribute('data-cmd-toast')); return; }
+
+        var sheetAct = e.target.closest('[data-sheet-act]');
+        if (sheetAct) {
+          var sa = sheetAct.getAttribute('data-sheet-act');
+          if (sa === 'undo') {
+            if (ctrl.undo()) { renderAll(); showToast('Undid last change'); }
+          } else if (sa === 'delete') {
+            var tokDel = findActiveToken();
+            var cd = ctrl.getCursor();
+            if (tokDel && cd.kind === 'wod') {
+              ctrl.deleteToken(cd.blockIdx, cd.lineIdx, tokDel);
+              ui.activeTokenId = null;
+              renderAll({ scrollIntoView: true });
+              showToast('Deleted ' + tokDel.raw);
+            }
+          } else if (sa === 'toggle-type') {
+            ui.typingMode = !ui.typingMode;
+            renderAll({ scrollIntoView: true });
+          } else if (sa === 'done') {
+            ui.sheetOpen = false;
+            ui.typingMode = false;
+            renderAll({ scrollIntoView: true });
+          }
+          return;
+        }
+
+        var edEl = e.target.closest('[data-ed]');
+        if (edEl) {
+          var edAct = edEl.getAttribute('data-ed');
+          if (edAct === 'step-prev') { stepToken(-1); return; }
+          if (edAct === 'step-next') { stepToken(1); return; }
+          if (edAct === 'toggle-alias-list') { ui.showAliasList = !ui.showAliasList; renderAll(); return; }
+
+          var curCtx = ctrl.getCursor();
+          var tokCtx = ui.editorMode === 'token' ? findActiveToken() : null;
+          var prevRaw = tokCtx ? tokCtx.raw : '';
+          var wasInsert = edAct === 'insert-token';
+          var res = W.handleTokenEditorAction(ctrl, edEl, {
+            mode: ui.editorMode,
+            blockIdx: ui.activeBlockIdx || curCtx.blockIdx || 0,
+            lineIdx: curCtx.lineIdx || 0,
+            proseIdx: curCtx.lineIdx || 0,
+            token: tokCtx
+          });
+          if (res.handled) {
+            if (res.close) ui.editorMode = 'token';
+            reselectAfterMutation(res, prevRaw, wasInsert);
+            if (res.closeOnEmpty && !getCurrentLineTokens().length) ui.editorMode = 'add';
+            ui.showAliasList = false;
+            renderAll({ scrollIntoView: true });
+            if (res.toast) showToast(res.toast);
+          }
+          return;
+        }
+
+        if (ui.overflowBlockIdx !== null && !e.target.closest('#block-overflow-menu')) {
+          ui.overflowBlockIdx = null;
+          overflowMenu.classList.remove('is-open');
+        }
+      });
+
+      document.addEventListener('input', function (e) {
+        if (e.target.matches('[data-ed="search-input"]')) {
+          ui.searchQuery = e.target.value;
+          var caret = e.target.selectionStart;
+          if (isSheetViewport()) {
+            renderHybridSheet();
+            var mIn = hybridSheet.querySelector('[data-ed="search-input"]');
+            if (mIn) { mIn.focus(); mIn.setSelectionRange(caret, caret); }
+          } else {
+            renderDesktopInspector();
+            var dIn = inspectorRail.querySelector('[data-ed="search-input"]');
+            if (dIn) { dIn.focus(); dIn.setSelectionRange(caret, caret); }
+          }
+        } else if (e.target.matches('[data-role="raw-line-input"]')) {
+          var cr = ctrl.getCursor();
+          if (cr.kind === 'wod') {
+            ctrl.setRawLineText(cr.blockIdx, cr.lineIdx, e.target.value);
+            renderCanvas();
+          }
+        }
+      });
+
+      document.getElementById('btn-undo').addEventListener('click', function () {
+        if (ctrl.undo()) { renderAll(); showToast('Undid edit'); }
+      });
+      document.getElementById('btn-redo').addEventListener('click', function () {
+        if (ctrl.redo()) { renderAll(); showToast('Redid edit'); }
+      });
+      document.getElementById('open-entities-btn').addEventListener('click', function () {
+        ui.entitiesOpen = true;
+        entitiesBackdrop.classList.add('is-open');
+      });
+      document.getElementById('close-entities-btn').addEventListener('click', function () {
+        ui.entitiesOpen = false;
+        entitiesBackdrop.classList.remove('is-open');
+      });
+      entitiesBackdrop.addEventListener('click', function (e) {
+        if (e.target === entitiesBackdrop) {
+          ui.entitiesOpen = false;
+          entitiesBackdrop.classList.remove('is-open');
+        }
+      });
+      reopenSheetBtn.addEventListener('click', function () {
+        ui.sheetOpen = true;
+        renderAll({ scrollIntoView: true });
+      });
+      document.getElementById('inspect-shortcut-btn').addEventListener('click', function () {
+        ui.sheetOpen = true;
+        ui.editorMode = 'token';
+        renderAll({ scrollIntoView: true });
+        var firstCtl = (isSheetViewport() ? hybridSheet : inspectorRail).querySelector('button, input');
+        if (firstCtl) firstCtl.focus();
+      });
+
+      document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === '.') {
+          e.preventDefault();
+          document.getElementById('inspect-shortcut-btn').click();
+        }
+        if (e.key === 'Escape' && ui.entitiesOpen) {
+          ui.entitiesOpen = false;
+          entitiesBackdrop.classList.remove('is-open');
+        }
+      });
+
+      renderAll({ scrollIntoView: true });
+    })();
+  </script>
+</body>
+</html>

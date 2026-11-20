@@ -30,7 +30,7 @@ priority: P0-gate        # P0-gate | P1-core | P1 | P2
 - `1. <Persona> opens '<route>' and <action>.` — numbered user steps.
 - `- expect: <observable outcome>.` — outcome assertions as bullets.
 
-## Journey taxonomy (6 domains, 24 authored canonical pairs)
+## Journey taxonomy (6 domains, 25 authored canonical pairs)
 
 | Domain | Journey | Slug | Priority |
 |---|---|---|---|
@@ -55,6 +55,7 @@ priority: P0-gate        # P0-gate | P1-core | P1 | P2
 | analytics | ANL-01 | [query-settings-and-views](analytics/query-settings-and-views.md) | P1 |
 | analytics | ANL-04 | [entity-scope-and-dashboard-promotion](analytics/entity-scope-and-dashboard-promotion.md) | P1-core |
 | analytics | ANL-05 | [recovery-sample-and-dashboard-lifecycle](analytics/recovery-sample-and-dashboard-lifecycle.md) | P1-core |
+| analytics | ANL-06 | [wql-composer-and-palette](analytics/wql-composer-and-palette.md) | P1-core |
 | feeds | FED-01 | [feed-subscription-and-autosync](feeds/feed-subscription-and-autosync.md) | P0-gate |
 | feeds | FED-03 | [publication-visibility-and-feed-export](feeds/publication-visibility-and-feed-export.md) | P0-gate |
 | feeds | FED-04 | [portable-codecs-and-backup-restore](feeds/portable-codecs-and-backup-restore.md) | P1 |

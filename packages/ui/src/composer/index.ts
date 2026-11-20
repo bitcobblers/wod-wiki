@@ -1,4 +1,26 @@
-export { WqlComposer, type WqlComposerProps, type WqlSegmentEditRequest, type WqlValidationState } from './WqlComposer';
+export {
+  WqlComposer,
+  type WqlComposerProps,
+  type WqlSegmentEditRequest,
+  type WqlValidationState,
+} from './WqlComposer';
+export { ClauseIcon, type ClauseIconProps } from './ClauseIcon';
+export { WqlScopeMap, type WqlScopeMapProps } from './WqlScopeMap';
+export {
+  ZONE_META,
+  ZONE_ORDER,
+  buildAddableFilterGroups,
+  buildScopeZones,
+  formatHumanQuerySummary,
+  getClauseSupportError,
+  getClauseZone,
+  type AddableFilterGroup,
+  type AddableFilterOption,
+  type EnrichedQueryClause,
+  type ImplicitSlot,
+  type QueryZone,
+  type ScopeZoneModel,
+} from './queryZones';
 export {
   matchFilterTypeahead,
   type FilterTypeaheadCandidate,

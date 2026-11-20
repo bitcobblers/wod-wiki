@@ -21,6 +21,7 @@ import {
   navigationFacet,
   editorTheme,
   previewDecorations,
+  smartIncrement,
   autocompleteTooltipTheme,
   customCompletionSources,
   nestedCompletionOptions,
@@ -621,5 +622,46 @@ describe('editor occurrence lineage', () => {
     expect(state.field(sectionField).sections[0].type).toBe('widget');
     const reopened = EditorState.create({ doc: source, extensions: [sectionField, registeredSectionWidgets.of(['custom']), sectionIdentity.of({ rawContent: source, blocks, sourceRevision: 5 })] });
     expect(reopened.field(sectionField).noteBlocks).toEqual(blocks);
+  });
+
+  it('smartIncrement adjusts timestamps, resistance loads, rounds, and reps cleanly', () => {
+    const doc = '1:00\n5x5 Back Squat @100kg\n(3) Rounds\n12 Pull-up';
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      state: EditorState.create({ doc, extensions: [smartIncrement] }),
+      parent: container,
+    });
+
+    const sendAlt = (key: 'ArrowUp' | 'ArrowDown') => {
+      const event = new KeyboardEvent('keydown', { key, altKey: true, cancelable: true, bubbles: true });
+      runScopeHandlers(view, event, 'editor');
+    };
+
+    // Time: increment seconds from 1:00 -> 1:01
+    view.dispatch({ selection: { anchor: doc.indexOf(':00') + 1 } });
+    sendAlt('ArrowUp');
+    expect(view.state.doc.line(1).text).toBe('1:01');
+
+    // Resistance: @100kg -> @105kg
+    const loadPos = view.state.doc.toString().indexOf('@100kg') + 2;
+    view.dispatch({ selection: { anchor: loadPos } });
+    sendAlt('ArrowUp');
+    expect(view.state.doc.line(2).text).toBe('5x5 Back Squat @105kg');
+
+    // Rounds: (3) -> (4)
+    const roundsPos = view.state.doc.toString().indexOf('(3)') + 1;
+    view.dispatch({ selection: { anchor: roundsPos } });
+    sendAlt('ArrowUp');
+    expect(view.state.doc.line(3).text).toBe('(4) Rounds');
+
+    // Reps: 12 -> 11
+    const repsPos = view.state.doc.toString().indexOf('12 Pull-up') + 1;
+    view.dispatch({ selection: { anchor: repsPos } });
+    sendAlt('ArrowDown');
+    expect(view.state.doc.line(4).text).toBe('11 Pull-up');
+
+    view.destroy();
+    container.remove();
   });
 });

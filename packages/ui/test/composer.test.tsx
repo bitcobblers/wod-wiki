@@ -6,15 +6,28 @@ import { autocompletion, completionStatus, selectedCompletionIndex, startComplet
 import { parseQuery, isFindQuery, wqlLanguage } from '@bitcobblers/wod-wiki-wql';
 import { WqlComposer } from '../src/composer/WqlComposer';
 import { WqlDiagnosticsStrip } from '../src/composer/WqlDiagnosticsStrip';
-import { WqlTextEditor, wqlEditorKeymap, wqlLint } from '../src/composer/WqlTextEditor';
+import { resolveSlotAtPosition, WqlTextEditor, wqlEditorKeymap, wqlLint } from '../src/composer/WqlTextEditor';
+
+function setWqlEditorText(value: string): string {
+  const el = screen.getByTestId('wql-text-input');
+  const view = EditorView.findFromDOM(el);
+  if (!view) throw new Error('Expected CodeMirror EditorView for wql-text-input');
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
+  return view.state.doc.toString();
+}
+
+function getWqlEditorText(): string {
+  const el = screen.getByTestId('wql-text-input');
+  return EditorView.findFromDOM(el)?.state.doc.toString() ?? el.textContent ?? '';
+}
 
 afterEach(cleanup);
 
 describe('current visible draft actions', () => {
-  it('first Run includes pending text without Enter or a debounce', () => {
+  it('first Run includes current live WQL edit without Enter or a debounce', () => {
     const submit = vi.fn();
     render(<WqlComposer initialQuery=":note{source:journal}" onSubmit={submit} actionLabel="Run" />);
-    fireEvent.change(screen.getByLabelText('Search text or WQL'), { target: { value: 'snatch' } });
+    setWqlEditorText(':note{source:journal,text:snatch}');
     fireEvent.click(screen.getByRole('button', { name: /^Run$/ }));
     const submitted = parseQuery(submit.mock.calls[0][0]);
     expect(isFindQuery(submitted)).toBe(true);
@@ -26,17 +39,17 @@ describe('current visible draft actions', () => {
     }
   });
 
-  it('invalid exact input prevents both button and shortcut submission', () => {
+  it('invalid exact input prevents both button and shortcut submission', async () => {
     const submit = vi.fn();
     const change = vi.fn();
     render(<WqlComposer initialQuery=':note' onSubmit={submit} onQueryChange={change} actionLabel="Apply" />);
-    const input = screen.getByLabelText('Search text or WQL');
-    fireEvent.change(input, { target: { value: ':note{tags:' } });
+    setWqlEditorText(':note{tags:');
     expect(change).toHaveBeenLastCalledWith(':note{tags:');
+    await screen.findByText(/Invalid/);
     fireEvent.click(screen.getByRole('button', { name: /^Apply$/ }));
-    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true });
+    fireEvent.keyDown(screen.getByTestId('wql-text-input'), { key: 'Enter', ctrlKey: true });
     expect(submit).not.toHaveBeenCalled();
-    expect(screen.getAllByRole('alert')[0].textContent).toBeTruthy();
+    expect(screen.getByTestId('wql-validity-badge').textContent).toContain('Invalid');
   });
   it('empty query with showDiagnostics={false} renders no parse error alert', () => {
     render(<WqlComposer query="" showDiagnostics={false} />);
@@ -65,19 +78,24 @@ describe('current visible draft actions', () => {
     expect(change).not.toHaveBeenCalled();
   });
 
-  it('moves the lower writer with Tab and Shift-Tab', () => {
+  it('moves the lower writer across zones with Tab and Shift-Tab', () => {
     render(<WqlComposer initialQuery=':note{text:snatch} by {week}' />);
     fireEvent.click(screen.getByTestId('token-slot-text'));
     fireEvent.keyDown(screen.getByTestId('wql-picker-search'), { key: 'Tab' });
+    expect(screen.getByTestId('token-slot-time').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.keyDown(screen.getByTestId('wql-picker-search'), { key: 'Tab' });
     expect(screen.getByTestId('token-slot-groupby').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.keyDown(screen.getByTestId('wql-picker-search'), { key: 'Tab', shiftKey: true });
+    expect(screen.getByTestId('token-slot-time').getAttribute('aria-pressed')).toBe('true');
     fireEvent.keyDown(screen.getByTestId('wql-picker-search'), { key: 'Tab', shiftKey: true });
     expect(screen.getByTestId('token-slot-text').getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('opening a picker from typed suggestions inserts no empty filter', () => {
+  it('opening a picker from the categorized + Filter catalog inserts no empty filter', () => {
     const change = vi.fn();
     render(<WqlComposer initialQuery=':note' onQueryChange={change} />);
-    fireEvent.change(screen.getByLabelText('Search text or WQL'), { target: { value: 'effort' } });
+    fireEvent.click(screen.getByTestId('wql-add-filter-btn'));
+    fireEvent.change(screen.getByTestId('wql-picker-search'), { target: { value: 'effort' } });
     fireEvent.click(screen.getByTestId('wql-filter-typeahead-effort'));
     expect(screen.getByTestId('wql-clause-editor')).toBeDefined();
     expect(screen.queryByTestId('token-slot-effort')).toBeNull();
@@ -104,24 +122,24 @@ describe('current visible draft actions', () => {
     }
   });
 
-  it('external replacement discards pending text without replaying an edit', () => {
+  it('external replacement resets the single editor without replaying an edit', () => {
     const change = vi.fn();
     const { rerender } = render(<WqlComposer query=':note' onQueryChange={change} />);
-    fireEvent.change(screen.getByLabelText('Search text or WQL'), { target: { value: 'snatch' } });
+    setWqlEditorText(':note{tags:');
     change.mockClear();
     rerender(<WqlComposer query=":block{source:notebooks}" onQueryChange={change} />);
-    expect(screen.getByLabelText('Search text or WQL').getAttribute('value')).toBe('');
+    expect(getWqlEditorText()).toBe(':block{source:notebooks}');
     expect(screen.getByTestId('token-slot-value-target').textContent).toBe('block');
     expect(change).not.toHaveBeenCalled();
   });
 
-  it('returning to an echoed checkpoint clears pending text', () => {
+  it('returning to an echoed checkpoint updates editor cleanly', () => {
     const change = vi.fn();
     const { rerender } = render(<WqlComposer query=":note{source:notebooks}" onQueryChange={change} />);
-    fireEvent.change(screen.getByLabelText('Search text or WQL'), { target: { value: 'fresh' } });
+    setWqlEditorText(':note{source:notebooks,text:fresh}');
     rerender(<WqlComposer query={change.mock.calls.at(-1)![0]} onQueryChange={change} />);
     rerender(<WqlComposer query=":note{source:notebooks}" onQueryChange={change} />);
-    expect(screen.getByLabelText('Search text or WQL').getAttribute('value')).toBe('');
+    expect(getWqlEditorText()).toBe(':note{source:notebooks}');
     expect(screen.queryByTestId('token-slot-text')).toBeNull();
   });
 
@@ -149,16 +167,13 @@ describe('current visible draft actions', () => {
     expect(screen.getByTestId('token-slot-value-groupby').textContent).toContain('week|effort|session');
   });
 
-  it('empty Backspace only focuses, then explicit chip removal can be undone', () => {
+  it('explicit chip Delete removes filter and can be undone', () => {
     const change = vi.fn();
     const query = ':note{tags:strength}';
     render(<WqlComposer initialQuery={query} onQueryChange={change} />);
-    const input = screen.getByLabelText('Search text or WQL');
-    input.focus();
-    fireEvent.keyDown(input, { key: 'Backspace' });
-    expect(document.activeElement).toBe(screen.getByTestId('token-slot-tag'));
-    expect(change).not.toHaveBeenCalled();
-    fireEvent.keyDown(document.activeElement!, { key: 'Delete' });
+    const tagPill = screen.getByTestId('token-slot-tag');
+    tagPill.focus();
+    fireEvent.keyDown(tagPill, { key: 'Delete' });
     expect(parseQuery(change.mock.calls.at(-1)![0]).filters).toEqual([]);
     fireEvent.click(screen.getByRole('button', { name: 'Undo removal' }));
     expect(change).toHaveBeenLastCalledWith(query);
@@ -180,7 +195,9 @@ describe('current visible draft actions', () => {
   it('Enter does not submit during IME composition', () => {
     const submit = vi.fn();
     render(<WqlComposer initialQuery=':note' onSubmit={submit} />);
-    fireEvent.keyDown(screen.getByLabelText('Search text or WQL'), { key: 'Enter', ctrlKey: true, isComposing: true });
+    const input = screen.getByTestId('wql-text-input');
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true, isComposing: true });
     expect(submit).not.toHaveBeenCalled();
   });
 
@@ -345,5 +362,86 @@ describe('WQL text editor keyboard and lint', () => {
     unmount();
     render(<WqlDiagnosticsStrip diagnostics={{ valid: false, wql: ':note{tags:', ast: parseQuery(':note{tags:'), error: 'Unexpected end of query' }} />);
     expect(screen.getByTestId('wql-validity-badge').textContent).toContain('Invalid');
+  });
+
+  it('compact mode toggles cleanly between Split-Pills and single WqlTextEditor + Scope Map without duplicates', () => {
+    render(<WqlComposer compact surface="popover" initialQuery=":note{tags:crossfit}" />);
+    expect(screen.queryByTestId('wql-text-input')).toBeNull();
+    expect(screen.queryByTestId('wql-scope-map')).toBeNull();
+    expect(screen.getAllByTestId('token-slot-tag')).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId('wql-scope-toggle'));
+    expect(screen.getByTestId('wql-text-input')).toBeDefined();
+    expect(screen.getByTestId('wql-scope-map')).toBeDefined();
+    // Single text box, and pills appear inside the zone map only (no duplicate pill row above)
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
+    expect(screen.getAllByTestId('token-slot-tag')).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId('wql-scope-close'));
+    expect(screen.queryByTestId('wql-text-input')).toBeNull();
+    expect(screen.queryByTestId('wql-scope-map')).toBeNull();
+  });
+
+  it('resolves agg and metric head sub-ranges separately', () => {
+    const query = 'sum:totalVolume{effort:snatch}';
+    const state = EditorState.create({ doc: query, extensions: [wqlLanguage] });
+    const aggSlot = resolveSlotAtPosition(state, 1);
+    const metricSlot = resolveSlotAtPosition(state, 6);
+    expect(aggSlot?.headPart).toBe('agg');
+    expect(metricSlot?.headPart).toBe('metric');
+  });
+
+  it('restores focus to active pill on Escape without dropping focus to body', () => {
+    render(<WqlComposer initialQuery=":note{tags:strength}" />);
+    const pill = screen.getByTestId('token-slot-tag');
+    fireEvent.click(pill);
+    const picker = screen.getByTestId('wql-picker-search');
+    fireEvent.keyDown(picker, { key: 'Escape' });
+    expect(document.activeElement).toBe(screen.getByTestId('token-slot-tag'));
+  });
+
+  it('syncs caret clause highlight passively without stealing focus from editor', () => {
+    render(<WqlComposer initialQuery=":note{tags:crossfit}" />);
+    const input = screen.getByTestId('wql-text-input');
+    const view = EditorView.findFromDOM(input)!;
+    view.focus();
+    const pos = ':note{tags:cross'.length;
+    view.dispatch({ selection: { anchor: pos } });
+    expect(screen.getByTestId('token-slot-tag').className).toBeDefined();
+    expect(screen.queryByTestId('wql-clause-editor')).toBeNull();
+  });
+
+  it('surfaces ignored filters in recovery strip and removes them cleanly', () => {
+    const change = vi.fn();
+    render(<WqlComposer initialQuery=":tag{effort:snatch,tags:crossfit}" onQueryChange={change} />);
+    expect(screen.getByTestId('wql-ignored-strip').textContent).toContain('effort');
+    fireEvent.click(screen.getByTestId('wql-remove-ignored'));
+    expect(change).toHaveBeenLastCalledWith(':tag{tags:crossfit}');
+  });
+
+  it('roves focus across collapsed Split-Pills with ArrowLeft and ArrowRight', () => {
+    render(<WqlComposer compact surface="popover" initialQuery=":note{tags:crossfit}" />);
+    const kindPill = screen.getByTestId('token-slot-kind');
+    kindPill.focus();
+    fireEvent.keyDown(kindPill, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByTestId('token-slot-target'));
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(kindPill);
+  });
+
+  it('dismisses Clause Inspector on first Escape and Scope Map popover on second Escape', () => {
+    render(<WqlComposer compact surface="popover" initialQuery=":note{notebook:journal} last 4w" />);
+    fireEvent.click(screen.getByTestId('token-slot-notebook'));
+    expect(screen.getByTestId('wql-scope-map')).toBeTruthy();
+    expect(screen.getByTestId('wql-field-picker')).toBeTruthy();
+
+    fireEvent.keyDown(screen.getByTestId('wql-picker-search'), { key: 'Escape' });
+    expect(screen.queryByTestId('wql-field-picker')).toBeNull();
+    expect(screen.getByTestId('wql-scope-map')).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByTestId('token-slot-notebook'));
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(screen.queryByTestId('wql-scope-map')).toBeNull();
+    expect(screen.queryByTestId('wql-text-input')).toBeNull();
   });
 });

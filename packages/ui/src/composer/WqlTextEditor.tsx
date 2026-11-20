@@ -2,7 +2,7 @@ import { createElement, useEffect, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ChartNoAxesCombined, ListFilter, Search, Tag } from 'lucide-react';
 import { EditorState, StateEffect, StateField } from '@codemirror/state';
-import { EditorView, keymap, placeholder as cmPlaceholder, Decoration, type KeyBinding, type DecorationSet } from '@codemirror/view';
+import { EditorView, keymap, placeholder as cmPlaceholder, tooltips, Decoration, type KeyBinding, type DecorationSet } from '@codemirror/view';
 import { cursorDocEnd, cursorDocStart, cursorPageDown, cursorPageUp, history, historyKeymap } from '@codemirror/commands';
 import {
   acceptCompletion, autocompletion, closeCompletion, completionStatus, currentCompletions, moveCompletionSelection,
@@ -23,15 +23,18 @@ const completionIcons = {
 };
 
 /** Slot starts Tab/Shift-Tab hops between: head, each filter key, each filter
- *  value, grouping dimensions and suffix nodes (rollup). */
+ *  value, grouping dimensions, rollup, and suffix windows/units. */
 const SLOT_NODES: Record<string, true> = { Head: true, Filter: true, TagValue: true, Rollup: true };
+
 export interface WqlSlotActivation {
-  node: 'Head' | 'Filter' | 'GroupBy' | 'Rollup';
+  node: 'Head' | 'Filter' | 'GroupBy' | 'Rollup' | 'Time' | 'Unit';
+  headPart?: 'agg' | 'metric' | 'target';
   filterIndex?: number;
   from: number;
   to: number;
   text: string;
 }
+
 const activeSegmentEffect = StateEffect.define<{ from: number; to: number } | null>();
 const activeSegmentField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
@@ -47,6 +50,22 @@ const activeSegmentField = StateField.define<DecorationSet>({
   },
   provide: field => EditorView.decorations.from(field),
 });
+
+function findHeadSubRange(state: EditorState, headFrom: number, headTo: number, clauseType: string): { from: number; to: number } {
+  const headText = state.sliceDoc(headFrom, headTo);
+  const colonIdx = headText.indexOf(':');
+  if (clauseType === 'agg' && colonIdx > 0) {
+    return { from: headFrom, to: headFrom + colonIdx };
+  }
+  if ((clauseType === 'metric' || clauseType === 'target') && colonIdx >= 0 && colonIdx + 1 < headText.length) {
+    return { from: headFrom + colonIdx + 1, to: headTo };
+  }
+  return { from: headFrom, to: headTo };
+}
+
+const TIME_SUFFIX_RE = /\b(last\s+\d+[dw]|from\s+\S+(?:\s+to\s+\S+)?)\b/i;
+const UNIT_SUFFIX_RE = /\bin\s+([a-z0-9_%/-]+)/i;
+
 function findClauseRange(state: EditorState, clause: QueryClause | undefined): { from: number; to: number } | undefined {
   if (!clause) return undefined;
   let range: { from: number; to: number } | undefined;
@@ -71,7 +90,7 @@ function findClauseRange(state: EditorState, clause: QueryClause | undefined): {
     tree.iterate({
       enter: node => {
         if (node.name === 'Head') {
-          range = { from: node.from, to: node.to };
+          range = findHeadSubRange(state, node.from, node.to, clause.type);
           return false;
         }
         return true;
@@ -105,10 +124,28 @@ function findClauseRange(state: EditorState, clause: QueryClause | undefined): {
   }
   if (clause.type === 'time') {
     const doc = state.doc.toString();
-    const match = /\b(last\s+\d+[dw]|from\s+\S+(?:\s+to\s+\S+)?)/i.exec(doc);
+    const match = TIME_SUFFIX_RE.exec(doc);
+    if (match) return { from: match.index, to: match.index + match[0].length };
+  }
+  if (clause.type === 'unit') {
+    const doc = state.doc.toString();
+    const match = UNIT_SUFFIX_RE.exec(doc);
     if (match) return { from: match.index, to: match.index + match[0].length };
   }
   return undefined;
+}
+
+function findSuffixSlots(doc: string): { node: 'Time' | 'Unit'; from: number; to: number; text: string }[] {
+  const out: { node: 'Time' | 'Unit'; from: number; to: number; text: string }[] = [];
+  const timeMatch = TIME_SUFFIX_RE.exec(doc);
+  if (timeMatch) {
+    out.push({ node: 'Time', from: timeMatch.index, to: timeMatch.index + timeMatch[0].length, text: timeMatch[0] });
+  }
+  const unitMatch = UNIT_SUFFIX_RE.exec(doc);
+  if (unitMatch) {
+    out.push({ node: 'Unit', from: unitMatch.index, to: unitMatch.index + unitMatch[0].length, text: unitMatch[0] });
+  }
+  return out;
 }
 
 function slotPositions(state: EditorState): number[] {
@@ -120,33 +157,72 @@ function slotPositions(state: EditorState): number[] {
       return true;
     },
   });
+  for (const suffix of findSuffixSlots(state.doc.toString())) {
+    if (!slots.includes(suffix.from)) slots.push(suffix.from);
+  }
   return slots.sort((a, b) => a - b);
 }
-function activateSlot(view: EditorView, position: number, onActivate?: (slot: WqlSlotActivation) => void): void {
-  if (!onActivate) return;
-  let node = syntaxTree(view.state).resolveInner(position, 1);
+
+/** Resolve the syntactic clause slot under `position` without changing focus. */
+export function resolveSlotAtPosition(state: EditorState, position: number): WqlSlotActivation | null {
+  const doc = state.doc.toString();
+  if (!doc.trim()) return null;
+
+  // Check suffix clauses (Time / Unit) first if position sits directly on them.
+  for (const suffix of findSuffixSlots(doc)) {
+    if (position >= suffix.from && position <= suffix.to) {
+      return { node: suffix.node, from: suffix.from, to: suffix.to, text: suffix.text };
+    }
+  }
+
+  let node = syntaxTree(state).resolveInner(position, 1);
+  if (!['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name) && position > 0) {
+    let leftNode = syntaxTree(state).resolveInner(position, -1);
+    while (leftNode.parent && !['Head', 'Filter', 'GroupBy', 'Rollup'].includes(leftNode.name)) leftNode = leftNode.parent;
+    if (['Head', 'Filter', 'GroupBy', 'Rollup'].includes(leftNode.name)) node = leftNode;
+  }
   while (node.parent && !['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name)) node = node.parent;
-  if (!['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name)) return;
-  let filterIndex: number | undefined;
+  if (!['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name)) return null;
+
   if (node.name === 'Filter') {
-    filterIndex = 0;
-    syntaxTree(view.state).iterate({
+    let filterIndex = 0;
+    syntaxTree(state).iterate({
       enter: candidate => {
         if (candidate.name === 'Filter') {
           if (candidate.from === node.from) return false;
-          if (candidate.from < node.from) filterIndex! += 1;
+          if (candidate.from < node.from) filterIndex += 1;
         }
         return true;
       },
     });
+    return { node: 'Filter', filterIndex, from: node.from, to: node.to, text: state.sliceDoc(node.from, node.to) };
   }
-  let text = view.state.sliceDoc(node.from, node.to);
+
   if (node.name === 'Head') {
-    const line = view.state.doc.lineAt(position);
-    const word = Array.from(line.text.matchAll(/[\w.*-]+/g)).find(match => line.from + match.index! <= position && position <= line.from + match.index! + match[0].length);
-    if (word) text = word[0];
+    const headText = state.sliceDoc(node.from, node.to);
+    const colonIdx = headText.indexOf(':');
+    if (colonIdx > 0) {
+      const colonPos = node.from + colonIdx;
+      const headPart = position <= colonPos ? 'agg' : 'metric';
+      const range = findHeadSubRange(state, node.from, node.to, headPart);
+      return { node: 'Head', headPart, from: range.from, to: range.to, text: state.sliceDoc(range.from, range.to) };
+    }
+    const range = findHeadSubRange(state, node.from, node.to, 'target');
+    return { node: 'Head', headPart: 'target', from: range.from, to: range.to, text: state.sliceDoc(range.from, range.to) };
   }
-  onActivate({ node: node.name as WqlSlotActivation['node'], filterIndex, from: node.from, to: node.to, text });
+
+  return {
+    node: node.name as 'GroupBy' | 'Rollup',
+    from: node.from,
+    to: node.to,
+    text: state.sliceDoc(node.from, node.to),
+  };
+}
+
+function activateSlot(view: EditorView, position: number, onActivate?: (slot: WqlSlotActivation) => void): void {
+  if (!onActivate) return;
+  const slot = resolveSlotAtPosition(view.state, position);
+  if (slot) onActivate(slot);
 }
 
 function advanceSlot(view: EditorView, dir: 1 | -1, onActivate?: (slot: WqlSlotActivation) => void): boolean {
@@ -159,9 +235,7 @@ function advanceSlot(view: EditorView, dir: 1 | -1, onActivate?: (slot: WqlSlotA
   return true;
 }
 
-/** Parse-error and ignored-filter squiggles. Errors sit on the Lezer error
- *  nodes (whole query as fallback); warnings sit on the exact filter text the
- *  target's capability table rejects — unsupported key or operator alike. */
+/** Parse-error and ignored-filter squiggles. */
 export function wqlLint(view: EditorView): Diagnostic[] {
   const doc = view.state.doc.toString();
   if (!doc.trim()) return [];
@@ -179,7 +253,6 @@ export function wqlLint(view: EditorView): Diagnostic[] {
       return { from: Math.min(span.from, to - 1), to, severity: 'error' as const, message: ast.error! };
     });
   }
-  // Pipeline stages own their filters; top-level capability warnings don't apply.
   if (isPipelineQuery(ast)) return [];
   const filters: { from: number; to: number; text: string }[] = [];
   syntaxTree(view.state).iterate({
@@ -206,18 +279,11 @@ export function wqlLint(view: EditorView): Diagnostic[] {
   return out;
 }
 
-/** Key bindings shared with the regression tests: completion-first navigation
- *  (wrapping via moveCompletionSelection, page via `by: 'page'` clamps, Home/
- *  End select first/last row), Tab accepts-then-hops the next syntactic slot
- *  and Shift-Tab the previous, Enter accepts or closes-and-submits, Escape
- *  closes then blurs. Snippet fields keep their own higher-precedence
- *  Tab/Shift-Tab bindings. While an IME composition is active
- *  (`view.compositionStarted`, true from compositionstart to compositionend)
- *  every binding bows out; ArrowLeft/Right stay native cursor motion. */
 export function wqlEditorKeymap(onSubmit: () => void, onEscape: () => boolean, onSlotActivate?: (slot: WqlSlotActivation) => void): KeyBinding[] {
   return [
-    { key: 'Mod-Enter', run: () => { onSubmit(); return true; } },
+    { key: 'Mod-Enter', run: view => { if (view.compositionStarted) return false; onSubmit(); return true; } },
     { key: 'Ctrl-Space', run: startCompletion },
+    { key: 'Alt-ArrowDown', run: view => { if (!onSlotActivate) return false; activateSlot(view, view.state.selection.main.head, onSlotActivate); return true; } },
     { key: 'ArrowDown', run: view => completionStatus(view.state) === 'active' && moveCompletionSelection(true)(view) },
     { key: 'ArrowUp', run: view => completionStatus(view.state) === 'active' && moveCompletionSelection(false)(view) },
     { key: 'PageUp', run: view => completionStatus(view.state) === 'active' ? moveCompletionSelection(false, 'page')(view) : cursorPageUp(view) },
@@ -268,21 +334,33 @@ export function wqlEditorKeymap(onSubmit: () => void, onEscape: () => boolean, o
         return true;
       },
     },
-    // First Escape closes the popup; the second blurs back to the host
-    // (onEscape) or the editor itself — never two levels at once.
     {
       key: 'Escape',
       run: view => {
         if (view.compositionStarted || closeCompletion(view) || onEscape()) return true;
         view.contentDOM.blur();
-        return true;
+        return false;
       },
     },
     ...historyKeymap,
   ];
 }
 
-export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder, autoFocus = false, dense = false, onSlotActivate, onCursorStageChange, activeRange, activeClause, className }: {
+export function WqlTextEditor({
+  value,
+  onChange,
+  onSubmit,
+  onEscape,
+  placeholder,
+  autoFocus = false,
+  dense = false,
+  onSlotActivate,
+  onCursorClauseChange,
+  onCursorStageChange,
+  activeRange,
+  activeClause,
+  className,
+}: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -290,10 +368,11 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
   /** Shown while the draft is empty. */
   placeholder?: string;
   autoFocus?: boolean;
-  /** Compact single-line height (~36px) for inline toolbars (the stream
-   *  sticky header); the default is the roomy 48px form height. */
+  /** Compact single-line height (~36px) for inline toolbars; default is roomy 48px. */
   dense?: boolean;
   onSlotActivate?: (slot: WqlSlotActivation) => void;
+  /** Passive caret-to-clause sync — fires as cursor moves without stealing focus. */
+  onCursorClauseChange?: (slot: WqlSlotActivation | null) => void;
   onCursorStageChange?: (stage: WqlCursorStageInfo) => void;
   activeRange?: { from: number; to: number };
   activeClause?: QueryClause;
@@ -301,8 +380,8 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | undefined>(undefined);
-  const callbacks = useRef({ onChange, onSubmit, onEscape, onSlotActivate, onCursorStageChange });
-  callbacks.current = { onChange, onSubmit, onEscape, onSlotActivate, onCursorStageChange };
+  const callbacks = useRef({ onChange, onSubmit, onEscape, onSlotActivate, onCursorClauseChange, onCursorStageChange });
+  callbacks.current = { onChange, onSubmit, onEscape, onSlotActivate, onCursorClauseChange, onCursorStageChange };
   const replacing = useRef(false);
   const initialValue = useRef(value);
 
@@ -311,60 +390,43 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
     const source = wqlCompletionSource({
       values: async key => (await loadSuggestions(key === 'tags' ? 'tag' : key)).map(item => ({ label: item.value, detail: item.label, type: 'constant' })),
     });
-    // Shared by mouseup and touchend: resolve the tapped/selected WQL token
-    // to a slot and either activate the host writer or open completions.
-    const handlePointerOrTouchActivation = (editor: EditorView, clientX?: number, clientY?: number): boolean => {
-      let { from, to } = editor.state.selection.main;
-      if (clientX !== undefined && clientY !== undefined) {
-        const pos = editor.posAtCoords({ x: clientX, y: clientY });
-        if (pos === null) return false;
-        from = to = pos;
-      }
-      if (from === to) {
-        const line = editor.state.doc.lineAt(from);
-        const word = Array.from(line.text.matchAll(/[\w.*-]+/g)).find(m => line.from + m.index! <= from && from <= line.from + m.index! + m[0].length);
-        if (!word) return false;
-        from = line.from + word.index!;
-        to = from + word[0].length;
-        let node = syntaxTree(editor.state).resolveInner(to, -1);
-        while (node.parent && !['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name)) node = node.parent;
-        if (!['Head', 'Filter', 'GroupBy', 'Rollup'].includes(node.name)) return false;
-        if (!callbacks.current.onSlotActivate) {
-          editor.dispatch({ selection: { anchor: from, head: to } });
-        }
-      }
-      if (callbacks.current.onSlotActivate) {
-        closeCompletion(editor);
-        activateSlot(editor, from, slot => callbacks.current.onSlotActivate?.(slot));
-      } else {
-        startCompletion(editor);
-      }
-      return false;
+    const emitPassiveCursorClause = (editor: EditorView) => {
+      if (!callbacks.current.onCursorClauseChange) return;
+      const pos = editor.state.selection.main.head;
+      callbacks.current.onCursorClauseChange(resolveSlotAtPosition(editor.state, pos));
     };
+
     const editor = new EditorView({
       parent: host.current,
       state: EditorState.create({
         doc: initialValue.current,
         extensions: [
-          wqlLanguage, syntaxHighlighting(wqlHighlightStyle), history(), EditorView.lineWrapping,
+          wqlLanguage,
+          syntaxHighlighting(wqlHighlightStyle),
+          history(),
+          EditorView.lineWrapping,
+          tooltips({ parent: document.body }),
           activeSegmentField,
           ...(placeholder ? [cmPlaceholder(placeholder)] : []),
           EditorView.contentAttributes.of({ 'aria-label': 'WQL', 'data-testid': 'wql-text-input' }),
           autocompletion({
-            defaultKeymap: false, selectOnOpen: false,
-            // Keyboard nav/accept must never wait out the pointer-intent delay.
+            defaultKeymap: false,
+            selectOnOpen: false,
             interactionDelay: 0,
             override: [source],
             icons: false,
-            addToOptions: [{ position: 20, render: completion => {
-              const icon = document.createElement('span');
-              icon.className = 'wql-completion-icon';
-              icon.setAttribute('aria-hidden', 'true');
-              icon.innerHTML = completion.label === 'find' ? completionIcons.search
-                : completion.type === 'keyword' || completion.type === 'variable' ? completionIcons.metric
-                : completion.type === 'property' ? completionIcons.filter : completionIcons.value;
-              return icon;
-            } }],
+            addToOptions: [{
+              position: 20,
+              render: completion => {
+                const icon = document.createElement('span');
+                icon.className = 'wql-completion-icon';
+                icon.setAttribute('aria-hidden', 'true');
+                icon.innerHTML = completion.label === 'find' ? completionIcons.search
+                  : completion.type === 'keyword' || completion.type === 'variable' ? completionIcons.metric
+                  : completion.type === 'property' ? completionIcons.filter : completionIcons.value;
+                return icon;
+              },
+            }],
           }),
           linter(wqlLint),
           keymap.of(wqlEditorKeymap(
@@ -373,23 +435,18 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
             slot => callbacks.current.onSlotActivate?.(slot),
           )),
           EditorView.domEventHandlers({
-            // Host composers open the contextual writer; standalone editors
-            // retain token selection and in-row completion.
-            mouseup: (event, editor) => {
-              if (event.button !== 0) return false;
-              return handlePointerOrTouchActivation(editor);
+            // Keep pointer focus inside CodeMirror; passively highlight the matching slot below.
+            mouseup: (_event, editor) => {
+              emitPassiveCursorClause(editor);
+              return false;
             },
-            touchend: (event, editor) => {
-              if (event.changedTouches.length !== 1) return false;
-              const touch = event.changedTouches[0];
-              return handlePointerOrTouchActivation(editor, touch.clientX, touch.clientY);
+            touchend: (_event, editor) => {
+              emitPassiveCursorClause(editor);
+              return false;
             },
             keydown: (event, editor) => {
-              // IME safety: while composing (or once a composition has started
-              // and not yet ended) swallow every key this editor owns so no
-              // accept/close/navigation fires mid-composition.
               if (event.isComposing || editor.compositionStarted) return true;
-              if (event.key === 'Enter' || event.key === 'Escape' || (['ArrowDown', 'ArrowUp'].includes(event.key) && completionStatus(editor.state) === 'active')) event.stopPropagation();
+              if (event.key === 'Enter' || (['ArrowDown', 'ArrowUp'].includes(event.key) && completionStatus(editor.state) === 'active')) event.stopPropagation();
               return false;
             },
           }),
@@ -400,17 +457,20 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
               const pos = update.state.selection.main.head;
               callbacks.current.onCursorStageChange(resolveWqlCursorStage(docText, pos));
             }
+            if ((update.selectionSet || update.docChanged) && callbacks.current.onCursorClauseChange) {
+              emitPassiveCursorClause(update.view);
+            }
           }),
           EditorView.theme({
             '&': { width: '100%', fontSize: '14px', backgroundColor: 'transparent' },
             '&.cm-focused': { outline: 'none' },
-            '.cm-content': { fontFamily: 'var(--font-mono, ui-monospace, monospace)', padding: dense ? '8px 0' : '12px 0', minHeight: dense ? '34px' : '48px' },
-            '.cm-line': { padding: '0 12px' },
-            '.cm-line span[class*="tok-"]:hover, .cm-line span[class^="tok-"]:hover': { fontWeight: '700', textShadow: '0 0 0.5px currentColor', cursor: 'pointer' },
+            '.cm-content': { fontFamily: 'var(--font-mono, ui-monospace, monospace)', padding: dense ? '6px 0' : '10px 0', minHeight: dense ? '32px' : '44px' },
+            '.cm-line': { padding: '0 10px' },
+            '.cm-line span[class*="tok-"]:hover, .cm-line span[class^="tok-"]:hover': { textDecoration: 'underline', textUnderlineOffset: '3px', cursor: 'pointer' },
             '.cm-scroller': { overflow: 'auto' },
-            '.cm-placeholder': { color: 'hsl(var(--muted-foreground))' },
+            '.cm-placeholder': { color: 'hsl(var(--field-placeholder, var(--muted-foreground)))' },
             '.wql-completion-icon': { display: 'inline-flex', flexShrink: '0', color: 'hsl(var(--primary))' },
-            '.wql-active-segment': { backgroundColor: 'hsl(var(--primary) / 0.16)', boxShadow: 'inset 0 -2px hsl(var(--primary))', borderRadius: '4px', padding: '1px 2px', margin: '0 -2px', fontWeight: '600' },
+            '.wql-active-segment': { backgroundColor: 'hsl(var(--primary) / 0.11)', boxShadow: 'inset 0 -2px hsl(var(--primary))', borderRadius: '3px', padding: '1px 2px', margin: '0 -2px', fontWeight: '600' },
           }),
           autocompleteTooltipTheme,
         ],
@@ -428,6 +488,7 @@ export function WqlTextEditor({ value, onChange, onSubmit, onEscape, placeholder
     editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: value } });
     replacing.current = false;
   }, [value]);
+
   useEffect(() => {
     const editor = view.current;
     if (!editor) return;

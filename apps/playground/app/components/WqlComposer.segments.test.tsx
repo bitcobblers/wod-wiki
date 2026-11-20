@@ -11,6 +11,7 @@ describe('WqlComposer segment editor keyboard and mobile traversal (Tier 2a)', (
   it('activates field picker on Tab and traverses segments forward and backward with Tab / Shift+Tab', async () => {
     render(<WqlComposer initialQuery=":note{tags:benchmark} last 8w" compact />);
 
+    fireEvent.click(screen.getByTestId('wql-scope-toggle'));
     const editor = screen.getByLabelText('WQL');
     act(() => {
       editor.focus();

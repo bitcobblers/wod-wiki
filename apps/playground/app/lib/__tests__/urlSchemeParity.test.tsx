@@ -88,6 +88,7 @@ function renderAppRouteTable(initialPath: string) {
         <Route path="*" element={<NotFoundPage />} />
         <Route path="/proto/calc-authoring" element={<MatchedSurface pattern="/proto/calc-authoring" />} />
         <Route path="/proto/query-block-composer" element={<MatchedSurface pattern="/proto/query-block-composer" />} />
+        <Route path="/proto/results-experience" element={<MatchedSurface pattern="/proto/results-experience" />} />
         <Route path="/settings" element={<Navigate to="/settings/appearance" replace />} />
         <Route path="/settings/appearance" element={<MatchedSurface pattern="/settings/appearance" />} />
         <Route path={ROUTE_PATTERNS.settingsProfile} element={<MatchedSurface pattern={ROUTE_PATTERNS.settingsProfile} />} />

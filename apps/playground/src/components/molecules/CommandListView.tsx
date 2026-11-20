@@ -41,6 +41,10 @@ export interface CommandListViewProps<TPayload> {
   /** Render a touch close button in the input row (mobile — no Escape key
    *  there). Hidden on sm+ where the keyboard affordance (esc) applies. */
   mobileClose?: boolean;
+  /** Omit inner role="dialog" when embedded inside a Radix/UI-SDK DialogContent. */
+  embedded?: boolean;
+  /** Hide the results listbox so a custom searchRow (Filter Sheet) owns the scrollable middle region. */
+  hideResults?: boolean;
   emptyState?: React.ReactNode;
   className?: string;
 }
@@ -60,6 +64,8 @@ export function CommandListView<TPayload>({
   actions,
   renderItem,
   mobileClose,
+  embedded = false,
+  hideResults = false,
   emptyState,
   className,
 }: CommandListViewProps<TPayload>) {
@@ -133,6 +139,7 @@ export function CommandListView<TPayload>({
   // preventDefault and never reach this boundary.
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
+      if (e.defaultPrevented) return;
       onClose();
       return;
     }
@@ -159,8 +166,8 @@ export function CommandListView<TPayload>({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
+      role={embedded ? undefined : 'dialog'}
+      aria-modal={embedded ? undefined : 'true'}
       className={cn(
         'flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900',
         className,
@@ -169,11 +176,17 @@ export function CommandListView<TPayload>({
         // Container-level: Escape only. Result activation is owned by the
         // focused results region — editing keys in the search row never
         // select a result.
-        if (e.key === 'Escape') onClose();
+        if (e.key === 'Escape' && !e.defaultPrevented) onClose();
       }}
     >
       {/* Search row (default input or a custom composer) */}
-      <div onKeyDown={handleSearchKeyDown}>
+      <div
+        onKeyDown={handleSearchKeyDown}
+        className={cn(
+          'min-h-0 flex flex-col',
+          hideResults ? 'flex-1 overflow-y-auto' : 'shrink-0 max-h-[58vh] overflow-y-auto',
+        )}
+      >
         {searchRow ?? (
           <div className="flex items-center gap-2 border-b border-zinc-200 px-3 dark:border-zinc-700">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -192,12 +205,12 @@ export function CommandListView<TPayload>({
                 onClick={onClose}
                 aria-label="Close"
                 data-testid="palette-cancel"
-                className="-mr-1 rounded-md p-1.5 text-muted-foreground hover:text-foreground sm:hidden"
+                className="-mr-1 min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground sm:hidden"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
-            <kbd className="hidden rounded border border-zinc-200 px-1.5 py-0.5 text-[10px] text-zinc-400 sm:inline dark:border-zinc-600">
+            <kbd className="hidden rounded border border-zinc-200 px-1.5 py-0.5 text-[11px] text-zinc-500 sm:inline dark:border-zinc-600 dark:text-zinc-400">
               esc
             </kbd>
           </div>
@@ -208,6 +221,7 @@ export function CommandListView<TPayload>({
       {header}
 
       {/* Results — a labelled focus region with its own keyboard ownership */}
+      {!hideResults && (
       <div
         ref={resultsRef}
         role="listbox"
@@ -265,6 +279,7 @@ export function CommandListView<TPayload>({
               </div>
             ))}
       </div>
+      )}
 
       {/* Sticky actions (query dialog footer) — outside the scrolling body */}
       {footer}

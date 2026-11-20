@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { EditorView } from '@codemirror/view';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { parseQuery, isFindQuery, type FindQueryResult, type ParsedAggregateQuery, type ParsedFindQuery, type QueryResult } from '@bitcobblers/wod-wiki-engine';
 import { queryService } from '@/services/queryService';
@@ -118,16 +119,6 @@ function renderPage(initialQuery: string) {
 
 const pageRuns = () => runQueryCalls.filter((c) => c.hasOptions).map((c) => c.raw);
 
-/** The widget composer's query editor: the exact-WQL textarea for
- *  non-guided drafts, otherwise the guided combobox input. */
-async function composerEditor(dialog: HTMLElement): Promise<HTMLTextAreaElement | HTMLInputElement> {
-  return waitFor(() => {
-    const textarea = within(dialog).queryByTestId('wql-composer-wql');
-    if (textarea) return textarea as HTMLTextAreaElement;
-    return within(dialog).getByTestId('wql-composer-input') as HTMLInputElement;
-  });
-}
-
 describe('AnalyticsExplorerPage', () => {
   beforeEach(() => {
     installSpies();
@@ -154,7 +145,18 @@ describe('AnalyticsExplorerPage', () => {
     // The first-visit state is calm: a seeded valid draft, not `sum:`.
     expect(screen.queryByText(/Cannot parse/)).toBeNull();
     expect(screen.getByTestId('draft-validity').textContent).toContain('valid');
-    expect(screen.getByTestId('wql-composer-input').getAttribute('placeholder')).toContain('agg:metric{filters}');
+    expect(screen.getByTestId('wql-text-input').getAttribute('aria-placeholder')).toContain('agg:metric{filters}');
+  });
+
+  it('clicking a filter chip in explorer-meta opens its clause inspector', async () => {
+    renderPage(':note{tags:pr}');
+    const meta = await waitFor(() => screen.getByTestId('explorer-meta'));
+    const filterButtons = within(meta).getAllByRole('button');
+    const tagBtn = filterButtons.find((btn) => btn.textContent === 'tags' || btn.textContent === 'effort');
+    if (tagBtn) {
+      fireEvent.click(tagBtn);
+      await waitFor(() => expect(screen.getByTestId('wql-clause-editor')).toBeDefined());
+    }
   });
 
   it('the dashboards landing actually searches dashboards (:dashboard{} runs on landing)', async () => {
@@ -245,7 +247,11 @@ describe('AnalyticsExplorerPage', () => {
     // Commit a full valid calculation through the composer, replacing the
     // exact find seed.
     const dialog = await waitFor(() => screen.getByRole('dialog'));
-    fireEvent.change(await composerEditor(dialog), { target: { value: 'sum:totalVolume{} where :note{tags:pr,source:journal}' } });
+    const editorEl = await waitFor(() => within(dialog).getByTestId('wql-text-input'));
+    const cm = EditorView.findFromDOM(editorEl)!;
+    act(() => {
+      cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: 'sum:totalVolume{} where :note{tags:pr,source:journal}' } });
+    });
     await waitFor(() =>
       expect(screen.getByTestId('widget-composer-wql').textContent).toContain('sum:totalVolume{} where :note{tags:pr,source:journal}'),
     );
@@ -270,7 +276,11 @@ describe('AnalyticsExplorerPage', () => {
     fireEvent.click(await waitFor(() => screen.getByTestId('save-query')));
 
     const dialog = await waitFor(() => screen.getByRole('dialog'));
-    fireEvent.change(await composerEditor(dialog), { target: { value: 'sum:totalVolume{} where :note{tags:pr,source:journal}' } });
+    const editorEl = await waitFor(() => within(dialog).getByTestId('wql-text-input'));
+    const cm = EditorView.findFromDOM(editorEl)!;
+    act(() => {
+      cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: 'sum:totalVolume{} where :note{tags:pr,source:journal}' } });
+    });
     await waitFor(() => expect(screen.getByTestId('widget-composer-apply').getAttribute('disabled')).toBeNull());
 
     fireEvent.click(screen.getByTestId('widget-composer-apply'));

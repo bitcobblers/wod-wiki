@@ -38,14 +38,18 @@ test.describe('PRP-05 — Tag Catalog Query Surface & Direct Property Editor', (
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 
-    // Default /tags query surface
+    // Default /tags query surface (Split-Pills at rest, Scope Map when toggled)
     await app.properties.openTags();
-    await expect(page.locator(VISIBLE_COMPOSER)).toContainText(':tag{}');
+    await expect(page.locator(VISIBLE_COMPOSER).getByTestId('token-slot-value-target')).toHaveText('tag');
     await expect(page.getByTestId('stream-query-status')).toContainText(':tag');
+    await page.locator(VISIBLE_COMPOSER).getByTestId('wql-scope-toggle').click();
+    await expect(page.locator(VISIBLE_COMPOSER)).toContainText(':tag{}');
 
     // ?q= override narrows list and survives reload
     const q = `:tag{tag:${TAG_NAME}}`;
     await app.goto(`/tags?q=${encodeURIComponent(q)}`);
+    await expect(page.locator(VISIBLE_COMPOSER).getByTestId('token-slot-value-tag')).toHaveText(TAG_NAME);
+    await page.locator(VISIBLE_COMPOSER).getByTestId('wql-scope-toggle').click();
     await expect(page.locator(VISIBLE_COMPOSER)).toContainText(`tag:${TAG_NAME}`);
     await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe(q);
 

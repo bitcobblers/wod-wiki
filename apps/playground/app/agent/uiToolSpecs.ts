@@ -160,6 +160,22 @@ export const uiSetExplorerQuerySchema = z.strictObject({
     .describe('Open the surface query settings dialog on `/dashboards`.'),
 });
 
+export const uiEditorInspectorSchema = z.strictObject({
+  action: z
+    .enum(['get_state', 'open_popover', 'close_popover', 'open_drawer', 'close_drawer', 'toggle_drawer'])
+    .describe('Inspect cursor line tokens & lint fixes, open/close the anchored Option A popover, or toggle the Option B right inspector drawer.'),
+  mode: z
+    .enum(['token', 'add', 'block', 'wiki', 'prose-tag', 'query', 'markdown'])
+    .optional()
+    .describe('Optional inspector view mode when opening the popover or drawer.'),
+  tokenIndex: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Zero-based index of the token on the current cursor line to target.'),
+});
+
 export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
   return [
     {
@@ -260,6 +276,17 @@ export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
       mountScope: 'mounted Metric Explorer route (/dashboards)',
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: zodSchemaToJsonSchema(uiSetExplorerQuerySchema),
+    },
+    {
+      name: 'ui_editor_inspector',
+      title: 'Inspect or Control Whiteboard Token Inspector & Drawer',
+      description:
+        'Read parsed cursor-line tokens and inline lint fixes, open or close the Option A anchored token inspector popover, or toggle the Option B right inspector drawer (`Ctrl+Shift+I`).',
+      tier: 1,
+      surfaces: ['webmcp'],
+      mountScope: 'mounted Note editor (NoteEditor)',
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      inputSchema: zodSchemaToJsonSchema(uiEditorInspectorSchema),
     },
     ...agentTools.map(
       (tool): AgentUiToolManifestEntry => ({

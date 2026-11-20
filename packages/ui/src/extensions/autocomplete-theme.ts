@@ -16,7 +16,7 @@ export const autocompleteTooltipTheme: Extension = EditorView.theme({
     boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
     fontFamily: 'var(--font-sans, "Geist Sans", "SF Pro Display", Switzer, "Helvetica Neue", system-ui, sans-serif)',
     fontSize: "13px",
-    zIndex: "40",
+    zIndex: "250",
   },
   ".cm-tooltip-autocomplete": {
     overflow: "hidden",

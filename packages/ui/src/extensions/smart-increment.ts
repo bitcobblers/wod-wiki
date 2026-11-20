@@ -75,28 +75,101 @@ function findTimeAtCursor(
   return null;
 }
 
+function stepDecimalString(current: number, step: number, delta: number, decimals: number): string {
+  const next = Math.max(0, current + delta * step);
+  const rounded = decimals > 0 ? Math.round(next * 10) / 10 : Math.round(next);
+  return String(rounded);
+}
+
+function findTokenFallbackAtCursor(
+  line: string,
+  column: number,
+  delta: number,
+): { startCol: number; endCol: number; replacement: string } | null {
+  const resRe = /(@?)(\d+(?:\.\d+)?)\s*(kg|lbs?|pood|%)\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = resRe.exec(line)) !== null) {
+    const startCol = m.index;
+    const endCol = startCol + m[0].length;
+    if (column >= startCol && column <= endCol) {
+      const prefix = m[1];
+      const current = parseFloat(m[2]);
+      const unit = m[3];
+      const lowerUnit = unit.toLowerCase();
+      const step = lowerUnit === '%' ? 1 : lowerUnit === 'pood' ? 0.5 : current >= 20 ? 5 : 2.5;
+      const decimals = m[2].includes('.') || step % 1 !== 0 ? 1 : 0;
+      const gap = m[0].slice(prefix.length + m[2].length, m[0].length - unit.length);
+      return {
+        startCol,
+        endCol,
+        replacement: `${prefix}${stepDecimalString(current, step, delta, decimals)}${gap}${unit}`,
+      };
+    }
+  }
+
+  const roundsRe = /\((\d+)\)/g;
+  while ((m = roundsRe.exec(line)) !== null) {
+    const startCol = m.index;
+    const endCol = startCol + m[0].length;
+    if (column >= startCol && column <= endCol) {
+      const next = Math.max(1, parseInt(m[1], 10) + delta);
+      return { startCol, endCol, replacement: `(${next})` };
+    }
+  }
+
+  const repRe = /\b(\d+)\b/g;
+  while ((m = repRe.exec(line)) !== null) {
+    const startCol = m.index;
+    const endCol = startCol + m[0].length;
+    if (column < startCol || column > endCol) continue;
+    const prevCh = startCol > 0 ? line[startCol - 1] : '';
+    const nextCh = endCol < line.length ? line[endCol] : '';
+    if (/[:/.xX-]/.test(prevCh) || /[:/.xX-]/.test(nextCh)) continue;
+    const next = Math.max(1, parseInt(m[1], 10) + delta);
+    return { startCol, endCol, replacement: String(next) };
+  }
+
+  return null;
+}
+
 function handleSmartIncrement(view: EditorView, delta: number): boolean {
   const sel = view.state.selection.main;
   const line = view.state.doc.lineAt(sel.head);
   const col = sel.head - line.from;
 
   const found = findTimeAtCursor(line.text, col);
-  if (!found) return false;
+  if (found) {
+    const parsed = parseTimeString(found.timeStr);
+    if (!parsed) return false;
 
-  const parsed = parseTimeString(found.timeStr);
-  if (!parsed) return false;
+    const [d, h, m, s] = incrementTime(parsed[0], parsed[1], parsed[2], parsed[3], found.digitIndex, delta);
+    const nextTime = formatTimeString(d, h, m, s);
 
-  const [d, h, m, s] = incrementTime(parsed[0], parsed[1], parsed[2], parsed[3], found.digitIndex, delta);
-  const nextTime = formatTimeString(d, h, m, s);
+    view.dispatch({
+      changes: {
+        from: line.from + found.startCol,
+        to: line.from + found.endCol,
+        insert: nextTime,
+      },
+    });
+    return true;
+  }
 
+  const fallback = findTokenFallbackAtCursor(line.text, col, delta);
+  if (!fallback) return false;
+
+  const nextCursor = Math.min(
+    line.from + fallback.startCol + fallback.replacement.length,
+    line.from + fallback.startCol + Math.max(1, col - fallback.startCol),
+  );
   view.dispatch({
     changes: {
-      from: line.from + found.startCol,
-      to: line.from + found.endCol,
-      insert: nextTime,
+      from: line.from + fallback.startCol,
+      to: line.from + fallback.endCol,
+      insert: fallback.replacement,
     },
+    selection: { anchor: nextCursor },
   });
-
   return true;
 }
 

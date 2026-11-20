@@ -274,10 +274,9 @@ export interface QueriableStreamViewProps {
   queryEngine?: StreamQueryEngine
   /** Optional Add-to-today handler for cards. */
   onAddToToday?: (entry: Entry) => void
-  /** Register a getter for the LIVE composer draft (invalid text included —
-   *  invalid drafts never reach the URL). Returns the unregister cleanup;
-   *  the global ⌘/ palette consumes the getter while this view is mounted. */
-  registerStreamDraft?: (getDraft: () => string | null) => () => void
+  /** Register a getter and apply callback for the LIVE composer draft while
+   *  this view is mounted (global ⌘K / ⌘/ palette). */
+  registerStreamDraft?: (getDraft: () => string | null, applyDraft?: (wql: string) => void) => () => void
   /** Dependency overrides for tests (all default to production modules). */
   deps?: {
     /** Engine for README `[heading](:query)!` embeds (defaults to the shared engine). */
@@ -330,9 +329,8 @@ export function QueriableStreamView({
     legacy: profile.legacy,
   })
 
-  // Publish the live draft to the host's ⌘/ seam while mounted; the getter
-  // re-registers per draft change and unregisters on unmount/route change.
-  useEffect(() => registerStreamDraft?.(() => query), [registerStreamDraft, query])
+  // Publish the live draft and apply handler to the host's ⌘K/⌘/ seam while mounted.
+  useEffect(() => registerStreamDraft?.(() => query, setQuery), [registerStreamDraft, query, setQuery])
 
   // Per-route view settings (layout + field visibility)
   const { settings, setLayout: setPersistedLayout, toggleField, setGroupBy } = useViewSettings(
@@ -1346,14 +1344,16 @@ export function QueriableStreamView({
           </ResponsiveActions>
         }
         queryBar={
-          <StreamQueryBar
-            query={query}
-            onQueryChange={setQuery}
-            scopeOptions={profile.scopeOptions}
-            execute={execute}
-            defaultQuery={profile.defaultWql}
-            route={profile.route}
-          />
+          !isMobile ? (
+            <StreamQueryBar
+              query={query}
+              onQueryChange={setQuery}
+              scopeOptions={profile.scopeOptions}
+              execute={execute}
+              defaultQuery={profile.defaultWql}
+              route={profile.route}
+            />
+          ) : undefined
         }
       />
 

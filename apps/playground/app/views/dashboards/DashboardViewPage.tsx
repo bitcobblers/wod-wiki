@@ -18,6 +18,7 @@
  * The bare /dashboard route (no slug) is the WQL explorer — a separate page.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
@@ -53,9 +54,13 @@ import { useFeedImportPending, useFeedSyncProgress } from '@/services/feed/feedR
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import {
   StickyPageHeader,
+  useMobileQuerySlot,
   PAGE_SHELL_CONTAINER_CLASS,
   PAGE_SHELL_CONTENT_SURFACE_CLASS,
 } from '@/panels/page-shells';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import { StreamQueryBar } from '../stream/StreamQueryBar';
+import { paletteExecute } from '../../services/wqlSearchSource';
 import { cn } from '@/lib/utils';
 import { toEntry, blockToEntry } from '../../lib/entryMapper';
 import { entryOpenHref } from '../../lib/entryActions';
@@ -93,6 +98,8 @@ type ComposerState =
 export function DashboardViewPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const mobileSlot = useMobileQuerySlot();
   const [weeks] = useAnalyticsRange();
   const { unit: preferredUnit } = useAnalyticsUnitPreference();
   const { rangeStart, rangeEnd } = useMemo(() => {
@@ -491,16 +498,19 @@ export function DashboardViewPage() {
           title={document?.title || source.title}
           subtitle={editable ? 'Editable dashboard note.' : 'Prebuilt — read-only until cloned to your vault.'}
           queryBar={
-            <div className="flex min-w-0 flex-1 items-center gap-2 text-xs" data-testid="dashboard-scope-query-bar">
-              <WqlComposer
-                query={scopeQueryDraft}
-                onQueryChange={handleScopeQueryChange}
-                compact
-                showDiagnostics={false}
-                placeholder="Filter dashboard scope (e.g. :note{domain:crossfit} or effort:snatch)…"
-                className="min-w-0 flex-1"
-              />
-            </div>
+            !isMobile ? (
+              <div className="flex min-w-0 flex-1 items-center gap-2 text-xs" data-testid="dashboard-scope-query-bar">
+                <WqlComposer
+                  query={scopeQueryDraft}
+                  onQueryChange={handleScopeQueryChange}
+                  compact
+                  surface="popover"
+                  showDiagnostics={false}
+                  placeholder="Filter dashboard scope (e.g. :note{domain:crossfit} or effort:snatch)…"
+                  className="min-w-0 flex-1"
+                />
+              </div>
+            ) : undefined
           }
           actions={
             <div className="flex items-center gap-2">
@@ -709,6 +719,18 @@ export function DashboardViewPage() {
           ) : undefined
         }
       />
+      {isMobile && mobileSlot &&
+        createPortal(
+          <StreamQueryBar
+            compact
+            query={scopeQueryDraft}
+            onQueryChange={handleScopeQueryChange}
+            scopeOptions={[]}
+            execute={paletteExecute}
+            defaultQuery=""
+          />,
+          mobileSlot,
+        )}
     </div>
   );
 }

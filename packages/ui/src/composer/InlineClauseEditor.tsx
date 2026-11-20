@@ -1,10 +1,8 @@
 /**
- * InlineClauseEditor — the composer's in-card value editor. Rendered under
- * the composer box for the active pill: the composer owns this surface and
- * routes ↑/↓/Enter from the focused search input. Nothing here portals or
- * autofocuses; Tab stays native in this guided picker and moves real focus
- * out of the composer. Only the WQL text editor (WqlTextEditor) intercepts
- * Tab — to accept a completion and hop syntactic slots.
+ * InlineClauseEditor — the composer's value editor inside the Scope Map.
+ * Rendered under the active zone grid for the selected pill or catalog choice:
+ * the composer owns this surface and routes ↑/↓/Enter from the focused search
+ * input, while Tab/Shift+Tab step cleanly across query clauses.
  *
  * ARIA relation: with `listId` the list is a labelled listbox whose rows
  * carry stable ids (`clauseOptionId`), so the combobox input can point at it
@@ -164,7 +162,7 @@ export function InlineClauseEditor({
             <span className="truncate">
               Search for <span className="font-semibold text-foreground">&ldquo;{typedValue}&rdquo;</span>
             </span>
-            <span className="text-muted-foreground/60 ml-1 shrink-0 font-sans text-xs">↵</span>
+            <span className="text-muted-foreground ml-1 shrink-0 font-sans text-xs">↵</span>
           </button>
         )}
         {filteredItems.map((item, idx) => {
@@ -190,7 +188,7 @@ export function InlineClauseEditor({
               <div className="flex items-baseline justify-between gap-2 min-w-0 flex-1">
                 <span className="truncate">{item.label}</span>
                 {item.label !== item.value && (
-                  <span aria-hidden="true" className="font-mono text-[11px] text-muted-foreground/70 shrink-0">{item.value}</span>
+                  <span aria-hidden="true" className="font-mono text-[11px] text-muted-foreground shrink-0">{item.value}</span>
                 )}
               </div>
               {selected && <Check className="w-3.5 h-3.5 text-primary shrink-0 ml-1.5" />}
@@ -203,7 +201,7 @@ export function InlineClauseEditor({
       </div>
 
       {(filteredItems.length > 0 || canCommitTyped) && (
-        <div className="hidden sm:flex items-center justify-between px-2 pt-2 text-[10px] text-muted-foreground/70 font-mono border-t border-border/40 mt-1">
+        <div className="hidden sm:flex items-center justify-between px-2 pt-2 text-[11px] text-muted-foreground font-mono border-t border-border/40 mt-1">
           <span>↑↓ choose · Enter {isMulti ? 'toggle' : 'set'}</span>
           <span>Tab next segment · Esc close</span>
         </div>
@@ -215,7 +213,7 @@ export function InlineClauseEditor({
             type="button"
             onClick={onDone}
             data-testid="wql-clause-editor-done"
-            className="inline-flex w-full sm:w-auto items-center justify-center min-h-10 sm:min-h-7 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex w-full sm:w-auto items-center justify-center min-h-11 sm:min-h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Done{shownValues.length > 0 ? ` · ${shownValues.length} selected` : ''}
           </button>

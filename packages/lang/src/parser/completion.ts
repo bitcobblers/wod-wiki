@@ -23,6 +23,8 @@ export interface CompletionValueOption {
   value: string;
   /** Display label; defaults to `value`. */
   label?: string;
+  /** Optional aliases (e.g. "swing", "kbs") matched alongside label and value. */
+  aliases?: readonly string[];
   /** Short annotation shown after the label; the provider supplies a default. */
   detail?: string;
   /** Longer description shown in the completion info panel. */
@@ -108,19 +110,46 @@ function structureKeywords(): Completion[] {
     }));
 }
 
+const ACTION_CUE_COMPLETIONS: Completion[] = [
+  { label: '[:rest]', detail: 'Rest cue', type: 'keyword', apply: '[:rest] ', boost: 20 },
+  { label: '[:next]', detail: 'Advance segment', type: 'keyword', apply: '[:next] ', boost: 15 },
+  { label: '[:done]', detail: 'Complete block', type: 'keyword', apply: '[:done] ', boost: 12 },
+  { label: '[:mark]', detail: 'Split / lap marker', type: 'keyword', apply: '[:mark] ', boost: 10 },
+];
+
+const completionAliases = new WeakMap<Completion, readonly string[]>();
+
 function toCompletions(values: readonly CompletionValueOption[], detail: string, quoteValues = false): Completion[] {
   return values.map(value => {
     const insertText = quoteValues
       ? (!/^[A-Za-z][A-Za-z0-9]*$/.test(value.value) ? JSON.stringify(value.value) : value.value)
       : (value.label ?? value.value);
-    return {
+    const item: Completion = {
       label: value.label ?? value.value,
       apply: insertText,
       detail: value.detail ?? (value.label && value.label !== value.value ? value.value : detail),
       type: 'text',
       info: value.info,
     };
+    if (value.aliases?.length) {
+      completionAliases.set(item, value.aliases.map(a => a.toLowerCase()));
+    }
+    return item;
   });
+}
+
+function completionMatchesAliasOnly(option: Completion, typedLower: string): boolean {
+  const aliases = completionAliases.get(option);
+  return aliases ? aliases.some(alias => alias.includes(typedLower)) : false;
+}
+
+function completionMatchesWord(option: Completion, typedLower: string): 'prefix' | 'word' | 'alias' | null {
+  const inserted = (typeof option.apply === 'string' ? option.apply : option.label).toLowerCase();
+  const label = option.label.toLowerCase();
+  if (inserted.startsWith(typedLower) || label.startsWith(typedLower)) return 'prefix';
+  if (inserted.includes(typedLower) || label.includes(typedLower)) return 'word';
+  if (completionMatchesAliasOnly(option, typedLower)) return 'alias';
+  return null;
 }
 
 function dialectWords(sport?: string): Completion[] {
@@ -219,6 +248,16 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
     const word = /([A-Za-z0-9-]*)$/.exec(before)![1];
     const beforeWord = before.slice(0, before.length - word.length);
 
+    // Action cue shorthand: `[:` or `[:rest`
+    const actionMatch = /(\[:[a-zA-Z0-9-]*)$/.exec(before);
+    if (actionMatch) {
+      return {
+        from: pos - actionMatch[1].length,
+        options: ACTION_CUE_COMPLETIONS,
+        validFor: /^\[:[a-zA-Z0-9-]*\]?$/,
+      };
+    }
+
     // Tag reference: `#partial` — inline or as a property value.
     if (beforeWord.endsWith('#') && options.tags) {
       return { from: pos - word.length, options: toCompletions(await options.tags(), 'tag') };
@@ -255,9 +294,27 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
     // statement-start choices stay available while CodeMirror filters the prefix.
     if (/^[ \t]*[A-Za-z][A-Za-z0-9]*$/.test(before)) {
       const supplied = suppliedPropertyKeys(context);
+      const allStartOptions = [
+        ...COMPLETION_PROPERTY_KEYS.filter(key => !supplied.has(key)).map(key => ({ label: key, detail: 'property', type: 'property', boost: 5 })),
+        ...snippets,
+        ...keywords,
+        ...efforts,
+        ...sportWords,
+      ];
+      const typedStart = before.trimStart().toLowerCase();
+      const hasAliasHit = typedStart.length >= 2 && effortOptions.some(opt => completionMatchesWord(opt, typedStart) === 'alias');
+      if (hasAliasHit) {
+        const matched = allStartOptions.filter(opt => completionMatchesWord(opt, typedStart) !== null);
+        return {
+          from: pos - before.trimStart().length,
+          options: matched,
+          filter: false,
+          validFor: /^[A-Za-z]*$/,
+        };
+      }
       return {
         from: pos - before.trimStart().length,
-        options: [...COMPLETION_PROPERTY_KEYS.filter(key => !supplied.has(key)).map(key => ({ label: key, detail: 'property', type: 'property', boost: 5 })), ...snippets, ...keywords, ...efforts, ...sportWords],
+        options: allStartOptions,
         validFor: /^[A-Za-z]*$/,
       };
     }
@@ -278,9 +335,20 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
       && !context.state.doc.sliceString(fragment.from, fragment.to).includes(':')
     );
     if (quantity && !incompleteAction) {
+      const wordText = completingWord ? context.state.doc.sliceString(last.from, pos).toLowerCase() : '';
+      const hasAliasHit = wordText.length >= 2 && effortOptions.some(opt => completionMatchesWord(opt, wordText) === 'alias');
+      const pool = [...(quantity.getChild('AtSign') ? massUnitOptions : allUnitOptions), ...effortOptions];
+      if (hasAliasHit && completingWord) {
+        return {
+          from: last.from,
+          options: pool.filter(opt => completionMatchesWord(opt, wordText) !== null),
+          filter: false,
+          validFor: /^[A-Za-z]*$/,
+        };
+      }
       return {
         from: completingWord ? last.from : pos,
-        options: [...(quantity.getChild('AtSign') ? massUnitOptions : allUnitOptions), ...effortOptions],
+        options: pool,
         validFor: /^[A-Za-z]*$/,
       };
     }
@@ -306,11 +374,14 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
       const last = effortRun[effortRun.length - 1];
       if (!first || !last || last.to < pos) return null;
       const typed = context.state.doc.sliceString(first.from, pos).toLowerCase();
-      const compatible = effortOptions.filter(option => {
-        const inserted = typeof option.apply === 'string' ? option.apply : option.label;
-        return inserted.toLowerCase().startsWith(typed) || option.label.toLowerCase().startsWith(typed);
-      });
-      return { from: first.from, options: compatible, validFor: /^[A-Za-z ]*$/ };
+      const compatible = effortOptions.filter(option => completionMatchesWord(option, typed) !== null);
+      const usesAlias = compatible.some(option => completionMatchesWord(option, typed) === 'alias');
+      return {
+        from: first.from,
+        options: compatible,
+        ...(usesAlias ? { filter: false } : {}),
+        validFor: /^[A-Za-z ]*$/,
+      };
     }
 
     return null;

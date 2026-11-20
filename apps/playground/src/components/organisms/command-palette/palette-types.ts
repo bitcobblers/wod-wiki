@@ -34,6 +34,13 @@ export interface PaletteWqlConfig {
    */
   onApply?: (wql: string) => void;
   /**
+   * Dedicated Filter Sheet mode (mobile StreamQueryBar): hides the search
+   * results region so the WQL composer and Scope Map own the full scroll body.
+   */
+  hideResults?: boolean;
+  /** Context label shown as a dismissible scope badge in Find mode (e.g. "in Journal"). */
+  scopeLabel?: string;
+  /**
    * The surface's own settings, rendered INSIDE the palette (not as a nested
    * modal — the palette is a focus-trapped dialog, so a second overlay on
    * top of it would be unreachable). The host supplies the panel content;

@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { EditorView } from '@codemirror/view';
 import { WqlQueryInspectorModal } from '../src/blocks/WqlQueryInspectorModal';
 
 afterEach(cleanup);
@@ -13,7 +14,12 @@ it('a rejected block write keeps the edited draft open and leaves persisted sour
     persisted = query;
   });
   render(<WqlQueryInspectorModal isOpen onClose={close} initialQuery={original} onApply={save} />);
-  fireEvent.change(screen.getByLabelText('Search text or WQL'), { target: { value: 'last 2w' } });
+  const editorDom = screen.getByTestId('wql-text-input');
+  const cm = EditorView.findFromDOM(editorDom)!;
+  cm.dispatch({
+    changes: { from: 0, to: cm.state.doc.length, insert: ':segment{effort:snatch} by {effort} in lb last 2w | limit 5' },
+  });
+  await waitFor(() => expect(screen.getByTestId('wql-inspector-draft').textContent).toContain('last 2w'));
   const draft = screen.getByTestId('wql-inspector-draft').textContent;
   fireEvent.click(screen.getByTestId('wql-inspector-apply'));
   await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Storage refused write'));

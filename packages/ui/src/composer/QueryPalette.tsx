@@ -1,21 +1,20 @@
 /**
- * QueryPalette — token pills for the composer's clause row.
+ * QueryPalette — Concept A unified Split-Pill token pills for the composer's
+ * collapsed bar and Zone Scope Map cards.
  *
- * Pills are real buttons in the native tab order (no virtual navigation);
- * removal is a sibling labelled button rather than an interactive control
- * nested inside another button. Editors — built-in option lists
- * (InlineClauseEditor) and custom slot editors — render in the composer's
- * owned picker region under the box; the pill never opens a surface itself
- * and nothing here portals to the body.
+ * The main button and optional remove button live inside ONE unified pill
+ * border container separated by a hairline divider (no floating orphaned ×).
  */
-import { X } from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { ClauseIcon } from './ClauseIcon';
 import type { QueryClause } from './queryClauses';
 import { CLEAR_ONLY_TYPES, getClauseMeta } from './queryClauses';
 
 export interface TokenSlotPillProps {
   clause: QueryClause;
   isActive?: boolean;
+  isCaretMatch?: boolean;
   invalid?: boolean;
   invalidReason?: string;
   onClick?: () => void;
@@ -27,6 +26,7 @@ export interface TokenSlotPillProps {
 export function TokenSlotPill({
   clause,
   isActive,
+  isCaretMatch = false,
   invalid = false,
   invalidReason,
   onClick,
@@ -37,36 +37,56 @@ export function TokenSlotPill({
   const meta = getClauseMeta(clause.type);
   const hasValue = Boolean(clause.value && clause.value.trim());
   const removeLabel = CLEAR_ONLY_TYPES[clause.type] ? `Clear ${meta.label}` : `Remove ${meta.label}`;
+  const displayTitle = invalid ? invalidReason : meta.description || meta.label;
 
   return (
-    <span className="relative inline-flex items-center">
+    <span
+      className={cn(
+        'inline-flex max-w-full min-w-0 items-stretch overflow-hidden rounded-full border transition-colors',
+        invalid
+          ? isActive
+            ? 'border-amber-700 bg-amber-700 text-white dark:border-amber-400 dark:bg-amber-400 dark:text-zinc-950'
+            : 'border-amber-500/70 bg-amber-50 text-amber-900 dark:border-amber-500/50 dark:bg-amber-950/40 dark:text-amber-200'
+          : isActive
+            ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+            : isCaretMatch
+              ? 'border-primary bg-primary/15 text-primary'
+              : hasValue
+                ? 'border-border bg-muted/70 text-foreground hover:border-foreground/35'
+                : 'border-dashed border-border bg-muted/40 text-muted-foreground hover:border-foreground/35',
+      )}
+    >
       <button
         type="button"
         data-testid={`token-slot-${clause.type}`}
         onClick={onClick}
         aria-pressed={isActive || undefined}
-        title={invalid ? invalidReason : undefined}
+        aria-invalid={invalid || undefined}
+        title={displayTitle}
         className={cn(
-          'inline-flex items-center gap-1 rounded-full text-xs font-mono transition-all cursor-pointer select-none border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:font-bold hover:scale-[1.02]',
-          // Whole pill is a touch target too: 44px minimum at every width.
-          'min-h-11 min-w-11',
-          invalid
-            ? 'bg-destructive/10 text-destructive border-destructive/40 hover:bg-destructive/20'
-            : isActive
-              ? 'bg-primary text-primary-foreground border-primary font-medium shadow-sm'
-              : hasValue
-                ? 'bg-muted/80 text-foreground border-border hover:bg-muted'
-                : 'bg-muted/40 text-muted-foreground border-dashed border-border hover:bg-muted/60',
-          compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1',
+          'inline-flex min-w-0 items-center gap-1.5 font-mono transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+          'min-h-11 sm:min-h-7',
+          compact ? 'px-2.5 py-0.5 text-[11.5px]' : 'px-2.5 py-1 text-xs',
+          isActive && 'text-primary-foreground',
         )}
       >
-        <span className="text-[10px] opacity-70">{meta.icon}</span>
-        {/* Label prefix only while the pill is engaged — at rest the value
-            alone reads cleaner than the "<label>: value" prefix. */}
-        {isActive && (
-          <span className="font-semibold text-[11px] opacity-90">{meta.label}:</span>
+        {invalid ? (
+          <AlertTriangle aria-hidden="true" className="size-3 shrink-0" />
+        ) : (
+          <ClauseIcon
+            type={clause.type}
+            className={cn(isActive ? 'text-primary-foreground/90' : 'opacity-75')}
+          />
         )}
-        <span data-testid={`token-slot-value-${clause.type}`} className={cn('truncate max-w-44', !hasValue && 'italic opacity-60')}>
+        <span
+          className={cn(
+            'font-sans text-[11px] font-medium whitespace-nowrap',
+            isActive ? 'text-primary-foreground/90' : 'text-muted-foreground',
+          )}
+        >
+          {meta.label}:
+        </span>
+        <span data-testid={`token-slot-value-${clause.type}`} className={cn('min-w-0 truncate max-w-44 font-semibold', !hasValue && 'italic font-normal')}>
           {hasValue ? clause.value : placeholderOverride || meta.placeholder}
         </span>
       </button>
@@ -78,15 +98,18 @@ export function TokenSlotPill({
           aria-label={removeLabel}
           title={removeLabel}
           className={cn(
-            'inline-flex items-center justify-center -ml-0.5 p-1 rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'inline-flex items-center justify-center border-l transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+            'min-h-11 min-w-11 sm:min-h-7 sm:min-w-7 px-1.5',
             invalid
-              ? 'text-destructive/70 hover:text-destructive'
-              : 'text-inherit opacity-70 hover:opacity-100 hover:bg-black/10',
-            // Labelled removal is a real control: 44px hit target everywhere.
-            'min-h-11 min-w-11',
+              ? isActive
+                ? 'border-white/30 hover:bg-white/15'
+                : 'border-amber-500/40 hover:bg-amber-200/50 dark:hover:bg-amber-900/40'
+              : isActive
+                ? 'border-primary-foreground/25 text-primary-foreground hover:bg-primary-foreground/15'
+                : 'border-border text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10',
           )}
         >
-          <X className="w-3 h-3" />
+          <X aria-hidden="true" className="size-3" />
         </button>
       )}
     </span>

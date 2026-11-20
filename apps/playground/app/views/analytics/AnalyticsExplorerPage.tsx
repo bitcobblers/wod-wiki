@@ -54,7 +54,11 @@ import { setMetricQuery } from '../../lib/wqlEdits';
 import { useRouteWqlConfig } from '../../lib/routeWqlConfig';
 import { DASHBOARDS_SURFACE } from '../../lib/queryConfigSurfaces';
 import { QuerySettingsDialog } from '../../components/organisms/wql/QuerySettingsDialog';
-import { WqlComposer } from '@bitcobblers/wod-wiki-ui';
+import {
+  WqlComposer,
+  type ClauseType,
+  type WqlSegmentEditRequest,
+} from '@bitcobblers/wod-wiki-ui';
 import { EXAMPLE_QUERIES } from '@/utils/analytics/explorerQueries';
 import { useExplorerVocabulary } from '@/utils/analytics/useExplorerVocabulary';
 import { useExplorerQueryState } from '../../hooks/useExplorerQueryState';
@@ -177,6 +181,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   // editor states (an unresolved kind/target pivot confirm) — Save must
   // honor both, not just a fresh parse of the draft text.
   const [composerValid, setComposerValid] = useState(true);
+  const [segmentEditRequest, setSegmentEditRequest] = useState<WqlSegmentEditRequest | undefined>(undefined);
   const vocabulary = useExplorerVocabulary();
   // Route-configured type favorites (the /dashboards surface) prioritize the
   // composer's picker rows without excluding anything.
@@ -443,6 +448,9 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
             actionLabel="Run"
             preferredChoices={preferredChoices}
             showDiagnostics={false}
+            defaultExpanded
+            surface="inline"
+            segmentEditRequest={segmentEditRequest}
             placeholder={WQL_GRAMMAR_PLACEHOLDER}
             diagnosticsActions={
               <button
@@ -469,7 +477,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
                   <AlertCircle size={11} className="shrink-0" /> {liveParsed.error}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 text-green-600">
+                <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
                   <CheckCircle2 size={11} className="shrink-0" /> valid
                 </span>
               )}
@@ -505,16 +513,23 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
               {key}
             </button>
           ))}
-          <span className="mx-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+          <span className="mx-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             filters
           </span>
           {vocabulary.tagKeys.map((key) => (
-            <span
+            <button
               key={key}
-              className="rounded-full border border-border/60 px-2 py-0.5 text-[11px] font-mono text-muted-foreground/70"
+              type="button"
+              onClick={() =>
+                setSegmentEditRequest({
+                  type: (key === 'tags' ? 'tag' : key) as ClauseType,
+                  token: Date.now(),
+                })
+              }
+              className="min-h-11 sm:min-h-7 rounded-full border border-border px-2.5 py-0.5 text-[11px] font-mono text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
               {key}
-            </span>
+            </button>
           ))}
         </div>
 

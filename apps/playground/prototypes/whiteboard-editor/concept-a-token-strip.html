@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Concept A: Unified Token Strip &amp; Anchored Inspector — WOD Wiki</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./shared.css" />
+  <style>
+    .block-overflow-menu {
+      position: absolute;
+      z-index: 70;
+      width: 196px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      box-shadow: var(--shadow-float);
+      padding: 6px;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .block-overflow-menu.is-open {
+      display: flex;
+    }
+
+    .reopen-fab {
+      position: absolute;
+      right: 14px;
+      bottom: 16px;
+      z-index: 45;
+      box-shadow: var(--shadow-float);
+    }
+
+    .typing-inline-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--field-border);
+      border-radius: var(--r-sm);
+    }
+    .typing-inline-input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      background: transparent;
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      outline: none;
+    }
+
+    .desktop-raw-line-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px 6px 36px;
+      border-top: 1px dashed var(--border-soft);
+      background: var(--popover);
+    }
+
+    .inspector-drawer {
+      width: 332px;
+      flex-shrink: 0;
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      display: none;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .inspector-drawer.is-open {
+      display: flex;
+    }
+    .stage-viewport[data-vp="tablet"] .inspector-drawer,
+    .stage-viewport[data-vp="mobile"] .inspector-drawer,
+    .stage-viewport[data-vp="tablet"] #topbar-drawer-btn,
+    .stage-viewport[data-vp="mobile"] #topbar-drawer-btn {
+      display: none !important;
+    }
+    #topbar-drawer-btn.is-active {
+      background: var(--primary-soft);
+      border-color: var(--primary);
+      color: var(--primary-active-fg);
+    }
+
+    .rail-panel {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .rail-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .rail-section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--fg);
+      letter-spacing: 0.01em;
+    }
+    .diff-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: var(--r-full);
+      background: var(--primary-soft);
+      border: 1px solid var(--m-time-bd);
+      color: var(--primary-active-fg);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .timeline-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .timeline-row {
+      width: 100%;
+      text-align: left;
+      padding: 6px 9px;
+      min-height: 34px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--border-soft);
+      background: var(--popover);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .timeline-row:hover {
+      background: var(--muted);
+    }
+    .timeline-row.is-active {
+      background: var(--primary-soft);
+      border-color: var(--primary);
+      color: var(--primary-active-fg);
+      font-weight: 600;
+    }
+    .timeline-row.is-err {
+      background: var(--m-err-bg);
+      border-color: var(--m-err-bd);
+      color: var(--m-err);
+    }
+    .timeline-dur {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      padding: 1px 6px;
+      border-radius: var(--r-full);
+      background: var(--card);
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <nav class="proto-bar" aria-label="Prototype controls">
+    <div class="proto-bar-group">
+      <a class="proto-back" href="./index.html">All Prototypes</a>
+      <div class="proto-nav" role="navigation" aria-label="Concepts">
+        <a href="./concept-a-token-strip.html" class="is-current">Concept A</a>
+        <a href="./concept-b-hybrid-scrubber.html">Concept B</a>
+        <a href="./concept-c-syntax-lens.html">Concept C</a>
+      </div>
+    </div>
+
+    <div class="proto-bar-group">
+      <div class="proto-seg" role="group" aria-label="Simulated viewport">
+        <button type="button" class="is-active" data-set-vp="desktop">Desktop (1440)</button>
+        <button type="button" data-set-vp="tablet">Tablet (768)</button>
+        <button type="button" data-set-vp="mobile">Mobile (390)</button>
+      </div>
+      <div class="proto-seg" role="group" aria-label="Scenario preset">
+        <button type="button" class="is-active" data-set-scen="emom">EMOM + Strength</button>
+        <button type="button" data-set-scen="empty">Empty Starter</button>
+        <button type="button" data-set-scen="lint">Lint &amp; Repair</button>
+        <button type="button" data-set-scen="prose">Prose &amp; Wiki</button>
+      </div>
+      <button type="button" class="proto-k-btn" id="inspect-shortcut-btn">
+        <span>Inspect</span>
+        <span class="kbd-chip">Ctrl+.</span>
+      </button>
+      <button type="button" class="proto-k-btn" id="toggle-drawer-btn" aria-pressed="false">
+        <span>Drawer</span>
+        <span class="kbd-chip">Ctrl+Shift+I</span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="stage-outer">
+    <div class="stage-viewport" id="stage-viewport" data-vp="desktop">
+      <div class="app-frame" id="app-frame">
+        <header class="editor-topbar">
+          <div class="editor-topbar-left">
+            <span class="note-route-badge">/playground</span>
+            <span class="note-doc-title" id="topbar-title">Tuesday Conditioning &amp; Strength</span>
+          </div>
+          <div class="editor-topbar-actions">
+            <button type="button" class="btn btn-secondary desktop-only-el" id="topbar-drawer-btn" aria-pressed="false">Inspector Drawer</button>
+            <button type="button" class="btn btn-secondary mobile-only-btn" id="open-entities-btn" aria-label="Open note entities">
+              <span id="entities-btn-label">Entities</span>
+            </button>
+            <button type="button" class="icon-btn" id="btn-undo" aria-label="Undo edit" title="Undo"></button>
+            <button type="button" class="icon-btn" id="btn-redo" aria-label="Redo edit" title="Redo"></button>
+          </div>
+        </header>
+
+        <div class="app-workspace">
+          <aside class="entity-sidebar" id="entity-sidebar" aria-label="Note entities outline"></aside>
+
+          <div class="app-scroll" id="app-scroll">
+            <main class="note-canvas" id="note-canvas"></main>
+          </div>
+
+          <aside class="inspector-drawer" id="inspector-drawer" aria-label="Optional Concept B Inspector Drawer"></aside>
+        </div>
+
+        <!-- Desktop / Tablet Floating Anchored Popover -->
+        <div class="floating-popover" id="desktop-popover" role="dialog" aria-label="Token inspector" style="display:none">
+          <div class="popover-caret" id="popover-caret"></div>
+          <div id="desktop-popover-inner"></div>
+        </div>
+
+        <!-- Narrow Block Overflow Menu -->
+        <div class="block-overflow-menu" id="block-overflow-menu" role="dialog" aria-label="Block actions">
+          <button type="button" class="option-row" data-overflow-cmd="Share"><span class="option-row-title">Share workout</span></button>
+          <button type="button" class="option-row" data-overflow-cmd="Added to Today"><span class="option-row-title">+ Add to Today</span></button>
+          <button type="button" class="option-row" data-overflow-cmd="Scheduled"><span class="option-row-title">Schedule</span></button>
+        </div>
+
+        <!-- Mobile Bottom Thumb Deck (Unified Token Strip + Editor + 4-Button Footer) -->
+        <section class="mobile-deck" id="mobile-deck" aria-label="Mobile whiteboard syntax composer" style="display:none"></section>
+
+        <!-- Reopen Composer Trigger when Mobile Deck dismissed -->
+        <button type="button" class="btn btn-primary reopen-fab" id="reopen-mobile-deck" style="display:none">Edit Line</button>
+
+        <!-- Entities Sheet Overlay (Mobile & Tablet) -->
+        <div class="overlay-backdrop" id="entities-backdrop" role="dialog" aria-modal="true" aria-labelledby="entities-sheet-title">
+          <div class="overlay-dialog">
+            <div class="sheet-header">
+              <h2 class="sheet-title" id="entities-sheet-title">Note Entities &amp; Diagnostics</h2>
+              <button type="button" class="icon-btn" id="close-entities-btn" aria-label="Close entities"></button>
+            </div>
+            <div class="sheet-body" id="entities-sheet-body"></div>
+          </div>
+        </div>
+
+        <div class="proto-toast" id="proto-toast" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./shared-editor.js"></script>
+  <script>
+    (function () {
+      var W = window.WhiteboardProto;
+      var ctrl = W.createEditorController('emom');
+
+      var ui = {
+        vp: 'desktop',
+        scen: 'emom',
+        drawerOpen: false,
+        lastEditDiff: null,
+        editorMode: null, // null | 'token' | 'add' | 'block' | 'wiki' | 'prose-tag' | 'fm-tag'
+        activeTokenId: null,
+        activeBlockIdx: 0,
+        searchQuery: '',
+        showAliasList: false,
+        anchorSelector: null,
+        lastTriggerEl: null,
+        mobileDeckOpen: true,
+        mobileTypingMode: false,
+        entitiesOpen: false,
+        overflowBlockIdx: null,
+        toastTimer: null
+      };
+
+      var stageEl = document.getElementById('stage-viewport');
+      var appFrameEl = document.getElementById('app-frame');
+      var appScrollEl = document.getElementById('app-scroll');
+      var topbarTitleEl = document.getElementById('topbar-title');
+      var sidebarEl = document.getElementById('entity-sidebar');
+      var noteCanvasEl = document.getElementById('note-canvas');
+      var desktopPopover = document.getElementById('desktop-popover');
+      var desktopPopoverInner = document.getElementById('desktop-popover-inner');
+      var popoverCaret = document.getElementById('popover-caret');
+      var inspectorDrawer = document.getElementById('inspector-drawer');
+      var toggleDrawerBtn = document.getElementById('toggle-drawer-btn');
+      var topbarDrawerBtn = document.getElementById('topbar-drawer-btn');
+      var overflowMenu = document.getElementById('block-overflow-menu');
+      var mobileDeck = document.getElementById('mobile-deck');
+      var reopenDeckBtn = document.getElementById('reopen-mobile-deck');
+      var entitiesBackdrop = document.getElementById('entities-backdrop');
+      var entitiesSheetBody = document.getElementById('entities-sheet-body');
+      var entitiesBtnLabel = document.getElementById('entities-btn-label');
+      var btnUndo = document.getElementById('btn-undo');
+      var btnRedo = document.getElementById('btn-redo');
+      var toastEl = document.getElementById('proto-toast');
+
+      document.getElementById('close-entities-btn').innerHTML = W.icons.x(16);
+      btnUndo.innerHTML = W.icons.undo(16);
+      btnRedo.innerHTML = W.icons.redo(16);
+
+      function isMobileLayout() {
+        return ui.vp === 'mobile' || window.innerWidth <= 767;
+      }
+
+      function isDrawerActive() {
+        return ui.drawerOpen && !isMobileLayout() && ui.vp !== 'tablet' && window.innerWidth >= 960;
+      }
+
+      function syncDrawerButtons() {
+        toggleDrawerBtn.classList.toggle('is-active', ui.drawerOpen);
+        toggleDrawerBtn.setAttribute('aria-pressed', String(ui.drawerOpen));
+        topbarDrawerBtn.classList.toggle('is-active', ui.drawerOpen);
+        topbarDrawerBtn.setAttribute('aria-pressed', String(ui.drawerOpen));
+      }
+
+      function centerScrubbers() {
+        if (!inspectorDrawer) return;
+        var drums = inspectorDrawer.querySelectorAll('.scrubber-scroll');
+        drums.forEach(function (scroller) {
+          var sel = scroller.querySelector('.scrubber-row.is-selected');
+          if (!sel) return;
+          var targetTop = sel.offsetTop - ((scroller.clientHeight - sel.offsetHeight) / 2);
+          scroller.scrollTop = Math.max(0, targetTop);
+        });
+      }
+
+      function showToast(msg) {
+        if (!msg) return;
+        toastEl.innerHTML = W.icons.check(14) + '<span>' + W.escapeHtml(msg) + '</span>';
+        toastEl.classList.add('is-shown');
+        clearTimeout(ui.toastTimer);
+        ui.toastTimer = setTimeout(function () {
+          toastEl.classList.remove('is-shown');
+        }, 2200);
+      }
+
+      function getCurrentLineTokens() {
+        var active = ctrl.getActiveParsed();
+        return active ? active.parsed.tokens : [];
+      }
+
+      function findActiveToken() {
+        var toks = getCurrentLineTokens();
+        if (!toks.length) return null;
+        for (var i = 0; i < toks.length; i++) {
+          if (toks[i].id === ui.activeTokenId) return toks[i];
+        }
+        return toks[0];
+      }
+
+      function ensureSensibleMobileSelection() {
+        var cur = ctrl.getCursor();
+        if (cur.kind === 'wod') {
+          var toks = getCurrentLineTokens();
+          if (!toks.length) {
+            ui.editorMode = 'add';
+            ui.activeTokenId = null;
+          } else {
+            var found = toks.some(function (t) { return t.id === ui.activeTokenId; });
+            if (!found || !ui.editorMode) {
+              // Prioritize lintError or first token so something meaningful is immediately ready
+              var errTok = null;
+              for (var i = 0; i < toks.length; i++) {
+                if (toks[i].kind === 'lintError') { errTok = toks[i]; break; }
+              }
+              ui.activeTokenId = (errTok || toks[0]).id;
+              ui.editorMode = 'token';
+            }
+          }
+        } else if (cur.kind === 'prose') {
+          if (ui.editorMode !== 'wiki' && ui.editorMode !== 'prose-tag' && ui.editorMode !== 'fm-tag') {
+            ui.editorMode = 'wiki';
+          }
+        }
+      }
+
+      function scrollActiveLineIntoView() {
+        if (!isMobileLayout() || !ui.mobileDeckOpen) return;
+        var activeLine = noteCanvasEl.querySelector('.wod-line-item.is-active, .prose-line-wrap.is-active');
+        if (activeLine && typeof activeLine.scrollIntoView === 'function') {
+          activeLine.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+        }
+      }
+
+      function updateComposerLift() {
+        if (isMobileLayout() && ui.mobileDeckOpen && mobileDeck.style.display !== 'none') {
+          var h = mobileDeck.getBoundingClientRect().height || 310;
+          appFrameEl.style.setProperty('--composer-lift', (Math.round(h) + 12) + 'px');
+        } else if (isMobileLayout()) {
+          appFrameEl.style.setProperty('--composer-lift', '68px');
+        } else {
+          appFrameEl.style.setProperty('--composer-lift', '18px');
+        }
+      }
+
+      function renderCanvas() {
+        var doc = ctrl.getDoc();
+        var cats = ctrl.getCatalogs();
+        var cur = ctrl.getCursor();
+        var entities = W.collectNoteEntities(doc, cats);
+
+        topbarTitleEl.textContent = doc.title;
+        btnUndo.disabled = !ctrl.canUndo();
+        btnRedo.disabled = !ctrl.canRedo();
+
+        var warnTotal = entities.unresolved.length + entities.errors.length;
+        entitiesBtnLabel.textContent = warnTotal > 0 ? ('Entities (' + warnTotal + ')') : 'Entities';
+
+        sidebarEl.innerHTML = W.renderSidebarSectionsHtml(entities);
+        entitiesSheetBody.innerHTML = W.renderSidebarSectionsHtml(entities);
+
+        var html = '<h1 class="note-h1">' + W.escapeHtml(doc.title) + '</h1>';
+
+        // Frontmatter card
+        html +=
+          '<section class="frontmatter-card" aria-label="Note properties">' +
+            '<div class="fm-group">' +
+              '<span class="fm-label">Notebook</span>' +
+              '<span class="fm-pill">' + W.escapeHtml(doc.frontmatter.notebook) + '</span>' +
+            '</div>' +
+            '<div class="fm-group">' +
+              '<span class="fm-label">Tags</span>' +
+              doc.frontmatter.tags.map(function (t) {
+                return '<button type="button" class="fm-pill is-tag" data-fm-toggle="' + W.escapeHtml(t) + '" title="Toggle tag">' + W.escapeHtml(t) + ' ×</button>';
+              }).join('') +
+              '<button type="button" class="fm-pill is-add" id="fm-add-tag-btn" data-open-fm-tags="true">+ Tag</button>' +
+            '</div>' +
+          '</section>';
+
+        // Prose lines
+        if (doc.prose.length) {
+          html += '<section class="prose-block" aria-label="Note prose">';
+          doc.prose.forEach(function (pLine, pIdx) {
+            var isAct = cur.kind === 'prose' && cur.lineIdx === pIdx;
+            var hasBold = /\*\*[^*]+\*\*/.test(pLine);
+            var hasItalic = /(^|[^*])\*[^*]+\*([^*]|$)/.test(pLine);
+            var hasStrike = /~~[^~]+~~/.test(pLine);
+            var hasCode = /`[^`]+`/.test(pLine);
+            html +=
+              '<div class="prose-line-wrap' + (isAct ? ' is-active' : '') + '">' +
+                '<button type="button" class="prose-line-btn" data-select-prose="' + pIdx + '">' +
+                  W.renderProseRunsHtml(pLine) +
+                '</button>' +
+                (isAct && !isMobileLayout() ? (
+                  '<div class="prose-toolbar" role="toolbar" aria-label="Prose formatting and wiki actions">' +
+                    '<button type="button" class="prose-tool-btn' + (hasBold ? ' is-active' : '') + '" data-prose-fmt="bold" aria-pressed="' + hasBold + '">' + W.icons.bold(13) + '<span>Bold</span></button>' +
+                    '<button type="button" class="prose-tool-btn' + (hasItalic ? ' is-active' : '') + '" data-prose-fmt="italic" aria-pressed="' + hasItalic + '">' + W.icons.italic(13) + '<span>Italic</span></button>' +
+                    '<button type="button" class="prose-tool-btn' + (hasStrike ? ' is-active' : '') + '" data-prose-fmt="strike" aria-pressed="' + hasStrike + '">' + W.icons.strike(13) + '<span>Strike</span></button>' +
+                    '<button type="button" class="prose-tool-btn' + (hasCode ? ' is-active' : '') + '" data-prose-fmt="code" aria-pressed="' + hasCode + '">' + W.icons.code(13) + '<span>Code</span></button>' +
+                    '<button type="button" class="prose-tool-btn" data-open-wiki="true">' + W.icons.wiki(13) + '<span>[[Link]]</span></button>' +
+                    '<button type="button" class="prose-tool-btn" data-open-prose-tag="true">' + W.icons.tag(13) + '<span>#Tag</span></button>' +
+                    '<button type="button" class="prose-tool-btn" data-prose-fmt="wrapTimeBlock">' + W.icons.blocks(13) + '<span>Wrap in ```time</span></button>' +
+                  '</div>'
+                ) : '') +
+              '</div>';
+          });
+          html += '</section>';
+        }
+
+        // Fenced WOD Blocks
+        doc.blocks.forEach(function (blk, bIdx) {
+          var compiled = W.compileBlockSummary(blk, cats);
+          var dialectLabel = blk.dialect === 'time' ? 'TIMER' : blk.dialect === 'log' ? 'LOG' : 'QUERY';
+          var isEmptyBlock = blk.lines.length === 1 && !blk.lines[0].trim();
+
+          html +=
+            '<section class="wod-block-card" aria-label="Workout script block ' + (bIdx + 1) + '">' +
+              '<div class="wod-block-header">' +
+                '<div class="wod-fence-group">' +
+                  '<span class="wod-fence-mark">```' + W.escapeHtml(blk.dialect) + '</span>' +
+                  '<button type="button" class="dialect-pill is-' + W.escapeHtml(blk.dialect) + '" data-open-block="' + bIdx + '" aria-label="Configure timer block dialect">' +
+                    W.icons.timer(13) + '<span>' + dialectLabel + '</span>' +
+                  '</button>' +
+                  '<button type="button" class="sport-pill" data-open-block="' + bIdx + '">' +
+                    W.escapeHtml(blk.sport ? (':' + blk.sport) : ':sport') +
+                  '</button>' +
+                  '<span class="wod-summary-text tabular">' +
+                    compiled.nonEmptyLines + ' lines · ' + W.escapeHtml(compiled.durLabel) +
+                    (compiled.errCount ? ' · ' + compiled.errCount + ' error' : '') +
+                  '</span>' +
+                '</div>' +
+                '<div class="wod-cmd-group">' +
+                  '<button type="button" class="btn btn-primary" data-cmd-play="' + bIdx + '">' + W.icons.play(13) + '<span>Play</span></button>' +
+                  '<div class="wod-cmd-secondary">' +
+                    '<button type="button" class="btn btn-secondary" data-cmd-toast="Shared workout link">Share</button>' +
+                    '<button type="button" class="btn btn-secondary" data-cmd-toast="Added to Today">+ Today</button>' +
+                    '<button type="button" class="btn btn-secondary" data-cmd-toast="Scheduled">Schedule</button>' +
+                  '</div>' +
+                  '<button type="button" class="icon-btn wod-cmd-overflow" data-open-overflow="' + bIdx + '" aria-label="More block actions" aria-expanded="' + (ui.overflowBlockIdx === bIdx) + '">' + W.icons.more(16) + '</button>' +
+                '</div>' +
+              '</div>';
+
+          if (isEmptyBlock) {
+            html +=
+              '<div class="empty-starter-strip">' +
+                '<div class="starter-prompt">Empty <code>```' + W.escapeHtml(blk.dialect) + '</code> block — start with a verified workout template or add your first line:</div>' +
+                '<div class="starter-chips">' +
+                  W.TEMPLATES.slice(0, 5).map(function (tpl) {
+                    return '<button type="button" class="choice-pill" data-quick-tpl="' + tpl.id + '" data-b="' + bIdx + '">' + W.icons.sparkles(13) + '<span>' + W.escapeHtml(tpl.name) + '</span></button>';
+                  }).join('') +
+                '</div>' +
+              '</div>';
+          }
+
+          html += '<div class="wod-lines-list">';
+          blk.lines.forEach(function (lineText, lIdx) {
+            var isAct = cur.kind === 'wod' && cur.blockIdx === bIdx && cur.lineIdx === lIdx;
+            var parsed = compiled.parsedLines[lIdx];
+            var hasErr = parsed.errors.length > 0;
+            var focusedId = isAct ? ui.activeTokenId : null;
+
+            html +=
+              '<div class="wod-line-item' + (isAct ? ' is-active' : '') + (hasErr ? ' has-error' : '') + '">' +
+                '<button type="button" class="wod-line-btn" data-select-wod="' + bIdx + ':' + lIdx + '">' +
+                  '<span class="wod-line-num tabular">' + (lIdx + 1) + '</span>' +
+                  '<span class="wod-code-runs">' + W.renderWodCodeRunsHtml(lineText, parsed, focusedId) + '</span>' +
+                '</button>';
+
+            if (isAct && !isMobileLayout()) {
+              var deskInputId = 'desktop-raw-line-input-' + bIdx + '-' + lIdx;
+              html +=
+                '<div class="desktop-raw-line-box">' +
+                  '<span class="kbd-chip" aria-hidden="true">Raw</span>' +
+                  '<label class="visually-hidden" for="' + deskInputId + '">Edit raw workout line</label>' +
+                  '<input id="' + deskInputId + '" type="text" class="typing-inline-input" data-role="desktop-raw-line-input" value="' + W.escapeHtml(lineText) + '" placeholder="Type WhiteboardScript (e.g. 10:00 15 Swing @24kg #emom)" />' +
+                '</div>';
+              html += '<div class="token-strip-row" role="toolbar" aria-label="Line syntax tokens">';
+              parsed.tokens.forEach(function (tok) {
+                var chip = W.tokenChipLabel(tok);
+                var isChipActive = ui.editorMode === 'token' && ui.activeTokenId === tok.id;
+                html +=
+                  '<button type="button" class="tok-chip' + (isChipActive ? ' is-active' : '') + '" data-kind="' + tok.kind + '"' +
+                    (tok.kind === 'duration' && tok.meta.mode === 'rest' ? ' data-rest="true"' : '') +
+                    ' data-pick-token="' + escapeAttr(tok.id) + '">' +
+                    W.icons[chip.icon](13) +
+                    '<span>' + W.escapeHtml(chip.text) + '</span>' +
+                  '</button>';
+              });
+              html +=
+                '<button type="button" class="tok-chip is-add' + (ui.editorMode === 'add' ? ' is-active' : '') + '" data-pick-add="true">' +
+                  W.icons.plus(13) + '<span>Add</span>' +
+                '</button>' +
+              '</div>';
+            }
+
+            if (isAct && parsed.errors.length) {
+              parsed.errors.forEach(function (err) {
+                html +=
+                  '<div class="lint-banner" role="alert">' +
+                    '<div class="lint-msg">' + W.icons.error(15) + '<span>' + W.escapeHtml(err.message) + '</span></div>' +
+                    '<div class="lint-fixes">' +
+                      err.fixes.map(function (fx) {
+                        return '<button type="button" class="btn btn-primary" data-quick-fix="' + escapeAttr(err.token.id) + '" data-fix-val="' + escapeAttr(fx) + '">Fix: ' + W.escapeHtml(fx) + '</button>';
+                      }).join('') +
+                    '</div>' +
+                  '</div>';
+              });
+            }
+
+            html += '</div>';
+          });
+          html += '</div>';
+
+          html +=
+            '<div class="wod-block-footer">' +
+              '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
+                '<button type="button" class="btn btn-secondary" data-add-line="' + bIdx + '">' + W.icons.newline(13) + '<span>+ Line below</span></button>' +
+                '<button type="button" class="icon-btn desktop-only-el" data-indent="-1" aria-label="Outdent active line" title="Outdent">' + W.icons.outdent(15) + '</button>' +
+                '<button type="button" class="icon-btn desktop-only-el" data-indent="1" aria-label="Indent active line" title="Indent">' + W.icons.indent(15) + '</button>' +
+              '</div>' +
+              '<button type="button" class="btn btn-ghost" data-open-block="' + bIdx + '">' + W.icons.sliders(13) + '<span>Block &amp; Templates</span></button>' +
+            '</div>';
+
+          html += '</section>';
+        });
+
+        noteCanvasEl.innerHTML = html;
+      }
+
+      function escapeAttr(v) {
+        return W.escapeHtml(v);
+      }
+
+      function renderDesktopPopover() {
+        if (isMobileLayout() || isDrawerActive() || !ui.editorMode) {
+          desktopPopover.style.display = 'none';
+          return;
+        }
+        var doc = ctrl.getDoc();
+        var cats = ctrl.getCatalogs();
+        var cur = ctrl.getCursor();
+        var tok = ui.editorMode === 'token' ? findActiveToken() : null;
+        var blk = doc.blocks[ui.activeBlockIdx || (cur.blockIdx || 0)];
+
+        desktopPopoverInner.innerHTML = W.renderTokenEditorHtml({
+          mode: ui.editorMode,
+          token: tok,
+          block: blk,
+          catalogs: cats,
+          activeNotebook: doc.frontmatter.notebook,
+          searchQuery: ui.searchQuery,
+          showAliasList: ui.showAliasList,
+          showStepButtons: ui.editorMode === 'token',
+          showClose: true
+        });
+        desktopPopover.style.display = 'flex';
+        positionDesktopPopover();
+      }
+
+      function renderTimelineHtml(blk, bIdx, compiled) {
+        var cur = ctrl.getCursor();
+        return (
+          '<div class="timeline-list">' +
+            (compiled.timeline.length ? compiled.timeline.map(function (item) {
+              var isAct = cur.kind === 'wod' && cur.blockIdx === bIdx && cur.lineIdx === item.lineIdx;
+              var durTxt = item.seconds > 0 ? (Math.floor(item.seconds / 60) + ':' + ((item.seconds % 60) < 10 ? '0' : '') + (item.seconds % 60)) : (item.isRest ? 'Rest' : 'Effort');
+              return (
+                '<button type="button" class="timeline-row' + (isAct ? ' is-active' : '') + (item.hasError ? ' is-err' : '') + '" data-select-wod="' + bIdx + ':' + item.lineIdx + '">' +
+                  '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + W.escapeHtml((item.lineIdx + 1) + '. ' + item.label) + '</span>' +
+                  '<span class="timeline-dur tabular">' + (item.hasError ? 'Error' : W.escapeHtml(durTxt)) + '</span>' +
+                '</button>'
+              );
+            }).join('') : '<div class="editor-head-desc">No statements yet — pick a starter template.</div>') +
+          '</div>'
+        );
+      }
+
+      function renderDesktopDrawer() {
+        syncDrawerButtons();
+        if (!isDrawerActive()) {
+          inspectorDrawer.classList.remove('is-open');
+          inspectorDrawer.innerHTML = '';
+          return;
+        }
+        inspectorDrawer.classList.add('is-open');
+
+        var doc = ctrl.getDoc();
+        var cats = ctrl.getCatalogs();
+        var cur = ctrl.getCursor();
+        var blkIdx = ui.activeBlockIdx || cur.blockIdx || 0;
+        var blk = doc.blocks[blkIdx];
+        var compiled = blk ? W.compileBlockSummary(blk, cats) : null;
+        var activeTok = findActiveToken();
+
+        var drawerMode = ui.editorMode;
+        if (!drawerMode) {
+          drawerMode = cur.kind === 'prose' ? 'wiki' : (activeTok ? 'token' : 'add');
+        }
+
+        var diffHtml = ui.lastEditDiff
+          ? '<span class="diff-badge tabular">' + W.escapeHtml(ui.lastEditDiff.from) + ' → ' + W.escapeHtml(ui.lastEditDiff.to) + '</span>'
+          : '<span class="kbd-chip">' + (activeTok ? W.escapeHtml(activeTok.kind) : 'ready') + '</span>';
+
+        var tokenEditorBody = W.renderTokenEditorHtml({
+          mode: drawerMode,
+          token: drawerMode === 'token' ? activeTok : null,
+          block: blk,
+          catalogs: cats,
+          activeNotebook: doc.frontmatter.notebook,
+          searchQuery: ui.searchQuery,
+          showAliasList: ui.showAliasList,
+          useScrubber: true,
+          showStepButtons: drawerMode === 'token',
+          showClose: false,
+          hideFooter: true
+        });
+
+        var overviewHtml = blk ? (
+          '<div class="rail-panel" style="border-bottom:none">' +
+            '<div class="rail-section-head">' +
+              '<span class="rail-section-title">Compiled Workout Timeline</span>' +
+              '<button type="button" class="btn btn-ghost" data-open-block="' + blkIdx + '">Block Settings</button>' +
+            '</div>' +
+            renderTimelineHtml(blk, blkIdx, compiled) +
+          '</div>'
+        ) : '';
+
+        inspectorDrawer.innerHTML =
+          '<div class="rail-panel">' +
+            '<div class="rail-section-head">' +
+              '<span class="rail-section-title">Option B Scrubber &amp; Inspector</span>' +
+              '<div style="display:flex;align-items:center;gap:6px">' +
+                diffHtml +
+                '<button type="button" class="icon-btn" data-close-drawer="true" aria-label="Close inspector drawer">' + W.icons.x(14) + '</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div>' + tokenEditorBody + '</div>' +
+          overviewHtml;
+
+        centerScrubbers();
+      }
+
+      function positionDesktopPopover() {
+        var anchor = ui.anchorSelector ? document.querySelector(ui.anchorSelector) : null;
+        if (!anchor) {
+          anchor = noteCanvasEl.querySelector('.tok-chip.is-active, .wod-line-item.is-active, .prose-line-wrap.is-active');
+        }
+        var frameRect = appFrameEl.getBoundingClientRect();
+        var popW = desktopPopover.offsetWidth || 400;
+        var popH = desktopPopover.offsetHeight || 300;
+        var left = 24;
+        var top = 80;
+        var caretLeft = 24;
+
+        if (anchor) {
+          var aRect = anchor.getBoundingClientRect();
+          var rawLeft = aRect.left - frameRect.left;
+          left = Math.max(12, Math.min(rawLeft, frameRect.width - popW - 12));
+          var belowTop = aRect.bottom - frameRect.top + 8;
+          if (belowTop + popH > frameRect.height - 12 && (aRect.top - frameRect.top - popH - 8) > 12) {
+            top = aRect.top - frameRect.top - popH - 8;
+            popoverCaret.style.display = 'none';
+          } else {
+            top = Math.max(56, Math.min(belowTop, frameRect.height - popH - 12));
+            popoverCaret.style.display = 'block';
+            caretLeft = Math.max(16, Math.min((aRect.left - frameRect.left) + (aRect.width / 2) - left - 6, popW - 28));
+          }
+        }
+        desktopPopover.style.left = left + 'px';
+        desktopPopover.style.top = top + 'px';
+        popoverCaret.style.left = caretLeft + 'px';
+      }
+
+      function renderMobileDeck() {
+        if (!isMobileLayout() || !ui.mobileDeckOpen) {
+          mobileDeck.style.display = 'none';
+          reopenDeckBtn.style.display = isMobileLayout() ? 'inline-flex' : 'none';
+          updateComposerLift();
+          return;
+        }
+        reopenDeckBtn.style.display = 'none';
+        ensureSensibleMobileSelection();
+
+        var doc = ctrl.getDoc();
+        var cats = ctrl.getCatalogs();
+        var cur = ctrl.getCursor();
+        var blk = doc.blocks[cur.blockIdx || 0];
+
+        var railHtml = '';
+        var bodyHtml = '';
+
+        if (cur.kind === 'wod' && blk) {
+          var activeParsed = ctrl.getActiveParsed();
+          var toks = activeParsed ? activeParsed.parsed.tokens : [];
+          var activeTok = findActiveToken();
+
+          railHtml += '<button type="button" class="tok-chip' + (ui.editorMode === 'block' ? ' is-active' : '') + '" data-mobile-block="true">' + W.icons.sliders(13) + '<span>Block</span></button>';
+          toks.forEach(function (tok) {
+            var chip = W.tokenChipLabel(tok);
+            var sel = ui.editorMode === 'token' && activeTok && activeTok.id === tok.id;
+            railHtml +=
+              '<button type="button" class="tok-chip' + (sel ? ' is-active' : '') + '" data-kind="' + tok.kind + '"' +
+                (tok.kind === 'duration' && tok.meta.mode === 'rest' ? ' data-rest="true"' : '') +
+                ' data-pick-token="' + escapeAttr(tok.id) + '">' +
+                W.icons[chip.icon](13) + '<span>' + W.escapeHtml(chip.text) + '</span>' +
+              '</button>';
+          });
+          railHtml += '<button type="button" class="tok-chip is-add' + (ui.editorMode === 'add' ? ' is-active' : '') + '" data-pick-add="true">' + W.icons.plus(13) + '<span>Add</span></button>';
+
+          if (ui.mobileTypingMode) {
+            bodyHtml =
+              '<div class="typing-accessory-row" role="toolbar" aria-label="Syntax symbol keys">' +
+                ['#', '@', '*', ':', '()', '[[', '|'].map(function (sym) {
+                  return '<button type="button" class="kbd-key" data-type-sym="' + escapeAttr(sym) + '">' + W.escapeHtml(sym) + '</button>';
+                }).join('') +
+                '<button type="button" class="kbd-key" data-indent="-1" aria-label="Outdent line">' + W.icons.outdent(15) + '</button>' +
+                '<button type="button" class="kbd-key" data-indent="1" aria-label="Indent line">' + W.icons.indent(15) + '</button>' +
+              '</div>' +
+              '<div class="typing-inline-box">' +
+                '<label class="visually-hidden" for="mobile-raw-line-input">Edit raw workout line</label>' +
+                '<input id="mobile-raw-line-input" type="text" class="typing-inline-input" data-role="raw-line-input" value="' + W.escapeHtml(blk.lines[cur.lineIdx] || '') + '" placeholder="Type WhiteboardScript (e.g. 10:00 15 Kettlebell Swing @24kg #emom)" />' +
+              '</div>' +
+              '<div class="editor-head-desc">Live Token Rail above stays visible while typing.</div>';
+          } else {
+            bodyHtml = W.renderTokenEditorHtml({
+              mode: ui.editorMode || 'token',
+              token: activeTok,
+              block: blk,
+              catalogs: cats,
+              activeNotebook: doc.frontmatter.notebook,
+              searchQuery: ui.searchQuery,
+              showAliasList: ui.showAliasList,
+              showStepButtons: false,
+              showClose: false,
+              hideFooter: true
+            });
+          }
+        } else if (cur.kind === 'prose') {
+          var pLine = doc.prose[cur.lineIdx] || '';
+          var hasBold = /\*\*[^*]+\*\*/.test(pLine);
+          var hasItalic = /(^|[^*])\*[^*]+\*([^*]|$)/.test(pLine);
+          var hasStrike = /~~[^~]+~~/.test(pLine);
+          var hasCode = /`[^`]+`/.test(pLine);
+          railHtml =
+            '<button type="button" class="prose-tool-btn' + (hasBold ? ' is-active' : '') + '" data-prose-fmt="bold">' + W.icons.bold(13) + '<span>Bold</span></button>' +
+            '<button type="button" class="prose-tool-btn' + (hasItalic ? ' is-active' : '') + '" data-prose-fmt="italic">' + W.icons.italic(13) + '<span>Italic</span></button>' +
+            '<button type="button" class="prose-tool-btn' + (hasStrike ? ' is-active' : '') + '" data-prose-fmt="strike">' + W.icons.strike(13) + '<span>Strike</span></button>' +
+            '<button type="button" class="prose-tool-btn' + (hasCode ? ' is-active' : '') + '" data-prose-fmt="code">' + W.icons.code(13) + '<span>Code</span></button>' +
+            '<button type="button" class="prose-tool-btn' + (ui.editorMode === 'wiki' ? ' is-active' : '') + '" data-open-wiki="true">' + W.icons.wiki(13) + '<span>[[Link]]</span></button>' +
+            '<button type="button" class="prose-tool-btn' + (ui.editorMode === 'prose-tag' ? ' is-active' : '') + '" data-open-prose-tag="true">' + W.icons.tag(13) + '<span>#Tag</span></button>' +
+            '<button type="button" class="prose-tool-btn" data-prose-fmt="wrapTimeBlock">' + W.icons.blocks(13) + '<span>Wrap ```time</span></button>';
+
+          bodyHtml = W.renderTokenEditorHtml({
+            mode: (ui.editorMode === 'prose-tag' || ui.editorMode === 'fm-tag') ? ui.editorMode : 'wiki',
+            token: null,
+            block: blk,
+            catalogs: cats,
+            activeNotebook: doc.frontmatter.notebook,
+            searchQuery: ui.searchQuery,
+            showAliasList: false,
+            showStepButtons: false,
+            showClose: false,
+            hideFooter: true
+          });
+        }
+
+        mobileDeck.innerHTML =
+          '<div class="mobile-deck-rail" role="toolbar" aria-label="Active line tokens">' + railHtml + '</div>' +
+          '<div class="mobile-deck-body">' + bodyHtml + '</div>' +
+          '<div class="mobile-deck-footer">' +
+            '<button type="button" class="btn btn-secondary" data-deck-act="undo"' + (!ctrl.canUndo() ? ' disabled' : '') + '>' + W.icons.undo(14) + '<span>Undo</span></button>' +
+            '<button type="button" class="btn btn-secondary" data-deck-act="newline">' + W.icons.newline(14) + '<span>+ Line</span></button>' +
+            '<button type="button" class="btn ' + (ui.mobileTypingMode ? 'btn-primary' : 'btn-secondary') + '" data-deck-act="toggle-type">' + W.icons.keyboard(14) + '<span>' + (ui.mobileTypingMode ? 'Picker' : 'Type') + '</span></button>' +
+            '<button type="button" class="btn btn-primary" data-deck-act="done"><span>Done</span></button>' +
+          '</div>';
+
+        mobileDeck.style.display = 'flex';
+        updateComposerLift();
+      }
+
+      function renderAll(opts) {
+        renderCanvas();
+        renderDesktopPopover();
+        renderDesktopDrawer();
+        renderMobileDeck();
+        if (opts && opts.scrollIntoView) scrollActiveLineIntoView();
+      }
+
+      function stepToken(delta) {
+        var toks = getCurrentLineTokens();
+        if (!toks.length) return;
+        var idx = 0;
+        for (var i = 0; i < toks.length; i++) {
+          if (toks[i].id === ui.activeTokenId) { idx = i; break; }
+        }
+        var nextIdx = (idx + delta + toks.length) % toks.length;
+        ui.editorMode = 'token';
+        ui.activeTokenId = toks[nextIdx].id;
+        ui.searchQuery = '';
+        ui.showAliasList = false;
+        ui.anchorSelector = '[data-pick-token="' + toks[nextIdx].id + '"]';
+        renderAll({ scrollIntoView: true });
+      }
+
+      function reselectAfterMutation(res, wasInsert) {
+        if (!res.reselectRaw) return;
+        var toks = getCurrentLineTokens();
+        if (wasInsert) {
+          for (var j = toks.length - 1; j >= 0; j--) {
+            if (toks[j].raw === res.reselectRaw) { ui.activeTokenId = toks[j].id; ui.editorMode = 'token'; return; }
+          }
+        } else {
+          for (var i = 0; i < toks.length; i++) {
+            if (toks[i].raw === res.reselectRaw) { ui.activeTokenId = toks[i].id; return; }
+          }
+        }
+        if (toks.length) ui.activeTokenId = toks[0].id;
+      }
+
+      /* ── Event Delegation ─────────────────────────────────────────────── */
+      document.addEventListener('click', function (e) {
+        var vpBtn = e.target.closest('[data-set-vp]');
+        if (vpBtn) {
+          ui.vp = vpBtn.getAttribute('data-set-vp');
+          document.querySelectorAll('[data-set-vp]').forEach(function (b) { b.classList.toggle('is-active', b === vpBtn); });
+          stageEl.setAttribute('data-vp', ui.vp);
+          ui.overflowBlockIdx = null;
+          overflowMenu.classList.remove('is-open');
+          if (ui.vp === 'mobile') {
+            ui.mobileDeckOpen = true;
+            ensureSensibleMobileSelection();
+          } else if (ui.editorMode === 'token' || ui.editorMode === 'add') {
+            // Keep clean rest state on desktop unless user opened a token
+          }
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var scenBtn = e.target.closest('[data-set-scen]');
+        if (scenBtn) {
+          ui.scen = scenBtn.getAttribute('data-set-scen');
+          document.querySelectorAll('[data-set-scen]').forEach(function (b) { b.classList.toggle('is-active', b === scenBtn); });
+          ctrl.loadScenario(ui.scen);
+          ui.editorMode = null;
+          ui.activeTokenId = null;
+          ui.searchQuery = '';
+          ui.showAliasList = false;
+          ui.mobileTypingMode = false;
+          ui.mobileDeckOpen = true;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var wodSel = e.target.closest('[data-select-wod]');
+        if (wodSel) {
+          var parts = wodSel.getAttribute('data-select-wod').split(':');
+          ctrl.setCursor({ kind: 'wod', blockIdx: parseInt(parts[0], 10), lineIdx: parseInt(parts[1], 10) });
+          ui.activeBlockIdx = parseInt(parts[0], 10);
+          ui.activeTokenId = null;
+          ui.searchQuery = '';
+          ui.showAliasList = false;
+          ui.mobileDeckOpen = true;
+          if (!isMobileLayout() && !isDrawerActive()) ui.editorMode = null;
+          else ensureSensibleMobileSelection();
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var proseSel = e.target.closest('[data-select-prose]');
+        if (proseSel) {
+          ctrl.setCursor({ kind: 'prose', lineIdx: parseInt(proseSel.getAttribute('data-select-prose'), 10) });
+          ui.editorMode = (isMobileLayout() || isDrawerActive()) ? 'wiki' : null;
+          ui.mobileDeckOpen = true;
+          ui.mobileTypingMode = false;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var pickTok = e.target.closest('[data-pick-token]');
+        if (pickTok) {
+          ui.lastTriggerEl = pickTok;
+          ui.activeTokenId = pickTok.getAttribute('data-pick-token');
+          ui.editorMode = 'token';
+          ui.mobileTypingMode = false;
+          ui.searchQuery = '';
+          ui.showAliasList = false;
+          ui.anchorSelector = '[data-pick-token="' + ui.activeTokenId + '"]';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var pickAdd = e.target.closest('[data-pick-add]');
+        if (pickAdd) {
+          ui.lastTriggerEl = pickAdd;
+          ui.editorMode = 'add';
+          ui.mobileTypingMode = false;
+          ui.searchQuery = '';
+          ui.anchorSelector = '[data-pick-add]';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var openBlk = e.target.closest('[data-open-block]');
+        if (openBlk) {
+          ui.lastTriggerEl = openBlk;
+          ui.activeBlockIdx = parseInt(openBlk.getAttribute('data-open-block'), 10);
+          ui.editorMode = 'block';
+          ui.mobileDeckOpen = true;
+          ui.mobileTypingMode = false;
+          ui.anchorSelector = '[data-open-block="' + ui.activeBlockIdx + '"]';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        if (e.target.closest('[data-mobile-block]')) {
+          ui.activeBlockIdx = ctrl.getCursor().blockIdx || 0;
+          ui.editorMode = 'block';
+          ui.mobileTypingMode = false;
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var openWiki = e.target.closest('[data-open-wiki]');
+        if (openWiki) {
+          ui.lastTriggerEl = openWiki;
+          ui.editorMode = 'wiki';
+          ui.searchQuery = '';
+          ui.anchorSelector = '[data-open-wiki]';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var openPTag = e.target.closest('[data-open-prose-tag]');
+        if (openPTag) {
+          ui.lastTriggerEl = openPTag;
+          ui.editorMode = 'prose-tag';
+          ui.searchQuery = '';
+          ui.anchorSelector = '[data-open-prose-tag]';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var openFmTag = e.target.closest('[data-open-fm-tags]');
+        if (openFmTag) {
+          ui.lastTriggerEl = openFmTag;
+          ui.editorMode = 'fm-tag';
+          ui.searchQuery = '';
+          ui.mobileDeckOpen = true;
+          ui.anchorSelector = '#fm-add-tag-btn';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var fmToggle = e.target.closest('[data-fm-toggle]');
+        if (fmToggle) {
+          ctrl.toggleFrontmatterTag(fmToggle.getAttribute('data-fm-toggle'));
+          renderAll({ scrollIntoView: true });
+          showToast('Updated note tags');
+          return;
+        }
+
+        var proseFmt = e.target.closest('[data-prose-fmt]');
+        if (proseFmt) {
+          var cur = ctrl.getCursor();
+          if (cur.kind === 'prose') {
+            var k = proseFmt.getAttribute('data-prose-fmt');
+            ctrl.toggleMarkdownFormat(cur.lineIdx, k);
+            renderAll({ scrollIntoView: true });
+            showToast(k === 'wrapTimeBlock' ? 'Wrapped into ```time block' : 'Toggled ' + k);
+          }
+          return;
+        }
+
+        var qFix = e.target.closest('[data-quick-fix]');
+        if (qFix) {
+          var c = ctrl.getCursor();
+          var toks = getCurrentLineTokens();
+          var tId = qFix.getAttribute('data-quick-fix');
+          var fVal = qFix.getAttribute('data-fix-val');
+          var targetTok = null;
+          for (var i = 0; i < toks.length; i++) if (toks[i].id === tId) { targetTok = toks[i]; break; }
+          if (targetTok) {
+            ctrl.replaceToken(c.blockIdx, c.lineIdx, targetTok, fVal);
+            renderAll({ scrollIntoView: true });
+            showToast('Fixed → ' + fVal);
+          }
+          return;
+        }
+
+        var qTpl = e.target.closest('[data-quick-tpl]');
+        if (qTpl) {
+          var bIdx = parseInt(qTpl.getAttribute('data-b'), 10);
+          var tKey = qTpl.getAttribute('data-quick-tpl');
+          ctrl.insertTemplate(bIdx, tKey);
+          ui.activeTokenId = null;
+          renderAll({ scrollIntoView: true });
+          showToast('Inserted ' + tKey + ' starter');
+          return;
+        }
+
+        var addLn = e.target.closest('[data-add-line]');
+        if (addLn) {
+          var bi = parseInt(addLn.getAttribute('data-add-line'), 10);
+          var c2 = ctrl.getCursor();
+          var li = (c2.kind === 'wod' && c2.blockIdx === bi) ? c2.lineIdx : ctrl.getDoc().blocks[bi].lines.length - 1;
+          ctrl.insertLineBelow(bi, li);
+          ui.activeTokenId = null;
+          if (!isMobileLayout()) ui.editorMode = 'add';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var indBtn = e.target.closest('[data-indent]');
+        if (indBtn) {
+          var ci = ctrl.getCursor();
+          if (ci.kind === 'wod') {
+            ctrl.indentLine(ci.blockIdx, ci.lineIdx, parseInt(indBtn.getAttribute('data-indent'), 10));
+            renderAll({ scrollIntoView: true });
+          }
+          return;
+        }
+
+        var symBtn = e.target.closest('[data-type-sym]');
+        if (symBtn) {
+          var cs = ctrl.getCursor();
+          if (cs.kind === 'wod') {
+            var curTxt = ctrl.getDoc().blocks[cs.blockIdx].lines[cs.lineIdx] || '';
+            var sym = symBtn.getAttribute('data-type-sym');
+            ctrl.setRawLineText(cs.blockIdx, cs.lineIdx, curTxt + sym);
+            renderAll({ scrollIntoView: true });
+            var inp = mobileDeck.querySelector('[data-role="raw-line-input"]');
+            if (inp) inp.focus();
+          }
+          return;
+        }
+
+        var overflowBtn = e.target.closest('[data-open-overflow]');
+        if (overflowBtn) {
+          var obIdx = parseInt(overflowBtn.getAttribute('data-open-overflow'), 10);
+          if (ui.overflowBlockIdx === obIdx) {
+            ui.overflowBlockIdx = null;
+            overflowMenu.classList.remove('is-open');
+          } else {
+            ui.overflowBlockIdx = obIdx;
+            var r = overflowBtn.getBoundingClientRect();
+            var fr = appFrameEl.getBoundingClientRect();
+            overflowMenu.style.top = (r.bottom - fr.top + 6) + 'px';
+            overflowMenu.style.right = Math.max(10, fr.right - r.right) + 'px';
+            overflowMenu.classList.add('is-open');
+          }
+          renderCanvas();
+          return;
+        }
+
+        var overflowCmd = e.target.closest('[data-overflow-cmd]');
+        if (overflowCmd) {
+          ui.overflowBlockIdx = null;
+          overflowMenu.classList.remove('is-open');
+          showToast(overflowCmd.getAttribute('data-overflow-cmd'));
+          return;
+        }
+
+        var navDef = e.target.closest('[data-nav-define]');
+        if (navDef) {
+          ui.entitiesOpen = false;
+          entitiesBackdrop.classList.remove('is-open');
+          var nb = parseInt(navDef.getAttribute('data-b'), 10);
+          var nl = parseInt(navDef.getAttribute('data-l'), 10);
+          var ntid = navDef.getAttribute('data-tid');
+          ctrl.setCursor({ kind: 'wod', blockIdx: nb, lineIdx: nl });
+          ui.activeTokenId = ntid;
+          ui.editorMode = 'token';
+          ui.mobileDeckOpen = true;
+          ui.anchorSelector = '[data-pick-token="' + ntid + '"]';
+          renderAll({ scrollIntoView: true });
+          return;
+        }
+
+        var navToast = e.target.closest('[data-nav-toast]');
+        if (navToast) {
+          showToast(navToast.getAttribute('data-nav-toast'));
+          return;
+        }
+
+        var cmdPlay = e.target.closest('[data-cmd-play]');
+        if (cmdPlay) {
+          showToast('Started live workout timer');
+          return;
+        }
+
+        var cmdToast = e.target.closest('[data-cmd-toast]');
+        if (cmdToast) {
+          showToast(cmdToast.getAttribute('data-cmd-toast'));
+          return;
+        }
+
+        var deckAct = e.target.closest('[data-deck-act]');
+        if (deckAct) {
+          var da = deckAct.getAttribute('data-deck-act');
+          if (da === 'undo') {
+            ctrl.undo();
+            renderAll({ scrollIntoView: true });
+            showToast('Undid last change');
+          } else if (da === 'newline') {
+            var cd = ctrl.getCursor();
+            if (cd.kind === 'wod') {
+              ctrl.insertLineBelow(cd.blockIdx, cd.lineIdx);
+              ui.activeTokenId = null;
+              ui.editorMode = 'add';
+              renderAll({ scrollIntoView: true });
+            }
+          } else if (da === 'toggle-type') {
+            ui.mobileTypingMode = !ui.mobileTypingMode;
+            renderAll({ scrollIntoView: true });
+          } else if (da === 'done') {
+            ui.mobileDeckOpen = false;
+            ui.mobileTypingMode = false;
+            renderAll({ scrollIntoView: true });
+          }
+          return;
+        }
+
+        if (e.target.closest('[data-close-drawer]')) {
+          ui.drawerOpen = false;
+          renderAll({ scrollIntoView: false });
+          return;
+        }
+
+        // Token Editor Actions
+        var edEl = e.target.closest('[data-ed]');
+        if (edEl) {
+          var edAct = edEl.getAttribute('data-ed');
+          if (edAct === 'close-editor') {
+            ui.editorMode = null;
+            renderAll({ scrollIntoView: true });
+            if (ui.lastTriggerEl && typeof ui.lastTriggerEl.focus === 'function') ui.lastTriggerEl.focus();
+            return;
+          }
+          if (edAct === 'step-prev') { stepToken(-1); return; }
+          if (edAct === 'step-next') { stepToken(1); return; }
+          if (edAct === 'toggle-alias-list') { ui.showAliasList = !ui.showAliasList; renderDesktopPopover(); renderDesktopDrawer(); renderMobileDeck(); return; }
+
+          var curCtx = ctrl.getCursor();
+          var tokCtx = ui.editorMode === 'token' || isDrawerActive() ? findActiveToken() : null;
+          var prevRaw = tokCtx ? tokCtx.raw : null;
+          var wasInsert = edAct === 'insert-token';
+          var res = W.handleTokenEditorAction(ctrl, edEl, {
+            mode: ui.editorMode || (isDrawerActive() ? 'token' : null),
+            blockIdx: ui.activeBlockIdx || curCtx.blockIdx || 0,
+            lineIdx: curCtx.lineIdx || 0,
+            proseIdx: curCtx.lineIdx || 0,
+            token: tokCtx
+          });
+          if (res.handled) {
+            if (res.reselectRaw && prevRaw && prevRaw !== res.reselectRaw) {
+              ui.lastEditDiff = { from: prevRaw, to: res.reselectRaw };
+            }
+            if (res.close) ui.editorMode = (isMobileLayout() || isDrawerActive()) ? 'token' : null;
+            reselectAfterMutation(res, wasInsert);
+            if (res.closeOnEmpty && !getCurrentLineTokens().length) ui.editorMode = (isMobileLayout() || isDrawerActive()) ? 'add' : null;
+            ui.showAliasList = false;
+            renderAll({ scrollIntoView: true });
+            if (res.toast) showToast(res.toast);
+          }
+          return;
+        }
+
+        // Dismiss floating popover when clicking outside
+        if (!isMobileLayout() && !isDrawerActive() && ui.editorMode && !e.target.closest('#desktop-popover') && !e.target.closest('#inspect-shortcut-btn') && !e.target.closest('[data-role="desktop-raw-line-input"]')) {
+          ui.editorMode = null;
+          renderDesktopPopover();
+          renderCanvas();
+        }
+        if (ui.overflowBlockIdx !== null && !e.target.closest('#block-overflow-menu')) {
+          ui.overflowBlockIdx = null;
+          overflowMenu.classList.remove('is-open');
+        }
+      });
+
+      document.addEventListener('input', function (e) {
+        if (e.target.matches('[data-ed="search-input"]')) {
+          ui.searchQuery = e.target.value;
+          var caret = e.target.selectionStart;
+          if (isMobileLayout()) {
+            renderMobileDeck();
+            var mIn = mobileDeck.querySelector('[data-ed="search-input"]');
+            if (mIn) { mIn.focus(); mIn.setSelectionRange(caret, caret); }
+          } else if (isDrawerActive()) {
+            renderDesktopDrawer();
+            var drIn = inspectorDrawer.querySelector('[data-ed="search-input"]');
+            if (drIn) { drIn.focus(); drIn.setSelectionRange(caret, caret); }
+          } else {
+            renderDesktopPopover();
+            var dIn = desktopPopover.querySelector('[data-ed="search-input"]');
+            if (dIn) { dIn.focus(); dIn.setSelectionRange(caret, caret); }
+          }
+        } else if (e.target.matches('[data-role="desktop-raw-line-input"]')) {
+          var cd = ctrl.getCursor();
+          if (cd.kind === 'wod') {
+            var dPos = e.target.selectionStart;
+            ctrl.setRawLineText(cd.blockIdx, cd.lineIdx, e.target.value);
+            renderAll({ scrollIntoView: false });
+            var deskRawIn = noteCanvasEl.querySelector('[data-role="desktop-raw-line-input"]');
+            if (deskRawIn) {
+              deskRawIn.focus();
+              if (typeof dPos === 'number') deskRawIn.setSelectionRange(dPos, dPos);
+            }
+          }
+        } else if (e.target.matches('[data-role="raw-line-input"]')) {
+          var cr = ctrl.getCursor();
+          if (cr.kind === 'wod') {
+            var cPos = e.target.selectionStart;
+            ctrl.setRawLineText(cr.blockIdx, cr.lineIdx, e.target.value);
+            renderCanvas();
+            // Update token rail without stealing input focus
+            var rail = mobileDeck.querySelector('.mobile-deck-rail');
+            var ap = ctrl.getActiveParsed();
+            if (rail && ap) {
+              var rh = '<button type="button" class="tok-chip" data-mobile-block="true">' + W.icons.sliders(13) + '<span>Block</span></button>';
+              ap.parsed.tokens.forEach(function (tok) {
+                var chip = W.tokenChipLabel(tok);
+                rh += '<button type="button" class="tok-chip" data-kind="' + tok.kind + '" data-pick-token="' + escapeAttr(tok.id) + '">' + W.icons[chip.icon](13) + '<span>' + W.escapeHtml(chip.text) + '</span></button>';
+              });
+              rh += '<button type="button" class="tok-chip is-add" data-pick-add="true">' + W.icons.plus(13) + '<span>Add</span></button>';
+              rail.innerHTML = rh;
+            }
+          }
+        }
+      });
+
+      document.getElementById('btn-undo').addEventListener('click', function () {
+        if (ctrl.undo()) { renderAll(); showToast('Undid edit'); }
+      });
+      document.getElementById('btn-redo').addEventListener('click', function () {
+        if (ctrl.redo()) { renderAll(); showToast('Redid edit'); }
+      });
+      document.getElementById('open-entities-btn').addEventListener('click', function () {
+        ui.entitiesOpen = true;
+        entitiesBackdrop.classList.add('is-open');
+      });
+      document.getElementById('close-entities-btn').addEventListener('click', function () {
+        ui.entitiesOpen = false;
+        entitiesBackdrop.classList.remove('is-open');
+      });
+      entitiesBackdrop.addEventListener('click', function (e) {
+        if (e.target === entitiesBackdrop) {
+          ui.entitiesOpen = false;
+          entitiesBackdrop.classList.remove('is-open');
+        }
+      });
+      document.getElementById('reopen-mobile-deck').addEventListener('click', function () {
+        ui.mobileDeckOpen = true;
+        ensureSensibleMobileSelection();
+        renderAll({ scrollIntoView: true });
+      });
+      function toggleDrawer() {
+        ui.drawerOpen = !ui.drawerOpen;
+        if (ui.drawerOpen) {
+          ensureSensibleMobileSelection();
+        }
+        renderAll({ scrollIntoView: false });
+        showToast(ui.drawerOpen ? 'Opened Option B Inspector Drawer' : 'Closed Inspector Drawer');
+      }
+
+      toggleDrawerBtn.addEventListener('click', toggleDrawer);
+      topbarDrawerBtn.addEventListener('click', toggleDrawer);
+
+      document.getElementById('inspect-shortcut-btn').addEventListener('click', function () {
+        var toks = getCurrentLineTokens();
+        if (toks.length) {
+          ui.activeTokenId = ui.activeTokenId || toks[0].id;
+          ui.editorMode = 'token';
+          ui.mobileDeckOpen = true;
+          ui.anchorSelector = '[data-pick-token="' + ui.activeTokenId + '"]';
+          renderAll({ scrollIntoView: true });
+        }
+      });
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          if (ui.entitiesOpen) {
+            ui.entitiesOpen = false;
+            entitiesBackdrop.classList.remove('is-open');
+            return;
+          }
+          if (ui.editorMode && !isMobileLayout() && !isDrawerActive()) {
+            ui.editorMode = null;
+            renderDesktopPopover();
+            renderCanvas();
+            if (ui.lastTriggerEl && typeof ui.lastTriggerEl.focus === 'function') ui.lastTriggerEl.focus();
+          }
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === '.') {
+          e.preventDefault();
+          document.getElementById('inspect-shortcut-btn').click();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'i') {
+          e.preventDefault();
+          toggleDrawer();
+        }
+      });
+
+      renderAll({ scrollIntoView: true });
+    })();
+  </script>
+</body>
+</html>

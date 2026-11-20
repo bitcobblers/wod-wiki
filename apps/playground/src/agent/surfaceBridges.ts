@@ -2,6 +2,17 @@ import { useSyncExternalStore } from 'react';
 import type { EditorView } from '@codemirror/view';
 import type { ScriptBlock } from '@/components/Editor/types';
 
+export interface EditorInspectorSnapshot {
+  drawerOpen: boolean;
+  popoverOpen: boolean;
+  mode: string;
+  contextKind: 'workout' | 'query' | 'markdown';
+  lineNum: number;
+  selectedTokenId: string | null;
+  tokens: Array<{ id: string; kind: string; raw: string; from: number; to: number }>;
+  lintFixes: Array<{ id: string; raw: string; fixes: string[] }>;
+}
+
 export interface ActiveEditorBridge {
   noteId?: string;
   readonly: boolean;
@@ -16,6 +27,10 @@ export interface ActiveEditorBridge {
     blockId?: string;
     error?: string;
   }>;
+  getInspectorState?: () => EditorInspectorSnapshot;
+  setInspectorDrawer?: (open: boolean) => void;
+  openTokenInspector?: (options?: { mode?: string; tokenIndex?: number }) => void;
+  closeTokenInspector?: () => void;
 }
 
 export interface ActiveStreamBridge {

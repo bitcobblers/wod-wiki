@@ -3418,6 +3418,252 @@
     qa:stepIndex 5 ;
     qa:beatOrder 5 .
 
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector> a qa:StoryTest ;
+    rdfs:label "Organisms/WhiteboardSyntaxEditor / OptionAAnchoredInspector" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Seed>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Enter>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Sense>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Drive>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Enter> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: NoteEditor" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Sense> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: editor-token-strip, editor-inspector-popover" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Drive> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: click" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-a-anchored-inspector/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 4 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer> a qa:StoryTest ;
+    rdfs:label "Organisms/WhiteboardSyntaxEditor / OptionBInspectorDrawer" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Seed>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Enter>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Sense>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Drive>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Enter> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: NoteEditor" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Sense> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: editor-inspector-drawer, editor-block-timeline-row" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Drive> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: play() mount" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--option-b-inspector-drawer/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 3 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog> a qa:StoryTest ;
+    rdfs:label "Organisms/WhiteboardSyntaxEditor / InlineRepairAndFuzzyCatalog" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Seed>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Enter>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Sense>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Drive>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Enter> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: NoteEditor" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Sense> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: editor-lint-quick-fix" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Drive> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: click" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--inline-repair-and-fuzzy-catalog/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 3 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete> a qa:StoryTest ;
+    rdfs:label "Organisms/WhiteboardSyntaxEditor / ProseWikiAndAutocomplete" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Seed>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Enter>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Sense>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Drive>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Enter> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: NoteEditor" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Sense> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: rendered DOM" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Drive> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: play() mount" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--prose-wiki-and-autocomplete/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 2 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck> a qa:StoryTest ;
+    rdfs:label "Organisms/WhiteboardSyntaxEditor / MobileThumbDeck" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Seed>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Enter>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Sense>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Drive>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Enter> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: NoteEditor" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Sense> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: editor-token-delete-btn" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Drive> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: play() mount" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--mobile-thumb-deck/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 3 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost> a qa:StoryTest ;
+    rdfs:label "Organisms/WhiteboardSyntaxEditor / DarkModeArcticFrost" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Seed>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Enter>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Sense>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Drive>, <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Enter> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: NoteEditor" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Sense> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: editor-inspector-drawer" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Drive> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: play() mount" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Prove> .
+
+<https://wod.wiki/qa/story/organisms-whiteboardsyntaxeditor--dark-mode-arctic-frost/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 2 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
 <https://wod.wiki/qa/story/workbench-language-workbench--empty-workbench> a qa:StoryTest ;
     rdfs:label "Workbench/Language Workbench / EmptyWorkbench" ;
     qa:tier "T2" ;
@@ -4178,7 +4424,7 @@
     qa:nextStep <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--segment-traversal-interaction/beat/Sense> .
 
 <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--segment-traversal-interaction/beat/Sense> a qa:Step ;
-    rdfs:label "Sense: rendered DOM" ;
+    rdfs:label "Sense: wql-field-picker, wql-segment-next, wql-segment-previous" ;
     qa:hasBeat qa:Sense ;
     qa:stepIndex 3 ;
     qa:beatOrder 3 ;
@@ -4193,6 +4439,88 @@
 
 <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--segment-traversal-interaction/beat/Prove> a qa:Step ;
     rdfs:label "Prove: 3 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow> a qa:StoryTest ;
+    rdfs:label "Packages/UI/Composer/WQL Composer / SingleBarScopeMapFlow" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Seed>, <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Enter>, <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Sense>, <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Drive>, <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag, wod:Query)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Enter> .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: WqlComposer" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Sense> .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: wql-scope-toggle, wql-scope-map, wql-field-picker, wql-scope-close" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Drive> .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: click, keyboard" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 9 expect() assertion(s)" ;
+    qa:hasBeat qa:Prove ;
+    qa:stepIndex 5 ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map> a qa:StoryTest ;
+    rdfs:label "Packages/UI/Composer/WQL Composer / MobileSheetHideScopeMap" ;
+    qa:tier "T2" ;
+    qa:seam "T2b-story" ;
+    qa:hasPlayTest true ;
+    qa:hasStep <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Seed>, <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Enter>, <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Sense>, <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Drive>, <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: domainState=populatedJournal (wod:Note, wod:Notebook, wod:Page, wod:PageNote, wod:Session, wod:Effort, wod:Equipment, wod:Tag, wod:Query)" ;
+    qa:hasBeat qa:Seed ;
+    qa:stepIndex 1 ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Enter> .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: WqlComposer" ;
+    qa:hasBeat qa:Enter ;
+    qa:stepIndex 2 ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Sense> .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: wql-scope-map, wql-zone-what" ;
+    qa:hasBeat qa:Sense ;
+    qa:stepIndex 3 ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Drive> .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: click" ;
+    qa:hasBeat qa:Drive ;
+    qa:stepIndex 4 ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Prove> .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--mobile-sheet-hide-scope-map/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 5 expect() assertion(s)" ;
     qa:hasBeat qa:Prove ;
     qa:stepIndex 5 ;
     qa:beatOrder 5 .
@@ -4783,7 +5111,7 @@
     qa:nextStep <https://wod.wiki/qa/journey/ANL-01/beat/Sense> .
 
 <https://wod.wiki/qa/journey/ANL-01/beat/Sense> a qa:Step ;
-    rdfs:label "Sense: DOM readiness" ;
+    rdfs:label "Sense: stream-query-status" ;
     qa:hasBeat qa:Sense ;
     qa:beatOrder 3 ;
     qa:nextStep <https://wod.wiki/qa/journey/ANL-01/beat/Drive> .
@@ -4840,6 +5168,48 @@
     qa:hasBeat qa:Prove ;
     qa:beatOrder 5 .
 
+<https://wod.wiki/qa/journey/ANL-06> a qa:Journey ;
+    rdfs:label "ANL-06: WQL Composer Scope Map & Command Palette Parity" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:journeyId "ANL-06" ;
+    qa:journeyTitle "WQL Composer Scope Map & Command Palette Parity" ;
+    qa:slug "wql-composer-and-palette" ;
+    qa:priority "P1-core" ;
+    qa:inDomain <https://wod.wiki/qa/domain/analytics> ;
+    rdfs:comment "The WQL Composer transforms smoothly between compact Split-Pills at rest and a single live WQL editor paired with the four-zone Scope Map (`WHAT`, `WHERE`, `WHEN`, `GROUP`), while keeping desktop header popovers, the inline Metric Explorer, the `Ctrl/Cmd+K` Command Palette (`Find` vs `WQL`), and mobile Filter Sheets in sync across light and dark themes." ;
+    qa:hasStep <https://wod.wiki/qa/journey/ANL-06/beat/Seed>, <https://wod.wiki/qa/journey/ANL-06/beat/Enter>, <https://wod.wiki/qa/journey/ANL-06/beat/Sense>, <https://wod.wiki/qa/journey/ANL-06/beat/Drive>, <https://wod.wiki/qa/journey/ANL-06/beat/Prove> .
+
+<https://wod.wiki/qa/journey/ANL-06/beat/Seed> a qa:Step ;
+    rdfs:label "Seed: wod:Dashboard, wod:Effort, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Query, wod:Session, wod:Tag" ;
+    qa:hasBeat qa:Seed ;
+    qa:beatOrder 1 ;
+    qa:nextStep <https://wod.wiki/qa/journey/ANL-06/beat/Enter> .
+
+<https://wod.wiki/qa/journey/ANL-06/beat/Enter> a qa:Step ;
+    rdfs:label "Enter: /journal, /notes, /efforts, /dashboards" ;
+    qa:hasBeat qa:Enter ;
+    qa:beatOrder 2 ;
+    qa:nextStep <https://wod.wiki/qa/journey/ANL-06/beat/Sense> .
+
+<https://wod.wiki/qa/journey/ANL-06/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: palette-cancel, palette-composer, palette-find-input, palette-mode, palette-scope-chip, palette-scope-clear" ;
+    qa:hasBeat qa:Sense ;
+    qa:beatOrder 3 ;
+    qa:nextStep <https://wod.wiki/qa/journey/ANL-06/beat/Drive> .
+
+<https://wod.wiki/qa/journey/ANL-06/beat/Drive> a qa:Step ;
+    rdfs:label "Drive: Desktop Split-Pills, 4-zone Scope Map popover, Clause Inspector traversal, Add Filter, and inline Metric Explorer" ;
+    qa:hasBeat qa:Drive ;
+    qa:beatOrder 4 ;
+    qa:nextStep <https://wod.wiki/qa/journey/ANL-06/beat/Prove> .
+
+<https://wod.wiki/qa/journey/ANL-06/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: e2e/live-app/wql-composer-and-palette.e2e.ts" ;
+    qa:hasBeat qa:Prove ;
+    qa:beatOrder 5 .
+
+<https://wod.wiki/qa/story/packages-ui-composer-wql-composer--single-bar-scope-map-flow> qa:verifiesJourney <https://wod.wiki/qa/journey/ANL-06> .
 <https://wod.wiki/qa/journey/FED-01> a qa:Journey ;
     rdfs:label "FED-01: Feed Subscription & Auto-Sync Lifecycle" ;
     qa:tier "T3" ;
@@ -5360,7 +5730,7 @@
     qa:nextStep <https://wod.wiki/qa/journey/NBK-03/beat/Sense> .
 
 <https://wod.wiki/qa/journey/NBK-03/beat/Sense> a qa:Step ;
-    rdfs:label "Sense: DOM readiness" ;
+    rdfs:label "Sense: palette-composer, palette-mode, palette-settings, palette-settings-panel" ;
     qa:hasBeat qa:Sense ;
     qa:beatOrder 3 ;
     qa:nextStep <https://wod.wiki/qa/journey/NBK-03/beat/Drive> .
@@ -6027,6 +6397,13 @@
     qa:seam "T2a-host" ;
     qa:inDomain <https://wod.wiki/qa/domain/journal> .
 
+<https://wod.wiki/qa/suite/apps/playground/src/components/organisms/editor/whiteboard-inspector/WhiteboardInspector.test.tsx> a qa:HostSuite ;
+    rdfs:label "WhiteboardInspector" ;
+    qa:suitePath "apps/playground/src/components/organisms/editor/whiteboard-inspector/WhiteboardInspector.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
 <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-038.regression.test.tsx> a qa:HostSuite ;
     rdfs:label "ww-038.regression" ;
     qa:suitePath "apps/playground/src/regression/ww-038.regression.test.tsx" ;
@@ -6573,16 +6950,33 @@
     qa:seam "T3-journey" ;
     qa:inDomain <https://wod.wiki/qa/domain/journal> .
 
-<https://wod.wiki/qa/journey/ANL-06> a qa:Journey ;
-    rdfs:label "ANL-06: ANL-06" ;
+<https://wod.wiki/qa/suite/e2e/regression/ww-094.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-094" ;
+    qa:suitePath "e2e/regression/ww-094.e2e.ts" ;
     qa:tier "T3" ;
     qa:seam "T3-journey" ;
-    qa:journeyId "ANL-06" ;
-    qa:journeyTitle "ANL-06" ;
-    qa:slug "e2e-specs-analytics-explorer-error-recovery-md" ;
-    qa:status "proposed" ;
-    qa:priority "P2" ;
-    qa:inDomain <https://wod.wiki/qa/domain/analytics> .
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-095.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-095" ;
+    qa:suitePath "e2e/regression/ww-095.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-096.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-096" ;
+    qa:suitePath "e2e/regression/ww-096.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/e2e/regression/ww-097.e2e.ts> a qa:VerificationSuite ;
+    rdfs:label "ww-097" ;
+    qa:suitePath "e2e/regression/ww-097.e2e.ts" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
 
 <https://wod.wiki/qa/journey/FED-02> a qa:Journey ;
     rdfs:label "FED-02: FED-02" ;
@@ -6594,6 +6988,17 @@
     qa:status "proposed" ;
     qa:priority "P2" ;
     qa:inDomain <https://wod.wiki/qa/domain/feeds> .
+
+<https://wod.wiki/qa/journey/NBK-05> a qa:Journey ;
+    rdfs:label "NBK-05: NBK-05" ;
+    qa:tier "T3" ;
+    qa:seam "T3-journey" ;
+    qa:journeyId "NBK-05" ;
+    qa:journeyTitle "NBK-05" ;
+    qa:slug "e2e-specs-notebooks-shared-stream-query-links-md" ;
+    qa:status "proposed" ;
+    qa:priority "P2" ;
+    qa:inDomain <https://wod.wiki/qa/domain/notebooks> .
 
 <https://wod.wiki/qa/journey/RUN-04> a qa:Journey ;
     rdfs:label "RUN-04: RUN-04" ;
@@ -6783,6 +7188,42 @@
     qa:findings 5 ;
     qa:runDomain <https://wod.wiki/qa/domain/analytics> .
 
+<https://wod.wiki/qa/run/2026-11-17-nightly-052156> a qa:Run ;
+    rdfs:label "2026-11-17-nightly-052156" ;
+    qa:runId "2026-11-17-nightly-052156" ;
+    qa:runTimestamp "2026-11-17T00:00:00Z"^^xsd:dateTime ;
+    qa:runDate "2026-11-17" ;
+    qa:commit "d27bdde84" ;
+    qa:findings 28 ;
+    qa:runDomain <https://wod.wiki/qa/domain/feeds>, <https://wod.wiki/qa/domain/journal>, <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/run/2026-11-18-nightly-052229> a qa:Run ;
+    rdfs:label "2026-11-18-nightly-052229" ;
+    qa:runId "2026-11-18-nightly-052229" ;
+    qa:runTimestamp "2026-11-18T00:00:00Z"^^xsd:dateTime ;
+    qa:runDate "2026-11-18" ;
+    qa:commit "969de0d9e" ;
+    qa:findings 26 ;
+    qa:runDomain <https://wod.wiki/qa/domain/analytics>, <https://wod.wiki/qa/domain/properties>, <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> a qa:Run ;
+    rdfs:label "2026-11-19-fixvalidation-195547" ;
+    qa:runId "2026-11-19-fixvalidation-195547" ;
+    qa:runTimestamp "2026-11-19T00:00:00Z"^^xsd:dateTime ;
+    qa:runDate "2026-11-19" ;
+    qa:commit "761983774" ;
+    qa:findings 42 ;
+    qa:runDomain <https://wod.wiki/qa/domain/analytics>, <https://wod.wiki/qa/domain/feeds>, <https://wod.wiki/qa/domain/journal>, <https://wod.wiki/qa/domain/notebooks>, <https://wod.wiki/qa/domain/properties>, <https://wod.wiki/qa/domain/runtime> .
+
+<https://wod.wiki/qa/run/2026-11-19-nightly-052307> a qa:Run ;
+    rdfs:label "2026-11-19-nightly-052307" ;
+    qa:runId "2026-11-19-nightly-052307" ;
+    qa:runTimestamp "2026-11-19T00:00:00Z"^^xsd:dateTime ;
+    qa:runDate "2026-11-19" ;
+    qa:commit "9ce90c3bf" ;
+    qa:findings 28 ;
+    qa:runDomain <https://wod.wiki/qa/domain/analytics>, <https://wod.wiki/qa/domain/notebooks>, <https://wod.wiki/qa/domain/runtime> .
+
 <https://wod.wiki/qa/issue/WW-001> a qa:Issue ;
     rdfs:label "Unbounded full-corpus IndexedDB detail scan stalls /day/:date (~40s), /dashboard/:slug (45-90s), /notes stream (~15s) and cold boot" ;
     qa:issueId "WW-001" ;
@@ -6879,7 +7320,7 @@
     qa:kind "friction" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED. Visible 'Loading sample data…' status (re-confirmed 2026-11-15-smoke-201659: spinner + label, import ~3-5s). Residual readiness dishonesty during import tracked as WW-019." ;
+    qa:issueSummary "RESOLVED. Visible 'Loading sample data…' status (re-confirmed 2026-11-15-smoke-201659). Residual long-spin behavior tracked as WW-039." ;
     qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
@@ -6912,7 +7353,7 @@
     qa:kind "defect" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED." ;
+    qa:issueSummary "RESOLVED. NOTE 2026-11-18: new low-severity variant WW-093 (Volume chip duplicates bar-load value) opened; semantic-load labeling still not honest on the card plane." ;
     qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
@@ -6928,7 +7369,7 @@
     qa:kind "defect" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED. NOTE 2026-11-14: segment tables still render '+00:00' rows but root is WW-051 splits-never-persisted, not relabeling." ;
+    qa:issueSummary "RESOLVED. NOTE 2026-11-14: segment tables still render '+00:00' rows but root is WW-051 splits-never-persisted, not relabeling. NOTE 2026-11-18: cryptic 'segm' labels + raw descriptor leak tracked as WW-092 (open)." ;
     qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
@@ -6974,13 +7415,14 @@
     qa:issueSeverity "high" ;
     qa:severity "high" ;
     qa:kind "defect" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "ESCALATED high 2026-11-16-nightly-052356 (runtime finding #5): live run ~2:08 elapsed (IDB session row 01a1e2e9 present) → reload → clock gone, NO resume prompt, NO partial-results banner, NO #halted-run-notice, IDB sessions count=0 — 2min of live run data deleted, not finalized. Boot import cycle (" ;
-    qa:coverageStatus "spec-gap" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-18-nightly-052229. Residual friction: no resume prompt (cannot continue a partial run)." ;
+    qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-nightly-073230> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
 
@@ -7058,7 +7500,7 @@
     qa:kind "parity" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED. llms.txt 200 + agent-capabilities.json 200 re-confirmed 2026-11-14." ;
+    qa:issueSummary "RESOLVED. llms.txt 200 + agent-capabilities.json 200 re-confirmed 2026-11-14 and again 2026-11-18." ;
     qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-140138> ;
@@ -7074,7 +7516,7 @@
     qa:kind "friction" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED." ;
+    qa:issueSummary "RESOLVED. NOTE 2026-11-19: advisory re-observed on /sessions with ZERO rows (root cause WW-099 — stream blind to store), not the original over-populated-results variant." ;
     qa:coverageStatus "planned" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-smoke-142612> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-142612> ;
@@ -7083,18 +7525,18 @@
     qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
 
 <https://wod.wiki/qa/issue/WW-019> a qa:Issue ;
-    rdfs:label "Boot/import readiness contract still broken: cold-boot bare-'loading' stalls, ready-at-partial-stream-total, and sample-data import runs 'ready' with importPending=false" ;
+    rdfs:label "Boot/import readiness contract still broken: cold-boot bare-'loading' stalls, ready-at-partial import, definitive not-found on deep links during import, import churn minutes past ready" ;
     qa:issueId "WW-019" ;
     qa:issueSeverity "high" ;
     qa:severity "high" ;
     qa:kind "introspection" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT REPRODUCED 2026-11-16-nightly-052356 (feeds negative ×4 consecutive, now incl. feeds domain): warm/reload boot ready ~4s, importPending=false, feedReadiness=ready, anomalies=[]; journal cold home navDurationMs=4617 clean. BUT runtime cold boot ~42s wall on first load and every route-change reloa" ;
-    qa:coverageStatus "planned" ;
+    qa:issueSummary "2026-11-19-fixvalidation-195547 REPRODUCED in 3 variants: (a) journal deep-link — cold /note/:id flips ready in ~2s while 'Importing notebook.athletics-results… 0/5' strip renders and page shows definitive 'Note not found.' (resolves only after ~28s + reload); (b) analytics — cold / bare-'loading' ~" ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-smoke-142612> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-smoke-142612> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-15-smoke-214120> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/journal> ;
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
@@ -7106,18 +7548,18 @@
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-019.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-020> a qa:Issue ;
-    rdfs:label "User-authored notes silently deleted within seconds of creation by the boot/feed import cycle — now 6 reproductions across journal and runtime authoring paths" ;
+    rdfs:label "User-authored content silently dropped — create-dialog body-drop variant FIXED at 761983774; boot/feed sync cycle variant STILL CRITICAL (notes/efforts deleted, notes emptied, sessions+events wiped)" ;
     qa:issueId "WW-020" ;
     qa:issueSeverity "critical" ;
     qa:severity "critical" ;
     qa:kind "defect" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 ×2 (journal finding #6 + runtime finding #2; 5th and 6th overall): journal note 'Kettlebell Hell 5RFT' (01a1e2dd, /time block) created 05:38:40Z gone by ~05:39:30Z during 'Importing dashboards… 1/4' → 'Importing notebook.athletics-results… 0/5' cycle (IDB probe t" ;
+    qa:issueSummary "2026-11-19-fixvalidation-195547: create-dialog body-drop leg RESOLVED at 761983774 (verified journal/notebooks/properties/runtime: title + multi-line body persist through Create and hard reload; CreateJournalNoteDialog.tsx handleSubmit composes body). Boot/feed cycle leg REPRODUCED 2/2 DETERMINISTIC" ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/journal> ;
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
     qa:affects <https://wod.wiki/qa/domain/properties> ;
@@ -7169,7 +7611,7 @@
     qa:kind "introspection" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED. Manual 'Show more' button; no ready_while_loading anomalies since (re-confirmed 2026-11-15-smoke-214120 and 2026-11-16-nightly-052356 feeds: loadingTexts=[] across /feeds + /settings probes)." ;
+    qa:issueSummary "RESOLVED. Manual 'Show more' button; no ready_while_loading anomalies since; re-confirmed 2026-11-18 (analytics loadingTexts=[] at /notes gate flip)." ;
     qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
@@ -7221,7 +7663,7 @@
     qa:kind "introspection" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED. /nonexistent-qa-route renders clean not-found with data-agent-status=ready; re-verified 2026-11-15 (journal healthy journeys)." ;
+    qa:issueSummary "RESOLVED. /nonexistent-qa-route renders clean not-found with data-agent-status=ready; re-verified 2026-11-15." ;
     qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
@@ -7253,7 +7695,7 @@
     qa:kind "friction" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED. recovery-readiness renders data on sample corpus (re-verified 2026-11-15: 6 widgets / 3 charts populated). HRV unit defect tracked as WW-074." ;
+    qa:issueSummary "RESOLVED. recovery-readiness renders data on sample corpus (re-verified 2026-11-15: 6 widgets / 3 charts populated). HRV unit defect tracked as WW-074. NOTE 2026-11-18: recovery-readiness board 6/6 widgets 'No data' on a bare seed corpus (sessions=0) — WW-056-adjacent, not a regression of this fix." ;
     qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
@@ -7285,11 +7727,11 @@
     qa:kind "defect" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (analytics domain not run). Root still present at 7b4743b0d: WqlBars routes ticks through compactNumber (WqlBars.tsx:57) + YAxis unit prop (:60) instead of shared formatTimeseriesTick (WqlTimeseries.tsx:33). Keep open pending populated-corpus explorer retest. S" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (analytics finding #4, via transient 'Preview with sample data' since live session stream empty on that profile): sum:totalVolume{} by {week} Y-axis '0 kg' baseline vs '6,500kg'/'13,000kg'/'19,500kg'/'26,000kg' grouped ticks. Root at 761983774: grouped tick" ;
     qa:coverageStatus "tier12" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-15-smoke-214120> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-030.regression.test.tsx> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-030.e2e.ts> .
@@ -7350,15 +7792,15 @@
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "friction" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "NOT RETESTED (properties domain not run since 2026-11-14; not run 2026-11-16-nightly-052356). Keep open." ;
-    qa:coverageStatus "planned" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-19-fixvalidation-195547 (properties diary retest): bare 'kettlebell' → ':effort{text:kettlebell}·18 of 161·1 applied' (18 correct cards); multi-word 'kb clean' → ':effort{text:\"kb clean\"}·3 of 161' alias-aware (Kettlebell Clean / Clean And Jerk / Clean And Press). No stale [role=ale" ;
+    qa:coverageStatus "tier12" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/properties> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/PRP-03> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-034.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-035> a qa:Issue ;
@@ -7378,18 +7820,18 @@
     qa:coveredBy <https://wod.wiki/qa/journey/PRP-03> .
 
 <https://wod.wiki/qa/issue/WW-036> a qa:Issue ;
-    rdfs:label "Unfiltered /notes still full-corpus detail-hydrates — 15.6s ready gate this run (feeds), ~3s view-hydration over 4.6s boot (journal) on 1639-note corpus" ;
+    rdfs:label "Unfiltered /notes still full-corpus detail-hydrates — ready gate 12.2–26.2s ×5 workers on a ~1639-note corpus (worst band this run)" ;
     qa:issueId "WW-036" ;
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "latency" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "RE-TIMED 2026-11-16-nightly-052356 both feeds and journal: feeds SPA nav ready gate ~15.6s (strip '1639 of 1639', aria-busy until flip; trend 18.3s→14s→5s→4.07s→15.6s — band REGRESSED); journal in-iframe cold load ready 7570ms vs 4617ms boot baseline (~3s view hydration). Roots unchanged at 7b4743b0" ;
+    qa:issueSummary "RE-TIMED 2026-11-19-fixvalidation-195547 ×5 workers (ONE canonical cross-domain finding): journal cold /notes ready 26,170ms; runtime ~25.5s; properties ~19-21s (in-page waiter 18,811ms); analytics ~13s; notebooks 12,172ms. All show strip '1639 of 1639', aria-busy=false at flip. Trend 18.3→14→5→4.07" ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-12-post-fix-171706> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/journal> ;
     qa:affects <https://wod.wiki/qa/domain/properties> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
@@ -7423,31 +7865,32 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "friction" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (analytics domain not run; last repro 2026-11-16-smoke-023730). PARTIAL FIX VERIFIED IN SOURCE at 1e96a5148: AnalyticsExplorerPage.tsx:544 explorer-results-stale banner + useExplorerQueryState.submit (:148) refuses invalid queries — but setDraft (:138) still re" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-19-nightly-052307; unchanged. 2026-11-19-fixvalidation-195547 healthy-journey re-check: malformed ':broken{' inline role=alert parse error, no crash, clean recovery (diary)." ;
     qa:coverageStatus "planned" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-smoke-023730> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:coveredBy <https://wod.wiki/qa/journey/ANL-06> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-038.regression.test.tsx> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-038.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-039> a qa:Issue ;
-    rdfs:label "data-agent-status flips 'ready' while dashboard/board widgets still render 'Loading…' skeletons" ;
+    rdfs:label "data-agent-status flips 'ready' while dashboard/board widgets still render 'Loading…'; /dashboard/recovery-readiness settles ~47–57s" ;
     qa:issueId "WW-039" ;
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "introspection" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (feeds finding #5) on /dashboard/recovery-readiness: ready + 7 'Loading…' widget nodes in same sample (t≈1.2s, 2/2 navigations, ~2s window); /dashboards index clean (journal negative same session). Roots at 7b4743b0d: markFeedFirstPaint (feedReadiness.ts:117) fli" ;
+    qa:issueSummary "REGRESSED 2026-11-19-fixvalidation-195547 (analytics finding #7): /dashboard/recovery-readiness polled 'Loading' text — 47s settle at sessions=0 (6/7 widgets 'No data'), 57s after Preview; navDurationMs=1741, agentStatus ready DURING widget spin (PR Board settles ~6s by contrast). Root at 761983774:" ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
@@ -7460,13 +7903,14 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "friction" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (feeds findings #6 + #10): attempt 1 → JSZip 'Can't find end of central directory : is this a zip file ?…' verbatim in bundle-import-error; attempts 2-4 (after feed import churn, desktop ×2 + mobile 375x812) → silent navigation to / with no error/toast/console. Z" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-17-nightly-052156." ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
     qa:coveredBy <https://wod.wiki/qa/journey/FED-04> .
 
@@ -7478,11 +7922,11 @@
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (feeds finding #7): valid 152-byte zip containing only some/stray-note.txt (no manifest) → navigates to /, no toast/error/console. Root VERIFIED at 7b4743b0d: importFromZip (ExportImportService.ts:473) returns {imported:0, errors:[]} for zero-yield zips → LoadZip" ;
+    qa:issueSummary "Open (feeds domain run FAILED 2026-11-19-fixvalidation-195547 before streaming any findings — not retested)." ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
     qa:coveredBy <https://wod.wiki/qa/journey/FED-04> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-041.regression.test.tsx> ;
@@ -7494,13 +7938,14 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "parity" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (feeds finding #2): direct nav /settings/queries lands on /journal; llms.txt line 72 still lists it. Drift verified in source at 7b4743b0d: ROUTE_PATTERNS still lists settingsQueries (src/lib/routes.ts:80) while App.tsx:204 redirects to journal; llms.txt:72 adver" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-17-nightly-052156." ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
     qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
 
@@ -7512,7 +7957,7 @@
     qa:kind "defect" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED 2026-11-16-nightly-052356 (feeds): zero-public-profile export shows documented toast 'Operation failed — No public notebooks found to publish. Mark at least one user-owned notebook as Public first.'; promotion sheet (note → QA Public Notebook) and derived-visibility UI verified working. Hap" ;
+    qa:issueSummary "RESOLVED 2026-11-16-nightly-052356. Happy-path silent no-op persists as WW-055." ;
     qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
@@ -7529,7 +7974,7 @@
     qa:kind "defect" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "STILL NOT RETESTABLE 2026-11-16-nightly-052356: export never produces an artifact (WW-055 happy-path silent no-op blocks it). Roots verified at 7b4743b0d: importFromZip filters !name.startsWith('dist/') (ExportImportService.ts:473) while publisher.ts:567 prefixes 'dist/' for repository layout. Keep " ;
+    qa:issueSummary "Open (feeds domain run FAILED 2026-11-19-fixvalidation-195547 before streaming any findings — not retested)." ;
     qa:coverageStatus "planned" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
@@ -7545,29 +7990,31 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "parity" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (feeds finding #3): wod_feed_manage inputSchema action enum = ['list','status','publish','import-bundle'] only. Root verified at 7b4743b0d: feedTools.ts:16 z.enum lacks the actions while human parity buttons (Subscribe/Unsubscribe/Delete source) exist on /feeds a" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-17-nightly-052156." ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
     qa:coveredBy <https://wod.wiki/qa/journey/FED-01> .
 
 <https://wod.wiki/qa/issue/WW-046> a qa:Issue ;
-    rdfs:label "llms.txt advertises the HTTP MCP server at /api/mcp as live on wod.wiki but the endpoint is dead (signature evolved: POST 405 nginx / GET 404) — ×10 sessions" ;
+    rdfs:label "llms.txt advertises the HTTP MCP server at /api/mcp as live on wod.wiki but the endpoint is dead (signature evolved: POST 405 nginx / GET 404)" ;
     qa:issueId "WW-046" ;
     qa:issueSeverity "high" ;
     qa:severity "high" ;
     qa:kind "parity" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "STILL REPRODUCES ×10 sessions — retested 2026-11-16-nightly-052356 by three workers (feeds #4, journal #1, runtime #1): POST /api/mcp → 405 Not Allowed (131B nginx-style error page; proper JSON-RPC initialize also 405); GET /api/mcp → 404 text/html 1444B SPA-fallback-shaped (journal saw 200 SPA fall" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-17-nightly-052156." ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
     qa:affects <https://wod.wiki/qa/domain/properties> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
@@ -7584,29 +8031,29 @@
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED (notebooks domain not run since 2026-11-13; not run 2026-11-16-nightly-052356). Keep open." ;
-    qa:coverageStatus "planned" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (notebooks finding #1): Journal card 'local · 0 notes' vs /notebook/journal stream '1 of 1639' (totalUnbatchedCount=1, 'My Workout'); same on user notebook QA Kettlebell Cycle 2099 (0 vs 1-of-1641 at creation; card counted only the promoted member note afte" ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
     qa:coveredBy <https://wod.wiki/qa/journey/NBK-01> ;
     qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-047.regression.test.ts> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-047.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-048> a qa:Issue ;
-    rdfs:label "note header shows a backlink chip for only one of two linked notebooks — N:M membership under-represented in the header" ;
+    rdfs:label "note header chips render 1 of N notebooks after reload and 0 of N until hard reload after promotion-sheet toggle — N:M membership never joined into header chips" ;
     qa:issueId "WW-048" ;
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED (notebooks domain not run since 2026-11-13; not run 2026-11-16-nightly-052356). Keep open." ;
-    qa:coverageStatus "planned" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (notebooks findings #3/#4): note in Journal (permanent) + QA Kettlebell Cycle 2099 renders exactly 1 chip 'qa-kettlebell-cycle-2099' after hard reload (membership persisted — stream '2 of 1641', sheet lists both); NEW variant: immediately after closing the " ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
     qa:coveredBy <https://wod.wiki/qa/journey/NBK-02> ;
     qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-048.regression.test.ts> ;
@@ -7618,13 +8065,14 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "parity" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "NOT RETESTED since 2026-11-13 (unconfirmed path not re-invoked; JRN-06 Scenario 2 covers approve/deny flow; not run 2026-11-16-nightly-052356). Keep open." ;
-    qa:coverageStatus "planned" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-19-nightly-052307." ;
+    qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
     qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> ;
     qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-049.regression.test.ts> ;
@@ -7638,7 +8086,7 @@
     qa:kind "introspection" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED 2026-11-14. Not re-exercised live since (movement-advance blocked by WW-077; gate-start blocked by WW-085)." ;
+    qa:issueSummary "RESOLVED 2026-11-14." ;
     qa:coverageStatus "planned" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
@@ -7648,36 +8096,36 @@
     qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
 
 <https://wod.wiki/qa/issue/WW-051> a qa:Issue ;
-    rdfs:label "Recorded session timing wrong across lifecycle paths — For Time IDB 216.8s vs ~211s clock vs UI '04:01' results total; reload path drops 53s on /results; splits never persisted (+00:00/Start rows only)" ;
+    rdfs:label "Recorded session timing wrong across lifecycle paths — duration inconsistent with IDB record; splits never persisted (+00:00/Start rows only)" ;
     qa:issueId "WW-051" ;
     qa:issueSeverity "high" ;
     qa:severity "high" ;
     qa:kind "defect" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (runtime worker died before the timing-lifecycle pass; note deletion WW-020 aborted the run first). Prior repro stands (2026-11-15-nightly-060324, runtime finding #9). Reload-path session metrics now additionally threatened by WW-012's session-row deletion. Kee" ;
-    qa:coverageStatus "planned" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (runtime finding #6, fresh numbers): AMRAP ~4m25s wall with two measured pauses (~8.4s + ~3s) → IDB session 01a1f56b duration=167564ms (02:47.6) vs span=265149ms (04:25.1) — ~98s unexplained loss vs ~12s measured pause; splits:0; Workout Complete card self-" ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
     qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-051.regression.test.ts> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-051.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-052> a qa:Issue ;
-    rdfs:label "Exiting at the Ready-to-Start gate records a 0s phantom in-progress session row" ;
+    rdfs:label "Ready-to-Start gate materializes a 0s phantom in-progress session row at gate OPEN (earlier onset), Exit leaves it — no UI feedback" ;
     qa:issueId "WW-052" ;
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (runtime finding #4): gate exit persisted IDB session row {durationMs:0, status:'in-progress', completed:false, startTime==endTime==1794808176784}; /sessions stream hides it ('0 of 0') but the row persists and later triggers the WW-012 partial-run banner path. Ro" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (runtime finding #3): opening the run overlay at the gate ALREADY created IDB row 01a1f56a {duration:0, status:'in-progress', st==et==1795118786306} (row count 1 before Exit); clicking Exit left it. Prior reproduction materialized the row only after Exit — " ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
     qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-052.regression.test.ts> ;
@@ -7691,7 +8139,7 @@
     qa:kind "defect" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED 2026-11-14. /run/invalid-id-qa renders the not-found guard + data-agent-status." ;
+    qa:issueSummary "RESOLVED 2026-11-14; re-verified healthy 2026-11-18 and again 2026-11-19-fixvalidation-195547 (runtime healthy journeys: '/run/invalid-id' renders 'Runtime not found…' + heading, console clean, 29 tools)." ;
     qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-nightly-073446> ;
@@ -7724,47 +8172,47 @@
     qa:kind "defect" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (feeds finding #8): with note promoted into public user notebook 'QA Public Notebook', the click produces nothing for 36s — zero createObjectURL blob events, zero toasts, zero console errors/warnings, aria-busy=false. Zero-public sub-case NOW FIXED (documented er" ;
+    qa:issueSummary "Open (feeds domain run FAILED 2026-11-19-fixvalidation-195547 before streaming any findings — not retested)." ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
     qa:coveredBy <https://wod.wiki/qa/journey/FED-03> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-055.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-056> a qa:Issue ;
-    rdfs:label "Benchmark PR Board widgets permanently empty on sample corpus: 'Sample data loaded' badge shown but sessions store = 0 post-import, 5 visible widgets No data" ;
+    rdfs:label "Benchmark PR Board widgets all 'No data for this range.' — sessions store = 0 after ready import; widgets stale until manual reload" ;
     qa:issueId "WW-056" ;
     qa:issueSeverity "high" ;
     qa:severity "high" ;
     qa:kind "defect" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (analytics domain not run). Prior state (2026-11-16-smoke-023730): import path FIXED (commits 48 sessions); residual 2/5 widgets permanently 'No data' (Benchmark scores, Fran trend). ROOT VERIFIED at 1e96a5148 — corpus never seeds the board contract: sample.ts:" ;
-    qa:coverageStatus "planned" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (analytics finding #2): at ready with sessions=0, 5/5 PR Board widgets 'No data for this range.' (probe notes=1639, efforts=161, tags=38); after Preview commits sessions=56, widgets render benchmark tables (fran 330 s etc.). 2026-11-19-nightly-052307 refine" ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-smoke-023730> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> ;
-    qa:coveredBy <https://wod.wiki/qa/journey/ANL-04> ;
     qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-056.regression.test.ts> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-056.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-057> a qa:Issue ;
-    rdfs:label ":session{text:fran} reports '0 applied, 1 ignored' yet empties the result list to 0 of 0 — ignore advisory contradicts actual filtering" ;
+    rdfs:label ":session{text:fran} filter silently ignored — unfiltered session list (and, at sessions=0, a wrong DASHBOARD collection)" ;
     qa:issueId "WW-057" ;
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "defect" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (analytics domain not run; ×4 consecutive repros prior). Roots verified at 1e96a5148: unsupported session-plane keys land in normalizedFactFilters (QueryService.ts:1347) and matchesFilters narrows sessions to zero (:1369-1372, runFindSession :1304) while the ad" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-19-fixvalidation-195547 (analytics finding #3): ':session{text:fran}' no longer returns wrong DASHBOARD rows — old wrong-collection variant GONE; filter semantics honored ('No sessions found.' at empty matching set). Residual NEW disconnect — /sessions stream blind to populated sess" ;
     qa:coverageStatus "tier12" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-smoke-023730> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:coveredBy <https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-057.regression.test.ts> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-057.e2e.ts> .
@@ -7777,7 +8225,7 @@
     qa:kind "defect" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED 2026-11-15-nightly-060324 (journal known-issue retest): confirm dialog shows, confirmed delete navigates back to /day and IndexedDB record gone; no phantom toast." ;
+    qa:issueSummary "RESOLVED 2026-11-15-nightly-060324." ;
     qa:coverageStatus "planned" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
@@ -7787,18 +8235,18 @@
     qa:coveredBy <https://wod.wiki/qa/journey/JRN-03> .
 
 <https://wod.wiki/qa/issue/WW-059> a qa:Issue ;
-    rdfs:label "/day/:date has no Page options panel — Delete note, Clone, Export, Notebooks & Promotion unavailable vs /note/:id" ;
+    rdfs:label "/day/:date EMPTY-day view has no Page options panel — Delete/Clone/Export/Notebooks unavailable (present once ≥1 note exists)" ;
     qa:issueId "WW-059" ;
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (journal finding #8): /day/2099-08-02 ready-state buttons only ['+ Add','‹ Journal','Create a note'] — no 'Page options'; /note/:id header carries 'Page options'. Roots at 7b4743b0d: JournalDatePage.tsx:251 wires only an 'Add timer' helpful action; :305 header ac" ;
+    qa:issueSummary "REPRODUCED with nuance 2026-11-19-fixvalidation-195547 (journal finding #4): /day/2099-08-03 with 0 notes renders exactly 3 buttons ('New note', '‹ Journal', 'Create a note') — no Page options, no ⌘. entry; with ≥1 note the full panel (Export .md/.jsonl/.csv, Notebooks & Promotion, Note placements, " ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/journal> ;
     qa:coveredBy <https://wod.wiki/qa/journey/JRN-02> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-059.regression.test.tsx> ;
@@ -7810,13 +8258,14 @@
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "friction" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (journal finding #5): listbox 'Completions' shows byte-identical '/time Timer workout block' and '/wod Timer workout block'. Root at 7b4743b0d: whiteboard-autocomplete.ts:70 and :77 both 'Timer workout block' (the fenced-pair entries :46/:53 carry distinguishing " ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-17-nightly-052156." ;
     qa:coverageStatus "tier12" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/journal> .
 
 <https://wod.wiki/qa/issue/WW-061> a qa:Issue ;
@@ -7825,13 +8274,14 @@
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "parity" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (journal finding #2): wod_note_list({unknownKeyXYZ:1, bogus:'x'}) → isError=false, totalCount identical to default call; unknown keys silently dropped. Root at 7b4743b0d: noteTools.ts:28 noteListInputSchema is a plain z.object (zod strips unknown keys; no .strict" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-17-nightly-052156." ;
     qa:coverageStatus "tier12" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/journal> ;
     qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
 
@@ -7841,12 +8291,14 @@
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "parity" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "NOT RETESTED since 2026-11-13 (notebooks not run; not run 2026-11-16-nightly-052356). Keep open." ;
-    qa:coverageStatus "planned" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-19-nightly-052307." ;
+    qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
     qa:affects <https://wod.wiki/qa/domain/notebooks> ;
     qa:coveredBy <https://wod.wiki/qa/journey/NBK-01> ;
     qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/agent/regression/ww-062.regression.test.ts> ;
@@ -7858,30 +8310,30 @@
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "friction" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "NOT RETESTED (properties not run since 2026-11-14; not run 2026-11-16-nightly-052356). Keep open." ;
-    qa:coverageStatus "planned" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-18-nightly-052229." ;
+    qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
     qa:affects <https://wod.wiki/qa/domain/properties> ;
     qa:coveredBy <https://wod.wiki/qa/journey/PRP-03> .
 
 <https://wod.wiki/qa/issue/WW-064> a qa:Issue ;
-    rdfs:label "Mobile timer footer stop/pause controls are icon-only with no accessible name at 375x812 (rep/round adjust pair NOW FIXED)" ;
+    rdfs:label "Mobile timer footer Stop/Pause icon buttons carry aria-label=\"\" (empty) which OVERRIDES their title text — nameless to assistive tech at 375x812" ;
     qa:issueId "WW-064" ;
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "defect" ;
-    qa:issueStatus "resolved" ;
-    qa:status "resolved" ;
-    qa:issueSummary "RESOLVED 2026-11-15-nightly-060324 (runtime owner-focus mobile pass): 'Stop Session' + 'Pause' titled buttons verified at 375x812; rep pair functional. Residual small tap targets (19-21px) flagged within WW-067/RUN-03 polish. NOT retested 2026-11-16-nightly-052356 (runtime worker died before mobile " ;
-    qa:coverageStatus "planned" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "REGRESSED 2026-11-19-fixvalidation-195547 (runtime finding #5, owner-focus mobile pass): at 375x812 live AMRAP, footer buttons x=16 (title 'Stop Session') and x=76 (title 'Pause') probe as aria-label:'' with SVG-only content — empty aria-label wins name computation, both nameless; adjacent 'Next' (a" ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
-    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/journey/RUN-03> .
 
@@ -7891,13 +8343,14 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "latency" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (analytics not run). Prior: board settle FAST two consecutive runs (navDurationMs 1414/1461, 3/5 widgets hydrated, 2/5 empty per WW-056 residual). Keep open until a fully-populated board (post-WW-056 fix) confirms widget settle budget. Tier 3 plan: ANL-05 Scena" ;
-    qa:coverageStatus "planned" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-19-nightly-052307: with the populated sample board the settle question is finally measurable — board settles ~1-2s to ready in both empty and populated states. Recovery-readiness board settle 47-57s tracked as WW-039 regression." ;
+    qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-smoke-014925> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-065.e2e.ts> .
@@ -7910,7 +8363,7 @@
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED (manual domain not run since 2026-11-13; not run 2026-11-16-nightly-052356). Keep open." ;
+    qa:issueSummary "Open (manual domain not run 2026-11-19)." ;
     qa:coverageStatus "planned" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-13-ondemand-163801> ;
@@ -7924,29 +8377,30 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "defect" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (runtime finding #7, owner-focus mobile pass): Keypad toggle (at (250,766), 52x19px) sets aria-pressed=true, hint line updates, but zero digit buttons render ([class*=keypad] and /0-9/ scans empty). Roots at 7b4743b0d: ClockCommandBoard.tsx:72 ClockControlModeTog" ;
-    qa:coverageStatus "planned" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-18-nightly-052229 (runtime, owner-focus mobile pass). 2026-11-19-fixvalidation-195547: keypad digits labeled, rep entry works on FOR TIME (21/15/9), pause freeze verified (owner-focus mobile pass)." ;
+    qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/journey/RUN-03> .
 
 <https://wod.wiki/qa/issue/WW-068> a qa:Issue ;
-    rdfs:label "Live timer chip accessible names leak raw values — resistance 'Value: [object Object]' (prior), now also Up-Next duration 'Value: 1200000 Origin: parser' and effort 'Value: AMRAP'" ;
+    rdfs:label "Live timer chip accessible names leak raw values — 'Type: duration Value: 20:00 Origin: parser' / 'Type: effort Value: AMRAP Origin: parser' (raw slug)" ;
     qa:issueId "WW-068" ;
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "defect" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "SCOPE EXPANDED 2026-11-16-nightly-052356 (runtime finding #3 evidence): Ready-to-Start gate Up Next chip aria name leaks raw ms ('Type: duration Value: 1200000 Origin: parser') and effort chip leaks 'Value: AMRAP' — same buildTooltip leak family as the original resistance '[object Object]'. Roots at" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (runtime finding #2): Ready-to-Start gate chips carry accessible names 'Type: duration Value: 20:00 Origin: parser' and 'Type: effort Value: AMRAP Origin: parser' (also 'Value: thruster' on FOR TIME chips), identical to prior reproduction. Root at 761983774" ;
     qa:coverageStatus "tier12" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-068.regression.test.tsx> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-068.e2e.ts> .
@@ -7957,13 +8411,14 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "friction" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (runtime finding #3): Run on '02 — Required rest' ((3) 10 Kettlebell Swings 24kg *:30 Rest) opened the gate with Block 1 outline (20:00 AMRAP / 5 Pullups Pullups / 10 Pushups / 15 Air Squats). ROOT VERIFIED at 7b4743b0d: useNotePageNav.ts:138 — resolvedBlock = bl" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-17-nightly-052156." ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> .
 
@@ -7975,10 +8430,11 @@
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED (properties not run since 2026-11-14; not run 2026-11-16-nightly-052356). Keep open." ;
-    qa:coverageStatus "planned" ;
+    qa:issueSummary "Open — equipment leg BLOCKED 2026-11-19-fixvalidation-195547 (all /equipment/:slug detail pages 404 per WW-098; override sheet unreachable). NOTE: effort-path analog reproduced as WW-100 (Save is a silent no-op — worse behavior than this equipment-leg symptom)." ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
     qa:affects <https://wod.wiki/qa/domain/properties> ;
     qa:coveredBy <https://wod.wiki/qa/journey/PRP-04> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-070.regression.test.tsx> ;
@@ -7992,10 +8448,11 @@
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED (properties not run since 2026-11-14; not run 2026-11-16-nightly-052356). Keep open." ;
-    qa:coverageStatus "planned" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (properties finding #1): /effort/kettlebell-clean chips (kb clean, kettlebell cleans, Clean Left/Right) render as <span role=null href=null>; not clickable. Root at 761983774 VERIFIED: frontmatter-preview.ts:950 createSummaryPill builds alias pills via docu" ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/properties> ;
     qa:coveredBy <https://wod.wiki/qa/journey/PRP-01> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-071.regression.test.tsx> ;
@@ -8009,10 +8466,11 @@
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (feeds ran but the happy-path /subscribe?source= consent page rendered cleanly; the probe-FAILURE path was not triggered). Keep open." ;
+    qa:issueSummary "Open (feeds domain run FAILED 2026-11-19-fixvalidation-195547 — not retested)." ;
     qa:coverageStatus "planned" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
     qa:coveredBy <https://wod.wiki/qa/journey/FED-02> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-072.regression.test.tsx> ;
@@ -8026,7 +8484,7 @@
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (feeds ran; overflow-menu keyboard path not exercised). Keep open." ;
+    qa:issueSummary "Open (feeds domain run FAILED 2026-11-19-fixvalidation-195547 — not retested)." ;
     qa:coverageStatus "planned" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-14-nightly-060215> ;
@@ -8036,17 +8494,18 @@
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-073.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-074> a qa:Issue ;
-    rdfs:label "HRV trend widget on /dashboard/recovery-readiness labels Y-axis ticks and readout in kg instead of ms (0 kg..80 kg, '71kg')" ;
+    rdfs:label "HRV trend axis fixed in ms; residual: readout '69.4kg', Soreness/Monotony Y-axes in kg for unitless 0–10 scores" ;
     qa:issueId "WW-074" ;
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "defect" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (analytics not run). NOTE: feeds worker visited /dashboard/recovery-readiness for WW-039 but did not read the HRV widget units. Root stands at 7b4743b0d: WqlTimeseries falls back to mass-preference unit for unitless ratio series (:44). Keep open pending populat" ;
-    qa:coverageStatus "planned" ;
+    qa:issueSummary "REPRODUCED + EXTENDED 2026-11-19-fixvalidation-195547 (analytics finding #6, sessions=48 sample corpus — first clean retest): HRV trend Y-axis correctly '0 ms..80 ms' (axis fix held); RESIDUAL+EXTENSION: 'Readiness today' hero readout '69.4kg'; Soreness/Monotony Y-ticks '0.5 kg'/'0.3 kg' — unitless " ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-074.regression.test.tsx> ;
@@ -8060,7 +8519,7 @@
     qa:kind "friction" ;
     qa:issueStatus "resolved" ;
     qa:status "resolved" ;
-    qa:issueSummary "RESOLVED 2026-11-15-smoke-201659 (analytics known-issue retest): preset range buttons now AUTO-RUN; custom from/to picker does not exist in build v0.59.2230. Draft-vs-submitted honesty in general remains via WW-038." ;
+    qa:issueSummary "RESOLVED 2026-11-15-smoke-201659. Draft-vs-submitted honesty in general remains via WW-038." ;
     qa:coverageStatus "planned" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
@@ -8074,81 +8533,85 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "defect" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (runtime worker died before the For Time target check; note deletion WW-020 aborted the run). Keep open. Screenshot (prior): domains/runtime/screenshots/issue-09-fortime-stuck-movement.png." ;
-    qa:coverageStatus "planned" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-19-nightly-052307. 2026-11-19-fixvalidation-195547: FOR TIME per-rung targets correct during the run (21→15→9 entered via keypad); residual post-completion rep-entry deadlock tracked as WW-097." ;
+    qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
     qa:coveredBy <https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-076.regression.test.ts> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-076.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-077> a qa:Issue ;
-    rdfs:label "Live run cannot advance past the first movement — Next/Enter/Nav/outline clicks/rep logging never activate movement 2 in AMRAP or For Time ladder runs" ;
+    rdfs:label "Live AMRAP run cannot advance past the first movement — Next/Enter never activate movement 2 (AMRAP-path specific; For Time ladder advances)" ;
     qa:issueId "WW-077" ;
-    qa:issueSeverity "medium" ;
-    qa:severity "medium" ;
+    qa:issueSeverity "high" ;
+    qa:severity "high" ;
     qa:kind "defect" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (runtime worker died before the advancement pass). NEW ADJACENT EVIDENCE: WW-085 (gate overlay frozen while engine live) suggests a shared gate/view-state desync worth investigating together. Prior: Next dispatches NextEvent → NextAction.do try/catch pushes err" ;
-    qa:coverageStatus "planned" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (runtime finding #4): 20:00 AMRAP (3 movements) — 2 Next clicks + Enter at ~00:20 elapsed never advance; outline ● stays on '20:00 AMRAP' header, Up-next '10 Burpees' unchanged, clock phase=live status=running canNext=true reps=[] after inputs; zero console" ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
     qa:coveredBy <https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-077.regression.test.ts> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-077.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-078> a qa:Issue ;
-    rdfs:label "Float-valued analytics readouts mix precision conventions on one panel (18.07 min 2dp, 31.9 pts 1dp, 36 MET-min truncated)" ;
+    rdfs:label "Float readouts mix 2dp/1dp/int/4dp on one panel; raw 16-digit engine floats still leak into a11y names and mobile DOM text" ;
     qa:issueId "WW-078" ;
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (runtime worker died before the owner-focus float-readout pass at 375x812). Prior (2026-11-15-nightly-060324): placement clean, 0px overflow at 375x812 — precision inconsistency remains. Root at 7b4743b0d: entryMapper.ts:808 mixed precision. Owner-focus float p" ;
-    qa:coverageStatus "planned" ;
+    qa:issueSummary "REPRODUCED, PARTIALLY IMPROVED 2026-11-19-fixvalidation-195547 (runtime finding #8, owner-focus floats): desktop Workout Complete now shows 4dp visible float '36.0585 MET-min' (prior 16-digit) BUT a11y names leak raw 'Value: 13.965666666666667'/'22.092833333333335' AND at 375x812 the FULL raw '21.88" ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/journey/RUN-03> ;
     qa:coveredBy <https://wod.wiki/qa/suite/packages/lang/tests/regression/ww-078.regression.test.ts> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-078.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-079> a qa:Issue ;
-    rdfs:label "Script Outline rows duplicate the movement name ('15 Kettlebell Swings Kettlebell Swings 24 kg'; '5 Pullups Pullups') in gate and live outline" ;
+    rdfs:label "Live header and Up-next duplicate the movement name — 'Up next: 21 Thrusters Thrusters 42.5 kg' at each ladder round (gate outline clean)" ;
     qa:issueId "WW-079" ;
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "defect" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (runtime finding #3 evidence): gate outline row '5 Pullups Pullups' on the guide-protocols AMRAP block. Roots at 7b4743b0d: ScriptOutlineProjection.ts:31 + labelFormatting.ts:38 both append the effort name. Fix: dedupe when label already contains it. Tier 1 proje" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (runtime finding #10): gate outline clean ('21 Thrusters 42.5 kg' once) but live header reads '21 Thrusters Thrusters 42.5 kg' and Up-next 'Up next: 21 Thrusters Thrusters 42.5 kg'; after advancing, '15 Thrusters Thrusters 42.5 kg' — same case-intact duplic" ;
     qa:coverageStatus "tier12" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-079.regression.test.tsx> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-079.e2e.ts> .
 
 <https://wod.wiki/qa/issue/WW-080> a qa:Issue ;
-    rdfs:label "Create Note dialog 'Start from' template combobox dumps ~1,355 unsorted corpus notes as native <option> rows" ;
+    rdfs:label "Create Note template picker FIXED (no more ~1,355 native options) — residual: capped 30-row listbox shows 5 identical duplicate rows" ;
     qa:issueId "WW-080" ;
     qa:issueSeverity "low" ;
     qa:severity "low" ;
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 (journal finding #4): 'Start from (optional)' select has 1355 options — 'Blank note', 'My Workout', then raw corpus notes unsorted ('10000m Men…' before '1500m Men…'), no search. Roots at 7b4743b0d: CreateJournalNoteDialog.tsx:213 storageService.getAllNotes() fee" ;
+    qa:issueSummary "PARTIAL FIX 2026-11-19-fixvalidation-195547 (journal finding #1): native <select> option dump GONE — custom [role=listbox] with exactly 30 [role=option] rows (Blank note, My Workout, catalog/benchmark entries); RESIDUAL: last 5 rows identical text '1500m Men Athletics 24 5 1 1500m Men…'. Root at 761" ;
     qa:coverageStatus "tier12" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/journal> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-080.regression.test.tsx> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-080.e2e.ts> .
@@ -8159,13 +8622,14 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "introspection" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "REPRODUCED 2026-11-16-nightly-052356 with NEW evidence (journal finding #9): mobile 375x812 /journal?layout=rows settled at ready with strip '1 of 280' while probe showed db.notes=1639, stream.totalUnbatchedCount=1, importPending=false — three mutually contradictory totals; desktop flickered '1 of 2" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-17-nightly-052156." ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/journal> ;
     qa:coveredBy <https://wod.wiki/qa/journey/JRN-01> .
 
@@ -8175,30 +8639,30 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "parity" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "REPRODUCED LIVE 2026-11-16-nightly-052356 (journal finding #7) during the WW-020 import-churn window: wod_note_list → totalCount 1 'My Workout' id 01a1e2d0-… while wod_note_get → 'Note not found' and /note/:id renders 'Note not found. Go back'; same ID resolved 30/30 pre-churn; db.notes=1639 importP" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-17-nightly-052156." ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-nightly-060324> ;
     qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/journal> ;
     qa:coveredBy <https://wod.wiki/qa/journey/JRN-06> .
 
 <https://wod.wiki/qa/issue/WW-083> a qa:Issue ;
-    rdfs:label "Sample analytics corpus (48 sessions / 48 notes) silently wiped by any page reload — re-import required every load, zero feedback" ;
+    rdfs:label "Sample analytics corpus silently wiped by page navigation — 'Preview with sample data' corpus rolls back across routes (sessions 56→0), dashboards flip to 'No data' with zero notice" ;
     qa:issueId "WW-083" ;
     qa:issueSeverity "high" ;
     qa:severity "high" ;
     qa:kind "defect" ;
-    qa:issueStatus "resolved" ;
-    qa:status "resolved" ;
-    qa:issueSummary "RESOLVED 2026-11-16-smoke-023730 (wipe not reproducing across reload AND SPA-nav paths). CAUTION heightened 2026-11-16-nightly-052356: the boot import cycle now demonstrably deletes USER notes and in-progress sessions on this deployment (WW-020 ×2, WW-012) — the sample-wipe cluster is very likely th" ;
-    qa:coverageStatus "planned" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "REGRESSED 2026-11-19-fixvalidation-195547 (analytics finding #5): after Preview commits sessions=56 (probe at PR Board, benchmark tables render), navigating away and back shows sessions=0/notes=1639 and all 7 Recovery widgets 'No data for this range.'; explorer sum:totalVolume{} back to 'No data'. N" ;
+    qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-smoke-183344> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-smoke-183344> ;
-    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-16-smoke-014925> ;
-    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-16-smoke-023730> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> .
 
@@ -8208,12 +8672,14 @@
     qa:issueSeverity "medium" ;
     qa:severity "medium" ;
     qa:kind "defect" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "NOT RETESTED 2026-11-16-nightly-052356 (analytics not run). Root still present in source: SampleDataPrompt.tsx:110 hardcodes <Link to=\"/collections\"> in loadPrompt; /collections has no route in App.tsx or ROUTE_PATTERNS. Fix: point the CTA at a live logging route (e.g. /journal or /sessions); Tier 1" ;
-    qa:coverageStatus "planned" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-19-nightly-052307. 2026-11-19-fixvalidation-195547: CTA links /journal (SampleDataPrompt.tsx:113); /journal renders. Healthy." ;
+    qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-15-smoke-201659> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-15-smoke-201659> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
     qa:affects <https://wod.wiki/qa/domain/analytics> ;
     qa:coveredBy <https://wod.wiki/qa/journey/ANL-05> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-084.regression.test.tsx> ;
@@ -8225,12 +8691,14 @@
     qa:issueSeverity "high" ;
     qa:severity "high" ;
     qa:kind "defect" ;
-    qa:issueStatus "open" ;
-    qa:status "open" ;
-    qa:issueSummary "NEW 2026-11-16-nightly-052356 (runtime finding #6): two fresh-ref mouse clicks on gate Start (button ref f1e324, overlay div.fixed.inset-0) left clock phase=ready status=idle; pressing '/' started instantly (phase=live status=running); after start the overlay textContent kept 'Ready to Start', 'Roun" ;
-    qa:coverageStatus "spec-gap" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-19-nightly-052307 (runtime, owner-focus mobile pass)." ;
+    qa:coverageStatus "covered" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
     qa:affects <https://wod.wiki/qa/domain/runtime> ;
     qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-085.regression.test.tsx> ;
@@ -8244,12 +8712,264 @@
     qa:kind "friction" ;
     qa:issueStatus "open" ;
     qa:status "open" ;
-    qa:issueSummary "NEW 2026-11-16-nightly-052356 (feeds finding #9): click Subscribe on CrossFit card → 6s of identical enabled 'Subscribe' buttons (no aria-busy, no label change, no inline progress) until 'CrossFit sync complete — 510 new records' toast and card flip; double-click re-triggers. Root at 7b4743b0d: Sync" ;
+    qa:issueSummary "Open (feeds domain run FAILED 2026-11-19-fixvalidation-195547 — not retested)." ;
     qa:coverageStatus "spec-gap" ;
     prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
     qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-16-nightly-052356> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
     qa:affects <https://wod.wiki/qa/domain/feeds> ;
     qa:coveredBy <https://wod.wiki/qa/journey/FED-01> ;
     qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-086.regression.test.tsx> ;
     qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-086.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-087> a qa:Issue ;
+    rdfs:label "Workout overlay dialog has NO aria-label at 375x812 — owner provisional selector [role=dialog][aria-label='Workout'] unmatchable on this build" ;
+    qa:issueId "WW-087" ;
+    qa:issueSeverity "high" ;
+    qa:severity "high" ;
+    qa:kind "defect" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-19-fixvalidation-195547 (runtime finding, owner-focus mobile pass): live workout overlay [role=dialog] carries aria-label=\"Workout\" at 375x812 (source FocusedDialog.tsx:62 aria-label={ariaLabel ?? title ?? 'Workout'}). Owner provisional selector now matchable. Proof: domains/runtime" ;
+    qa:coverageStatus "covered" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-17-nightly-052156> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-03> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-087.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-087.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-088> a qa:Issue ;
+    rdfs:label "Equipment detail /equipment/:slug renders no canonical backlinks to related Efforts or referencing workout Notes (PRP-02 Scenario 3)" ;
+    qa:issueId "WW-088" ;
+    qa:issueSeverity "medium" ;
+    qa:severity "medium" ;
+    qa:kind "defect" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "Open — BLOCKED/MOOT 2026-11-19-fixvalidation-195547: all /equipment/:slug detail pages 404 per WW-098; backlinks section unreachable." ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-02> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-088.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-088.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-089> a qa:Issue ;
+    rdfs:label "Shared /notes?q= link with space-separated words fails WQL parse — 'Invalid query — showing previous results' + unfiltered corpus" ;
+    qa:issueId "WW-089" ;
+    qa:issueSeverity "medium" ;
+    qa:severity "medium" ;
+    qa:kind "friction" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (properties finding #6): /notes?q=Dumbbell%20Day → 'Invalid query — showing previous results·1639 of 1639·1 applied·by date' + full syntax help, unfiltered on all 1639 notes. Contrast /efforts bare words filter correctly (WW-034 resolved). Root at 761983774" ;
+    qa:coverageStatus "planned" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/NBK-05> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/wql/tests/regression/ww-089.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-089.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-090> a qa:Issue ;
+    rdfs:label "Custom effort creation silently drops authored body prose — /effort/:slug?mode=create persists frontmatter only" ;
+    qa:issueId "WW-090" ;
+    qa:issueSeverity "medium" ;
+    qa:severity "medium" ;
+    qa:kind "defect" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "REPRODUCED 2026-11-19-fixvalidation-195547 (properties finding #4): typed 123 chars of body prose into create-mode editor, clicked 'Create Effort' → detail page zero prose (innerText lacks 'Sled Drive'/'QA authored body prose'); only properties/aliases sections persist. Root at 761983774: EffortDeta" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-090.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-090.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-091> a qa:Issue ;
+    rdfs:label "Link-as-Alias target <select> renders 0 options — Confirm Link permanently disabled (now on WARM load too)" ;
+    qa:issueId "WW-091" ;
+    qa:issueSeverity "medium" ;
+    qa:severity "medium" ;
+    qa:kind "defect" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "REPRODUCED, WORSE 2026-11-19-fixvalidation-195547 (properties finding #3): unknown slug → Link as Alias → picker select (data-testid=effort-not-found-alias-select) has 0 <option>; Confirm Link disabled=true; reproduced on WARM (post-boot-import) load — prior cold-only repro now warm too; no console " ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/playground/src/regression/ww-091.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-091.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-092> a qa:Issue ;
+    rdfs:label "Workout Complete segment table: all rows labeled 'Segment', all split offsets '+00:00', accessible names leak internals ('Type: spans', quoted JSON timestamps, full Type/Block/Time strings)" ;
+    qa:issueId "WW-092" ;
+    qa:issueSeverity "medium" ;
+    qa:severity "medium" ;
+    qa:kind "friction" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "REPRODUCED, PARTIALLY IMPROVED 2026-11-19-fixvalidation-195547 (runtime finding #7): three listitems 'Segment (00:00)/(00:00)/(04:25)'; every row renders '+00:00' with parenthesized durations; accessible names leak 'Type: total Value: 00:00 Origin: analyzed Block: waiting-to-start Time: <ISO>', 'Typ" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/apps/storybook/test/regression/ww-092.regression.test.tsx> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-092.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-093> a qa:Issue ;
+    rdfs:label "Session card mislabels load as 'Volume: 42.5 kg' (kg = bar load, not volume); /sessions strip count vs sessions store (phantom rows uncounted)" ;
+    qa:issueId "WW-093" ;
+    qa:issueSeverity "low" ;
+    qa:severity "low" ;
+    qa:kind "defect" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "Open — BLOCKED 2026-11-19-fixvalidation-195547: sessions store wiped by WW-020 runtime #9 before /sessions cards could render; no new evidence this run." ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-18-nightly-052229> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-01> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/packages/engine/tests/domain/regression/ww-093.regression.test.ts> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-093.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-094> a qa:Issue ;
+    rdfs:label "Note-plane aggregate charting — CHANGED: chart frame now renders (2 points / 17 buckets) on this profile; 'No data for this range.' variant not re-adjudicated against the 1641-note repro corpus" ;
+    qa:issueId "WW-094" ;
+    qa:issueSeverity "medium" ;
+    qa:severity "medium" ;
+    qa:kind "defect" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "CHANGED 2026-11-19-fixvalidation-195547 (analytics diary): count:note{} by {week} no longer renders 'No data for this range.' — chart frame + week ticks render, pipeline shows 2 points scanned / 17 buckets / 1 series; BUT this profile's 1639-note corpus contributes only 2 user-authored facts to the " ;
+    qa:coverageStatus "planned" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:lastSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/ANL-06> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-094.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-095> a qa:Issue ;
+    rdfs:label "'Preview with sample data' gives zero visible feedback — FIXED: 'Sample data loaded' label + spinners now render; long-spin residual covered by WW-039/WW-083" ;
+    qa:issueId "WW-095" ;
+    qa:issueSeverity "low" ;
+    qa:severity "low" ;
+    qa:kind "friction" ;
+    qa:issueStatus "resolved" ;
+    qa:status "resolved" ;
+    qa:issueSummary "RESOLVED 2026-11-19-fixvalidation-195547 (analytics diary): feedback now present ('Sample data loaded' label + brief 'Loading…' spinner); explorer preview at sessions=0 held 'No data' ~8s and PR Board spun ~10s before data — long-spin latency folded into WW-039/WW-083, not this defect." ;
+    qa:coverageStatus "tier12" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:resolvedInRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-095.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-096> a qa:Issue ;
+    rdfs:label "Mobile timer keypad digit keys (39x36px) and Nav/Keypad/Keys?/Values* toggles (19-22px tall) are below the 44px touch minimum at 375x812 (owner focus)" ;
+    qa:issueId "WW-096" ;
+    qa:issueSeverity "medium" ;
+    qa:severity "medium" ;
+    qa:kind "friction" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "Open — NOT retested 2026-11-19-fixvalidation-195547 (runtime coverage boundary: owner-focus pass mapped controls and floats; touch-target rects not re-measured)." ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-03> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-096.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-097> a qa:Issue ;
+    rdfs:label "FOR TIME completed ladder: rep controls dead and footer target stale — 'Actual reps — / Target 21' after all 3 rungs complete" ;
+    qa:issueId "WW-097" ;
+    qa:issueSeverity "medium" ;
+    qa:severity "medium" ;
+    qa:kind "friction" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "Open — NOT directly re-observed 2026-11-19-fixvalidation-195547 (runtime coverage boundary: ladder ran and advanced; WW-020 session wipe removed the notes before post-completion rep controls could be exercised)." ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-19-nightly-052307> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-03> ;
+    qa:coveredBy <https://wod.wiki/qa/suite/e2e/regression/ww-097.e2e.ts> .
+
+<https://wod.wiki/qa/issue/WW-098> a qa:Issue ;
+    rdfs:label "Canonical equipment slugs 404 — /equipment/dumbbell renders 'not found' even at data-agent-status=ready while the /equipment catalog card links the same slug (IDB equipment=23)" ;
+    qa:issueId "WW-098" ;
+    qa:issueSeverity "critical" ;
+    qa:severity "critical" ;
+    qa:kind "defect" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "NEW 2026-11-19-fixvalidation-195547 (properties finding #2): cold SPA load of /equipment/dumbbell (also /equipment/kettlebell) → false 'Equipment \"dumbbell\" not found — No equipment definition exists for this slug yet' + 'Create Equipment Page' CTA DURING 'Importing notebook.athletics-results…' AND " ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-02> .
+
+<https://wod.wiki/qa/issue/WW-099> a qa:Issue ;
+    rdfs:label "/sessions stream blind to the sessions store — '0 of 0 · No completed session results recorded' + 'No source options are set for this route' while IndexedDB sessions=56 and PR Board renders those sessions' benchmark values" ;
+    qa:issueId "WW-099" ;
+    qa:issueSeverity "high" ;
+    qa:severity "high" ;
+    qa:kind "defect" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "NEW 2026-11-19-fixvalidation-195547 (analytics finding #3; runtime #9 corroborates the surface): after Preview commits sessions=56 (probe-verified AND PR Board fran/annie/cindy tables render), unfiltered /sessions renders 0 rows with empty-scopeOptions advisory; ':session{text:fran}' → 'No sessions " ;
+    qa:coverageStatus "planned" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:affects <https://wod.wiki/qa/domain/analytics> ;
+    qa:affects <https://wod.wiki/qa/domain/runtime> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/RUN-04> .
+
+<https://wod.wiki/qa/issue/WW-100> a qa:Issue ;
+    rdfs:label "Effort Override sheet Save is a silent no-op — sheet stays open, no feedback, no property_overrides record written (WW-070 analog, worse)" ;
+    qa:issueId "WW-100" ;
+    qa:issueSeverity "medium" ;
+    qa:severity "medium" ;
+    qa:kind "defect" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "NEW 2026-11-19-fixvalidation-195547 (properties finding #9): /effort/kettlebell-clean → Override (sheet 'Override Kettlebell Clean', PERSONAL RUNTIME / My Custom Runtime pre-shown, Save button) → click Save → 4s later sheet still open, path unchanged, [role=alert] count 0, header badge still 'Bundle" ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:affects <https://wod.wiki/qa/domain/properties> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/PRP-04> .
+
+<https://wod.wiki/qa/issue/WW-101> a qa:Issue ;
+    rdfs:label "Notebook detail H1/breadcrumb derives from the humanized slug — acronyms mangled ('QA'→'Qa') and renames never reflected ('— W4 Deload' missing after full reload) while card + stream rows show the real name" ;
+    qa:issueId "WW-101" ;
+    qa:issueSeverity "low" ;
+    qa:severity "low" ;
+    qa:kind "defect" ;
+    qa:issueStatus "open" ;
+    qa:status "open" ;
+    qa:issueSummary "NEW 2026-11-19-fixvalidation-195547 (notebooks findings #5/#6, ONE canonical finding): created 'QA Kettlebell Cycle 2099' → library card + stream row correct, but page H1/breadcrumb read 'Qa Kettlebell Cycle 2099' (title-case normalization lowercased the 'A'); renamed to 'QA Kettlebell Cycle 2099 — " ;
+    qa:coverageStatus "spec-gap" ;
+    prov:wasGeneratedBy <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:firstSeenRun <https://wod.wiki/qa/run/2026-11-19-fixvalidation-195547> ;
+    qa:affects <https://wod.wiki/qa/domain/notebooks> ;
+    qa:coveredBy <https://wod.wiki/qa/journey/NBK-01> .
 

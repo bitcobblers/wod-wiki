@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Whiteboard Syntax Editor Redesign Prototypes — WOD Wiki</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./shared.css" />
+  <style>
+    .hub-wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .hub-header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: var(--fg);
+      margin-bottom: 10px;
+    }
+
+    .hub-header p {
+      font-size: 14.5px;
+      color: var(--fg-2);
+      max-width: 60ch;
+      line-height: 1.6;
+    }
+
+    .pillars {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .pillar {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .pillar h2 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--fg);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .pillar h2 svg {
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+
+    .pillar p {
+      font-size: 13px;
+      color: var(--muted-fg);
+      line-height: 1.5;
+    }
+
+    .concept-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .concept-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 150ms ease, background-color 150ms ease;
+    }
+
+    .concept-card:hover {
+      border-color: var(--primary);
+      background: #fffdfb;
+    }
+
+    .concept-card h3 {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: var(--fg);
+      margin-bottom: 8px;
+    }
+
+    .concept-card p {
+      font-size: 13.5px;
+      color: var(--fg-2);
+      line-height: 1.55;
+      margin-bottom: 12px;
+    }
+
+    .concept-bullets {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12.5px;
+      color: var(--muted-fg);
+    }
+
+    .concept-bullets li {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .concept-bullets svg {
+      color: var(--ok-fg);
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .concept-cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: var(--r-sm);
+      background: var(--primary-soft);
+      color: var(--primary-active-fg);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .concept-card:hover .concept-cta {
+      background: var(--primary);
+      color: var(--primary-fg);
+    }
+
+    .matrix-section h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 10px;
+    }
+
+    .matrix-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 6px;
+      overflow-x: auto;
+    }
+
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    .matrix-table th,
+    .matrix-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-soft);
+      vertical-align: top;
+    }
+
+    .matrix-table th {
+      background: var(--popover);
+      font-weight: 700;
+      color: var(--fg);
+      white-space: nowrap;
+    }
+
+    .matrix-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .matrix-table td:first-child {
+      font-weight: 600;
+      color: var(--fg);
+      white-space: nowrap;
+    }
+
+    .ref-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 14px 16px;
+      background: var(--popover);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      font-size: 13px;
+      color: var(--fg-2);
+    }
+
+    .live-proto-banner {
+      background: var(--card);
+      border: 1px solid var(--m-time-bd);
+      border-radius: var(--r-lg);
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .live-proto-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 240px;
+      flex: 1;
+    }
+
+    .live-proto-copy h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--fg);
+      margin: 0;
+    }
+
+    .live-proto-copy p {
+      font-size: 13.5px;
+      color: var(--fg-2);
+      line-height: 1.5;
+      max-width: 66ch;
+      margin: 0;
+    }
+
+    .live-proto-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 8px 16px;
+      border-radius: var(--r-sm);
+      background: var(--primary);
+      color: var(--primary-fg);
+      font-size: 13.5px;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .live-proto-cta:hover {
+      background: var(--primary-hover);
+    }
+
+    @media (max-width: 900px) {
+      .pillars,
+      .concept-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="hub-wrap">
+    <header class="hub-header">
+      <h1>Whiteboard Syntax Editor Redesign Prototypes</h1>
+      <p>
+        Three interactive, responsive prototypes resolving every priority defect from the <code>MobileWheelComposer</code>
+        and editor integration critique: eliminating blank single-column drums, newline-eating scroll races,
+        occluded <code>```time</code> / <code>TIMER</code> block headers, and the mobile-vs-desktop divide.
+        Switch between <strong>Desktop (1440)</strong>, <strong>Tablet (768)</strong>, and <strong>Mobile (390)</strong>
+        and test real edits across four live scenarios (<code>EMOM + Strength</code>, <code>Empty Starter</code>,
+        <code>Lint &amp; Repair</code>, and <code>Prose &amp; Wiki</code>).
+      </p>
+    </header>
+
+    <section class="live-proto-banner" aria-label="Live CodeMirror 6 Working Prototype">
+      <div class="live-proto-copy">
+        <h2>Working CodeMirror 6 Prototype: Option A + Optional Drawer from B</h2>
+        <p>
+          Full interactive Vite route with live CodeMirror 6 typing, <code>#</code> / <code>[[</code> / <code>swing</code> / <code>[:</code>
+          autocompletion, inline semantic token strip, Option A anchored popover, and Optional Option B <code>50cqh</code> scrubber &amp;
+          timeline drawer (<code>Ctrl+Shift+I</code>). Requires Playground dev server at <code>/proto/whiteboard-editor</code>.
+        </p>
+      </div>
+      <a class="live-proto-cta" href="/proto/whiteboard-editor">
+        <span>Open /proto/whiteboard-editor</span>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+      </a>
+    </section>
+
+    <section class="pillars" aria-label="Core design objectives">
+      <div class="pillar">
+        <h2>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg>
+          Mobile ↔ Desktop AST Parity
+        </h2>
+        <p>Unifies mobile, tablet, and desktop around one semantic Token &amp; Block Inspector—keeping live chips, inline Define repair, and 44px mobile targets in sync everywhere.</p>
+      </div>
+      <div class="pillar">
+        <h2>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M9 2h6"/></svg>
+          Block-Language Clarity &amp; Safety
+        </h2>
+        <p>Non-occluding container-query block headers keep <code>TIMER</code> / <code>:sport</code> clickable at 390px, while line-clamped span updates preserve <code>*</code>, <code>^</code>, <code>@</code>, and newlines.</p>
+      </div>
+      <div class="pillar">
+        <h2>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+          First-Class Wiki Tags, Links &amp; Efforts
+        </h2>
+        <p>Fuzzy alias search (<code>swing</code> → <code>Kettlebell Swing</code>), grouped <code>#tag</code> pickers, live <code>[[wiki links]]</code> in prose, and one-tap <code>? Define</code> repair without JSON leakage.</p>
+      </div>
+    </section>
+
+    <section class="concept-grid" aria-label="Prototype concepts">
+      <a class="concept-card" href="./concept-a-token-strip.html">
+        <div>
+          <h3>Concept A: Unified Token Strip &amp; Optional Drawer</h3>
+          <p>
+            Upgrades <code>MetricInlinePanel</code> into semantic <code>&lt;button&gt;</code> chips with an anchored desktop popover,
+            44px mobile thumb deck, live inline desktop typing, and an optional Option B right inspector drawer.
+          </p>
+          <ul class="concept-bullets">
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Retires blind drums for presets, steppers &amp; optional <code>50cqh</code> scrubber drawer (<code>Ctrl+Shift+I</code>)</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Inline raw-line typing on desktop + live Token Rail in mobile Type mode</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Implemented live inside CodeMirror 6 at <code>/proto/whiteboard-editor</code></span></li>
+          </ul>
+        </div>
+        <span class="concept-cta">
+          Open Concept A (Static POC)
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+        </span>
+      </a>
+
+      <a class="concept-card" href="./concept-b-hybrid-scrubber.html">
+        <div>
+          <h3>Concept B: Hybrid Tactile Scrubber &amp; Block Inspector</h3>
+          <p>
+            Keeps a fixed-height <code>50cqh</code> tactile scrubber strictly for bounded numbers and timers alongside searchable
+            catalogs, paired with a live right rail (desktop) and 3-region sheet (tablet &amp; mobile).
+          </p>
+          <ul class="concept-bullets">
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Fixed <code>180px</code> <code>50cqh</code> scrubber eliminates 390px &amp; 768px blank drums</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Live before → after diff badge and compiled workout timeline preview</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Pinned 4-button footer (<code>Undo · Delete · Type · Done</code>) in thumb reach</span></li>
+          </ul>
+        </div>
+        <span class="concept-cta">
+          Open Concept B
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+        </span>
+      </a>
+
+      <a class="concept-card" href="./concept-c-syntax-lens.html">
+        <div>
+          <h3>Concept C: Notched Syntax Lens &amp; Contextual Completion</h3>
+          <p>
+            Maintains an ultra-calm rest state and opens a notched-tab Syntax Lens where the active token fuses into a single
+            option canvas—complete with live <code>#</code>, <code>swing</code>, <code>[[</code>, and <code>/</code> trigger testing.
+          </p>
+          <ul class="concept-bullets">
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Lowest visual noise at rest (single 1-line status pill per active line)</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Notched tabs eliminate duplicate value labels &amp; unify desktop/mobile</span></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span>Demonstrates line-start <code>#tag</code> vs <code># Heading</code> and prose <code>[[</code> links</span></li>
+          </ul>
+        </div>
+        <span class="concept-cta">
+          Open Concept C
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+        </span>
+      </a>
+    </section>
+
+    <section class="matrix-section" aria-label="Concept comparison">
+      <h2>How the Three Concepts Compare</h2>
+      <div class="matrix-wrap">
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Dimension</th>
+              <th>Concept A: Unified Token Strip</th>
+              <th>Concept B: Hybrid Tactile Scrubber</th>
+              <th>Concept C: Notched Syntax Lens</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Active Line Rest State</td>
+              <td>Inline color-coded semantic token buttons + <code>+ Add</code> directly under the cursor line</td>
+              <td>Inline token strip coupled to the persistent Right Inspector Rail (desktop) or Bottom Sheet</td>
+              <td>Quiet 1-line status pill (<code>4 tokens · 1 unresolved · Edit Line</code>) keeping paper calm</td>
+            </tr>
+            <tr>
+              <td>Numeric &amp; Timer Editing</td>
+              <td>Timer mode toggle (<code>1:00</code> / <code>*1:00</code> / <code>^5:00</code> / <code>:?</code>), presets &amp; <code>−/+</code> steppers</td>
+              <td>Fixed <code>180px</code> <code>50cqh</code> tactile numeric/time scrubber + presets + live <code>*1:00 → *2:00</code> diff badge</td>
+              <td>Mode pills + presets + steppers inside notched option canvas with inline quick-delete tab</td>
+            </tr>
+            <tr>
+              <td>Efforts, Equipment &amp; Wiki Selection</td>
+              <td>Shared fuzzy alias picker + grouped <code>#tags</code> + prose <code>[[Wiki Link]]</code> bar; zero JSON pollution</td>
+              <td>Same fuzzy catalog pickers inside Right Rail / Mobile Sheet + live Entity Outline drawer</td>
+              <td>Same catalogs plus live contextual <code>#</code>, <code>swing</code>, <code>[[</code>, and <code>/</code> inline trigger bar</td>
+            </tr>
+            <tr>
+              <td><code>```time</code> Block Header &amp; Diagnostics</td>
+              <td>Container-query header above block (<code>TIMER</code> + <code>:sport</code> + <code>Play</code> / <code>⋯</code>) + Block Popover + 1-click lint fixes</td>
+              <td>Same non-occluding header + dedicated compiled runtime timeline preview (desktop rail &amp; mobile <code>Block</code> tab)</td>
+              <td>Same non-occluding header + <code>Block</code> notched tab + plain-language lint quick-fix banner</td>
+            </tr>
+            <tr>
+              <td>Mobile (390×844) Ergonomics</td>
+              <td>Pinned live Token Rail + 4-button 44px footer (<code>Undo · + Line · Type · Done</code>) + syntax key bar</td>
+              <td>3-region sheet on both 390px and 768px with <code>Undo · Delete · Type · Done</code> 44px footer</td>
+              <td>Identical notched lens topology as a bottom sheet with 44px notched tabs &amp; trigger chips</td>
+            </tr>
+            <tr>
+              <td>Implementation Footprint</td>
+              <td>Minimal disruption: upgrades <code>MetricInlinePanel</code> and replaces <code>MobileWheelComposer</code> &amp; <code>statementBuilderFlow</code></td>
+              <td>Moderate: adds persistent Desktop Inspector Rail + fixed-height container-query scrubber</td>
+              <td>Unified rewrite: replaces floating popovers and wheel sheet with one shared Notched Lens</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="ref-bar">
+      <span><strong>Sibling prototype suite (Mineral design system):</strong> WQL Composer Redesign Prototypes</span>
+      <a href="../wql-composer/index.html">Open ../wql-composer/index.html</a>
+    </div>
+  </main>
+</body>
+</html>

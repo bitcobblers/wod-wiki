@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { act } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
+import { TEST_IDS } from '@/lib/testIds';
 import {
   InMemoryStorage,
   resetStorageForTesting,
@@ -220,5 +221,62 @@ describe('MobileWheelComposer in NoteEditor', () => {
       const addEffortBtn = screen.getByTestId('wheel-option-add-effort');
       expect(addEffortBtn.textContent).toContain('Dead Hang');
     });
+  });
+
+  it('keeps the live token rail + syntax keys in Type mode and supports delete + undo', async () => {
+    const doc = '```time\n10:00 15 Kettlebell Swing\n```';
+    let view: EditorView | undefined;
+    render(
+      <NoteEditor
+        value={doc}
+        onChange={() => {}}
+        onViewCreated={(v) => {
+          view = v;
+        }}
+      />,
+    );
+    if (!view) throw new Error('Editor did not mount');
+
+    const lineStart = doc.indexOf('10:00');
+    act(() => {
+      view!.contentDOM.focus();
+      fireEvent.focus(view!.contentDOM);
+      view!.dispatch({ selection: { anchor: lineStart + 6 } });
+    });
+
+    await screen.findByTestId('mobile-wheel-composer');
+    await waitFor(() => {
+      expect(screen.getByTestId('mobile-wheel-slot-1').textContent).toBe('15');
+    });
+
+    // Step to "15", delete it, and undo back
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-wheel-slot-1'));
+    });
+    act(() => {
+      fireEvent.click(screen.getByTestId(TEST_IDS.EDITOR_TOKEN_DELETE_BTN));
+    });
+    expect(view.state.doc.toString()).not.toContain('10:00 15 Kettlebell Swing');
+
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Undo last edit' }));
+    });
+    await waitFor(() => {
+      expect(view!.state.doc.toString()).toContain('10:00 15 Kettlebell Swing');
+    });
+
+    // Enter Type mode and verify persistent Live Token Rail + syntax accessory keys
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-wheel-type-btn'));
+    });
+    const typingBar = screen.getByTestId('mobile-typing-bar');
+    expect(typingBar.textContent).toContain('L2');
+    expect(typingBar.textContent).toContain('Kettlebell Swing');
+
+    const starKey = screen.getByRole('button', { name: 'Insert rest prefix *' });
+    act(() => {
+      fireEvent.click(starKey);
+    });
+    expect(view.state.doc.toString()).toContain('*');
   });
 });

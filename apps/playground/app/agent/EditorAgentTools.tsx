@@ -5,7 +5,11 @@ import { getActiveEditorBridge, type ActiveEditorBridge } from '@/agent/surfaceB
 import { getClockSnapshot } from '@/clock/clockCommands';
 import { recordWebMcpToolInvocation, trackMountedWebMcpTool } from './toolLogStore';
 import { waitForUiCommit } from './uiCommit';
-import { uiEditorDraftSchema, uiStartLiveWorkoutSchema } from './uiToolSpecs';
+import {
+  uiEditorDraftSchema,
+  uiEditorInspectorSchema,
+  uiStartLiveWorkoutSchema,
+} from './uiToolSpecs';
 
 export const EditorAgentTools: React.FC<{ editor: ActiveEditorBridge }> = () => {
   useEffect(() => {
@@ -23,9 +27,17 @@ export const EditorAgentTools: React.FC<{ editor: ActiveEditorBridge }> = () => 
       tier: 1,
       scope: 'editor-ui',
     });
+    const cleanInspector = trackMountedWebMcpTool({
+      name: 'ui_editor_inspector',
+      title: 'Inspect or Control Whiteboard Token Inspector & Drawer',
+      description: 'Inspect cursor-line tokens or control the Option A popover and Option B drawer.',
+      tier: 1,
+      scope: 'editor-ui',
+    });
     return () => {
       cleanDraft();
       cleanStart();
+      cleanInspector();
     };
   }, []);
 
@@ -157,6 +169,66 @@ export const EditorAgentTools: React.FC<{ editor: ActiveEditorBridge }> = () => 
       } catch (err) {
         recordWebMcpToolInvocation({
           toolName: 'ui_start_live_workout',
+          timestamp: Date.now(),
+          durationMs: Math.round(performance.now() - started),
+          ok: false,
+          argsPreview: JSON.stringify(args).slice(0, 120),
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    },
+  });
+
+  useWebMCP({
+    name: 'ui_editor_inspector',
+    title: 'Inspect or Control Whiteboard Token Inspector & Drawer',
+    description:
+      'Read parsed cursor-line tokens and inline lint fixes, open or close the Option A anchored token inspector popover, or toggle the Option B right inspector drawer (`Ctrl+Shift+I`).',
+    inputSchema: uiEditorInspectorSchema,
+    annotations: {
+      title: 'Inspect or Control Token Inspector',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    async execute(args) {
+      const started = performance.now();
+      try {
+        const current = getActiveEditorBridge();
+        if (!current) throw new Error('No Note editor is currently mounted.');
+
+        if (args.action === 'open_popover') {
+          current.openTokenInspector?.({ mode: args.mode, tokenIndex: args.tokenIndex });
+        } else if (args.action === 'close_popover') {
+          current.closeTokenInspector?.();
+        } else if (args.action === 'open_drawer') {
+          current.setInspectorDrawer?.(true);
+          if (args.mode || args.tokenIndex !== undefined) {
+            current.openTokenInspector?.({ mode: args.mode, tokenIndex: args.tokenIndex });
+          }
+        } else if (args.action === 'close_drawer') {
+          current.setInspectorDrawer?.(false);
+        } else if (args.action === 'toggle_drawer') {
+          const prev = current.getInspectorState?.()?.drawerOpen ?? false;
+          current.setInspectorDrawer?.(!prev);
+        }
+
+        await waitForUiCommit();
+        const state = current.getInspectorState?.() ?? null;
+        const res = { ok: true, inspector: state };
+        recordWebMcpToolInvocation({
+          toolName: 'ui_editor_inspector',
+          timestamp: Date.now(),
+          durationMs: Math.round(performance.now() - started),
+          ok: true,
+          argsPreview: JSON.stringify(args).slice(0, 120),
+        });
+        return res;
+      } catch (err) {
+        recordWebMcpToolInvocation({
+          toolName: 'ui_editor_inspector',
           timestamp: Date.now(),
           durationMs: Math.round(performance.now() - started),
           ok: false,

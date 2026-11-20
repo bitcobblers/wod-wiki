@@ -74,12 +74,12 @@ import { sectionGeometry } from '@bitcobblers/wod-wiki-ui/extensions';
 import { linkOpen } from '@bitcobblers/wod-wiki-ui/extensions';
 import { gutterUnified } from '@bitcobblers/wod-wiki-ui/extensions';
 import { lineIdsExtension } from '@bitcobblers/wod-wiki-ui/extensions';
-import { cursorFocusExtension, getCursorFocusState } from "@/app/editor/cursorFocusExtension";
+import { cursorFocusExtension } from "@/app/editor/cursorFocusExtension";
 
 import { createParser } from '@bitcobblers/wod-wiki-engine';
 import type { INotePersistence } from "@/services/persistence";
 import { queryService, onResultSaved } from "@/hooks/useCastSignaling";
-import { createAttachmentUrlExtension, createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, loadReferenceCatalog, resolveNotePersistence, buildNestedCompletionOptions } from "@/app/editor/noteEditorServices";
+import { createAttachmentUrlExtension, createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, createMarkdownProseCompletionSource, loadReferenceCatalog, resolveNotePersistence, buildNestedCompletionOptions } from "@/app/editor/noteEditorServices";
 
 import { entryOpenHref } from '../../../../app/lib/entryActions';
 import { toEntry, blockToEntry } from '../../../../app/lib/entryMapper';
@@ -99,15 +99,27 @@ import { EditorCastBridge } from "@/components/organisms/editor/EditorCastBridge
 import { MetricInlinePanel } from "@/components/organisms/editor/MetricInlinePanel";
 import { MobileWheelComposer } from "@/components/organisms/editor/MobileWheelComposer";
 import { SelectionFormatBar } from "@/components/organisms/editor/SelectionFormatBar";
+import {
+  loadNotebookScopeSnapshot,
+  type NotebookScopeSnapshot,
+} from "@/components/organisms/editor/wheelSources";
+import {
+  extractLineTokens,
+  type EditDiffSummary,
+  type InspectorMode,
+  type InspectorToken,
+  type LineInspection,
+} from "@/components/organisms/editor/whiteboard-inspector/tokenModel";
+import { WhiteboardInspectorPopover } from "@/components/organisms/editor/whiteboard-inspector/WhiteboardInspectorPopover";
+import { WhiteboardInspectorDrawer } from "@/components/organisms/editor/whiteboard-inspector/WhiteboardInspectorDrawer";
 import { v7 as uuidv7 } from "uuid";
 
 import { themeCompartment, languageCompartment, modeCompartment, inputModeCompartment } from "@/components/Editor/compartments";
 
 import type { ScriptBlock } from "@/components/Editor/types";
-import { usePaletteStore } from '@/components/organisms/command-palette/palette-store';
 import { Play, Plus, ExternalLink, Copy, Check } from "lucide-react";
 import { buildHomeShareUrl, buildPlaygroundUrl } from "@/components/atoms/WhiteboardPlaygroundButton";
-import { registerActiveEditorBridge } from "@/agent/surfaceBridges";
+import { registerActiveEditorBridge, type EditorInspectorSnapshot } from "@/agent/surfaceBridges";
 
 export interface NoteEditorProps {
   /** Note ID for result lookup */
@@ -211,6 +223,10 @@ export interface NoteEditorProps {
   activeSectionId?: string | null;
   /** Placeholder text shown when the document is empty */
   placeholder?: string;
+  /** Initial open state for Option B docked inspector drawer (Ctrl+Shift+I). */
+  defaultInspectorDrawerOpen?: boolean;
+  /** Drawer layout mode: viewport-fixed docked right or inline beside the editor. */
+  inspectorDrawerLayout?: "docked-right" | "inline";
 }
 export interface EditorIdentitySnapshot {
   rawContent: string;
@@ -261,7 +277,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   scrollToSectionId,
   results,
   placeholder: placeholderText,
+  defaultInspectorDrawerOpen = false,
+  inspectorDrawerLayout = "docked-right",
 }) => {
+  const editorWrapperRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const defaultNotePersistenceRef = useRef<INotePersistence | null>(null);
@@ -297,6 +316,192 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   );
   const [isWheelOpen, setIsWheelOpen] = useState(false);
   const [isMobileTypingMode, setIsMobileTypingMode] = useState(false);
+
+  // Unified Option A popover & Option B drawer inspector state
+  const [drawerOpen, setDrawerOpen] = useState<boolean>(defaultInspectorDrawerOpen);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [inspectorMode, setInspectorMode] = useState<InspectorMode>("token");
+  const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
+  const [popoverAnchorRect, setPopoverAnchorRect] = useState<DOMRect | null>(null);
+  const [lastEditDiff, setLastEditDiff] = useState<EditDiffSummary | null>(null);
+  const [notebookScope, setNotebookScope] = useState<NotebookScopeSnapshot>({
+    tags: [],
+    defaultEquipment: [],
+    customMetricTypes: [],
+  });
+
+  const liveDocText = viewInstance?.state.doc.toString() ?? value;
+  useEffect(() => {
+    if (readonly) return;
+    let cancelled = false;
+    void loadNotebookScopeSnapshot(noteId, liveDocText).then((snap) => {
+      if (!cancelled) setNotebookScope(snap);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [noteId, liveDocText, readonly]);
+
+  const lineInspection = useMemo<LineInspection>(() => {
+    const v = viewInstance ?? viewRef.current;
+    if (!v) {
+      return {
+        contextKind: "markdown",
+        section: null,
+        focus: null,
+        lineNum: 1,
+        lineFrom: 0,
+        lineTo: 0,
+        lineText: "",
+        tokens: [],
+        lintFixes: [],
+      };
+    }
+    void cursorVersion;
+    return extractLineTokens(v.state);
+  }, [viewInstance, cursorVersion]);
+
+  const activeInspectorToken = useMemo<InspectorToken | null>(() => {
+    if (lineInspection.tokens.length === 0) return null;
+    if (selectedTokenId) {
+      const exact = lineInspection.tokens.find((t) => t.id === selectedTokenId);
+      if (exact) return exact;
+    }
+    const head = (viewInstance ?? viewRef.current)?.state.selection.main.head ?? 0;
+    const atCursor = lineInspection.tokens.find((t) => head >= t.from && head <= t.to);
+    return atCursor ?? lineInspection.tokens[0] ?? null;
+  }, [lineInspection, selectedTokenId, viewInstance]);
+
+  const readonlyRef = useRef(readonly);
+  readonlyRef.current = readonly;
+  const drawerOpenRef = useRef(drawerOpen);
+  drawerOpenRef.current = drawerOpen;
+  const popoverOpenRef = useRef(popoverOpen);
+  popoverOpenRef.current = popoverOpen;
+  const inspectorModeRef = useRef(inspectorMode);
+  inspectorModeRef.current = inspectorMode;
+  const selectedTokenIdRef = useRef(selectedTokenId);
+  selectedTokenIdRef.current = selectedTokenId;
+  const lineInspectionRef = useRef(lineInspection);
+  lineInspectionRef.current = lineInspection;
+
+  const openUnifiedInspector = useCallback(
+    (options?: {
+      mode?: InspectorMode;
+      token?: InspectorToken | null;
+      tokenIndex?: number;
+      anchorRect?: DOMRect | null;
+    }) => {
+      const v = viewRef.current;
+      if (!v || readonlyRef.current) return;
+      const currentInspection = extractLineTokens(v.state);
+      const head = v.state.selection.main.head;
+      let chosenToken: InspectorToken | null = options?.token ?? null;
+      if (!chosenToken && typeof options?.tokenIndex === "number") {
+        chosenToken = currentInspection.tokens[options.tokenIndex] ?? null;
+      }
+      if (!chosenToken) {
+        chosenToken =
+          currentInspection.tokens.find((t) => head >= t.from && head <= t.to) ??
+          currentInspection.tokens[0] ??
+          null;
+      }
+
+      const defaultMode: InspectorMode =
+        options?.mode ??
+        (chosenToken
+          ? "token"
+          : currentInspection.contextKind === "workout"
+            ? "add"
+            : currentInspection.contextKind);
+
+      let rect = options?.anchorRect ?? null;
+      if (!rect) {
+        try {
+          const coords = v.coordsAtPos(chosenToken?.from ?? head);
+          if (coords) {
+            rect = {
+              left: coords.left,
+              top: coords.top,
+              right: coords.right,
+              bottom: coords.bottom,
+              width: Math.max(24, coords.right - coords.left),
+              height: Math.max(20, coords.bottom - coords.top),
+              x: coords.left,
+              y: coords.top,
+              toJSON: () => ({}),
+            } as DOMRect;
+          }
+        } catch {
+          rect = null;
+        }
+      }
+
+      setInspectorMode(defaultMode);
+      setSelectedTokenId(chosenToken?.id ?? null);
+      setPopoverAnchorRect(rect);
+      setPopoverOpen(!drawerOpenRef.current);
+    },
+    [],
+  );
+
+  const openUnifiedInspectorRef = useRef(openUnifiedInspector);
+  openUnifiedInspectorRef.current = openUnifiedInspector;
+
+  const getInspectorSnapshotRef = useRef<() => EditorInspectorSnapshot>(() => ({
+    drawerOpen: drawerOpenRef.current,
+    popoverOpen: popoverOpenRef.current,
+    mode: inspectorModeRef.current,
+    contextKind: lineInspectionRef.current.contextKind,
+    lineNum: lineInspectionRef.current.lineNum,
+    selectedTokenId: selectedTokenIdRef.current,
+    tokens: lineInspectionRef.current.tokens.map((t) => ({
+      id: t.id,
+      kind: t.kind,
+      raw: t.raw,
+      from: t.from,
+      to: t.to,
+    })),
+    lintFixes: lineInspectionRef.current.lintFixes.map((lf) => ({
+      id: lf.id,
+      raw: lf.raw,
+      fixes: lf.fixes,
+    })),
+  }));
+
+  useEffect(() => {
+    if (readonly || isMobileViewport) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      const wrapper = editorWrapperRef.current;
+      const activeEl = document.activeElement;
+      if (wrapper && activeEl && activeEl !== document.body && !wrapper.contains(activeEl)) {
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "i") {
+        event.preventDefault();
+        setDrawerOpen((prev) => {
+          const next = !prev;
+          if (next) setPopoverOpen(false);
+          return next;
+        });
+      } else if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key === ".") {
+        event.preventDefault();
+        openUnifiedInspectorRef.current();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [readonly, isMobileViewport]);
+
+  // Re-measure CodeMirror geometry and inline panel bounds when the drawer opens or closes
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      viewRef.current?.requestMeasure();
+      setCursorVersion((v) => v + 1);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [drawerOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
@@ -437,6 +642,20 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         }
         await handleRun(target, autoStart);
         return { started: true, blockId: target.id };
+      },
+      getInspectorState: () => getInspectorSnapshotRef.current(),
+      setInspectorDrawer: (open: boolean) => {
+        setDrawerOpen(open);
+        if (open) setPopoverOpen(false);
+      },
+      openTokenInspector: (options?: { mode?: string; tokenIndex?: number }) => {
+        openUnifiedInspectorRef.current({
+          mode: options?.mode as InspectorMode | undefined,
+          tokenIndex: options?.tokenIndex,
+        });
+      },
+      closeTokenInspector: () => {
+        setPopoverOpen(false);
       },
     });
   }, [noteId, readonly, sourceRevision, value, onChange, onSaveRequest, onCommitChange, handleRun]);
@@ -635,20 +854,20 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         },
         {
           key: "Ctrl-.",
-          run: (view) => {
-            const focus = getCursorFocusState(view.state);
-            if (!focus?.focusedMetric) return false;
-            const type = focus.focusedMetric.type as string;
-            const numeric = new Set(["duration", "rep", "rounds", "distance", "resistance"]);
-            if (numeric.has(type)) return false;
-
-            // Editor owns the segment loop — palette knows nothing about segments.
-            void import('@/components/organisms/command-palette/palette-store').then(() => {
-              import('@/components/Editor/services/statementBuilderFlow').then(({ runStatementBuilderFlow }) => {
-                void runStatementBuilderFlow(focus, view);
-              }).catch(() => {
-                void usePaletteStore.getState().open({ placeholder: 'Modify metric…', sources: [] });
-              });
+          run: () => {
+            if (readonlyRef.current) return false;
+            openUnifiedInspectorRef.current();
+            return true;
+          },
+        },
+        {
+          key: "Mod-Shift-i",
+          run: () => {
+            if (readonlyRef.current) return false;
+            setDrawerOpen((prev) => {
+              const next = !prev;
+              if (next) setPopoverOpen(false);
+              return next;
             });
             return true;
           },
@@ -694,6 +913,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       // Per-editor completion sources (facet values must ride in
       // baseExtensions to survive the mode-sync reconfigure).
       customCompletionSources.of(frontmatterCompletionSource),
+      customCompletionSources.of(markdownProseCompletionSource),
       nestedCompletionOptions.of(NOTE_NESTED_WQL_OPTIONS),
 
       // Overlay panel for Whiteboard Script blocks
@@ -838,6 +1058,25 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             queueMicrotask(() => {
               if (update.view.state === update.state) startCompletion(update.view);
             });
+          } else if (
+            update.docChanged &&
+            update.transactions.some((transaction) => transaction.isUserEvent("input.type")) &&
+            completionStatus(update.state) === null
+          ) {
+            const { head: triggerHead } = update.state.selection.main;
+            const triggerLine = update.state.doc.lineAt(triggerHead);
+            const before = triggerLine.text.slice(0, triggerHead - triggerLine.from);
+            const curSec = activeCursorSection(update.state);
+            const inWorkout = curSec?.type === "time" || curSec?.type === "log";
+            const triggersWikiOrCue = /(\[\[|\[:)$/.test(before);
+            const triggersTag =
+              /(?:^|\s)#$/.test(before) &&
+              (inWorkout || !/^\s*#$/.test(before));
+            if (triggersWikiOrCue || triggersTag) {
+              queueMicrotask(() => {
+                if (update.view.state === update.state) startCompletion(update.view);
+              });
+            }
           }
           const { head } = update.state.selection.main;
           const line = update.state.doc.lineAt(head);
@@ -1170,87 +1409,180 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     );
   };
 
+  const handleStepInspectorToken = useCallback(
+    (delta: -1 | 1) => {
+      const tokens = lineInspection.tokens;
+      if (tokens.length === 0) return;
+      const currentId = activeInspectorToken?.id;
+      const idx = tokens.findIndex((t) => t.id === currentId);
+      const baseIdx = idx >= 0 ? idx : 0;
+      const nextIdx = (baseIdx + delta + tokens.length) % tokens.length;
+      const nextTok = tokens[nextIdx];
+      if (!nextTok) return;
+      setSelectedTokenId(nextTok.id);
+      const v = viewRef.current;
+      if (v) {
+        v.dispatch({
+          selection: { anchor: nextTok.from, head: nextTok.to },
+          scrollIntoView: true,
+        });
+      }
+    },
+    [lineInspection.tokens, activeInspectorToken],
+  );
+
+  const handleInspectorMutate = useCallback((diff: EditDiffSummary | null) => {
+    if (diff) setLastEditDiff(diff);
+    setCursorVersion((v) => v + 1);
+  }, []);
+
   const mobileDeckPadding =
     isMobileViewport && isWheelOpen && !isMobileTypingMode && !readonly
-      ? "pb-[42dvh]"
+      ? "pb-[48dvh]"
       : "";
+
+  const activeView = viewInstance ?? viewRef.current;
+  const showDesktopInspector = !isMobileViewport && !readonly;
+  const isInlineDrawerActive =
+    showDesktopInspector && inspectorDrawerLayout === "inline" && drawerOpen;
 
   return (
     <>
       {noteId && !fullscreenTimerBlock ? <HaltedRunNotice noteId={noteId} /> : null}
       <div
-        ref={editorRef}
-        className={`cm-note-editor relative w-full min-w-0 ${mobileDeckPadding} ${className}`}
+        ref={editorWrapperRef}
+        className={isInlineDrawerActive ? "flex w-full min-w-0 items-stretch" : "contents"}
       >
-      {enableOverlay && (
-        <OverlayTrack
-          view={viewInstance ?? viewRef.current}
-          widths={overlayState.widths}
-          activeSectionId={effectiveActiveSectionId}
-          renderSlot={renderSlot}
-          cursorLine={cursorLine}
-        />
-      )}
-      {runError && <p role="alert" className="text-sm text-destructive">Workout not started. {runError} Your draft is kept.</p>}
-      {!enableOverlay && effectiveCommands.length > 0 && (
-        <InlineCommandBar
-          view={viewInstance ?? viewRef.current}
-          commands={effectiveCommands}
-        />
-      )}
-      {!readonly && !isMobileViewport && (
-        <SelectionFormatBar
-          view={viewInstance ?? viewRef.current}
-          cursorVersion={cursorVersion}
-        />
-      )}
-      {/* Cursor-focus metric panel — fixed-position chip row below the
-          cursor line inside WOD blocks (ADR-0009). Rendered regardless of
-          enableOverlay: it anchors to the cursor, not a section slot. */}
-      <MetricInlinePanel
-        view={viewInstance ?? viewRef.current}
-        cursorVersion={cursorVersion}
-        hidden={isMobileViewport && isWheelOpen}
-      />
-      {isMobileViewport && !readonly && (
-        <MobileWheelComposer
-          view={viewInstance ?? viewRef.current}
-          noteId={noteId}
-          cursorVersion={cursorVersion}
-          isOpen={isWheelOpen}
-          isTypingMode={isMobileTypingMode}
-          onSwitchToTyping={setIsMobileTypingMode}
-          onClose={() => {
-            setIsWheelOpen(false);
-            setIsMobileTypingMode(false);
-          }}
-        />
-      )}
-        {fullscreenTimerBlock && viewRef.current && (
-          <FullscreenTimer
-            block={fullscreenTimerBlock}
-            view={viewInstance ?? viewRef.current}
-            onClose={handleTimerClose}
-            onCompleteWorkout={handleCompleteWorkout}
-            resultId={fullscreenResultId ?? undefined}
+        <div
+          ref={editorRef}
+          className={`cm-note-editor relative w-full min-w-0 flex-1 ${mobileDeckPadding} ${className}`}
+        >
+          {enableOverlay && (
+            <OverlayTrack
+              view={activeView}
+              widths={overlayState.widths}
+              activeSectionId={effectiveActiveSectionId}
+              renderSlot={renderSlot}
+              cursorLine={cursorLine}
+            />
+          )}
+          {runError && <p role="alert" className="text-sm text-destructive">Workout not started. {runError} Your draft is kept.</p>}
+          {!enableOverlay && effectiveCommands.length > 0 && (
+            <InlineCommandBar
+              view={activeView}
+              commands={effectiveCommands}
+            />
+          )}
+          {!readonly && !isMobileViewport && (
+            <SelectionFormatBar
+              view={activeView}
+              cursorVersion={cursorVersion}
+            />
+          )}
+          {/* Cursor-focus metric panel — Option A token strip anchored below or
+              adjacent to the cursor line inside WOD blocks (ADR-0009). */}
+          <MetricInlinePanel
+            view={activeView}
+            cursorVersion={cursorVersion}
             noteId={noteId}
-            autoStart={autoStartFullscreen}
+            hidden={isMobileViewport && isWheelOpen}
+            activeTokenId={activeInspectorToken?.id ?? null}
+            drawerOpen={drawerOpen}
+            onOpenInspector={(req) => {
+              setInspectorMode(req.mode);
+              setSelectedTokenId(req.token?.id ?? null);
+              setPopoverAnchorRect(req.anchorRect);
+              setPopoverOpen(!drawerOpen);
+            }}
+            onToggleDrawer={() => {
+              setDrawerOpen((prev) => {
+                const next = !prev;
+                if (next) setPopoverOpen(false);
+                return next;
+              });
+            }}
+          />
+          {showDesktopInspector && popoverOpen && !drawerOpen && (
+            <WhiteboardInspectorPopover
+              open={popoverOpen}
+              anchorRect={popoverAnchorRect}
+              editorDom={activeView?.dom ?? null}
+              view={activeView}
+              mode={inspectorMode}
+              inspection={lineInspection}
+              token={activeInspectorToken}
+              scope={notebookScope}
+              docText={liveDocText}
+              onClose={() => setPopoverOpen(false)}
+              onMutate={(diff) => handleInspectorMutate(diff)}
+              onModeChange={setInspectorMode}
+              onStepToken={handleStepInspectorToken}
+              onDockDrawer={() => {
+                setPopoverOpen(false);
+                setDrawerOpen(true);
+              }}
+            />
+          )}
+          {isMobileViewport && !readonly && (
+            <MobileWheelComposer
+              view={activeView}
+              noteId={noteId}
+              cursorVersion={cursorVersion}
+              isOpen={isWheelOpen}
+              isTypingMode={isMobileTypingMode}
+              onSwitchToTyping={setIsMobileTypingMode}
+              onClose={() => {
+                setIsWheelOpen(false);
+                setIsMobileTypingMode(false);
+              }}
+            />
+          )}
+          {fullscreenTimerBlock && viewRef.current && (
+            <FullscreenTimer
+              block={fullscreenTimerBlock}
+              view={activeView}
+              onClose={handleTimerClose}
+              onCompleteWorkout={handleCompleteWorkout}
+              resultId={fullscreenResultId ?? undefined}
+              noteId={noteId}
+              autoStart={autoStartFullscreen}
+            />
+          )}
+
+          <EditorCastBridge
+            sections={sections}
+            isRuntimeActive={fullscreenTimerBlock !== null}
+            editorState={activeView?.state ?? null}
+            onSelectBlock={handleCastSelectBlock}
+          />
+        </div>
+
+        {showDesktopInspector && drawerOpen && (
+          <WhiteboardInspectorDrawer
+            open={drawerOpen}
+            layout={inspectorDrawerLayout}
+            view={activeView}
+            mode={inspectorMode}
+            inspection={lineInspection}
+            token={activeInspectorToken}
+            scope={notebookScope}
+            docText={liveDocText}
+            lastEditDiff={lastEditDiff}
+            onClose={() => setDrawerOpen(false)}
+            onModeChange={setInspectorMode}
+            onMutate={(diff) => handleInspectorMutate(diff)}
+            onStepToken={handleStepInspectorToken}
           />
         )}
-
-        <EditorCastBridge
-          sections={sections}
-          isRuntimeActive={fullscreenTimerBlock !== null}
-          editorState={(viewInstance ?? viewRef.current)?.state ?? null}
-          onSelectBlock={handleCastSelectBlock}
-        />
-
       </div>
     </>
   );
 };
 
 // ---------- Completion wiring (module-level; see note in NoteEditor) ----------
+
+const markdownProseCompletionSource: CustomCompletionSource =
+  createMarkdownProseCompletionSource();
 
 /** Frontmatter tag/reference completions, scoped to leading frontmatter via
  *  the customCompletionSources facet (per editor state — never a global

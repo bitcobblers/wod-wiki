@@ -7,6 +7,7 @@ import type { EditorSection } from '@bitcobblers/wod-wiki-ui/extensions';
 import type { EditorView } from '@codemirror/view';
 import type { EditorState } from '@codemirror/state';
 import { MetricInlinePanel } from './MetricInlinePanel';
+import { TEST_IDS } from '@/lib/testIds';
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store';
 
 function makeStatement(metrics: IMetric[]): ICodeStatement {
@@ -278,7 +279,7 @@ describe('MetricInlinePanel chip focus, hover, and palette click', () => {
     expect(repChip.getAttribute('title')).toContain('Value: 10');
   });
 
-  it('opens the statement-builder palette on the clicked segment', async () => {
+  it('opens the unified syntax token inspector popover on chip click', async () => {
     const weight = { type: MetricType.Resistance, value: '20kg', origin: 'parser' } as IMetric;
     renderPanel([weight], null, {
       state: { doc: { sliceString: () => '10 burpees 20kg' } },
@@ -286,12 +287,14 @@ describe('MetricInlinePanel chip focus, hover, and palette click', () => {
 
     fireEvent.click(screen.getByText('Weight').parentElement!);
 
-    await waitFor(() => expect(usePaletteStore.getState().isOpen).toBe(true));
-    const request = usePaletteStore.getState().request;
-    expect(request?.sources[0]?.id).toBe('segment:weight');
-    expect(request?.placeholder).toContain('load');
+    const popover = await screen.findByTestId(TEST_IDS.EDITOR_INSPECTOR_POPOVER);
+    expect(popover).toBeDefined();
+    expect(popover.getAttribute('aria-label')).toBe('Syntax Token Inspector');
 
-    usePaletteStore.getState()._dismiss();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByTestId(TEST_IDS.EDITOR_INSPECTOR_POPOVER)).toBeNull();
+    });
   });
 
   it('surfaces inline creation actions for unknown effort and unresolved #tag tokens', () => {
