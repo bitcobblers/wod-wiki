@@ -22,9 +22,9 @@ export function SearchFab({ onOpen }: SearchFabProps) {
       title="Search"
       data-testid="search-fab"
       className={cn(
-        'size-14 rounded-full flex items-center justify-center',
-        'bg-primary text-primary-foreground shadow-lg',
-        'hover:bg-primary/90 active:scale-95 transition-all',
+        'size-12 rounded-full flex items-center justify-center',
+        'bg-card text-foreground shadow-lg ring-1 ring-foreground/10',
+        'hover:bg-muted active:scale-95 transition-all',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
       )}
     >

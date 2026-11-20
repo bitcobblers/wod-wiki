@@ -81,7 +81,7 @@ export function DashboardsNavPanel({ itemsOverride, ..._props }: NavPanelProps &
 
       {onExplorer && (
         <>
-          <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
+          <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-3">
             Examples
           </div>
           {EXAMPLE_QUERIES.map((ex) => (
@@ -101,23 +101,23 @@ export function DashboardsNavPanel({ itemsOverride, ..._props }: NavPanelProps &
 
       {loading ? (
         <>
-          <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
+          <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-3">
             Dashboards
           </div>
-          <div className="px-3 py-2 text-xs text-muted-foreground/60">Loading…</div>
+          <div className="px-3 py-2 text-xs text-muted-foreground">Loading…</div>
         </>
       ) : items.length === 0 ? (
         <>
-          <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
+          <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-3">
             Saved dashboards
           </div>
-          <div className="px-3 py-2 text-xs text-muted-foreground/60">No dashboards yet.</div>
+          <div className="px-3 py-2 text-xs text-muted-foreground">No dashboards yet.</div>
         </>
       ) : (
         <>
           {savedDashboards.length > 0 && (
             <div className="flex flex-col gap-0.5" data-testid="dashboards-nav-saved">
-              <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
+              <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-3">
                 Saved dashboards
               </div>
               {savedDashboards.map((d) => (
@@ -137,7 +137,7 @@ export function DashboardsNavPanel({ itemsOverride, ..._props }: NavPanelProps &
 
           {prebuiltDashboards.length > 0 && (
             <div className="flex flex-col gap-0.5" data-testid="dashboards-nav-prebuilt">
-              <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3">
+              <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-3">
                 Prebuilt
               </div>
               {prebuiltDashboards.map((d) => (
@@ -207,7 +207,7 @@ function NavRow({
       />
       <span className="truncate">{label}</span>
       {badge && (
-        <span className="ml-auto text-[9px] font-bold uppercase tracking-wide text-muted-foreground/50 shrink-0">
+        <span className="ml-auto text-[9px] font-bold uppercase tracking-wide text-muted-foreground shrink-0">
           {badge}
         </span>
       )}

@@ -12,7 +12,8 @@
  *    onQueryChange.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
+import { EditorView } from '@codemirror/view'
 import { MemoryRouter } from 'react-router-dom'
 import { StreamQueryBar } from './StreamQueryBar'
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
@@ -48,15 +49,19 @@ describe('StreamQueryBar', () => {
   it('hosts the shared composer — no separate scope dropdown or draft input', () => {
     render(<Bar />)
     expect(screen.getByTestId('stream-query-bar')).toBeDefined()
-    expect(screen.getByPlaceholderText('Filter or search…')).toBeDefined()
+    expect(screen.getByTestId('token-slot-source')).toBeDefined()
+    expect(screen.getByTestId('wql-scope-toggle')).toBeDefined()
     expect(screen.queryByRole('menu')).toBeNull()
     expect(screen.queryByTestId('stream-query-type')).toBeNull()
   })
 
   it('emits the resolved query synchronously when a filter fragment is typed', () => {
     render(<Bar />)
-    const input = screen.getByPlaceholderText('Filter or search…')
-    fireEvent.change(input, { target: { value: 'tags:strength' } })
+    fireEvent.click(screen.getByTestId('wql-scope-toggle'))
+    const cm = EditorView.findFromDOM(screen.getByTestId('wql-text-input'))!
+    act(() => {
+      cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: ':note{source:journal,tags:strength} last 2w' } })
+    })
     // Same parsing as the dialog: the fragment becomes a real clause while
     // the scope filter and window survive untouched.
     expect(lastQuery).toContain('tags:strength')
@@ -66,8 +71,11 @@ describe('StreamQueryBar', () => {
 
   it('emits invalid text unchanged — no parse attempt, no default pills', () => {
     render(<Bar />)
-    const input = screen.getByPlaceholderText('Filter or search…')
-    fireEvent.change(input, { target: { value: ':note{oops' } })
+    fireEvent.click(screen.getByTestId('wql-scope-toggle'))
+    const cm = EditorView.findFromDOM(screen.getByTestId('wql-text-input'))!
+    act(() => {
+      cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: ':note{oops' } })
+    })
     expect(lastQuery).toBe(':note{oops')
   })
 
@@ -79,15 +87,18 @@ describe('StreamQueryBar', () => {
 
   it('compact variant summarizes the query and opens the palette on tap', () => {
     render(<Bar compact />)
-    expect(screen.getByTestId('stream-query-summary').textContent).toBe(
-      ':note{source:journal,text:"deadlift"} last 2w',
-    )
+    const summary = screen.getByTestId('stream-query-summary')
+    expect(summary.textContent).toBe('Journal · "deadlift" · Last 2w')
+    expect(summary.getAttribute('data-wql')).toBe(':note{source:journal,text:"deadlift"} last 2w')
     fireEvent.click(screen.getByTestId('stream-query-bar'))
     expect(usePaletteStore.getState().isOpen).toBe(true)
+    expect(usePaletteStore.getState().request?.wql?.hideResults).toBe(true)
   })
 
   it('compact dock summarizes the route default when the draft is empty', () => {
     render(<Bar compact query="" defaultQuery=":note{source:journal} last 2w" />)
-    expect(screen.getByTestId('stream-query-summary').textContent).toBe(':note{source:journal} last 2w')
+    const summary = screen.getByTestId('stream-query-summary')
+    expect(summary.textContent).toBe('Journal · Last 2w')
+    expect(summary.getAttribute('data-wql')).toBe(':note{source:journal} last 2w')
   })
 })

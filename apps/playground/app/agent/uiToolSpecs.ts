@@ -160,6 +160,45 @@ export const uiSetExplorerQuerySchema = z.strictObject({
     .describe('Open the surface query settings dialog on `/dashboards`.'),
 });
 
+export const uiEditorInspectorSchema = z.strictObject({
+  action: z
+    .enum(['get_state', 'open_popover', 'close_popover', 'open_drawer', 'close_drawer', 'toggle_drawer'])
+    .describe('Inspect cursor line tokens & lint fixes, open/close the anchored Option A popover, or toggle the Option B right inspector drawer.'),
+  mode: z
+    .enum(['token', 'add', 'block', 'wiki', 'prose-tag', 'query', 'markdown'])
+    .optional()
+    .describe('Optional inspector view mode when opening the popover or drawer.'),
+  tokenIndex: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Zero-based index of the token on the current cursor line to target.'),
+});
+
+export const uiResultsControlSchema = z.strictObject({
+  activeTab: z
+    .enum(['splits', 'movement', 'compare', 'raw'])
+    .optional()
+    .describe('Switch the active results workbook tab.'),
+  mobileViewMode: z
+    .enum(['grid', 'cards'])
+    .optional()
+    .describe('Switch the mobile results presentation mode (`grid` or `cards`).'),
+  sourceDrawerOpen: z
+    .boolean()
+    .optional()
+    .describe('Open or close the Pinned Workout Source & History drawer.'),
+  openAddToDashboard: z
+    .boolean()
+    .optional()
+    .describe('Open the 2-step Add to Dashboard promotion sheet for the session.'),
+  closeModals: z
+    .boolean()
+    .optional()
+    .describe('Close any open source drawer or dashboard dialog on the results workbench.'),
+});
+
 export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
   return [
     {
@@ -260,6 +299,28 @@ export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
       mountScope: 'mounted Metric Explorer route (/dashboards)',
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: zodSchemaToJsonSchema(uiSetExplorerQuerySchema),
+    },
+    {
+      name: 'ui_editor_inspector',
+      title: 'Inspect or Control Whiteboard Token Inspector & Drawer',
+      description:
+        'Read parsed cursor-line tokens and inline lint fixes, open or close the Option A anchored token inspector popover (`Alt+.`), or toggle the Option B right inspector drawer (`Ctrl+Alt+I` / `Cmd+Alt+I`).',
+      tier: 1,
+      surfaces: ['webmcp'],
+      mountScope: 'mounted Note editor (NoteEditor)',
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      inputSchema: zodSchemaToJsonSchema(uiEditorInspectorSchema),
+    },
+    {
+      name: 'ui_results_control',
+      title: 'Control Session Results Workbench',
+      description:
+        'Switch workbook tabs (`splits`, `movement`, `compare`, `raw`), mobile layout (`grid`, `cards`), or open the Source & History drawer and Add-to-Dashboard promotion sheet on `/results/:sessionId`.',
+      tier: 1,
+      surfaces: ['webmcp'],
+      mountScope: 'mounted session results workbench (/results/:sessionId)',
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      inputSchema: zodSchemaToJsonSchema(uiResultsControlSchema),
     },
     ...agentTools.map(
       (tool): AgentUiToolManifestEntry => ({

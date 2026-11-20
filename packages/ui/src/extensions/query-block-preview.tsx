@@ -7,13 +7,42 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { sectionField, type EditorSection } from "./section-state";
 import { setEditorFocused } from "./editor-focus";
+import type { EventRecord, Note } from "@bitcobblers/wod-wiki-core";
 import { resolveQueryExecutionScope } from "@bitcobblers/wod-wiki-wql";
 import { QueryBlockView } from "../blocks/QueryBlockView";
+import type { SessionActionContext } from "../blocks/SessionSummaryCard";
 import type { InlineMetricEditPayload } from "../widgets/OutputStatementsTable";
 import type { QueryExecutor } from "../contracts/query";
 import { patchBlockQuery } from "../utils/blockQueryPatcher";
 
 type Root = { render: (c: React.ReactNode) => void; unmount: () => void };
+
+const queryRoots = new WeakMap<HTMLElement, Root>();
+const pendingQueryUnmounts = new WeakMap<HTMLElement, number>();
+
+function getOrCreateRoot(container: HTMLElement): Root {
+  pendingQueryUnmounts.set(container, (pendingQueryUnmounts.get(container) ?? 0) + 1);
+  const existing = queryRoots.get(container);
+  if (existing) return existing;
+  const root = createRoot(container) as Root;
+  queryRoots.set(container, root);
+  return root;
+}
+
+function scheduleRootUnmount(dom: HTMLElement, expectedRoot: Root): void {
+  const token = (pendingQueryUnmounts.get(dom) ?? 0) + 1;
+  pendingQueryUnmounts.set(dom, token);
+  queueMicrotask(() => {
+    if (pendingQueryUnmounts.get(dom) !== token) return;
+    if (queryRoots.get(dom) !== expectedRoot) return;
+    queryRoots.delete(dom);
+    try {
+      expectedRoot.unmount();
+    } catch {
+      // Ignore errors if already unmounted or cleaned up by CodeMirror
+    }
+  });
+}
 
 export const setQuerySourceEditing = StateEffect.define<{
   sectionId: string;
@@ -81,6 +110,9 @@ export interface QueryBlockPreviewOptions {
   onEditMetric?: (resultId: string, payload: InlineMetricEditPayload) => void | Promise<void>;
   onOpenNote?: (item: { id: string; title?: string; blockContentId?: string }) => void;
   noteHref?: (item: { id: string; title?: string; blockContentId?: string }) => string;
+  onOpenResults?: (ctx: SessionActionContext) => void;
+  onAddToDashboard?: (ctx?: SessionActionContext) => void;
+  pageSources?: ReadonlyMap<string, { events: EventRecord[]; notes: Note[] }>;
   tokenValues?: Record<string, string>;
   noteId?: string;
 }
@@ -114,7 +146,10 @@ class ReactQueryBlock extends WidgetType {
       this.options?.readOnly === other.options?.readOnly &&
       this.options?.executor === other.options?.executor &&
       this.options?.onOpenNote === other.options?.onOpenNote &&
-      this.options?.noteHref === other.options?.noteHref
+      this.options?.noteHref === other.options?.noteHref &&
+      this.options?.onOpenResults === other.options?.onOpenResults &&
+      this.options?.onAddToDashboard === other.options?.onAddToDashboard &&
+      this.options?.pageSources === other.options?.pageSources
     );
   }
 
@@ -180,6 +215,9 @@ class ReactQueryBlock extends WidgetType {
         onEditMetric={this.options?.onEditMetric}
         onOpenNote={this.options?.onOpenNote}
         noteHref={this.options?.noteHref}
+        onOpenResults={this.options?.onOpenResults}
+        onAddToDashboard={this.options?.onAddToDashboard}
+        pageSources={this.options?.pageSources}
       />,
     );
   }
@@ -189,27 +227,27 @@ class ReactQueryBlock extends WidgetType {
     // Padding (never exterior margin) keeps CodeMirror's height map exact.
     container.className = "cm-query-block-preview py-1.5";
     this.container = container;
-    const root = createRoot(container) as Root;
+    const root = getOrCreateRoot(container);
     this.root = root;
     this.renderInto(root, view);
     return container;
   }
 
-  updateDOM(_dom: HTMLElement, view: EditorView): boolean {
-    if (!this.root) return false;
-    this.renderInto(this.root, view);
+  updateDOM(dom: HTMLElement, view: EditorView): boolean {
+    const root = getOrCreateRoot(dom);
+    this.container = dom;
+    this.root = root;
+    this.renderInto(root, view);
     return true;
   }
 
-  destroy(): void {
-    if (this.root) {
-      setTimeout(() => {
-        try {
-          this.root?.unmount();
-        } catch {
-          // unmount
-        }
-      }, 0);
+  destroy(dom?: HTMLElement): void {
+    const targetDom = dom ?? this.container;
+    const r = this.root;
+    this.root = null;
+    this.container = null;
+    if (targetDom && r) {
+      scheduleRootUnmount(targetDom, r);
     }
   }
 

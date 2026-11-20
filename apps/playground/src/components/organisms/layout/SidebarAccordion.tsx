@@ -56,7 +56,7 @@ export function SidebarAccordion({
   const button = (
     <CollapsibleTrigger
       className={clsx(
-        'group flex h-auto border-0 bg-transparent rounded-none items-center gap-1 px-2 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/80 hover:text-primary transition-colors',
+        'group flex h-auto max-lg:min-h-11 border-0 bg-transparent rounded-none items-center gap-1 px-2 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/80 hover:text-primary transition-colors',
         trailing ? 'min-w-0 flex-1' : 'w-full',
         buttonClassName,
         sticky && !trailing && STICKY_HEADER,

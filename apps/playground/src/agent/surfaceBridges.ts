@@ -2,6 +2,17 @@ import { useSyncExternalStore } from 'react';
 import type { EditorView } from '@codemirror/view';
 import type { ScriptBlock } from '@/components/Editor/types';
 
+export interface EditorInspectorSnapshot {
+  drawerOpen: boolean;
+  popoverOpen: boolean;
+  mode: string;
+  contextKind: 'workout' | 'query' | 'markdown';
+  lineNum: number;
+  selectedTokenId: string | null;
+  tokens: Array<{ id: string; kind: string; raw: string; from: number; to: number }>;
+  lintFixes: Array<{ id: string; raw: string; fixes: string[] }>;
+}
+
 export interface ActiveEditorBridge {
   noteId?: string;
   readonly: boolean;
@@ -16,6 +27,10 @@ export interface ActiveEditorBridge {
     blockId?: string;
     error?: string;
   }>;
+  getInspectorState?: () => EditorInspectorSnapshot;
+  setInspectorDrawer?: (open: boolean) => void;
+  openTokenInspector?: (options?: { mode?: string; tokenIndex?: number }) => void;
+  closeTokenInspector?: () => void;
 }
 
 export interface ActiveStreamBridge {
@@ -42,6 +57,19 @@ export interface ActiveExplorerBridge {
   setWeeks: (weeks: 4 | 8 | 16) => void;
   openSaveDialog: () => void;
   openQuerySettings: () => void;
+}
+
+export interface ActiveResultsBridge {
+  resultId: string;
+  activeTab: 'splits' | 'movement' | 'compare' | 'raw';
+  mobileViewMode: 'grid' | 'cards';
+  sourceDrawerOpen: boolean;
+  addToDashboardOpen: boolean;
+  setTab: (tab: 'splits' | 'movement' | 'compare' | 'raw') => void;
+  setMobileViewMode: (mode: 'grid' | 'cards') => void;
+  openSourceDrawer: (open?: boolean) => void;
+  openAddToDashboard: () => void;
+  closeModals: () => void;
 }
 
 let currentEditor: ActiveEditorBridge | null = null;
@@ -129,6 +157,35 @@ export function subscribeActiveExplorerBridge(listener: () => void): () => void 
 
 export function useActiveExplorerBridge(): ActiveExplorerBridge | null {
   return useSyncExternalStore(subscribeActiveExplorerBridge, getActiveExplorerBridge, () => null);
+}
+
+let currentResults: ActiveResultsBridge | null = null;
+const resultsListeners = new Set<() => void>();
+
+export function registerActiveResultsBridge(bridge: ActiveResultsBridge): () => void {
+  currentResults = bridge;
+  for (const l of resultsListeners) l();
+  return () => {
+    if (currentResults === bridge) {
+      currentResults = null;
+      for (const l of resultsListeners) l();
+    }
+  };
+}
+
+export function getActiveResultsBridge(): ActiveResultsBridge | null {
+  return currentResults;
+}
+
+export function subscribeActiveResultsBridge(listener: () => void): () => void {
+  resultsListeners.add(listener);
+  return () => {
+    resultsListeners.delete(listener);
+  };
+}
+
+export function useActiveResultsBridge(): ActiveResultsBridge | null {
+  return useSyncExternalStore(subscribeActiveResultsBridge, getActiveResultsBridge, () => null);
 }
 
 let busyCounter = 0;

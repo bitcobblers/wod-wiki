@@ -36,6 +36,7 @@ export const StackedBarSection: Story = sectionStory('stacked-bar');
 export const GoalRingsSection: Story = sectionStory('goal-rings');
 export const ZoneDistributionSection: Story = sectionStory('zone-distribution');
 export const TableSection: Story = sectionStory('table');
+export const SummarySection: Story = sectionStory('summary');
 export const RowsFindSection: Story = sectionStory('rows');
 export const FindSection: Story = sectionStory('find');
 export const EdgeStatesSection: Story = sectionStory('edge');

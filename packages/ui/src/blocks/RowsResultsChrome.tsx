@@ -10,14 +10,13 @@ import {
 import type { QueryExecutor } from '../contracts/query';
 import { RowsTable } from '../widgets/RowsTable';
 import { PRBadge } from '../widgets/PRBadge';
+import { RpePopoverControl, type SessionActionContext } from './SessionSummaryCard';
 import type {
   InlineMetricEditPayload,
   RowPrHighlight,
   SessionTableSortSpec,
 } from '../widgets/OutputStatementsTable';
 import { cn } from '../utils/cn';
-
-const RPE_SCALE = Array.from({ length: 10 }, (_, i) => i + 1);
 
 export function readSessionRpe(events: EventRecord[] | undefined): number | undefined {
   if (!events) return undefined;
@@ -146,6 +145,10 @@ export interface RowsResultsChromeProps {
   limit?: number;
   /** Enable/disable historical PR badge comparison (defaults to true). */
   comparePr?: boolean;
+  /** Optional handler to open full spreadsheet results for this session. */
+  onOpenResults?: (ctx: SessionActionContext) => void;
+  /** Optional handler to add this session to a dashboard. */
+  onAddToDashboard?: (ctx: SessionActionContext) => void;
 }
 
 function RpeChip({
@@ -160,113 +163,28 @@ function RpeChip({
   onCapture: (rpe: number) => Promise<void>;
 }) {
   const value = readSessionRpe(events);
-  const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState(false);
-
-  if (readOnly) {
-    return value !== undefined ? (
-      <span className="text-[10px] font-mono text-muted-foreground" data-testid={`rpe-readonly-${resultId}`}>
-        RPE {value}
-      </span>
-    ) : null;
-  }
-
-  const pick = async (rpe: number) => {
-    setPending(true);
-    try {
-      await onCapture(rpe);
-      setOpen(false);
-    } finally {
-      setPending(false);
-    }
-  };
-
   return (
-    <span className="inline-flex items-center gap-1" data-testid={`rpe-chip-${resultId}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          'text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors',
-          value !== undefined
-            ? 'border-border text-foreground hover:border-primary'
-            : 'border-dashed border-muted-foreground/50 text-muted-foreground hover:text-foreground hover:border-primary',
-        )}
-        title={value !== undefined ? 'Update session RPE' : 'Rate this session’s effort'}
-      >
-        {value !== undefined ? `RPE ${value}` : 'RPE —'}
-      </button>
-      {open && (
-        <span className="inline-flex gap-0.5" data-testid={`rpe-scale-${resultId}`}>
-          {RPE_SCALE.map((rpe) => (
-            <button
-              key={rpe}
-              type="button"
-              disabled={pending}
-              onClick={() => void pick(rpe)}
-              aria-label={`RPE ${rpe}`}
-              className={cn(
-                'h-5 min-w-[1.25rem] px-0.5 text-[10px] font-medium rounded border border-border',
-                rpe === value && 'bg-primary text-primary-foreground',
-                rpe <= 3 && 'hover:bg-rpe-easy/15 hover:text-rpe-easy',
-                rpe > 3 && rpe <= 6 && 'hover:bg-rpe-moderate/15 hover:text-rpe-moderate',
-                rpe > 6 && rpe <= 8 && 'hover:bg-rpe-hard/15 hover:text-rpe-hard',
-                rpe > 8 && 'hover:bg-rpe-max/15 hover:text-rpe-max',
-              )}
-            >
-              {rpe}
-            </button>
-          ))}
-        </span>
-      )}
-    </span>
+    <RpePopoverControl
+      rpe={value ?? null}
+      resultId={resultId}
+      readOnly={readOnly}
+      onChange={onCapture}
+    />
   );
 }
 
-export function RowsResultsChrome({
-  resultId,
-  sessionResult,
-  executor,
-  onCaptureRpe,
-  onEditMetric,
-  onCaptured,
-  columns,
-  sort,
-  limit,
-  comparePr = true,
-}: RowsResultsChromeProps) {
-  const [widened, setWidened] = useState(false);
+export function useSessionPrHighlights(
+  sessionRun: RowsRun | undefined,
+  blockContentId: string | undefined,
+  executor: QueryExecutor | undefined,
+  enabled: boolean,
+  retainHistory = false,
+): { wideResult: RowsQueryResult | undefined; prHighlights: Map<string | number, RowPrHighlight> | undefined } {
   const [wideResult, setWideResult] = useState<RowsQueryResult | undefined>(undefined);
 
-  const sessionRun = sessionResult.runs[0];
-  const blockContentId = sessionRun?.events[0]?.blockContentId;
-
-  const handleCapture = useCallback(
-    async (rpe: number) => {
-      if (onCaptureRpe) {
-        await onCaptureRpe(resultId, rpe);
-      }
-      onCaptured?.();
-    },
-    [resultId, onCaptureRpe, onCaptured],
-  );
-
-  const handleInlineEdit = useCallback(
-    async (targetResultId: string, payload: InlineMetricEditPayload) => {
-      if (!onEditMetric) return;
-      await onEditMetric(targetResultId, payload);
-      onCaptured?.();
-    },
-    [onEditMetric, onCaptured],
-  );
-
-  // Fetch block history whenever widened OR PR comparison is active so both
-  // "All versions (N)" and PRBadge share one lightweight query.
-  const shouldLoadHistory = Boolean(blockContentId && executor && (widened || comparePr));
-
   useEffect(() => {
-    if (!shouldLoadHistory || !blockContentId || !executor) {
-      if (!widened) setWideResult(undefined);
+    if (!enabled || !blockContentId || !executor) {
+      if (!retainHistory) setWideResult(undefined);
       return;
     }
     let cancelled = false;
@@ -294,11 +212,63 @@ export function RowsResultsChrome({
     return () => {
       cancelled = true;
     };
-  }, [shouldLoadHistory, widened, blockContentId, executor, sessionRun?.events]);
+  }, [enabled, retainHistory, blockContentId, executor, sessionRun?.events]);
 
   const prHighlights = useMemo(
-    () => (comparePr ? computeSessionPrHighlights(sessionRun, wideResult?.runs) : undefined),
-    [comparePr, sessionRun, wideResult?.runs],
+    () => (enabled ? computeSessionPrHighlights(sessionRun, wideResult?.runs) : undefined),
+    [enabled, sessionRun, wideResult?.runs],
+  );
+
+  return { wideResult, prHighlights };
+}
+
+export function RowsResultsChrome({
+  resultId,
+  sessionResult,
+  executor,
+  onCaptureRpe,
+  onEditMetric,
+  onCaptured,
+  columns,
+  sort,
+  limit,
+  comparePr = true,
+  onOpenResults,
+  onAddToDashboard,
+}: RowsResultsChromeProps) {
+  const [widened, setWidened] = useState(false);
+
+  const sessionRun = sessionResult.runs[0];
+  const blockContentId = sessionRun?.events.find((e) => e.blockContentId)?.blockContentId;
+
+  const handleCapture = useCallback(
+    async (rpe: number) => {
+      if (onCaptureRpe) {
+        await onCaptureRpe(resultId, rpe);
+      }
+      onCaptured?.();
+    },
+    [resultId, onCaptureRpe, onCaptured],
+  );
+
+  const handleInlineEdit = useCallback(
+    async (targetResultId: string, payload: InlineMetricEditPayload) => {
+      if (!onEditMetric) return;
+      await onEditMetric(targetResultId, payload);
+      onCaptured?.();
+    },
+    [onEditMetric, onCaptured],
+  );
+
+  // Fetch block history whenever widened OR PR comparison is active so both
+  // "All versions (N)" and PRBadge share one lightweight query.
+  const shouldLoadHistory = Boolean(blockContentId && executor && (widened || comparePr));
+  const { wideResult, prHighlights } = useSessionPrHighlights(
+    sessionRun,
+    blockContentId,
+    executor,
+    shouldLoadHistory,
+    widened,
   );
 
   const displayedResult = widened && wideResult ? wideResult : sessionResult;
@@ -349,11 +319,44 @@ export function RowsResultsChrome({
         <div className="flex items-center gap-3">
           <a
             href={`/results/${encodeURIComponent(resultId)}`}
+            onClick={
+              onOpenResults
+                ? (e) => {
+                    e.preventDefault();
+                    onOpenResults({
+                      resultId,
+                      noteId: sessionRun?.noteId,
+                      noteTitle: sessionRun?.summary?.noteTitle,
+                      blockContentId: sessionRun?.summary?.blockContentId ?? blockContentId,
+                      notebooks: sessionRun?.summary?.notebooks,
+                      summary: sessionRun?.summary,
+                    });
+                  }
+                : undefined
+            }
             className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-0.5"
             data-testid="view-in-results-link"
           >
             View in Results &rarr;
           </a>
+          {onAddToDashboard && (
+            <button
+              type="button"
+              onClick={() =>
+                onAddToDashboard({
+                  resultId,
+                  noteId: sessionRun?.noteId,
+                  noteTitle: sessionRun?.summary?.noteTitle,
+                  blockContentId: sessionRun?.summary?.blockContentId ?? blockContentId,
+                  notebooks: sessionRun?.summary?.notebooks,
+                  summary: sessionRun?.summary,
+                })
+              }
+              className="text-[11px] font-medium text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+            >
+              Add to Dashboard
+            </button>
+          )}
           <RpeChip
             resultId={resultId}
             events={sessionRun?.events}

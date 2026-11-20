@@ -73,6 +73,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
     "intensity",
     "grade",
     "note",
+    "notebook",
     "page",
     "origin",
     "grain",
@@ -86,7 +87,10 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
     "week",
     "month",
     "session",
-    "round"
+    "round",
+    "split",
+    "attempt",
+    "notebook"
   ],
   "contentGroupingDimensions": [
     "date",
@@ -161,6 +165,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "discipline",
       "intensity",
       "grade",
+      "notebook",
       "page",
       "origin",
       "grain",
@@ -177,6 +182,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "intensity",
       "grade",
       "note",
+      "notebook",
       "page",
       "origin",
       "grain",
@@ -196,6 +202,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "intensity",
       "grade",
       "note",
+      "notebook",
       "page",
       "origin",
       "grain",
@@ -1108,7 +1115,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
 
 ---
 
-## Live Browser UI Tools (12 tools — Playground WebMCP only)
+## Live Browser UI Tools (14 tools — Playground WebMCP only)
 
 ### `ui_get_view_context` (Tier 0 — WebMCP UI)
 - **Title**: Get Active UI View Context
@@ -1453,6 +1460,100 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
     },
     "openQuerySettings": {
       "description": "Open the surface query settings dialog on `/dashboards`.",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### `ui_editor_inspector` (Tier 1 — WebMCP UI)
+- **Title**: Inspect or Control Whiteboard Token Inspector & Drawer
+- **Mount Scope**: mounted Note editor (NoteEditor)
+- **Description**: Read parsed cursor-line tokens and inline lint fixes, open or close the Option A anchored token inspector popover (`Alt+.`), or toggle the Option B right inspector drawer (`Ctrl+Alt+I` / `Cmd+Alt+I`).
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "get_state",
+        "open_popover",
+        "close_popover",
+        "open_drawer",
+        "close_drawer",
+        "toggle_drawer"
+      ],
+      "description": "Inspect cursor line tokens & lint fixes, open/close the anchored Option A popover, or toggle the Option B right inspector drawer."
+    },
+    "mode": {
+      "description": "Optional inspector view mode when opening the popover or drawer.",
+      "type": "string",
+      "enum": [
+        "token",
+        "add",
+        "block",
+        "wiki",
+        "prose-tag",
+        "query",
+        "markdown"
+      ]
+    },
+    "tokenIndex": {
+      "description": "Zero-based index of the token on the current cursor line to target.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `ui_results_control` (Tier 1 — WebMCP UI)
+- **Title**: Control Session Results Workbench
+- **Mount Scope**: mounted session results workbench (/results/:sessionId)
+- **Description**: Switch workbook tabs (`splits`, `movement`, `compare`, `raw`), mobile layout (`grid`, `cards`), or open the Source & History drawer and Add-to-Dashboard promotion sheet on `/results/:sessionId`.
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "activeTab": {
+      "description": "Switch the active results workbook tab.",
+      "type": "string",
+      "enum": [
+        "splits",
+        "movement",
+        "compare",
+        "raw"
+      ]
+    },
+    "mobileViewMode": {
+      "description": "Switch the mobile results presentation mode (`grid` or `cards`).",
+      "type": "string",
+      "enum": [
+        "grid",
+        "cards"
+      ]
+    },
+    "sourceDrawerOpen": {
+      "description": "Open or close the Pinned Workout Source & History drawer.",
+      "type": "boolean"
+    },
+    "openAddToDashboard": {
+      "description": "Open the 2-step Add to Dashboard promotion sheet for the session.",
+      "type": "boolean"
+    },
+    "closeModals": {
+      "description": "Close any open source drawer or dashboard dialog on the results workbench.",
       "type": "boolean"
     }
   },

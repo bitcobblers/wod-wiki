@@ -68,6 +68,7 @@ function DrawerApplyFooter() {
 }
 
 function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChildren<{ open: boolean; close: () => void; onSearch?: () => void }>) {
+  const navBodyRef = useRef<HTMLDivElement>(null)
   return (
     <Drawer
       side="start"
@@ -78,15 +79,16 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
     >
       <DrawerBackdrop className="bg-black/30 dark:bg-black/30 transition-none data-[closed]:hidden lg:hidden" />
       <DrawerContent
-        initialFocus="content"
+        initialFocus={() => navBodyRef.current}
         data-testid={TEST_IDS.MOBILE_NAV_DRAWER}
         className="w-full max-w-none h-dvh max-h-dvh p-0 gap-0 rounded-none border-0 bg-card transition-none data-[closed]:hidden lg:hidden"
       >
         <DrawerTitle className="sr-only">Navigation</DrawerTitle>
         <NavigationDrawerProvider close={close}>
           <div className="flex h-full min-h-0 bg-card">
-            <div className="flex h-full w-14 shrink-0 flex-col items-center border-r border-zinc-950/5 bg-background/72 py-3 dark:border-white/5 [&_a]:size-11 [&_button]:size-11">
+            <div className="flex h-full w-[156px] sm:w-44 shrink-0 flex-col overflow-y-auto border-r border-zinc-950/5 bg-background/72 px-2 py-3 dark:border-white/5">
               <AppRail
+                variant="mobile-list"
                 onSearch={() => {
                   close()
                   onSearch?.()
@@ -94,7 +96,7 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
               />
             </div>
             <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex items-center px-4 pt-3">
+              <div className="flex items-center justify-end px-3 pt-3">
                 <DrawerClose
                   render={
                     <NavbarItem
@@ -107,7 +109,7 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
                   <CloseMenuIcon />
                 </DrawerClose>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col">
+              <div ref={navBodyRef} tabIndex={-1} className="flex min-h-0 flex-1 flex-col outline-none">
                 {children}
               </div>
               <DrawerApplyFooter />
@@ -119,7 +121,13 @@ function MobileSidebar({ open, close, onSearch, children }: React.PropsWithChild
   )
 }
 
-function RightL3Drawer({ open, close, children }: React.PropsWithChildren<{ open: boolean; close: () => void }>) {
+function RightL3Drawer({
+  open,
+  close,
+  showApplyFooter = false,
+  children,
+}: React.PropsWithChildren<{ open: boolean; close: () => void; showApplyFooter?: boolean }>) {
+  const bodyRef = useRef<HTMLDivElement>(null)
   return (
     <Drawer
       side="end"
@@ -130,14 +138,14 @@ function RightL3Drawer({ open, close, children }: React.PropsWithChildren<{ open
     >
       <DrawerBackdrop className="bg-black/25 dark:bg-black/40 transition-none data-[closed]:hidden 2xl:hidden" />
       <DrawerContent
-        initialFocus="content"
+        initialFocus={() => bodyRef.current}
         data-testid="l3-right-drawer"
         aria-label="Page options panel"
         className="w-full lg:w-80 max-w-none h-dvh max-h-dvh p-0 gap-0 rounded-none border-0 lg:border-l lg:border-border/60 bg-card lg:shadow-2xl flex flex-col transition-none data-[closed]:hidden 2xl:hidden"
       >
         <NavigationDrawerProvider close={close}>
           <div className="flex items-center justify-between border-b border-border/40 px-4 py-2.5">
-            <DrawerTitle className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            <DrawerTitle className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
               Page options
             </DrawerTitle>
             <DrawerClose
@@ -151,18 +159,20 @@ function RightL3Drawer({ open, close, children }: React.PropsWithChildren<{ open
               <CloseMenuIcon />
             </DrawerClose>
           </div>
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <div ref={bodyRef} tabIndex={-1} className="flex min-h-0 flex-1 flex-col overflow-y-auto outline-none">
             {children}
           </div>
-          <div className="shrink-0 border-t border-border/50 bg-card p-3 lg:hidden">
-            <button
-              type="button"
-              onClick={close}
-              className="h-11 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground"
-            >
-              Apply
-            </button>
-          </div>
+          {showApplyFooter && (
+            <div className="shrink-0 border-t border-border/50 bg-card p-3 lg:hidden">
+              <button
+                type="button"
+                onClick={close}
+                className="h-11 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground"
+              >
+                Apply
+              </button>
+            </div>
+          )}
         </NavigationDrawerProvider>
       </DrawerContent>
     </Drawer>
@@ -201,10 +211,11 @@ export function SidebarLayout({
     l3Items,
     l3Actions = [],
   } = useNav()
-  // The home route suppresses the 240px L2 sidebar (hideDesktopSidebar), so the
-  // xl cap — budgeted for rail + sidebar — would strand the remainder as dead
-  // space. It renders wide instead; every other route keeps the cap.
-  const isFullWidthRoute = useLocation().pathname === '/'
+  // The home route and guide chapters suppress the 240px L2 sidebar
+  // (hideDesktopSidebar), so the xl cap — budgeted for rail + sidebar — would
+  // strand the remainder as dead space. They render wide instead; every other
+  // route keeps the cap.
+  const isFullWidthRoute = useLocation().pathname === '/' || Boolean(hideDesktopSidebar)
   const showRightDrawer = Boolean(navState?.rightDrawerOpen)
   const setShowRightDrawer = useCallback(
     (open: boolean) => dispatch({ type: 'SET_RIGHT_DRAWER', open }),
@@ -250,6 +261,7 @@ export function SidebarLayout({
   useEffect(() => {
     if (!railHasContent) return
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return
       if ((e.metaKey || e.ctrlKey) && e.key === '.' && !e.shiftKey && !e.altKey) {
         if (window.innerWidth >= 1520) return
         e.preventDefault()
@@ -286,8 +298,8 @@ export function SidebarLayout({
             On mobile, this sticky navbar carries the hamburger drawer trigger.
             At xl (1280px), content halts growth at 984px (1280px viewport - 56px rail - 240px sidebar),
             allowing right-side space to grow until the 240px secondary rail mounts at 2xl (1520px).
-            The home route (isFullWidthRoute) skips the cap: it has no L2 sidebar to budget for. */}
-        <div className={cn('flex flex-1 flex-col min-w-0 2xl:max-w-none', isFullWidthRoute ? 'xl:max-w-none' : 'xl:max-w-[984px]')}>
+            The home route (isFullWidthRoute) and open Option B inspector drawer skip the cap. */}
+        <div className={cn('flex flex-1 flex-col min-w-0 2xl:max-w-none', isFullWidthRoute || navState?.inspectorDrawerOpen ? 'xl:max-w-none' : 'xl:max-w-[984px]')}>
           <header data-page-sticky-boundary="true" className="lg:hidden sticky top-0 z-20 flex items-center px-2 sm:px-4 bg-card">
             <div className="py-2.5 shrink-0">
               <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation" title="Open navigation" data-testid={TEST_IDS.MOBILE_NAV_OPEN}>
@@ -329,12 +341,25 @@ export function SidebarLayout({
         </div>
 
         {/* Secondary nav — zone 4; the canonical L3 surface. Desktop (2xl+)
-            renders this rail inline; below 2xl (lg–2xl laptop and < lg mobile)
+            renders this rail inline unless the docked inspector drawer owns
+            the right edge; below 2xl (lg–2xl laptop and < lg mobile)
             RightL3Drawer slides in with the exact same SecondaryNav content. */}
-        <aside className="hidden 2xl:flex w-60 shrink-0 sticky top-0 h-svh flex-col overflow-y-auto bg-background/72 backdrop-blur-sm">
-          <SecondaryNav spec={secondary} pageAction={pageAction} />
-        </aside>
-        <RightL3Drawer open={showRightDrawer} close={closeRightDrawer}>
+        {!navState?.inspectorDrawerOpen ? (
+          <aside className="hidden 2xl:flex w-60 shrink-0 sticky top-0 h-svh flex-col overflow-y-auto bg-background/72 backdrop-blur-sm">
+            <SecondaryNav spec={secondary} pageAction={pageAction} />
+          </aside>
+        ) : (
+          <div
+            aria-hidden="true"
+            data-testid={TEST_IDS.INSPECTOR_DRAWER_RAIL_SPACER}
+            className="hidden xl:block w-[340px] shrink-0"
+          />
+        )}
+        <RightL3Drawer
+          open={showRightDrawer}
+          close={closeRightDrawer}
+          showApplyFooter={Boolean(streamControls || analyticsControls)}
+        >
           <SecondaryNav spec={secondary} pageAction={pageAction} />
         </RightL3Drawer>
 
@@ -371,7 +396,7 @@ export function MainLandmark({ children }: React.PropsWithChildren) {
           role="status"
           aria-live="polite"
           data-testid="boot-import-progress"
-          className="pointer-events-none fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-lg border border-border bg-card/95 px-3 py-1.5 text-xs text-foreground shadow-sm"
+          className="pointer-events-none fixed z-30 max-lg:top-16 max-lg:bottom-auto max-lg:right-3 lg:bottom-4 lg:right-4 flex items-center gap-2 rounded-lg border border-border bg-card/95 px-3 py-1.5 text-xs text-foreground shadow-sm"
         >
           <span>{activeImportLabel ?? (progress ? feedProgressLabel(progress) : 'Importing library…')}</span>
           {detail && <span className="text-muted-foreground">{detail}</span>}
@@ -381,34 +406,39 @@ export function MainLandmark({ children }: React.PropsWithChildren) {
   )
 }
 
+/** `py-2` (16px) + `border-t` (1px) around MobileQueryFooter when non-empty. */
+const MOBILE_QUERY_FOOTER_CHROME_PX = 17
+
 /**
  * MobileQueryFooter — the fixed bottom row of the mobile shell where pages
  * portal thumb-zone controls (stream routes: the WQL composer as a
- * full-width button row). Publishes its height as `--thumb-dock-lift` so
- * ResponsiveActionsDock stacks a row above it, and renders a flow spacer
- * so scrolled-to-bottom content clears it. Collapses to nothing when no
- * page portals in.
+ * full-width button row). Publishes its outer border-box height as
+ * `--thumb-dock-lift` so ResponsiveActionsDock stacks cleanly above it,
+ * and renders a flow spacer so scrolled-to-bottom content clears it.
+ * Collapses to nothing when no page portals in.
  */
 function MobileQueryFooter() {
   const barRef = useRef<HTMLDivElement>(null)
-  const [lift, setLift] = useState(0)
+  const [innerHeight, setInnerHeight] = useState(0)
 
   useEffect(() => {
     const el = barRef.current
     if (!el) return
-    // Measure the content-box of the fixed inner wrapper: the bar's own
-    // border-box height includes the padding we apply when lift>0, and portal
-    // content can size itself off --thumb-dock-lift — either feedback loops
-    // into maximum-update-depth crashes (observed on collection routes).
+    // Measure the content-box of the fixed inner wrapper so padding added
+    // when innerHeight > 0 never feeds back into ResizeObserver measurements;
+    // add the constant outer chrome (16px py-2 + 1px border-t = 17px) when
+    // publishing `--thumb-dock-lift` so actions-dock clears the outer border.
     const observer = new ResizeObserver((entries) => {
       const h = Math.round(entries[0]?.contentRect.height ?? 0)
-      setLift((prev) => (prev === h ? prev : h))
+      setInnerHeight((prev) => (prev === h ? prev : h))
     })
     observer.observe(el, { box: 'content-box' })
     const initial = Math.round(el.getBoundingClientRect().height)
-    setLift((prev) => (prev === initial ? prev : initial))
+    setInnerHeight((prev) => (prev === initial ? prev : initial))
     return () => observer.disconnect()
   }, [])
+
+  const lift = innerHeight > 0 ? innerHeight + MOBILE_QUERY_FOOTER_CHROME_PX : 0
 
   useEffect(() => {
     document.documentElement.style.setProperty('--thumb-dock-lift', `${lift}px`)

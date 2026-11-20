@@ -6,7 +6,7 @@ export interface ActiveWebMcpToolEntry {
   title: string;
   description: string;
   tier: AgentRiskTier;
-  scope: 'domain' | 'global-ui' | 'stream-ui' | 'explorer-ui' | 'editor-ui' | 'clock-ui';
+  scope: 'domain' | 'global-ui' | 'stream-ui' | 'explorer-ui' | 'editor-ui' | 'results-ui' | 'clock-ui';
 }
 
 export interface WebMcpToolLogItem {

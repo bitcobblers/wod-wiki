@@ -3,6 +3,7 @@ import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { useChartShape } from './useChartShape';
 import { WqlEmptyState } from './WqlEmptyState';
 import { formatTimestamp } from './chartData';
+import { resolveWidgetDisplayUnit } from './unitIntegrity';
 import { formatTimeseriesTooltipValue } from './WqlTimeseries';
 
 export interface WqlTableProps {
@@ -14,7 +15,7 @@ const MAX_ROWS = 12;
 
 export function WqlTable({ result, unit: unitProp }: WqlTableProps) {
   const shape = useChartShape(result);
-  const unit = result.series[0]?.unit ?? unitProp ?? '';
+  const unit = resolveWidgetDisplayUnit(result, unitProp);
 
   const rows = useMemo(() => {
     if (shape.kind === 'scalar') {
@@ -36,6 +37,36 @@ export function WqlTable({ result, unit: unitProp }: WqlTableProps) {
       };
     }
     if (shape.kind === 'timeseries') {
+      const isOrdinal = result.series.some((s) => s.axisKind === 'ordinal' || s.points.some((p) => p.x !== undefined));
+      if (isOrdinal) {
+        const xs = Array.from(
+          new Set(result.series.flatMap((s) => s.points.map((p, idx) => p.x ?? idx))),
+        );
+        const labelByX = new Map<number | string, string>();
+        for (const s of result.series) {
+          s.points.forEach((p, idx) => {
+            const key = p.x ?? idx;
+            if (!labelByX.has(key)) labelByX.set(key, p.label ?? String(key));
+          });
+        }
+        const seriesMap = new Map<string, Map<number | string, number>>();
+        for (const s of result.series) {
+          seriesMap.set(
+            s.label,
+            new Map(s.points.map((p, idx) => [p.x ?? idx, p.value])),
+          );
+        }
+        const head = [result.series[0]?.axisDimension ?? 'Position', ...result.series.map((s) => s.label)];
+        const body = xs.slice(0, MAX_ROWS).map((x) => [
+          labelByX.get(x) ?? String(x),
+          ...result.series.map((s) => {
+            const v = seriesMap.get(s.label)?.get(x);
+            return v !== undefined ? formatTimeseriesTooltipValue(v, unit) : '—';
+          }),
+        ]);
+        return { head, body, more: Math.max(0, xs.length - MAX_ROWS) };
+      }
+
       const timestamps = Array.from(
         new Set(result.series.flatMap((s) => s.points.map((p) => p.ts))),
       ).sort((a, b) => b - a);

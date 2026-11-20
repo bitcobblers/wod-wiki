@@ -126,7 +126,7 @@ function L2ChildrenList({ items }: { items: NavItem[] }) {
                 }}
                 title={child.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'}
                 aria-label={child.pinned ? `Unpin ${child.label}` : `Pin ${child.label}`}
-                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 text-muted-foreground hover:text-foreground transition-opacity"
+                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 max-lg:min-h-11 max-lg:min-w-11 flex items-center justify-center text-muted-foreground hover:text-foreground transition-opacity"
               >
                 <PinOff className="size-3.5" />
               </button>
@@ -187,7 +187,7 @@ export function NavSidebar({ navSpec }: { navSpec?: MenuSpec }) {
       {/* Names the active section above its L2 panel; the L1 icon rail
           (AppRail) carries destinations on both desktop and mobile drawer. */}
       <SidebarHeader>
-        <div className="px-2 pt-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        <div className="px-2 pt-3 pb-1 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
           {activeL1?.label ?? 'Wod Wiki'}
         </div>
       </SidebarHeader>

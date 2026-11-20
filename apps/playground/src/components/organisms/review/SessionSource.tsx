@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { IndexedDBNotePersistence, notePersistence } from '@/hooks/useBrowserServices';
+import { notifyResultSaved } from '@/hooks/useCastSignaling';
 import type { BlockRevision, Session } from '@/types/storage';
 import { BlockHistory } from '../editor/BlockHistory';
 
@@ -32,6 +33,7 @@ export function SessionSource({ sessionId }: { sessionId: string }) {
         setError(null);
         try {
           await new IndexedDBNotePersistence().rederiveResultAnalytics(sessionId);
+          notifyResultSaved(source.session);
           setStatus('Analytics replayed from the pinned saved workout. Reload the results to view them.');
         } catch (error) {
           setError(error instanceof Error ? error.message : String(error));

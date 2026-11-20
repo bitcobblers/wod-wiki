@@ -60,6 +60,7 @@ export type PageKind =
   | 'tagDetail'
   | 'dashboardExplorer'
   | 'dashboardView'
+  | 'sessionResults'
   | 'home'
   | 'canvas'
   | 'playground'
@@ -271,6 +272,11 @@ function deriveWorkout(
 
 function derivePage(flags: RouteFlags, pathname: string, canvasPage: ParsedCanvasPage | null): PageKind {
   const clean = cleanRoutePath(pathname)
+  // /results/:sessionId routes to the dedicated workout execution workbench
+  // (Stream profiles still support /results/:id for isolated tests).
+  if (clean.startsWith('/results/') && clean.slice('/results/'.length) !== '') {
+    return 'sessionResults'
+  }
   // Stream surfaces (list routes) come from the profile registry — one source
   // of truth for what is a stream, shared with QueriableStreamView resolution.
   if (isStreamRoute(clean)) {

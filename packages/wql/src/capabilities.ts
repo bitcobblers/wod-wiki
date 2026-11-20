@@ -69,10 +69,25 @@ const TARGET_KEYS: Readonly<Record<string, readonly string[]>> = Object.fromEntr
     [...types].filter(type => !STRUCTURAL_TYPES[type]).map(type => type === 'tag' ? 'tags' : type),
   ]),
 );
-/** `round` resolves through custom fact dimensions; absent rows group under
+/** `round`/`split`/`attempt` resolve through fact dimensions; absent rows group under
  *  the UNASSIGNED sentinel, matching the open dimension policy. */
-const AGGREGATE_DIMENSIONS = ['day', 'week', 'month', 'session', 'round', ...WQL_TAG_KEYS];
-const TABLE_DIMENSIONS = ['date', 'effort', 'discipline', ...WQL_METRIC_FAMILIES, ...WQL_METRIC_AGGREGATES, ...WQL_CALC_TARGETS];
+const AGGREGATE_DIMENSIONS = ['day', 'week', 'month', 'session', 'round', 'split', 'attempt', ...WQL_TAG_KEYS];
+const TABLE_DIMENSIONS = [
+  'date',
+  'effort',
+  'discipline',
+  'elapsed',
+  'offset',
+  'round',
+  'split',
+  'origin',
+  'noteTitle',
+  'notebook',
+  'rpe',
+  ...WQL_METRIC_FAMILIES,
+  ...WQL_METRIC_AGGREGATES,
+  ...WQL_CALC_TARGETS,
+];
 
 /** Guided clause types, including structural clauses honored by their consumers. */
 export function allowedFilterTypesForTarget(target: string, family: 'find' | 'aggregate'): ReadonlySet<string> {
@@ -96,6 +111,9 @@ export function wqlGroupingDimensions(target: string, family: 'find' | 'aggregat
 /** Fact dimensions are open, but content-only fields and plane have no fact meaning. */
 export function supportsWqlFilterKey(target: string, family: 'find' | 'aggregate', rawKey: string): boolean {
   const key = rawKey === 'tag' ? 'tags' : rawKey;
+  if (key === 'notebook' && (family === 'aggregate' || ['session', 'segment', 'event', 'note', 'block', 'notebook'].includes(target))) {
+    return true;
+  }
   if (family === 'aggregate' || target === 'segment' || target === 'event') {
     return !(WQL_CONTENT_ONLY_KEYS as readonly string[]).includes(key)
       && key !== 'plane';

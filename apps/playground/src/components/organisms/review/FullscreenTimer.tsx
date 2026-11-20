@@ -1,18 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EditorView } from "@codemirror/view";
+import { useOptionalNavigate } from "@/hooks/useOptionalNavigate";
 import { RuntimeTimerPanel, type RuntimeTimerPanelProps } from "@/components/organisms/editor/RuntimeTimerPanel";
 import type { ScriptBlock, Sessions } from "@/components/Editor/types";
 import { toStoredOutputStatement } from '@/components/Editor/types';
-import { RowsResultsChrome, RowsTable, type InlineMetricEditPayload } from "@bitcobblers/wod-wiki-ui";
+import {
+  ResultsSpreadsheetGrid,
+  RowsTable,
+  SessionSummaryCard,
+  useSessionPrHighlights,
+  type InlineMetricEditPayload,
+  type SessionActionContext,
+} from "@bitcobblers/wod-wiki-ui";
 import { useDebugMode } from "@/contexts/DebugModeContext";
 import { getAnalyticsFromLogs } from "@/hooks/useWorkbenchServices";
 import type { IScriptRuntime } from "@/hooks/useRuntimeTimer";
 import { type Segment, MetricType, OutputStatement, type EventRecord } from '@bitcobblers/wod-wiki-engine';
-import { eventsToStoredLogs, type RowsQueryResult } from '@bitcobblers/wod-wiki-wql';
-import { storageService, telemetry, engagementMs, captureMetricCorrection, captureSessionRpe } from '@/hooks/useBrowserServices';
+import { eventsToStoredLogs, type RowsQueryResult, type RowsRun } from '@bitcobblers/wod-wiki-wql';
+import { storageService, telemetry, engagementMs, captureMetricCorrection, clearMetricCorrection, captureSessionRpe } from '@/hooks/useBrowserServices';
 import { queryService } from "@/hooks/useCastSignaling";
 import { FocusedDialog } from "@/components/molecules/FocusedDialog";
 import { TEST_IDS } from "@/lib/testIds";
+import { sessionDetailPath } from "@/lib/routes";
+import { AddToDashboardSheet } from "../../../../app/views/analytics/AddToDashboardSheet";
 import { CastButtonRpc } from "@/components/organisms/cast/CastButtonRpc";
 import { AudioToggle } from "@/components/atoms/AudioToggle";
 import {
@@ -290,6 +300,30 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
     [refreshFromStoredEvents],
   );
 
+  const handleClearMetric = useCallback(
+    async (
+      targetResultId: string,
+      payload: { sourceBlockKey?: string; sourceStatementId?: number; metricType: string },
+    ) => {
+      const outcome = await clearMetricCorrection({
+        resultId: targetResultId,
+        occurrence: {
+          blockKey: payload.sourceBlockKey,
+          sourceStatementId: payload.sourceStatementId,
+        },
+        metricType: payload.metricType,
+      });
+      if (outcome === 'not-found') {
+        throw new Error('This override could not be found.');
+      }
+      await refreshFromStoredEvents(targetResultId);
+    },
+    [refreshFromStoredEvents],
+  );
+
+  const navigate = useOptionalNavigate();
+  const [dashboardSheetCtx, setDashboardSheetCtx] = useState<SessionActionContext | null>(null);
+
   const handleSkipQueueItem = useCallback((item: CollectionItem) => {
     // Actual unknown stays unknown — skip only drops the prompt.
     setSkippedFields((prev) => new Set(prev).add(entryFieldId(item)));
@@ -460,6 +494,15 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
     } as unknown as RowsQueryResult;
   }, [completedSegments, reviewEvents, resultId]);
 
+  const reviewRun = useMemo<RowsRun | undefined>(() => reviewResult?.runs?.[0], [reviewResult]);
+  const reviewBlockContentId = reviewRun?.summary?.blockContentId;
+  const { prHighlights: reviewPrHighlights } = useSessionPrHighlights(
+    reviewRun,
+    reviewBlockContentId,
+    queryService,
+    Boolean(reviewRun && resultId),
+  );
+
   const saveBanner =
     saveState === 'idle' ? null : (
       <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border bg-muted/20 px-6 py-2 text-sm">
@@ -514,14 +557,38 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
               runId={resultId ? `result:${resultId}` : undefined}
               className="mx-auto max-w-md"
             />
-          ) : reviewResult && resultId ? (
-            <div className="h-full overflow-auto p-4 sm:p-6">
-              <RowsResultsChrome
-                resultId={resultId}
-                sessionResult={reviewResult}
-                executor={queryService}
+          ) : reviewRun && resultId ? (
+            <div className="h-full space-y-5 overflow-auto p-4 sm:p-6">
+              <SessionSummaryCard
+                run={reviewRun}
+                prHighlights={reviewPrHighlights}
                 onCaptureRpe={handleCaptureRpe}
+                onOpenResults={
+                  navigate
+                    ? (ctx) => {
+                        onClose();
+                        void navigate(sessionDetailPath(ctx.resultId));
+                      }
+                    : undefined
+                }
+                onAddToDashboard={(ctx) => setDashboardSheetCtx(ctx)}
+              />
+              <ResultsSpreadsheetGrid
+                run={reviewRun}
+                prHighlights={reviewPrHighlights}
+                tableTestId={TEST_IDS.OUTPUT_STATEMENTS_TABLE}
+                showCustomSummariesStrip
                 onEditMetric={handleInlineEditMetric}
+                onClearMetric={handleClearMetric}
+                onCaptureRpe={handleCaptureRpe}
+                onAddToDashboard={(ctx) => setDashboardSheetCtx(ctx)}
+              />
+              <AddToDashboardSheet
+                open={dashboardSheetCtx !== null}
+                onOpenChange={(open) => {
+                  if (!open) setDashboardSheetCtx(null);
+                }}
+                context={dashboardSheetCtx}
               />
             </div>
           ) : reviewResult ? (

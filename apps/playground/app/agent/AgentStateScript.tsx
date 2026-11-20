@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import {
   useActiveEditorBridge,
   useActiveExplorerBridge,
+  useActiveResultsBridge,
   useActiveStreamBridge,
   useSurfaceBusy,
 } from '@/agent/surfaceBridges';
@@ -54,6 +55,13 @@ export interface AgentViewState {
     sourceRevision: number | null;
     workoutBlockIds: string[];
   } | null;
+  results: {
+    resultId: string;
+    activeTab: 'splits' | 'movement' | 'compare' | 'raw';
+    mobileViewMode: 'grid' | 'cards';
+    sourceDrawerOpen: boolean;
+    addToDashboardOpen: boolean;
+  } | null;
   clock: unknown;
 }
 
@@ -72,6 +80,7 @@ export const AgentStateScript: React.FC = () => {
   const explorerBridge = useActiveExplorerBridge();
   const streamResults = useStreamResults();
   const editorBridge = useActiveEditorBridge();
+  const resultsBridge = useActiveResultsBridge();
   const clockSnapshot = useSyncExternalStore(subscribeClock, getClockSnapshot, () => null);
 
   const isBusy = surfaceBusy || feedReadiness === 'preparing' || importPending;
@@ -130,6 +139,15 @@ export const AgentStateScript: React.FC = () => {
             workoutBlockIds: editorBridge.getBlocks().map((b) => b.id),
           }
         : null,
+      results: resultsBridge
+        ? {
+            resultId: resultsBridge.resultId,
+            activeTab: resultsBridge.activeTab,
+            mobileViewMode: resultsBridge.mobileViewMode,
+            sourceDrawerOpen: resultsBridge.sourceDrawerOpen,
+            addToDashboardOpen: resultsBridge.addToDashboardOpen,
+          }
+        : null,
       clock: clockSnapshot,
     };
 
@@ -145,6 +163,7 @@ export const AgentStateScript: React.FC = () => {
     explorerBridge,
     streamResults,
     editorBridge,
+    resultsBridge,
     clockSnapshot,
   ]);
 

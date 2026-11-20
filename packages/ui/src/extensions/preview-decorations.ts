@@ -238,12 +238,13 @@ const scriptBlockBaseTheme = EditorView.baseTheme({
   ".cm-wod-fence-open": {
     borderTop: "1px solid hsl(var(--border))",
     borderRadius: "8px 8px 0 0",
-    // Keep exact 26px top breathing room so the inline header controls never
-    // cover the preceding prose row or the first workout statement line.
-    paddingTop: "26px",
+    // Reserve header clearance so dialect badge & InlineCommandBar controls
+    // stay crisp and never collide with preceding prose or the first workout line.
+    paddingTop: "32px",
+    paddingRight: "112px",
     backgroundColor: "transparent",
     backgroundImage:
-      "linear-gradient(to bottom, transparent 26px, hsl(var(--border)) 26px, hsl(var(--border)) 27px, hsl(var(--card)) 27px)",
+      "linear-gradient(to bottom, transparent 30px, hsl(var(--border)) 30px, hsl(var(--border)) 31px, hsl(var(--card)) 31px)",
   },
   ".cm-wod-fence-close": {
     borderBottom: "1px solid hsl(var(--border))",
@@ -262,17 +263,23 @@ const scriptBlockBaseTheme = EditorView.baseTheme({
   ".cm-wod-dialect-badge": {
     display: "inline-flex",
     alignItems: "center",
-    height: "17px",
-    padding: "0 6px",
+    minHeight: "22px",
+    padding: "0 8px",
     marginLeft: "8px",
-    borderRadius: "4px",
-    fontSize: "9.5px",
-    fontWeight: "600",
-    letterSpacing: "0.06em",
+    borderRadius: "9999px",
+    fontSize: "11.5px",
+    fontWeight: "700",
+    letterSpacing: "0.04em",
     fontFamily: 'var(--font-sans, "Geist Sans", system-ui, sans-serif)',
     border: "1px solid transparent",
     cursor: "pointer",
-    verticalAlign: "1px",
+    verticalAlign: "middle",
+  },
+  "@media (pointer: coarse)": {
+    ".cm-wod-dialect-badge": {
+      minHeight: "34px",
+      padding: "0 10px",
+    },
   },
   ".cm-wod-dialect-badge:disabled": {
     cursor: "default",

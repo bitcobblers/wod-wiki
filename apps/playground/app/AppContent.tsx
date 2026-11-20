@@ -28,6 +28,9 @@ import {
   paletteExecute,
   navigatePaletteResult,
 } from './services/wqlSearchSource'
+import {
+  formatHumanQuerySummary,
+} from '@bitcobblers/wod-wiki-ui'
 import { usePageScrollSync } from './hooks/usePageScrollSync'
 import { useIsMobile } from './hooks/useIsMobile'
 import { useNav } from './nav/NavContext'
@@ -60,6 +63,7 @@ import { NotebookDatePage } from './pages/NotebookDatePage'
 import { AnalyticsExplorerPage } from './views/analytics/AnalyticsExplorerPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { DashboardViewPage } from './views/dashboards/DashboardViewPage'
+import { SessionResultsPage } from './pages/SessionResultsPage'
 import { PageActions } from './pages/shared/PageActions'
 import { MobileNewEntryCombo, resolveNewEntryRoute, routeSupportsCreation } from './pages/shared/NewEntryCombo'
 import { PageDownloadAction } from './pages/shared/PageToolbar'
@@ -69,7 +73,6 @@ import { createPlaygroundPage } from './services/createPlaygroundPage'
 import { playgroundPath } from './lib/routes'
 import { appendTimerBlock } from './pages/shared/pageUtils'
 import { useSeedContent } from '@/services/content/seedContent'
-import { SessionSource } from '@/components/organisms/review/SessionSource';
 
 export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<() => void> }) {
   const navigate = useNavigate()
@@ -182,23 +185,35 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
     }])
     return () => setL3Actions?.([])
   }, [view.shell.withIndex, canvasWorkout, handleCanvasAddTimer, setL3Actions])
-  // Open the palette for global search (Ctrl/Cmd+/ — WQL mode, issue #834).
+  // Open the palette for global search (Ctrl/Cmd+/ or Ctrl/Cmd+K — WQL mode, issue #834).
   // The mounted stream composer registers a getter for its LIVE draft — the
   // exact text, invalid included (invalid drafts never reach the URL, so a
   // URL/default seed would be lossy). No stream mounted → route default.
   const streamDraftRef = useRef<() => string | null>(() => null)
-  const registerStreamDraft = useCallback((getDraft: () => string | null) => {
-    streamDraftRef.current = getDraft
-    return () => {
-      if (streamDraftRef.current === getDraft) streamDraftRef.current = () => null
-    }
-  }, [])
+  const streamApplyRef = useRef<((wql: string) => void) | null>(null)
+  const registerStreamDraft = useCallback(
+    (getDraft: () => string | null, applyDraft?: (wql: string) => void) => {
+      streamDraftRef.current = getDraft
+      streamApplyRef.current = applyDraft ?? null
+      return () => {
+        if (streamDraftRef.current === getDraft) {
+          streamDraftRef.current = () => null
+          streamApplyRef.current = null
+        }
+      }
+    },
+    [],
+  )
   const openSearchPalette = useCallback(() => {
+    const streamDraft = streamDraftRef.current()
+    const applyDraft = streamApplyRef.current
     void usePaletteStore.getState().open({
       wql: {
-        initialQuery: streamDraftRef.current() ?? searchPaletteQuery(),
+        initialQuery: streamDraft ?? searchPaletteQuery(),
         execute: paletteExecute,
         preferredChoices: palettePreferredChoices(),
+        scopeLabel: streamDraft ? formatHumanQuerySummary(streamDraft) : undefined,
+        onApply: applyDraft ?? undefined,
         // The palette's own surface settings, rendered inside the palette.
         settings: {
           panel: <PaletteQuerySettings />,
@@ -225,10 +240,10 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
     }
   }, [openSearchPalette, searchHandlerRef])
 
-  // Keyboard shortcut: Ctrl/Cmd+/ opens global search (the one search chord).
+  // Keyboard shortcut: Ctrl/Cmd+/ or Ctrl/Cmd+K opens global search.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.key === '/' && (e.metaKey || e.ctrlKey)) {
+      if ((e.key === '/' || e.key.toLowerCase() === 'k') && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         e.stopPropagation()
         openSearchPalette()
@@ -289,6 +304,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
       />
     ),
     dashboardView: () => <DashboardViewPage />,
+    sessionResults: () => <SessionResultsPage />,
 
     home: () => <HomeView wodFiles={wodFiles} theme={actualTheme} />,
     canvas: () =>
@@ -339,12 +355,12 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
     library: () => {
       const profile = streamProfile ?? applyRouteWqlConfig(resolveStreamProfile(location.pathname))
       return (
-        <><SessionSourceBoundary pathname={location.pathname} /><QueriableStreamView
+        <QueriableStreamView
           key={profile.route}
           profile={profile}
           registerStreamDraft={registerStreamDraft}
           actions={isMobile ? undefined : <PageActions mode="notebook-readonly" showCreate={routeSupportsCreation(location.pathname)} currentWorkout={currentWorkout} index={[]} />}
-        /></>
+        />
       )
     },
     settings: () => <SettingsPage />,
@@ -413,12 +429,12 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
     <SidebarLayout
       navbar={
         <Navbar>
-          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 min-w-0 shrink-2 truncate text-sm">
+          <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
             {activeL1 && (
               <button
                 type="button"
                 onClick={() => activeL1?.action?.type === 'route' && navigate(activeL1.action.to)}
-                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                className="min-h-11 inline-flex items-center shrink-0 text-muted-foreground hover:text-foreground transition-colors"
               >
                 {activeL1.label}
               </button>
@@ -427,7 +443,7 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
               <span aria-hidden="true" className="text-muted-foreground/50 shrink-0">›</span>
             )}
             {crumbTitle && crumbTitle.toLowerCase() !== activeL1?.label.toLowerCase() && (
-              <span className="text-sm font-semibold text-zinc-950 dark:text-white truncate">
+              <span className="min-w-0 truncate text-sm font-semibold text-zinc-950 dark:text-white">
                 {crumbTitle}
               </span>
             )}
@@ -475,9 +491,4 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
       <SyncActivityNotifier />
     </SidebarLayout>
   )
-}
-
-function SessionSourceBoundary({ pathname }: { pathname: string }) {
-  const match = /^\/results\/([^/]+)\/?$/.exec(pathname);
-  return match ? <SessionSource sessionId={decodeURIComponent(match[1])} /> : null;
 }

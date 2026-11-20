@@ -49,6 +49,33 @@ import type { EditorSection } from "./section-state";
 /** Minimal react-dom root surface used by the widget DOM bridge. */
 type Root = { render: (c: React.ReactNode) => void; unmount: () => void };
 
+const widgetRoots = new WeakMap<HTMLElement, Root>();
+const pendingWidgetUnmounts = new WeakMap<HTMLElement, number>();
+
+function getOrCreateRoot(container: HTMLElement): Root {
+  pendingWidgetUnmounts.set(container, (pendingWidgetUnmounts.get(container) ?? 0) + 1);
+  const existing = widgetRoots.get(container);
+  if (existing) return existing;
+  const root = createRoot(container) as Root;
+  widgetRoots.set(container, root);
+  return root;
+}
+
+function scheduleRootUnmount(dom: HTMLElement, expectedRoot: Root): void {
+  const token = (pendingWidgetUnmounts.get(dom) ?? 0) + 1;
+  pendingWidgetUnmounts.set(dom, token);
+  queueMicrotask(() => {
+    if (pendingWidgetUnmounts.get(dom) !== token) return;
+    if (widgetRoots.get(dom) !== expectedRoot) return;
+    widgetRoots.delete(dom);
+    try {
+      expectedRoot.unmount();
+    } catch {
+      // Ignore errors if already unmounted or cleaned up by CodeMirror
+    }
+  });
+}
+
 // ── Widget authoring contract (mirrors src/components/Editor/widgets/types) ──
 
 /** Parsed JSON object passed into a widget component. */
@@ -574,6 +601,9 @@ function WidgetBlockPreviewWrapper({
 
 /** Small widget that only renders the Save/Undo buttons while a widget is in raw edit mode */
 class FloatingEditControls extends WidgetType {
+  private root: Root | null = null;
+  private container: HTMLElement | null = null;
+
   constructor(
     readonly sectionId: string,
   ) {
@@ -587,8 +617,10 @@ class FloatingEditControls extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const wrapper = document.createElement("div");
     wrapper.className = "relative h-0 w-full"; // Zero height, button absolute right
+    this.container = wrapper;
 
-    const root = createRoot(wrapper);
+    const root = getOrCreateRoot(wrapper);
+    this.root = root;
     root.render(
       <div className="absolute right-0 top-1 z-50">
         <WidgetEditButton
@@ -611,6 +643,16 @@ class FloatingEditControls extends WidgetType {
     return wrapper;
   }
 
+  destroy(dom?: HTMLElement): void {
+    const targetDom = dom ?? this.container;
+    const r = this.root;
+    this.root = null;
+    this.container = null;
+    if (targetDom && r) {
+      scheduleRootUnmount(targetDom, r);
+    }
+  }
+
   ignoreEvent(): boolean {
     return false;
   }
@@ -620,6 +662,7 @@ class FloatingEditControls extends WidgetType {
 
 class ReactWidgetBlock extends WidgetType {
   private root: Root | null = null;
+  private container: HTMLElement | null = null;
 
   constructor(
     readonly widgetName: string,
@@ -643,9 +686,11 @@ class ReactWidgetBlock extends WidgetType {
     wrapper.className = "cm-widget-block-preview";
     wrapper.style.cssText =
       "display:block; width:100%; min-height:1.5em; outline:none;";
+    this.container = wrapper;
 
-    this.root = createRoot(wrapper);
-    this.root.render(
+    const root = getOrCreateRoot(wrapper);
+    this.root = root;
+    root.render(
       React.createElement(WidgetBlockPreviewWrapper, {
         widgetName: this.widgetName,
         rawContent: this.rawContent,
@@ -658,25 +703,13 @@ class ReactWidgetBlock extends WidgetType {
     return wrapper;
   }
 
-  destroy(): void {
-    if (this.root) {
-      const r = this.root;
-      this.root = null;
-
-      const isTestEnv = typeof process !== "undefined" && process.env?.NODE_ENV === "test";
-      if (isTestEnv) {
-        // Unmount synchronously in tests so pending unmounts don't bleed into subsequent
-        // tests (deferred approach causes race conditions in bun:test).
-        r.unmount();
-      } else {
-        queueMicrotask(() => {
-          try {
-            r.unmount();
-          } catch {
-            // Ignore errors if already unmounted or cleaned up
-          }
-        });
-      }
+  destroy(dom?: HTMLElement): void {
+    const targetDom = dom ?? this.container;
+    const r = this.root;
+    this.root = null;
+    this.container = null;
+    if (targetDom && r) {
+      scheduleRootUnmount(targetDom, r);
     }
   }
 

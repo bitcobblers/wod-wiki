@@ -166,6 +166,23 @@ function mutateCalcAst(
   return null;
 }
 
+const FACT_COMPATIBLE_SESSION_KEYS = new Set([
+  'result',
+  'block',
+  'note',
+  'notebook',
+  'effort',
+  'equipment',
+  'discipline',
+  'intensity',
+  'domain',
+  'format',
+  'quality',
+  'intent',
+  'tags',
+  'tag',
+]);
+
 export function promoteFindToChartObject(
   obj: QueryBlockObject,
   metric = 'totalVolume',
@@ -186,6 +203,20 @@ export function promoteFindToChartObject(
       window: parsed.window,
       displayUnit: parsed.displayUnit,
     };
+  } else if (parsed.target === 'session') {
+    const promotedFilters = parsed.filters.filter(
+      (f) => f.key !== 'plane' && FACT_COMPATIBLE_SESSION_KEYS.has(f.key),
+    );
+    nextAst = {
+      family: 'aggregate',
+      raw: '',
+      agg: 'sum',
+      metric,
+      filters: promotedFilters,
+      groupBy: ['week'],
+      window: parsed.window,
+      displayUnit: parsed.displayUnit,
+    };
   } else {
     const hasScope = parsed.filters.length > 0;
     nextAst = {
@@ -200,7 +231,7 @@ export function promoteFindToChartObject(
       ...(hasScope
         ? {
             join: {
-              target: parsed.target === 'session' ? 'note' : parsed.target,
+              target: parsed.target,
               filters: parsed.filters,
             },
           }
@@ -438,7 +469,9 @@ export function QueryObjectBuilder({
     compiledDocText.trim() !== '' &&
     (density !== 'studio' ||
       (isFindQuery(effectiveParsed)
-        ? resolvedView === 'table' || resolvedView === 'list'
+        ? resolvedView === 'table' ||
+          resolvedView === 'list' ||
+          (resolvedView === 'summary' && effectiveParsed.target === 'session')
         : resolvedView !== 'list'));
 
   const isValid = viewCompatible && (isMultiSeriesDoc || composerValid);
@@ -1120,7 +1153,7 @@ export function QueryObjectBuilder({
                 onChange={(e) => changeVisualization(e.target.value)}
                 className="rounded-md border border-border bg-card px-2 py-1.5 text-xs"
               >
-                {DASHBOARD_WIDGET_TYPES.filter((wt) => wt !== 'list' && wt !== 'table').map((wt) => (
+                {DASHBOARD_WIDGET_TYPES.filter((wt) => wt !== 'list' && wt !== 'table' && wt !== 'summary').map((wt) => (
                   <option key={wt} value={wt}>
                     {wt}
                   </option>
@@ -1151,7 +1184,7 @@ export function QueryObjectBuilder({
                 {draftError
                   ? draftError
                   : isFindQuery(effectiveParsed)
-                    ? 'find: queries return things — use a table or list widget instead'
+                    ? 'find: queries return things — use a table, list, or summary widget instead'
                     : 'Compose a calculation to preview.'}
               </div>
             ))}

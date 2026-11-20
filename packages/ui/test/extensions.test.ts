@@ -15,12 +15,15 @@ import {
   sectionSaved,
   sectionRestore,
   registeredSectionWidgets,
+  sessionQueryFence,
   sessionQueryInsert,
+  sessionQueryWql,
   sectionGeometry,
   linkOpen,
   navigationFacet,
   editorTheme,
   previewDecorations,
+  smartIncrement,
   autocompleteTooltipTheme,
   customCompletionSources,
   nestedCompletionOptions,
@@ -461,6 +464,48 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
 
     host.remove();
   });
+
+  it('rebinds Markdown link insertion from Mod-k to Mod-Shift-k so Command Palette owns Mod-k', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const view = new EditorView({
+      state: EditorState.create({ doc: 'workout', extensions: [sectionField, wodEditorKeymap] }),
+      parent: host,
+    });
+    view.dispatch({ selection: EditorSelection.range(0, 7) });
+
+    const modKHandled = runScopeHandlers(view, new KeyboardEvent('keydown', {
+      key: 'k', ctrlKey: true, bubbles: true, cancelable: true,
+    }), 'editor');
+    expect(modKHandled).toBe(false);
+    expect(view.state.doc.toString()).toBe('workout');
+
+    const modShiftKHandled = runScopeHandlers(view, new KeyboardEvent('keydown', {
+      key: 'K', keyCode: 75, ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true,
+    }), 'editor');
+    expect(modShiftKHandled).toBe(true);
+    expect(view.state.doc.toString()).toBe('[workout](https://)');
+
+    view.destroy();
+    host.remove();
+  });
+
+  it('scopes autocompleteTooltipTheme below modal overlays at z-index 45', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const view = new EditorView({
+      state: EditorState.create({ doc: 'test', extensions: [autocompleteTooltipTheme] }),
+      parent: host,
+    });
+    const styleTexts = Array.from(document.head.querySelectorAll('style'))
+      .map((s) => s.textContent ?? '')
+      .join('\n');
+    expect(styleTexts).toContain('z-index: 45');
+    expect(styleTexts).not.toContain('z-index: 250');
+
+    view.destroy();
+    host.remove();
+  });
 });
 
 describe('editor occurrence lineage', () => {
@@ -475,8 +520,12 @@ describe('editor occurrence lineage', () => {
     const copied = Object.keys(state.field(sectionField).noteBlocks);
     expect(copied.slice(1)).toEqual(original);
     expect(original).not.toContain(copied[0]);
+    expect(sessionQueryWql('res-1')).toBe(':session{result:res-1}');
+    expect(sessionQueryFence('res-1')).toBe('```query\nview: summary\nquery: :session{result:res-1}\n```');
+    expect(sessionQueryFence('res-1', { view: 'table' })).toBe('```query\n:session{result:res-1}\n```');
     expect(sessionQueryInsert(state, 'removed', 'result')).toBeNull();
     expect(sessionQueryInsert(state, original[1], 'result')?.from).toBe(state.field(sectionField).sections.find(section => section.id === original[1])?.to);
+    expect(sessionQueryInsert(state, original[1], 'result')?.insert).toBe('\n\n```query\nview: summary\nquery: :session{result:result}\n```');
   });
 
   it('creates fresh IDs for ambiguous whole replacements even with identical text', () => {
@@ -621,5 +670,46 @@ describe('editor occurrence lineage', () => {
     expect(state.field(sectionField).sections[0].type).toBe('widget');
     const reopened = EditorState.create({ doc: source, extensions: [sectionField, registeredSectionWidgets.of(['custom']), sectionIdentity.of({ rawContent: source, blocks, sourceRevision: 5 })] });
     expect(reopened.field(sectionField).noteBlocks).toEqual(blocks);
+  });
+
+  it('smartIncrement adjusts timestamps, resistance loads, rounds, and reps cleanly', () => {
+    const doc = '1:00\n5x5 Back Squat @100kg\n(3) Rounds\n12 Pull-up';
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      state: EditorState.create({ doc, extensions: [smartIncrement] }),
+      parent: container,
+    });
+
+    const sendAlt = (key: 'ArrowUp' | 'ArrowDown') => {
+      const event = new KeyboardEvent('keydown', { key, altKey: true, cancelable: true, bubbles: true });
+      runScopeHandlers(view, event, 'editor');
+    };
+
+    // Time: increment seconds from 1:00 -> 1:01
+    view.dispatch({ selection: { anchor: doc.indexOf(':00') + 1 } });
+    sendAlt('ArrowUp');
+    expect(view.state.doc.line(1).text).toBe('1:01');
+
+    // Resistance: @100kg -> @105kg
+    const loadPos = view.state.doc.toString().indexOf('@100kg') + 2;
+    view.dispatch({ selection: { anchor: loadPos } });
+    sendAlt('ArrowUp');
+    expect(view.state.doc.line(2).text).toBe('5x5 Back Squat @105kg');
+
+    // Rounds: (3) -> (4)
+    const roundsPos = view.state.doc.toString().indexOf('(3)') + 1;
+    view.dispatch({ selection: { anchor: roundsPos } });
+    sendAlt('ArrowUp');
+    expect(view.state.doc.line(3).text).toBe('(4) Rounds');
+
+    // Reps: 12 -> 11
+    const repsPos = view.state.doc.toString().indexOf('12 Pull-up') + 1;
+    view.dispatch({ selection: { anchor: repsPos } });
+    sendAlt('ArrowDown');
+    expect(view.state.doc.line(4).text).toBe('11 Pull-up');
+
+    view.destroy();
+    container.remove();
   });
 });

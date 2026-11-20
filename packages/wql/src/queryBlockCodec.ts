@@ -30,6 +30,7 @@ import {
 } from './wql';
 
 export type QueryViewKind =
+  | 'summary'
   | 'table'
   | 'list'
   | 'value'

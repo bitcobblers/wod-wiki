@@ -230,8 +230,12 @@ export function EquipmentDetailPage() {
   if (isCreateMode) {
     const pageActions = (
       <ResponsiveActions
-        primary={
-          <Button onClick={handleCreateSubmit} data-testid={TEST_IDS.EQUIPMENT_CREATE_BTN}>
+        navbar={
+          <Button
+            onClick={handleCreateSubmit}
+            data-testid={TEST_IDS.EQUIPMENT_CREATE_BTN}
+            className="max-lg:min-h-11 max-lg:px-2.5 max-lg:text-xs whitespace-nowrap"
+          >
             Create Equipment
           </Button>
         }
@@ -314,29 +318,24 @@ export function EquipmentDetailPage() {
   // (NoteContextNav "Up" section).
   const pageActions = (
     <div className="flex items-center gap-2">
-      <ResponsiveActions primary={!isEditable ? (
-        <div className="flex items-center gap-1.5">
+      <ResponsiveActions
+        navbar={
           <Button
-            variant="default"
+            variant={!isEditable ? 'default' : 'outline'}
             onClick={() => setOverrideSheetOpen(true)}
             data-testid="equipment-detail-override-btn"
+            className="max-lg:min-h-11 max-lg:px-3 whitespace-nowrap"
           >
-            Override
+            {!isEditable ? 'Override' : 'Override Scope'}
           </Button>
+        }
+        primary={!isEditable ? (
           <Button variant="outline" onClick={handleClone} data-testid={TEST_IDS.EQUIPMENT_DETAIL_CLONE_BTN}>
             <DocumentDuplicateIcon className="size-4 mr-1.5" />
             Clone
           </Button>
-        </div>
-      ) : (
-        <Button
-          variant="outline"
-          onClick={() => setOverrideSheetOpen(true)}
-          data-testid="equipment-detail-override-btn"
-        >
-          Override Scope
-        </Button>
-      )}>
+        ) : undefined}
+      >
         <Badge
           data-testid={TEST_IDS.EQUIPMENT_DETAIL_SOURCE}
           variant={equipment.registrySource === 'bundled' && !scopedNotebookId ? 'secondary' : 'default'}

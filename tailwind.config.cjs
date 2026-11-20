@@ -10,8 +10,8 @@ module.exports = {
   theme: {
     extend: {
       screens: {
-        "2xl": "1520px",
-        "3xl": "1800px",
+        "2xl": "95rem",
+        "3xl": "112.5rem",
       },
       colors: {
         border: "hsl(var(--border))",

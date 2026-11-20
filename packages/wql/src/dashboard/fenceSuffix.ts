@@ -5,6 +5,7 @@
  */
 
 export const DASHBOARD_WIDGET_TYPES = [
+  'summary',
   'table',
   'list',
   'value',

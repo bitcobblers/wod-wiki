@@ -282,6 +282,9 @@ export {
   type FindQueryResult,
   type RowsQueryResult,
   type RowsRun,
+  type RowsRunSummary,
+  type MovementRollupItem,
+  computeRowsRunSummary,
   // Parser & AST
   parseQuery,
   isFindQuery,
@@ -344,7 +347,9 @@ export {
   // Dashboard Model
   buildDashboardDocument,
   buildDashboardScaffold,
+  buildWorkoutDashboardScaffold,
   extractDashboardTokens,
+  type WorkoutDashboardScaffoldOptions,
   defaultTokenValues,
   substituteTokens,
   unknownTokensMessage,
@@ -574,6 +579,13 @@ export type {
 export * from './seed/contract';
 export * from './seed/runtime';
 export * from './seed/validation';
+export {
+  buildQueryServiceStoresFromStorage,
+  buildContextualPageSource,
+  type BuildQueryServiceStoresOptions,
+  type BuildContextualPageSourceScope,
+  type DatasetStore,
+} from './storage/queryServiceStores';
 export * from './feed/qr';
 export * from './feed/landing';
 export * from './feed/tree';

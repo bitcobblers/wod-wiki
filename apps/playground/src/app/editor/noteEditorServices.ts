@@ -1,6 +1,16 @@
 import type { Extension } from '@codemirror/state';
+import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete';
 import { EditorView, ViewPlugin } from '@codemirror/view';
-import { attachmentUrlFacet, frontmatterSuggestions, frontmatterReferenceIndex, referenceIndexReload, type FrontmatterReferenceProvider, type NestedCompletionOptions } from '@bitcobblers/wod-wiki-ui/extensions';
+import {
+  activeCursorSection,
+  attachmentUrlFacet,
+  frontmatterSuggestions,
+  frontmatterReferenceIndex,
+  referenceIndexReload,
+  type CustomCompletionSource,
+  type FrontmatterReferenceProvider,
+  type NestedCompletionOptions,
+} from '@bitcobblers/wod-wiki-ui/extensions';
 import { loadSuggestions } from '@bitcobblers/wod-wiki-ui';
 import {
   addAliasToEffort,
@@ -171,7 +181,10 @@ export async function loadReferenceCatalog(): Promise<CatalogSnapshot> {
   };
 }
 export interface NoteCompletionSources {
-  loadCatalog?: () => Promise<{ efforts: readonly { slug: string; label: string }[]; equipment: readonly { slug: string; label: string }[] }>;
+  loadCatalog?: () => Promise<{
+    efforts: readonly { slug: string; label: string; aliases?: readonly string[] }[];
+    equipment: readonly { slug: string; label: string; aliases?: readonly string[] }[];
+  }>;
   loadTags?: () => Promise<readonly string[]> | readonly string[];
   loadSounds?: () => Promise<readonly { id: string; name: string }[]> | readonly { id: string; name: string }[];
   loadWqlSuggestions?: (key: string) => Promise<readonly { value: string; label?: string }[]>;
@@ -199,6 +212,7 @@ export function buildNestedCompletionOptions(sources?: NoteCompletionSources): N
         return catalog.efforts.map((effort) => ({
           value: effort.slug,
           label: effort.label,
+          aliases: effort.aliases,
           detail: effort.slug,
         }));
       },
@@ -207,6 +221,7 @@ export function buildNestedCompletionOptions(sources?: NoteCompletionSources): N
         return catalog.equipment.map((item) => ({
           value: item.slug,
           label: item.label,
+          aliases: item.aliases,
           detail: item.slug,
         }));
       },
@@ -225,6 +240,98 @@ export function buildNestedCompletionOptions(sources?: NoteCompletionSources): N
         return readSoundProfiles().map((profile) => ({ value: profile.id, label: profile.name }));
       },
     },
+  };
+}
+
+/**
+ * Prose completion source for Markdown body text outside fences and frontmatter:
+ * supports `[[Wiki Link]]` search against saved Notes and `#tag` inline picks
+ * while preserving `# Heading` at the start of Markdown lines.
+ */
+export function createMarkdownProseCompletionSource(): CustomCompletionSource {
+  return async (context: CompletionContext): Promise<CompletionResult | null> => {
+    const section = activeCursorSection(context.state);
+    if (section && section.type !== 'markdown') return null;
+
+    // Skip YAML frontmatter header lines even before closing `---`.
+    const line = context.state.doc.lineAt(context.pos);
+    if (line.number > 1 && context.state.doc.line(1).text.trim() === '---') {
+      let closed = false;
+      for (let i = 2; i < line.number; i++) {
+        if (/^(?:---|\.\.\.)\s*$/.test(context.state.doc.line(i).text)) {
+          closed = true;
+          break;
+        }
+      }
+      if (!closed) return null;
+    }
+
+    const textBefore = line.text.slice(0, context.pos - line.from);
+
+    const wikiMatch = /\[\[([^\]]*)$/.exec(textBefore);
+    if (wikiMatch) {
+      const notes = await storageService.getAllNotes().catch(() => []);
+      const seen = new Set<string>();
+      const options = [];
+      for (const note of notes) {
+        const title = note.title?.trim();
+        if (!title || seen.has(title.toLowerCase())) continue;
+        seen.add(title.toLowerCase());
+        options.push({
+          label: title,
+          detail: note.tags?.slice(0, 2).map((t) => `#${t}`).join(' ') || 'Note',
+          type: 'class',
+          apply: (targetView, _completion, from, to) => {
+            const hasClosingBrackets = targetView.state.doc.sliceString(to, to + 2) === ']]';
+            const insert = `${title}${hasClosingBrackets ? '' : ']]'}`;
+            targetView.dispatch({
+              changes: { from, to, insert },
+              selection: { anchor: from + insert.length },
+              userEvent: 'input.complete',
+            });
+          },
+        });
+      }
+      if (options.length === 0) return null;
+      return {
+        from: context.pos - wikiMatch[1].length,
+        options: options.slice(0, 40),
+        validFor: /^[^\]]*$/,
+      };
+    }
+
+    // Never hijack `# Heading` at the start of a Markdown line; allow `#tag` at start (with letter) or mid-line `#...`.
+    if (/^\s*#{1,6}(?:\s|$)/.test(textBefore)) return null;
+    const tagMatch = /(?:^#([a-zA-Z][a-zA-Z0-9-]*)|(?<=\s)#([a-zA-Z0-9-]*))$/.exec(textBefore);
+    if (tagMatch) {
+      const tagStart = textBefore.lastIndexOf('#');
+      const from = line.from + tagStart;
+      const tags = getTagIndex().list().filter((d) => !d.isCategory);
+      if (tags.length === 0) return null;
+      return {
+        from,
+        options: tags.map((tag) => {
+          const first = tag.contributions[0];
+          const detail =
+            first?.kind === 'metric'
+              ? first.type
+              : first?.kind === 'function'
+                ? first.name
+                : first?.kind === 'tag'
+                  ? `#${first.slug}`
+                  : 'Tag';
+          return {
+            label: `#${tag.slug}`,
+            detail,
+            type: 'keyword',
+            apply: `#${tag.slug} `,
+          };
+        }),
+        validFor: /^#[a-zA-Z0-9-]*$/,
+      };
+    }
+
+    return null;
   };
 }
 

@@ -280,6 +280,10 @@ export interface ParsedPipelineQuery {
 export interface SeriesPoint {
   ts: number;
   value: number;
+  /** Ordinal or categorical x position (`round`, `split`, `attempt`, `effort`, `notebook`). */
+  x?: number | string;
+  /** Human-readable x-axis label when `x` is ordinal/categorical. */
+  label?: string;
   /** True for a structurally present bucket with no recorded observations
    *  (ticket 12 calendar domain generation) — display zero-fill, never an
    *  observation. */
@@ -323,7 +327,15 @@ export interface ParsedRowsQuery {
 
 /** One aggregated series. `error` carries the diagnostic when this series'
  *  calculation failed (ticket 13) — an errored series has no valid values. */
-export interface Series { key: string; label: string; points: SeriesPoint[]; unit?: string; error?: string }
+export interface Series {
+  key: string;
+  label: string;
+  points: SeriesPoint[];
+  unit?: string;
+  axisKind?: 'time' | 'ordinal' | 'category';
+  axisDimension?: string;
+  error?: string;
+}
 /** Aggregate head vocabulary is owned by vocabulary.ts (#871). */
 const AGGS: readonly Aggregator[] = WQL_AGGREGATORS;
 
@@ -1266,7 +1278,7 @@ export function findTargetAdvisories(query: ParsedFindQuery): string[] {
     const negationIgnored = target === 'note'
       ? ['effort', 'text', 'type', 'domain', 'format', 'equipment', 'quality', 'intent'].includes(filter.key)
       : target === 'block' ? ['text', 'type', 'tags', 'effort'].includes(filter.key)
-      : (target === 'session' || target === 'segment' || target === 'event') && scope;
+      : false;
     if (filter.negate && negationIgnored) {
       advisories.push(`:${target} does not support '!${filter.key}:' negation; this clause is not applied as a negated filter.`);
     }

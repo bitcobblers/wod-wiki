@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Locator, type Page } from '@playwright/test';
 import JSZip from 'jszip';
 import {
   buildDomainWorld,
@@ -120,6 +120,9 @@ export interface PlaygroundTestActor {
     openDashboard(slug: string): Promise<void>;
     queryStream(route: string, wql: string): Promise<void>;
     fillStreamQueryBar(wql: string): Promise<void>;
+    openScopeMap(): Promise<void>;
+    closeScopeMap(): Promise<void>;
+    openCommandPalette(): Promise<Locator>;
     setStreamLayout(route: string, layout: 'cards' | 'feed' | 'rows' | 'agenda' | 'planner'): Promise<void>;
     expectStreamContains(text: string): Promise<void>;
     expectStreamExcludes(text: string): Promise<void>;
@@ -700,9 +703,34 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
         },
 
         async fillStreamQueryBar(wql: string): Promise<void> {
-          const editor = page.getByTestId(TEST_IDS.STREAM_QUERY_BAR).getByLabel('WQL', { exact: true });
+          const bar = page.getByTestId(TEST_IDS.STREAM_QUERY_BAR);
+          await expect(bar).toBeVisible();
+          const editor = bar.getByLabel('WQL', { exact: true });
+          if (!(await editor.isVisible())) {
+            await bar.getByTestId(TEST_IDS.WQL_SCOPE_TOGGLE).click();
+            await expect(editor).toBeVisible();
+          }
           await editor.fill(wql);
           await editor.press('Enter');
+        },
+
+        async openScopeMap(): Promise<void> {
+          const bar = page.getByTestId(TEST_IDS.STREAM_QUERY_BAR);
+          await bar.getByTestId(TEST_IDS.WQL_SCOPE_TOGGLE).click();
+          await expect(bar.getByTestId(TEST_IDS.WQL_SCOPE_MAP)).toBeVisible();
+        },
+
+        async closeScopeMap(): Promise<void> {
+          const bar = page.getByTestId(TEST_IDS.STREAM_QUERY_BAR);
+          await bar.getByTestId(TEST_IDS.WQL_SCOPE_CLOSE).click();
+          await expect(bar.getByTestId(TEST_IDS.WQL_SCOPE_MAP)).toBeHidden();
+        },
+
+        async openCommandPalette(): Promise<Locator> {
+          await page.keyboard.press('ControlOrMeta+k');
+          const dialog = page.getByRole('dialog', { name: 'Command Palette' });
+          await expect(dialog).toBeVisible();
+          return dialog;
         },
 
         async setStreamLayout(route: string, layout): Promise<void> {

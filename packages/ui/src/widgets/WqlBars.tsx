@@ -13,6 +13,7 @@ import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { useChartShape } from './useChartShape';
 import { WqlEmptyState } from './WqlEmptyState';
 import { SERIES_COLORS } from './chartPalette';
+import { resolveWidgetDisplayUnit } from './unitIntegrity';
 import { formatTimeseriesTick } from './WqlTimeseries';
 
 export interface WqlBarsProps {
@@ -33,7 +34,7 @@ export function WqlBars({ result, unit: unitProp }: WqlBarsProps) {
     [result],
   );
 
-  const unit = result.series[0]?.unit ?? unitProp;
+  const unit = resolveWidgetDisplayUnit(result, unitProp);
 
   if (shape.kind !== 'bars' && shape.kind !== 'scalar') {
     return <WqlEmptyState result={result} />;

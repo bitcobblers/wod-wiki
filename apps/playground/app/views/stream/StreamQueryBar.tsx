@@ -1,26 +1,24 @@
 /**
  * StreamQueryBar — the compact WQL query bar that lives IN the header.
- * Its contextual writer expands to a second row inside the sticky boundary.
  *
- * Desktop: the shared WqlComposer in compact mode IS the bar — kind, target
- * and Where-stored scope chips with one searchable picker; favorites
- * (`scopeOptions`) prioritize choices without ever defining validity. There
- * is no header-local parser, draft text or separate scope dropdown. The full
- * query dialog stays reachable through the View menu and the global
- * ⌘/ palette; Apply writes the composed WQL back through `onQueryChange`
- * (URL `?q=` follows).
+ * Desktop: `<WqlComposer compact surface="popover" />` — renders Concept A
+ * unified Split-Pills in the single-row sticky header at rest. Clicking a pill,
+ * `+ Filter`, or `[</>]` turns the pill rail in place into the single live
+ * `WqlTextEditor` and drops the floating `WHAT/WHERE/WHEN/GROUP` Scope Map
+ * popover cleanly over the page without inflating the header.
  *
- * `compact` (mobile) renders the summary row that portals into the app
- * navbar: tapping opens the shared palette dialog (view settings lives in
- * the mobile dock, owned by ResponsiveActions).
+ * Mobile (`compact`): renders a human-readable thumb-footer trigger that opens
+ * `PaletteShell` as a dedicated 3-region scroll-safe Filter Sheet.
  */
 
-import { useCallback } from 'react'
-import { ChevronUp, Search } from 'lucide-react'
-import { WqlComposer, type WqlExecutor } from '@bitcobblers/wod-wiki-ui'
+import { useCallback, useMemo } from 'react'
+import { ChevronUp, SlidersHorizontal } from 'lucide-react'
+import { formatHumanQuerySummary, WqlComposer, type WqlExecutor } from '@bitcobblers/wod-wiki-ui'
+import { TEST_IDS } from '@/lib/testIds'
 import { cn } from '@/lib/utils'
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store'
 import { wqlSearchSource } from '../../services/wqlSearchSource'
+
 export interface StreamQueryBarProps {
   /** The controlled WQL string (the composer query state). */
   query: string
@@ -33,16 +31,15 @@ export interface StreamQueryBarProps {
   /** The route's default WQL — composer guidance and the compact dock's
    *  summary when the draft is empty (actual profile default, not a slogan). */
   defaultQuery?: string
-  /** Canonical route id — when present, the desktop WQL line gains a save
-   *  icon that stores the current query as a route shortcut. */
+  /** Canonical route id — optional route label context. */
   route?: string
-  /** Compact (mobile) variant — summary line instead of the composer. */
+  /** Compact (mobile) variant — human-readable thumb-footer trigger. */
   compact?: boolean
   className?: string
 }
 
-/** Open the shared query dialog (palette WQL mode) on `query`; Apply writes
- *  the composed WQL through `onApply`. */
+/** Open the shared query dialog in dedicated Filter Sheet mode on `query`;
+ *  Apply writes the composed WQL back through `onApply`. */
 export function openStreamQueryEditor(
   query: string,
   execute: WqlExecutor,
@@ -51,7 +48,13 @@ export function openStreamQueryEditor(
 ): void {
   void usePaletteStore.getState().open({
     placeholder: 'Craft the query…',
-    wql: { initialQuery: query, execute, onApply, preferredChoices: scopeOptions },
+    wql: {
+      initialQuery: query,
+      execute,
+      onApply,
+      preferredChoices: scopeOptions,
+      hideResults: true,
+    },
     sources: [wqlSearchSource()],
   })
 }
@@ -65,37 +68,40 @@ export function StreamQueryBar({
   compact = false,
   className,
 }: StreamQueryBarProps) {
+  const effectiveWql = query || defaultQuery || ''
+  const humanSummary = useMemo(
+    () => formatHumanQuerySummary(effectiveWql, 'Filter or search…'),
+    [effectiveWql],
+  )
+
   const openEditor = useCallback(
-    () => openStreamQueryEditor(query, execute, onQueryChange, scopeOptions),
-    [query, execute, onQueryChange, scopeOptions],
+    () => openStreamQueryEditor(effectiveWql, execute, onQueryChange, scopeOptions),
+    [effectiveWql, execute, onQueryChange, scopeOptions],
   )
 
   if (compact) {
-    // Mobile thumb-footer button row — the summary control (48px target)
-    // opens the WQL palette; the trailing save icon stores the current
-    // query as a route shortcut. Same border token as the desktop composer
-    // box so both variants read as one chrome. An empty draft summarizes
-    // the route's actual default query.
     return (
       <div
-        data-testid="stream-query-bar-dock"
+        data-testid={TEST_IDS.STREAM_QUERY_BAR_DOCK}
         className={cn(
-          'flex min-h-12 w-full items-stretch overflow-hidden rounded-xl border border-border bg-muted/40 shadow-xs',
+          'flex min-h-12 w-full items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-xs',
           className,
         )}
       >
         <button
           type="button"
-          data-testid="stream-query-bar"
+          data-testid={TEST_IDS.STREAM_QUERY_BAR}
           onClick={openEditor}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 px-3 text-left transition-colors hover:bg-muted/70"
+          title={effectiveWql || undefined}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 px-3 text-left transition-colors hover:bg-muted/60"
         >
-          <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <SlidersHorizontal className="size-4 shrink-0 text-primary" aria-hidden="true" />
           <span
-            data-testid="stream-query-summary"
-            className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
+            data-testid={TEST_IDS.STREAM_QUERY_SUMMARY}
+            data-wql={effectiveWql}
+            className="min-w-0 flex-1 truncate text-xs font-medium text-foreground"
           >
-            {query || defaultQuery || 'Filter or search…'}
+            {humanSummary}
           </span>
           <ChevronUp className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </button>
@@ -105,14 +111,14 @@ export function StreamQueryBar({
 
   return (
     <div
-      data-testid="stream-query-bar"
+      data-testid={TEST_IDS.STREAM_QUERY_BAR}
       className={cn('flex min-w-0 flex-1 items-center gap-1 text-xs', className)}
     >
-      {/* Shared composer — fills the row left empty by the removed title. */}
       <WqlComposer
         query={query}
         onQueryChange={onQueryChange}
         compact
+        surface="popover"
         showDiagnostics={false}
         hiddenClauseTypes={['agg', 'metric', 'rollup', 'pipes']}
         preferredChoices={scopeOptions}

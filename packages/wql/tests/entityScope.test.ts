@@ -37,7 +37,7 @@ describe('Entity WQL Scope & Dashboard Promotion', () => {
     const notebook = resolveEntityScope({ noteId: 'notebook/crossfit-girls', label: 'CrossFit Girls' });
     expect(notebook.kind).toBe('notebook');
     expect(notebook.notesWql).toBe(':note{notebook:crossfit-girls}');
-    expect(notebook.sessionsWql).toBe(':session{} where :note{notebook:crossfit-girls}');
+    expect(notebook.sessionsWql).toBe(':session{notebook:crossfit-girls}');
 
     const feed = resolveEntityScope({ noteId: 'feed/wod-science', label: 'WOD Science' });
     expect(feed.kind).toBe('feed');

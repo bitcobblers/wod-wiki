@@ -37,7 +37,7 @@ export type WqlTypedTagKey = (typeof WQL_TYPED_TAG_KEYS)[number];
 /** Tag keys the Query Service reads off a fact row (QueryService.factTagValue). */
 export const WQL_TAG_KEYS = [
   ...WQL_TYPED_TAG_KEYS,
-  'effort', 'discipline', 'intensity', 'grade', 'note', 'page', 'origin',
+  'effort', 'discipline', 'intensity', 'grade', 'note', 'notebook', 'page', 'origin',
   'grain', 'metric', 'block', 'result', 'tags',
 ] as const;
 export type WqlTagKey = (typeof WQL_TAG_KEYS)[number];
@@ -45,17 +45,15 @@ export type WqlTagKey = (typeof WQL_TAG_KEYS)[number];
 /** Content-plane keys — meaningful only on find:/rows:. On an aggregate
  *  they are a category error (a fact row has no note text or source);
  *  every other non-structural key is a candidate custom dimension.
- *  `catalog:` is retired (ticket 08 — the notebook plane and the
- *  `notebook:` filter replace it) and `has:` was removed from the
- *  declared vocabulary: it had no executor and the composer withheld it. */
-export const WQL_CONTENT_ONLY_KEYS = ['type', 'text', 'source', 'notebook', 'contributes', 'feed', 'subscribed'] as const;
+ *  `notebook:` is now supported natively across facts, sessions, and tables. */
+export const WQL_CONTENT_ONLY_KEYS = ['type', 'text', 'source', 'contributes', 'feed', 'subscribed'] as const;
 
 /** Filter keys the effort registry can resolve (runFindEffort) — anything
  *  else on find:effort is ignored and reported as an advisory. */
 export const WQL_EFFORT_FILTER_KEYS = ['effort', 'discipline', 'intensity', 'origin', 'text'] as const;
 
 /** Virtual dimensions — time buckets and stream positions, not fact fields. */
-export const WQL_VIRTUAL_DIMS = ['day', 'week', 'month', 'session', 'round'] as const;
+export const WQL_VIRTUAL_DIMS = ['day', 'week', 'month', 'session', 'round', 'split', 'attempt', 'notebook'] as const;
 export type WqlVirtualDim = (typeof WQL_VIRTUAL_DIMS)[number];
 
 /**
@@ -163,12 +161,12 @@ export const WQL_FUNCTION_HEADS = WQL_AGGREGATORS;
 export type WqlFunctionHead = WqlAggregator;
 
 /** Colon chart heads — terminal pipeline sinks (`:timeseries`, `:bar`, …). */
-export const WQL_CHART_HEADS = ['timeseries', 'bar', 'stacked-bar', 'table', 'list', 'donut', 'toplist', 'value', 'goal-rings', 'zone-distribution'] as const;
+export const WQL_CHART_HEADS = ['summary', 'timeseries', 'bar', 'stacked-bar', 'table', 'list', 'donut', 'toplist', 'value', 'goal-rings', 'zone-distribution'] as const;
 export type WqlChartHead = (typeof WQL_CHART_HEADS)[number];
 
 /** Standard datasets the host registers per page/run before children
- *  evaluate (`@session` active session, `@today` civil-day telemetry+notes). */
-export const WQL_STANDARD_DATASETS = ['@session', '@today', '@note'] as const;
+ *  evaluate (`@session`, `@today`, `@note`, `@block`, `@notebook`). */
+export const WQL_STANDARD_DATASETS = ['@session', '@today', '@note', '@block', '@notebook'] as const;
 export type WqlStandardDataset = (typeof WQL_STANDARD_DATASETS)[number];
 
 

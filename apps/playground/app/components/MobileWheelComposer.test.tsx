@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { act } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
+import { TEST_IDS } from '@/lib/testIds';
 import {
   InMemoryStorage,
   resetStorageForTesting,
@@ -219,6 +220,171 @@ describe('MobileWheelComposer in NoteEditor', () => {
     await waitFor(() => {
       const addEffortBtn = screen.getByTestId('wheel-option-add-effort');
       expect(addEffortBtn.textContent).toContain('Dead Hang');
+    });
+  });
+
+  it('keeps the live token rail + syntax keys in Type mode and supports delete + undo', async () => {
+    const doc = '```time\n10:00 15 Kettlebell Swing\n```';
+    let view: EditorView | undefined;
+    render(
+      <NoteEditor
+        value={doc}
+        onChange={() => {}}
+        onViewCreated={(v) => {
+          view = v;
+        }}
+      />,
+    );
+    if (!view) throw new Error('Editor did not mount');
+
+    const lineStart = doc.indexOf('10:00');
+    act(() => {
+      view!.contentDOM.focus();
+      fireEvent.focus(view!.contentDOM);
+      view!.dispatch({ selection: { anchor: lineStart + 6 } });
+    });
+
+    await screen.findByTestId('mobile-wheel-composer');
+    await waitFor(() => {
+      expect(screen.getByTestId('mobile-wheel-slot-1').textContent).toBe('15');
+    });
+
+    // Step to "15", delete it, and undo back
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-wheel-slot-1'));
+    });
+    act(() => {
+      fireEvent.click(screen.getByTestId(TEST_IDS.EDITOR_TOKEN_DELETE_BTN));
+    });
+    expect(view.state.doc.toString()).not.toContain('10:00 15 Kettlebell Swing');
+
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Undo last edit' }));
+    });
+    await waitFor(() => {
+      expect(view!.state.doc.toString()).toContain('10:00 15 Kettlebell Swing');
+    });
+
+    // Enter Type mode and verify persistent Live Token Rail + syntax accessory keys
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-wheel-type-btn'));
+    });
+    const typingBar = screen.getByTestId('mobile-typing-bar');
+    expect(typingBar.textContent).toContain('L2');
+    expect(typingBar.textContent).toContain('Kettlebell Swing');
+
+    const starKey = screen.getByRole('button', { name: 'Insert rest prefix *' });
+    act(() => {
+      fireEvent.click(starKey);
+    });
+    expect(view.state.doc.toString()).toContain('*');
+  });
+
+  it('opens prose directly in typing mode (inputmode="text" + mobile-typing-bar) and workout blocks in deck mode with safe-area padding', async () => {
+    const doc = '# Morning Notes\n\nFeeling strong today.\n\n```time\n10:00 15 Kettlebell Swing\n```';
+    let view: EditorView | undefined;
+    render(
+      <NoteEditor
+        value={doc}
+        onChange={() => {}}
+        onViewCreated={(v) => {
+          view = v;
+        }}
+      />,
+    );
+    if (!view) throw new Error('Editor did not mount');
+
+    // Focusing inside Markdown prose enters typing mode directly without an extra Type tap
+    const prosePos = doc.indexOf('Feeling strong') + 2;
+    act(() => {
+      view!.dispatch({ selection: { anchor: prosePos } });
+      view!.contentDOM.focus();
+      fireEvent.focus(view!.contentDOM);
+    });
+
+    const typingBar = await screen.findByTestId('mobile-typing-bar');
+    expect(typingBar.className).toContain('pb-[env(safe-area-inset-bottom,0px)]');
+    expect(screen.queryByTestId('mobile-wheel-composer')).toBeNull();
+    await waitFor(() => {
+      expect(view!.contentDOM.getAttribute('inputmode')).toBe('text');
+    });
+
+    // Blur, move selection inside ```time workout fence, and focus -> enters 3-region wheel deck
+    const workoutPos = doc.indexOf('10:00') + 1;
+    act(() => {
+      fireEvent.blur(view!.contentDOM);
+      view!.dispatch({ selection: { anchor: workoutPos } });
+      view!.contentDOM.focus();
+      fireEvent.focus(view!.contentDOM);
+    });
+
+    const deck = await screen.findByTestId('mobile-wheel-composer');
+    expect(deck.className).toContain('pb-[env(safe-area-inset-bottom,0px)]');
+    expect(screen.queryByTestId('mobile-typing-bar')).toBeNull();
+    await waitFor(() => {
+      expect(view!.contentDOM.getAttribute('inputmode')).toBe('none');
+    });
+  });
+
+  it('opens duration scrubber on + Duration click, wires query rail Chart stage, and marks data-mobile-editor-open', async () => {
+    const doc = '```time\n10:00 15 Kettlebell Swing\n```\n\n```query\n:sum{metric:reps} by {week} last 4w | :bar{}\n```';
+    let view: EditorView | undefined;
+    render(
+      <NoteEditor
+        value={doc}
+        onChange={() => {}}
+        onViewCreated={(v) => {
+          view = v;
+        }}
+      />,
+    );
+    if (!view) throw new Error('Editor did not mount');
+
+    const lineStart = doc.indexOf('10:00') + 1;
+    act(() => {
+      view!.contentDOM.focus();
+      fireEvent.focus(view!.contentDOM);
+      view!.dispatch({ selection: { anchor: lineStart } });
+    });
+
+    await screen.findByTestId('mobile-wheel-composer');
+    expect(document.documentElement.dataset.mobileEditorOpen).toBe('true');
+
+    // Click + Add -> Duration / Timer (`wheel-option-add-duration`) auto-opens scrubber
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-wheel-slot-add'));
+    });
+    const addDurationBtn = await screen.findByTestId('wheel-option-add-duration');
+    act(() => {
+      fireEvent.click(addDurationBtn);
+    });
+    await waitFor(() => {
+      expect(screen.getAllByTestId(TEST_IDS.EDITOR_INSPECTOR_SCRUBBER).length).toBeGreaterThanOrEqual(1);
+    });
+
+    // Move cursor into query block body (accounting for inserted ` 1:00`) -> tap "Chart" slot -> select Timeseries stage
+    const qPos = view!.state.doc.toString().indexOf(':sum') + 2;
+    act(() => {
+      view!.dispatch({ selection: { anchor: qPos } });
+    });
+    const chartSlot = await screen.findByRole('button', { name: 'Chart' });
+    act(() => {
+      fireEvent.click(chartSlot);
+    });
+    const tsBtn = await screen.findByRole('button', { name: 'Timeseries' });
+    act(() => {
+      fireEvent.click(tsBtn);
+    });
+    await waitFor(() => {
+      expect(view!.state.doc.toString()).toContain('| :timeseries{}');
+    });
+
+    // Closing deck clears data-mobile-editor-open
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-wheel-done-btn'));
+    });
+    await waitFor(() => {
+      expect(document.documentElement.dataset.mobileEditorOpen).toBeUndefined();
     });
   });
 });

@@ -193,6 +193,14 @@ describe('serialize (C6 structured interface)', () => {
     expect(structurallyEqual(parseQuery(pivoted), a)).toBe(true);
   });
 
+  it('serializes pure wildcard filter values without quoting empty string', () => {
+    const a = parseQuery(':note{notebook:*}');
+    expect(a.error).toBeUndefined();
+    const text = serialize(a);
+    expect(text).toBe(':note{notebook:*}');
+    expect(structurallyEqual(parseQuery(text), a)).toBe(true);
+  });
+
   it('round-trips every find suffix together (group, unit, window, join, pipes)', () => {
     const a = parseQuery(':block{tags:strength} by {week} in lb last 2w where sum:tis{} > 0 | order by date | limit 5 offset 2');
     expect(a.error).toBeUndefined();

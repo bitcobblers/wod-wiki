@@ -211,6 +211,24 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     const offered = await labels('10 Push Ups #he', { tags: () => [{ value: 'heavy' }] });
     expect(offered).toContain('heavy');
   });
+
+  it('offers action cues on [: prefix', async () => {
+    const offered = await labels(':30 Plank [:re');
+    expect(offered).toContain('[:rest]');
+    expect(offered).toContain('[:done]');
+  });
+
+  it('matches catalog efforts by word substring and explicit aliases', async () => {
+    const options: WhiteboardScriptCompletionOptions = {
+      efforts: () => [
+        { value: 'Kettlebell Swing', label: 'Kettlebell Swing', aliases: ['swing', 'kbs'] },
+        { value: 'Back Squat', label: 'Back Squat', aliases: ['bs'] },
+      ],
+    };
+    expect(await labels('10:00 swing', options)).toContain('Kettlebell Swing');
+    expect(await labels('10 kbs', options)).toContain('Kettlebell Swing');
+    expect(await labels('kbs', options)).toContain('Kettlebell Swing');
+  });
 });
 
 describe('whiteboardScriptCompletionSource — dialect options by sport', () => {

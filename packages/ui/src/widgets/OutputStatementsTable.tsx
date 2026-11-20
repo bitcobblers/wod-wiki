@@ -62,12 +62,18 @@ export function MetricBadge({ token }: { token: MetricPresentationToken }) {
   );
 }
 
+function sanitizeMetricForDisplay(m: IMetric): IMetric {
+  if (typeof m.value !== 'number' || !Number.isFinite(m.value) || m.image !== undefined) return m;
+  const rounded = Math.round(m.value * 100) / 100;
+  return rounded === m.value ? m : { ...m, value: rounded };
+}
+
 /** Metric badges for a statement/output metric group. */
 export function presentBadges(metrics: Iterable<IMetric>): ReactNode {
   return (
     <>
       {metricPresentation
-        .presentGroup(Array.from(metrics), 'runtime-badge')
+        .presentGroup(Array.from(metrics, sanitizeMetricForDisplay), 'runtime-badge')
         .map((token, i) => (
           <MetricBadge key={i} token={token} />
         ))}
@@ -162,6 +168,7 @@ function isBaseBucketType(lowerType: string): boolean {
   return (
     EFFORT_TYPES.has(lowerType) ||
     lowerType === 'rep' ||
+    lowerType === 'reps' ||
     LOAD_TYPES.has(lowerType) ||
     ROUND_TYPES.has(lowerType) ||
     DURATION_TYPES.has(lowerType) ||
@@ -185,7 +192,7 @@ export function extractMetricsByCategory(metrics?: Iterable<IMetric>): Categoriz
   for (const m of metrics) {
     const t = String(m.type).toLowerCase();
     if (EFFORT_TYPES.has(t)) result.efforts.push(m);
-    else if (t === 'rep') result.reps.push(m);
+    else if (t === 'rep' || t === 'reps') result.reps.push(m);
     else if (LOAD_TYPES.has(t)) result.loads.push(m);
     else if (ROUND_TYPES.has(t)) result.rounds.push(m);
     else if (DURATION_TYPES.has(t)) result.durations.push(m);
@@ -476,7 +483,10 @@ function extractMetricsForColumn(
       return [];
     }
     case 'reps':
-      return all.filter((m) => String(m.type).toLowerCase() === 'rep');
+      return all.filter((m) => {
+        const t = String(m.type).toLowerCase();
+        return t === 'rep' || t === 'reps';
+      });
     case 'loads':
       return all.filter((m) => {
         const t = String(m.type).toLowerCase();
@@ -615,6 +625,16 @@ export interface OutputStatementsTableProps {
   prHighlights?: ReadonlyMap<string | number, RowPrHighlight> | Record<string, RowPrHighlight>;
 }
 
+interface StatementEditDraft {
+  rowKey: string;
+  colId: string;
+  metricType: string;
+  unit?: string;
+  draft: string;
+  error?: string;
+  saving?: boolean;
+}
+
 /** The Card List — phone presentation below `sm`. */
 function StatementCards({
   rows,
@@ -622,12 +642,24 @@ function StatementCards({
   t0,
   onClearFilter,
   prHighlights,
+  canEdit,
+  editingCell,
+  onStartEdit,
+  onChangeDraft,
+  onCancelEdit,
+  onCommitEdit,
 }: {
   rows: readonly OutputStatementRow[];
   outputs: readonly OutputStatementRow[];
   t0: number | undefined;
   onClearFilter?: () => void;
   prHighlights?: ReadonlyMap<string | number, RowPrHighlight> | Record<string, RowPrHighlight>;
+  canEdit?: boolean;
+  editingCell?: StatementEditDraft | null;
+  onStartEdit?: (out: OutputStatementRow, rowKey: string, metricType: string, defaultVal?: number | string, unit?: string) => void;
+  onChangeDraft?: (draft: string) => void;
+  onCancelEdit?: () => void;
+  onCommitEdit?: (out: OutputStatementRow) => void | Promise<void>;
 }) {
   if (rows.length === 0) {
     const filtered = outputs.length > 0;
@@ -668,9 +700,17 @@ function StatementCards({
         const pr = lookupPrHighlight(out, prHighlights);
         const bodyMetrics = [...cats.reps, ...cats.loads, ...cats.rounds, ...cats.durations, ...cats.distances];
         const hasBody = bodyMetrics.length > 0;
+        const rowKey = String(out.id ?? `${out.sourceBlockKey ?? 'row'}-${idx}`);
+        const rowEditable = Boolean(canEdit && typeKey.toLowerCase() === 'segment' && out.sourceBlockKey);
+        const isEditingThis = editingCell?.rowKey === rowKey;
+        const repMetric = cats.reps[0];
+        const repUnit =
+          repMetric && 'unit' in repMetric && typeof (repMetric as { unit?: unknown }).unit === 'string'
+            ? (repMetric as { unit: string }).unit
+            : undefined;
 
         return (
-          <li key={out.id ?? idx} className="relative pb-3 pl-6 last:pb-0" title={rowTitle}>
+          <li key={rowKey} className="relative pb-3 pl-6 last:pb-0" title={rowTitle}>
             {idx < rows.length - 1 && (
               <span aria-hidden className="absolute bottom-0 left-[5px] top-5 w-px bg-border/60" />
             )}
@@ -700,7 +740,60 @@ function StatementCards({
                 </div>
               </header>
               {hasBody && (
-                <div className="flex flex-wrap gap-1 pt-1.5">{presentBadges(bodyMetrics)}</div>
+                <div className="flex flex-wrap items-center justify-between gap-1 pt-1.5">
+                  <div className="flex flex-wrap gap-1">{presentBadges(bodyMetrics)}</div>
+                  {rowEditable && onStartEdit && !isEditingThis && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onStartEdit(
+                          out,
+                          rowKey,
+                          repMetric ? String(repMetric.type) : 'rep',
+                          typeof repMetric?.value === 'number' ? repMetric.value : '',
+                          repUnit,
+                        )
+                      }
+                      data-testid={`edit-card-reps-${idx}`}
+                      className="rounded border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      Edit reps
+                    </button>
+                  )}
+                </div>
+              )}
+              {isEditingThis && editingCell && onCommitEdit && (
+                <form
+                  className="mt-2 flex items-center gap-1.5"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void onCommitEdit(out);
+                  }}
+                >
+                  <input
+                    type="number"
+                    step="any"
+                    value={editingCell.draft}
+                    onChange={(e) => onChangeDraft?.(e.target.value)}
+                    data-testid="inline-metric-input"
+                    className="min-h-10 w-24 rounded border border-primary bg-background px-2 font-mono text-xs text-foreground"
+                  />
+                  <button
+                    type="submit"
+                    disabled={editingCell.saving}
+                    data-testid="inline-metric-save"
+                    className="min-h-10 rounded bg-primary px-3 text-xs font-semibold text-primary-foreground"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onCancelEdit}
+                    className="min-h-10 rounded border border-border px-2.5 text-xs text-muted-foreground"
+                  >
+                    Cancel
+                  </button>
+                </form>
               )}
               {cats.hints.length > 0 && (
                 <div className="mt-1.5 flex flex-wrap gap-1 border-t border-border/30 pt-1.5">
@@ -873,6 +966,20 @@ export function OutputStatementsTable({
         t0={t0}
         onClearFilter={onClearFilter}
         prHighlights={prHighlights}
+        canEdit={Boolean(onEditMetric)}
+        editingCell={editingCell}
+        onStartEdit={(_out, rowKey, metricType, defaultVal, unit) =>
+          setEditingCell({
+            rowKey,
+            colId: 'reps',
+            metricType,
+            unit,
+            draft: defaultVal !== undefined ? String(defaultVal) : '',
+          })
+        }
+        onChangeDraft={(draft) => setEditingCell((prev) => (prev ? { ...prev, draft } : null))}
+        onCancelEdit={() => setEditingCell(null)}
+        onCommitEdit={commitInlineEdit}
       />
     </div>
   ) : (
@@ -894,20 +1001,29 @@ export function OutputStatementsTable({
                 return (
                   <th
                     key={col.id}
+                    scope="col"
                     aria-sort={ariaSort}
-                    onClick={(e) => handleSortClick(col.id, e.shiftKey)}
+                    onClick={(e) => {
+                      if (!(e.target as HTMLElement).closest('button')) {
+                        handleSortClick(col.id, e.shiftKey);
+                      }
+                    }}
                     data-testid={`sort-col-${col.id}`}
-                    className={`${col.className} cursor-pointer select-none hover:text-foreground transition-colors`}
+                    className={`${col.className} select-none hover:text-foreground transition-colors`}
                     title={`Sort by ${col.header}`}
                   >
-                    <span className="inline-flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => handleSortClick(col.id, e.shiftKey)}
+                      className="inline-flex items-center gap-1 font-inherit text-inherit uppercase tracking-wider hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                    >
                       <span>{col.header}</span>
                       {sortEntry && (
                         <span className="text-primary font-mono text-[10px]" aria-hidden>
                           {sortEntry.dir === 'asc' ? '↑' : '↓'}
                         </span>
                       )}
-                    </span>
+                    </button>
                   </th>
                 );
               })}

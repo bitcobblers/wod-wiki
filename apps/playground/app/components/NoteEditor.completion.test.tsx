@@ -112,11 +112,11 @@ describe('NoteEditor write-on-completion (#944)', () => {
 
     await completeOneRun();
 
-    await waitFor(() => expect(latestValue).toContain('```query\n:session{result:'));
+    await waitFor(() => expect(latestValue).toContain('```query\nview: summary\nquery: :session{result:'));
     const match = /:session\{result:([0-9a-f-]+)\}/.exec(latestValue);
     expect(match).not.toBeNull();
     expect(latestValue).toContain(
-      '```time\n5s\n```\n\n```query\n:session{result:' + match![1] + '}\n```\n\nTrailing notes.',
+      '```time\n5s\n```\n\n```query\nview: summary\nquery: :session{result:' + match![1] + '}\n```\n\nTrailing notes.',
     );
     // The table references the id persistence is told to record.
     expect(onCompleteWorkout).toHaveBeenCalledTimes(1);
@@ -135,7 +135,7 @@ describe('NoteEditor write-on-completion (#944)', () => {
     const { onCompleteWorkout } = renderEditor(onChange);
 
     await completeOneRun();
-    await waitFor(() => expect(latestValue).toContain('```query\n:session{result:'));
+    await waitFor(() => expect(latestValue).toContain('```query\nview: summary\nquery: :session{result:'));
     const firstId = /:session\{result:([0-9a-f-]+)\}/.exec(latestValue)![1];
 
     await completeOneRun();
@@ -175,7 +175,7 @@ describe('NoteEditor write-on-completion (#944)', () => {
     );
 
     await completeOneRun();
-    await waitFor(() => expect(latestValue).toContain('```query\n:session{result:'));
+    await waitFor(() => expect(latestValue).toContain('```query\nview: summary\nquery: :session{result:'));
     const resultId = /:session\{result:([0-9a-f-]+)\}/.exec(latestValue)![1];
     expect(calls).toBe(1);
     expect(onCompleteWorkout.mock.calls[0][2]).toBe(resultId);

@@ -1,5 +1,5 @@
 import { Suspense, type RefObject, type ReactNode } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { ROUTE_PATTERNS, LEGACY_REDIRECT_PATTERNS } from './lib/routes';
 import { AppContent } from './AppContent';
 import CalcAuthoringPrototypePage from './pages/CalcAuthoringPrototypePage';
@@ -21,6 +21,18 @@ export interface AppRoutesProps {
   canvasRouteList?: CanvasRoute[];
   rootUnavailable?: ReactNode;
   pageSettlingFallback?: ReactNode;
+}
+
+function GuideLegacyRedirect() {
+  const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
+  const normalizedSlug = slug?.startsWith('guide-') ? slug : `guide-${slug ?? 'start'}`;
+  return (
+    <Navigate
+      to={`/page/${encodeURIComponent(normalizedSlug)}${location.search}${location.hash}`}
+      replace
+    />
+  );
 }
 
 export function AppRoutes({ searchHandlerRef, canvasRouteList = [], rootUnavailable, pageSettlingFallback }: AppRoutesProps) {
@@ -58,6 +70,7 @@ export function AppRoutes({ searchHandlerRef, canvasRouteList = [], rootUnavaila
       <Route path={ROUTE_PATTERNS.subscribe} element={<SubscribePage />} />
       <Route path={ROUTE_PATTERNS.pages} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
       <Route path={ROUTE_PATTERNS.page} element={pageSettlingFallback ?? <AppContent searchHandlerRef={searchHandlerRef} />} />
+      <Route path="/guide/:slug" element={<GuideLegacyRedirect />} />
       <Route path={ROUTE_PATTERNS.load} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><LoadZipPage /></Suspense>} />
       <Route path={ROUTE_PATTERNS.loadJournal} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><JournalZipLoadPage /></Suspense>} />
       <Route path={ROUTE_PATTERNS.loadJournalDate} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><JournalZipLoadPage /></Suspense>} />

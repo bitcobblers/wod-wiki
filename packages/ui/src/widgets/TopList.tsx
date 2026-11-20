@@ -3,6 +3,7 @@ import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { useChartShape } from './useChartShape';
 import { WqlEmptyState } from './WqlEmptyState';
 import { SERIES_COLORS } from './chartPalette';
+import { resolveWidgetDisplayUnit } from './unitIntegrity';
 
 export interface TopListProps {
   result: QueryResult;
@@ -12,7 +13,7 @@ export interface TopListProps {
 
 export function TopList({ result, unit: unitProp, limit = 8 }: TopListProps) {
   const shape = useChartShape(result);
-  const unit = result.series[0]?.unit ?? unitProp;
+  const unit = resolveWidgetDisplayUnit(result, unitProp);
 
   const rows = useMemo(
     () =>

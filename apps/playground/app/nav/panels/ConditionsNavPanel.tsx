@@ -407,7 +407,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
       <div className="-mx-4 flex flex-col gap-1 py-3" data-testid="conditions-nav-panel">
         <SidebarSection className="px-6">
           <div className="mb-1 flex items-center justify-between gap-1 px-2">
-            <span className="text-[11px] font-medium text-muted-foreground/75">Saved views</span>
+            <span className="text-[11px] font-medium text-muted-foreground">Saved views</span>
             <div className="flex items-center gap-0.5">
               <button
                 type="button"
@@ -664,7 +664,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                 >
                   <SidebarLabel>{entry.title}</SidebarLabel>
                   {timeLabel && (
-                    <span className="ml-auto text-[10px] text-muted-foreground/60 tabular-nums shrink-0">
+                    <span className="ml-auto text-[10px] text-muted-foreground tabular-nums shrink-0">
                       {timeLabel}
                     </span>
                   )}

@@ -739,31 +739,24 @@ export function EffortDetailPage() {
   // L2 Up link (NoteContextNav "Up" section).
   const pageActions = (
     <div className="flex items-center gap-2">
-      <ResponsiveActions primary={!activeIsEditable ? (
-        <div className="flex items-center gap-1.5">
+      <ResponsiveActions
+        navbar={
           <Button
             type="button"
-            variant="default"
+            variant={!activeIsEditable ? 'default' : 'outline'}
             onClick={() => setOverrideSheetOpen(true)}
             data-testid="effort-detail-override-btn"
+            className="max-lg:min-h-11 max-lg:px-3 whitespace-nowrap"
           >
-            Override
+            {!activeIsEditable ? 'Override' : 'Override Scope'}
           </Button>
+        }
+        primary={!activeIsEditable ? (
           <Button type="button" variant="outline" onClick={handleClone} data-testid={TEST_IDS.EFFORT_DETAIL_CLONE_BTN}>
             <DocumentDuplicateIcon className="size-4 mr-1.5" />
             Clone
           </Button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-1.5">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setOverrideSheetOpen(true)}
-            data-testid="effort-detail-override-btn"
-          >
-            Override Scope
-          </Button>
+        ) : (
           <Button
             type="button"
             variant="destructive"
@@ -776,8 +769,8 @@ export function EffortDetailPage() {
             <Trash2 className="size-4 mr-1.5" />
             Delete
           </Button>
-        </div>
-      )}>
+        )}
+      >
         <Badge
           data-testid={TEST_IDS.EFFORT_DETAIL_SOURCE}
           variant={!activeIsEditable ? 'secondary' : 'default'}

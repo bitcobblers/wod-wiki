@@ -52,14 +52,14 @@ export function StreamControlsNav({ streamControls }: { streamControls: StreamNa
     <div className="flex flex-col gap-3" data-testid="l3-stream-controls">
       {streamControls.onOpenQuerySettings && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
             This page
           </span>
           <QuerySettingsTrigger onOpen={streamControls.onOpenQuerySettings} />
         </div>
       )}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
           Date window
         </span>
         <WqlWindowPicker
@@ -72,7 +72,7 @@ export function StreamControlsNav({ streamControls }: { streamControls: StreamNa
       {/* Group by properties as items to check under it */}
       {streamControls.availableGroupDims.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
             Group by
           </span>
           <div className="flex flex-col gap-0.5" data-testid="l3-groupby-options">
@@ -83,7 +83,7 @@ export function StreamControlsNav({ streamControls }: { streamControls: StreamNa
               return (
                 <label
                   key={opt.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs text-foreground/80 hover:bg-muted/60 transition-colors"
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 max-lg:min-h-11 text-xs text-foreground/80 hover:bg-muted/60 transition-colors"
                   data-testid={`l3-groupby-${opt.id}`}
                 >
                   <input
@@ -102,7 +102,7 @@ export function StreamControlsNav({ streamControls }: { streamControls: StreamNa
 
       {/* Layout + visible fields — per-route view settings; cast stays header-only chrome. */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
           Layout
         </span>
         <div className="grid grid-cols-3 gap-1" data-testid="l3-layout-options">
@@ -118,7 +118,7 @@ export function StreamControlsNav({ streamControls }: { streamControls: StreamNa
                   aria-pressed={active}
                   onClick={() => streamControls.onLayoutChange(opt.id)}
                   data-testid={`l3-layout-${opt.id}`}
-                  className={`flex min-h-8 items-center justify-center gap-1 rounded-md border px-1.5 py-1 text-[11px] font-medium transition-colors ${
+                  className={`flex min-h-8 max-lg:min-h-11 items-center justify-center gap-1 rounded-md border px-1.5 py-1 text-[11px] font-medium transition-colors ${
                     active
                       ? 'border-border/80 bg-card text-foreground shadow-sm'
                       : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -133,7 +133,7 @@ export function StreamControlsNav({ streamControls }: { streamControls: StreamNa
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
           Fields
         </span>
         <div className="flex flex-col gap-0.5" data-testid="l3-field-options">
@@ -142,7 +142,7 @@ export function StreamControlsNav({ streamControls }: { streamControls: StreamNa
             return (
               <label
                 key={field.id}
-                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs text-foreground/80 hover:bg-muted/60 transition-colors"
+                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 max-lg:min-h-11 text-xs text-foreground/80 hover:bg-muted/60 transition-colors"
                 data-testid={`l3-field-${field.id}`}
               >
                 <input
@@ -180,7 +180,7 @@ export function AnalyticsControlsNav({ controls }: { controls: AnalyticsNavContr
     <div className="flex flex-col gap-3" data-testid="l3-analytics-controls">
       {controls.onOpenQuerySettings && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
             This page
           </span>
           <QuerySettingsTrigger onOpen={controls.onOpenQuerySettings} />
@@ -189,7 +189,7 @@ export function AnalyticsControlsNav({ controls }: { controls: AnalyticsNavContr
 
       {showRange && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
             Date range
           </span>
           {controlledRange ? (
@@ -204,7 +204,7 @@ export function AnalyticsControlsNav({ controls }: { controls: AnalyticsNavContr
                     onClick={() => controls.onWeeksChange?.(w)}
                     data-testid={`l3-range-${w}w`}
                     className={cn(
-                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors',
+                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 max-lg:min-h-11 text-xs transition-colors',
                       active
                         ? 'bg-primary/10 font-semibold text-primary'
                         : 'text-foreground/80 hover:bg-muted/60 hover:text-foreground',
@@ -226,7 +226,7 @@ export function AnalyticsControlsNav({ controls }: { controls: AnalyticsNavContr
 
       {showUnits && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
             Units{controls.unitForced ? ' — pinned by query' : ''}
           </span>
           <div className="grid grid-cols-2 gap-1" data-testid="l3-unit-options">
@@ -241,7 +241,7 @@ export function AnalyticsControlsNav({ controls }: { controls: AnalyticsNavContr
                   onClick={() => setUnit(u)}
                   data-testid={`l3-unit-${u}`}
                   className={cn(
-                    'flex min-h-8 items-center justify-center rounded-md border px-2 py-1 text-xs font-medium transition-colors',
+                    'flex min-h-8 max-lg:min-h-11 items-center justify-center rounded-md border px-2 py-1 text-xs font-medium transition-colors',
                     controls.unitForced
                       ? 'border-transparent text-muted-foreground/50 cursor-not-allowed'
                       : active
@@ -274,7 +274,7 @@ function L3ActionRow({ action }: { action: L3ActionItem }) {
         action.onRun()
       }}
       className={cn(
-        'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] transition-colors',
+        'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 max-lg:min-h-11 text-left text-[13px] transition-colors',
         action.disabled
           ? 'cursor-not-allowed text-muted-foreground/45'
           : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
@@ -312,7 +312,7 @@ export function SecondaryNav({ spec, pageAction }: { spec?: MenuSpec; pageAction
       {resolved.length > 0 && <MenuList entries={resolved} activeId={activeId} />}
       {toc.length > 0 && (
         <div className="flex flex-col">
-          <div className="px-2 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <div className="px-2 pb-1 pt-1 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
             On this page
           </div>
           <MenuList entries={toc} activeId={activeId} />
@@ -324,7 +324,7 @@ export function SecondaryNav({ spec, pageAction }: { spec?: MenuSpec; pageAction
           data-testid="l3-actions"
           className={cn('flex flex-col gap-0.5', hasGoto && 'pt-2 border-t border-border/50')}
         >
-          <div className="px-2 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <div className="px-2 pb-1 pt-1 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
             Actions
           </div>
           {l3Actions.map(action => (

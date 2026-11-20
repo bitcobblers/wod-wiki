@@ -13,6 +13,7 @@ import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { useChartShape } from './useChartShape';
 import { WqlEmptyState } from './WqlEmptyState';
 import { mergeSeries, formatTimestamp, tooltipTimestamp, compactNumber } from './chartData';
+import { resolveWidgetDisplayUnit } from './unitIntegrity';
 import { SERIES_COLORS } from './chartPalette';
 
 export interface StackedBarProps {
@@ -25,7 +26,7 @@ const INTENSITY_ORDER = ['low', 'moderate', 'high'];
 export function StackedBar({ result, unit: unitProp }: StackedBarProps) {
   const shape = useChartShape(result);
   const data = useMemo(() => mergeSeries(result.series), [result]);
-  const unit = result.series[0]?.unit ?? unitProp;
+  const unit = resolveWidgetDisplayUnit(result, unitProp);
 
   const keys = useMemo(() => {
     const labels = result.series.map((s) => s.label);

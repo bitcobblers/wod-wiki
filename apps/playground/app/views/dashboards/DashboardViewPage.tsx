@@ -18,6 +18,7 @@
  * The bare /dashboard route (no slug) is the WQL explorer — a separate page.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
@@ -53,9 +54,13 @@ import { useFeedImportPending, useFeedSyncProgress } from '@/services/feed/feedR
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import {
   StickyPageHeader,
+  useMobileQuerySlot,
   PAGE_SHELL_CONTAINER_CLASS,
   PAGE_SHELL_CONTENT_SURFACE_CLASS,
 } from '@/panels/page-shells';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import { StreamQueryBar } from '../stream/StreamQueryBar';
+import { paletteExecute } from '../../services/wqlSearchSource';
 import { cn } from '@/lib/utils';
 import { toEntry, blockToEntry } from '../../lib/entryMapper';
 import { entryOpenHref } from '../../lib/entryActions';
@@ -75,7 +80,8 @@ import {
   updateWidget,
 } from '@bitcobblers/wod-wiki-wql';
 import { useDashboardSource } from '../../hooks/useDashboards';
-import { analyticsExplorerPath, dashboardsPath } from '../../lib/routes';
+import { analyticsExplorerPath, dashboardsPath, sessionDetailPath } from '../../lib/routes';
+import { clearContextualPageSources, setContextualPageSources } from '@/services/queryService';
 import { useNav } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
 import { ResponsiveActions } from '../../nav/ResponsiveActions';
@@ -93,6 +99,8 @@ type ComposerState =
 export function DashboardViewPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const mobileSlot = useMobileQuerySlot();
   const [weeks] = useAnalyticsRange();
   const { unit: preferredUnit } = useAnalyticsUnitPreference();
   const { rangeStart, rangeEnd } = useMemo(() => {
@@ -422,6 +430,52 @@ export function DashboardViewPage() {
     return { ...base, scope: scopeClause };
   }, [document, scopeQueryDraft]);
 
+  const [contextualPageSources, setContextualPageSourcesState] = useState<
+    Awaited<ReturnType<typeof setContextualPageSources>> | undefined
+  >(undefined);
+
+  useEffect(() => {
+    const sessionToken =
+      typeof effectiveTokenValues.session === 'string' ? effectiveTokenValues.session.trim() : '';
+    const blockToken =
+      typeof effectiveTokenValues.block === 'string' ? effectiveTokenValues.block.trim() : '';
+    const notebookToken =
+      typeof effectiveTokenValues.notebook === 'string' ? effectiveTokenValues.notebook.trim() : '';
+    const hasContextual =
+      (sessionToken !== '' && sessionToken !== 'all') ||
+      (blockToken !== '' && blockToken !== 'all') ||
+      (notebookToken !== '' && notebookToken !== 'all');
+
+    if (!hasContextual) {
+      clearContextualPageSources();
+      setContextualPageSourcesState(undefined);
+      return;
+    }
+
+    let cancelled = false;
+    void setContextualPageSources({
+      resultId: sessionToken && sessionToken !== 'all' ? sessionToken : undefined,
+      blockContentId: blockToken && blockToken !== 'all' ? blockToken : undefined,
+      notebookSlug: notebookToken && notebookToken !== 'all' ? notebookToken : undefined,
+    })
+      .then((sources) => {
+        if (!cancelled) setContextualPageSourcesState(sources);
+      })
+      .catch(() => {
+        if (!cancelled) setContextualPageSourcesState(undefined);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveTokenValues]);
+
+  useEffect(() => {
+    return () => {
+      clearContextualPageSources();
+    };
+  }, []);
+
   // A refresh (new refreshKey) flips the hook to loading=true but KEEPS the
   // previously resolved source — gate the early returns on source-readiness,
   // not on loading alone, or the whole page (composer draft included)
@@ -491,16 +545,19 @@ export function DashboardViewPage() {
           title={document?.title || source.title}
           subtitle={editable ? 'Editable dashboard note.' : 'Prebuilt — read-only until cloned to your vault.'}
           queryBar={
-            <div className="flex min-w-0 flex-1 items-center gap-2 text-xs" data-testid="dashboard-scope-query-bar">
-              <WqlComposer
-                query={scopeQueryDraft}
-                onQueryChange={handleScopeQueryChange}
-                compact
-                showDiagnostics={false}
-                placeholder="Filter dashboard scope (e.g. :note{domain:crossfit} or effort:snatch)…"
-                className="min-w-0 flex-1"
-              />
-            </div>
+            !isMobile ? (
+              <div className="flex min-w-0 flex-1 items-center gap-2 text-xs" data-testid="dashboard-scope-query-bar">
+                <WqlComposer
+                  query={scopeQueryDraft}
+                  onQueryChange={handleScopeQueryChange}
+                  compact
+                  surface="popover"
+                  showDiagnostics={false}
+                  placeholder="Filter dashboard scope (e.g. :note{domain:crossfit} or effort:snatch)…"
+                  className="min-w-0 flex-1"
+                />
+              </div>
+            ) : undefined
           }
           actions={
             <div className="flex items-center gap-2">
@@ -606,6 +663,7 @@ export function DashboardViewPage() {
             headings={outline.headings}
             executor={queryService}
             tokenValues={effectiveTokenValues}
+            pageSources={contextualPageSources}
             onTokenChange={editable ? handleTokenChange : undefined}
             editMode={editable && editMode}
             onEditWidget={editable ? (w) => setComposer({ mode: 'edit', widget: w, expectedRaw: source.rawContent }) : undefined}
@@ -615,6 +673,7 @@ export function DashboardViewPage() {
             onResizeWidget={editable ? (w, span) => runWidgetOp(source.rawContent, (raw) => resizeWidget(raw, w.key, w.body, span)) : undefined}
             onInspectWidget={!editable ? (w) => setComposer({ mode: 'inspect', widget: w, expectedRaw: source.rawContent }) : undefined}
             onOpenInExplorer={(w, q) => navigate(analyticsExplorerPath({ q }))}
+            onOpenResults={(ctx) => navigate(sessionDetailPath(ctx.resultId))}
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
             refreshKey={`${refreshKey}:${dataRefreshKey}`}
@@ -709,6 +768,18 @@ export function DashboardViewPage() {
           ) : undefined
         }
       />
+      {isMobile && mobileSlot &&
+        createPortal(
+          <StreamQueryBar
+            compact
+            query={scopeQueryDraft}
+            onQueryChange={handleScopeQueryChange}
+            scopeOptions={[]}
+            execute={paletteExecute}
+            defaultQuery=""
+          />,
+          mobileSlot,
+        )}
     </div>
   );
 }

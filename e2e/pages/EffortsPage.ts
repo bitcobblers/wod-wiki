@@ -158,8 +158,12 @@ export class EffortsPage {
 
   /** Replace the catalog WQL query in the header composer and apply it. */
   async applyQuery(wql: string) {
+    const scopeToggle = this.page.getByTestId('stream-query-bar').getByTestId('wql-scope-toggle');
+    if (await scopeToggle.isVisible().catch(() => false)) {
+      await scopeToggle.click();
+    }
     const composer = this.catalogSearch();
-    const closeBtn = this.page.getByRole('button', { name: 'Close segment editor' });
+    const closeBtn = this.page.getByRole('button', { name: /Close (clause inspector|segment editor)/i });
     if (await closeBtn.isVisible().catch(() => false)) {
       await closeBtn.click().catch(() => {});
     }

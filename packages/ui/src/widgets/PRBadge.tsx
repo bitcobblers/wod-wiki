@@ -27,15 +27,15 @@ export function PRBadge({
     <span
       data-testid="pr-badge"
       className={cn(
-        'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 dark:bg-amber-900/30 text-amber-500 dark:text-amber-400 border border-amber-500/40 dark:border-amber-400/40 shadow-xs',
+        'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-400/40 shadow-xs',
         className,
       )}
     >
-      <Trophy size={13} className="text-amber-500 dark:text-amber-400 shrink-0" />
+      <Trophy size={13} className="text-amber-700 dark:text-amber-300 shrink-0" aria-hidden="true" />
       <span>PR!</span>
-      {label && <span className="font-medium text-foreground/80">{label}</span>}
+      {label && <span className="font-medium text-amber-950 dark:text-amber-100">{label}</span>}
       {formattedDelta && (
-        <span className="font-mono text-[11px] text-amber-400 dark:text-amber-300 font-semibold">
+        <span className="font-mono text-[11px] text-amber-800 dark:text-amber-200 font-semibold">
           ({formattedDelta})
         </span>
       )}

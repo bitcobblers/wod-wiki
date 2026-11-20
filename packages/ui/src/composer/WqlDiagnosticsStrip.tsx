@@ -34,8 +34,8 @@ function SummaryChip({ label, value, testId, warnTitle, active, stageRole }: { l
         active && 'bg-primary/15 text-primary ring-1 ring-primary/40 font-semibold',
       )}
     >
-      <span className="opacity-60">{label}:</span>
-      <span data-testid={legacyTestId} className={cn('font-semibold', warnTitle && 'text-signal-caution underline decoration-wavy underline-offset-2')}>{value}</span>
+      <span className="text-muted-foreground">{label}:</span>
+      <span data-testid={legacyTestId} className={cn('font-semibold text-foreground', warnTitle && 'text-amber-700 dark:text-amber-400 underline decoration-wavy underline-offset-2')}>{value}</span>
     </span>
   );
 }
@@ -77,26 +77,26 @@ export function WqlDiagnosticsStrip({
         className,
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <div className="flex items-center gap-1.5 font-medium" data-testid="wql-validity-badge" data-valid={valid} data-warning={warning || undefined} role={valid ? 'status' : 'alert'} aria-live="polite">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="flex min-w-0 items-start gap-1.5 font-medium" data-testid="wql-validity-badge" data-valid={valid} data-warning={warning || undefined} role={valid ? 'status' : 'alert'} aria-live="polite">
           {valid ? (
             warning ? (
               <>
-                <AlertTriangle className="w-3.5 h-3.5 text-signal-caution shrink-0" />
-                <span className="text-signal-caution">Warning</span>
-                <span className="opacity-80">{warningMessage}</span>
+                <AlertTriangle className="mt-0.5 w-3.5 h-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
+                <span className="shrink-0 text-amber-700 dark:text-amber-400">Warning</span>
+                <span className="min-w-0 break-words text-foreground/85">{warningMessage}</span>
               </>
             ) : (
               <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-signal-positive shrink-0" />
-                <span className="text-signal-positive">Valid</span>
+                <CheckCircle2 className="mt-0.5 w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                <span className="text-emerald-700 dark:text-emerald-400">Valid</span>
               </>
             )
           ) : (
             <>
-              <AlertCircle className="w-3.5 h-3.5 text-destructive shrink-0" />
-              <span>Invalid</span>
-              <span>
+              <AlertCircle className="mt-0.5 w-3.5 h-3.5 text-destructive shrink-0" />
+              <span className="shrink-0">Invalid</span>
+              <span className="min-w-0 break-words">
                 {offendingLabel ? `${offendingLabel}: ` : ''}
                 {error || 'Syntax error'}
               </span>
@@ -105,7 +105,7 @@ export function WqlDiagnosticsStrip({
         </div>
 
         {!hideSummary && valid && isFindQuery(ast) && (
-          <div className="flex flex-wrap items-center gap-x-3 text-[11px] opacity-80 border-l border-border/50 pl-3">
+          <div className="flex flex-wrap items-center gap-x-3 text-[11px] border-l border-border/50 pl-3">
             {(() => {
               const summary = summarizeFind(ast);
               return (
@@ -135,7 +135,7 @@ export function WqlDiagnosticsStrip({
         )}
 
         {!hideSummary && valid && isAggregateQuery(ast) && (
-          <div className="flex flex-wrap items-center gap-x-3 text-[11px] opacity-80 border-l border-border/50 pl-3">
+          <div className="flex flex-wrap items-center gap-x-3 text-[11px] border-l border-border/50 pl-3">
             {(() => {
               const summary = summarizeAggregate(ast);
               return (
@@ -164,8 +164,8 @@ export function WqlDiagnosticsStrip({
           </div>
         )}
 
-        {!hideSummary && valid && isPipelineQuery(ast) && (
-          <div className="flex flex-wrap items-center gap-x-3 text-[11px] opacity-80 border-l border-border/50 pl-3">
+        {valid && isPipelineQuery(ast) && (
+          <div className="flex flex-wrap items-center gap-x-3 text-[11px] border-l border-border/50 pl-3">
             {(() => {
               const summary = summarizePipeline(ast);
               return (

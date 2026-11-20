@@ -208,7 +208,7 @@ const MARKDOWN_GROUPS: Array<{
   },
 ];
 
-const QUERY_STAGES: Array<{
+export const QUERY_STAGES: Array<{
   id: string;
   label: string;
   options: WheelDrumOption[];
@@ -217,18 +217,19 @@ const QUERY_STAGES: Array<{
     id: "wql-metric",
     label: "Query",
     options: [
-      { id: "q-reps", label: "Total Reps", sublabel: "sum:reps{}", value: "replace:sum:reps{}" },
-      { id: "q-vol", label: "Total Volume", sublabel: "sum:totalVolume{}", value: "replace:sum:totalVolume{}" },
-      { id: "q-dur", label: "Total Duration", sublabel: "sum:duration{}", value: "replace:sum:duration{}" },
-      { id: "q-sessions", label: "Find Sessions", sublabel: "find session{}", value: "replace:find session{}" },
-      { id: "q-notes", label: "Find Notes", sublabel: "find note{}", value: "replace:find note{}" },
+      { id: "q-reps", label: "Total Reps", sublabel: ":sum{metric:reps}", value: "replace::sum{metric:reps} by {week} last 4w | :bar{}" },
+      { id: "q-vol", label: "Total Volume", sublabel: ":sum{metric:volume}", value: "replace::sum{metric:volume} by {week} last 12w | :timeseries{}" },
+      { id: "q-dur", label: "Total Duration", sublabel: ":sum{metric:duration}", value: "replace::sum{metric:duration} by {week} last 4w | :bar{}" },
+      { id: "q-sessions", label: "Find Sessions", sublabel: ":session{}", value: "replace::session{} last 4w" },
+      { id: "q-notes", label: "Find Notes", sublabel: ":note{}", value: "replace::note{tags:benchmark} last 8w" },
     ],
   },
   {
     id: "wql-scope",
     label: "Scope",
     options: [
-      { id: "s-note", label: "This Note", sublabel: ":note", value: "append: :note" },
+      { id: "s-journal", label: "Journal Notebook", sublabel: "notebook:journal", value: "append: notebook:journal" },
+      { id: "s-bench", label: "Benchmark Tag", sublabel: "tags:benchmark", value: "append: tags:benchmark" },
       { id: "s-all", label: "All History", sublabel: "Global", value: "noop:" },
     ],
   },
@@ -236,8 +237,8 @@ const QUERY_STAGES: Array<{
     id: "wql-window",
     label: "Window",
     options: [
-      { id: "w-week", label: "Every Week", sublabel: "every week", value: "append: every week" },
-      { id: "w-month", label: "Every Month", sublabel: "every month", value: "append: every month" },
+      { id: "w-week", label: "By Week", sublabel: "by {week}", value: "append: by {week}" },
+      { id: "w-month", label: "By Month", sublabel: "by {month}", value: "append: by {month}" },
       { id: "w-4w", label: "Last 4 Weeks", sublabel: "last 4w", value: "append: last 4w" },
       { id: "w-12w", label: "Last 12 Weeks", sublabel: "last 12w", value: "append: last 12w" },
     ],

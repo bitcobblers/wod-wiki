@@ -10,6 +10,7 @@ import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
 import { storageService } from '@/services/storage';
 import { NotePersistenceError } from '@/services/persistence/types';
+import { notifyResultSaved } from '@/services/resultRecorder';
 import type { StorageService } from '@/services/storage';
 import type { EventRecord } from '@/types/storage';
 
@@ -108,9 +109,11 @@ export async function captureSessionRpe(
 
   try {
     await persistence.rederiveResultAnalytics(resultId);
+    notifyResultSaved(result);
     return 'captured';
   } catch (err) {
     if (err instanceof NotePersistenceError && err.code === 'BLOCK_REVISION_NOT_FOUND') {
+      notifyResultSaved(result);
       return 'captured-no-rederive';
     }
     throw err;

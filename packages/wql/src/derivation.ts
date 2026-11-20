@@ -425,11 +425,15 @@ export function projectEventToFacts(record: EventRecord, filter?: ProjectEventTo
   for (const m of metrics) {
     // Structural markers are display/compile-time plumbing, not user dims.
     if (m.type === MetricType.Label || m.type === 'label' || m.type === MetricType.Hint || m.type === 'hint') continue;
+    const rawKey = readFieldRef(m.metadata)?.path ?? normalizeFieldPath(m.type ?? '');
+    if ((rawKey === 'rounds' || rawKey === 'currentRound' || m.type === 'rounds' || m.type === 'current-round') && typeof m.value === 'number' && Number.isFinite(m.value)) {
+      if (dims.round === undefined || m.type === 'current-round') {
+        dims.round = String(Math.round(m.value));
+      }
+    }
     const valueKind = valueKindOf(m.value);
     if (valueKind !== 'string' && valueKind !== 'boolean') continue;
-    const ref = readFieldRef(m.metadata);
-    const dimKey = ref?.path ?? normalizeFieldPath(m.type ?? '');
-    if (dimKey) dims[dimKey] = String(m.value);
+    if (rawKey) dims[rawKey] = String(m.value);
   }
   const rowDims = Object.keys(dims).length > 0 ? dims : undefined;
   let metricOrdinal = 0;

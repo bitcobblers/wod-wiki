@@ -18,7 +18,7 @@ export function QuerySettingsTrigger({ onOpen }: QuerySettingsTriggerProps) {
         onOpen();
       }}
       data-testid="query-settings-trigger"
-      className="w-full justify-start gap-2 rounded-lg text-xs"
+      className="w-full max-lg:min-h-11 justify-start gap-2 rounded-lg text-xs"
     >
       <SlidersHorizontal className="size-3.5 shrink-0" aria-hidden="true" />
       <span className="truncate">Query settings</span>

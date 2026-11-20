@@ -119,7 +119,7 @@ export function PropertyTable({
 
   return (
     <div
-      className={`w-full border-y border-border bg-card/50 ${stickyHeaderTop !== undefined ? 'overflow-x-clip' : 'overflow-x-auto'} ${className}`}
+      className={`w-full overflow-x-auto border-y border-border bg-card/50 ${className}`}
       data-testid="property-table"
     >
       <table className="w-full text-left border-collapse text-xs">
@@ -135,17 +135,27 @@ export function PropertyTable({
                   : field.align === 'center'
                     ? 'text-center'
                     : 'text-left'
+              const isSorted = sortFieldId === field.id
+              const ariaSort: 'ascending' | 'descending' | 'none' = isSorted
+                ? sortDir === 'asc'
+                  ? 'ascending'
+                  : 'descending'
+                : 'none'
               return (
                 <th
                   key={field.id}
                   scope="col"
-                  onClick={() => handleHeaderClick(field.id)}
-                  className={`px-4 py-3 font-semibold uppercase tracking-wider text-[11px] text-muted-foreground whitespace-nowrap border-b border-border cursor-pointer select-none hover:text-foreground transition-colors group/th ${stickyHeaderTop !== undefined ? 'bg-muted/95 backdrop-blur-sm' : 'bg-muted/30'} ${alignClass}`}
-                  data-testid={`property-table-header-${field.id}`}
+                  aria-sort={ariaSort}
+                  className={`border-b border-border font-semibold uppercase tracking-wider text-[11px] text-muted-foreground whitespace-nowrap ${stickyHeaderTop !== undefined ? 'bg-muted/95 backdrop-blur-sm' : 'bg-muted/30'} ${alignClass}`}
                 >
-                  <div className={`inline-flex items-center gap-1.5 ${alignClass === 'text-right' ? 'justify-end' : alignClass === 'text-center' ? 'justify-center' : 'justify-start'}`}>
+                  <button
+                    type="button"
+                    onClick={() => handleHeaderClick(field.id)}
+                    data-testid={`property-table-header-${field.id}`}
+                    className={`inline-flex w-full items-center gap-1.5 px-4 py-3 font-semibold uppercase tracking-wider text-[11px] text-muted-foreground select-none hover:text-foreground transition-colors group/th focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${alignClass === 'text-right' ? 'justify-end' : alignClass === 'text-center' ? 'justify-center' : 'justify-start'}`}
+                  >
                     <span>{field.label}</span>
-                    {sortFieldId === field.id ? (
+                    {isSorted ? (
                       <span className="text-primary font-bold text-xs" aria-label={sortDir === 'asc' ? 'sorted ascending' : 'sorted descending'}>
                         {sortDir === 'asc' ? '↑' : '↓'}
                       </span>
@@ -154,7 +164,7 @@ export function PropertyTable({
                         ↕
                       </span>
                     )}
-                  </div>
+                  </button>
                 </th>
               )
             })}
@@ -167,19 +177,14 @@ export function PropertyTable({
             return (
             <tr
               key={entry.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => handleRowClick(entry)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  handleRowClick(entry)
-                }
+              onClick={e => {
+                if ((e.target as HTMLElement).closest('a, button')) return
+                handleRowClick(entry)
               }}
               className="hover:bg-muted/40 transition-colors cursor-pointer group"
               data-testid={`property-table-row-${entry.id}`}
             >
-              {activeFields.map(field => {
+              {activeFields.map((field, fieldIndex) => {
                 const val = field.getValue(entry)
                 const formatted = field.formatValue(val, entry)
                 const alignClass =
@@ -205,11 +210,15 @@ export function PropertyTable({
                       >
                         {formatted}
                       </Link>
-                    ) : field.id === 'title' || field.id === 'label' ? (
+                    ) : field.id === 'title' || field.id === 'label' || (fieldIndex === 0 && !activeFields.some(f => f.id === 'title' || f.id === 'label')) ? (
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-foreground group-hover:text-primary transition-colors">
+                        <button
+                          type="button"
+                          onClick={() => handleRowClick(entry)}
+                          className="text-left font-medium text-foreground group-hover:text-primary transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                        >
                           {formatted}
-                        </span>
+                        </button>
                         {notebookHref && (
                           <div className="flex items-center gap-1.5 ml-auto" onClick={e => e.stopPropagation()}>
                             <Link

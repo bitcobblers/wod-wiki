@@ -22,7 +22,7 @@ async (page) => {
             hash: window.location.hash,
           },
           status: document.querySelector('main')?.getAttribute('data-agent-status') ?? null,
-          feedReadiness: document.documentElement.getAttribute('data-feed-state') ?? null,
+          feedReadiness: document.documentElement?.getAttribute('data-feed-state') ?? null,
           stream: null,
           explorer: null,
           editor: null,
@@ -90,7 +90,7 @@ async (page) => {
         ts: Date.now(),
         route: `${window.location.pathname}${window.location.search}${window.location.hash}`,
         viewport: { width: window.innerWidth, height: window.innerHeight },
-        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+        theme: document.documentElement?.classList?.contains('dark') ? 'dark' : 'light',
         viewState: readAgentViewState(),
         ...entry,
       };
@@ -264,16 +264,19 @@ async (page) => {
     document.addEventListener(
       'keydown',
       (event) => {
-        const isPaletteShortcut = (event.ctrlKey || event.metaKey) && event.key === '/';
+        const isSlashPalette = (event.ctrlKey || event.metaKey) && event.key === '/';
+        const isKPalette = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k';
         const isEscape = event.key === 'Escape';
         const isSearchEnter =
           event.key === 'Enter' &&
           event.target instanceof Element &&
           !event.target.closest('.cm-editor');
-        if (!isPaletteShortcut && !isEscape && !isSearchEnter) return;
-        const combo = isPaletteShortcut
+        if (!isSlashPalette && !isKPalette && !isEscape && !isSearchEnter) return;
+        const combo = isSlashPalette
           ? 'ControlOrMeta+/'
-          : event.key;
+          : isKPalette
+            ? 'ControlOrMeta+k'
+            : event.key;
         pushEvent({
           kind: 'shortcut',
           actor: event.isTrusted ? 'human' : 'agent',
@@ -308,7 +311,7 @@ async (page) => {
         const bodyObs = new MutationObserver(() => {
           if (attachObserver()) bodyObs.disconnect();
         });
-        bodyObs.observe(document.documentElement, { childList: true, subtree: true });
+        bodyObs.observe(document.documentElement || document, { childList: true, subtree: true });
       }
     };
     observeAgentViewState();
@@ -364,7 +367,7 @@ async (page) => {
         exportedAt: new Date().toISOString(),
         origin: window.location.origin,
         viewport: { width: window.innerWidth, height: window.innerHeight },
-        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+        theme: document.documentElement?.classList?.contains('dark') ? 'dark' : 'light',
         finalViewState: readAgentViewState(),
         events: window.__wodFlightLog,
       };

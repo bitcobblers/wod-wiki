@@ -19,8 +19,8 @@
  * Fully inverted dependencies: zero IndexedDB/storage module-level imports.
  */
 
-import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, Page, PageNote, NotePlacement, Tag, TagContribution } from '@bitcobblers/wod-wiki-core';
-import { normalizeFieldComponent, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, IMetric, Page, PageNote, NotePlacement, Tag, TagContribution } from '@bitcobblers/wod-wiki-core';
+import { MetricType, createMetricOwnershipLedger, normalizeFieldComponent, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import {
   DEFAULT_NOTEBOOK_SLUGS,
   isNoteEditable,
@@ -56,7 +56,7 @@ import { WQL_SOURCE_VALUES, WQL_TYPED_TAG_KEYS, type WqlTypedTagKey } from './vo
 import { supportsWqlFilterKey } from './capabilities';
 import { bindQueryParams } from './paramRef';
 import { unknownTokensMessage } from './dashboard/model';
-import { convertViaCatalog, resolveOutputUnit } from './units';
+import { convertViaCatalog, dimensionKeyOf, resolveOutputUnit } from './units';
 import { projectEventToFacts } from './derivation';
 import { dedupeById, selectContributions, type CoverageReport } from './selection';
 import {
@@ -817,6 +817,303 @@ export interface QueryResult {
   advisories?: Array<{ message: string }>;
 }
 
+export interface MovementRollupItem {
+  effortSlug: string;
+  label: string;
+  splits: number;
+  totalReps: number;
+  totalVolume: number;
+  volumeUnit?: string;
+  totalDistance: number;
+  distanceUnit?: string;
+  totalElapsedMs: number;
+  bestWeight?: number;
+  bestE1rm?: number;
+}
+
+export interface RowsRunSummary {
+  elapsedMs: number;
+  totalReps: number;
+  totalVolume: number;
+  volumeUnit?: string;
+  totalDistance: number;
+  distanceUnit?: string;
+  tis?: number;
+  sessionLoad?: number;
+  rpe?: number;
+  roundsCompleted: number;
+  splitCount: number;
+  efforts: string[];
+  blockContentId?: string;
+  noteTitle?: string;
+  notebooks?: string[];
+  completed?: boolean;
+  prCount?: number;
+  movementRollup: MovementRollupItem[];
+}
+
+function humanizeEffortLabel(slug: string): string {
+  return slug
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function visibleRowMetrics(metrics: EventRecord['metrics'] | undefined) {
+  const raw = (metrics ?? []) as unknown as readonly IMetric[];
+  try {
+    return createMetricOwnershipLedger(raw).visible() as ReadonlyArray<{
+      type?: string;
+      value?: unknown;
+      unit?: string;
+      image?: string;
+      origin?: string;
+      metadata?: Record<string, unknown>;
+    }>;
+  } catch {
+    return raw as ReadonlyArray<{
+      type?: string;
+      value?: unknown;
+      unit?: string;
+      image?: string;
+      origin?: string;
+      metadata?: Record<string, unknown>;
+    }>;
+  }
+}
+
+function extractSessionRpeValue(events: readonly EventRecord[]): number | undefined {
+  for (let i = events.length - 1; i >= 0; i--) {
+    for (const m of events[i]!.metrics ?? []) {
+      if (m.type === MetricType.SessionRPE || m.type === 'session-rpe' || m.type === 'session_rpe') {
+        if (typeof m.value === 'number' && Number.isFinite(m.value)) return m.value;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Compute the single canonical `RowsRunSummary` shared by inline note summary
+ * cards, FullscreenTimer completion hero, `/sessions`, `/results/:sessionId`,
+ * and dashboard summary widgets.
+ */
+export function computeRowsRunSummary(
+  run: Pick<RowsRun, 'resultId' | 'noteId' | 'timestamp' | 'durationMs' | 'events'>,
+  opts: {
+    noteTitle?: string;
+    notebooks?: readonly string[];
+    completed?: boolean;
+    prCount?: number;
+  } = {},
+): RowsRunSummary {
+  const events = run.events ?? [];
+  const segmentRows = events.filter((e) => e.grain === 'event' && e.outputType === 'segment');
+  const summaryRows = events.filter((e) => e.grain === 'summary' || e.outputType === 'analytics');
+  const hasUserOverride = events.some((e) => (e.metrics ?? []).some((m) => m.origin === 'user'));
+
+  let segmentElapsedSum = 0;
+  let minStart: number | undefined;
+  let maxEnd: number | undefined;
+  let totalReps = 0;
+  let segVolume = 0;
+  let segVolumeUnit: string | undefined;
+  let segDistance = 0;
+  let segDistanceUnit: string | undefined;
+  let roundsCompleted = 0;
+  let blockContentId = events.find((e) => e.blockContentId)?.blockContentId;
+
+  const rollupMap = new Map<string, MovementRollupItem>();
+
+  for (const row of segmentRows) {
+    if (!blockContentId && row.blockContentId) blockContentId = row.blockContentId;
+    const vis = visibleRowMetrics(row.metrics);
+
+    let rowElapsedMs = 0;
+    if (row.timeSpan?.started !== undefined) {
+      minStart = minStart === undefined ? row.timeSpan.started : Math.min(minStart, row.timeSpan.started);
+      if (row.timeSpan.ended !== undefined) {
+        maxEnd = maxEnd === undefined ? row.timeSpan.ended : Math.max(maxEnd, row.timeSpan.ended);
+        rowElapsedMs = Math.max(0, row.timeSpan.ended - row.timeSpan.started);
+      }
+    }
+
+    let rowReps = 0;
+    let sawReps = false;
+    let rowMass: number | undefined;
+    let rowMassUnit: string | undefined;
+    let rowExplicitVolume: number | undefined;
+    let rowExplicitVolumeUnit: string | undefined;
+    let rowDist = 0;
+    let rowDistUnit: string | undefined;
+    let rowE1rm: number | undefined;
+    let rowEffortSlug = row.effortSlug;
+
+    for (const m of vis) {
+      const mType = m.type ?? '';
+      const canon = typeof m.metadata?.canonicalKey === 'string' ? m.metadata.canonicalKey : mType;
+      if (!rowEffortSlug && (mType === MetricType.Effort || mType === 'effort')) {
+        if (typeof m.value === 'string' && m.value) rowEffortSlug = m.value;
+        else if (m.image) rowEffortSlug = m.image;
+      }
+      if (!rowEffortSlug && typeof m.metadata?.effortSlug === 'string') {
+        rowEffortSlug = m.metadata.effortSlug;
+      }
+      if (typeof m.value !== 'number' || !Number.isFinite(m.value)) continue;
+
+      if ((mType === MetricType.Rep || mType === 'rep' || canon === 'reps' || mType === 'totalReps') && !sawReps) {
+        rowReps = m.value;
+        sawReps = true;
+      } else if (mType === MetricType.Resistance || mType === 'resistance' || canon === 'weight') {
+        rowMass = m.value;
+        rowMassUnit = m.unit ?? rowMassUnit ?? 'kg';
+      } else if (canon === 'totalVolume' || canon === 'volume') {
+        rowExplicitVolume = m.value;
+        rowExplicitVolumeUnit = m.unit ?? rowExplicitVolumeUnit;
+      } else if (mType === MetricType.Distance || mType === 'distance' || canon === 'totalDistance') {
+        rowDist += m.value;
+        if (m.unit) rowDistUnit = m.unit;
+      } else if (canon === 'elapsed' || mType === 'duration' || mType === MetricType.Duration) {
+        if (rowElapsedMs === 0) {
+          rowElapsedMs = m.unit === 'ms' ? m.value : m.unit === 'min' ? m.value * 60_000 : m.value * 1000;
+        }
+      } else if (canon === 'rounds' || mType === 'rounds' || mType === 'current-round' || canon === 'currentRound') {
+        roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
+      } else if (canon === 'calc.e1rm' || canon === 'e1rm') {
+        rowE1rm = rowE1rm === undefined ? m.value : Math.max(rowE1rm, m.value);
+      }
+    }
+
+    const rowVolume =
+      rowExplicitVolume !== undefined
+        ? rowExplicitVolume
+        : rowReps > 0 && rowMass !== undefined
+          ? rowReps * rowMass
+          : 0;
+    const effectiveVolUnit = rowExplicitVolumeUnit ?? (rowVolume > 0 ? (rowMassUnit ?? 'kg') : undefined);
+
+    segmentElapsedSum += rowElapsedMs;
+    totalReps += rowReps;
+    segVolume += rowVolume;
+    if (effectiveVolUnit && !segVolumeUnit) segVolumeUnit = effectiveVolUnit;
+    segDistance += rowDist;
+    if (rowDistUnit && !segDistanceUnit) segDistanceUnit = rowDistUnit;
+
+    if (rowEffortSlug) {
+      const slug = rowEffortSlug.trim().toLowerCase();
+      const existing = rollupMap.get(slug) ?? {
+        effortSlug: slug,
+        label: humanizeEffortLabel(slug),
+        splits: 0,
+        totalReps: 0,
+        totalVolume: 0,
+        ...(effectiveVolUnit ? { volumeUnit: effectiveVolUnit } : {}),
+        totalDistance: 0,
+        ...(rowDistUnit ? { distanceUnit: rowDistUnit } : {}),
+        totalElapsedMs: 0,
+      };
+      existing.splits += 1;
+      existing.totalReps += rowReps;
+      existing.totalVolume += rowVolume;
+      if (!existing.volumeUnit && effectiveVolUnit) existing.volumeUnit = effectiveVolUnit;
+      existing.totalDistance += rowDist;
+      if (!existing.distanceUnit && rowDistUnit) existing.distanceUnit = rowDistUnit;
+      existing.totalElapsedMs += rowElapsedMs;
+      if (rowMass !== undefined) {
+        existing.bestWeight = existing.bestWeight === undefined ? rowMass : Math.max(existing.bestWeight, rowMass);
+      }
+      if (rowE1rm !== undefined) {
+        existing.bestE1rm = existing.bestE1rm === undefined ? rowE1rm : Math.max(existing.bestE1rm, rowE1rm);
+      }
+      rollupMap.set(slug, existing);
+    }
+  }
+
+  let storedVolume: number | undefined;
+  let storedVolumeUnit: string | undefined;
+  let storedDistance: number | undefined;
+  let storedDistanceUnit: string | undefined;
+  let storedReps: number | undefined;
+  let tis: number | undefined;
+  let sessionLoad: number | undefined;
+  let summaryElapsedMs: number | undefined;
+
+  for (const row of summaryRows) {
+    for (const m of visibleRowMetrics(row.metrics)) {
+      if (typeof m.value !== 'number' || !Number.isFinite(m.value)) continue;
+      const canon = typeof m.metadata?.canonicalKey === 'string' ? m.metadata.canonicalKey : m.type ?? '';
+      if (canon === 'totalVolume' || canon === 'volume') {
+        storedVolume = (storedVolume ?? 0) + m.value;
+        if (m.unit && !storedVolumeUnit) storedVolumeUnit = m.unit;
+      } else if (canon === 'totalDistance' || canon === 'distance') {
+        storedDistance = (storedDistance ?? 0) + m.value;
+        if (m.unit && !storedDistanceUnit) storedDistanceUnit = m.unit;
+      } else if (canon === 'totalReps' || canon === 'reps' || canon === 'rep') {
+        storedReps = Math.max(storedReps ?? 0, m.value);
+      } else if (canon === 'tis') {
+        tis = (tis ?? 0) + m.value;
+      } else if (canon === 'sessionLoad') {
+        sessionLoad = (sessionLoad ?? 0) + m.value;
+      } else if (canon === 'elapsed' || canon === 'duration') {
+        const ms = m.unit === 'ms' ? m.value : m.unit === 'min' ? m.value * 60_000 : m.value * 1000;
+        summaryElapsedMs = Math.max(summaryElapsedMs ?? 0, ms);
+      } else if (canon === 'rounds' || canon === 'currentRound') {
+        roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
+      }
+    }
+  }
+
+  const elapsedMs =
+    typeof run.durationMs === 'number' && Number.isFinite(run.durationMs) && run.durationMs > 0
+      ? run.durationMs
+      : summaryElapsedMs && summaryElapsedMs > 0
+        ? summaryElapsedMs
+        : segmentElapsedSum > 0
+          ? segmentElapsedSum
+          : minStart !== undefined && maxEnd !== undefined && maxEnd > minStart
+            ? maxEnd - minStart
+            : 0;
+
+  const finalReps = hasUserOverride && segmentRows.length > 0 ? totalReps : totalReps > 0 ? totalReps : storedReps ?? 0;
+  const finalVolume =
+    hasUserOverride && segVolume > 0
+      ? segVolume
+      : storedVolume !== undefined
+        ? storedVolume
+        : segVolume;
+  const finalVolumeUnit = storedVolumeUnit ?? segVolumeUnit;
+  const finalDistance =
+    hasUserOverride && segDistance > 0
+      ? segDistance
+      : storedDistance !== undefined
+        ? storedDistance
+        : segDistance;
+  const finalDistanceUnit = storedDistanceUnit ?? segDistanceUnit;
+  const rpe = extractSessionRpeValue(events);
+
+  return {
+    elapsedMs,
+    totalReps: finalReps,
+    totalVolume: finalVolume,
+    ...(finalVolumeUnit ? { volumeUnit: finalVolumeUnit } : {}),
+    totalDistance: finalDistance,
+    ...(finalDistanceUnit ? { distanceUnit: finalDistanceUnit } : {}),
+    ...(tis !== undefined ? { tis } : {}),
+    ...(sessionLoad !== undefined ? { sessionLoad } : {}),
+    ...(rpe !== undefined ? { rpe } : {}),
+    roundsCompleted,
+    splitCount: segmentRows.length,
+    efforts: [...rollupMap.keys()],
+    ...(blockContentId ? { blockContentId } : {}),
+    ...(opts.noteTitle ? { noteTitle: opts.noteTitle } : {}),
+    ...(opts.notebooks?.length ? { notebooks: [...opts.notebooks] } : {}),
+    ...(opts.completed !== undefined ? { completed: opts.completed } : {}),
+    ...(opts.prCount !== undefined ? { prCount: opts.prCount } : {}),
+    movementRollup: [...rollupMap.values()],
+  };
+}
+
 /** One run in a rows result: the canonical result identity plus the event
  *  rows that survived the optional output-type narrowing (`rows:segment{…}`). */
 export interface RowsRun {
@@ -827,6 +1124,8 @@ export interface RowsRun {
   /** Authoritative persisted session duration in milliseconds when known. */
   durationMs?: number;
   events: EventRecord[];
+  /** Authoritative session rollup shared across inline notes, completion hero, spreadsheet, and dashboards. */
+  summary?: RowsRunSummary;
 }
 
 export interface RowsQueryResult {
@@ -894,12 +1193,18 @@ interface FactDimensionContext {
   noteTags: ReadonlyMap<string, readonly string[]>;
   typedNoteTags: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>;
   effortsBySlug: ReadonlyMap<string, IEffort>;
+  noteNotebooks?: ReadonlyMap<string, readonly NotebookId[]>;
+  sessionNotebooks?: ReadonlyMap<string, readonly NotebookId[]>;
+  noteTitles?: ReadonlyMap<string, string>;
 }
 
 const EMPTY_FACT_DIMS: FactDimensionContext = {
   noteTags: new Map(),
   typedNoteTags: new Map(),
   effortsBySlug: new Map(),
+  noteNotebooks: new Map(),
+  sessionNotebooks: new Map(),
+  noteTitles: new Map(),
 };
 
 function resolveDimensionContext(
@@ -944,6 +1249,16 @@ function factTagValue(
     }
     case 'grade': return row.grade;
     case 'note': return row.noteId;
+    case 'noteTitle': return ctx.noteTitles?.get(row.noteId) ?? row.dimensions?.['noteTitle'];
+    case 'notebook': {
+      const fromSession = ctx.sessionNotebooks?.get(row.resultId) ?? [];
+      const fromNote = ctx.noteNotebooks?.get(row.noteId) ?? [];
+      if (fromSession.length > 0 || fromNote.length > 0) {
+        const merged = new Set<string>([...fromSession, ...fromNote]);
+        return [...merged];
+      }
+      return row.dimensions?.['notebook'];
+    }
     case 'page': return row.pageId;
     case 'origin': return row.origin;
     case 'grain': return row.grain;
@@ -991,7 +1306,11 @@ function matchesFilters(
     const hit = rowValues.some((value) =>
       group.some((f) =>
         f.values.some((a) =>
-          a.wildcard ? value.startsWith(a.value) : value === a.value,
+          key === 'notebook'
+            ? matchesNotebookFilterValue(toNotebookId(value), a)
+            : a.wildcard
+              ? value.startsWith(a.value)
+              : value === a.value,
         ),
       ),
     );
@@ -1338,11 +1657,12 @@ export class QueryService {
    */
   async runFindSession(parsed: ParsedFindQuery, options: FindOptions = {}): Promise<FindQueryResult> {
     const ctx = runContext(options);
-    const scopeValues = (key: string) =>
-      parsed.filters.filter((f) => f.key === key).flatMap((f) => f.values.map((v) => v.value));
-    const resultIds = scopeValues('result');
-    const blockIds = scopeValues('block');
-    const noteIds = scopeValues('note');
+    const posScopeValues = (key: string) =>
+      parsed.filters.filter((f) => f.key === key && !f.negate).flatMap((f) => f.values.map((v) => v.value));
+    const scopeFilters = parsed.filters.filter((f) => ['result', 'block', 'note'].includes(f.key));
+    const resultIds = posScopeValues('result');
+    const blockIds = posScopeValues('block');
+    const noteIds = posScopeValues('note');
 
     const byResult = new Map<string, EventRecord[]>();
     const collected = new Set<string>();
@@ -1368,7 +1688,25 @@ export class QueryService {
       for (const noteId of noteIds) collect(await this.store.getEventsForNote(noteId));
     }
 
-    let groups = [...byResult.entries()].filter(([, rows]) => rows.length > 0);
+    const matchesSessionScope = (meta: { resultId: string; noteId: string; blockContentId?: string }): boolean => {
+      // Positive scope filters union across keys (`:session{result:rA, note:n2}`
+      // fetches both rA and n2); only negated scope filters (`!result:`, `!block:`,
+      // `!note:`) exclude matched sessions.
+      const negScopeFilters = scopeFilters.filter((f) => f.negate);
+      for (const f of negScopeFilters) {
+        const actual = f.key === 'result' ? meta.resultId : f.key === 'block' ? meta.blockContentId : meta.noteId;
+        if (actual !== undefined && f.values.some((v) => v.wildcard ? actual.startsWith(v.value) : actual === v.value)) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    let groups = [...byResult.entries()].filter(([resultId, rows]) => {
+      if (rows.length === 0) return false;
+      const bcid = rows.find((r) => r.blockContentId)?.blockContentId;
+      return matchesSessionScope({ resultId, noteId: rows[0]!.noteId, blockContentId: bcid });
+    });
 
     if (parsed.window || options.range) {
       groups = groups.filter(([, rows]) =>
@@ -1382,21 +1720,30 @@ export class QueryService {
       (f) => !['result', 'block', 'note', 'plane'].includes(f.key) && supportsWqlFilterKey('session', 'find', f.key),
     );
     const normalizedFactFilters = factFilters.map((f) => (f.key === 'tag' ? { ...f, key: 'tags' } : f));
-    const sessionDims = groups.length > 0 && normalizedFactFilters.length > 0
-      ? await this.loadFactDimensions(
-          groups.map(([, rows]) => ({
-            noteId: rows[0]?.noteId ?? '',
-            effortSlug: rows.find((r) => r.effortSlug)?.effortSlug,
-          } as AnalyticsDataPoint)),
-          normalizedFactFilters,
-          [],
-        )
-      : EMPTY_FACT_DIMS;
-    const sessionMetaById = new Map<string, { duration?: number }>();
+    const sessionMetaById = new Map<string, { duration?: number; notebookIds?: readonly string[]; blockContentId?: string; completed?: boolean }>();
     const allSessions = this.sessionStore ? await this.sessionStore.getAll() : [];
     for (const s of allSessions) {
-      sessionMetaById.set(s.id, { duration: s.duration });
+      sessionMetaById.set(s.id, {
+        duration: s.duration,
+        notebookIds: s.notebookIds,
+        blockContentId: s.blockContentId,
+        completed: s.completed,
+      });
     }
+    const dimSeedRows: AnalyticsDataPoint[] = groups.length > 0
+      ? groups.map(([resultId, rows]) => ({
+          resultId,
+          noteId: rows[0]?.noteId ?? '',
+          effortSlug: rows.find((r) => r.effortSlug)?.effortSlug,
+        } as AnalyticsDataPoint))
+      : allSessions.map((s) => ({ resultId: s.id, noteId: s.noteId } as AnalyticsDataPoint));
+    const sessionDims = dimSeedRows.length > 0
+      ? await this.loadFactDimensions(
+          dimSeedRows,
+          normalizedFactFilters,
+          ['notebook', 'noteTitle'],
+        )
+      : EMPTY_FACT_DIMS;
 
     let runs: RowsRun[] = groups
       .map(([resultId, rows]) => {
@@ -1417,29 +1764,82 @@ export class QueryService {
           if (!matchingSession) events = [];
         }
         const meta = sessionMetaById.get(resultId);
+        const noteId = rows[0].noteId;
+        const nbs = new Set<string>([
+          ...(sessionDims.sessionNotebooks?.get(resultId) ?? []),
+          ...(sessionDims.noteNotebooks?.get(noteId) ?? []),
+        ]);
+        const summary = computeRowsRunSummary(
+          {
+            resultId,
+            noteId,
+            timestamp: sessionCompletedAt(rows),
+            ...(typeof meta?.duration === 'number' && Number.isFinite(meta.duration) ? { durationMs: meta.duration } : {}),
+            events: rows,
+          },
+          {
+            noteTitle: sessionDims.noteTitles?.get(noteId),
+            notebooks: [...nbs],
+            completed: meta?.completed,
+          },
+        );
         return {
           resultId,
-          noteId: rows[0].noteId,
+          noteId,
           timestamp: sessionCompletedAt(rows),
           ...(typeof meta?.duration === 'number' && Number.isFinite(meta.duration) ? { durationMs: meta.duration } : {}),
           events,
+          summary,
         };
       })
       .filter((run) => run.events.length > 0);
-    if (this.sessionStore && planeFilters.length === 0 && normalizedFactFilters.length === 0 && blockIds.length === 0) {
+    const hasPosScope = resultIds.length + blockIds.length + noteIds.length > 0;
+    const matchesPosSessionUnion = (s: { id: string; noteId: string; blockContentId?: string }): boolean => {
+      if (!hasPosScope) return true;
+      return (
+        resultIds.includes(s.id) ||
+        noteIds.includes(s.noteId) ||
+        (s.blockContentId !== undefined && blockIds.includes(s.blockContentId))
+      );
+    };
+    const nonNotebookFactFilters = normalizedFactFilters.filter((f) => f.key !== 'notebook');
+    const notebookFactFilters = normalizedFactFilters.filter((f) => f.key === 'notebook');
+    if (this.sessionStore && planeFilters.length === 0 && nonNotebookFactFilters.length === 0 && blockIds.length === 0) {
       const seen = new Set(runs.map((r) => r.resultId));
       for (const s of allSessions) {
         if (seen.has(s.id)) continue;
-        if (resultIds.length > 0 && !resultIds.includes(s.id)) continue;
-        if (noteIds.length > 0 && !noteIds.includes(s.noteId)) continue;
+        if (!matchesPosSessionUnion(s)) continue;
+        if (!matchesSessionScope({ resultId: s.id, noteId: s.noteId, blockContentId: s.blockContentId })) continue;
+        if (notebookFactFilters.length > 0) {
+          const dummyFact = { resultId: s.id, noteId: s.noteId } as AnalyticsDataPoint;
+          if (!matchesFilters(dummyFact, notebookFactFilters, sessionDims)) continue;
+        }
         const ts = s.completedAt ?? s.startedAt ?? s.createdAt ?? 0;
         if ((parsed.window || options.range) && !effectiveTimeWindow(ts, parsed.window, options.range, ctx)) continue;
+        const nbs = new Set<string>([
+          ...(sessionDims.sessionNotebooks?.get(s.id) ?? []),
+          ...(sessionDims.noteNotebooks?.get(s.noteId) ?? []),
+        ]);
         runs.push({
           resultId: s.id,
           noteId: s.noteId,
           timestamp: ts,
           ...(typeof s.duration === 'number' && Number.isFinite(s.duration) ? { durationMs: s.duration } : {}),
           events: [],
+          summary: computeRowsRunSummary(
+            {
+              resultId: s.id,
+              noteId: s.noteId,
+              timestamp: ts,
+              ...(typeof s.duration === 'number' && Number.isFinite(s.duration) ? { durationMs: s.duration } : {}),
+              events: [],
+            },
+            {
+              noteTitle: sessionDims.noteTitles?.get(s.noteId),
+              notebooks: [...nbs],
+              completed: s.completed,
+            },
+          ),
         });
       }
       runs.sort((a, b) => b.timestamp - a.timestamp);
@@ -1469,11 +1869,12 @@ export class QueryService {
    */
   async runFindTable(parsed: ParsedFindQuery, options: FindOptions = {}): Promise<FindQueryResult> {
     const ctx = runContext(options);
-    const scopeValues = (key: string) =>
-      parsed.filters.filter((f) => f.key === key).flatMap((f) => f.values.map((v) => v.value));
-    const resultIds = scopeValues('result');
-    const blockIds = scopeValues('block');
-    const noteIds = scopeValues('note');
+    const posScopeValues = (key: string) =>
+      parsed.filters.filter((f) => f.key === key && !f.negate).flatMap((f) => f.values.map((v) => v.value));
+    const scopeFilters = parsed.filters.filter((f) => ['result', 'block', 'note'].includes(f.key));
+    const resultIds = posScopeValues('result');
+    const blockIds = posScopeValues('block');
+    const noteIds = posScopeValues('note');
 
     let eventRows: EventRecord[] = [];
     if (resultIds.length + blockIds.length + noteIds.length === 0) {
@@ -1515,11 +1916,23 @@ export class QueryService {
       for (const noteId of noteIds) collect(await this.store.getEventsForNote(noteId));
     }
 
+    const matchesRowScope = (row: EventRecord): boolean => {
+      const negScopeFilters = scopeFilters.filter((f) => f.negate);
+      for (const f of negScopeFilters) {
+        const actual = f.key === 'result' ? row.resultId : f.key === 'block' ? row.blockContentId : row.noteId;
+        if (actual !== undefined && f.values.some((v) => v.wildcard ? actual.startsWith(v.value) : actual === v.value)) {
+          return false;
+        }
+      }
+      return true;
+    };
+
     const seen = new Set<string>();
     const eligibleRecords: EventRecord[] = [];
     for (const row of eventRows) {
       if (row.grain !== 'event') continue;
       if (parsed.target === 'segment' && row.outputType !== 'segment') continue;
+      if (!matchesRowScope(row)) continue;
       if (seen.has(row.id)) continue;
       seen.add(row.id);
       eligibleRecords.push(row);
@@ -1543,13 +1956,17 @@ export class QueryService {
       return row.timestamp;
     };
 
+    const pipes = parsed.pipes;
+    const selectColsExplicit = pipes?.select?.map((s) => s.col);
+    const wantsNoteMetaCols =
+      (selectColsExplicit?.some((c) => c === 'noteTitle' || c === 'notebook' || c === 'note') ?? false);
     const rawTagFilters = parsed.filters.filter((f) => !['result', 'block', 'note', 'plane'].includes(f.key));
     const tagFilters = rawTagFilters.map((f) => (f.key === 'tag' ? { ...f, key: 'tags' } : f));
-    const tableDims = eligibleRecords.length > 0 && tagFilters.length > 0
+    const tableDims = eligibleRecords.length > 0 && (tagFilters.length > 0 || wantsNoteMetaCols || parsed.groupBy?.some((g) => g === 'notebook' || g === 'noteTitle'))
       ? await this.loadFactDimensions(
-          eligibleRecords.map((r) => ({ noteId: r.noteId, effortSlug: r.effortSlug } as AnalyticsDataPoint)),
+          eligibleRecords.map((r) => ({ resultId: r.resultId, noteId: r.noteId, effortSlug: r.effortSlug } as AnalyticsDataPoint)),
           tagFilters,
-          [],
+          [...(parsed.groupBy ?? []), ...(wantsNoteMetaCols ? ['notebook', 'noteTitle'] : [])],
         )
       : EMPTY_FACT_DIMS;
     // C1 + ticket 12: the fetch bound is only a cutoff — scoped and windowed
@@ -1560,7 +1977,11 @@ export class QueryService {
       .filter((row) => {
         if (tagFilters.length === 0) return true;
         const facts = projectEventToFacts(row);
-        if (facts.length === 0) return false;
+        if (facts.length === 0) {
+          // Allow matching notebook / effort directly on zero-metric event rows
+          const dummy = { resultId: row.resultId, noteId: row.noteId, effortSlug: row.effortSlug } as AnalyticsDataPoint;
+          return matchesFilters(dummy, tagFilters, tableDims);
+        }
         return facts.some((fact) => matchesFilters(fact, tagFilters, tableDims));
       });
 
@@ -1568,8 +1989,30 @@ export class QueryService {
 
     const unitByMetric = new Map<string, string>();
     const numericMetrics = new Set<string>();
+    const sessionT0 = new Map<string, number>();
+    const sessionSplitCount = new Map<string, number>();
+    const splitIndexByRowId = new Map<string, number>();
+    const sessionRpeByResult = new Map<string, number>();
+
+    for (const row of eventRows) {
+      for (const m of row.metrics ?? []) {
+        if ((m.type === MetricType.SessionRPE || m.type === 'session-rpe' || m.type === 'session_rpe') && typeof m.value === 'number') {
+          sessionRpeByResult.set(row.resultId, m.value);
+        }
+      }
+      if (row.timeSpan?.started !== undefined) {
+        const cur = sessionT0.get(row.resultId);
+        if (cur === undefined || row.timeSpan.started < cur) {
+          sessionT0.set(row.resultId, row.timeSpan.started);
+        }
+      }
+    }
+
     for (const row of eligible) {
-      for (const m of row.metrics as Array<{ type?: string; value?: unknown; unit?: string; metadata?: Record<string, unknown> }>) {
+      const nextSplit = (sessionSplitCount.get(row.resultId) ?? 0) + 1;
+      sessionSplitCount.set(row.resultId, nextSplit);
+      splitIndexByRowId.set(row.id, nextSplit);
+      for (const m of visibleRowMetrics(row.metrics)) {
         if (m.type && m.type !== 'label' && typeof m.value === 'number') {
           numericMetrics.add(m.type);
           const key = typeof m.metadata?.canonicalKey === 'string' ? m.metadata.canonicalKey : undefined;
@@ -1581,22 +2024,38 @@ export class QueryService {
       }
     }
 
-    const pipes = parsed.pipes;
-    const selectCols = pipes?.select?.map((s) => s.col) ?? [
+    const selectCols = selectColsExplicit ?? [
       'date', 'effort', 'discipline', ...numericMetrics,
     ];
-    const unitFor = (col: string): string | undefined =>
-      pipes?.select?.find((s) => s.col === col)?.unit ?? (parsed.displayUnit ? parsed.displayUnit : unitByMetric.get(col));
+    const stringColSet = new Set(['effort', 'discipline', 'note', 'noteTitle', 'notebook', 'origin', 'grade', 'intensity']);
+    const virtualNumUnits: Record<string, string | undefined> = {
+      elapsed: 'ms',
+      offset: 'ms',
+      round: undefined,
+      split: undefined,
+      rpe: undefined,
+    };
+    const unitFor = (col: string): string | undefined => {
+      const selectDirective = pipes?.select?.find((s) => s.col === col)?.unit;
+      if (selectDirective) return selectDirective;
+      const baseUnit = col in virtualNumUnits ? virtualNumUnits[col] : unitByMetric.get(col);
+      if (parsed.displayUnit && baseUnit) {
+        const dispDim = dimensionKeyOf(parsed.displayUnit);
+        const baseDim = dimensionKeyOf(baseUnit);
+        if (dispDim && baseDim && dispDim === baseDim) return parsed.displayUnit;
+      }
+      return baseUnit;
+    };
 
     const columns: TabularColumn[] = selectCols.map((col) => {
       if (col === 'date') return { name: 'date', type: 'date' as const };
-      if (col === 'effort' || col === 'discipline' || col === 'note' || col === 'grade' || col === 'intensity') {
-        return { name: col, type: 'string' as const };
-      }
-      return { name: col, type: 'number' as const, ...(unitFor(col) ? { unit: unitFor(col) } : {}) };
+      if (stringColSet.has(col)) return { name: col, type: 'string' as const };
+      const colUnit = unitFor(col);
+      return { name: col, type: 'number' as const, ...(colUnit ? { unit: colUnit } : {}) };
     });
 
     const typeOf = new Map(columns.map((c) => [c.name, c.type]));
+    const targetUnitOf = new Map(columns.map((c) => [c.name, c.unit]));
 
     const offset = pipes?.offset ?? 0;
     const limit = pipes?.limit;
@@ -1609,6 +2068,39 @@ export class QueryService {
 
     let records = rowsToProject.map((row) => {
       const record: Record<string, unknown> = {};
+      const visMetrics = visibleRowMetrics(row.metrics);
+      const cellOrigins: Record<string, string> = {};
+      const cellUnits: Record<string, string> = {};
+
+      for (const m of visMetrics) {
+        if (!m.type) continue;
+        const canon = typeof m.metadata?.canonicalKey === 'string' ? m.metadata.canonicalKey : m.type;
+        if (m.origin) {
+          cellOrigins[m.type] = m.origin;
+          cellOrigins[canon] = m.origin;
+        }
+        if (m.unit) {
+          cellUnits[m.type] = m.unit;
+          cellUnits[canon] = m.unit;
+        }
+      }
+
+      const convertCell = (col: string, val: number, fromUnit: string | undefined): number => {
+        const desired = targetUnitOf.get(col);
+        if (desired && fromUnit && fromUnit !== desired) {
+          const fromDim = dimensionKeyOf(fromUnit);
+          const toDim = dimensionKeyOf(desired);
+          if (fromDim && toDim && fromDim === toDim) {
+            try {
+              return convertViaCatalog(val, fromUnit, desired);
+            } catch {
+              return val;
+            }
+          }
+        }
+        return val;
+      };
+
       for (const col of selectCols) {
         const type = typeOf.get(col);
         if (type === 'date') {
@@ -1616,22 +2108,55 @@ export class QueryService {
         } else if (col === 'effort') {
           record.effort = row.effortSlug;
         } else if (col === 'discipline') {
-          const m = (row.metrics as Array<{ metadata?: Record<string, unknown> }>).find((m) => m.metadata?.effortDiscipline);
+          const m = visMetrics.find((m) => m.metadata?.effortDiscipline);
           record.discipline = m?.metadata?.effortDiscipline;
+        } else if (col === 'note') {
+          record.note = row.noteId;
+        } else if (col === 'noteTitle') {
+          record.noteTitle = tableDims.noteTitles?.get(row.noteId);
+        } else if (col === 'notebook') {
+          const nbs = tableDims.noteNotebooks?.get(row.noteId) ?? [];
+          record.notebook = nbs[0];
+        } else if (col === 'origin') {
+          record.origin = visMetrics.some((m) => m.origin === 'user') ? 'user' : row.origin;
+        } else if (col === 'rpe') {
+          record.rpe = sessionRpeByResult.get(row.resultId);
+        } else if (col === 'split') {
+          record.split = splitIndexByRowId.get(row.id);
+        } else if (col === 'round') {
+          const rMetric = visMetrics.find(
+            (m) => m.type === 'current-round' || m.type === 'rounds' || m.metadata?.canonicalKey === 'currentRound' || m.metadata?.canonicalKey === 'rounds',
+          );
+          record.round = typeof rMetric?.value === 'number' ? Math.round(rMetric.value) : undefined;
+        } else if (col === 'elapsed') {
+          const rawMs = row.timeSpan?.ended !== undefined && row.timeSpan?.started !== undefined
+            ? Math.max(0, row.timeSpan.ended - row.timeSpan.started)
+            : undefined;
+          if (rawMs !== undefined) {
+            record.elapsed = convertCell('elapsed', rawMs, 'ms');
+          } else {
+            const m = visMetrics.find((m) => m.type === 'elapsed' || m.metadata?.canonicalKey === 'elapsed' || m.type === 'duration');
+            record.elapsed = typeof m?.value === 'number' ? convertCell('elapsed', m.value, m.unit ?? 's') : undefined;
+          }
+        } else if (col === 'offset') {
+          const t0 = sessionT0.get(row.resultId);
+          if (t0 !== undefined && row.timeSpan?.started !== undefined) {
+            record.offset = convertCell('offset', Math.max(0, row.timeSpan.started - t0), 'ms');
+          } else {
+            record.offset = undefined;
+          }
+        } else if (col === 'grade') {
+          const g = visMetrics.find((m) => m.type === 'grade' || m.metadata?.grade);
+          record.grade = g ? (typeof g.value === 'string' ? g.value : g.metadata?.grade) : undefined;
+        } else if (col === 'intensity') {
+          const m = visMetrics.find((m) => m.metadata?.effortIntensityTier);
+          record.intensity = m?.metadata?.effortIntensityTier;
         } else {
-          const m = (row.metrics as Array<{ type?: string; value?: unknown; unit?: string; metadata?: Record<string, unknown> }>).find(
-            (m) => m.type === col || m.metadata?.canonicalKey === col,
+          const m = visMetrics.find(
+            (m) => m.type === col || m.metadata?.canonicalKey === col || (col === 'reps' && m.type === 'rep') || (col === 'rep' && m.type === 'reps'),
           );
           if (m && typeof m.value === 'number') {
-            let val = m.value;
-            if (parsed.displayUnit && m.unit && m.unit !== parsed.displayUnit) {
-              try {
-                val = convertViaCatalog(val, m.unit, parsed.displayUnit);
-              } catch {
-                // ponytail: pass-through if conversion fails; full unit graph handled by units.ts
-              }
-            }
-            record[col] = val;
+            record[col] = convertCell(col, m.value, m.unit);
           } else {
             record[col] = m ? m.value : undefined;
           }
@@ -1639,6 +2164,16 @@ export class QueryService {
       }
       record.__id = row.id;
       record.__resultId = row.resultId;
+      record.__noteId = row.noteId;
+      if (row.blockId) record.__blockId = row.blockId;
+      if (row.blockContentId) record.__blockContentId = row.blockContentId;
+      if (row.sourceBlockKey) record.__sourceBlockKey = row.sourceBlockKey;
+      if (row.sourceStatementId !== undefined) record.__sourceStatementId = row.sourceStatementId;
+      if (row.stackLevel !== undefined) record.__stackLevel = row.stackLevel;
+      if (row.line !== undefined) record.__line = row.line;
+      if (row.timeSpan) record.__timeSpan = row.timeSpan;
+      record.__cellOrigins = cellOrigins;
+      record.__cellUnits = cellUnits;
       return record;
     });
 
@@ -2763,35 +3298,116 @@ export class QueryService {
     };
 
     // Output unit (ticket 13): explicit `in <unit>` directive wins when
-    // dimensionally compatible; otherwise the system default for the
-    // observations' dimension; unitless observations stay unitless. No
-    // first-record fallback, no widget-preference tier.
+    // dimensionally compatible; otherwise preserves consistent ratio/count scale
+    // (`pts`, `AU`, `%`, `reps`), applies preferred when same dimension, or system default.
     const unitResolution = resolveOutputUnit(matched, {
       directive: parsed.displayUnit,
       preferred: options.preferredUnit,
+      metric: parsed.metric,
     });
     const targetUnit = unitResolution.unit;
     const shouldConvert = unitResolution.convert;
     const seriesError = unitResolution.error;
+
+    const dimCtx = resolveDimensionContext(noteTags);
+    // Enrich ordinal split / attempt dimensions lazily when grouped by them.
+    if (tagDims.includes('split')) {
+      const counts = new Map<string, number>();
+      const ordered = [...matched].sort((a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id));
+      for (const row of ordered) {
+        if (!row.dimensions?.split) {
+          const n = (counts.get(row.resultId) ?? 0) + 1;
+          counts.set(row.resultId, n);
+          row.dimensions = { ...(row.dimensions ?? {}), split: String(n) };
+        }
+      }
+    }
+    if (tagDims.includes('attempt')) {
+      const byBlock = new Map<string, Array<{ resultId: string; ts: number }>>();
+      for (const row of matched) {
+        const key = row.blockContentId || row.noteId;
+        const arr = byBlock.get(key) ?? [];
+        if (!arr.some((x) => x.resultId === row.resultId)) {
+          arr.push({ resultId: row.resultId, ts: row.timestamp });
+          byBlock.set(key, arr);
+        }
+      }
+      const attemptByResult = new Map<string, number>();
+      for (const arr of byBlock.values()) {
+        arr.sort((a, b) => a.ts - b.ts);
+        arr.forEach((item, idx) => attemptByResult.set(item.resultId, idx + 1));
+      }
+      for (const row of matched) {
+        if (!row.dimensions?.attempt) {
+          const att = attemptByResult.get(row.resultId);
+          if (att !== undefined) row.dimensions = { ...(row.dimensions ?? {}), attempt: String(att) };
+        }
+      }
+    }
+
+    const formatDimLabel = (dim: string, val: string, rows: readonly AnalyticsDataPoint[]): string => {
+      if (val === UNASSIGNED) return 'unassigned';
+      if (dim === 'session') {
+        const first = rows[0];
+        const title = first ? dimCtx.noteTitles?.get(first.noteId) : undefined;
+        let shortDate = '';
+        if (first) {
+          try {
+            shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: ctx.timeZone }).format(new Date(first.timestamp));
+          } catch {
+            shortDate = civilDateOf(first.timestamp, ctx.timeZone);
+          }
+        }
+        const tail = title?.trim() ? title.trim() : val.slice(0, 8);
+        return shortDate ? `${shortDate} · ${tail}` : tail;
+      }
+      if (dim === 'notebook') {
+        return notebookSlugFromId(val);
+      }
+      return val;
+    };
+
+    const ORDINAL_AXIS_DIMS = new Set(['round', 'split', 'attempt']);
+    const candidateOrdinalDim = !timeDim && !rollup
+      ? tagDims.find((d) => ORDINAL_AXIS_DIMS.has(d))
+      : undefined;
+    const hasResolvedOrdinal = candidateOrdinalDim
+      ? matched.some((r) => dimValue(r, candidateOrdinalDim, noteTags, ctx) !== UNASSIGNED) || tagDims.length > 1
+      : false;
+    const ordinalDim = hasResolvedOrdinal ? candidateOrdinalDim : undefined;
+    const seriesTagDims = ordinalDim ? tagDims.filter((d) => d !== ordinalDim) : tagDims;
 
     // Stage 3+4: GROUP + AGGREGATE per bucket. Group identity (ticket 16)
     // is the canonical ordered tuple of resolved dimension values, JSON
     // encoded — delimiter-containing labels cannot collide; a missing
     // dimension resolves to the structural UNASSIGNED sentinel (distinct
     // from any literal text). The display label is derived, never identity.
-    const UNASSIGNED = '\u0000unassigned';
-    const unassignedLabel = 'unassigned';
     const groups = new Map<string, { label: string; rows: AnalyticsDataPoint[] }>();
     for (const row of matched) {
-      const tuple = tagDims.map((d) => dimValue(row, d, noteTags, ctx));
-      const key = tagDims.length ? JSON.stringify(tuple) : parsed.metric;
-      const label = tagDims.length
-        ? tuple.map((v) => (v === UNASSIGNED ? unassignedLabel : v)).join(' · ')
-        : parsed.metric;
+      const tuple = seriesTagDims.map((d) => dimValue(row, d, noteTags, ctx));
+      const key = seriesTagDims.length ? JSON.stringify(tuple) : parsed.metric;
       const bucket = groups.get(key);
       if (bucket) bucket.rows.push(row);
-      else groups.set(key, { label, rows: [row] });
+      else {
+        const label = seriesTagDims.length
+          ? tuple.map((v, i) => formatDimLabel(seriesTagDims[i]!, v, [row])).join(' · ')
+          : parsed.metric;
+        groups.set(key, { label, rows: [row] });
+      }
     }
+
+    const globalOrdinalDomain = ordinalDim
+      ? [...new Set(matched.map((r) => `ord:${dimValue(r, ordinalDim, noteTags, ctx)}`))].sort((a, b) => {
+          const av = a.slice(4);
+          const bv = b.slice(4);
+          if (av === UNASSIGNED) return 1;
+          if (bv === UNASSIGNED) return -1;
+          const an = Number(av);
+          const bn = Number(bv);
+          if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
+          return av.localeCompare(bv, undefined, { numeric: true });
+        })
+      : undefined;
 
     const series: Series[] = [...groups.entries()].map(([key, group]) => {
       const rows = group.rows;
@@ -2800,20 +3416,41 @@ export class QueryService {
       }
       const byBucket = new Map<string, AnalyticsDataPoint[]>();
       for (const row of rows) {
-        const b = bucketKey(row);
+        const b = ordinalDim
+          ? `ord:${dimValue(row, ordinalDim, noteTags, ctx)}`
+          : bucketKey(row);
         const members = byBucket.get(b);
         if (members) members.push(row);
         else byBucket.set(b, [row]);
       }
       const observedKeys = [...byBucket.keys()].sort();
-      const domain = timeDim ? calendarDomain(observedKeys) : observedKeys;
+      const domain = timeDim
+        ? calendarDomain(observedKeys)
+        : globalOrdinalDomain
+          ? globalOrdinalDomain
+          : observedKeys;
       let error: string | undefined;
-      const points: SeriesPoint[] = domain.map((b) => {
+      const points: SeriesPoint[] = domain.map((b, ordIdx) => {
         const members = byBucket.get(b);
+        const ordRaw = b.startsWith('ord:') ? b.slice(4) : undefined;
+        const ordDisplay = ordRaw === UNASSIGNED ? 'unassigned' : ordRaw;
+        const ordMeta = ordinalDim && ordDisplay !== undefined
+          ? {
+              x: /^\d+$/.test(ordDisplay) ? Number(ordDisplay) : ordDisplay,
+              label: /^\d+$/.test(ordDisplay)
+                ? `${ordinalDim === 'split' ? 'Split' : ordinalDim === 'attempt' ? 'Run' : 'Rnd'} ${ordDisplay}`
+                : ordDisplay,
+            }
+          : {};
         if (!members) {
           // Missing query position (ticket 12 domain + ticket 13 matrix):
           // zero-filled with absence provenance — never an observation.
-          return { ts: bucketDisplayTs(b), value: 0, missing: true };
+          return {
+            ts: ordinalDim ? ordIdx : bucketDisplayTs(b),
+            ...ordMeta,
+            value: 0,
+            missing: true,
+          };
         }
         // Compatible-unit normalization BEFORE arithmetic (finding 3.3).
         let values: number[];
@@ -2825,17 +3462,20 @@ export class QueryService {
           );
         } catch (e) {
           error = e instanceof Error ? e.message : String(e);
-          return { ts: bucketDisplayTs(b), value: 0, missing: true };
+          return { ts: ordinalDim ? ordIdx : bucketDisplayTs(b), ...ordMeta, value: 0, missing: true };
         }
         const reduced = aggregate(values, parsed.agg, members);
         if (reduced.state === 'error') {
           error = reduced.message;
-          return { ts: bucketDisplayTs(b), value: 0, missing: true };
+          return { ts: ordinalDim ? ordIdx : bucketDisplayTs(b), ...ordMeta, value: 0, missing: true };
         }
         return {
-          ts: timeDim || rollup
-            ? bucketDisplayTs(b)
-            : Math.min(...members.map((m) => m.timestamp)),
+          ts: ordinalDim
+            ? ordIdx
+            : timeDim || rollup
+              ? bucketDisplayTs(b)
+              : Math.min(...members.map((m) => m.timestamp)),
+          ...ordMeta,
           // Unrounded — renderers format (ticket 13 precision policy).
           value: reduced.value,
           ...(reduced.state === 'absent' ? { missing: true } : {}),
@@ -2845,15 +3485,24 @@ export class QueryService {
       // Output unit is the resolved one — count reduces to count; no
       // first-record fallback (ticket 13 cutover).
       const seriesUnit = parsed.agg === 'count' ? 'count' : targetUnit;
-      return { key, label: group.label, points, unit: seriesUnit, ...(error ? { error } : {}) };
+      return {
+        key,
+        label: group.label,
+        points,
+        unit: seriesUnit,
+        ...(ordinalDim ? { axisKind: 'ordinal' as const, axisDimension: ordinalDim } : {}),
+        ...(error ? { error } : {}),
+      };
     });
 
     const aggregated = series.reduce((n, s) => n + s.points.length, 0);
     const scalar = series.length === 1 && series[0].points.length === 1 ? series[0].points[0].value : undefined;
     const resultUnit = series.length > 0 ? series[0].unit : undefined;
-    const bucketCount = timeDim || rollup
+    const bucketCount = ordinalDim
       ? (series[0]?.points.length ?? 0)
-      : (matched.length ? 1 : 0);
+      : timeDim || rollup
+        ? (series[0]?.points.length ?? 0)
+        : (matched.length ? 1 : 0);
 
     const insufficient = coverage?.insufficientScopes ?? [];
     const resultError = series.find((s) => s.error)?.error
@@ -2873,27 +3522,46 @@ export class QueryService {
   }
 
   /** Direction 2 — re-derive the metric from raw logs, restricted to the
-   *  blockContentIds owned by the find predicate's content matches. */
+   *  blockContentIds or session resultIds owned by the find predicate's matches. */
   private async runJoined(parsed: ParsedAggregateQuery, options: QueryOptions): Promise<QueryResult> {
     const empty: QueryResult = {
       parsed, series: [], stages: { selected: 0, buckets: 0, aggregated: 0, groups: 0 }, matched: [],
     };
     const join = parsed.join as FindPredicate;
+    const ctx = runContext(options);
     const findResult = await this.runFind({
       family: 'find',
       raw: '', target: join.target, filters: join.filters,
       window: join.last ? { kind: 'relative', size: join.last.size, unit: join.last.unit } : undefined,
-    });
-    const contentIds = await this.contentIdsFromFindResult(findResult);
-    if (contentIds.size === 0) return empty;
+    }, { context: ctx });
 
-    // Ticket 16: content-joined queries keep eligible event-grain
-    // observations (the summary-only join filter is gone); overlapping
-    // scope fetches dedupe by stable observation identity.
-    let facts = dedupeById(await this.deriveMetricFacts(contentIds, parsed.metric));
-    // Ticket 12 precedence + context: query window wins; host range is the
-    // default; membership half-open against the captured context.
-    const ctx = runContext(options);
+    let facts: AnalyticsDataPoint[];
+    if (join.target === 'session' || join.target === 'segment' || join.target === 'event') {
+      const matchedResultIds = new Set<string>();
+      for (const r of findResult.runs ?? []) matchedResultIds.add(r.resultId);
+      for (const e of findResult.events ?? []) matchedResultIds.add(e.resultId);
+      if (findResult.table?.rows) {
+        for (const row of findResult.table.rows) {
+          if (typeof row.__resultId === 'string') matchedResultIds.add(row.__resultId);
+        }
+      }
+      if (matchedResultIds.size === 0) return empty;
+      const metricFilter = parsed.metric ? { metricKey: parsed.metric } : undefined;
+      const bySession = await Promise.all(
+        [...matchedResultIds].map((id) => this.store.getEventsByResult(id)),
+      );
+      const rawEvents = dedupeById(
+        [...bySession.flat(), ...(findResult.events ?? [])],
+      );
+      facts = dedupeById(
+        rawEvents.flatMap((row) => projectEventToFacts(row, metricFilter)),
+      );
+    } else {
+      const contentIds = await this.contentIdsFromFindResult(findResult);
+      if (contentIds.size === 0) return empty;
+      facts = dedupeById(await this.deriveMetricFacts(contentIds, parsed.metric));
+    }
+
     const joinRange = resolveAggregateRange(parsed, options, ctx);
     if (joinRange) {
       facts = facts.filter(f => inRange(f.timestamp, joinRange));
@@ -3014,9 +3682,8 @@ export class QueryService {
   }
 
   /**
-   * Load 3-tier fact dimensions (`noteTags`, `typedNoteTags`, `effortsBySlug`)
-   * in at most one batched `relationStore.getBatches` call and one
-   * `effortStore.getAllEfforts` call per query run.
+   * Load 3-tier fact dimensions (`noteTags`, `typedNoteTags`, `effortsBySlug`,
+   * `noteNotebooks`, `sessionNotebooks`, `noteTitles`) in batched calls per query run.
    */
   private async loadFactDimensions(
     rows: readonly AnalyticsDataPoint[],
@@ -3029,20 +3696,51 @@ export class QueryService {
     const neededTypedKeys = [...keys].filter((k) => TYPED_TAG_KEY_SET.has(k) || k === 'discipline' || k === 'intensity');
     const needsTypedTags = neededTypedKeys.length > 0;
     const needsEfforts = keys.has('equipment') || keys.has('discipline') || keys.has('intensity');
+    const needsNotebooks = keys.has('notebook');
+    const needsNoteTitles = keys.has('session') || keys.has('noteTitle');
 
     const noteTags = new Map<string, readonly string[]>();
     const typedNoteTags = new Map<string, Map<string, string[]>>();
     const effortsBySlug = new Map<string, IEffort>();
+    const noteNotebooks = new Map<string, readonly NotebookId[]>();
+    const sessionNotebooks = new Map<string, readonly NotebookId[]>();
+    const noteTitles = new Map<string, string>();
 
-    if (needsEfforts) {
+    if (needsEfforts && typeof this.effortStore?.getAllEfforts === 'function') {
       const efforts = await this.effortStore.getAllEfforts();
       for (const effort of efforts) {
         effortsBySlug.set(effort.slug, effort);
       }
     }
 
-    if (needsUntypedTags || needsTypedTags) {
-      const noteIds = [...new Set(rows.map((r) => r.noteId).filter(Boolean))];
+    const noteIds = [...new Set(rows.map((r) => r.noteId).filter(Boolean))];
+    if ((needsNotebooks || needsNoteTitles) && noteIds.length > 0) {
+      if (this.noteStore && typeof this.noteStore.getNotesByIds === 'function') {
+        const notes = await this.noteStore.getNotesByIds(noteIds);
+        for (const n of notes) {
+          if (n.title) noteTitles.set(n.id, n.title);
+          if (needsNotebooks) noteNotebooks.set(n.id, notebooksOfItem(n));
+        }
+      } else if (this.noteStore && typeof this.noteStore.getAllNotes === 'function') {
+        const noteIdSet = new Set(noteIds);
+        const notes = await this.noteStore.getAllNotes();
+        for (const n of notes) {
+          if (!noteIdSet.has(n.id)) continue;
+          if (n.title) noteTitles.set(n.id, n.title);
+          if (needsNotebooks) noteNotebooks.set(n.id, notebooksOfItem(n));
+        }
+      }
+      if (needsNotebooks && this.sessionStore) {
+        const sessions = await this.sessionStore.getAll();
+        for (const s of sessions) {
+          if (s.notebookIds?.length) {
+            sessionNotebooks.set(s.id, s.notebookIds.map((id) => toNotebookId(id)));
+          }
+        }
+      }
+    }
+
+    if ((needsUntypedTags || needsTypedTags) && noteIds.length > 0) {
       if (this.relationStore) {
         const bundles = await this.relationStore.getBatches(noteIds);
         for (const id of noteIds) {
@@ -3064,11 +3762,11 @@ export class QueryService {
             typedNoteTags.set(id, byType);
           }
         }
-      } else {
+      } else if (this.noteStore && typeof this.noteStore.getNoteTagLabels === 'function') {
         if (needsUntypedTags) {
           await Promise.all(noteIds.map(async (id) => noteTags.set(id, await this.noteStore.getNoteTagLabels(id))));
         }
-        if (needsTypedTags && this.tagsStore.getAll) {
+        if (needsTypedTags && this.tagsStore?.getAll) {
           const allTags = await this.tagsStore.getAll();
           const tagById = new Map(allTags.map((t) => [t.id, t]));
           await Promise.all(
@@ -3093,7 +3791,7 @@ export class QueryService {
       }
     }
 
-    return { noteTags, typedNoteTags, effortsBySlug };
+    return { noteTags, typedNoteTags, effortsBySlug, noteNotebooks, sessionNotebooks, noteTitles };
   }
 
   /** Resolve matching note IDs for an exercise slug via the block_efforts containment index. */

@@ -1,18 +1,21 @@
 /**
- * MobileWheelComposer — Half-screen tactile flick & scroll-wheel composer
- * for mobile (<1024px) note and workout authoring.
+ * MobileWheelComposer — Unified 3-Region Mobile Thumb Deck for <1024px authoring.
  *
- * Strictly adheres to the Premium Utilitarian Minimalism protocol:
- *  - Warm monochrome surfaces (#F7F6F3 / bg-card) with crisp 1px hairlines
- *  - Zero heavy shadows, zero gradients, zero emojis
- *  - Phosphor Bold iconography + JetBrains Mono tabular numerals on wheels
- *  - Keeps >55dvh of live CodeMirror document visible above the deck
+ * Regions:
+ *  1. Live Token Rail: prev/next arrows, parsed tokens + "+ Add", lint quick-fixes, Block settings
+ *  2. Unified Contextual Body: TokenInspectorPanel (with optional 50cqh TokenScrubber), or +Add grid
+ *  3. Pinned 44px Footer: Undo, Delete, + Line, Type, Done
+ *
+ * Keeps semantic Tailwind tokens (Light Mineral / Dark Arctic Frost) and preserves a persistent
+ * Live Token Rail + syntax accessory keys above the OS keyboard when switched to Type mode.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorView } from "@codemirror/view";
-import { indentMore, indentLess } from "@codemirror/commands";
+import { startCompletion } from "@codemirror/autocomplete";
+import { indentLess, indentMore, undo } from "@codemirror/commands";
 import {
+  ArrowCounterClockwiseIcon,
   CaretLeftIcon,
   CaretRightIcon,
   CheckIcon,
@@ -21,7 +24,10 @@ import {
   SlidersHorizontalIcon,
   TextIndentIcon,
   TextOutdentIcon,
+  TrashIcon,
+  WarningCircleIcon,
 } from "@phosphor-icons/react";
+import { TEST_IDS } from "@/lib/testIds";
 import { cn } from "@/lib/utils";
 import {
   buildWheelComposerModel,
@@ -31,6 +37,18 @@ import {
   type WheelDrumSpec,
   type WheelSlot,
 } from "./wheelSources";
+import { TokenInspectorPanel } from "./whiteboard-inspector/TokenInspectorPanel";
+import {
+  applyQuickFixInView,
+  deleteTokenInView,
+  extractLineTokens,
+  parseDistanceToken,
+  parseDurationToken,
+  parseResistanceToken,
+  type InspectorMode,
+  type InspectorToken,
+  type InspectorTokenKind,
+} from "./whiteboard-inspector/tokenModel";
 
 export interface MobileWheelComposerProps {
   view: EditorView | null;
@@ -48,140 +66,72 @@ const EMPTY_SCOPE: NotebookScopeSnapshot = {
   customMetricTypes: [],
 };
 
-const ROW_HEIGHT_PX = 36;
+const SYNTAX_KEYS: ReadonlyArray<{
+  label: string;
+  ariaLabel: string;
+  insert: string;
+  cursorOffset?: number;
+  triggerComplete?: boolean;
+}> = [
+  { label: "#", ariaLabel: "Insert tag prefix #", insert: "#", triggerComplete: true },
+  { label: "@", ariaLabel: "Insert resistance prefix @", insert: "@" },
+  { label: "*", ariaLabel: "Insert rest prefix *", insert: "*" },
+  { label: ":", ariaLabel: "Insert timer separator :", insert: ":" },
+  { label: "()", ariaLabel: "Insert rounds parentheses ()", insert: "()", cursorOffset: 1 },
+  { label: "[[", ariaLabel: "Insert wiki link [[", insert: "[[", triggerComplete: true },
+  { label: "|", ariaLabel: "Insert WQL pipe |", insert: " | " },
+];
 
-interface ScrollDrumProps {
-  drum: WheelDrumSpec;
-  autoCommitOnScroll: boolean;
-  onSelect: (option: WheelDrumOption) => void;
+function mapSlotToTokenKind(slot: WheelSlot): InspectorTokenKind {
+  const mt = slot.metricType?.toLowerCase();
+  if (mt === "duration") return "duration";
+  if (mt === "rep") return "rep";
+  if (mt === "rounds") return "rounds";
+  if (mt === "effort") return "effort";
+  if (mt === "equipment") return "equipment";
+  if (mt === "resistance") return "resistance";
+  if (mt === "distance") return "distance";
+  if (mt === "action") return "action";
+  const raw = slot.rawText.trim();
+  if (raw.startsWith("#")) return "tag";
+  if (/^\*?\d+:\d{2}$/.test(raw) || raw.startsWith(":")) return "duration";
+  return "custom";
 }
 
-const ScrollDrum: React.FC<ScrollDrumProps> = ({
-  drum,
-  autoCommitOnScroll,
-  onSelect,
-}) => {
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const programmaticScrollRef = useRef(false);
-  const debounceTimerRef = useRef<number | null>(null);
+function resolveActiveInspectorToken(
+  slot: WheelSlot | undefined,
+  lineNumber: number,
+  tokens: readonly InspectorToken[],
+): InspectorToken | null {
+  if (!slot || slot.kind !== "metric") {
+    return tokens[0] ?? null;
+  }
 
-  const selectedIndex = useMemo(() => {
-    const idx = drum.options.findIndex((o) => o.value === drum.selectedValue);
-    return idx >= 0 ? idx : 0;
-  }, [drum.options, drum.selectedValue]);
-
-  // Center the active item when drum identity or selectedValue changes externally.
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    const targetTop = selectedIndex * ROW_HEIGHT_PX;
-    if (Math.abs(el.scrollTop - targetTop) > 4) {
-      programmaticScrollRef.current = true;
-      el.scrollTop = targetTop;
-      window.setTimeout(() => {
-        programmaticScrollRef.current = false;
-      }, 80);
-    }
-  }, [drum.id, selectedIndex]);
-
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current !== null) {
-        window.clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
-
-  const handleScroll = useCallback(() => {
-    if (!autoCommitOnScroll || programmaticScrollRef.current) return;
-    if (debounceTimerRef.current !== null) {
-      window.clearTimeout(debounceTimerRef.current);
-    }
-    debounceTimerRef.current = window.setTimeout(() => {
-      const el = scrollerRef.current;
-      if (!el) return;
-      const idx = Math.max(
-        0,
-        Math.min(drum.options.length - 1, Math.round(el.scrollTop / ROW_HEIGHT_PX)),
-      );
-      const option = drum.options[idx];
-      if (option && option.value !== drum.selectedValue) {
-        onSelect(option);
-      }
-    }, 130);
-  }, [autoCommitOnScroll, drum.options, drum.selectedValue, onSelect]);
-
-  return (
-    <div
-      className="relative flex-1 min-w-0 h-full flex flex-col overflow-hidden"
-      data-testid={`wheel-drum-${drum.id}`}
-    >
-      <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground border-b border-border/70 truncate">
-        {drum.label}
-      </div>
-
-      <div className="relative flex-1 min-h-0 overflow-hidden">
-        {/* Center mechanical selection hairlines */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-2 top-1/2 -translate-y-1/2 h-9 border-y border-border bg-background/55 rounded-[4px]"
-        />
-
-        <div
-          ref={scrollerRef}
-          onScroll={handleScroll}
-          className="relative z-10 h-full overflow-y-auto snap-y snap-mandatory overscroll-contain scrollbar-none"
-          style={{
-            paddingTop: "calc(50% - 18px)",
-            paddingBottom: "calc(50% - 18px)",
-          }}
-        >
-          {drum.options.map((option, idx) => {
-            const isSelected = idx === selectedIndex;
-            return (
-              <button
-                key={option.id}
-                type="button"
-                data-testid={`wheel-option-${option.id}`}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  const el = scrollerRef.current;
-                  if (el) {
-                    programmaticScrollRef.current = true;
-                    if (typeof el.scrollTo === "function") {
-                      el.scrollTo({ top: idx * ROW_HEIGHT_PX, behavior: "smooth" });
-                    } else {
-                      el.scrollTop = idx * ROW_HEIGHT_PX;
-                    }
-                    window.setTimeout(() => {
-                      programmaticScrollRef.current = false;
-                    }, 160);
-                  }
-                  onSelect(option);
-                }}
-                className={cn(
-                  "w-full h-9 snap-center px-3 flex items-center justify-between gap-2 text-left transition-colors",
-                  isSelected
-                    ? "text-foreground font-semibold"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <span className="truncate text-[13px] font-mono tabular-nums">
-                  {option.label}
-                </span>
-                {option.sublabel && (
-                  <span className="shrink-0 text-[11px] font-mono tabular-nums text-muted-foreground">
-                    {option.sublabel}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+  const byOverlap = tokens.find(
+    (t) =>
+      Math.max(t.from, slot.from) < Math.min(t.to, slot.to) ||
+      (t.from === slot.from && t.to === slot.to),
   );
-};
+  if (byOverlap) return byOverlap;
+
+  const trimmed = slot.rawText.trim() || slot.label;
+  const kind = mapSlotToTokenKind(slot);
+  const fallback: InspectorToken = {
+    id: `slot-${slot.id}`,
+    kind,
+    raw: trimmed,
+    displayLabel: kind === "rep" ? `${trimmed} reps` : slot.label || trimmed,
+    from: slot.from,
+    to: slot.to,
+    lineNum: lineNumber,
+    isTag: trimmed.startsWith("#"),
+    isRest: kind === "duration" && trimmed.startsWith("*"),
+  };
+  if (kind === "duration") fallback.durationMeta = parseDurationToken(trimmed);
+  if (kind === "resistance") fallback.resistanceMeta = parseResistanceToken(trimmed);
+  if (kind === "distance") fallback.distanceMeta = parseDistanceToken(trimmed);
+  return fallback;
+}
 
 export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
   view,
@@ -194,11 +144,27 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
 }) => {
   const [scope, setScope] = useState<NotebookScopeSnapshot>(EMPTY_SCOPE);
   const [preferredSlotIdx, setPreferredSlotIdx] = useState<number | null>(null);
+  const [useScrubber, setUseScrubber] = useState(false);
+  const [deckMode, setDeckMode] = useState<InspectorMode>("token");
   const lastLineRef = useRef<number>(-1);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const [keyboardOffsetBottom, setKeyboardOffsetBottom] = useState(0);
+  const [queryStageToken, setQueryStageToken] = useState(0);
 
   const docText = view?.state.doc.toString() ?? "";
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const active = Boolean(isOpen && view);
+    if (active) {
+      document.documentElement.dataset.mobileEditorOpen = "true";
+    } else {
+      delete document.documentElement.dataset.mobileEditorOpen;
+    }
+    return () => {
+      delete document.documentElement.dataset.mobileEditorOpen;
+    };
+  }, [isOpen, view]);
 
   useEffect(() => {
     if (!isOpen || !view) return;
@@ -232,22 +198,29 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
     };
   }, [isOpen, isTypingMode]);
 
-  // Reset preferred slot index whenever the cursor moves to a different line.
+  // Reset preferred slot index whenever cursor moves to a different line.
   useEffect(() => {
     if (!view) return;
     const lineNum = view.state.doc.lineAt(view.state.selection.main.head).number;
     if (lineNum !== lastLineRef.current) {
       lastLineRef.current = lineNum;
       setPreferredSlotIdx(null);
+      setDeckMode("token");
+      setUseScrubber(false);
     }
   }, [view, cursorVersion]);
 
   const model = useMemo(() => {
     if (!view || !isOpen) return null;
-    // Reference cursorVersion so React recomputes on selection/doc transactions.
     void cursorVersion;
     return buildWheelComposerModel(view.state, scope, preferredSlotIdx);
   }, [view, isOpen, scope, preferredSlotIdx, cursorVersion]);
+
+  const inspection = useMemo(() => {
+    if (!view || !isOpen) return null;
+    void cursorVersion;
+    return extractLineTokens(view.state);
+  }, [view, isOpen, cursorVersion]);
 
   const revealLineAboveDeck = useCallback((targetView: EditorView, pos: number) => {
     targetView.dispatch({
@@ -261,6 +234,8 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
       const clamped = Math.max(0, Math.min(model.slots.length - 1, index));
       const slot = model.slots[clamped];
       setPreferredSlotIdx(clamped);
+      setDeckMode("token");
+      setUseScrubber(false);
 
       if (slot.kind === "metric") {
         view.dispatch({
@@ -272,6 +247,8 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
           selection: { anchor: slot.from, head: slot.from },
         });
         revealLineAboveDeck(view, slot.from);
+      } else if (slot.kind === "query-stage") {
+        setQueryStageToken((n) => n + 1);
       }
     },
     [view, model, revealLineAboveDeck],
@@ -291,41 +268,31 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
       const activeSlot: WheelSlot | undefined = model.slots[model.activeSlotIndex];
       if (!activeSlot) return;
 
+      if (model.context === "workout" && activeSlot.kind === "add-metric") {
+        const line = view.state.doc.lineAt(view.state.selection.main.head);
+        const needsSpace = line.text.length > 0 && !/\s$/.test(line.text);
+        const insertText = `${needsSpace ? " " : ""}${option.value}`;
+        const tokenStart = line.to + (needsSpace ? 1 : 0);
+        const tokenEnd = line.to + insertText.length;
+
+        setPreferredSlotIdx(null);
+        setDeckMode("token");
+        // Immediately expose the tactile load/time scrubber when inserting a load or timer token
+        setUseScrubber(option.id === "add-weight" || option.id === "add-duration");
+        view.dispatch({
+          changes: { from: line.to, to: line.to, insert: insertText },
+          selection: { anchor: tokenStart, head: tokenEnd },
+          userEvent: "input.wheel",
+        });
+        revealLineAboveDeck(view, tokenStart);
+        return;
+      }
+
       if (model.context === "workout") {
-        if (activeSlot.kind === "add-metric") {
-          const line = view.state.doc.lineAt(view.state.selection.main.head);
-          const needsSpace = line.text.length > 0 && !/\s$/.test(line.text);
-          const insertText = `${needsSpace ? " " : ""}${option.value}`;
-          const tokenStart = line.to + (needsSpace ? 1 : 0);
-          const tokenEnd = line.to + insertText.length;
-
-          // Clear slot override so the model focuses the newly inserted metric token!
-          setPreferredSlotIdx(null);
-          view.dispatch({
-            changes: { from: line.to, to: line.to, insert: insertText },
-            selection: { anchor: tokenStart, head: tokenEnd },
-            userEvent: "input.wheel",
-          });
-          revealLineAboveDeck(view, tokenStart);
-          return;
-        }
-
-        // Editing an existing metric slot on the line
         let replacement = option.value;
         if (drum.id === "duration-min" || drum.id === "duration-sec") {
-          const minDrum = model.drums.find((d) => d.id === "duration-min");
-          const secDrum = model.drums.find((d) => d.id === "duration-sec");
-          const mins = drum.id === "duration-min" ? option.value : (minDrum?.selectedValue ?? "1");
-          const secs = drum.id === "duration-sec" ? option.value : (secDrum?.selectedValue ?? "00");
-          replacement = `${mins}:${secs}`;
-        } else if (drum.id === "unit-amount" || drum.id === "unit-suffix") {
-          const amtDrum = model.drums.find((d) => d.id === "unit-amount");
-          const unitDrum = model.drums.find((d) => d.id === "unit-suffix");
-          const amt = drum.id === "unit-amount" ? option.value : (amtDrum?.selectedValue ?? "20");
-          const unit = drum.id === "unit-suffix" ? option.value : (unitDrum?.selectedValue ?? "kg");
-          replacement = `${amt}${unit}`;
+          replacement = option.value;
         }
-
         const newTo = activeSlot.from + replacement.length;
         view.dispatch({
           changes: { from: activeSlot.from, to: activeSlot.to, insert: replacement },
@@ -333,115 +300,6 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
           userEvent: "input.wheel",
         });
         revealLineAboveDeck(view, activeSlot.from);
-        return;
-      }
-
-      if (model.context === "markdown") {
-        const line = view.state.doc.line(model.lineNumber);
-        const sel = view.state.selection.main;
-        const val = option.value;
-
-        if (val.startsWith("block:")) {
-          const kind = val.slice("block:".length);
-          const prefix = line.text.trim().length > 0 ? "\n" : "";
-          if (kind === "time" || kind === "log") {
-            const snippet = `${prefix}\`\`\`${kind}\n\n\`\`\``;
-            const innerPos = line.to + prefix.length + 4 + kind.length;
-            setPreferredSlotIdx(null);
-            view.dispatch({
-              changes: { from: line.to, to: line.to, insert: snippet },
-              selection: { anchor: innerPos },
-              userEvent: "input.wheel",
-            });
-            revealLineAboveDeck(view, innerPos);
-          } else if (kind === "query") {
-            const body = "sum:reps{} every week | :bar{}";
-            const snippet = `${prefix}\`\`\`query\n${body}\n\`\`\``;
-            const innerPos = line.to + prefix.length + "```query\n".length;
-            setPreferredSlotIdx(null);
-            view.dispatch({
-              changes: { from: line.to, to: line.to, insert: snippet },
-              selection: { anchor: innerPos, head: innerPos + body.length },
-              userEvent: "input.wheel",
-            });
-            revealLineAboveDeck(view, innerPos);
-          } else if (kind === "table") {
-            const tbl = `${prefix}| Movement | Load | Notes |\n| --- | --- | --- |\n| Squat | 100kg | Smooth |\n`;
-            view.dispatch({
-              changes: { from: line.to, to: line.to, insert: tbl },
-              selection: { anchor: line.to + tbl.length },
-              userEvent: "input.wheel",
-            });
-          } else if (kind === "divider") {
-            const hr = `${prefix}---\n`;
-            view.dispatch({
-              changes: { from: line.to, to: line.to, insert: hr },
-              selection: { anchor: line.to + hr.length },
-              userEvent: "input.wheel",
-            });
-          }
-          return;
-        }
-
-        if (val.startsWith("prefix:")) {
-          const prefixToken = val.slice("prefix:".length);
-          const stripped = line.text.replace(/^(#{1,6}\s+|>\s+|-\s+\[[ xX]\]\s+|[-*+]\s+|\d+\.\s+)/, "");
-          const nextLine = `${prefixToken}${stripped}`;
-          view.dispatch({
-            changes: { from: line.from, to: line.to, insert: nextLine },
-            selection: { anchor: line.from + nextLine.length },
-            userEvent: "input.wheel",
-          });
-          revealLineAboveDeck(view, line.from);
-          return;
-        }
-
-        if (val.startsWith("wrap:")) {
-          const marker = val.slice("wrap:".length);
-          const selected = sel.empty ? "text" : view.state.doc.sliceString(sel.from, sel.to);
-          const wrapped = `${marker}${selected}${marker}`;
-          view.dispatch({
-            changes: { from: sel.from, to: sel.to, insert: wrapped },
-            selection: {
-              anchor: sel.from + marker.length,
-              head: sel.from + marker.length + selected.length,
-            },
-            userEvent: "input.wheel",
-          });
-          return;
-        }
-
-        if (val.startsWith("insert:")) {
-          const text = val.slice("insert:".length);
-          view.dispatch({
-            changes: { from: sel.to, to: sel.to, insert: text },
-            selection: { anchor: sel.to + text.length },
-            userEvent: "input.wheel",
-          });
-          return;
-        }
-      }
-
-      if (model.context === "query") {
-        const line = view.state.doc.line(model.lineNumber);
-        const val = option.value;
-        if (val.startsWith("replace:")) {
-          const body = val.slice("replace:".length);
-          view.dispatch({
-            changes: { from: line.from, to: line.to, insert: body },
-            selection: { anchor: line.from + body.length },
-            userEvent: "input.wheel",
-          });
-        } else if (val.startsWith("append:")) {
-          const suffix = val.slice("append:".length);
-          if (!line.text.includes(suffix.trim())) {
-            view.dispatch({
-              changes: { from: line.to, to: line.to, insert: suffix },
-              selection: { anchor: line.to + suffix.length },
-              userEvent: "input.wheel",
-            });
-          }
-        }
       }
     },
     [view, model, revealLineAboveDeck],
@@ -456,6 +314,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
     const insert = `\n${indent}`;
     const nextPos = line.to + insert.length;
     setPreferredSlotIdx(null);
+    setDeckMode("token");
     view.dispatch({
       changes: { from: line.to, to: line.to, insert },
       selection: { anchor: nextPos },
@@ -466,8 +325,6 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
 
   const handleEnterTypingMode = useCallback(() => {
     if (!view) return;
-    // Synchronously unlock inputmode inside the user click gesture so iOS/Android
-    // immediately open the native software keyboard.
     view.contentDOM.setAttribute("inputmode", "text");
     onSwitchToTyping(true);
     view.focus();
@@ -485,6 +342,26 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
     onClose();
   }, [view, onClose]);
 
+  const handleInsertSyntaxKey = useCallback(
+    (keySpec: (typeof SYNTAX_KEYS)[number]) => {
+      if (!view) return;
+      const sel = view.state.selection.main;
+      const nextCursor = sel.from + (keySpec.cursorOffset ?? keySpec.insert.length);
+      view.dispatch({
+        changes: { from: sel.from, to: sel.to, insert: keySpec.insert },
+        selection: { anchor: nextCursor },
+        userEvent: "input",
+      });
+      view.focus();
+      if (keySpec.triggerComplete) {
+        queueMicrotask(() => {
+          startCompletion(view);
+        });
+      }
+    },
+    [view],
+  );
+
   const onPointerStart = useCallback((clientX: number, clientY: number) => {
     swipeStartRef.current = { x: clientX, y: clientY };
   }, []);
@@ -497,77 +374,152 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
       const dx = clientX - start.x;
       const dy = clientY - start.y;
       if (Math.abs(dx) >= 28 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-        // Flick left advances to the next slot; flick right steps back.
         stepSlot(dx < 0 ? 1 : -1);
       }
     },
     [stepSlot],
   );
 
-  if (!isOpen || !view || !model) return null;
+  if (!isOpen || !view || !model || !inspection) return null;
+
+  const activeSlot = model.slots[model.activeSlotIndex];
+  const activeToken = resolveActiveInspectorToken(
+    activeSlot,
+    model.lineNumber,
+    inspection.tokens,
+  );
+
+  // Sync deck inspector mode smoothly when entering markdown/query contexts
+  const effectiveMode: InspectorMode =
+    deckMode === "block" ||
+    deckMode === "add" ||
+    deckMode === "wiki" ||
+    deckMode === "prose-tag"
+      ? deckMode
+      : model.context === "query"
+        ? "query"
+        : model.context === "markdown"
+          ? "markdown"
+          : "token";
+
+  const canDeleteToken =
+    model.context === "workout" &&
+    activeSlot?.kind === "metric" &&
+    activeToken !== null &&
+    effectiveMode === "token";
 
   if (isTypingMode) {
     return (
       <div
         data-testid="mobile-typing-bar"
         style={{ bottom: `${keyboardOffsetBottom}px` }}
-        className="fixed inset-x-0 z-40 h-10 flex items-center justify-between gap-1.5 px-2.5 bg-[#F7F6F3] dark:bg-card border-t border-border select-none"
+        className="fixed inset-x-0 z-40 flex flex-col border-t border-border bg-card text-card-foreground shadow-lg select-none pb-[env(safe-area-inset-bottom,0px)]"
       >
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            data-testid="mobile-return-wheel-btn"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={handleReturnToWheel}
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[4px] border border-border bg-background text-foreground text-xs font-medium hover:bg-muted transition-colors"
-          >
-            <SlidersHorizontalIcon weight="bold" className="h-3.5 w-3.5" />
-            <span>Wheel</span>
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => indentMore(view)}
-            aria-label="Indent line"
-            className="inline-flex items-center justify-center h-7 w-7 rounded-[4px] border border-border bg-background text-foreground hover:bg-muted transition-colors"
-          >
-            <TextIndentIcon weight="bold" className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={handleInsertNewLine}
-            className="inline-flex items-center gap-1 h-7 px-2 rounded-[4px] border border-border bg-background text-foreground text-xs font-medium hover:bg-muted transition-colors"
-          >
-            <PlusIcon weight="bold" className="h-3 w-3" />
-            <span>Line</span>
-          </button>
+        {/* Persistent Live Token Rail above OS keyboard */}
+        <div className="flex min-h-[48px] items-center gap-1.5 overflow-x-auto border-b border-border bg-muted/40 px-2.5 scrollbar-none">
+          <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground tabular-nums">
+            L{model.lineNumber}
+          </span>
+          {model.slots.map((slot, idx) => {
+            const isActive = idx === model.activeSlotIndex;
+            return (
+              <button
+                key={slot.id}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  activateSlot(idx);
+                  handleReturnToWheel();
+                }}
+                className={cn(
+                  "shrink-0 min-h-[44px] rounded-full border px-3 text-xs font-mono tabular-nums transition-colors cursor-pointer",
+                  isActive
+                    ? "border-primary bg-primary text-primary-foreground font-semibold"
+                    : "border-border bg-background text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {slot.label}
+              </button>
+            );
+          })}
         </div>
 
-        <button
-          type="button"
-          data-testid="mobile-wheel-done-btn"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={handleDone}
-          className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] bg-foreground text-background text-xs font-medium"
-        >
-          <CheckIcon weight="bold" className="h-3.5 w-3.5" />
-          <span>Done</span>
-        </button>
+        {/* Syntax Accessory Keys + Deck / Done Bar */}
+        <div className="flex min-h-[48px] items-center justify-between gap-1.5 px-2 py-1">
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none">
+            <button
+              type="button"
+              data-testid="mobile-return-wheel-btn"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleReturnToWheel}
+              className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
+            >
+              <SlidersHorizontalIcon weight="bold" className="h-3.5 w-3.5" />
+              <span>Deck</span>
+            </button>
+
+            {SYNTAX_KEYS.map((keySpec) => (
+              <button
+                key={keySpec.label}
+                type="button"
+                aria-label={keySpec.ariaLabel}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleInsertSyntaxKey(keySpec)}
+                className="inline-flex h-11 min-w-[44px] shrink-0 items-center justify-center rounded-md border border-border bg-background px-2 font-mono text-xs font-semibold text-foreground hover:bg-muted cursor-pointer transition-colors"
+              >
+                {keySpec.label}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => indentLess(view)}
+              aria-label="Outdent line"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground hover:bg-muted cursor-pointer transition-colors"
+            >
+              <TextOutdentIcon weight="bold" className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => indentMore(view)}
+              aria-label="Indent line"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground hover:bg-muted cursor-pointer transition-colors"
+            >
+              <TextIndentIcon weight="bold" className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleInsertNewLine}
+              className="inline-flex h-11 shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
+            >
+              <PlusIcon weight="bold" className="h-3.5 w-3.5" />
+              <span>Line</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            data-testid="mobile-wheel-done-btn"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleDone}
+            className="inline-flex h-11 shrink-0 items-center gap-1 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground cursor-pointer"
+          >
+            <CheckIcon weight="bold" className="h-3.5 w-3.5" />
+            <span>Done</span>
+          </button>
+        </div>
       </div>
     );
   }
 
-  const activeSlot = model.slots[model.activeSlotIndex];
-  const autoCommitOnScroll =
-    model.context === "workout" && activeSlot?.kind === "metric";
-
   return (
     <section
-      aria-label="Mobile workout and note wheel composer"
+      aria-label="Mobile workout and note thumb deck"
       data-testid="mobile-wheel-composer"
       onMouseDown={(e) => {
-        // Prevent clicking chrome from blurring CodeMirror's active selection
         if ((e.target as HTMLElement).tagName !== "INPUT") {
           e.preventDefault();
         }
@@ -580,20 +532,25 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
         const t = e.changedTouches[0];
         if (t) onPointerFinish(t.clientX, t.clientY);
       }}
-      className="fixed inset-x-0 bottom-0 z-40 h-[40dvh] max-h-[300px] min-h-[216px] flex flex-col bg-[#F7F6F3] dark:bg-card border-t border-border select-none"
+      className="fixed inset-x-0 bottom-0 z-40 h-[46dvh] max-h-[380px] min-h-[268px] flex flex-col border-t border-border bg-card text-card-foreground shadow-xl select-none pb-[env(safe-area-inset-bottom,0px)]"
     >
-      {/* Top Action Bar */}
-      <div className="h-10 px-2.5 flex items-center justify-between gap-1.5 border-b border-border bg-background/70">
-        <div className="flex items-center gap-1">
+      {/* Region 1: Live Token Rail */}
+      <div
+        data-testid="mobile-wheel-slot-rail"
+        onPointerDown={(e) => onPointerStart(e.clientX, e.clientY)}
+        onPointerUp={(e) => onPointerFinish(e.clientX, e.clientY)}
+        className="flex min-h-[48px] items-center gap-1.5 overflow-x-auto border-b border-border bg-muted/40 px-2 scrollbar-none"
+      >
+        <div className="flex shrink-0 items-center gap-1 pr-1">
           <button
             type="button"
             data-testid="mobile-wheel-prev-slot"
             aria-label="Previous slot"
             disabled={model.activeSlotIndex <= 0}
             onClick={() => stepSlot(-1)}
-            className="inline-flex items-center justify-center h-7 w-7 rounded-[4px] border border-border bg-background text-foreground disabled:opacity-35 hover:bg-muted transition-colors"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border bg-background text-foreground disabled:opacity-35 hover:bg-muted cursor-pointer transition-colors"
           >
-            <CaretLeftIcon weight="bold" className="h-3.5 w-3.5" />
+            <CaretLeftIcon weight="bold" className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -601,36 +558,180 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             aria-label="Next slot"
             disabled={model.activeSlotIndex >= model.slots.length - 1}
             onClick={() => stepSlot(1)}
-            className="inline-flex items-center justify-center h-7 w-7 rounded-[4px] border border-border bg-background text-foreground disabled:opacity-35 hover:bg-muted transition-colors"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border bg-background text-foreground disabled:opacity-35 hover:bg-muted cursor-pointer transition-colors"
           >
-            <CaretRightIcon weight="bold" className="h-3.5 w-3.5" />
+            <CaretRightIcon weight="bold" className="h-4 w-4" />
+          </button>
+          <span className="pl-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-muted-foreground tabular-nums">
+            L{model.lineNumber}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {model.slots.map((slot, idx) => {
+            const isActive = idx === model.activeSlotIndex && deckMode !== "block";
+            const isAdd = slot.kind === "add-metric";
+            return (
+              <button
+                key={slot.id}
+                type="button"
+                data-testid={`mobile-wheel-slot-${slot.kind === "add-metric" ? "add" : idx}`}
+                onClick={() => activateSlot(idx)}
+                className={cn(
+                  "shrink-0 min-h-[44px] rounded-full border px-3 text-xs font-mono tabular-nums transition-colors cursor-pointer",
+                  isActive
+                    ? "border-primary bg-primary text-primary-foreground font-semibold"
+                    : isAdd
+                      ? "border-dashed border-border bg-background text-foreground hover:bg-muted"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {slot.label}
+              </button>
+            );
+          })}
+
+          {inspection.lintFixes.map((fix) =>
+            fix.fixes.slice(0, 1).map((rep) => (
+              <button
+                key={`${fix.id}:${rep}`}
+                type="button"
+                data-testid={TEST_IDS.EDITOR_LINT_QUICK_FIX}
+                onClick={() => applyQuickFixInView(view, fix, rep)}
+                className="inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-full border border-dashed border-destructive/40 bg-destructive/10 px-2.5 text-xs font-mono font-semibold text-destructive hover:bg-destructive hover:text-destructive-foreground cursor-pointer transition-colors"
+              >
+                <WarningCircleIcon weight="bold" className="h-3.5 w-3.5 shrink-0" />
+                <span>Fix: {rep}</span>
+              </button>
+            )),
+          )}
+
+          {model.context === "workout" && (
+            <button
+              type="button"
+              data-testid={TEST_IDS.EDITOR_BLOCK_SETTINGS_BTN}
+              aria-pressed={effectiveMode === "block"}
+              onClick={() => setDeckMode((prev) => (prev === "block" ? "token" : "block"))}
+              className={cn(
+                "inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-full border px-2.5 text-xs font-medium cursor-pointer transition-colors",
+                effectiveMode === "block"
+                  ? "border-primary bg-primary/15 text-primary font-semibold"
+                  : "border-border bg-background text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <SlidersHorizontalIcon weight="bold" className="h-3.5 w-3.5 shrink-0" />
+              <span>Block</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Region 2: Unified Contextual Action Body */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2.5">
+        {model.context === "workout" &&
+        activeSlot?.kind === "add-metric" &&
+        effectiveMode !== "block" &&
+        effectiveMode !== "add" ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground">
+                Append metric to line {model.lineNumber}
+              </span>
+              <button
+                type="button"
+                onClick={() => setDeckMode("add")}
+                className="inline-flex min-h-[44px] items-center rounded-md px-2.5 text-xs font-medium text-primary hover:bg-primary/10 cursor-pointer"
+              >
+                Full Catalog
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {(model.drums[0]?.options ?? []).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  data-testid={`wheel-option-${opt.id}`}
+                  onClick={() => {
+                    if (model.drums[0]) handleDrumSelect(model.drums[0], opt);
+                  }}
+                  className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-lg border border-border bg-popover px-3 py-2 text-left text-popover-foreground hover:bg-muted cursor-pointer transition-colors"
+                >
+                  <span className="truncate text-xs font-semibold">{opt.label}</span>
+                  {opt.sublabel && (
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                      {opt.sublabel}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <TokenInspectorPanel
+            view={view}
+            mode={effectiveMode}
+            inspection={inspection}
+            token={activeToken}
+            scope={scope}
+            docText={docText}
+            useScrubber={useScrubber}
+            onToggleScrubber={() => setUseScrubber((prev) => !prev)}
+            compact
+            showHeader={false}
+            showFooter={false}
+            showStepButtons={false}
+            showClose={false}
+            showDockButton={false}
+            activeQueryStageId={activeSlot?.kind === "query-stage" ? activeSlot.id : undefined}
+            queryStageRequestToken={queryStageToken}
+            onModeChange={(nextMode) => setDeckMode(nextMode)}
+            onMutate={() => {
+              // Line state refreshes via CM6 updateListener -> cursorVersion
+            }}
+          />
+        )}
+      </div>
+
+      {/* Region 3: Pinned 44px Thumb Footer */}
+      <div className="flex min-h-[52px] items-center justify-between gap-1.5 border-t border-border bg-muted/40 px-2.5 py-1">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              undo(view);
+              view.focus();
+            }}
+            aria-label="Undo last edit"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
+          >
+            <ArrowCounterClockwiseIcon weight="bold" className="h-3.5 w-3.5" />
+            <span>Undo</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid={TEST_IDS.EDITOR_TOKEN_DELETE_BTN}
+            disabled={!canDeleteToken}
+            onClick={() => {
+              if (activeToken) {
+                deleteTokenInView(view, activeToken);
+                setPreferredSlotIdx(null);
+              }
+            }}
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-destructive disabled:opacity-35 hover:bg-destructive/10 cursor-pointer transition-colors"
+          >
+            <TrashIcon weight="bold" className="h-3.5 w-3.5" />
+            <span>Delete</span>
           </button>
 
           <button
             type="button"
             data-testid="mobile-wheel-newline-btn"
             onClick={handleInsertNewLine}
-            className="inline-flex items-center gap-1 h-7 px-2 rounded-[4px] border border-border bg-background text-foreground text-xs font-medium hover:bg-muted transition-colors"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
           >
-            <PlusIcon weight="bold" className="h-3 w-3" />
+            <PlusIcon weight="bold" className="h-3.5 w-3.5" />
             <span>Line</span>
-          </button>
-
-          <button
-            type="button"
-            aria-label="Outdent line"
-            onClick={() => indentLess(view)}
-            className="inline-flex items-center justify-center h-7 w-7 rounded-[4px] border border-border bg-background text-foreground hover:bg-muted transition-colors"
-          >
-            <TextOutdentIcon weight="bold" className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Indent line"
-            onClick={() => indentMore(view)}
-            className="inline-flex items-center justify-center h-7 w-7 rounded-[4px] border border-border bg-background text-foreground hover:bg-muted transition-colors"
-          >
-            <TextIndentIcon weight="bold" className="h-3.5 w-3.5" />
           </button>
         </div>
 
@@ -639,67 +740,22 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             type="button"
             data-testid="mobile-wheel-type-btn"
             onClick={handleEnterTypingMode}
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] border border-border bg-background text-foreground text-xs font-medium hover:bg-muted transition-colors"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
           >
             <KeyboardIcon weight="bold" className="h-3.5 w-3.5" />
             <span>Type</span>
           </button>
+
           <button
             type="button"
             data-testid="mobile-wheel-done-btn"
             onClick={handleDone}
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] bg-foreground text-background text-xs font-medium"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground cursor-pointer transition-colors"
           >
             <CheckIcon weight="bold" className="h-3.5 w-3.5" />
             <span>Done</span>
           </button>
         </div>
-      </div>
-
-      {/* Horizontal Flickable Token / Stage Rail */}
-      <div
-        data-testid="mobile-wheel-slot-rail"
-        onPointerDown={(e) => onPointerStart(e.clientX, e.clientY)}
-        onPointerUp={(e) => onPointerFinish(e.clientX, e.clientY)}
-        className="h-9 px-2.5 flex items-center gap-1.5 overflow-x-auto border-b border-border scrollbar-none"
-      >
-        <span className="shrink-0 text-[10px] font-mono tabular-nums uppercase tracking-[0.05em] text-muted-foreground pr-1">
-          L{model.lineNumber}
-        </span>
-        {model.slots.map((slot, idx) => {
-          const isActive = idx === model.activeSlotIndex;
-          const isAdd = slot.kind === "add-metric";
-          return (
-            <button
-              key={slot.id}
-              type="button"
-              data-testid={`mobile-wheel-slot-${slot.kind === "add-metric" ? "add" : idx}`}
-              onClick={() => activateSlot(idx)}
-              className={cn(
-                "shrink-0 h-6 px-2.5 rounded-[4px] text-xs font-mono tabular-nums border transition-colors",
-                isActive
-                  ? "bg-foreground text-background border-foreground font-semibold"
-                  : isAdd
-                    ? "bg-background text-foreground border-dashed border-border hover:bg-muted"
-                    : "bg-background text-muted-foreground border-border hover:text-foreground",
-              )}
-            >
-              {slot.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Vertical Scroll-Snap Drums */}
-      <div className="flex-1 min-h-0 flex divide-x divide-border">
-        {model.drums.map((drum) => (
-          <ScrollDrum
-            key={drum.id}
-            drum={drum}
-            autoCommitOnScroll={autoCommitOnScroll}
-            onSelect={(opt) => handleDrumSelect(drum, opt)}
-          />
-        ))}
       </div>
     </section>
   );

@@ -362,7 +362,7 @@ describe('QueryService unit conversion', () => {
     const service = new QueryService(makeStore(repsFacts).store);
     const result = await service.runQuery('sum:totalReps{}', { preferredUnit: 'kg' });
 
-    expect(result.unit).toBe('count');
+    expect(result.unit).toBe('reps');
     expect(result.scalar).toBe(80);
   });
 

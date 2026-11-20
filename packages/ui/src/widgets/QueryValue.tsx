@@ -2,17 +2,18 @@ import { useMemo } from 'react';
 import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { useChartShape } from './useChartShape';
 import { WqlEmptyState } from './WqlEmptyState';
+import { resolveWidgetDisplayUnit } from './unitIntegrity';
 
 export interface QueryValueProps {
   result: QueryResult;
   unit?: string;
-  label: string;
+  label?: string;
   thresholds?: { green: [number, number]; red: [number, number] };
 }
 
-export function QueryValue({ result, unit: unitProp, label, thresholds }: QueryValueProps) {
+export function QueryValue({ result, unit: unitProp, label = '', thresholds }: QueryValueProps) {
   const shape = useChartShape(result);
-  const unit = result.series[0]?.unit ?? unitProp ?? '';
+  const unit = resolveWidgetDisplayUnit(result, unitProp);
 
   const value = useMemo(() => {
     if (shape.kind === 'scalar') return shape.value;

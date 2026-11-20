@@ -36,7 +36,7 @@ describe('WQL first-class $param (ParamRef) AST & binding', () => {
     expect(serialize(bound.parsed)).toBe('sum:totalVolume{discipline:strength} by {week}');
   });
 
-  it('expands multi-clause $scope and lifts content-only keys into where :note{...} on aggregates', () => {
+  it('expands multi-clause $scope natively and lifts true content-only keys into where :note{...} on aggregates', () => {
     const parsed = parseQuery('sum:totalVolume{$scope} by {week}');
     const effortBound = bindQueryParams(parsed, { scope: 'effort:back-squat, discipline:strength' });
     expect(effortBound.missing).toEqual([]);
@@ -46,7 +46,12 @@ describe('WQL first-class $param (ParamRef) AST & binding', () => {
     const notebookBound = bindQueryParams(parsed, { scope: 'notebook:crossfit-girls' });
     expect(notebookBound.missing).toEqual([]);
     expect(notebookBound.parsed.error).toBeUndefined();
-    expect(serialize(notebookBound.parsed)).toBe('sum:totalVolume{} by {week} where :note{notebook:crossfit-girls}');
+    expect(serialize(notebookBound.parsed)).toBe('sum:totalVolume{notebook:crossfit-girls} by {week}');
+
+    const contentBound = bindQueryParams(parsed, { scope: 'text:fran' });
+    expect(contentBound.missing).toEqual([]);
+    expect(contentBound.parsed.error).toBeUndefined();
+    expect(serialize(contentBound.parsed)).toBe('sum:totalVolume{} by {week} where :note{text:fran}');
   });
 
   it('reports missing tokens cleanly when unbound', () => {

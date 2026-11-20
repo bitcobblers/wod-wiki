@@ -283,8 +283,14 @@ describe('Domain — Property Notes, Scoped Overrides & the Metric Shake-Out Que
     });
 
     const wql = await harness.queryAggregate('sum:totalWork{} by {session}', { anchorNow: HARNESS_EPOCH + 7_200_000 });
-    const bySession = new Map(wql.series.map((s) => [s.label, s.points[0]?.value]));
+    const bySession = new Map(
+      wql.series.map((s) => {
+        const key = s.key.startsWith('[') ? (JSON.parse(s.key) as string[])[0] : s.key;
+        return [key, s.points[0]?.value] as const;
+      }),
+    );
     expect(bySession.get('sess-work-240')).toBe(240);
     expect(bySession.get('sess-work-480')).toBe(480);
+    expect(wql.series[0]?.label).toContain('Metric Note Summary');
   });
 });

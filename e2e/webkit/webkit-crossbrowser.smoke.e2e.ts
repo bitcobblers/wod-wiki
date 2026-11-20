@@ -115,6 +115,8 @@ test.describe('WebKit Cross-Browser Smoke Gate', () => {
 
     await navDrawer.getByTestId(TEST_IDS.NAV_L1_DASHBOARDS).click();
     await expect(page).toHaveURL(/\/dashboards$/, { timeout: 15_000 });
+    await expect(navDrawer.getByTestId('dashboards-nav-panel')).toBeVisible();
+    await navDrawer.getByRole('button', { name: 'Explorer', exact: true }).click();
     await expect(navDrawer).toBeHidden();
     await expect(page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready', {
       timeout: 20_000,
@@ -126,6 +128,8 @@ test.describe('WebKit Cross-Browser Smoke Gate', () => {
     await expect(navDrawer).toBeVisible();
     await navDrawer.getByTestId('nav-l1-efforts').click();
     await expect(page).toHaveURL(/\/efforts$/, { timeout: 15_000 });
+    await expect(navDrawer.getByTestId(TEST_IDS.DRAWER_APPLY_BTN)).toBeVisible();
+    await navDrawer.getByTestId(TEST_IDS.DRAWER_APPLY_BTN).click();
     await expect(navDrawer).toBeHidden();
     await expect(page.getByTestId(TEST_IDS.STREAM_VIEW)).toBeVisible();
     await expectNoHorizontalOverflow('/efforts');

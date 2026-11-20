@@ -222,6 +222,37 @@ export function mergeSeries(series: Series[]): MergedPoint[] {
   return Array.from(map.values()).sort((a, b) => a.ts - b.ts);
 }
 
+export interface OrdinalMergedPoint {
+  x: number | string;
+  label: string;
+  [seriesLabel: string]: number | string | undefined;
+}
+
+export function isOrdinalSeriesSet(series: readonly Series[]): boolean {
+  return series.some((s) => s.axisKind === 'ordinal' || s.points.some((p) => p.x !== undefined));
+}
+
+export function buildOrdinalChartData(series: readonly Series[]): OrdinalMergedPoint[] {
+  const map = new Map<string, OrdinalMergedPoint>();
+  for (const s of series) {
+    s.points.forEach((p, idx) => {
+      const xVal = p.x ?? idx;
+      const key = String(xVal);
+      if (!map.has(key)) {
+        map.set(key, {
+          x: xVal,
+          label: p.label ?? String(xVal),
+        });
+      }
+      map.get(key)![s.label] = p.value;
+    });
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    if (typeof a.x === 'number' && typeof b.x === 'number') return a.x - b.x;
+    return String(a.x).localeCompare(String(b.x), undefined, { numeric: true });
+  });
+}
+
 export function compactNumber(value: number): string {
   const n = typeof value === 'number' ? value : Number(value);
   if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(1)}k`;

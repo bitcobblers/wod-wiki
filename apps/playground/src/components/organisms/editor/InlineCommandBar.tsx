@@ -9,6 +9,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import type { EditorView } from "@codemirror/view";
+import { MoreHorizontal } from "lucide-react";
 import { sectionField, type EditorSection } from "@bitcobblers/wod-wiki-ui/extensions";
 import { sectionGeometry as sectionGeometryPlugin, type SectionRect } from "@bitcobblers/wod-wiki-ui/extensions";
 import { commandsForAffordance, type ScriptCommand } from "@/components/Editor/overlays/ScriptCommand";
@@ -124,8 +125,8 @@ const CommandPill: React.FC<{
         className={cn(
           "pointer-events-auto scroll-mt-20",
           cmd.iconOnly
-            ? "h-8 min-w-[34px] rounded-[5px] px-2 py-0.5 text-[11px] font-medium shadow-none"
-            : "h-8 rounded-[5px] px-2.5 py-0.5 text-[11px] font-medium shadow-none gap-1.5",
+            ? "h-8 max-lg:min-h-[44px] min-w-[34px] max-lg:min-w-[44px] rounded-[5px] px-2 py-0.5 text-[11px] font-medium shadow-none"
+            : "h-8 max-lg:min-h-[44px] rounded-[5px] px-2.5 max-lg:px-3 py-0.5 text-[11px] font-medium shadow-none gap-1.5",
           cmd.primary
             ? "bg-foreground text-background hover:bg-foreground/90 border border-foreground"
             : "bg-card text-foreground hover:bg-muted border border-border",
@@ -178,6 +179,42 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
 }) => {
   const [rects, setRects] = useState<SectionRect[]>(() => view?.plugin(sectionGeometryPlugin)?.rects ?? []);
   const [scrollTop, setScrollTop] = useState(0);
+  const [containerWidth, setContainerWidth] = useState<number>(() => view?.dom?.clientWidth ?? 640);
+  const [openOverflowSectionId, setOpenOverflowSectionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!view) return;
+    const dom = view.dom;
+    const syncWidth = () => {
+      const next = dom?.clientWidth ?? 640;
+      if (next > 0) setContainerWidth(next);
+    };
+    syncWidth();
+    if (typeof ResizeObserver === "undefined" || !dom) return;
+    const ro = new ResizeObserver(syncWidth);
+    ro.observe(dom);
+    return () => ro.disconnect();
+  }, [view]);
+
+  useEffect(() => {
+    if (!openOverflowSectionId) return;
+    const onDocDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('[data-inline-cmd-overflow-root="true"]')) {
+        return;
+      }
+      setOpenOverflowSectionId(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenOverflowSectionId(null);
+    };
+    document.addEventListener("mousedown", onDocDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [openOverflowSectionId]);
 
   useEffect(() => {
     if (!view) return;
@@ -223,6 +260,7 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
     (view.dom?.offsetTop ?? 0) +
     (view.scrollDOM?.offsetTop ?? 0) +
     (view.contentDOM?.offsetTop ?? 0);
+  const isNarrow = containerWidth > 0 && containerWidth < 520;
 
   return (
     <>
@@ -234,18 +272,105 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
         const affordance = runAffordance(section.type);
         const visibleCommands = commandsForAffordance(commands, affordance);
         if (visibleCommands.length === 0) return null;
+
+        const primaryCmd = isNarrow
+          ? (visibleCommands.find((c) => c.primary) ?? visibleCommands[0])
+          : null;
+        const overflowCmds = isNarrow && primaryCmd
+          ? visibleCommands.filter((c) => c !== primaryCmd)
+          : [];
+        const isOverflowOpen = openOverflowSectionId === rect.sectionId;
+
         return (
           <div
             key={rect.sectionId}
-            className="absolute right-1.5 z-20 flex items-end gap-1 pb-0.5 pointer-events-none"
+            className="absolute right-1.5 z-20 flex items-center gap-1 pointer-events-none"
             style={{
               top: contentOffsetTop + rect.top - scrollTop,
-              height: rect.firstLineHeight,
+              minHeight: Math.max(30, Math.min(rect.firstLineHeight, 36)),
             }}
           >
-            {visibleCommands.map((cmd) => (
-              <CommandPill key={cmd.id} cmd={cmd} block={block} />
-            ))}
+            {!isNarrow || !primaryCmd ? (
+              visibleCommands.map((cmd) => (
+                <CommandPill key={cmd.id} cmd={cmd} block={block} />
+              ))
+            ) : (
+              <>
+                <CommandPill cmd={primaryCmd} block={block} />
+                {overflowCmds.length > 0 && (
+                  <div className="relative pointer-events-auto" data-inline-cmd-overflow-root="true">
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      data-testid={TEST_IDS.EDITOR_OVERFLOW_ACTIONS_BTN}
+                      aria-label="More block actions"
+                      aria-expanded={isOverflowOpen}
+                      className="h-8 max-lg:min-h-[44px] min-w-[36px] max-lg:min-w-[44px] rounded-[5px] px-2 text-foreground bg-card hover:bg-muted border border-border shadow-none"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setOpenOverflowSectionId((prev) =>
+                          prev === rect.sectionId ? null : rect.sectionId,
+                        );
+                      }}
+                    >
+                      <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                    {isOverflowOpen && (
+                      <div
+                        role="menu"
+                        aria-label="Block actions"
+                        data-testid={TEST_IDS.EDITOR_OVERFLOW_ACTIONS_MENU}
+                        className="absolute right-0 top-full mt-1 z-40 min-w-[168px] rounded-[6px] border border-border bg-card p-1 shadow-md flex flex-col gap-0.5"
+                      >
+                        {overflowCmds.map((cmd) => (
+                          <React.Fragment key={cmd.id}>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="w-full min-h-[36px] max-lg:min-h-[44px] px-2.5 py-1.5 rounded-[4px] flex items-center gap-2 text-left text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setOpenOverflowSectionId(null);
+                                void cmd.onClick(block);
+                              }}
+                            >
+                              <span className="flex items-center justify-center size-3.5 text-muted-foreground">
+                                {cmd.icon}
+                              </span>
+                              <span>{cmd.label}</span>
+                            </button>
+                            {cmd.onSplitClick && (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="w-full min-h-[36px] max-lg:min-h-[44px] px-2.5 py-1.5 rounded-[4px] flex items-center gap-2 text-left text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setOpenOverflowSectionId(null);
+                                  void cmd.onSplitClick?.(block);
+                                }}
+                              >
+                                <span className="flex items-center justify-center size-3.5 text-muted-foreground">
+                                  {cmd.splitIcon ?? cmd.icon}
+                                </span>
+                                <span>Copy share link</span>
+                              </button>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         );
       })}

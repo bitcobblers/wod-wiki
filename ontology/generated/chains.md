@@ -8,45 +8,46 @@
 |---|---|---|---|
 | `T1a-compute` | Tier 1 | `qa:FixtureTableSuite` | 25 |
 | `T1b-storage` | Tier 1 | `qa:StorageConformanceSuite` | 1 |
-| `T1c-domain` | Tier 1 | `qa:DomainScenarioSuite` | 16 |
-| `T2a-host` | Tier 2 | `qa:HostSuite` | 29 |
-| `T2b-story` | Tier 2 | `qa:StoryTest` | 114 |
-| `T3-journey` | Tier 3 | `qa:Journey` | 68 |
+| `T1c-domain` | Tier 1 | `qa:DomainScenarioSuite` | 17 |
+| `T2a-host` | Tier 2 | `qa:HostSuite` | 31 |
+| `T2b-story` | Tier 2 | `qa:StoryTest` | 133 |
+| `T3-journey` | Tier 3 | `qa:Journey` | 73 |
 
-- **Total Active Suites**: 263
-- **Top-Heavy Nodes**: 1
-- **Mismatched Issue Coverage**: 13
+- **Total Active Suites**: 290
+- **Top-Heavy Nodes**: 0
+- **Mismatched Issue Coverage**: 16
 
-Total Journeys: **27**
+Total Journeys: **28**
 
 | Journey | Domain | Priority | Seed (`wod:`) | Enter (Routes) | Sense (`TEST_IDS`) | Prove (Playwright) | Touched Files |
 |---|---|---|---|---|---|---|---|
-| **ANL-01** | analytics | P1 | wod:Dashboard, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Query | /journal, /settings/queries, /dashboard/:slug, /dashboards | — | `e2e/live-app/query-settings-and-views.e2e.ts` | 3 |
-| **ANL-04** | analytics | P1-core | wod:Dashboard, wod:Effort, wod:EventRecord, wod:FieldValue, wod:Metric, wod:Note, wod:Query, wod:Session | /results/:sessionId, /dashboards, /playground/:id, /run/:runtimeId, /notes | property-table, save-stream-query, widget-composer-subset, widget-composer-wql | `e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts` | 17 |
+| **ANL-01** | analytics | P1 | wod:Dashboard, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Query | /journal, /settings/queries, /dashboard/:slug, /dashboards | stream-query-status | `e2e/live-app/query-settings-and-views.e2e.ts` | 4 |
+| **ANL-04** | analytics | P1-core | wod:Dashboard, wod:Effort, wod:EventRecord, wod:FieldValue, wod:Metric, wod:Note, wod:Query, wod:Session | /results/:sessionId, /dashboards, /playground/:id, /run/:runtimeId, /notes | property-table, save-stream-query, widget-composer-subset, widget-composer-wql | `e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts` | 20 |
 | **ANL-05** | analytics | P1-core | wod:Dashboard, wod:Note, wod:Query | /dashboards, /dashboard/:slug, /notes | delete-dashboard-button, confirm-delete-dashboard | `e2e/live-app/recovery-sample-and-dashboard-lifecycle.e2e.ts` | 3 |
-| **ANL-06** | analytics | P2 | — | — | — | `—` | 0 |
+| **ANL-06** | analytics | P1-core | wod:Dashboard, wod:Effort, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Query, wod:Session, wod:Tag | /journal, /notes, /efforts, /dashboards | stream-query-bar, wql-scope-toggle, wql-scope-map, wql-field-picker | `e2e/live-app/wql-composer-and-palette.e2e.ts` | 16 |
 | **FED-01** | feeds | P0-gate | wod:Attachment, wod:Feed, wod:Note, wod:Notebook, wod:Page | /subscribe, /feeds, /feed/:slug, /load, /load/journal, /notebooks, /settings/sync, /page/:slug | unknown-feed-intake-banner, feed-intake-subscribe, feed-intake-once, feed-subscription-intake | `e2e/live-app/feed-subscription-and-autosync.e2e.ts` | 10 |
 | **FED-02** | feeds | P2 | — | — | — | `—` | 0 |
 | **FED-03** | feeds | P0-gate | wod:Attachment, wod:Feed, wod:Note, wod:Notebook, wod:Session | /note/:noteId, /feeds, /notebooks | publication-pill | `e2e/live-app/publication-visibility-and-feed-export.e2e.ts` | 3 |
-| **FED-04** | feeds | P1 | wod:Attachment, wod:EventRecord, wod:Note, wod:Page, wod:Session | /load, /settings/storage, /note/:noteId, /results/:sessionId | load-zip-intake, bundle-file-input, property-table, bundle-import-error | `e2e/live-app/portable-codecs-and-backup-restore.e2e.ts` | 10 |
+| **FED-04** | feeds | P1 | wod:Attachment, wod:EventRecord, wod:Note, wod:Page, wod:Session | /load, /settings/storage, /note/:noteId, /results/:sessionId | load-zip-intake, bundle-file-input, property-table, bundle-import-error | `e2e/live-app/portable-codecs-and-backup-restore.e2e.ts` | 13 |
 | **JRN-00** | journal | P0-gate | wod:Feed, wod:Page, wod:Session | /, /page/guide-start, /definitely-not-a-page-xyz | tour-hero, tour-why-video | `e2e/live-app/cold-boot-profile.e2e.ts` | 4 |
-| **JRN-01** | journal | P0-gate | wod:Dashboard, wod:Feed, wod:Metric, wod:Page, wod:Session | /, /page/guide-start, /legacy | focused-dialog-close, timer-next-block, timer-stop-session, timer-play-pause | `e2e/live-app/cold-boot-and-home-tour.e2e.ts` | 25 |
+| **JRN-01** | journal | P0-gate | wod:Dashboard, wod:Feed, wod:Metric, wod:Page, wod:Session | /, /page/guide-start, /legacy | focused-dialog-close, timer-next-block, timer-stop-session, timer-play-pause | `e2e/live-app/cold-boot-and-home-tour.e2e.ts` | 26 |
 | **JRN-02** | journal | P0-gate | wod:Note, wod:Page, wod:Session | /journal, /day/:date, /plan, /note/:noteId, /page/:slug | editor-start-workout, placement-slug-input, placement-add-btn, placement-date-input | `e2e/live-app/daily-note-authoring-and-persistence.e2e.ts` | 15 |
 | **JRN-03** | journal | P1 | wod:Dashboard, wod:Effort, wod:Equipment, wod:FieldValue, wod:Note, wod:Notebook, wod:Page, wod:Query, wod:Session, wod:Tag | /journal, /playgrounds, /notebooks, /pages, /notebook/:slug, /note/:noteId, /playground/:id, /t/:type/:tag, /page/guide-wql, /dashboard/:slug | new-entry-primary, notebooks-create-button | `e2e/live-app/contextual-new-entry.e2e.ts` | 7 |
 | **JRN-05** | journal | P1 | wod:Attachment, wod:Note, wod:Notebook, wod:Query, wod:Session | /load/journal, /load/journal/:date, /load, /day/:date, /journal | timer-fullscreen-overlay | `e2e/live-app/markdown-and-zip-journal-intake.e2e.ts` | 5 |
 | **JRN-06** | journal | P0-gate | wod:Note, wod:Session | /journal, /note/:noteId | agent-confirm-dialog, agent-confirm-cancel, agent-confirm-approve | `e2e/live-app/agent-readiness.e2e.ts` | 4 |
 | **NBK-01** | notebooks | P0-gate | wod:Dashboard, wod:Effort, wod:Equipment, wod:Note, wod:Notebook, wod:Query, wod:Session | /notebooks, /notebook/:slug | conditions-nav-recent | `e2e/live-app/notebook-hierarchy-and-crud.e2e.ts` | 3 |
 | **NBK-02** | notebooks | P0-gate | wod:Effort, wod:Feed, wod:FieldValue, wod:Note, wod:Notebook, wod:Query, wod:Session | /note/:noteId, /notebooks, /notebook/:slug, /subscribe, /effort/:slug | promotion-new-notebook-input, promotion-new-notebook-submit, property-override-sheet, unknown-feed-intake-banner | `e2e/live-app/nm-promotion-and-note-provenance.e2e.ts` | 19 |
-| **NBK-03** | notebooks | P1 | wod:Dashboard, wod:Effort, wod:Metric, wod:Note, wod:Page, wod:Query, wod:Session | /journal, /note/:noteId, /day/:date, /page/:slug, /notes, /dashboards, /dashboard/:slug, /effort/:slug, /settings/profile | nav-l1-search, mobile-nav-open, mobile-nav-drawer | `e2e/live-app/page-placements-and-shell-navigation.e2e.ts` | 7 |
-| **NBK-04** | notebooks | P2 | wod:Dashboard, wod:Note, wod:Notebook, wod:Session | /playground/:id, /run/:runtimeId, /settings/appearance, /notebook/:slug/:itemDate/:item, /day/:date | timer-next-block, timer-play-pause | `e2e/live-app/notebook-cross-flow.e2e.ts` | 13 |
-| **PRP-01** | properties | P1 | wod:Effort, wod:FieldValue, wod:Metric, wod:Note, wod:Page, wod:Query | /efforts, /effort/:slug, /effort/new | stream-query-bar, effort-not-found-create-btn, effort-detail-label, effort-detail-source | `e2e/live-app/efforts-catalog-and-alias-lifecycle.e2e.ts` | 10 |
+| **NBK-03** | notebooks | P1 | wod:Dashboard, wod:Effort, wod:Metric, wod:Note, wod:Page, wod:Query, wod:Session | /journal, /note/:noteId, /day/:date, /page/:slug, /notes, /dashboards, /dashboard/:slug, /effort/:slug, /settings/profile | nav-l1-search, mobile-nav-open, mobile-nav-drawer, palette-composer | `e2e/live-app/page-placements-and-shell-navigation.e2e.ts` | 9 |
+| **NBK-04** | notebooks | P2 | wod:Dashboard, wod:Note, wod:Notebook, wod:Session | /playground/:id, /run/:runtimeId, /settings/appearance, /notebook/:slug/:itemDate/:item, /day/:date | timer-next-block, timer-play-pause | `e2e/live-app/notebook-cross-flow.e2e.ts` | 14 |
+| **NBK-05** | notebooks | P2 | — | — | — | `—` | 0 |
+| **PRP-01** | properties | P1 | wod:Effort, wod:FieldValue, wod:Metric, wod:Note, wod:Page, wod:Query | /efforts, /effort/:slug, /effort/new | stream-query-bar, effort-not-found-create-btn, effort-detail-label, effort-detail-source | `e2e/live-app/efforts-catalog-and-alias-lifecycle.e2e.ts` | 11 |
 | **PRP-02** | properties | P1-core | wod:Effort, wod:Equipment, wod:FieldValue, wod:Note, wod:Notebook, wod:Page, wod:Session | /equipment, /equipment/:slug, /equipment/new, /effort/:slug, /notebook/:slug/:item, /note/:noteId | new-entry-primary, equipment-create-btn, equipment-detail-label, equipment-detail-source | `e2e/live-app/equipment-catalog-and-backlinks.e2e.ts` | 9 |
 | **PRP-03** | properties | P1-core | wod:Dashboard, wod:Effort, wod:FieldValue, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Query, wod:Tag | /efforts, /effort/:slug, /t/:type/:tag, /notebook/:slug | stream-query-syntax-hint, efforts-create-btn, entry-create-title-input, entry-create-submit-btn | `e2e/live-app/effort-creation-and-tag-mobile-layout.e2e.ts` | 8 |
-| **PRP-04** | properties | P1 | wod:Effort, wod:FieldValue, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Session | /effort/:slug, /note/:noteId, /run/:runtimeId, /results/:sessionId, /notebooks | editor-start-workout, focused-dialog-close, timer-next-block, property-override-sheet | `e2e/live-app/scoped-property-override-sheets.e2e.ts` | 26 |
+| **PRP-04** | properties | P1 | wod:Effort, wod:FieldValue, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Session | /effort/:slug, /note/:noteId, /run/:runtimeId, /results/:sessionId, /notebooks | editor-start-workout, focused-dialog-close, timer-next-block, property-override-sheet | `e2e/live-app/scoped-property-override-sheets.e2e.ts` | 27 |
 | **PRP-05** | properties | P1 | wod:FieldValue, wod:Metric, wod:Query, wod:Tag | /tags, /t/:type/:tag | — | `e2e/live-app/tags-management.e2e.ts` | 2 |
-| **RUN-01** | runtime | P0-gate | wod:Dashboard, wod:Note, wod:Notebook, wod:Page, wod:Session | /playground/:noteId, /run/:runtimeId, /day/:date, /note/:noteId, /results/:sessionId, /notebook/:slug/:item | timer-stop-session, clock-stop-confirm-accept, focused-dialog-close, timer-next-block | `e2e/live-app/wall-clock-and-fastclock-protocols.e2e.ts` | 28 |
+| **RUN-01** | runtime | P0-gate | wod:Dashboard, wod:Note, wod:Notebook, wod:Page, wod:Session | /playground/:noteId, /run/:runtimeId, /day/:date, /note/:noteId, /results/:sessionId, /notebook/:slug/:item | timer-stop-session, clock-stop-confirm-accept, focused-dialog-close, timer-next-block | `e2e/live-app/wall-clock-and-fastclock-protocols.e2e.ts` | 29 |
 | **RUN-02** | runtime | P0-gate | wod:Dashboard, wod:Feed, wod:Note, wod:Notebook, wod:Query, wod:Session | /subscribe, /notebooks, /notebook/:slug, /note/:noteId, /day/:date, /results/:sessionId | unknown-feed-intake-banner, feed-intake-subscribe, timer-stop-session, focused-dialog-close | `e2e/live-app/readonly-intake-and-provenance-run.e2e.ts` | 21 |
-| **RUN-03** | runtime | P1 | wod:EventRecord, wod:Session | /playground/:id, /run/:runtimeId | clock-command-board, clock-rep-value, timer-surface-general, timer-surface-minimal | `e2e/live-app/timer-surfaces-and-keypad.e2e.ts` | 23 |
+| **RUN-03** | runtime | P1 | wod:EventRecord, wod:Session | /playground/:id, /run/:runtimeId | clock-command-board, clock-rep-value, timer-surface-general, timer-surface-minimal | `e2e/live-app/timer-surfaces-and-keypad.e2e.ts` | 25 |
 | **RUN-04** | runtime | P2 | — | — | — | `—` | 0 |
 
 ## Detailed 5-Beat Chains
@@ -59,10 +60,10 @@ Total Journeys: **27**
 - **5-Beat Causal Chain**:
   1. **Seed**: Seed: wod:Dashboard, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Query
   2. **Enter**: Enter: /journal, /settings/queries, /dashboard/:slug, /dashboards
-  3. **Sense**: Sense: DOM readiness
+  3. **Sense**: Sense: stream-query-status
   4. **Drive**: Drive: Per-surface Query Settings persist landing WQL defaults, Group-By favorites, validation, and reset across reloads
   5. **Prove**: Prove: e2e/live-app/query-settings-and-views.e2e.ts
-- **Touched Files**: `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/query-settings-and-views.e2e.ts`
+- **Touched Files**: `apps/playground/app/views/stream/QueriableStreamView.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/query-settings-and-views.e2e.ts`
 - **Issues**: WW-010 (Chart Y-axis ticks unformatted ('5000kg'), tooltip over-precise)
 
 ### ANL-04 — Entity Scope & Dashboard Promotion
@@ -76,8 +77,7 @@ Total Journeys: **27**
   3. **Sense**: Sense: save-stream-query, widget-composer-subset, widget-composer-wql
   4. **Drive**: Drive: Multi-Effort Session EventRecord table filters segments by WQL, fits 375×812 mobile, and promotes Entity Scope
   5. **Prove**: Prove: e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts
-- **Touched Files**: `apps/playground/app/tour/screens/TourEditorScreen.tsx`, `apps/playground/app/views/dashboards/WidgetComposerDialog.tsx`, `apps/playground/app/views/stream/PropertyTable.tsx`, `apps/playground/app/views/stream/QueriableStreamView.tsx`, `apps/playground/src/components/organisms/editor/InlineCommandBar.tsx`, `apps/playground/src/components/organisms/editor/WhiteboardCompanion.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`, `e2e/live-app/daily-note-authoring-and-persistence.e2e.ts`, `e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts`
-- **Issues**: WW-056 (Benchmark PR Board widgets permanently empty on sample corpus: 'Sample data loaded' badge shown but sessions store = 0 post-import, 5 visible widgets No data)
+- **Touched Files**: `apps/playground/app/pages/SessionResultsPage.tsx`, `apps/playground/app/tour/screens/TourEditorScreen.tsx`, `apps/playground/app/views/dashboards/WidgetComposerDialog.tsx`, `apps/playground/app/views/stream/PropertyTable.tsx`, `apps/playground/app/views/stream/QueriableStreamView.tsx`, `apps/playground/src/components/organisms/editor/InlineCommandBar.tsx`, `apps/playground/src/components/organisms/editor/WhiteboardCompanion.tsx`, `apps/storybook/src/SessionResultsPage.stories.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`
 
 ### ANL-05 — Recovery Sample Coverage, Unit & Table Precision, and User Dashboard Deletion
 
@@ -91,13 +91,21 @@ Total Journeys: **27**
   4. **Drive**: Drive: Sample data populates Recovery & Readiness, aligns volume units, and rounds table cells
   5. **Prove**: Prove: e2e/live-app/recovery-sample-and-dashboard-lifecycle.e2e.ts
 - **Touched Files**: `apps/playground/app/views/dashboards/DashboardViewPage.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/live-app/recovery-sample-and-dashboard-lifecycle.e2e.ts`
-- **Issues**: WW-003 (/notes default WQL ':note{notebook:*}' unsupported wildcard — page permanently 0 results with advisory); WW-006 ('Preview with sample data' shows no pending feedback; ~50s cold import looks like a dead button); WW-018 (Empty-scopeOptions stream routes render 'No source options are set for this route' warning above fully populated results); WW-019 (Boot/import readiness contract still broken: cold-boot bare-'loading' stalls, ready-at-partial-stream-total, and sample-data import runs 'ready' with importPending=false); WW-028 (Prebuilt Recovery & Readiness dashboard renders 'No data for this range' in all 7 widgets even with the sample corpus loaded); WW-029 (Explorer panel shows 'Records in this calculation 50' beside 'No data for this range' for an empty-range result); WW-036 (Unfiltered /notes still full-corpus detail-hydrates — 15.6s ready gate this run (feeds), ~3s view-hydration over 4.6s boot (journal) on 1639-note corpus); WW-039 (data-agent-status flips 'ready' while dashboard/board widgets still render 'Loading…' skeletons); WW-056 (Benchmark PR Board widgets permanently empty on sample corpus: 'Sample data loaded' badge shown but sessions store = 0 post-import, 5 visible widgets No data); WW-065 (prebuilt /dashboard/benchmark-pr-board settle latency — moot while every widget settles 'No data' (WW-056)); WW-074 (HRV trend widget on /dashboard/recovery-readiness labels Y-axis ticks and readout in kg instead of ms (0 kg..80 kg, '71kg')); WW-083 (Sample analytics corpus (48 sessions / 48 notes) silently wiped by any page reload — re-import required every load, zero feedback); WW-084 (Explorer empty-state 'Log your first workout' CTA links to retired /collections which renders 'Page not found' — dead end for the primary new-user CTA)
+- **Issues**: WW-003 (/notes default WQL ':note{notebook:*}' unsupported wildcard — page permanently 0 results with advisory); WW-006 ('Preview with sample data' shows no pending feedback; ~50s cold import looks like a dead button); WW-018 (Empty-scopeOptions stream routes render 'No source options are set for this route' warning above fully populated results); WW-019 (Boot/import readiness contract still broken: cold-boot bare-'loading' stalls, ready-at-partial import, definitive not-found on deep links during import, import churn minutes past ready); WW-028 (Prebuilt Recovery & Readiness dashboard renders 'No data for this range' in all 7 widgets even with the sample corpus loaded); WW-029 (Explorer panel shows 'Records in this calculation 50' beside 'No data for this range' for an empty-range result); WW-036 (Unfiltered /notes still full-corpus detail-hydrates — ready gate 12.2–26.2s ×5 workers on a ~1639-note corpus (worst band this run)); WW-039 (data-agent-status flips 'ready' while dashboard/board widgets still render 'Loading…'; /dashboard/recovery-readiness settles ~47–57s); WW-056 (Benchmark PR Board widgets all 'No data for this range.' — sessions store = 0 after ready import; widgets stale until manual reload); WW-065 (prebuilt /dashboard/benchmark-pr-board settle latency — moot while every widget settles 'No data' (WW-056)); WW-074 (HRV trend axis fixed in ms; residual: readout '69.4kg', Soreness/Monotony Y-axes in kg for unitless 0–10 scores); WW-083 (Sample analytics corpus silently wiped by page navigation — 'Preview with sample data' corpus rolls back across routes (sessions 56→0), dashboards flip to 'No data' with zero notice); WW-084 (Explorer empty-state 'Log your first workout' CTA links to retired /collections which renders 'Page not found' — dead end for the primary new-user CTA)
 
-### ANL-06 — ANL-06
+### ANL-06 — WQL Composer Scope Map & Command Palette Parity
 
-- **Domain**: `analytics` | **Priority**: `P2`
-- **Status**: `proposed` (open journey slot)
-- **Issues**: WW-038 (Invalid WQL on /dashboards destroys the rendered result pane, overwrites the shareable ?q= URL, and offers no restore to the last valid query); WW-075 (Time-window picker updates chip + query draft but leaves stale chart/counts until Run — no dirty indicator)
+- **Domain**: `analytics` | **Priority**: `P1-core`
+- **Spec**: `e2e/specs/analytics/wql-composer-and-palette.md`
+- **Playwright**: `e2e/live-app/wql-composer-and-palette.e2e.ts`
+- **5-Beat Causal Chain**:
+  1. **Seed**: Seed: wod:Dashboard, wod:Effort, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Query, wod:Session, wod:Tag
+  2. **Enter**: Enter: /journal, /notes, /efforts, /dashboards
+  3. **Sense**: Sense: palette-cancel, palette-composer, palette-find-input, palette-mode, palette-scope-chip, palette-scope-clear
+  4. **Drive**: Drive: Desktop Split-Pills, 4-zone Scope Map popover, Clause Inspector traversal, Add Filter, and inline Metric Explorer
+  5. **Prove**: Prove: e2e/live-app/wql-composer-and-palette.e2e.ts
+- **Touched Files**: `apps/playground/app/nav/panels/FacetProperties.tsx`, `apps/playground/app/views/stream/StreamQueryBar.tsx`, `apps/playground/src/components/molecules/CommandListView.tsx`, `apps/playground/src/components/organisms/command-palette/PaletteShell.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/efforts-catalog-and-alias-lifecycle.e2e.ts`, `e2e/live-app/query-settings-and-views.e2e.ts`, `e2e/live-app/tags-management.e2e.ts`, `e2e/live-app/wql-composer-and-palette.e2e.ts`
+- **Issues**: WW-038 (Invalid WQL on /dashboards destroys the rendered result pane, overwrites the shareable ?q= URL, and offers no restore to the last valid query); WW-075 (Time-window picker updates chip + query draft but leaves stale chart/counts until Run — no dirty indicator); WW-094 (Note-plane aggregate charting — CHANGED: chart frame now renders (2 points / 17 buckets) on this profile; 'No data for this range.' variant not re-adjudicated against the 1641-note repro corpus)
 
 ### FED-01 — Feed Subscription & Auto-Sync Lifecycle
 
@@ -144,7 +152,7 @@ Total Journeys: **27**
   3. **Sense**: Sense: bundle-file-input, bundle-import-error, load-zip-intake
   4. **Drive**: Drive: Valid `.zip` round-trip export/upload and standalone `.jsonl` upload on `/load` restore Notes and Sessions into IndexedDB and UI
   5. **Prove**: Prove: e2e/live-app/portable-codecs-and-backup-restore.e2e.ts
-- **Touched Files**: `apps/playground/app/pages/LoadZipPage.tsx`, `apps/playground/app/views/stream/PropertyTable.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts`, `e2e/live-app/portable-codecs-and-backup-restore.e2e.ts`, `e2e/regression/ww-041.e2e.ts`, `e2e/regression/ww-044.e2e.ts`, `packages/core/src/portability/note-jsonl.ts`, `packages/core/src/testing.ts`
+- **Touched Files**: `apps/playground/app/pages/LoadZipPage.tsx`, `apps/playground/app/pages/SessionResultsPage.tsx`, `apps/playground/app/views/stream/PropertyTable.tsx`, `apps/storybook/src/SessionResultsPage.stories.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts`, `e2e/live-app/portable-codecs-and-backup-restore.e2e.ts`, `e2e/regression/ww-041.e2e.ts`, `e2e/regression/ww-044.e2e.ts`
 - **Issues**: WW-040 (/load corrupt-zip handling inconsistent: raw JSZip library exception shown verbatim once, then later corrupt uploads silently bounce to / — error path non-deterministic run-to-run); WW-041 (Uploading a manifest-less/empty .zip on /load silently bounces to Home with zero import feedback); WW-044 (Export→Import round-trip broken — repository-layout export prefixes every artifact 'dist/' while importFromZip skips 'dist/' paths)
 
 ### JRN-00 — Cold Boot Profile & Seed Phase Settlement
@@ -172,7 +180,7 @@ Total Journeys: **27**
   4. **Drive**: Drive: Home Tour renders hero, scroll-stable video lightbox, touch-safe fullscreen timer stop/review loop, and Session Insights glide across desktop and 375×812 mobile
   5. **Prove**: Prove: e2e/live-app/cold-boot-and-home-tour.e2e.ts
 - **Touched Files**: `apps/playground/app/tour/HomeInsightsSections.tsx`, `apps/playground/app/tour/HomeTour.tsx`, `apps/playground/app/tour/TourWhyVideo.tsx`, `apps/playground/app/tour/screens/TourSessionInsights.tsx`, `apps/playground/src/clock/ClockCommandBoard.tsx`, `apps/playground/src/components/molecules/FocusedDialog.tsx`, `apps/playground/src/components/organisms/workout/TimerCore.tsx`, `apps/playground/src/components/organisms/workout/TimerStackView.tsx`, `apps/storybook/src/FullscreenTimer.stories.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`
-- **Issues**: WW-001 (Unbounded full-corpus IndexedDB detail scan stalls /day/:date (~40s), /dashboard/:slug (45-90s), /notes stream (~15s) and cold boot); WW-019 (Boot/import readiness contract still broken: cold-boot bare-'loading' stalls, ready-at-partial-stream-total, and sample-data import runs 'ready' with importPending=false); WW-036 (Unfiltered /notes still full-corpus detail-hydrates — 15.6s ready gate this run (feeds), ~3s view-hydration over 4.6s boot (journal) on 1639-note corpus); WW-081 (/journal strip shows contradictory frozen totals at data-agent-status=ready — '1 of 280' frozen mid-import count (mobile), '1 of 2'→'1 of 1' flicker (desktop); three totals disagree simultaneously)
+- **Issues**: WW-001 (Unbounded full-corpus IndexedDB detail scan stalls /day/:date (~40s), /dashboard/:slug (45-90s), /notes stream (~15s) and cold boot); WW-019 (Boot/import readiness contract still broken: cold-boot bare-'loading' stalls, ready-at-partial import, definitive not-found on deep links during import, import churn minutes past ready); WW-036 (Unfiltered /notes still full-corpus detail-hydrates — ready gate 12.2–26.2s ×5 workers on a ~1639-note corpus (worst band this run)); WW-081 (/journal strip shows contradictory frozen totals at data-agent-status=ready — '1 of 280' frozen mid-import count (mobile), '1 of 2'→'1 of 1' flicker (desktop); three totals disagree simultaneously)
 
 ### JRN-02 — Daily note authoring and persistence
 
@@ -186,7 +194,7 @@ Total Journeys: **27**
   4. **Drive**: Drive: An unseeded date renders an empty state while a seeded date loads its Note into the day editor
   5. **Prove**: Prove: e2e/live-app/daily-note-authoring-and-persistence.e2e.ts
 - **Touched Files**: `apps/playground/app/components/organisms/journal/NotePlacementDialog.tsx`, `apps/playground/app/tour/screens/TourEditorScreen.tsx`, `apps/playground/src/components/organisms/editor/InlineCommandBar.tsx`, `apps/playground/src/components/organisms/editor/WhiteboardCompanion.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/daily-note-authoring-and-persistence.e2e.ts`, `e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts`, `e2e/live-app/nm-promotion-and-note-provenance.e2e.ts`
-- **Issues**: WW-004 (Stream status strip renders internal grouping token '(level)' — transient '0 of 0' flicker); WW-011 (Day-cell accessible name reads '1 entries' (pluralization defect)); WW-020 (User-authored notes silently deleted within seconds of creation by the boot/feed import cycle — now 6 reproductions across journal and runtime authoring paths); WW-022 (Final typed line silently dropped when navigating away within ~0.5s — debounced autosave flush-on-navigation guarantee); WW-023 (Stream reports data-agent-status=ready while 'Loading more — N remaining…' pagination is still visible (/notes)); WW-024 (/plan SPA-rewrites to /journal?q=:journal last 2w and renders '0 of 0 · 1 applied' despite an existing dated journal entry); WW-059 (/day/:date has no Page options panel — Delete note, Clone, Export, Notebooks & Promotion unavailable vs /note/:id)
+- **Issues**: WW-004 (Stream status strip renders internal grouping token '(level)' — transient '0 of 0' flicker); WW-011 (Day-cell accessible name reads '1 entries' (pluralization defect)); WW-020 (User-authored content silently dropped — create-dialog body-drop variant FIXED at 761983774; boot/feed sync cycle variant STILL CRITICAL (notes/efforts deleted, notes emptied, sessions+events wiped)); WW-022 (Final typed line silently dropped when navigating away within ~0.5s — debounced autosave flush-on-navigation guarantee); WW-023 (Stream reports data-agent-status=ready while 'Loading more — N remaining…' pagination is still visible (/notes)); WW-024 (/plan SPA-rewrites to /journal?q=:journal last 2w and renders '0 of 0 · 1 applied' despite an existing dated journal entry); WW-059 (/day/:date EMPTY-day view has no Page options panel — Delete/Clone/Export/Notebooks unavailable (present once ≥1 note exists))
 
 ### JRN-03 — Contextual New Entry Creation & Title Persistence
 
@@ -227,7 +235,7 @@ Total Journeys: **27**
   4. **Drive**: Drive: Static discovery, hydration gates, embedded view state, and dynamic WebMCP lifecycle
   5. **Prove**: Prove: e2e/live-app/agent-readiness.e2e.ts
 - **Touched Files**: `apps/playground/app/agent/AgentConfirmHost.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/live-app/agent-readiness.e2e.ts`, `e2e/regression/ww-049.e2e.ts`
-- **Issues**: WW-017 (Advertised /.well-known/agent-capabilities.json 404s in production — artifact pipeline drops hidden dot-directories); WW-025 (navigator.modelContext.executeTool drops arguments for argument-requiring UI tools); WW-026 (SPA not-found page renders without <main>/<nav> landmarks and without data-agent-status); WW-027 (llms.txt advertises a hardcoded live UI/Clock WebMCP tool count that drifts from agent-capabilities.json uiTools); WW-042 (llms.txt advertises /settings/queries (settingsQueries) but the route is retired and bounces to /journal); WW-046 (llms.txt advertises the HTTP MCP server at /api/mcp as live on wod.wiki but the endpoint is dead (signature evolved: POST 405 nginx / GET 404) — ×10 sessions); WW-049 (wod_note_delete without confirmId never resolves — promise pends indefinitely on a silent human-only 'Confirm Agent Action' modal (no timeout, no confirmation-required error)); WW-050 (#agent-view-state clock reports phase=ready/status=idle while the live workout timer visibly runs); WW-061 (WebMCP wod_note_list silently ignores unknown input keys instead of rejecting (agents get silently wrong results)); WW-082 (wod_note_list returns note IDs wod_note_get cannot resolve — phantom journal notes churning through fresh ULIDs during import cycles)
+- **Issues**: WW-017 (Advertised /.well-known/agent-capabilities.json 404s in production — artifact pipeline drops hidden dot-directories); WW-025 (navigator.modelContext.executeTool drops arguments for argument-requiring UI tools); WW-026 (SPA not-found page renders without <main>/<nav> landmarks and without data-agent-status); WW-027 (llms.txt advertises a hardcoded live UI/Clock WebMCP tool count that drifts from agent-capabilities.json uiTools); WW-042 (llms.txt advertises /settings/queries (settingsQueries) but the route is retired and bounces to /journal); WW-046 (llms.txt advertises the HTTP MCP server at /api/mcp as live on wod.wiki but the endpoint is dead (signature evolved: POST 405 nginx / GET 404)); WW-049 (wod_note_delete without confirmId never resolves — promise pends indefinitely on a silent human-only 'Confirm Agent Action' modal (no timeout, no confirmation-required error)); WW-050 (#agent-view-state clock reports phase=ready/status=idle while the live workout timer visibly runs); WW-061 (WebMCP wod_note_list silently ignores unknown input keys instead of rejecting (agents get silently wrong results)); WW-082 (wod_note_list returns note IDs wod_note_get cannot resolve — phantom journal notes churning through fresh ULIDs during import cycles)
 
 ### NBK-01 — Notebook hierarchy and CRUD
 
@@ -241,7 +249,7 @@ Total Journeys: **27**
   4. **Drive**: Drive: The library always shows the built-in notebooks
   5. **Prove**: Prove: e2e/live-app/notebook-hierarchy-and-crud.e2e.ts
 - **Touched Files**: `apps/playground/app/nav/panels/ConditionsNavPanel.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/live-app/notebook-hierarchy-and-crud.e2e.ts`
-- **Issues**: WW-032 (Unknown /notebook/:slug deep link renders generic empty-search state with an active '+ Add Note'); WW-033 (Sidebar 'Recent' notebook list is a fixed built-in set, never reflects visited notebooks); WW-047 (notebook library card count excludes the notebook's own landing note — contradicts the detail page stream count); WW-062 (wod_notebook_list advertises notebook URLs as /notebooks/:slug — every link 404s 'Page not found'; real route is /notebook/:slug)
+- **Issues**: WW-032 (Unknown /notebook/:slug deep link renders generic empty-search state with an active '+ Add Note'); WW-033 (Sidebar 'Recent' notebook list is a fixed built-in set, never reflects visited notebooks); WW-047 (notebook library card count excludes the notebook's own landing note — contradicts the detail page stream count); WW-062 (wod_notebook_list advertises notebook URLs as /notebooks/:slug — every link 404s 'Page not found'; real route is /notebook/:slug); WW-101 (Notebook detail H1/breadcrumb derives from the humanized slug — acronyms mangled ('QA'→'Qa') and renames never reflected ('— W4 Deload' missing after full reload) while card + stream rows show the real name)
 
 ### NBK-02 — N:M Notebook Promotion & Note Provenance
 
@@ -255,7 +263,7 @@ Total Journeys: **27**
   4. **Drive**: Drive: Athlete promotes one Note across multiple user Notebooks and opens Scoped Property Override on 375×812 mobile
   5. **Prove**: Prove: e2e/live-app/nm-promotion-and-note-provenance.e2e.ts
 - **Touched Files**: `apps/playground/app/components/organisms/journal/NotePlacementDialog.tsx`, `apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx`, `apps/playground/app/views/stream/QueriableStreamView.tsx`, `apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx`, `apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/daily-note-authoring-and-persistence.e2e.ts`, `e2e/live-app/feed-subscription-and-autosync.e2e.ts`
-- **Issues**: WW-048 (note header shows a backlink chip for only one of two linked notebooks — N:M membership under-represented in the header)
+- **Issues**: WW-048 (note header chips render 1 of N notebooks after reload and 0 of N until hard reload after promotion-sheet toggle — N:M membership never joined into header chips)
 
 ### NBK-03 — Page Placements & Shell Navigation
 
@@ -265,10 +273,10 @@ Total Journeys: **27**
 - **5-Beat Causal Chain**:
   1. **Seed**: Seed: wod:Dashboard, wod:Effort, wod:Metric, wod:Note, wod:Page, wod:Query, wod:Session
   2. **Enter**: Enter: /journal, /note/:noteId, /day/:date, /page/:slug, /notes, /dashboards, /dashboard/:slug, /effort/:slug, /settings/profile
-  3. **Sense**: Sense: DOM readiness
+  3. **Sense**: Sense: palette-composer, palette-mode, palette-settings, palette-settings-panel
   4. **Drive**: Drive: Global command and search palette launches via keyboard chord and rail search, toggles Find/WQL modes and settings, and navigates to a selected Note
   5. **Prove**: Prove: e2e/live-app/page-placements-and-shell-navigation.e2e.ts
-- **Touched Files**: `apps/playground/app/nav/AppRail.tsx`, `apps/playground/src/templates/SidebarLayout.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/gates/a11y-and-touch.mobile.smoke.e2e.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/page-placements-and-shell-navigation.e2e.ts`, `e2e/webkit/webkit-crossbrowser.smoke.e2e.ts`
+- **Touched Files**: `apps/playground/app/nav/AppRail.tsx`, `apps/playground/src/components/organisms/command-palette/PaletteShell.tsx`, `apps/playground/src/templates/SidebarLayout.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/gates/a11y-and-touch.mobile.smoke.e2e.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/page-placements-and-shell-navigation.e2e.ts`, `e2e/live-app/wql-composer-and-palette.e2e.ts`, `e2e/webkit/webkit-crossbrowser.smoke.e2e.ts`
 
 ### NBK-04 — Cross-Route Notebook, Playground Widgets, Theme & Dated Item Flow
 
@@ -283,6 +291,12 @@ Total Journeys: **27**
   5. **Prove**: Prove: e2e/live-app/notebook-cross-flow.e2e.ts
 - **Touched Files**: `apps/playground/src/components/organisms/workout/TimerCore.tsx`, `apps/playground/src/components/organisms/workout/TimerStackView.tsx`, `apps/storybook/src/FullscreenTimer.stories.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/cold-boot-and-home-tour.e2e.ts`, `e2e/live-app/notebook-cross-flow.e2e.ts`, `e2e/live-app/scoped-property-override-sheets.e2e.ts`, `e2e/live-app/timer-surfaces-and-keypad.e2e.ts`, `e2e/live-app/wall-clock-and-fastclock-protocols.e2e.ts`
 
+### NBK-05 — NBK-05
+
+- **Domain**: `notebooks` | **Priority**: `P2`
+- **Status**: `proposed` (open journey slot)
+- **Issues**: WW-089 (Shared /notes?q= link with space-separated words fails WQL parse — 'Invalid query — showing previous results' + unfiltered corpus)
+
 ### PRP-01 — Efforts Catalog & Alias Lifecycle
 
 - **Domain**: `properties` | **Priority**: `P1`
@@ -294,8 +308,8 @@ Total Journeys: **27**
   3. **Sense**: Sense: DOM readiness
   4. **Drive**: Drive: Athlete filters the Efforts stream across text, discipline, and origin predicates and opens an Effort detail
   5. **Prove**: Prove: e2e/live-app/efforts-catalog-and-alias-lifecycle.e2e.ts
-- **Touched Files**: `apps/playground/app/nav/panels/FacetProperties.tsx`, `apps/playground/app/pages/EffortDetailPage.tsx`, `apps/playground/app/views/stream/StreamQueryBar.tsx`, `apps/storybook/src/EffortDetail.stories.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/live-app/efforts-catalog-and-alias-lifecycle.e2e.ts`, `e2e/pages/EffortsPage.ts`, `e2e/regression/ww-034.e2e.ts`, `e2e/regression/ww-090.e2e.ts`, `e2e/regression/ww-091.e2e.ts`
-- **Issues**: WW-071 (Alias chips on /effort/:slug and /equipment/:slug are non-interactive spans — PRP-01 spec promises linked chips)
+- **Touched Files**: `apps/playground/app/nav/panels/FacetProperties.tsx`, `apps/playground/app/pages/EffortDetailPage.tsx`, `apps/playground/app/views/stream/StreamQueryBar.tsx`, `apps/storybook/src/EffortDetail.stories.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/live-app/efforts-catalog-and-alias-lifecycle.e2e.ts`, `e2e/live-app/wql-composer-and-palette.e2e.ts`, `e2e/pages/EffortsPage.ts`, `e2e/regression/ww-034.e2e.ts`, `e2e/regression/ww-090.e2e.ts`
+- **Issues**: WW-071 (Alias chips on /effort/:slug and /equipment/:slug are non-interactive spans — PRP-01 spec promises linked chips); WW-090 (Custom effort creation silently drops authored body prose — /effort/:slug?mode=create persists frontmatter only); WW-091 (Link-as-Alias target <select> renders 0 options — Confirm Link permanently disabled (now on WARM load too))
 
 ### PRP-02 — Equipment Catalog & Backlinks
 
@@ -309,6 +323,7 @@ Total Journeys: **27**
   4. **Drive**: Drive: Athlete browses the Equipment L1 list on desktop and a 375×812 phone and inspects canonical Note access
   5. **Prove**: Prove: e2e/live-app/equipment-catalog-and-backlinks.e2e.ts
 - **Touched Files**: `apps/playground/app/pages/EquipmentDetailPage.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/gates/a11y-and-touch.mobile.smoke.e2e.ts`, `e2e/helpers/seedEquipment.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/contextual-new-entry.e2e.ts`, `e2e/live-app/equipment-catalog-and-backlinks.e2e.ts`, `e2e/pages/EquipmentPage.ts`, `e2e/regression/ww-080.e2e.ts`
+- **Issues**: WW-088 (Equipment detail /equipment/:slug renders no canonical backlinks to related Efforts or referencing workout Notes (PRP-02 Scenario 3)); WW-098 (Canonical equipment slugs 404 — /equipment/dumbbell renders 'not found' even at data-agent-status=ready while the /equipment catalog card links the same slug (IDB equipment=23))
 
 ### PRP-03 — Effort Creation Immediate Resolution, WQL Syntax Guidance & Mobile Tag Layout
 
@@ -322,7 +337,7 @@ Total Journeys: **27**
   4. **Drive**: Drive: Newly created Effort resolves immediately on detail route and invalid WQL displays syntax guidance
   5. **Prove**: Prove: e2e/live-app/effort-creation-and-tag-mobile-layout.e2e.ts
 - **Touched Files**: `apps/playground/app/components/organisms/journal/CreateJournalNoteDialog.tsx`, `apps/playground/app/pages/EffortDetailPage.tsx`, `apps/playground/app/views/stream/QueriableStreamView.tsx`, `apps/storybook/src/EffortDetail.stories.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/gates/a11y-and-touch.mobile.smoke.e2e.ts`, `e2e/live-app/effort-creation-and-tag-mobile-layout.e2e.ts`, `e2e/pages/EffortsPage.ts`
-- **Issues**: WW-034 (WQL plain-text fallback on /efforts dead — bare words like 'kettlebell' parse as vacuous aggregates instead of engaging :effort{text:...}); WW-035 (Newly created effort lands on 'Effort "slug" not found' despite successful IndexedDB persistence); WW-037 (Tag drill-down /t/:type/:tag overflows 65px horizontally on 375x812 mobile); WW-063 (Unknown tag deep link /t/:type/:tag silently degrades to 'No tag is selected' instead of explicit not-found)
+- **Issues**: WW-035 (Newly created effort lands on 'Effort "slug" not found' despite successful IndexedDB persistence); WW-037 (Tag drill-down /t/:type/:tag overflows 65px horizontally on 375x812 mobile); WW-063 (Unknown tag deep link /t/:type/:tag silently degrades to 'No tag is selected' instead of explicit not-found)
 
 ### PRP-04 — Scoped Property Override Sheets & Runtime Precedence
 
@@ -336,7 +351,7 @@ Total Journeys: **27**
   4. **Drive**: Drive: Coach creates and edits a Notebook-scoped Effort override across mobile and desktop without mutating the bundled Effort
   5. **Prove**: Prove: e2e/live-app/scoped-property-override-sheets.e2e.ts
 - **Touched Files**: `apps/playground/app/tour/screens/TourEditorScreen.tsx`, `apps/playground/src/components/molecules/FocusedDialog.tsx`, `apps/playground/src/components/organisms/editor/InlineCommandBar.tsx`, `apps/playground/src/components/organisms/editor/WhiteboardCompanion.tsx`, `apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx`, `apps/playground/src/components/organisms/workout/TimerCore.tsx`, `apps/playground/src/components/organisms/workout/TimerStackView.tsx`, `apps/storybook/src/FullscreenTimer.stories.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`
-- **Issues**: WW-070 (Scoped equipment override commits silently — no confirmation and header 'Bundled' badge stays stale until full reload)
+- **Issues**: WW-070 (Scoped equipment override commits silently — no confirmation and header 'Bundled' badge stays stale until full reload); WW-100 (Effort Override sheet Save is a silent no-op — sheet stays open, no feedback, no property_overrides record written (WW-070 analog, worse))
 
 ### PRP-05 — Tag Catalog Query Surface & Direct Property Editor
 
@@ -363,7 +378,7 @@ Total Journeys: **27**
   4. **Drive**: Drive: Wall Clock pause/resume, Next Block segment advance, and guarded Stop Session partial persistence
   5. **Prove**: Prove: e2e/live-app/wall-clock-and-fastclock-protocols.e2e.ts
 - **Touched Files**: `apps/playground/app/tour/screens/TourEditorScreen.tsx`, `apps/playground/src/clock/ClockCommandBoard.tsx`, `apps/playground/src/components/molecules/FocusedDialog.tsx`, `apps/playground/src/components/organisms/editor/InlineCommandBar.tsx`, `apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx`, `apps/playground/src/components/organisms/editor/WhiteboardCompanion.tsx`, `apps/playground/src/components/organisms/workout/TimerCore.tsx`, `apps/playground/src/components/organisms/workout/TimerStackView.tsx`, `apps/storybook/src/FullscreenTimer.stories.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`
-- **Issues**: WW-007 (Trailing load '(24kg)' parses as phantom '24 Rounds' scheme and splits the movement in the timer outline); WW-008 (Session card shows 'Volume: N lbs' — N is sessionLoad in AU, not pound tonnage); WW-009 (Structural zero-duration segments mislabeled 'Round N' in results splits; 'N completed' counter inflated); WW-012 (Mid-run browser reload silently deletes the in-progress session row entirely — worse than the prior partial-results banner (no resume, no notice, data loss)); WW-051 (Recorded session timing wrong across lifecycle paths — For Time IDB 216.8s vs ~211s clock vs UI '04:01' results total; reload path drops 53s on /results; splits never persisted (+00:00/Start rows only)); WW-052 (Exiting at the Ready-to-Start gate records a 0s phantom in-progress session row); WW-053 (Cold load of an unregistered /run/:runtimeId renders a completely blank main — the existing 'Runtime not found' guard never appears, no data-agent-status); WW-069 (Per-block Run buttons ignore their block — clicking a non-first block's Run opens a gate for Block 1; no block picker); WW-076 (For Time '21-15-9' live run shows rep target '9' on the 21-rep first movement (ladder target resolves to last rung)); WW-077 (Live run cannot advance past the first movement — Next/Enter/Nav/outline clicks/rep logging never activate movement 2 in AMRAP or For Time ladder runs); WW-085 (Ready-to-Start gate: mouse clicks on Start do nothing (keyboard '/' works), and after keyboard start the overlay stays frozen on 'Ready to Start' 00:00 while the engine reports live/running; raw CSS keyframes text present in overlay DOM)
+- **Issues**: WW-007 (Trailing load '(24kg)' parses as phantom '24 Rounds' scheme and splits the movement in the timer outline); WW-008 (Session card shows 'Volume: N lbs' — N is sessionLoad in AU, not pound tonnage); WW-009 (Structural zero-duration segments mislabeled 'Round N' in results splits; 'N completed' counter inflated); WW-012 (Mid-run browser reload silently deletes the in-progress session row entirely — worse than the prior partial-results banner (no resume, no notice, data loss)); WW-051 (Recorded session timing wrong across lifecycle paths — duration inconsistent with IDB record; splits never persisted (+00:00/Start rows only)); WW-052 (Ready-to-Start gate materializes a 0s phantom in-progress session row at gate OPEN (earlier onset), Exit leaves it — no UI feedback); WW-053 (Cold load of an unregistered /run/:runtimeId renders a completely blank main — the existing 'Runtime not found' guard never appears, no data-agent-status); WW-069 (Per-block Run buttons ignore their block — clicking a non-first block's Run opens a gate for Block 1; no block picker); WW-076 (For Time '21-15-9' live run shows rep target '9' on the 21-rep first movement (ladder target resolves to last rung)); WW-077 (Live AMRAP run cannot advance past the first movement — Next/Enter never activate movement 2 (AMRAP-path specific; For Time ladder advances)); WW-085 (Ready-to-Start gate: mouse clicks on Start do nothing (keyboard '/' works), and after keyboard start the overlay stays frozen on 'Ready to Start' 00:00 while the engine reports live/running; raw CSS keyframes text present in overlay DOM); WW-092 (Workout Complete segment table: all rows labeled 'Segment', all split offsets '+00:00', accessible names leak internals ('Type: spans', quoted JSON timestamps, full Type/Block/Time strings)); WW-093 (Session card mislabels load as 'Volume: 42.5 kg' (kg = bar load, not volume); /sessions strip count vs sessions store (phantom rows uncounted))
 
 ### RUN-02 — Read-only Intake & Provenance Run
 
@@ -390,10 +405,10 @@ Total Journeys: **27**
   4. **Drive**: Drive: Live timer re-tiers Detail → General → Minimal across viewport resizes without reloading
   5. **Prove**: Prove: e2e/live-app/timer-surfaces-and-keypad.e2e.ts
 - **Touched Files**: `apps/playground/src/clock/ClockCommandBoard.tsx`, `apps/playground/src/components/molecules/FocusedDialog.tsx`, `apps/playground/src/components/organisms/workout/GeneralTimerSurface.tsx`, `apps/playground/src/components/organisms/workout/MinimalTimerSurface.tsx`, `apps/playground/src/components/organisms/workout/TimerCore.tsx`, `apps/playground/src/components/organisms/workout/TimerStackView.tsx`, `apps/playground/src/components/organisms/workout/TimerSurface.tsx`, `apps/storybook/src/FullscreenTimer.stories.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`
-- **Issues**: WW-064 (Mobile timer footer stop/pause controls are icon-only with no accessible name at 375x812 (rep/round adjust pair NOW FIXED)); WW-067 (Mobile Keypad mode toggle sets aria-pressed=true but renders no digit pad at 375x812 — dead-end input affordance); WW-078 (Float-valued analytics readouts mix precision conventions on one panel (18.07 min 2dp, 31.9 pts 1dp, 36 MET-min truncated))
+- **Issues**: WW-064 (Mobile timer footer Stop/Pause icon buttons carry aria-label="" (empty) which OVERRIDES their title text — nameless to assistive tech at 375x812); WW-067 (Mobile Keypad mode toggle sets aria-pressed=true but renders no digit pad at 375x812 — dead-end input affordance); WW-078 (Float readouts mix 2dp/1dp/int/4dp on one panel; raw 16-digit engine floats still leak into a11y names and mobile DOM text); WW-087 (Workout overlay dialog has NO aria-label at 375x812 — owner provisional selector [role=dialog][aria-label='Workout'] unmatchable on this build); WW-096 (Mobile timer keypad digit keys (39x36px) and Nav/Keypad/Keys?/Values* toggles (19-22px tall) are below the 44px touch minimum at 375x812 (owner focus)); WW-097 (FOR TIME completed ladder: rep controls dead and footer target stale — 'Actual reps — / Target 21' after all 3 rungs complete)
 
 ### RUN-04 — RUN-04
 
 - **Domain**: `runtime` | **Priority**: `P2`
 - **Status**: `proposed` (open journey slot)
-- **Issues**: WW-066 (Cast to TV click with no receiver produces zero user-facing feedback — console-only failure)
+- **Issues**: WW-066 (Cast to TV click with no receiver produces zero user-facing feedback — console-only failure); WW-099 (/sessions stream blind to the sessions store — '0 of 0 · No completed session results recorded' + 'No source options are set for this route' while IndexedDB sessions=56 and PR Board renders those sessions' benchmark values)

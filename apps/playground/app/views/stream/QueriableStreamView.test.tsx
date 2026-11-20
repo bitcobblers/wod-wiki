@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test'
 import { render, screen, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react'
+import { EditorView } from '@codemirror/view'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { Entry } from '../../lib/entryMapper'
 import { StreamQueryEngine } from '../../lib/entrySearch'
@@ -1397,8 +1398,10 @@ describe('QueriableStreamView — query truth and retained state', () => {
       expect(screen.getByText('Workout 1')).toBeDefined()
     })
 
-    fireEvent.change(screen.getByPlaceholderText('Filter or search…'), {
-      target: { value: ':note{oops' },
+    fireEvent.click(screen.getByTestId('wql-scope-toggle'))
+    const cmInvalid = EditorView.findFromDOM(screen.getByTestId('wql-text-input'))!
+    act(() => {
+      cmInvalid.dispatch({ changes: { from: 0, to: cmInvalid.state.doc.length, insert: ':note{oops' } })
     })
 
     // Exact invalid draft: error surfaced, previous results retained under
@@ -1435,8 +1438,10 @@ describe('QueriableStreamView — query truth and retained state', () => {
 
     // A valid intermediate draft re-parses immediately but its run never
     // commits — the displayed grouping must stay the committed run's.
-    fireEvent.change(screen.getByPlaceholderText('Filter or search…'), {
-      target: { value: ':note' },
+    fireEvent.click(screen.getByTestId('wql-scope-toggle'))
+    const cmPending = EditorView.findFromDOM(screen.getByTestId('wql-text-input'))!
+    act(() => {
+      cmPending.dispatch({ changes: { from: 0, to: cmPending.state.doc.length, insert: ':note' } })
     })
 
     expect(screen.getByTestId('stream-query-status').textContent).toContain('by tag')

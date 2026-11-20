@@ -11,6 +11,7 @@ import { useAnalyticsUnitPreference } from '@bitcobblers/wod-wiki-ui';
 import {
   useActiveEditorBridge,
   useActiveExplorerBridge,
+  useActiveResultsBridge,
   useActiveStreamBridge,
   useSurfaceBusy,
 } from '@/agent/surfaceBridges';
@@ -39,6 +40,7 @@ import { requestAgentConfirmation } from './AgentConfirmHost';
 import { EditorAgentTools } from './EditorAgentTools';
 import { ExplorerAgentTools } from './ExplorerAgentTools';
 import { LiveClockAgentTools } from './LiveClockAgentTools';
+import { ResultsAgentTools } from './ResultsAgentTools';
 import { StreamAgentTools } from './StreamAgentTools';
 import { recordWebMcpToolInvocation, trackMountedWebMcpTool } from './toolLogStore';
 import { waitForUiCommit } from './uiCommit';
@@ -298,6 +300,7 @@ export const PlaygroundAgentProvider: React.FC = () => {
   const activeExplorer = useActiveExplorerBridge();
   const streamResults = useStreamResults();
   const activeEditor = useActiveEditorBridge();
+  const activeResults = useActiveResultsBridge();
   const activeClock = useSyncExternalStore(subscribeClock, getClockSnapshot, () => null);
   const { theme, setTheme } = useTheme();
   const audio = useAudioOptional();
@@ -622,6 +625,7 @@ export const PlaygroundAgentProvider: React.FC = () => {
       {activeStream && <StreamAgentTools stream={activeStream} />}
       {activeExplorer && <ExplorerAgentTools explorer={activeExplorer} />}
       {activeEditor && <EditorAgentTools editor={activeEditor} />}
+      {activeResults && <ResultsAgentTools results={activeResults} />}
       {activeClock && <LiveClockAgentTools clock={activeClock} />}
     </>
   );

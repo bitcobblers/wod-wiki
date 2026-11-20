@@ -581,14 +581,17 @@ arch:pkg_ui arch:exposesBoundary arch:boundary_ui_primitives .
 
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/blocks/QueryBlockView.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/blocks/RowsResultsChrome.tsx> .
+arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/blocks/SessionSummaryCard.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/blocks/WqlQueryInspectorModal.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/blocks/index.ts> .
+arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/ClauseIcon.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/ComposerRegistry.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/InlineClauseEditor.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/QueryObjectBuilder.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/QueryPalette.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/WqlComposer.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/WqlDiagnosticsStrip.tsx> .
+arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/WqlScopeMap.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/WqlTextEditor.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/clauseItems.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/clauseVocab.ts> .
@@ -598,8 +601,10 @@ arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/compos
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/index.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/queryAst.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/queryClauses.ts> .
+arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/queryZones.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/suggestionSources.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/useSuggestions.ts> .
+arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/useWqlComposerController.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/composer/useWqlStageCounts.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/contracts/dedupe.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/contracts/index.ts> .
@@ -656,6 +661,7 @@ arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widget
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/PRBadge.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/QueryValue.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/RangeSelector.tsx> .
+arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/ResultsSpreadsheetGrid.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/RowsTable.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/StackedBar.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/TopList.tsx> .
@@ -669,6 +675,7 @@ arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widget
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/chartData.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/chartPalette.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/index.ts> .
+arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/unitIntegrity.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/useAnalyticsQueries.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/useAnalyticsUnitPreference.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/useChartShape.ts> .

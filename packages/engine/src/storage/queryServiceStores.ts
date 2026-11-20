@@ -274,6 +274,9 @@ export function buildQueryServiceStoresFromStorage(
         ...(s.completed ? { completedAt: s.endTime } : {}),
         ...(typeof s.duration === 'number' ? { duration: s.duration } : {}),
         createdAt: s.createdAt,
+        ...(s.notebookIds ? { notebookIds: s.notebookIds } : {}),
+        ...(s.blockContentId ? { blockContentId: s.blockContentId } : {}),
+        ...(s.completed !== undefined ? { completed: s.completed } : {}),
       }));
     },
   };
@@ -292,4 +295,76 @@ export function buildQueryServiceStoresFromStorage(
   }
 
   return stores;
+}
+
+export interface BuildContextualPageSourceScope {
+  resultId?: string;
+  blockContentId?: string;
+  noteId?: string;
+  notebookSlug?: string;
+}
+
+/**
+ * Materialize contextual `@session`, `@block`, `@notebook`, and `@note` page
+ * datasets from `IStorage` for historical inspection pages (`/results/:id`)
+ * and workout-bound dashboards.
+ */
+export async function buildContextualPageSource(
+  storage: IStorage,
+  scope: BuildContextualPageSourceScope,
+): Promise<Map<string, { events: EventRecord[]; notes: Note[] }>> {
+  const result = new Map<string, { events: EventRecord[]; notes: Note[] }>();
+  const [allNotes, noteRecord] = await Promise.all([
+    scope.notebookSlug ? storage.readonly('notes').getAll() : Promise.resolve([] as Note[]),
+    scope.noteId ? storage.readonly('notes').get(scope.noteId) : Promise.resolve(undefined),
+  ]);
+
+  if (scope.resultId) {
+    const events = (await storage.readonly('events').getAll()).filter((e) => e.resultId === scope.resultId);
+    result.set('@session', {
+      events,
+      notes: noteRecord ? [noteRecord] : [],
+    });
+  }
+
+  if (scope.blockContentId) {
+    const events = (await storage.readonly('events').getAll()).filter(
+      (e) => e.blockContentId === scope.blockContentId,
+    );
+    result.set('@block', {
+      events,
+      notes: noteRecord ? [noteRecord] : [],
+    });
+  }
+
+  if (scope.noteId) {
+    const events = (await storage.readonly('events').getAll()).filter((e) => e.noteId === scope.noteId);
+    result.set('@note', {
+      events,
+      notes: noteRecord ? [noteRecord] : [],
+    });
+  }
+
+  if (scope.notebookSlug) {
+    const targetSlug = scope.notebookSlug.replace(/^notebook\//, '');
+    const targetId = `notebook/${targetSlug}`;
+    const nbNotes = allNotes.filter((n) => {
+      if (n.notebookId === targetId) return true;
+      if (n.notebookIds?.some((id) => id === targetId || id === targetSlug)) return true;
+      if (n.tags?.some((t) => t === `notebook:${targetSlug}` || t === targetId)) return true;
+      if (targetSlug === 'journal' && !n.feedOrigin && !n.feedSourceId && !n.sourcePath?.startsWith('markdown/') && n.type !== 'dashboard' && n.type !== 'playground') {
+        return !n.notebookId;
+      }
+      if (targetSlug === 'playground' && (n.sourceId === 'playground' || n.type === 'playground')) return true;
+      return n.sourceId?.startsWith(`notebook:${targetSlug}`) ?? false;
+    });
+    const noteIds = new Set(nbNotes.map((n) => n.id));
+    const events = (await storage.readonly('events').getAll()).filter((e) => noteIds.has(e.noteId));
+    result.set('@notebook', {
+      events,
+      notes: nbNotes,
+    });
+  }
+
+  return result;
 }

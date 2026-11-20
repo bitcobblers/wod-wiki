@@ -287,6 +287,9 @@ const LibraryHarness: React.FC = () => {
         query={wql}
         onQueryChange={setWql}
         execute={liveExecute}
+        compact
+        surface="popover"
+        showDiagnostics={false}
         hiddenClauseTypes={['source']}
       />
       <p className="text-[10px] text-muted-foreground">
@@ -317,6 +320,9 @@ const EffortsHarness: React.FC = () => {
         query={wql}
         onQueryChange={setWql}
         execute={liveExecute}
+        compact
+        surface="popover"
+        showDiagnostics={false}
         hiddenClauseTypes={['source']}
       />
       <p className="text-[10px] text-muted-foreground">
@@ -372,6 +378,8 @@ const ExplorerHarness: React.FC = () => {
         onQueryChange={setDraft}
         onValidationChange={(s) => setValid(s.valid)}
         onSubmit={(wql) => setLastRun(wql)}
+        surface="inline"
+        defaultExpanded
         actionLabel="Run"
         showDiagnostics={false}
         placeholder="agg:metric{filters} by {dims} .rollup(period)"
@@ -549,6 +557,9 @@ const PaletteHarness: React.FC = () => {
           initialQuery=":note last 2w"
           onQueryChange={setWql}
           execute={liveExecute}
+          diagnosticsPosition="top"
+          surface="sheet"
+          defaultExpanded
         />
       </div>
       <div className="font-mono text-[10px] text-muted-foreground">{wql || '—'}</div>
@@ -665,6 +676,105 @@ export const SegmentTraversalInteraction: Story = {
     await userEvent.click(canvas.getByTestId('wql-segment-previous'));
     await waitFor(async () => {
       await expect(canvas.getByTestId('wql-picker-search').getAttribute('aria-label')).toBe(initialLabel);
+    });
+  },
+};
+
+export const SingleBarScopeMapFlow: Story = {
+  render: () => (
+    <div className="max-w-3xl pb-80" data-testid="wql-single-bar-flow-story">
+      <WqlComposer
+        initialQuery=":note{tags:benchmark} last 8w"
+        compact
+        surface="popover"
+        showDiagnostics={false}
+        execute={liveExecute}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const storyRoot = canvas.getByTestId('wql-single-bar-flow-story');
+
+    await expect(storyRoot.querySelectorAll('[role="textbox"]').length).toBe(0);
+
+    await userEvent.click(canvas.getByTestId('wql-scope-toggle'));
+    await waitFor(async () => {
+      await expect(canvas.getByTestId('wql-scope-map')).toBeVisible();
+      await expect(storyRoot.querySelectorAll('[role="textbox"]').length).toBe(1);
+    });
+
+    for (const zone of ['what', 'where', 'when', 'group']) {
+      await expect(canvas.getByTestId(`wql-zone-${zone}`)).toBeVisible();
+    }
+
+    await userEvent.click(canvas.getByTestId('token-slot-tag'));
+    await waitFor(async () => {
+      await expect(canvas.getByTestId('wql-field-picker')).toBeVisible();
+    });
+
+    await userEvent.keyboard('{Escape}');
+    await waitFor(async () => {
+      await expect(canvas.queryByTestId('wql-field-picker')).not.toBeInTheDocument();
+      await expect(canvas.getByTestId('wql-scope-map')).toBeVisible();
+    });
+
+    await userEvent.click(canvas.getByTestId('wql-scope-close'));
+    await waitFor(async () => {
+      await expect(canvas.queryByTestId('wql-scope-map')).not.toBeInTheDocument();
+      await expect(storyRoot.querySelectorAll('[role="textbox"]').length).toBe(0);
+    });
+  },
+};
+
+const MobileSheetHideHarness: React.FC = () => {
+  const [view, setView] = useState<'results' | 'edit'>('results');
+  return (
+    <div className="w-[375px] max-w-full space-y-2 rounded-xl border border-border bg-card p-3" data-testid="wql-mobile-sheet-story">
+      <div className="inline-flex rounded-lg border border-border bg-muted/60 p-0.5" role="group" aria-label="Sheet view">
+        <button
+          type="button"
+          onClick={() => setView('edit')}
+          className={`min-h-11 rounded-md px-2.5 text-xs font-semibold ${view === 'edit' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+        >
+          Edit filter
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('results')}
+          className={`min-h-11 rounded-md px-2.5 text-xs font-semibold ${view === 'results' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+        >
+          Results
+        </button>
+      </div>
+      <WqlComposer
+        initialQuery=":note{notebook:journal} last 4w"
+        diagnosticsPosition="top"
+        surface="sheet"
+        defaultExpanded
+        hideScopeMap={view === 'results'}
+        execute={liveExecute}
+      />
+    </div>
+  );
+};
+
+export const MobileSheetHideScopeMap: Story = {
+  render: () => <MobileSheetHideHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const storyRoot = canvas.getByTestId('wql-mobile-sheet-story');
+
+    await waitFor(async () => {
+      await expect(canvas.getByTestId('wql-scope-map')).not.toBeVisible();
+      await expect(storyRoot.scrollWidth).toBeLessThanOrEqual(storyRoot.clientWidth + 1);
+    });
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Edit filter' }));
+    await waitFor(async () => {
+      await expect(canvas.getByTestId('wql-scope-map')).toBeVisible();
+      await expect(canvas.getByTestId('wql-zone-what')).toBeVisible();
+      await expect(storyRoot.scrollWidth).toBeLessThanOrEqual(storyRoot.clientWidth + 1);
     });
   },
 };

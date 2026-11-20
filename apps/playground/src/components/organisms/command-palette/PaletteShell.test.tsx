@@ -27,6 +27,7 @@
  */
 import { beforeAll, afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { EditorView } from '@codemirror/view'
 import { BrowserRouter, MemoryRouter, useLocation } from 'react-router-dom'
 import { usePaletteStore } from './palette-store'
 import type { PaletteItem, PaletteRequest, PaletteResponse } from './palette-types'
@@ -93,8 +94,24 @@ const paletteQuery = ':note'
 
 /** The dialog composer's free-text input (distinct placeholder keeps it
  *  unambiguous against any background page composer). */
+/** Find the visible input element inside the palette (CodeMirror WQL editor or Find input). */
 function findDraftInput() {
-  return screen.getByPlaceholderText('Search or edit WQL…')
+  return screen.queryByTestId('wql-text-input') ?? screen.getByTestId('palette-find-input')
+}
+
+function setDraftInput(value: string) {
+  const cmEl = screen.queryByTestId('wql-text-input')
+  if (cmEl) {
+    const view = EditorView.findFromDOM(cmEl)
+    if (!view) throw new Error('Expected CodeMirror EditorView for wql-text-input')
+    act(() => {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } })
+    })
+    return cmEl
+  }
+  const input = screen.getByTestId('palette-find-input')
+  fireEvent.change(input, { target: { value } })
+  return input
 }
 
 function renderShell() {
@@ -141,13 +158,10 @@ describe('PaletteShell WQL mode', () => {
       sources: [{ id: 'wql-search', search }],
     })
 
-    const input = findDraftInput()
     await waitFor(() => expect(search).toHaveBeenCalledWith(':note', { scopeWql: ':note' }))
 
-    // Typing re-runs the search with the pending text resolved as the same
-    // text filter Enter commits — bare concatenation is invalid WQL and
-    // would blank the results instead of narrowing them.
-    fireEvent.change(input, { target: { value: 'fran' } })
+    // Typing structured WQL re-runs the search synchronously through the composer.
+    setDraftInput(':note{text:fran}')
     await waitFor(() => expect(search).toHaveBeenCalledWith(':note{text:fran}', { scopeWql: ':note{text:fran}' }), { timeout: 1_000 })
   })
 
@@ -160,13 +174,12 @@ describe('PaletteShell WQL mode', () => {
       sources: [{ id: 'wql-search', search }],
     })
 
-    const input = findDraftInput()
     await screen.findByTestId('wql-composer')
     search.mockClear()
 
     // Type and click Apply synchronously — the action must receive the
     // current draft, not the seeded one.
-    fireEvent.change(input, { target: { value: 'tags:crossfit' } })
+    setDraftInput(':note{tags:crossfit}')
     fireEvent.click(screen.getByTestId('palette-apply-query'))
 
     expect(onApply).toHaveBeenCalledTimes(1)
@@ -189,7 +202,7 @@ describe('PaletteShell WQL mode', () => {
     search.mockClear()
 
     // An invalid draft never executes: sources keep the previous results.
-    fireEvent.change(findDraftInput(), { target: { value: ':note{oops' } })
+    setDraftInput(':note{oops')
     await act(async () => {})
     expect(search).not.toHaveBeenCalled()
     expect(screen.getByText('Fran')).toBeDefined()
@@ -247,9 +260,8 @@ describe('PaletteShell WQL mode', () => {
       sources: [{ id: 'wql-search', search }],
     })
 
-    const input = findDraftInput()
-    // Compose: free text + Enter commits a text clause (no result activation).
-    fireEvent.change(input, { target: { value: 'fran' } })
+    // Compose: WQL text filter commits a text clause (no result activation).
+    const input = setDraftInput(':note{text:fran}')
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(screen.getByTestId('token-slot-text').textContent).toContain('fran')
     await waitFor(() => expect(search).toHaveBeenCalledWith(':note{text:fran}', { scopeWql: ':note{text:fran}' }))
@@ -379,10 +391,10 @@ describe('PaletteShell Find mode (plain text default)', () => {
     const chip = screen.getByTestId('palette-mode')
     expect(chip.textContent).toBe('Find')
     expect(chip.getAttribute('aria-pressed')).toBe('false')
-    // The composer's WQL error fallback (role="alert") is CSS-suppressed in
-    // Find mode — jsdom applies no styles, so assert the scoping class.
-    const wrapper = screen.getByTestId('palette-composer')
-    expect(wrapper.className).toContain('[&_[role=alert]]:hidden')
+    // Find mode cleanly separates from WQL mode: Find input renders, no WQL composer or Invalid alerts
+    expect(screen.getByTestId('palette-find-input')).toBeDefined()
+    expect(screen.queryByTestId('palette-composer')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it("keeps ':'-prefixed drafts in WQL mode: diagnostics, stale badge, canceled search", async () => {
@@ -404,7 +416,7 @@ describe('PaletteShell Find mode (plain text default)', () => {
     // Mid-edit WQL (':journal{') is WQL intent: today's behavior (stale
     // badge, Invalid diagnostics, no re-search, previous results retained).
     search.mockClear()
-    fireEvent.change(findDraftInput(), { target: { value: ':journal{' } })
+    setDraftInput(':journal{')
 
     await screen.findByTestId('palette-stale')
     expect(screen.getByTestId('wql-validity-badge').getAttribute('data-valid')).toBe('false')
@@ -538,5 +550,60 @@ describe('PaletteShell mobile keyboard adaptation', () => {
     expect(content.style.getPropertyValue('--palette-max-h')).toBe('380px')
     // The keyboard offset already clears the safe area — no extra padding.
     expect(footer.style.paddingBottom).toBe('0.5rem')
+  })
+
+  it('stashes structured WQL when switching WQL -> Find, shows dismissible scope chip, and restores on Find -> WQL', async () => {
+    const search = mock(async (_q: string, _opts?: { scopeWql?: string }): Promise<PaletteItem[]> => [
+      { id: 'entry:1', label: 'Fran', type: 'entry', payload: { id: 'entry:1' } },
+    ])
+    renderShell()
+    void openPalette({
+      wql: { initialQuery: ':effort{tags:crossfit}', execute, scopeLabel: 'Efforts · crossfit' },
+      sources: [{ id: 'wql-search', search }],
+    })
+
+    await screen.findByTestId('wql-composer')
+    fireEvent.click(screen.getByTestId('palette-mode'))
+
+    // Switched to Find mode: plain input appears, dismissible scope chip preserves active stream scope
+    const findInput = screen.getByTestId('palette-find-input') as HTMLInputElement
+    expect(findInput.value).toBe('')
+    expect(screen.getByTestId('palette-scope-chip').textContent).toContain('Efforts')
+
+    // Clearing the scope chip drops scopeWql on subsequent searches
+    search.mockClear()
+    fireEvent.click(screen.getByTestId('palette-scope-clear'))
+    expect(screen.queryByTestId('palette-scope-chip')).toBeNull()
+    await waitFor(() => expect(search).toHaveBeenCalledWith(''))
+
+    // Flipping WQL -> Find -> WQL before clearing keeps structured WQL when empty; typing ':' switches immediately
+    fireEvent.change(findInput, { target: { value: ':note' } })
+    expect(screen.getByTestId('palette-mode').textContent).toBe('WQL')
+    await screen.findByTestId('wql-composer')
+  })
+
+  it('renders a unique Command Palette dialog and toggles mobile WQL view between Results and Edit filter', async () => {
+    const search = mock(async (_q: string): Promise<PaletteItem[]> => [
+      { id: 'entry:1', label: 'Fran', type: 'entry', payload: { id: 'entry:1' } },
+    ])
+    renderShell()
+    void openPalette({
+      wql: { initialQuery: ':note{}', execute },
+      sources: [{ id: 'wql-search', search }],
+    })
+
+    await screen.findByText('Fran')
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+
+    const toggle = screen.getByTestId('palette-mobile-view-toggle')
+    const editBtn = Array.from(toggle.querySelectorAll('button')).find((b) => b.textContent?.includes('Edit filter'))!
+    const resultsBtn = Array.from(toggle.querySelectorAll('button')).find((b) => b.textContent?.includes('Results'))!
+
+    fireEvent.click(editBtn)
+    expect(screen.queryByRole('listbox')).toBeNull()
+
+    fireEvent.click(resultsBtn)
+    await screen.findByRole('listbox')
+    expect(screen.getByText('Fran')).toBeDefined()
   })
 })

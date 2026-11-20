@@ -236,7 +236,7 @@ describe('resolveRouteView — notebook index nav', () => {
 
 describe('resolveRouteView — stream list routes', () => {
   it('maps every library list route directly to the library page', () => {
-    for (const route of ['/journal', '/notes', '/notebooks', '/feeds', '/pages', '/efforts', '/results/res-42']) {
+    for (const route of ['/journal', '/notes', '/notebooks', '/feeds', '/pages', '/efforts']) {
       const view = resolveRouteView(route, NO_PARAMS, makeDeps())
       expect(view.page).toBe('library')
       expect(view.shell).toEqual({ wrap: 'bare' })
@@ -272,7 +272,7 @@ describe('resolveRouteView — stream list routes', () => {
 
   it('classifies execution telemetry routes (/results/:resultId canonical detail)', () => {
     const detailView = resolveRouteView('/results/res-42', NO_PARAMS, makeDeps())
-    expect(detailView.page).toBe('library')
+    expect(detailView.page).toBe('sessionResults')
     expect(detailView.workout.name).toBe('Result')
   })
 
@@ -384,7 +384,7 @@ describe('resolveRouteView — canonical direct routes (/notebook, /effort, /das
     expect(listing.workout.name).toBe('Sessions')
 
     const detail = resolveRouteView('/results/res-42', NO_PARAMS, makeDeps())
-    expect(detail.page).toBe('library')
+    expect(detail.page).toBe('sessionResults')
     expect(detail.workout.name).toBe('Result')
 
     const byDate = resolveRouteView('/session/2026-09-17', NO_PARAMS, makeDeps())

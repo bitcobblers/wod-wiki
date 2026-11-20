@@ -184,6 +184,40 @@ describe('SecondaryNav on home page', () => {
     expect(screen.getByText('On this page')).toBeTruthy();
     expect(screen.getByText('Welcome')).toBeTruthy();
   });
+
+  it('renders 12px section headings in SecondaryNav without 10px labels', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <NuqsAdapter>
+          <NavContext.Provider
+            value={{
+              tree: [],
+              navState: initialNavState,
+              dispatch: () => {},
+              l3Items: HOME_OUTLINE,
+              setL3Items: () => {},
+              l3Actions: [{ id: 'clone', label: 'Clone', onRun: () => {} }],
+              setL3Actions: () => {},
+              secondarySpec: undefined,
+              setSecondarySpec: () => {},
+              setStreamControls: () => {},
+              scrollToSection: () => {},
+              registerScrollFn: () => {},
+              openCreateJournal: () => {},
+              registerCreateJournal: () => {},
+              setContextNav: () => {},
+            }}
+          >
+            <SecondaryNav />
+          </NavContext.Provider>
+        </NuqsAdapter>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('On this page').className).toContain('text-xs');
+    expect(screen.getByText('Actions').className).toContain('text-xs');
+    expect(screen.getByRole('button', { name: 'Clone' }).className).toContain('max-lg:min-h-11');
+  });
 });
 
 describe('deriveNav for home route', () => {

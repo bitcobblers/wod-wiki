@@ -3,10 +3,11 @@ import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePe
 import { StorageService } from '@/services/storage/StorageService';
 import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
-import { captureMetricCorrection } from './captureMetricCorrection';
+import { captureMetricCorrection, clearMetricCorrection } from './captureMetricCorrection';
 import { MetricType } from '@bitcobblers/wod-wiki-engine';
 import type { EventRecord, Session } from '@/types/storage';
 import { NotePersistenceError } from '@/services/persistence/types';
+import { onResultSaved } from '@/services/resultRecorder';
 
 const T0 = 1_700_000_000_000;
 const source = '```time:crossfit\n21 Deadlift 60kg\n```';
@@ -127,5 +128,48 @@ describe('captureMetricCorrection', () => {
     const persistence = new UnavailableReplay(storage);
     expect(await correct({ storage, persistence }, 17)).toBe('captured-no-rederive');
     expect(userRep((await storage.getEventsByResult(result.id))[0].metrics)).toMatchObject({ value: 17 });
+  });
+
+  it('clearMetricCorrection removes user overrides, retains planned/runtime metrics, rederives, and emits onResultSaved', async () => {
+    const { storage, persistence } = await harness();
+    expect(await correct({ storage, persistence }, 17)).toBe('captured');
+
+    const notifications: string[] = [];
+    const unsub = onResultSaved((saved) => notifications.push(saved.id));
+    try {
+      const outcome = await clearMetricCorrection(
+        {
+          resultId: result.id,
+          occurrence: { blockKey: 'block-1', sourceStatementId: 3, stackLevel: 0 },
+          metricType: MetricType.Rep,
+        },
+        { storage, persistence },
+      );
+      expect(outcome).toBe('captured');
+
+      const events = await storage.getEventsByResult(result.id);
+      const seg = events.find((row) => row.outputType === 'segment');
+      expect(seg).toBeDefined();
+      expect(userRep(seg!.metrics)).toBeUndefined();
+      // Planned target + runtime/parser metrics survive
+      expect(seg!.metrics.find((m) => m.type === MetricType.Rep && m.origin === 'parser')).toMatchObject({ value: 21 });
+      expect(seg!.metrics.find((m) => m.type === 'elapsed')).toMatchObject({ value: 30_000 });
+      expect(seg!.metricTemporal).toHaveLength(seg!.metrics.length);
+      expect(notifications).toContain(result.id);
+
+      // Clearing a second time returns not-found
+      expect(
+        await clearMetricCorrection(
+          {
+            resultId: result.id,
+            occurrence: { blockKey: 'block-1', sourceStatementId: 3, stackLevel: 0 },
+            metricType: MetricType.Rep,
+          },
+          { storage, persistence },
+        ),
+      ).toBe('not-found');
+    } finally {
+      unsub();
+    }
   });
 });

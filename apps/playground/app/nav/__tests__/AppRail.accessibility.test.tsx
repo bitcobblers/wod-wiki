@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from 'bun:test';
-import { cleanup, render } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AppRail } from '../AppRail';
 import { NavProvider } from '../NavContext';
+import { NavigationDrawerProvider } from '../NavigationDrawerContext';
 import { appNavTree } from '../appNavTree';
 
 afterEach(() => {
@@ -41,8 +42,8 @@ describe('AppRail accessibility', () => {
     expect(homeBtn).not.toBeNull();
   });
 
-  it('renders every primary library destination with an accessible label and active highlight', () => {
-    const { getByRole } = render(
+  it('renders every primary library destination with an accessible label, single Home button, and active highlight', () => {
+    const { container, getByRole, getByTestId } = render(
       <MemoryRouter initialEntries={['/']}>
         <NavProvider tree={appNavTree}>
           <AppRail onSearch={() => {}} />
@@ -50,15 +51,77 @@ describe('AppRail accessibility', () => {
       </MemoryRouter>,
     );
 
+    expect(container.querySelectorAll('[data-testid="nav-l1-home"]')).toHaveLength(1);
+
     const primary = getByRole('navigation', { name: 'Primary' });
     const buttons = Array.from(primary.querySelectorAll('button'));
     const labels = buttons.map(b => b.getAttribute('aria-label'));
 
-    expect(labels).toEqual(['Home', 'Journal', 'Notebooks', 'Pages', 'Efforts', 'Equipment', 'Tags', 'Dashboards', 'Sessions']);
+    expect(labels).toEqual(['Journal', 'Notebooks', 'Pages', 'Efforts', 'Equipment', 'Tags', 'Dashboards', 'Sessions']);
 
-    const homeBtn = primary.querySelector('button[aria-label="Home"]');
-    expect(homeBtn).not.toBeNull();
-    expect(homeBtn?.getAttribute('aria-current')).toBe('page');
-    expect(homeBtn?.className).toContain('bg-primary/10');
+    const homeBtn = getByTestId('nav-l1-home');
+    expect(homeBtn.getAttribute('aria-label')).toBe('Wod Wiki home');
+    expect(homeBtn.getAttribute('aria-current')).toBe('page');
+    expect(homeBtn.className).toContain('bg-primary/10');
+  });
+
+  it('renders visible labels, >=44px rows, and no floating tooltips in mobile-list mode', () => {
+    const { container, getByTestId } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <NavProvider tree={appNavTree}>
+          <AppRail variant="mobile-list" onSearch={() => {}} />
+        </NavProvider>
+      </MemoryRouter>,
+    );
+
+    expect(container.querySelectorAll('[role="tooltip"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-testid="nav-l1-home"]')).toHaveLength(1);
+
+    const controls = Array.from(container.querySelectorAll('button, a'));
+    expect(controls.length).toBeGreaterThan(0);
+    for (const el of controls) {
+      expect(el.className).toContain('min-h-11');
+      expect(el.textContent?.trim()).toBeTruthy();
+    }
+
+    for (const [testId, expectedText] of [
+      ['nav-l1-home', 'Home'],
+      ['nav-l1-journal', 'Journal'],
+      ['nav-l1-notebooks', 'Notebooks'],
+      ['nav-l1-pages', 'Pages'],
+      ['nav-l1-efforts', 'Efforts'],
+      ['nav-l1-equipment', 'Equipment'],
+      ['nav-l1-tags', 'Tags'],
+      ['nav-l1-dashboards', 'Dashboards'],
+      ['nav-l1-sessions', 'Sessions'],
+      ['nav-l1-search', 'Search'],
+      ['nav-profile', 'Profile'],
+      ['nav-settings', 'Settings'],
+    ] as const) {
+      expect(getByTestId(testId).textContent).toContain(expectedText);
+    }
+
+    const homeBtn = getByTestId('nav-l1-home');
+    expect(homeBtn.getAttribute('aria-current')).toBe('page');
+    expect(homeBtn.className).toContain('bg-primary/10');
+  });
+
+  it('keeps MobileSidebar open when tapping an inactive L1 section with an L2 panel and closes on active/Settings tap', () => {
+    const closeSpy = vi.fn();
+    const { getByTestId } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <NavProvider tree={appNavTree}>
+          <NavigationDrawerProvider close={closeSpy}>
+            <AppRail variant="mobile-list" onSearch={() => {}} />
+          </NavigationDrawerProvider>
+        </NavProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(getByTestId('nav-l1-notebooks'));
+    expect(closeSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(getByTestId('nav-settings'));
+    expect(closeSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -23,6 +23,9 @@ import { parseDocument, type ParsedDocument, type QueryDocument, type DocumentAs
 
 // ── Formula evaluation ──────────────────────────────────────────────────
 
+/** Position key for pointwise series & formula alignment (`ts` for time, `x` for ordinal/category). */
+export type PointwisePosition = number | string;
+
 /** Presence provenance of one operand value at one aligned position. */
 export interface OperandValue {
     value: number;
@@ -30,7 +33,7 @@ export interface OperandValue {
     missingDerived: boolean;
 }
 
-export type PointwiseInputs = Record<string, (position: number) => OperandValue | undefined>;
+export type PointwiseInputs = Record<string, (position: PointwisePosition) => OperandValue | undefined>;
 
 export interface FormulaEvaluation {
     value: number;
@@ -44,12 +47,12 @@ export interface FormulaEvaluator {
      * assignment names to position accessors; a missing operand is `undefined`
      * (the evaluator substitutes zero and flags the result).
      */
-    evaluate(expression: string, inputs: PointwiseInputs, position: number): FormulaEvaluation;
+    evaluate(expression: string, inputs: PointwiseInputs, position: PointwisePosition): FormulaEvaluation;
 }
 
 /** Built-in pointwise arithmetic evaluator (+ - * /, unary minus, corr-free). */
 export function createBuiltinFormulaEvaluator(): FormulaEvaluator {
-    const evalExpr = (expr: string, inputs: PointwiseInputs, position: number): FormulaEvaluation => {
+    const evalExpr = (expr: string, inputs: PointwiseInputs, position: PointwisePosition): FormulaEvaluation => {
         const trimmed = expr.trim();
 
         // Parenthesized group.
@@ -169,7 +172,14 @@ export interface DocumentOutput {
     groupBy?: string[];
     window?: QueryWindow;
     /** Series for aggregate and formula outputs. */
-    series?: Array<{ key: string; label: string; points: Array<{ ts: number; value: number; missing?: boolean; missingDerived?: boolean }>; unit?: string }>;
+    series?: Array<{
+        key: string;
+        label: string;
+        points: Array<{ ts: number; x?: number | string; label?: string; value: number; missing?: boolean; missingDerived?: boolean }>;
+        unit?: string;
+        axisKind?: 'time' | 'ordinal' | 'category';
+        axisDimension?: string;
+    }>;
     /** Formula provenance: pair counts for corr, coverage notes. */
     pairs?: number;
     /** Content-plane payloads (find / find-source pipeline outputs). */
@@ -248,7 +258,7 @@ export class QueryDocumentRunner {
         const doc: QueryDocument = parsed.doc;
         const outputs: DocumentOutput[] = [];
 
-        const values = new Map<string, { byPosition: Map<number, OperandValue>; unit?: string; groupKeys: string[]; isScalar: boolean }>();
+        const values = new Map<string, { byPosition: Map<PointwisePosition, OperandValue>; unit?: string; groupKeys: string[]; isScalar: boolean; pointLabels: Map<PointwisePosition, { ts: number; x?: number | string; label?: string }> }>();
         const findPayloads = new Map<string, { payload: FamilyRunPayload; queryText: string }>();
         const evaluate = async (assignment: DocumentAssignment): Promise<void> => {
             if (assignment.kind === 'query') {
@@ -311,10 +321,17 @@ export class QueryDocumentRunner {
                         };
                     }
                     // A numeric pipeline stage feeds downstream formulas.
-                    const byPosition = new Map<number, OperandValue>();
+                    const byPosition = new Map<PointwisePosition, OperandValue>();
+                    const pointLabels = new Map<PointwisePosition, { ts: number; x?: number | string; label?: string }>();
                     for (const s of pipelineRun.series ?? []) {
                         for (const point of s.points) {
-                            if (!point.missing) byPosition.set(point.ts, { value: point.value, missingDerived: false });
+                            const pos: PointwisePosition = point.x !== undefined ? point.x : point.ts;
+                            pointLabels.set(pos, {
+                                ts: point.ts,
+                                ...(point.x !== undefined ? { x: point.x } : {}),
+                                ...(point.label !== undefined ? { label: point.label } : {}),
+                            });
+                            if (!point.missing) byPosition.set(pos, { value: point.value, missingDerived: false });
                         }
                     }
                     const lastTransform = assignment.parsed?.family === 'pipeline'
@@ -324,6 +341,7 @@ export class QueryDocumentRunner {
                     if (byPosition.size > 0) {
                         values.set(assignment.name, {
                             byPosition,
+                            pointLabels,
                             unit: pipelineRun.unit,
                             groupKeys: (pipelineRun.series ?? []).map((s) => s.key),
                             isScalar: !hasBuckets && byPosition.size === 1,
@@ -352,17 +370,25 @@ export class QueryDocumentRunner {
                 });
                 const series = run.series ?? [];
                 // Record positions for downstream formulas.
-                const byPosition = new Map<number, OperandValue>();
+                const byPosition = new Map<PointwisePosition, OperandValue>();
+                const pointLabels = new Map<PointwisePosition, { ts: number; x?: number | string; label?: string }>();
                 for (const s of series) {
                     for (const point of s.points) {
+                        const pos: PointwisePosition = point.x !== undefined ? point.x : point.ts;
+                        pointLabels.set(pos, {
+                            ts: point.ts,
+                            ...(point.x !== undefined ? { x: point.x } : {}),
+                            ...(point.label !== undefined ? { label: point.label } : {}),
+                        });
                         if (!point.missing) {
-                            byPosition.set(point.ts, { value: point.value, missingDerived: false });
+                            byPosition.set(pos, { value: point.value, missingDerived: false });
                         }
                     }
                 }
                 const hasBuckets = Boolean((merged.groupBy && merged.groupBy.length > 0) || (assignment.parsed?.family === 'aggregate' && assignment.parsed.rollup));
                 values.set(assignment.name, {
                     byPosition,
+                    pointLabels,
                     unit: run.unit,
                     groupKeys: series.map((s) => s.key),
                     isScalar: !hasBuckets && byPosition.size === 1,
@@ -382,7 +408,8 @@ export class QueryDocumentRunner {
             // Formula — pointwise over the union of the inputs' positions.
             const formula = assignment.formula!;
             const inputs: PointwiseInputs = {};
-            const positions = new Set<number>();
+            const positions = new Set<PointwisePosition>();
+            const mergedLabels = new Map<PointwisePosition, { ts: number; x?: number | string; label?: string }>();
             // Series operands are inputs not flagged scalar — trust isScalar
             // metadata, not point count (a grouped one-point series is a
             // series, never a broadcast scalar).
@@ -402,6 +429,9 @@ export class QueryDocumentRunner {
                 if (!input.isScalar) {
                     for (const position of input.byPosition.keys()) positions.add(position);
                 }
+                for (const [pos, meta] of input.pointLabels) {
+                    if (!mergedLabels.has(pos)) mergedLabels.set(pos, meta);
+                }
                 inputs[ref] = (position) => input.byPosition.get(position) ?? scalarFallback;
             }
             if (positions.size === 0 && formula.references.length > 0) {
@@ -409,14 +439,14 @@ export class QueryDocumentRunner {
                 // aligns to one point — the first reference's timestamp — and
                 // empty operands never block the result domain.
                 for (const ref of formula.references) {
-                    const anchorTs = [...(values.get(ref)?.byPosition.keys() ?? [])][0];
-                    if (anchorTs !== undefined) {
-                        positions.add(anchorTs);
+                    const anchorPos = [...(values.get(ref)?.byPosition.keys() ?? [])][0];
+                    if (anchorPos !== undefined) {
+                        positions.add(anchorPos);
                         break;
                     }
                 }
             }
-            const byPosition = new Map<number, OperandValue>();
+            const byPosition = new Map<PointwisePosition, OperandValue>();
             let error: string | undefined;
             let pairCount: number | undefined;
             if (formula.expression.startsWith('corr(') && formula.expression.endsWith(')')) {
@@ -440,7 +470,7 @@ export class QueryDocumentRunner {
                         name: assignment.name, kind: 'formula', pairs: pairCount,
                         error: 'corr needs at least two paired positions',
                     });
-                    values.set(assignment.name, { byPosition: new Map(), groupKeys: [], isScalar: false });
+                    values.set(assignment.name, { byPosition: new Map(), pointLabels: new Map(), groupKeys: [], isScalar: false });
                     return;
                 }
                 const mean = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
@@ -457,17 +487,21 @@ export class QueryDocumentRunner {
                         name: assignment.name, kind: 'formula', pairs: pairCount,
                         error: 'corr is undefined for zero-variance inputs',
                     });
-                    values.set(assignment.name, { byPosition: new Map(), groupKeys: [], isScalar: false });
+                    values.set(assignment.name, { byPosition: new Map(), pointLabels: new Map(), groupKeys: [], isScalar: false });
                     return;
                 }
                 const value = cov / Math.sqrt(va * vb);
                 byPosition.set(0, { value, missingDerived: false });
                 outputs.push({ name: assignment.name, kind: 'formula', pairs: pairCount, series: [{ key: 'corr', label: 'corr', points: [{ ts: 0, value }] }] });
-                values.set(assignment.name, { byPosition, groupKeys: ['corr'], isScalar: true });
+                values.set(assignment.name, { byPosition, pointLabels: new Map([[0, { ts: 0 }]]), groupKeys: ['corr'], isScalar: true });
                 return;
             }
 
-            for (const position of [...positions].sort((a, b) => a - b)) {
+            const sortedPositions = [...positions].sort((a, b) => {
+                if (typeof a === 'number' && typeof b === 'number') return a - b;
+                return String(a).localeCompare(String(b), undefined, { numeric: true });
+            });
+            for (const position of sortedPositions) {
                 const evaluation = this.evaluator.evaluate(formula.expression, inputs, position);
                 if (evaluation.error) {
                     error = evaluation.error;
@@ -478,13 +512,18 @@ export class QueryDocumentRunner {
             const series = [{
                 key: assignment.name,
                 label: assignment.name,
-                points: [...byPosition.entries()].map(([ts, v]) => ({
-                    ts,
-                    value: v.value,
-                    ...(v.missingDerived ? { missingDerived: true } : {}),
-                })),
+                points: [...byPosition.entries()].map(([pos, v], idx) => {
+                    const meta = mergedLabels.get(pos);
+                    return {
+                        ts: meta?.ts ?? (typeof pos === 'number' ? pos : idx),
+                        ...(meta?.x !== undefined ? { x: meta.x } : typeof pos === 'string' ? { x: pos } : {}),
+                        ...(meta?.label !== undefined ? { label: meta.label } : {}),
+                        value: v.value,
+                        ...(v.missingDerived ? { missingDerived: true } : {}),
+                    };
+                }),
             }];
-            values.set(assignment.name, { byPosition, unit: formula.unit, groupKeys: [assignment.name], isScalar: seriesRefs.length === 0 && byPosition.size === 1 });
+            values.set(assignment.name, { byPosition, pointLabels: mergedLabels, unit: formula.unit, groupKeys: [assignment.name], isScalar: seriesRefs.length === 0 && byPosition.size === 1 });
             outputs.push({
                 name: assignment.name,
                 kind: 'formula',

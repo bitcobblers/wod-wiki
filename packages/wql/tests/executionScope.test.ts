@@ -180,7 +180,7 @@ describe('WQL-1 resolveQueryExecutionScope', () => {
 
 describe('WQL-1 @note standard dataset', () => {
   it('is a member of WQL_STANDARD_DATASETS in canonical order', () => {
-    expect(WQL_STANDARD_DATASETS).toEqual(['@session', '@today', '@note']);
+    expect(WQL_STANDARD_DATASETS).toEqual(['@session', '@today', '@note', '@block', '@notebook']);
   });
 
   it('parses as a dataset pipeline source', () => {

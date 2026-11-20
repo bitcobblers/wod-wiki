@@ -143,7 +143,13 @@ function serializeFilters(filters: TagFilter[]): string {
         return `$${p}`;
       }
       return `${f.negate ? '!' : ''}${f.key}:${f.values
-        .map((v) => (v.param ? `$${v.param}` : serializeValue(v.value) + (v.wildcard ? '*' : '')))
+        .map((v) =>
+          v.param
+            ? `$${v.param}`
+            : v.wildcard && v.value === ''
+              ? '*'
+              : serializeValue(v.value) + (v.wildcard ? '*' : ''),
+        )
         .join('|')}`;
     })
     .join(',');

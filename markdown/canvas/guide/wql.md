@@ -9,7 +9,7 @@ description: "The workout query language — aggregates, filters, rollups, and p
 
 # Query Your Training (WQL) {sticky dark full-bleed}
 
-WQL (Wod Query Language) queries your journal across two planes: numeric **facts** the clock recorded, and the markdown **content** those facts came from. The panel on the right is a live query sandbox: the ```query block renders real results, and editing the query line re-runs it as you type — switch presets with the tabs as each section loads them.
+WQL (Wod Query Language) queries your journal across two planes: numeric **facts** the clock recorded, and the markdown **content** those facts came from. The live panel is an interactive query sandbox: the ```query block renders real results, and editing the query line re-runs it as you type — switch presets with the tabs as each section loads them.
 
 ```view
 name:    sandbox
