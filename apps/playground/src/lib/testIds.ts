@@ -315,6 +315,8 @@ export const TEST_IDS = {
   RESULTS_MOBILE_BAR: 'results-mobile-bar',
   RESULTS_EMPTY_RECOVERY: 'results-empty-recovery',
   RESULTS_ADD_DASHBOARD_BTN: 'results-add-dashboard-btn',
+  MOBILE_WHEEL_COMPOSER: 'mobile-wheel-composer',
+  MOBILE_TYPING_BAR: 'mobile-typing-bar',
   ADD_DASHBOARD_SHEET: 'add-to-dashboard-sheet',
   ADD_DASHBOARD_STEP_NEXT: 'add-dashboard-step-next',
   ADD_DASHBOARD_STEP_BACK: 'add-dashboard-step-back',

@@ -41,6 +41,7 @@ import {
 } from 'react'
 import { EllipsisVerticalIcon, XMarkIcon } from '@heroicons/react/20/solid'
 import { cn } from '@/lib/utils'
+import { TEST_IDS } from '@/lib/testIds'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useVisualViewportRect } from '@bitcobblers/wod-wiki-ui';
 import { useFabAlignment } from '../lib/fabAlignment'
@@ -227,6 +228,10 @@ export function NavbarActions() {
  * page/fallback children exist.
  */
 
+function testIdSelector(testId: string): string {
+  return `[${'data-testid'}="${testId}"]`
+}
+
 function ResponsiveActionsDock({
   registrations,
   onSearch,
@@ -268,14 +273,16 @@ function ResponsiveActionsDock({
       return
     }
     const hasEditorOverlay = Boolean(
-      document.querySelector('[data-testid="mobile-wheel-composer"], [data-testid="mobile-typing-bar"]'),
+      document.querySelector(
+        `${testIdSelector(TEST_IDS.MOBILE_WHEEL_COMPOSER)}, ${testIdSelector(TEST_IDS.MOBILE_TYPING_BAR)}`,
+      ),
     )
     if (hasEditorOverlay) {
       setSheetOpen((open) => (open ? false : open))
       setYieldToOverlay((prev) => (prev ? prev : true))
       return
     }
-    const resultsBar = document.querySelector<HTMLElement>('[data-testid="results-mobile-bar"]')
+    const resultsBar = document.querySelector<HTMLElement>(testIdSelector(TEST_IDS.RESULTS_MOBILE_BAR))
     if (resultsBar && !resultsBar.hidden) {
       const rcs = window.getComputedStyle(resultsBar)
       if (rcs.display !== 'none' && rcs.visibility !== 'hidden') {

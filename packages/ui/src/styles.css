@@ -229,9 +229,9 @@
   --font-serif: Newsreader, "Instrument Serif", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --breakpoint-xl: 1280px;
-  --breakpoint-2xl: 1520px;
-  --breakpoint-3xl: 1800px;
+  --breakpoint-xl: 80rem;
+  --breakpoint-2xl: 95rem;
+  --breakpoint-3xl: 112.5rem;
 
   --tracking-display: -0.08em;
   --tracking-heading: -0.05em;
