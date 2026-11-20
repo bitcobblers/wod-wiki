@@ -53,17 +53,17 @@ function createReference(markdown: string, docsPath: string): SyntaxGuideReferen
 
 /** Map of reference key → the canvas syntax page it derives from. */
 const REFERENCE_SOURCES: Record<string, { path: string; docsPath: string }> = {
-  coreRules: { path: 'markdown/canvas/syntax/core-rules.md', docsPath: '/guide/start?h=first-workout' },
-  measurements: { path: 'markdown/canvas/syntax/measurements.md', docsPath: '/guide/start?h=measurements' },
-  timerModifiers: { path: 'markdown/canvas/syntax/timer-modifiers.md', docsPath: '/guide/protocols?h=countdown-countup' },
-  simpleRounds: { path: 'markdown/canvas/syntax/groups-1.md', docsPath: '/guide/structure?h=rounds' },
-  repSchemes: { path: 'markdown/canvas/syntax/groups-2.md', docsPath: '/guide/structure?h=rep-schemes' },
-  timersAndRest: { path: 'markdown/canvas/syntax/timers-rest.md', docsPath: '/guide/protocols?h=required-rest' },
-  classicAmrap: { path: 'markdown/canvas/syntax/classic-amrap.md', docsPath: '/guide/protocols?h=amrap' },
-  basicEmom: { path: 'markdown/canvas/syntax/basic-emom.md', docsPath: '/guide/protocols?h=emom' },
-  standardTabata: { path: 'markdown/canvas/syntax/protocols-4.md', docsPath: '/guide/protocols?h=tabata-intervals' },
-  mixedSections: { path: 'markdown/canvas/syntax/mixed-sections.md', docsPath: '/guide/structure?h=named-sections' },
-  complexNestedProtocols: { path: 'markdown/canvas/syntax/complex-nested-protocols.md', docsPath: '/guide/sessions?h=nested' },
+  coreRules: { path: 'markdown/canvas/syntax/core-rules.md', docsPath: '/page/guide-start?h=first-workout' },
+  measurements: { path: 'markdown/canvas/syntax/measurements.md', docsPath: '/page/guide-start?h=measurements' },
+  timerModifiers: { path: 'markdown/canvas/syntax/timer-modifiers.md', docsPath: '/page/guide-protocols?h=countdown-countup' },
+  simpleRounds: { path: 'markdown/canvas/syntax/groups-1.md', docsPath: '/page/guide-structure?h=rounds' },
+  repSchemes: { path: 'markdown/canvas/syntax/groups-2.md', docsPath: '/page/guide-structure?h=rep-schemes' },
+  timersAndRest: { path: 'markdown/canvas/syntax/timers-rest.md', docsPath: '/page/guide-protocols?h=required-rest' },
+  classicAmrap: { path: 'markdown/canvas/syntax/classic-amrap.md', docsPath: '/page/guide-protocols?h=amrap' },
+  basicEmom: { path: 'markdown/canvas/syntax/basic-emom.md', docsPath: '/page/guide-protocols?h=emom' },
+  standardTabata: { path: 'markdown/canvas/syntax/protocols-4.md', docsPath: '/page/guide-protocols?h=tabata-intervals' },
+  mixedSections: { path: 'markdown/canvas/syntax/mixed-sections.md', docsPath: '/page/guide-structure?h=named-sections' },
+  complexNestedProtocols: { path: 'markdown/canvas/syntax/complex-nested-protocols.md', docsPath: '/page/guide-sessions?h=nested' },
 }
 
 /**

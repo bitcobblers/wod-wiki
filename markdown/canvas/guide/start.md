@@ -46,7 +46,7 @@ validation:
 
 # First Workout {sticky dark full-bleed}
 
-WOD Wiki turns a plain Markdown note into a workout you can **run** and a journal you can **query**. This chapter gets you from an empty note to your first tracked session — the same note the homepage uses. Edit the example on the right as you read; every section swaps in its own.
+WOD Wiki turns a plain Markdown note into a workout you can **run** and a journal you can **query**. This chapter gets you from an empty note to your first tracked session — the same note the homepage uses. Edit the live example as you read; every section swaps in its own.
 
 ```view
 name:    preview

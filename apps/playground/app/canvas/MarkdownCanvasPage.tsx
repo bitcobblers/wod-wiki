@@ -525,7 +525,7 @@ export function MarkdownCanvasPage({
       handleEditorChange={handleEditorChange}
       onResetToSource={handlePanelReset}
       canvasNoteId={canvasNoteId}
-      readonly={isPageSlug}
+      readonly={isPageSlug && !isGuide}
       showFrontmatter={typeof page.frontmatter.showFrontmatter === 'boolean'
         ? page.frontmatter.showFrontmatter
         : !isGuide && route !== '/' && !route.startsWith('/syntax')}

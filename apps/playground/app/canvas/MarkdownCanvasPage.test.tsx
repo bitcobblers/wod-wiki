@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:te
 // React 19 only flushes updates inside act() when the test environment opts
 // in; the historical full-suite run got this from a sibling file's global.
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
-import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useEffect, type ReactNode } from 'react'
 import { parseDocumentSections } from '@bitcobblers/wod-wiki-core'
 
@@ -13,6 +13,10 @@ import * as RuntimeTimerPanelModule from '@/components/organisms/editor/RuntimeT
 import * as MacOSChromeModule from '../components/atoms/MacOSChrome'
 import * as CanvasProseModule from './CanvasProse'
 import { renderWithPlaygroundHost, type PlaygroundRenderResult } from '@/testing/host'
+import { buildSyntaxGuideReference } from '@/content/syntaxGuideReference'
+import { AppRoutes } from '../AppRoutes'
+import { EditorWindow } from '../components/organisms/editor/EditorWindow'
+import { RunwayShell } from './RunwayShell'
 
 import { MarkdownCanvasPage, type PanelActions } from './MarkdownCanvasPage'
 import type { ParsedCanvasPage } from './parseCanvasMarkdown'
@@ -45,6 +49,10 @@ function StubNoteEditor(props: NoteEditorProps) {
       data-testid="note-editor"
       data-note-id={props.noteId}
       data-editor-source={typeof props.value === 'string' ? props.value : ''}
+      data-readonly={String(Boolean(props.readonly))}
+      data-hide-default-commands={String(Boolean(props.hideDefaultCommands))}
+      data-commands-count={String(props.commands?.length ?? 0)}
+      readOnly={props.readonly}
       value={props.value}
       onChange={(event) => props.onChange(event.target.value)}
     />
@@ -59,10 +67,11 @@ function StubRuntimeTimerPanel(props: { onComplete?: (blockId: string, results: 
   )
 }
 
-function StubMacOSChrome({ title, children }: { title: string; children: ReactNode }) {
+function StubMacOSChrome({ title, headerActions, children }: { title: string; headerActions?: ReactNode; children: ReactNode }) {
   return (
     <div data-testid="chrome">
       <div data-testid="chrome-title">{title}</div>
+      {headerActions}
       {children}
     </div>
   )
@@ -350,5 +359,162 @@ describe('MarkdownCanvasPage result persistence', () => {
     await waitFor(() => {
       expect(getRenderedEditors().every((editor) => editor.getAttribute('data-editor-source') === '5 deadlift 225lb')).toBe(true)
     })
+  })
+
+  it('keeps /page/guide-* editors editable (readonly=false) while keeping non-guide /page/:slug read-only', async () => {
+    class IntersectingObserver {
+      constructor(private cb: IntersectionObserverCallback) {}
+      observe(target: Element) {
+        this.cb([{ isIntersecting: true, target } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
+      }
+      disconnect() {}
+      unobserve() {}
+    }
+    ;(globalThis as unknown as Record<string, unknown>).IntersectionObserver = IntersectingObserver
+
+    const guidePage: ParsedCanvasPage = {
+      frontmatter: { type: 'guide', title: 'First Workout' },
+      template: 'canvas',
+      type: 'guide',
+      route: '/page/guide-start',
+      quests: [],
+      chapters: [],
+      sections: [
+        {
+          id: 'hero',
+          heading: 'First Workout',
+          level: 1,
+          attrs: [],
+          prose: 'Edit the live example as you read.',
+          proseChunks: [{ kind: 'prose', text: 'Edit the live example as you read.' }],
+          view: {
+            name: 'preview',
+            state: 'note',
+            source: 'home-source.md',
+            align: 'right',
+            width: '50%',
+            buttons: [],
+          },
+          commands: [],
+          buttons: [],
+        },
+        {
+          id: 'fences',
+          heading: 'Fences',
+          level: 2,
+          attrs: [],
+          prose: 'A workout lives inside a fenced block.',
+          proseChunks: [{ kind: 'prose', text: 'A workout lives inside a fenced block.' }],
+          commands: [],
+          buttons: [],
+        },
+      ],
+    }
+
+    host = await renderWithPlaygroundHost(
+      <MarkdownCanvasPage
+        page={guidePage}
+        wodFiles={{ '../../markdown/home-source.md': '```time\n10 Pushups\n```' }}
+        theme="light"
+      />,
+      { route: '/page/guide-start' },
+    )
+
+    await waitFor(() => expect(getRenderedEditors().length).toBeGreaterThan(0))
+    expect(getRenderedEditors().every((editor) => editor.getAttribute('data-readonly') === 'false')).toBe(true)
+
+    cleanup()
+    await host.cleanup()
+    host = null
+
+    const staticPage: ParsedCanvasPage = {
+      ...guidePage,
+      frontmatter: { title: 'Static Page' },
+      type: undefined,
+      route: '/page/static-reference',
+    }
+
+    host = await renderWithPlaygroundHost(
+      <MarkdownCanvasPage
+        page={staticPage}
+        wodFiles={{ '../../markdown/home-source.md': '```time\n10 Pushups\n```' }}
+        theme="light"
+      />,
+      { route: '/page/static-reference' },
+    )
+
+    await waitFor(() => expect(getRenderedEditors().length).toBeGreaterThan(0))
+    expect(getRenderedEditors().every((editor) => editor.getAttribute('data-readonly') === 'true')).toBe(true)
+  })
+
+  it('redirects legacy /guide/:slug routes to /page/guide-:slug preserving search and hash, and emits /page/guide-* docsPath', async () => {
+    host = await renderWithPlaygroundHost(
+      <AppRoutes pageSettlingFallback={<div data-testid="settled-page" />} />,
+      { route: '/guide/start?h=first-workout#section-1' },
+    )
+
+    await waitFor(() => expect(screen.getByTestId('settled-page')).toBeDefined())
+    expect(host.getLocation().pathname).toBe('/page/guide-start')
+    expect(host.getLocation().search).toBe('?h=first-workout')
+    expect(host.getLocation().hash).toBe('#section-1')
+
+    const refs = buildSyntaxGuideReference({
+      'markdown/canvas/syntax/core-rules.md': '---\ntitle: "Core Rules"\nsubtitle: "Basics"\n---\n```time\n10 Pushups\n```\n',
+      'markdown/canvas/syntax/classic-amrap.md': '---\ntitle: "AMRAP"\nsubtitle: "As many rounds"\n---\n```time\n20:00 AMRAP\n```\n',
+    })
+    expect(refs.coreRules?.docsPath).toBe('/page/guide-start?h=first-workout')
+    expect(refs.classicAmrap?.docsPath).toBe('/page/guide-protocols?h=amrap')
+  })
+
+  it('deduplicates competing Run commands when EditorWindow owns the title-bar Run CTA', () => {
+    render(
+      <EditorWindow
+        title="start.md"
+        doc="```time\n10 Pushups\n```"
+        onDocChange={() => {}}
+        commands={[{ id: 'run', label: 'Run', icon: null, onClick: () => {} }]}
+        hideDefaultCommands={false}
+        run={{ onRun: () => {} }}
+      />,
+    )
+
+    expect(screen.getAllByRole('button', { name: 'Run' })).toHaveLength(1)
+    const editor = screen.getByTestId('note-editor')
+    expect(editor.getAttribute('data-hide-default-commands')).toBe('true')
+    expect(editor.getAttribute('data-commands-count')).toBe('0')
+  })
+
+  it('measures [data-page-sticky-boundary] height for RunwayShell sticky offsets', () => {
+    const boundary = document.createElement('header')
+    boundary.setAttribute('data-page-sticky-boundary', 'true')
+    boundary.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 390,
+      bottom: 76,
+      width: 390,
+      height: 76,
+      toJSON: () => ({}),
+    })
+    document.body.appendChild(boundary)
+
+    render(
+      <RunwayShell
+        trackRef={{ current: null }}
+        height="200vh"
+        stages={[{ id: 'stage-1' }, { id: 'stage-2' }]}
+        activeIndex={0}
+        pane={<div>Pane</div>}
+        captions={<div>Captions</div>}
+        testId="measured-runway"
+      />,
+    )
+
+    const shell = screen.getByTestId('measured-runway')
+    const stickyWindow = shell.firstElementChild as HTMLElement
+    expect(stickyWindow.style.top).toBe('76px')
+    expect(stickyWindow.style.height).toBe('calc(100dvh - 76px)')
   })
 })

@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, type ReactNode } from 'react'
+import React, { useCallback, useMemo, useRef, type ReactNode } from 'react'
 import { Play } from 'lucide-react'
 import type { EditorView } from '@codemirror/view'
 import { MacOSChrome } from '../../atoms/MacOSChrome'
@@ -125,6 +125,17 @@ export function EditorWindow({
     run?.onRun(doc, blocksRef.current[0] ?? null)
   }, [run, doc])
 
+  // When EditorWindow owns the title-bar Run CTA, strip duplicate inline `run`/`play`
+  // commands and suppress NoteEditor's synthesized Run bar if nothing else remains.
+  const effectiveCommands = useMemo(() => {
+    if (!run || !commands) return commands
+    return commands.filter((cmd) => cmd.id !== 'run' && cmd.id !== 'play')
+  }, [run, commands])
+
+  const effectiveHideDefaultCommands =
+    Boolean(hideDefaultCommands) ||
+    (Boolean(run) && (!effectiveCommands || effectiveCommands.length === 0))
+
   const combinedHeaderActions = (
     <>
       {headerActions}
@@ -167,8 +178,8 @@ export function EditorWindow({
             enablePreview={enablePreview}
             showFrontmatter={showFrontmatter}
             enableLinting={enableLinting}
-            commands={commands}
-            hideDefaultCommands={hideDefaultCommands}
+            commands={effectiveCommands}
+            hideDefaultCommands={effectiveHideDefaultCommands}
             onViewCreated={onViewCreated}
             className="h-full"
           />

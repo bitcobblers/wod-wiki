@@ -27,6 +27,9 @@
  * example selection, runtime/Run and the `?h=` param stay in the host.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { useStickyBoundaryOffset } from '@/panels/page-shells'
+import { MOBILE_STICKY_TOP } from './canvasUtils'
 import { RunwayShell } from './RunwayShell'
 import { useScrollRunway } from './useScrollRunway'
 import { guideStages, groupGuideSections } from './guideGroups'
@@ -60,8 +63,32 @@ function GuideCaptionRail({
   part: number
   args: GuideCardArgs
 }) {
+  const [activeContainer, setActiveContainer] = useState<HTMLDivElement | null>(null)
+  const [hasMoreBelow, setHasMoreBelow] = useState(false)
+
+  useEffect(() => {
+    if (!activeContainer) {
+      setHasMoreBelow(false)
+      return
+    }
+    activeContainer.scrollTop = 0
+    const syncOverflowCue = () => {
+      const remaining =
+        activeContainer.scrollHeight - activeContainer.scrollTop - activeContainer.clientHeight
+      setHasMoreBelow(remaining > 8)
+    }
+    syncOverflowCue()
+    activeContainer.addEventListener('scroll', syncOverflowCue, { passive: true })
+    const ro = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(syncOverflowCue)
+    ro?.observe(activeContainer)
+    return () => {
+      activeContainer.removeEventListener('scroll', syncOverflowCue)
+      ro?.disconnect()
+    }
+  }, [activeContainer, activeIndex])
+
   return (
-    <div className="h-full min-h-0 pr-1" data-testid={`guide-captions-${part}`}>
+    <div className="relative h-full min-h-0 px-0.5" data-testid={`guide-captions-${part}`}>
       {sections.map((section, i) => {
         const active = i === activeIndex
         return (
@@ -72,6 +99,7 @@ function GuideCaptionRail({
           // markers below own those).
           <div
             key={section.id}
+            ref={active ? setActiveContainer : undefined}
             className={`absolute inset-0 min-h-0 overflow-y-auto transition-opacity duration-300 ${
               active ? 'opacity-100' : 'pointer-events-none invisible opacity-0'
             }`}
@@ -96,6 +124,24 @@ function GuideCaptionRail({
           </div>
         )
       })}
+      {hasMoreBelow && activeContainer && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end bg-gradient-to-t from-background via-background/85 to-transparent pt-6 pb-1 pr-1">
+          <button
+            type="button"
+            data-testid={`guide-captions-more-${part}`}
+            onClick={() => {
+              activeContainer.scrollBy({
+                top: Math.max(120, Math.round(activeContainer.clientHeight * 0.6)),
+                behavior: 'smooth',
+              })
+            }}
+            className="pointer-events-auto inline-flex min-h-9 items-center gap-1 rounded-full border border-border bg-card/95 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+          >
+            <span>More below</span>
+            <ChevronDown className="size-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -164,11 +210,15 @@ function GuideRunwayGroup({
   // did not change — that restores the panel on backward entry between
   // groups. Stage changes while owning always notify (same contract as the
   // old per-section IO tracking; source swaps stay guarded in the host).
+  const stickyTop = useStickyBoundaryOffset(MOBILE_STICKY_TOP)
+  const stickyTopRef = useRef(stickyTop)
+  stickyTopRef.current = stickyTop
+
   const trackOwnsReadingZone = () => {
     const track = trackRef.current
     if (!track) return false
     const { top, bottom } = track.getBoundingClientRect()
-    return top <= 0 && bottom > window.innerHeight
+    return top <= stickyTopRef.current && bottom > window.innerHeight
   }
   const [owns, setOwns] = useState(false)
   useEffect(
@@ -201,7 +251,7 @@ function GuideRunwayGroup({
       {/* header break between runs */}
       <header
         data-testid={`guide-runway-header-${part}`}
-        className="mx-auto w-full max-w-[1500px] px-6 pt-12 pb-6 lg:px-12"
+        className="mx-auto w-full max-w-[1500px] px-4 pt-10 pb-4 sm:px-6 sm:pt-12 sm:pb-6 lg:px-12"
       >
         <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
           Part {part} / {partCount}
@@ -283,7 +333,7 @@ export function GuideRunwayGroups({
         />
       ))}
       {tail.length > 0 && (
-        <div className="mx-auto w-full max-w-[1500px] px-6 lg:px-12" data-testid="guide-static-tail">
+        <div className="mx-auto w-full max-w-[1500px] sm:px-6 lg:px-12" data-testid="guide-static-tail">
           <div className="lg:max-w-[50%]">
             {tail.map((section, i) => (
               <CanvasSectionCard

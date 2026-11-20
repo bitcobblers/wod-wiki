@@ -1,7 +1,7 @@
 /**
  * RunwayShell.tsx — the shared sticky-parallax runway chrome (single
  * consistent layout for tour + guide runways): outer track (host height) →
- * sticky window under the app nav (65px mobile / 104px lg+, dvh) →
+ * sticky window under the measured app header boundary →
  * context-measured 60/40 demo/caption row (split vs stacked by measured
  * context, never viewport breakpoints). The stage indicator (host status
  * slot + pips) rides RunwayIndicatorContext into the pane's mac window
@@ -12,9 +12,10 @@
  * host-owned refs. Named headers render outside the shell.
  */
 import { useState, type ReactNode, type Ref } from 'react'
+import { useStickyBoundaryOffset } from '@/panels/page-shells'
 import type { ScrollStage } from './parseCanvasMarkdown'
 import { useContextSize } from './contextSize'
-import { STICKY_NAV_HEIGHT } from './canvasUtils'
+import { MOBILE_STICKY_TOP } from './canvasUtils'
 import { ScrollGate } from '../scroll/ScrollTrackProvider'
 import { RunwayIndicatorContext } from './runwayIndicator'
 
@@ -56,8 +57,9 @@ export function RunwayShell({
   testId,
   className,
 }: RunwayShellProps) {
+  const stickyTop = useStickyBoundaryOffset(MOBILE_STICKY_TOP)
   const [contextRow, setContextRow] = useState<HTMLDivElement | null>(null)
-  const split = useContextSize(STICKY_NAV_HEIGHT, contextRow).mode === 'split'
+  const split = useContextSize(stickyTop, contextRow).mode === 'split'
 
   // Stage indicator lives in the pane's mac window header (MacOSChrome reads
   // this context) — it no longer reserves a row of the sticky window.
@@ -95,16 +97,19 @@ export function RunwayShell({
       style={{ height }}
     >
       <RunwayIndicatorContext.Provider value={indicator}>
-      <div className="sticky top-[65px] flex h-[calc(100dvh-65px)] flex-col overflow-hidden lg:top-[104px] lg:h-[calc(100dvh-104px)]">
+      <div
+        className="sticky flex flex-col overflow-hidden"
+        style={{ top: stickyTop, height: `calc(100dvh - ${stickyTop}px)` }}
+      >
         {/* measured context row: pane 3/5, caption rail 2/5 */}
         <div
           ref={setContextRow}
-          className={`mx-auto flex min-h-0 w-full max-w-[1500px] 2xl:max-w-[1720px] flex-1 px-5 pt-2 pb-5 lg:px-10 lg:pt-3 xl:px-16 xl:pb-8 2xl:pb-10 ${
-            split ? 'flex-row items-stretch gap-[clamp(20px,2.5vw,56px)] xl:gap-12 2xl:gap-16' : 'flex-col gap-6 xl:gap-8'
+          className={`mx-auto flex min-h-0 w-full max-w-[1500px] 2xl:max-w-[1720px] flex-1 px-3 pt-3 pb-4 sm:px-5 sm:pb-5 lg:px-10 lg:pt-3 xl:px-16 xl:pb-8 2xl:pb-10 ${
+            split ? 'flex-row items-stretch gap-[clamp(20px,2.5vw,56px)] xl:gap-12 2xl:gap-16' : 'flex-col gap-3 sm:gap-5 xl:gap-8'
           }`}
         >
-          <div className="relative min-h-0 min-w-0 flex-[3_1_0%]">{pane}</div>
-          <div className="flex min-h-0 min-w-0 flex-[2_1_0%] flex-col">
+          <div className={split ? 'relative min-h-0 min-w-0 flex-[3_1_0%]' : 'relative min-h-0 min-w-0 flex-1'}>{pane}</div>
+          <div className={split ? 'flex min-h-0 min-w-0 flex-[2_1_0%] flex-col' : 'flex min-h-0 min-w-0 flex-1 flex-col'}>
             {segmentId ? (
               <ScrollGate
                 gateId={`${segmentId}-captions`}
