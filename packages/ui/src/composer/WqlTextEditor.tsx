@@ -474,8 +474,15 @@ export function WqlTextEditor({
           EditorView.theme({
             '&': { width: '100%', fontSize: '14px', backgroundColor: 'transparent' },
             '&.cm-focused': { outline: 'none' },
-            '.cm-content': { fontFamily: 'var(--font-mono, ui-monospace, monospace)', padding: dense ? '6px 0' : '10px 0', minHeight: dense ? '32px' : '44px' },
-            '.cm-line': { padding: '0 10px' },
+            '.cm-content': {
+              fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+              padding: dense ? '6px 4px' : '10px 4px',
+              minHeight: dense ? '32px' : '44px',
+              minWidth: '0',
+              maxWidth: '100%',
+              overflowWrap: 'anywhere',
+            },
+            '.cm-line': { padding: '0 12px' },
             '.cm-line span[class*="tok-"]:hover, .cm-line span[class^="tok-"]:hover': { textDecoration: 'underline', textUnderlineOffset: '3px', cursor: 'pointer' },
             '.cm-scroller': { overflow: 'auto' },
             '.cm-placeholder': { color: 'hsl(var(--field-placeholder, var(--muted-foreground)))' },

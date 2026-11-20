@@ -88,10 +88,8 @@ export const WhiteboardInspectorPopover: React.FC<WhiteboardInspectorPopoverProp
 
     const hasAnchor =
       anchorRect &&
-      (anchorRect.width > 0 ||
-        anchorRect.height > 0 ||
-        anchorRect.top > 0 ||
-        anchorRect.left > 0);
+      anchorRect.width > 0 &&
+      anchorRect.height > 0;
 
     if (hasAnchor && anchorRect) {
       const spaceBelow = viewportH - anchorRect.bottom;

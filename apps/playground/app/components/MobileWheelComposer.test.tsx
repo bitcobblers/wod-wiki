@@ -325,4 +325,66 @@ describe('MobileWheelComposer in NoteEditor', () => {
       expect(view!.contentDOM.getAttribute('inputmode')).toBe('none');
     });
   });
+
+  it('opens duration scrubber on + Duration click, wires query rail Chart stage, and marks data-mobile-editor-open', async () => {
+    const doc = '```time\n10:00 15 Kettlebell Swing\n```\n\n```query\n:sum{metric:reps} by {week} last 4w | :bar{}\n```';
+    let view: EditorView | undefined;
+    render(
+      <NoteEditor
+        value={doc}
+        onChange={() => {}}
+        onViewCreated={(v) => {
+          view = v;
+        }}
+      />,
+    );
+    if (!view) throw new Error('Editor did not mount');
+
+    const lineStart = doc.indexOf('10:00') + 1;
+    act(() => {
+      view!.contentDOM.focus();
+      fireEvent.focus(view!.contentDOM);
+      view!.dispatch({ selection: { anchor: lineStart } });
+    });
+
+    await screen.findByTestId('mobile-wheel-composer');
+    expect(document.documentElement.dataset.mobileEditorOpen).toBe('true');
+
+    // Click + Add -> Duration / Timer (`wheel-option-add-duration`) auto-opens scrubber
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-wheel-slot-add'));
+    });
+    const addDurationBtn = await screen.findByTestId('wheel-option-add-duration');
+    act(() => {
+      fireEvent.click(addDurationBtn);
+    });
+    await waitFor(() => {
+      expect(screen.getAllByTestId(TEST_IDS.EDITOR_INSPECTOR_SCRUBBER).length).toBeGreaterThanOrEqual(1);
+    });
+
+    // Move cursor into query block body (accounting for inserted ` 1:00`) -> tap "Chart" slot -> select Timeseries stage
+    const qPos = view!.state.doc.toString().indexOf(':sum') + 2;
+    act(() => {
+      view!.dispatch({ selection: { anchor: qPos } });
+    });
+    const chartSlot = await screen.findByRole('button', { name: 'Chart' });
+    act(() => {
+      fireEvent.click(chartSlot);
+    });
+    const tsBtn = await screen.findByRole('button', { name: 'Timeseries' });
+    act(() => {
+      fireEvent.click(tsBtn);
+    });
+    await waitFor(() => {
+      expect(view!.state.doc.toString()).toContain('| :timeseries{}');
+    });
+
+    // Closing deck clears data-mobile-editor-open
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-wheel-done-btn'));
+    });
+    await waitFor(() => {
+      expect(document.documentElement.dataset.mobileEditorOpen).toBeUndefined();
+    });
+  });
 });

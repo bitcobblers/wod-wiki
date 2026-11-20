@@ -4,6 +4,10 @@ import { act } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { currentCompletions, startCompletion } from '@codemirror/autocomplete';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
+import { parseQuery } from '@bitcobblers/wod-wiki-wql';
+import { QUERY_SEED_PRESETS } from '@/components/organisms/editor/whiteboard-inspector/TokenInspectorPanel';
+import { TokenScrubber } from '@/components/organisms/editor/whiteboard-inspector/TokenScrubber';
+import { QUERY_STAGES } from '@/components/organisms/editor/wheelSources';
 import { TEST_IDS } from '@/lib/testIds';
 import { storageService } from '@/hooks/useBrowserServices';
 import { createInlineTagFromSlug } from '@/app/editor/noteEditorServices';
@@ -320,10 +324,106 @@ describe('Unified Whiteboard Syntax Inspector & Prose Completions', () => {
       await waitFor(() => {
         const updated = view.state.doc.toString();
         expect(updated).toContain('view: summary');
-        expect(updated).toContain('query: find session{} last 4w');
+        expect(updated).toContain('query: :session{} last 4w');
       });
     } finally {
       restoreCoords();
+    }
+  });
+
+  it('validates every QUERY_SEED_PRESETS and QUERY_STAGES preset against @bitcobblers/wod-wiki-wql parseQuery', () => {
+    expect(QUERY_SEED_PRESETS.length).toBeGreaterThan(0);
+    for (const preset of QUERY_SEED_PRESETS) {
+      const parsed = parseQuery(preset.val);
+      expect(parsed.error).toBeUndefined();
+    }
+    for (const stage of QUERY_STAGES) {
+      for (const opt of stage.options) {
+        if (opt.value.startsWith('replace:')) {
+          const parsed = parseQuery(opt.value.slice('replace:'.length));
+          expect(parsed.error).toBeUndefined();
+        }
+      }
+    }
+  });
+
+  it('auto-commits TokenScrubber on scrollsnapchange and keyboard ArrowDown while ignoring mount sync', async () => {
+    const selected: string[] = [];
+    render(
+      <TokenScrubber
+        label="Load (kg)"
+        options={[
+          { id: '16', label: '16kg', value: '16' },
+          { id: '24', label: '24kg', value: '24' },
+          { id: '32', label: '32kg', value: '32' },
+        ]}
+        selectedValue="24"
+        onSelect={(opt) => selected.push(opt.value)}
+      />,
+    );
+
+    const listbox = screen.getByRole('listbox', { name: 'Load (kg)' });
+    expect(selected).toEqual([]);
+
+    act(() => {
+      fireEvent.keyDown(listbox, { key: 'ArrowDown' });
+    });
+    expect(selected).toEqual(['32']);
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 200));
+    });
+
+    if ('onscrollsnapchange' in HTMLElement.prototype) {
+      const target16 = screen.getByRole('option', { name: '16kg' });
+      act(() => {
+        const ev = new Event('scrollsnapchange');
+        Object.defineProperty(ev, 'snapTargetBlock', { value: target16 });
+        listbox.dispatchEvent(ev);
+      });
+      expect(selected).toEqual(['32', '16']);
+    }
+  });
+
+  it('anchors Alt+. on a query block to its rendered preview DOM rect instead of degenerate coordinates', async () => {
+    const doc = '# Metrics\n\n```query\n:sum{metric:reps} by {week} last 4w | :bar{}\n```';
+    const { view, restoreCoords } = mountEditor(doc);
+    restoreCoords();
+
+    const previewEl = document.createElement('div');
+    previewEl.className = 'cm-query-block-preview';
+    document.body.appendChild(previewEl);
+
+    const spyPreviewRect = spyOn(previewEl, 'getBoundingClientRect').mockReturnValue({
+      top: 220,
+      left: 64,
+      right: 420,
+      bottom: 320,
+      width: 356,
+      height: 100,
+      x: 64,
+      y: 220,
+      toJSON: () => ({}),
+    });
+    const spyDomAtPos = spyOn(view, 'domAtPos').mockReturnValue({ node: previewEl, offset: 0 });
+    const spyCoords = spyOn(view, 'coordsAtPos').mockReturnValue(null);
+
+    try {
+      const qPos = doc.indexOf(':sum') + 1;
+      act(() => {
+        view.dispatch({ selection: { anchor: qPos } });
+        view.focus();
+        fireEvent.keyDown(document, { key: '.', altKey: true });
+      });
+
+      const popover = await screen.findByTestId(TEST_IDS.EDITOR_INSPECTOR_POPOVER);
+      expect(popover.style.left).toBe('64px');
+      expect(popover.style.top).toBe('328px');
+    } finally {
+      spyPreviewRect.mockRestore();
+      spyDomAtPos.mockRestore();
+      spyCoords.mockRestore();
+      previewEl.remove();
     }
   });
 

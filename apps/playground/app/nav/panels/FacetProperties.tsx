@@ -510,7 +510,7 @@ function FreeformRow({
             // mounted; opening it puts the full query in the composer.
             document.querySelector<HTMLElement>('[data-testid="stream-query-bar"]')?.click()
           }}
-          className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="mt-1 inline-flex max-lg:min-h-11 max-lg:px-2 items-center gap-1 rounded-md text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           <SquarePen aria-hidden="true" className="size-3" />
           Edit in WQL bar

@@ -149,8 +149,22 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
   const lastLineRef = useRef<number>(-1);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const [keyboardOffsetBottom, setKeyboardOffsetBottom] = useState(0);
+  const [queryStageToken, setQueryStageToken] = useState(0);
 
   const docText = view?.state.doc.toString() ?? "";
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const active = Boolean(isOpen && view);
+    if (active) {
+      document.documentElement.dataset.mobileEditorOpen = "true";
+    } else {
+      delete document.documentElement.dataset.mobileEditorOpen;
+    }
+    return () => {
+      delete document.documentElement.dataset.mobileEditorOpen;
+    };
+  }, [isOpen, view]);
 
   useEffect(() => {
     if (!isOpen || !view) return;
@@ -233,6 +247,8 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
           selection: { anchor: slot.from, head: slot.from },
         });
         revealLineAboveDeck(view, slot.from);
+      } else if (slot.kind === "query-stage") {
+        setQueryStageToken((n) => n + 1);
       }
     },
     [view, model, revealLineAboveDeck],
@@ -262,7 +278,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
         setPreferredSlotIdx(null);
         setDeckMode("token");
         // Immediately expose the tactile load/time scrubber when inserting a load or timer token
-        setUseScrubber(option.id === "add-weight" || option.id === "add-time");
+        setUseScrubber(option.id === "add-weight" || option.id === "add-duration");
         view.dispatch({
           changes: { from: line.to, to: line.to, insert: insertText },
           selection: { anchor: tokenStart, head: tokenEnd },
@@ -400,7 +416,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
         className="fixed inset-x-0 z-40 flex flex-col border-t border-border bg-card text-card-foreground shadow-lg select-none pb-[env(safe-area-inset-bottom,0px)]"
       >
         {/* Persistent Live Token Rail above OS keyboard */}
-        <div className="flex min-h-[40px] items-center gap-1.5 overflow-x-auto border-b border-border bg-muted/40 px-2.5 scrollbar-none">
+        <div className="flex min-h-[48px] items-center gap-1.5 overflow-x-auto border-b border-border bg-muted/40 px-2.5 scrollbar-none">
           <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground tabular-nums">
             L{model.lineNumber}
           </span>
@@ -416,7 +432,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
                   handleReturnToWheel();
                 }}
                 className={cn(
-                  "shrink-0 min-h-[36px] rounded-full border px-2.5 text-xs font-mono tabular-nums transition-colors cursor-pointer",
+                  "shrink-0 min-h-[44px] rounded-full border px-3 text-xs font-mono tabular-nums transition-colors cursor-pointer",
                   isActive
                     ? "border-primary bg-primary text-primary-foreground font-semibold"
                     : "border-border bg-background text-muted-foreground hover:text-foreground",
@@ -624,7 +640,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
               <button
                 type="button"
                 onClick={() => setDeckMode("add")}
-                className="min-h-[34px] rounded-md px-2 text-xs font-medium text-primary hover:bg-primary/10 cursor-pointer"
+                className="inline-flex min-h-[44px] items-center rounded-md px-2.5 text-xs font-medium text-primary hover:bg-primary/10 cursor-pointer"
               >
                 Full Catalog
               </button>
@@ -666,6 +682,8 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             showStepButtons={false}
             showClose={false}
             showDockButton={false}
+            activeQueryStageId={activeSlot?.kind === "query-stage" ? activeSlot.id : undefined}
+            queryStageRequestToken={queryStageToken}
             onModeChange={(nextMode) => setDeckMode(nextMode)}
             onMutate={() => {
               // Line state refreshes via CM6 updateListener -> cursorVersion

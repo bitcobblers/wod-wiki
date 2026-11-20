@@ -31,6 +31,7 @@ import {
   patchBlockQuery,
   WqlComposer,
   type WqlExecutor,
+  type WqlSegmentEditRequest,
 } from '@bitcobblers/wod-wiki-ui';
 import { isFindQuery } from '@bitcobblers/wod-wiki-wql';
 import { TokenScrubber, type ScrubberOption } from './TokenScrubber';
@@ -86,17 +87,33 @@ export interface TokenInspectorPanelProps {
   onModeChange?: (mode: InspectorMode) => void;
   onStepToken?: (delta: -1 | 1) => void;
   onClose?: () => void;
+  activeQueryStageId?: string;
+  queryStageRequestToken?: number;
 }
 
 const CHOICE_BASE =
   'inline-flex items-center justify-center rounded-full border text-xs font-medium transition-colors cursor-pointer whitespace-nowrap tabular-nums';
 
-const QUERY_SEED_PRESETS = [
-  { label: 'Total Reps', val: 'sum:reps{} last 4w every week | :bar{}' },
-  { label: 'Total Volume', val: 'sum:totalVolume{} every week | :timeseries{}' },
-  { label: 'Find Sessions', val: 'find session{} last 4w' },
-  { label: 'Find Notes', val: 'find note{tags:benchmark} last 8w' },
+export const QUERY_SEED_PRESETS = [
+  { label: 'Total Reps', val: ':sum{metric:reps} by {week} last 4w | :bar{}' },
+  { label: 'Total Volume', val: ':sum{metric:volume} by {week} last 12w | :timeseries{}' },
+  { label: 'Weekly TIS', val: ':sum{metric:tis} by {week} last 8w | :timeseries{}' },
+  { label: 'Find Sessions', val: ':session{} last 4w' },
+  { label: 'Find Notes', val: ':note{tags:benchmark} last 8w' },
 ] as const;
+
+const QUERY_CHART_STAGES = [
+  { label: 'Bar Chart', suffix: '| :bar{}' },
+  { label: 'Timeseries', suffix: '| :timeseries{}' },
+  { label: 'Table', suffix: '| :table{}' },
+  { label: 'No Chart', suffix: '' },
+] as const;
+
+function applyQueryChartStage(rawQuery: string, chartSuffix: string): string {
+  const base = rawQuery.replace(/\s*\|\s*:(?:bar|timeseries|table|pie)\{[^}]*\}\s*$/i, '').trim();
+  const seed = base || ':sum{metric:reps} by {week} last 4w';
+  return chartSuffix ? `${seed} ${chartSuffix}` : seed;
+}
 
 const YAML_CONFIG_KEY_RE = /^\s*(?:view|limit|title|chart|span|unit|range|groupBy|columns|sort)\s*:/m;
 
@@ -122,6 +139,8 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
   onModeChange,
   onStepToken,
   onClose,
+  activeQueryStageId,
+  queryStageRequestToken,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAliasPicker, setShowAliasPicker] = useState(false);
@@ -172,6 +191,28 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
       setShowQueryPresets(!currentQueryRef.current.trim());
     }
   }, [mode, querySection?.id]);
+
+  useEffect(() => {
+    if (mode === 'query' && activeQueryStageId === 'wql-metric' && queryStageRequestToken) {
+      setShowQueryPresets(true);
+    }
+  }, [mode, activeQueryStageId, queryStageRequestToken]);
+
+  const querySegmentEditRequest = useMemo<WqlSegmentEditRequest | undefined>(() => {
+    if (mode !== 'query' || !queryStageRequestToken || queryStageRequestToken <= 0) return undefined;
+    if (activeQueryStageId === 'wql-metric') {
+      const trimmed = currentQueryRef.current.trim();
+      const isFindLike = /^:(?:session|note|block|effort|notebook|tag|equipment)\b/i.test(trimmed);
+      return { type: isFindLike ? 'target' : 'metric', token: queryStageRequestToken };
+    }
+    if (activeQueryStageId === 'wql-scope') {
+      return { type: 'notebook', token: queryStageRequestToken };
+    }
+    if (activeQueryStageId === 'wql-window') {
+      return { type: 'time', token: queryStageRequestToken };
+    }
+    return undefined;
+  }, [mode, activeQueryStageId, queryStageRequestToken]);
 
   useEffect(() => {
     if (mode !== 'wiki') return;
@@ -563,7 +604,7 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
       const quickMd = [
         { label: 'Timer Block', sub: '```time', insert: '\n```time\n10:00 EMOM\n  10 Air Squat\n```\n' },
         { label: 'Log Block', sub: '```log', insert: '\n```log\n5x5 Back Squat @100kg\n```\n' },
-        { label: 'Query Block', sub: '```query', insert: '\n```query\nsum:reps{} every week | :bar{}\n```\n' },
+        { label: 'Query Block', sub: '```query', insert: '\n```query\n:sum{metric:reps} by {week} last 4w | :bar{}\n```\n' },
         { label: 'Task Item', sub: '- [ ]', prefix: '- [ ] ' },
         { label: 'Heading 2', sub: '## Title', prefix: '## ' },
       ];
@@ -679,7 +720,39 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
             execute={executeWqlQuery}
             showDiagnostics
             compact={compact}
+            segmentEditRequest={querySegmentEditRequest}
           />
+
+          {activeQueryStageId === 'wql-chart' && (
+            <div className="flex flex-col gap-1.5 min-w-0 border-t border-border/60 pt-2">
+              <span className="text-xs font-semibold text-muted-foreground">Chart stage</span>
+              <div className="flex flex-wrap gap-1.5">
+                {QUERY_CHART_STAGES.map((stage) => {
+                  const candidate = applyQueryChartStage(queryExtraction.currentQuery, stage.suffix);
+                  const isActive =
+                    stage.suffix === ''
+                      ? !/\|\s*:(?:bar|timeseries|table|pie)\{/i.test(queryExtraction.currentQuery)
+                      : queryExtraction.currentQuery.toLowerCase().includes(stage.suffix.slice(2).trim().toLowerCase());
+                  return (
+                    <button
+                      key={stage.label}
+                      type="button"
+                      onClick={() => handleWriteQuery(candidate, `Chart -> ${stage.label}`)}
+                      className={cn(
+                        CHOICE_BASE,
+                        choiceHeight,
+                        isActive
+                          ? 'bg-primary text-primary-foreground border-primary font-semibold'
+                          : 'bg-popover text-foreground border-border hover:bg-muted',
+                      )}
+                    >
+                      {stage.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-1.5 min-w-0 border-t border-border/60 pt-2">
             <button
@@ -807,7 +880,10 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
                   type="button"
                   data-testid={TEST_IDS.EDITOR_SCRUBBER_TOGGLE_BTN}
                   onClick={onToggleScrubber}
-                  className="text-xs font-semibold text-primary hover:underline cursor-pointer"
+                  className={cn(
+                    'inline-flex items-center rounded-md px-2 text-xs font-semibold text-primary hover:bg-primary/10 hover:underline cursor-pointer',
+                    compact ? 'min-h-[44px]' : 'min-h-[28px]',
+                  )}
                 >
                   {useScrubber ? 'Use Presets' : 'Use Scrubber'}
                 </button>
@@ -1074,7 +1150,10 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
                 type="button"
                 data-testid={TEST_IDS.EDITOR_SCRUBBER_TOGGLE_BTN}
                 onClick={onToggleScrubber}
-                className="text-xs font-semibold text-primary hover:underline cursor-pointer"
+                className={cn(
+                  'inline-flex items-center rounded-md px-2 text-xs font-semibold text-primary hover:bg-primary/10 hover:underline cursor-pointer',
+                  compact ? 'min-h-[44px]' : 'min-h-[28px]',
+                )}
               >
                 {useScrubber ? 'Use Presets' : 'Use Scrubber'}
               </button>

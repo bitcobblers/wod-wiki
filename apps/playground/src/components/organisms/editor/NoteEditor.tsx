@@ -442,10 +442,44 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             : currentInspection.contextKind);
 
       let rect = options?.anchorRect ?? null;
+      if (!rect && currentInspection.contextKind === "query" && currentInspection.section) {
+        const sec = currentInspection.section;
+        try {
+          const domAt = v.domAtPos(sec.from);
+          const candidateNode = domAt.node instanceof Element ? domAt.node : domAt.node.parentElement;
+          const directPreview =
+            candidateNode?.closest<HTMLElement>(".cm-query-block-preview, .cm-widget-block-preview") ??
+            candidateNode?.querySelector<HTMLElement>(".cm-query-block-preview, .cm-widget-block-preview") ??
+            null;
+          if (directPreview) {
+            const dr = directPreview.getBoundingClientRect();
+            if (dr.width > 0 && dr.height > 0) rect = dr;
+          }
+          if (!rect) {
+            const previews = v.dom.querySelectorAll<HTMLElement>(".cm-query-block-preview, .cm-widget-block-preview");
+            for (const preview of previews) {
+              try {
+                const pos = v.posAtDOM(preview);
+                if (pos >= sec.from && pos <= sec.to) {
+                  const pr = preview.getBoundingClientRect();
+                  if (pr.width > 0 && pr.height > 0) {
+                    rect = pr;
+                    break;
+                  }
+                }
+              } catch {
+                // Ignore unmapped preview nodes
+              }
+            }
+          }
+        } catch {
+          // Fall back cleanly to cursor coords
+        }
+      }
       if (!rect) {
         try {
           const coords = v.coordsAtPos(chosenToken?.from ?? head);
-          if (coords) {
+          if (coords && (coords.right > coords.left || coords.bottom > coords.top)) {
             rect = {
               left: coords.left,
               top: coords.top,

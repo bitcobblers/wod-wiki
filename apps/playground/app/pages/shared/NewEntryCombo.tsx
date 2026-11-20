@@ -15,6 +15,7 @@ import {
 
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { notebookService } from '@/hooks/useBrowserServices'
+import { cn } from '@/lib/utils'
 
 import { useNav } from '../../nav/NavContext'
 import { useIsMobile } from '../../hooks/useIsMobile'
@@ -155,7 +156,7 @@ export function NewEntryCombo() {
       <Button
         type="button"
         size="sm"
-        className={isMobile ? 'size-11 rounded-full px-0' : 'h-9 gap-1.5 px-3 text-xs'}
+        className={isMobile ? 'h-11 rounded-full px-3.5 gap-1.5 shadow-lg text-xs font-semibold' : 'h-9 gap-1.5 px-3 text-xs'}
         disabled={cloning || waitingForOwnership}
         onClick={handleClick}
         aria-label={isMobile ? defaultLabel : readOnlyNotebook
@@ -168,10 +169,22 @@ export function NewEntryCombo() {
             ? 'notebooks-create-button'
             : 'new-entry-primary'}
       >
-        {cloning
-          ? <PlusIcon className="size-3.5 animate-spin" />
-          : <DefaultIcon className="size-3.5" />}
-        {!isMobile && <span>{cloning ? 'Cloning…' : visibleLabel}</span>}
+        {isMobile ? (
+          readOnlyNotebook ? (
+            <DocumentDuplicateIcon className={cn('size-4 shrink-0', cloning && 'animate-spin')} />
+          ) : (
+            <PlusIcon className={cn('size-4 shrink-0', cloning && 'animate-spin')} />
+          )
+        ) : cloning ? (
+          <PlusIcon className="size-3.5 animate-spin" />
+        ) : (
+          <DefaultIcon className="size-3.5" />
+        )}
+        {isMobile ? (
+          <span>{cloning ? 'Cloning…' : readOnlyNotebook ? 'Clone' : 'New'}</span>
+        ) : (
+          <span>{cloning ? 'Cloning…' : visibleLabel}</span>
+        )}
       </Button>
     </div>
   )

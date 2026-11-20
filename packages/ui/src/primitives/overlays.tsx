@@ -66,7 +66,7 @@ export function WodOverlayHost(props: Omit<OverlayHostProps, 'toast'>): React.JS
                 <ToastDescription className="text-xs text-muted-foreground whitespace-pre-line" />
               </div>
               <ToastAction data-variant="solid" />
-              <ToastClose aria-label="Close notification" />
+              <ToastClose aria-label="Close notification" className="max-lg:min-h-11 max-lg:min-w-11" />
             </Toast>
           ),
         }}

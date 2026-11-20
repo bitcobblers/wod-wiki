@@ -125,8 +125,8 @@ const CommandPill: React.FC<{
         className={cn(
           "pointer-events-auto scroll-mt-20",
           cmd.iconOnly
-            ? "h-8 min-w-[34px] rounded-[5px] px-2 py-0.5 text-[11px] font-medium shadow-none"
-            : "h-8 rounded-[5px] px-2.5 py-0.5 text-[11px] font-medium shadow-none gap-1.5",
+            ? "h-8 max-lg:min-h-[44px] min-w-[34px] max-lg:min-w-[44px] rounded-[5px] px-2 py-0.5 text-[11px] font-medium shadow-none"
+            : "h-8 max-lg:min-h-[44px] rounded-[5px] px-2.5 max-lg:px-3 py-0.5 text-[11px] font-medium shadow-none gap-1.5",
           cmd.primary
             ? "bg-foreground text-background hover:bg-foreground/90 border border-foreground"
             : "bg-card text-foreground hover:bg-muted border border-border",
@@ -287,7 +287,7 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
             className="absolute right-1.5 z-20 flex items-center gap-1 pointer-events-none"
             style={{
               top: contentOffsetTop + rect.top - scrollTop,
-              height: Math.max(30, Math.min(rect.firstLineHeight, 36)),
+              minHeight: Math.max(30, Math.min(rect.firstLineHeight, 36)),
             }}
           >
             {!isNarrow || !primaryCmd ? (

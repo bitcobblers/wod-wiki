@@ -125,7 +125,7 @@ function GuideCaptionRail({
         )
       })}
       {hasMoreBelow && activeContainer && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end bg-gradient-to-t from-background via-background/85 to-transparent pt-6 pb-1 pr-1">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-start lg:justify-end bg-gradient-to-t from-background via-background/85 to-transparent pt-6 pb-1 pl-1 lg:pl-0 lg:pr-1">
           <button
             type="button"
             data-testid={`guide-captions-more-${part}`}
@@ -135,7 +135,7 @@ function GuideCaptionRail({
                 behavior: 'smooth',
               })
             }}
-            className="pointer-events-auto inline-flex min-h-9 items-center gap-1 rounded-full border border-border bg-card/95 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            className="pointer-events-auto inline-flex min-h-11 lg:min-h-9 items-center gap-1 rounded-full border border-border bg-card/95 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           >
             <span>More below</span>
             <ChevronDown className="size-3.5" aria-hidden="true" />

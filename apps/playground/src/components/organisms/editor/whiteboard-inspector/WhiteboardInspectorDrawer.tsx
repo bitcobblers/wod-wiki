@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { AlertTriangle, Clock, Keyboard, PanelRightClose, Settings2 } from 'lucide-react';
@@ -57,6 +57,20 @@ export const WhiteboardInspectorDrawer: React.FC<WhiteboardInspectorDrawerProps>
     return extractBlockTimeline(view.state, inspection.section);
   }, [view, isWorkoutSection, inspection]);
 
+  useEffect(() => {
+    if (!open || layout !== 'docked-right') return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && typeof window !== 'undefined' && window.innerWidth < 1280) {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        view?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [open, layout, onClose, view]);
+
   if (!open) return null;
 
   const handleSelectTimelineRow = (lineNum: number) => {
@@ -71,18 +85,32 @@ export const WhiteboardInspectorDrawer: React.FC<WhiteboardInspectorDrawerProps>
   };
 
   return (
-    <aside
-      role="complementary"
-      aria-label="Focused Token Inspector Drawer"
-      data-testid={TEST_IDS.EDITOR_INSPECTOR_DRAWER}
-      style={layout === 'docked-right' ? { top: stickyTop } : undefined}
-      className={cn(
-        'flex flex-col overflow-hidden border-l border-border bg-card text-card-foreground',
-        layout === 'docked-right'
-          ? 'fixed right-0 bottom-0 z-30 w-[340px] max-w-[92vw] shadow-xl'
-          : 'w-[340px] max-w-full shrink-0',
+    <>
+      {layout === 'docked-right' && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Close inspector drawer"
+          onClick={onClose}
+          className="xl:hidden fixed inset-0 z-[29] bg-black/20 cursor-default"
+        />
       )}
-    >
+      <aside
+        role="complementary"
+        aria-label="Focused Token Inspector Drawer"
+        data-testid={TEST_IDS.EDITOR_INSPECTOR_DRAWER}
+        style={
+          layout === 'docked-right'
+            ? ({ '--inspector-sticky-top': `${stickyTop}px` } as React.CSSProperties)
+            : undefined
+        }
+        className={cn(
+          'flex flex-col overflow-hidden border-l border-border bg-card text-card-foreground',
+          layout === 'docked-right'
+            ? 'fixed right-0 bottom-0 z-30 w-[340px] max-w-[92vw] max-xl:top-[var(--inspector-sticky-top)] max-xl:shadow-xl xl:top-0 xl:shadow-none'
+            : 'w-[340px] max-w-full shrink-0',
+        )}
+      >
       {/* Drawer Header */}
       <div className="flex items-start justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2.5">
         <div className="min-w-0 flex-1">
@@ -219,5 +247,6 @@ export const WhiteboardInspectorDrawer: React.FC<WhiteboardInspectorDrawerProps>
         <span>Alt+↑/↓ Value</span>
       </div>
     </aside>
+    </>
   );
 };

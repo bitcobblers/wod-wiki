@@ -127,7 +127,7 @@ export function WqlWindowPicker({ query, onQueryChange, highlightDates = new Set
       <Popover>
         <PopoverTrigger
           data-testid="wql-window-picker-trigger"
-          className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+          className="flex h-9 max-lg:min-h-11 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
         >
           <Calendar className="size-3.5 text-muted-foreground" aria-hidden="true" />
           <span className="font-mono text-xs">{currentLabel}</span>
@@ -251,7 +251,7 @@ export function WqlWindowPicker({ query, onQueryChange, highlightDates = new Set
           }}
           title="Clear time window"
           aria-label="Clear time window"
-          className="ml-1 grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="ml-1 grid size-7 max-lg:min-h-11 max-lg:min-w-11 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <X className="size-3.5" />
         </button>

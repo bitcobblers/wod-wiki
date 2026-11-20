@@ -141,7 +141,10 @@ export function AppRail({
               key={item.id}
               type="button"
               onClick={() => {
-                closeDrawer()
+                const hasL2 = Boolean(item.panel || (item.children && item.children.length > 0))
+                if (!isMobileList || !hasL2 || active) {
+                  closeDrawer()
+                }
                 dispatch({ type: 'SET_ACTIVE_L1', id: item.id })
                 executeNavAction(item.action, deps)
               }}

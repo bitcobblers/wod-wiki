@@ -247,7 +247,7 @@ export function WqlScopeMap({
               onHighlight(-1);
             }}
             data-testid="wql-picker-search"
-            className="min-h-11 sm:min-h-8 w-full rounded-lg border border-border bg-background px-2.5 text-sm sm:text-xs text-foreground placeholder:text-[hsl(var(--field-placeholder))] focus:outline-none focus:ring-1 focus:ring-primary"
+            className="min-h-11 sm:min-h-8 w-full rounded-lg border border-border bg-background pl-2.5 pr-8 text-sm sm:text-xs text-foreground placeholder:text-[hsl(var(--field-placeholder))] focus:outline-none focus:ring-1 focus:ring-primary"
           />
           <div id={listId} role="listbox" aria-label="Filter types" className="max-h-60 overflow-y-auto space-y-2.5">
             {addableGroups.length === 0 ? (
@@ -379,7 +379,7 @@ export function WqlScopeMap({
                 onError(undefined);
               }}
               onKeyDown={onKeyDown}
-              className="min-h-11 sm:min-h-8 min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 font-mono text-sm sm:text-xs text-foreground placeholder:text-[hsl(var(--field-placeholder))] focus:outline-none focus:ring-1 focus:ring-primary"
+              className="min-h-11 sm:min-h-8 min-w-0 flex-1 rounded-lg border border-border bg-background pl-2.5 pr-8 font-mono text-sm sm:text-xs text-foreground placeholder:text-[hsl(var(--field-placeholder))] focus:outline-none focus:ring-1 focus:ring-primary"
               data-testid="wql-picker-search"
             />
             {activeClause.filterIndex !== undefined && (

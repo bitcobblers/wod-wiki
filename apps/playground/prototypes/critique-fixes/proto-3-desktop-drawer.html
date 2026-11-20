@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Proto 3 (P1): Option B Desktop Split-Pane Docked Drawer — WOD Wiki</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./shared.css" />
+  <style>
+    .desktop-scale-wrap {
+      width: 100%;
+      overflow: hidden;
+      display: block;
+    }
+
+    .desktop-shell {
+      height: 820px;
+      flex-shrink: 0;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-phone);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      transform-origin: top left;
+    }
+
+    .zone-l1 {
+      width: 56px;
+      flex-shrink: 0;
+      background: var(--muted);
+      border-right: 1px solid var(--border);
+      padding: 12px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .rail-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+
+    .zone-l2 {
+      width: 210px;
+      flex-shrink: 0;
+      background: var(--popover);
+      border-right: 1px solid var(--border);
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .l2-row {
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--fg-2);
+    }
+    .l2-row.is-active {
+      background: var(--primary-soft);
+      color: var(--primary-active-fg);
+      font-weight: 700;
+    }
+
+    .zone-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: var(--bg);
+    }
+
+    .sticky-note-header {
+      height: 58px;
+      flex-shrink: 0;
+      background: rgba(252, 251, 248, 0.94);
+      border-bottom: 1px solid var(--border);
+      padding: 0 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .hdr-btn {
+      min-height: 36px;
+      padding: 0 12px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--border);
+      background: var(--card);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--fg);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .hdr-btn.is-primary {
+      background: var(--fg);
+      border-color: var(--fg);
+      color: var(--card);
+    }
+    .hdr-btn.is-occluded {
+      outline: 2px solid var(--err-fg);
+      background: var(--err-bg);
+      color: var(--err-fg);
+    }
+
+    .canvas-body {
+      padding: 26px 34px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .editor-surface {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .code-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: var(--r-sm);
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      border-left: 3px solid transparent;
+    }
+    .code-line.is-active {
+      background: var(--primary-soft);
+      border-left-color: var(--primary);
+      font-weight: 600;
+    }
+
+    .zone-l3 {
+      width: 240px;
+      flex-shrink: 0;
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      padding: 16px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Option B Drawer */
+    .option-b-drawer {
+      width: 340px;
+      flex-shrink: 0;
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      display: none;
+      flex-direction: column;
+      z-index: 45;
+    }
+    .option-b-drawer.is-open {
+      display: flex;
+    }
+    .option-b-drawer.is-fixed-overlay {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      box-shadow: var(--shadow-float);
+      border-left: 2px solid var(--primary);
+    }
+    .option-b-drawer.is-bug-overlay {
+      border-left: 2px solid var(--err-fg);
+      background: rgba(252, 251, 248, 0.96);
+    }
+
+    .drawer-scrim {
+      position: absolute;
+      inset: 0;
+      background: rgba(38, 33, 28, 0.24);
+      z-index: 40;
+      display: none;
+    }
+    .drawer-scrim.is-open {
+      display: block;
+    }
+
+    .drawer-section {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .timeline-row {
+      padding: 8px 10px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--border-soft);
+      background: var(--popover);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+      text-align: left;
+    }
+    .timeline-row.is-active {
+      background: var(--primary-soft);
+      border-color: var(--primary);
+      color: var(--primary-active-fg);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <header class="proto-bar">
+    <div class="proto-bar-group">
+      <a class="proto-back" href="./index.html">← All Fixes</a>
+      <span class="sev-badge sev-p1">P1 #3</span>
+      <span class="proto-title">Option B Desktop Split-Pane Inspector Drawer</span>
+    </div>
+
+    <nav class="proto-nav" aria-label="Prototype switch">
+      <a href="./proto-1-bottom-stack.html">1. Bottom Stack</a>
+      <a href="./proto-2-wql-inspector.html">2. WQL &amp; Alt+.</a>
+      <a href="./proto-3-desktop-drawer.html" class="is-current">3. Option B Drawer</a>
+      <a href="./proto-4-mobile-affordances.html">4. 44px &amp; Scrubber</a>
+    </nav>
+
+    <div class="proto-bar-group">
+      <div class="proto-seg" role="group" aria-label="Before or After comparison">
+        <button type="button" id="btnBefore" class="is-before" aria-pressed="false">Before (Bug)</button>
+        <button type="button" id="btnAfter" class="is-after is-active" aria-pressed="true">After (Fix)</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="workbench is-desktop-wide">
+    <section class="stage-well" style="align-items: stretch;">
+      <div class="stage-subbar">
+        <div class="proto-seg" role="tablist" aria-label="Desktop viewport width">
+          <button type="button" role="tab" class="width-tab is-active" data-w="1600" aria-selected="true">1600×900 (2xl · Inline L3)</button>
+          <button type="button" role="tab" class="width-tab" data-w="1280" aria-selected="false">1280×800 (xl · Split Pane)</button>
+          <button type="button" role="tab" class="width-tab" data-w="1024" aria-selected="false">1024×768 (&lt;xl · Scrim Overlay)</button>
+        </div>
+        <button type="button" id="btnDrawerShortcut" class="proto-toggle-btn" aria-pressed="true">
+          <span>Drawer: Open</span>
+          <span style="padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--popover); font-family: var(--font-mono); font-size: 11px;">Ctrl+Alt+I</span>
+        </button>
+      </div>
+
+      <div id="scaleWrap" class="desktop-scale-wrap">
+        <div id="desktopShell" class="desktop-shell" style="width: 1600px;">
+          <aside class="zone-l1" aria-label="L1 Rail">
+            <div class="rail-icon">🏠</div>
+            <div class="rail-icon" style="background: var(--primary-soft); border-color: var(--primary);">📓</div>
+            <div class="rail-icon">📅</div>
+            <div class="rail-icon">📈</div>
+          </aside>
+
+          <aside class="zone-l2" aria-label="L2 Notebooks">
+            <div style="font-size: 11px; font-weight: 700; color: var(--muted-fg); text-transform: uppercase;">Benchmarks</div>
+            <div class="l2-row is-active">Kettlebell EMOM</div>
+            <div class="l2-row">Cindy AMRAP</div>
+            <div class="l2-row">DT Hero WOD</div>
+            <div class="l2-row">Aerobic Base 40m</div>
+          </aside>
+
+          <div class="zone-main">
+            <header class="sticky-note-header">
+              <div>
+                <div style="font-size: 16px; font-weight: 700;">Kettlebell Conditioning · Nov 20</div>
+                <div id="canvasWidthLabel" class="mono" style="font-size: 11px; color: var(--muted-fg);">Canvas width: —</div>
+              </div>
+              <div class="header-actions" id="headerActions">
+                <button type="button" class="hdr-btn is-primary" data-hdr="Play">▶ Play</button>
+                <button type="button" class="hdr-btn" data-hdr="Share">↗ Share</button>
+                <button type="button" class="hdr-btn" data-hdr="+ Today">+ Today</button>
+                <button type="button" class="hdr-btn" data-hdr="Schedule">📅 Schedule</button>
+              </div>
+            </header>
+
+            <div class="canvas-body">
+              <div class="editor-surface">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span class="mono" style="font-size: 11.5px; font-weight: 700; color: var(--primary);">```time · TIMER</span>
+                  <button type="button" id="btnToggleDrawerInline" class="hdr-btn" style="min-height: 30px; font-size: 11.5px;">Inspector Drawer</button>
+                </div>
+                <div class="code-line" data-line="0"><span>*10:00 EMOM</span><span class="mono" style="font-size: 11px; color: var(--muted-fg);">Timer header</span></div>
+                <div class="code-line is-active" id="lineSwing" data-line="1">
+                  <span>1:00 <span id="inlineReps">12</span> Kettlebell Swing @24kg</span>
+                  <div style="display: flex; gap: 6px;">
+                    <span class="tok-chip is-rep" style="min-height: 28px; padding: 2px 9px;" id="chipReps">12 reps</span>
+                    <span class="tok-chip is-effort" style="min-height: 28px; padding: 2px 9px;">Kettlebell Swing</span>
+                    <span class="tok-chip is-load" style="min-height: 28px; padding: 2px 9px;">@24kg</span>
+                  </div>
+                </div>
+                <div class="code-line" id="lineBurpee" data-line="2"><span>10 Burpee</span><span class="mono" style="font-size: 11px; color: var(--muted-fg);">Line 2</span></div>
+              </div>
+
+              <div class="editor-surface">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <strong>Query Card: Weekly Volume (:bar{})</strong>
+                  <span class="mono" style="font-size: 11.5px; color: var(--muted-fg);">:sum{metric:reps} by {week} last 4w</span>
+                </div>
+                <div style="height: 84px; display: flex; align-items: flex-end; gap: 18px; padding-top: 10px;">
+                  <div style="flex: 1; height: 55%; background: var(--primary-soft); border-radius: 6px;"></div>
+                  <div style="flex: 1; height: 78%; background: var(--m-time-bd); border-radius: 6px;"></div>
+                  <div style="flex: 1; height: 64%; background: var(--primary-soft); border-radius: 6px;"></div>
+                  <div style="flex: 1; height: 92%; background: var(--primary); border-radius: 6px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside id="zoneL3" class="zone-l3" aria-label="L3 Page Options">
+            <div style="font-size: 11px; font-weight: 700; color: var(--muted-fg); text-transform: uppercase;">Page Options (L3)</div>
+            <div style="padding: 9px; border-radius: 8px; background: var(--popover); border: 1px solid var(--border-soft); font-size: 12.5px;">Display units: <strong>kg</strong></div>
+            <div style="padding: 9px; border-radius: 8px; background: var(--popover); border: 1px solid var(--border-soft); font-size: 12.5px;">Notebook: Benchmarks</div>
+          </aside>
+
+          <div id="drawerScrim" class="drawer-scrim" aria-hidden="true"></div>
+
+          <aside id="optionBDrawer" class="option-b-drawer is-open" role="complementary" aria-label="Option B Syntax Inspector Drawer">
+            <div class="drawer-section" style="flex-direction: row; align-items: center; justify-content: space-between;">
+              <div>
+                <strong style="font-size: 14px;">Syntax Inspector</strong>
+                <div id="diffBadge" class="mono" style="font-size: 11px; color: var(--primary-active-fg);">12 → <span id="diffTarget">12</span> reps</div>
+              </div>
+              <button type="button" id="btnCloseDrawer" style="min-width: 34px; min-height: 34px; border: 1px solid var(--border); border-radius: 6px; font-weight: 700;">✕</button>
+            </div>
+
+            <div class="drawer-section">
+              <span class="spec-heading">Quick Step Reps</span>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" id="btnRepsMinus" class="trigger-btn" style="flex: 1;">− 2 Reps</button>
+                <button type="button" id="btnRepsPlus" class="trigger-btn is-primary" style="flex: 1;">+ 2 Reps</button>
+              </div>
+            </div>
+
+            <div class="drawer-section" style="flex: 1; overflow-y: auto;">
+              <span class="spec-heading">Block Runtime Preview</span>
+              <button type="button" class="timeline-row is-active" data-row="1">
+                <span>L1 · Kettlebell Swing @24kg</span>
+                <span class="mono">0:00–1:00</span>
+              </button>
+              <button type="button" class="timeline-row" data-row="2">
+                <span>L2 · 10 Burpee</span>
+                <span class="mono">1:00–2:00</span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <aside class="spec-panel" aria-label="Occlusion telemetry">
+      <div class="spec-card-section">
+        <div class="spec-heading">Header Occlusion Check</div>
+        <div class="metric-grid">
+          <div id="tileOccluded" class="metric-tile is-good">
+            <span class="metric-tile-label">Occluded Buttons</span>
+            <span id="valOccluded" class="metric-tile-val">0 / 4</span>
+          </div>
+          <div id="tileDrawerMode" class="metric-tile">
+            <span class="metric-tile-label">Drawer Positioning</span>
+            <span id="valDrawerMode" class="metric-tile-val">in-flow (340px)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec-card-section">
+        <div class="spec-heading">Keyboard Shortcut</div>
+        <button type="button" id="btnSidebarToggleDrawer" class="trigger-btn is-primary">Toggle Drawer (Ctrl+Alt+I)</button>
+      </div>
+
+      <div class="spec-card-section">
+        <div class="spec-heading">Measured Layout Delta</div>
+        <div id="specExplain" class="log-box">Ready.</div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const btnBefore = document.getElementById('btnBefore');
+    const btnAfter = document.getElementById('btnAfter');
+    const widthTabs = [...document.querySelectorAll('.width-tab')];
+    const scaleWrap = document.getElementById('scaleWrap');
+    const desktopShell = document.getElementById('desktopShell');
+    const zoneMain = desktopShell.querySelector('.zone-main');
+    const zoneL3 = document.getElementById('zoneL3');
+    const optionBDrawer = document.getElementById('optionBDrawer');
+    const drawerScrim = document.getElementById('drawerScrim');
+    const hdrButtons = [...document.querySelectorAll('[data-hdr]')];
+
+    const tileOccluded = document.getElementById('tileOccluded');
+    const valOccluded = document.getElementById('valOccluded');
+    const tileDrawerMode = document.getElementById('tileDrawerMode');
+    const valDrawerMode = document.getElementById('valDrawerMode');
+    const canvasWidthLabel = document.getElementById('canvasWidthLabel');
+    const specExplain = document.getElementById('specExplain');
+    const btnDrawerShortcut = document.getElementById('btnDrawerShortcut');
+
+    const state = {
+      mode: 'after',
+      viewportW: 1600,
+      drawerOpen: true,
+      reps: 12,
+      activeRow: 1,
+    };
+
+    function applyScale() {
+      const avail = scaleWrap.clientWidth || 900;
+      const scale = Math.min(1, avail / state.viewportW);
+      desktopShell.style.width = `${state.viewportW}px`;
+      desktopShell.style.transform = `scale(${scale})`;
+      scaleWrap.style.height = `${Math.round(820 * scale)}px`;
+    }
+
+    function measureOcclusions() {
+      hdrButtons.forEach((b) => b.classList.remove('is-occluded'));
+      if (!state.drawerOpen || (state.mode === 'after' && state.viewportW < 1280)) {
+        // Intentional scrim overlay on <1280px doesn't masquerade as split-pane; report 0 split-pane bug or overlay state cleanly
+        if (state.mode === 'after' && state.viewportW < 1280 && state.drawerOpen) {
+          tileOccluded.className = 'metric-tile is-good';
+          valOccluded.textContent = 'Overlay (<xl)';
+          return;
+        }
+        tileOccluded.className = 'metric-tile is-good';
+        valOccluded.textContent = '0 / 4';
+        return;
+      }
+
+      const dRect = optionBDrawer.getBoundingClientRect();
+      let hitCount = 0;
+      hdrButtons.forEach((btn) => {
+        const bRect = btn.getBoundingClientRect();
+        const overlaps = bRect.right > dRect.left + 1 && bRect.left < dRect.right - 1;
+        if (overlaps) {
+          hitCount++;
+          btn.classList.add('is-occluded');
+        }
+      });
+
+      tileOccluded.className = hitCount > 0 ? 'metric-tile is-bad' : 'metric-tile is-good';
+      valOccluded.textContent = `${hitCount} / 4`;
+    }
+
+    function render() {
+      btnBefore.classList.toggle('is-active', state.mode === 'before');
+      btnBefore.setAttribute('aria-pressed', String(state.mode === 'before'));
+      btnAfter.classList.toggle('is-active', state.mode === 'after');
+      btnAfter.setAttribute('aria-pressed', String(state.mode === 'after'));
+
+      btnDrawerShortcut.setAttribute('aria-pressed', String(state.drawerOpen));
+      btnDrawerShortcut.querySelector('span').textContent = state.drawerOpen ? 'Drawer: Open' : 'Drawer: Closed';
+
+      optionBDrawer.classList.toggle('is-open', state.drawerOpen);
+
+      // L3 visibility: at 1600px, L3 renders inline only when drawer is closed (or replaced cleanly in After)
+      const is2xl = state.viewportW >= 1520;
+      const isXl = state.viewportW >= 1280;
+
+      if (state.mode === 'before') {
+        zoneL3.style.display = is2xl && !state.drawerOpen ? 'flex' : 'none';
+        optionBDrawer.classList.toggle('is-fixed-overlay', state.drawerOpen);
+        optionBDrawer.classList.toggle('is-bug-overlay', state.drawerOpen);
+        drawerScrim.classList.remove('is-open');
+        valDrawerMode.textContent = state.drawerOpen ? 'fixed right:0 overlay' : 'closed';
+        tileDrawerMode.className = state.drawerOpen ? 'metric-tile is-bad' : 'metric-tile';
+        specExplain.innerHTML = '<strong>Before:</strong> Opening Option B hides L3, widens the editor across the whole stage, and paints <code>fixed right-0 w-[340px]</code> straight over <code>Play / Share / + Today / Schedule</code>.';
+      } else {
+        optionBDrawer.classList.remove('is-bug-overlay');
+        if (isXl) {
+          // >=1280px: Option B lives in layout flow beside reflowed Zone 3!
+          zoneL3.style.display = is2xl && !state.drawerOpen ? 'flex' : 'none';
+          optionBDrawer.classList.remove('is-fixed-overlay');
+          drawerScrim.classList.remove('is-open');
+          valDrawerMode.textContent = state.drawerOpen ? 'in-flow 340px rail' : 'closed';
+          tileDrawerMode.className = 'metric-tile is-good';
+          specExplain.innerHTML = `<strong>After (${state.viewportW}px):</strong> Option B mounts in layout flow inside the right rail slot. Zone 3 reflows beside it, keeping all 4 header actions 100% clickable.`;
+        } else {
+          // <1280px: deliberate dismissible overlay + scrim so editor width stays readable
+          zoneL3.style.display = 'none';
+          optionBDrawer.classList.toggle('is-fixed-overlay', state.drawerOpen);
+          drawerScrim.classList.toggle('is-open', state.drawerOpen);
+          valDrawerMode.textContent = state.drawerOpen ? '<xl scrim overlay' : 'closed';
+          tileDrawerMode.className = 'metric-tile is-good';
+          specExplain.innerHTML = '<strong>After (1024px &lt;xl):</strong> Narrower viewports retain a dismissible scrim overlay (<code>Esc</code> or click outside) so the note column never crushes below readable line length.';
+        }
+      }
+
+      document.getElementById('inlineReps').textContent = String(state.reps);
+      document.getElementById('chipReps').textContent = `${state.reps} reps`;
+      document.getElementById('diffTarget').textContent = String(state.reps);
+
+      document.getElementById('lineSwing').classList.toggle('is-active', state.activeRow === 1);
+      document.getElementById('lineBurpee').classList.toggle('is-active', state.activeRow === 2);
+      document.querySelectorAll('.timeline-row').forEach((r) => {
+        r.classList.toggle('is-active', Number(r.dataset.row) === state.activeRow);
+      });
+
+      applyScale();
+      requestAnimationFrame(() => {
+        canvasWidthLabel.textContent = `Canvas width: ${Math.round(zoneMain.offsetWidth)}px`;
+        measureOcclusions();
+      });
+    }
+
+    function toggleDrawer() {
+      state.drawerOpen = !state.drawerOpen;
+      render();
+    }
+
+    widthTabs.forEach((t) => {
+      t.addEventListener('click', () => {
+        state.viewportW = Number(t.dataset.w);
+        widthTabs.forEach((x) => {
+          const act = x === t;
+          x.classList.toggle('is-active', act);
+          x.setAttribute('aria-selected', String(act));
+        });
+        render();
+      });
+    });
+
+    btnBefore.addEventListener('click', () => { state.mode = 'before'; render(); });
+    btnAfter.addEventListener('click', () => { state.mode = 'after'; render(); });
+    btnDrawerShortcut.addEventListener('click', toggleDrawer);
+    document.getElementById('btnToggleDrawerInline').addEventListener('click', toggleDrawer);
+    document.getElementById('btnSidebarToggleDrawer').addEventListener('click', toggleDrawer);
+    document.getElementById('btnCloseDrawer').addEventListener('click', () => { state.drawerOpen = false; render(); });
+    drawerScrim.addEventListener('click', () => { state.drawerOpen = false; render(); });
+
+    document.getElementById('btnRepsMinus').addEventListener('click', () => {
+      state.reps = Math.max(2, state.reps - 2);
+      render();
+    });
+    document.getElementById('btnRepsPlus').addEventListener('click', () => {
+      state.reps += 2;
+      render();
+    });
+
+    document.querySelectorAll('.timeline-row').forEach((r) => {
+      r.addEventListener('click', () => {
+        state.activeRow = Number(r.dataset.row);
+        render();
+      });
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        toggleDrawer();
+      } else if (e.key === 'Escape' && state.drawerOpen && state.viewportW < 1280) {
+        state.drawerOpen = false;
+        render();
+      }
+    });
+
+    window.addEventListener('resize', render);
+    render();
+  </script>
+</body>
+</html>

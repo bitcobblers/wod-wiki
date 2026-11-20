@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from 'bun:test';
-import { cleanup, render } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AppRail } from '../AppRail';
 import { NavProvider } from '../NavContext';
+import { NavigationDrawerProvider } from '../NavigationDrawerContext';
 import { appNavTree } from '../appNavTree';
 
 afterEach(() => {
@@ -103,5 +104,24 @@ describe('AppRail accessibility', () => {
     const homeBtn = getByTestId('nav-l1-home');
     expect(homeBtn.getAttribute('aria-current')).toBe('page');
     expect(homeBtn.className).toContain('bg-primary/10');
+  });
+
+  it('keeps MobileSidebar open when tapping an inactive L1 section with an L2 panel and closes on active/Settings tap', () => {
+    const closeSpy = vi.fn();
+    const { getByTestId } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <NavProvider tree={appNavTree}>
+          <NavigationDrawerProvider close={closeSpy}>
+            <AppRail variant="mobile-list" onSearch={() => {}} />
+          </NavigationDrawerProvider>
+        </NavProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(getByTestId('nav-l1-notebooks'));
+    expect(closeSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(getByTestId('nav-settings'));
+    expect(closeSpy).toHaveBeenCalledTimes(1);
   });
 });

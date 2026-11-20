@@ -298,8 +298,8 @@ export function SidebarLayout({
             On mobile, this sticky navbar carries the hamburger drawer trigger.
             At xl (1280px), content halts growth at 984px (1280px viewport - 56px rail - 240px sidebar),
             allowing right-side space to grow until the 240px secondary rail mounts at 2xl (1520px).
-            The home route (isFullWidthRoute) skips the cap: it has no L2 sidebar to budget for. */}
-        <div className={cn('flex flex-1 flex-col min-w-0 2xl:max-w-none', isFullWidthRoute ? 'xl:max-w-none' : 'xl:max-w-[984px]')}>
+            The home route (isFullWidthRoute) and open Option B inspector drawer skip the cap. */}
+        <div className={cn('flex flex-1 flex-col min-w-0 2xl:max-w-none', isFullWidthRoute || navState?.inspectorDrawerOpen ? 'xl:max-w-none' : 'xl:max-w-[984px]')}>
           <header data-page-sticky-boundary="true" className="lg:hidden sticky top-0 z-20 flex items-center px-2 sm:px-4 bg-card">
             <div className="py-2.5 shrink-0">
               <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation" title="Open navigation" data-testid={TEST_IDS.MOBILE_NAV_OPEN}>
@@ -344,10 +344,16 @@ export function SidebarLayout({
             renders this rail inline unless the docked inspector drawer owns
             the right edge; below 2xl (lg–2xl laptop and < lg mobile)
             RightL3Drawer slides in with the exact same SecondaryNav content. */}
-        {!navState?.inspectorDrawerOpen && (
+        {!navState?.inspectorDrawerOpen ? (
           <aside className="hidden 2xl:flex w-60 shrink-0 sticky top-0 h-svh flex-col overflow-y-auto bg-background/72 backdrop-blur-sm">
             <SecondaryNav spec={secondary} pageAction={pageAction} />
           </aside>
+        ) : (
+          <div
+            aria-hidden="true"
+            data-testid={TEST_IDS.INSPECTOR_DRAWER_RAIL_SPACER}
+            className="hidden xl:block w-[340px] shrink-0"
+          />
         )}
         <RightL3Drawer
           open={showRightDrawer}
@@ -390,7 +396,7 @@ export function MainLandmark({ children }: React.PropsWithChildren) {
           role="status"
           aria-live="polite"
           data-testid="boot-import-progress"
-          className="pointer-events-none fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-lg border border-border bg-card/95 px-3 py-1.5 text-xs text-foreground shadow-sm"
+          className="pointer-events-none fixed z-30 max-lg:top-16 max-lg:bottom-auto max-lg:right-3 lg:bottom-4 lg:right-4 flex items-center gap-2 rounded-lg border border-border bg-card/95 px-3 py-1.5 text-xs text-foreground shadow-sm"
         >
           <span>{activeImportLabel ?? (progress ? feedProgressLabel(progress) : 'Importing library…')}</span>
           {detail && <span className="text-muted-foreground">{detail}</span>}
@@ -400,34 +406,39 @@ export function MainLandmark({ children }: React.PropsWithChildren) {
   )
 }
 
+/** `py-2` (16px) + `border-t` (1px) around MobileQueryFooter when non-empty. */
+const MOBILE_QUERY_FOOTER_CHROME_PX = 17
+
 /**
  * MobileQueryFooter — the fixed bottom row of the mobile shell where pages
  * portal thumb-zone controls (stream routes: the WQL composer as a
- * full-width button row). Publishes its height as `--thumb-dock-lift` so
- * ResponsiveActionsDock stacks a row above it, and renders a flow spacer
- * so scrolled-to-bottom content clears it. Collapses to nothing when no
- * page portals in.
+ * full-width button row). Publishes its outer border-box height as
+ * `--thumb-dock-lift` so ResponsiveActionsDock stacks cleanly above it,
+ * and renders a flow spacer so scrolled-to-bottom content clears it.
+ * Collapses to nothing when no page portals in.
  */
 function MobileQueryFooter() {
   const barRef = useRef<HTMLDivElement>(null)
-  const [lift, setLift] = useState(0)
+  const [innerHeight, setInnerHeight] = useState(0)
 
   useEffect(() => {
     const el = barRef.current
     if (!el) return
-    // Measure the content-box of the fixed inner wrapper: the bar's own
-    // border-box height includes the padding we apply when lift>0, and portal
-    // content can size itself off --thumb-dock-lift — either feedback loops
-    // into maximum-update-depth crashes (observed on collection routes).
+    // Measure the content-box of the fixed inner wrapper so padding added
+    // when innerHeight > 0 never feeds back into ResizeObserver measurements;
+    // add the constant outer chrome (16px py-2 + 1px border-t = 17px) when
+    // publishing `--thumb-dock-lift` so actions-dock clears the outer border.
     const observer = new ResizeObserver((entries) => {
       const h = Math.round(entries[0]?.contentRect.height ?? 0)
-      setLift((prev) => (prev === h ? prev : h))
+      setInnerHeight((prev) => (prev === h ? prev : h))
     })
     observer.observe(el, { box: 'content-box' })
     const initial = Math.round(el.getBoundingClientRect().height)
-    setLift((prev) => (prev === initial ? prev : initial))
+    setInnerHeight((prev) => (prev === initial ? prev : initial))
     return () => observer.disconnect()
   }, [])
+
+  const lift = innerHeight > 0 ? innerHeight + MOBILE_QUERY_FOOTER_CHROME_PX : 0
 
   useEffect(() => {
     document.documentElement.style.setProperty('--thumb-dock-lift', `${lift}px`)

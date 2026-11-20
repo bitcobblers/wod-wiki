@@ -161,6 +161,14 @@ export const TEST_IDS = {
   MOBILE_NAV_DRAWER: 'mobile-nav-drawer',
   MOBILE_NAV_CLOSE: 'mobile-nav-close',
   DRAWER_APPLY_BTN: 'drawer-apply-btn',
+  INSPECTOR_DRAWER_RAIL_SPACER: 'inspector-drawer-rail-spacer',
+  LIBRARY_ROW_OVERFLOW: 'library-row-overflow',
+  LIBRARY_ACTION_OPEN: 'action-open',
+  LIBRARY_ACTION_NOTEBOOK: 'action-notebook',
+  LIBRARY_ACTION_ADD: 'action-add',
+  LIBRARY_ACTION_RUN: 'action-run',
+  LIBRARY_ACTION_COMPARE: 'action-compare',
+  LIBRARY_PUBLISH_LOCAL_FEED: 'row-publish-local-feed',
   NEW_ENTRY_PRIMARY: 'new-entry-primary',
 
   // ── Stream & WQL surfaces ──────────────────────────────────────────────────

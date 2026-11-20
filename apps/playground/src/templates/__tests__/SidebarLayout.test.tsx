@@ -359,6 +359,10 @@ describe('SidebarLayout mobile folding zones', () => {
       </MemoryRouter>,
     );
     expect(container.querySelector('aside')).toBeNull();
+    expect(screen.getByTestId(TEST_IDS.INSPECTOR_DRAWER_RAIL_SPACER)).toBeTruthy();
+    const contentColumn = screen.getByText('Content').closest('[class*="xl:max-w-"]');
+    expect(contentColumn?.className).toContain('xl:max-w-none');
+    expect(contentColumn?.className).not.toContain('xl:max-w-[984px]');
   });
 
   it('ignores defaultPrevented Cmd+. / Ctrl+. keydown events', () => {

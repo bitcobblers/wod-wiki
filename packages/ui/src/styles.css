@@ -349,4 +349,18 @@
   [data-slot="button"][data-pending] [data-show="idle"] {
     display: none;
   }
+
+  /* Mobile bottom-edge coordination: yield global bottom toasts to top safe area
+     whenever MobileWheelComposer or mobile-typing-bar owns the thumb deck, and
+     lift bottom toasts above MobileQueryFooter otherwise. */
+  @media (max-width: 1023px) {
+    html[data-mobile-editor-open="true"] [data-slot="toast-region"][data-side="bottom"] {
+      top: calc(3.75rem + env(safe-area-inset-top, 0px));
+      bottom: auto;
+    }
+
+    html:not([data-mobile-editor-open="true"]) [data-slot="toast-region"][data-side="bottom"] {
+      bottom: calc(var(--thumb-dock-lift, 0px) + env(safe-area-inset-bottom, 0px));
+    }
+  }
 }
