@@ -29,6 +29,7 @@ import { storageService } from '@/services/storage';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
 import { getAppEquipmentRegistry, hydrateAppEquipmentRegistry } from '@/services/equipmentRegistry';
+import type { NotebookScopeSnapshot } from '@/components/organisms/editor/wheelSources';
 import { getTagIndex, refreshTagIndex } from '@/services/tags/tagCatalogue';
 import { readSoundProfiles } from '@/services/sound/soundProfiles';
 import { SEED_BROADCAST_CHANNEL } from '@/services/feed/feedSync';
@@ -182,12 +183,77 @@ export async function loadReferenceCatalog(): Promise<CatalogSnapshot> {
 }
 export interface NoteCompletionSources {
   loadCatalog?: () => Promise<{
-    efforts: readonly { slug: string; label: string; aliases?: readonly string[] }[];
+    efforts: readonly {
+      slug: string;
+      label: string;
+      aliases?: readonly string[];
+      baseAttributes?: { discipline?: string };
+      equipment?: readonly string[];
+      sourcePath?: string;
+    }[];
     equipment: readonly { slug: string; label: string; aliases?: readonly string[] }[];
   }>;
   loadTags?: () => Promise<readonly string[]> | readonly string[];
   loadSounds?: () => Promise<readonly { id: string; name: string }[]> | readonly { id: string; name: string }[];
   loadWqlSuggestions?: (key: string) => Promise<readonly { value: string; label?: string }[]>;
+  getNotebookScope?: () => NotebookScopeSnapshot;
+  onCreateEffort?: (raw: string) => void | Promise<void>;
+  onCreateTag?: (slug: string) => void | Promise<void>;
+}
+
+function collectScopeKeywords(scope: NotebookScopeSnapshot | undefined): Set<string> {
+  const words = new Set<string>();
+  if (!scope) return words;
+  const add = (raw?: string) => {
+    if (!raw) return;
+    const cleaned = raw.trim().toLowerCase();
+    if (!cleaned) return;
+    words.add(cleaned);
+    for (const part of cleaned.split(/[\s/_-]+/)) {
+      if (part.length >= 3) words.add(part);
+    }
+  };
+  add(scope.notebookSlug);
+  for (const tag of scope.tags) add(tag);
+  add(scope.defaultEffort);
+  for (const eq of scope.defaultEquipment) add(eq);
+  return words;
+}
+
+function scoreCatalogEffort(
+  effort: {
+    slug: string;
+    baseAttributes?: { discipline?: string };
+    equipment?: readonly string[];
+    sourcePath?: string;
+  },
+  scope: NotebookScopeSnapshot | undefined,
+  keywords: Set<string>,
+): number {
+  if (!scope) return 0;
+  let score = 0;
+  if (scope.defaultEffort && effort.slug === scope.defaultEffort) score += 100;
+  if (effort.equipment?.some((eq) => scope.defaultEquipment.includes(eq))) score += 40;
+  if (effort.baseAttributes?.discipline && keywords.has(effort.baseAttributes.discipline.toLowerCase())) {
+    score += 30;
+  }
+  if (effort.sourcePath) {
+    const lowerPath = effort.sourcePath.toLowerCase();
+    for (const kw of keywords) {
+      if (kw.length >= 3 && lowerPath.includes(kw)) {
+        score += 20;
+        break;
+      }
+    }
+  }
+  const lowerSlug = effort.slug.toLowerCase();
+  for (const kw of keywords) {
+    if (kw.length >= 4 && lowerSlug.includes(kw)) {
+      score += 10;
+      break;
+    }
+  }
+  return score;
 }
 
 /**
@@ -205,32 +271,104 @@ export function buildNestedCompletionOptions(sources?: NoteCompletionSources): N
           type: 'constant' as const,
         }));
       },
+      tagTypeValues: async (key) => {
+        const normKey = key.trim().toLowerCase();
+        const tags = await storageService.getAllTags().catch(() => []);
+        return tags
+          .filter((tag) => tag.type?.toLowerCase() === normKey)
+          .map((tag) => tag.label);
+      },
     },
     whiteboardScript: {
       efforts: async () => {
         const catalog = sources?.loadCatalog ? await sources.loadCatalog() : await loadReferenceCatalog();
-        return catalog.efforts.map((effort) => ({
-          value: effort.slug,
-          label: effort.label,
-          aliases: effort.aliases,
-          detail: effort.slug,
-        }));
+        const scope = sources?.getNotebookScope?.();
+        const keywords = collectScopeKeywords(scope);
+        return catalog.efforts.map((effort) => {
+          const score = scoreCatalogEffort(effort, scope, keywords);
+          const discipline = effort.baseAttributes?.discipline;
+          if (score > 0) {
+            return {
+              value: effort.slug,
+              label: effort.label,
+              aliases: effort.aliases,
+              detail: discipline ? `In notebook · ${discipline}` : 'In this notebook',
+              section: 'In this notebook',
+              boost: Math.min(25, 10 + Math.round(score / 10)),
+            };
+          }
+          return {
+            value: effort.slug,
+            label: effort.label,
+            aliases: effort.aliases,
+            detail: discipline ?? effort.slug,
+            section: 'Movements',
+          };
+        });
       },
       equipment: async () => {
         const catalog = sources?.loadCatalog ? await sources.loadCatalog() : await loadReferenceCatalog();
-        return catalog.equipment.map((item) => ({
-          value: item.slug,
-          label: item.label,
-          aliases: item.aliases,
-          detail: item.slug,
-        }));
+        const scope = sources?.getNotebookScope?.();
+        const scopedEq = new Set((scope?.defaultEquipment ?? []).map((eq) => eq.toLowerCase()));
+        return catalog.equipment.map((item) => {
+          const isScoped = scopedEq.has(item.slug.toLowerCase());
+          return isScoped
+            ? {
+                value: item.slug,
+                label: item.label,
+                aliases: item.aliases,
+                detail: 'In this notebook',
+                section: 'In this notebook',
+                boost: 12,
+              }
+            : {
+                value: item.slug,
+                label: item.label,
+                aliases: item.aliases,
+                detail: 'Equipment',
+                section: 'Equipment',
+              };
+        });
       },
       tags: async () => {
-        if (sources?.loadTags) {
-          const tags = await sources.loadTags();
-          return tags.map((t) => ({ value: t }));
+        const scope = sources?.getNotebookScope?.();
+        const rawTags = sources?.loadTags
+          ? [...(await sources.loadTags())]
+          : getTagIndex().list().map((tag) => tag.slug);
+        if (!scope?.tags.length) {
+          return rawTags.map((t) => ({ value: t, detail: 'Tag', section: 'Tags' }));
         }
-        return getTagIndex().list().map((tag) => ({ value: tag.slug }));
+        const seen = new Set<string>();
+        const ordered: {
+          value: string;
+          detail: string;
+          section: string;
+          boost?: number;
+        }[] = [];
+        for (const scoped of scope.tags) {
+          const clean = scoped.replace(/^#/, '').trim();
+          const lower = clean.toLowerCase();
+          if (!clean || seen.has(lower)) continue;
+          seen.add(lower);
+          ordered.push({
+            value: clean,
+            detail: 'In this notebook',
+            section: 'In this notebook',
+            boost: 12,
+          });
+        }
+        for (const tag of rawTags) {
+          const clean = tag.replace(/^#/, '').trim();
+          const lower = clean.toLowerCase();
+          if (!clean || seen.has(lower)) continue;
+          seen.add(lower);
+          ordered.push({
+            value: clean,
+            detail: 'Tag',
+            section: 'Tags',
+          });
+        }
+        return ordered;
       },
       sounds: () => {
         if (sources?.loadSounds) {
@@ -239,6 +377,18 @@ export function buildNestedCompletionOptions(sources?: NoteCompletionSources): N
         }
         return readSoundProfiles().map((profile) => ({ value: profile.id, label: profile.name }));
       },
+      ...(sources?.getNotebookScope
+        ? {
+            preferredUnits: () => {
+              const scope = sources.getNotebookScope?.();
+              return [scope?.preferredMassUnit, scope?.preferredDistanceUnit].filter(
+                (u): u is string => typeof u === 'string' && u.length > 0,
+              );
+            },
+          }
+        : {}),
+      ...(sources?.onCreateEffort ? { onCreateEffort: sources.onCreateEffort } : {}),
+      ...(sources?.onCreateTag ? { onCreateTag: sources.onCreateTag } : {}),
     },
   };
 }

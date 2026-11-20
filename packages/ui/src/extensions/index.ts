@@ -11,6 +11,10 @@ export { affiliateTagFacet, applyAmazonAffiliateTag, isAmazonRetailHost } from '
 export { wodLinter, findWorkoutErrors, workoutLintSource } from './whiteboard-linter';
 export {
   wodAutocompletion,
+  wodCompletionKeymap,
+  wodCompletionIconOption,
+  acceptCompletionOrFirst,
+  mobileDockedCompletionFacet,
   wodEditorKeymap,
   wodAutoWrap,
   fenceCompletion,

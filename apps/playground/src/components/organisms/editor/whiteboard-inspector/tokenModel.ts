@@ -9,7 +9,7 @@ import {
   type IMetric,
 } from '@bitcobblers/wod-wiki-engine';
 import { getReferenceMetadata, getTagReference, type TagReferenceMetadata } from '@bitcobblers/wod-wiki-core';
-import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
+import { applyTemplateDefaults, whiteboardScriptSnippets, type IEffort, type IEquipment } from '@bitcobblers/wod-wiki-lang';
 import { activeCursorSection, sectionField, type EditorSection } from '@bitcobblers/wod-wiki-ui/extensions';
 import { getCursorFocusState, type CursorFocusState } from '@/app/editor/cursorFocusExtension';
 import { getSharedReferenceIndex, readNoteReferenceDefaults } from '@/app/editor/noteEditorServices';
@@ -130,56 +130,13 @@ export interface EditDiffSummary {
   to: string;
 }
 
-export const WORKOUT_TEMPLATES: readonly WorkoutTemplatePreset[] = [
-  {
-    id: 'emom',
-    name: 'EMOM',
-    desc: 'Every minute on the minute',
-    lines: ['(10) :60 EMOM', '  + 10 Kettlebell Swing @24kg #emom'],
-  },
-  {
-    id: 'amrap',
-    name: 'AMRAP',
-    desc: 'As many rounds as possible in time cap',
-    lines: ['12:00 AMRAP', '  10 Pull-up', '  15 Push-up', '  200m Run #amrap'],
-  },
-  {
-    id: 'tabata',
-    name: 'Tabata',
-    desc: '8 intervals of 20s work / 10s rest',
-    lines: ['(8) :20 Work', '  * :10 [:rest]', '  10 Air Squat #tabata'],
-  },
-  {
-    id: '5x5',
-    name: '5x5 Strength',
-    desc: 'Sets × reps barbell progression',
-    lines: ['5x5 Back Squat @100kg *2:00 #strength'],
-  },
-  {
-    id: 'circuit',
-    name: 'Circuit',
-    desc: 'Multi-station timed rounds',
-    lines: ['(3)', '  400m Run', '  15 Wall Ball 9kg', '  *1:00 [:rest]'],
-  },
-  {
-    id: 'ladder',
-    name: 'Ladder (21-15-9)',
-    desc: 'Descending rep scheme',
-    lines: ['(21-15-9)', '  Thruster @43kg', '  Pull-up #for-time'],
-  },
-  {
-    id: 'choice',
-    name: 'Choice (A | B)',
-    desc: 'Scaled or equipment alternative',
-    lines: ['(5)', '  15 Kettlebell Swing 24 | 16 kg'],
-  },
-  {
-    id: 'collectible',
-    name: 'Collectible (:?)',
-    desc: 'Open clock measure-until-done',
-    lines: [':? 2000m Row #for-time'],
-  },
-];
+export const WORKOUT_TEMPLATES: readonly WorkoutTemplatePreset[] =
+  whiteboardScriptSnippets.map((snippet) => ({
+    id: snippet.name,
+    name: snippet.label,
+    desc: snippet.detail,
+    lines: applyTemplateDefaults(snippet.template).trimEnd().split('\n'),
+  }));
 
 export const ACTION_CUES: readonly { code: string; label: string; desc: string }[] = [
   { code: '[:rest]', label: 'Rest Cue', desc: 'Mark an active rest transition' },

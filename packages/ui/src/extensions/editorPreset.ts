@@ -11,7 +11,7 @@ import {
   keymap,
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
+import { closeBrackets, closeBracketsKeymap, autocompletion } from "@codemirror/autocomplete";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { whiteboardScriptLanguage, whiteboardScript } from '@bitcobblers/wod-wiki-lang';
 import type { WhiteboardScriptCompletionOptions } from '@bitcobblers/wod-wiki-lang';
@@ -25,6 +25,8 @@ import { embedPreviewDecorations } from "./embed-preview";
 import { wodLinter } from "./whiteboard-linter";
 import {
   wodAutocompletion,
+  wodCompletionKeymap,
+  wodCompletionIconOption,
   wodEditorKeymap,
   wodAutoWrap,
   nestedCompletionOptions,
@@ -126,10 +128,26 @@ export function editorPreset(optionsOrDialect: string | EditorPresetOptions = 'm
       ...(catalog ? { catalog } : {}),
       ...(tagTypeValues ? { tagTypeValues } : {}),
     };
-    extensions.push(wql(completionOptions));
+    extensions.push(
+      wql(completionOptions),
+      autocompletion({
+        selectOnOpen: false,
+        interactionDelay: 0,
+        icons: false,
+        addToOptions: [wodCompletionIconOption],
+      }),
+      wodCompletionKeymap,
+    );
   } else if (dialect === 'wod' || dialect === 'whiteboard' || dialect === 'time') {
     extensions.push(
       whiteboardScript(whiteboardScriptCompletion),
+      autocompletion({
+        selectOnOpen: false,
+        interactionDelay: 0,
+        icons: false,
+        addToOptions: [wodCompletionIconOption],
+      }),
+      wodCompletionKeymap,
       wodLinter,
     );
   } else {
@@ -154,6 +172,7 @@ export function editorPreset(optionsOrDialect: string | EditorPresetOptions = 'm
       embedPreviewDecorations,
       wodLinter,
       wodAutocompletion,
+      wodCompletionKeymap,
       wodEditorKeymap,
       wodAutoWrap,
       ...(Object.keys(nestedOptions).length ? [nestedCompletionOptions.of(nestedOptions)] : []),

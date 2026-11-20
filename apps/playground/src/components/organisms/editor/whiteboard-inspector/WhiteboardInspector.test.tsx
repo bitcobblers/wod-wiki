@@ -198,6 +198,8 @@ describe('Unified Whiteboard Syntax Inspector & Prose Completions', () => {
 
       const drawer = await screen.findByTestId(TEST_IDS.EDITOR_INSPECTOR_DRAWER);
       expect(drawer).toBeDefined();
+      expect(drawer.textContent).toContain('Ctrl+Space Typeahead');
+      expect(drawer.textContent).toContain('/ Blocks');
 
       const timelineRows = await screen.findAllByTestId(TEST_IDS.EDITOR_BLOCK_TIMELINE_ROW);
       expect(timelineRows.length).toBeGreaterThanOrEqual(2);

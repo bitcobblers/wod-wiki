@@ -1,6 +1,12 @@
 import {
+  acceptCompletion,
   autocompletion,
+  closeCompletion,
   CompletionContext,
+  completionStatus,
+  currentCompletions,
+  selectedCompletionIndex,
+  setSelectedCompletion,
   snippet,
 } from "@codemirror/autocomplete";
 import type {
@@ -8,7 +14,7 @@ import type {
   Completion,
 } from "@codemirror/autocomplete";
 import { EditorView, keymap } from "@codemirror/view";
-import { EditorSelection, EditorState, Facet } from "@codemirror/state";
+import { EditorSelection, EditorState, Facet, Prec } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import {
   whiteboardScriptCompletionSource,
@@ -18,136 +24,158 @@ import type { WhiteboardScriptCompletionOptions } from "@bitcobblers/wod-wiki-la
 import { wqlCompletionSource, wqlLanguage } from "@bitcobblers/wod-wiki-wql";
 import type { WqlCompletionOptions } from "@bitcobblers/wod-wiki-wql";
 import { activeCursorSection, sectionAtPos } from "./section-state";
+import { editingQuerySectionsField } from "./query-block-preview";
+
+const WORKOUT_SECTION = { name: "Workout & Data", rank: 1 };
+const MARKDOWN_SECTION = { name: "Markdown Structure", rank: 2 };
 
 const FENCE_TAGS: Completion[] = [
   {
     label: "```time",
-    detail: "Whiteboard Script (timer)",
+    detail: "Timer workout block",
     type: "keyword",
+    section: WORKOUT_SECTION,
     apply: snippet("```time\n${}\n```"),
     boost: 90,
   },
   {
     label: "```log",
-    detail: "Whiteboard Script (log/completed)",
+    detail: "Completed workout log",
     type: "keyword",
+    section: WORKOUT_SECTION,
     apply: snippet("```log\n${}\n```"),
     boost: 85,
   },
   {
     label: "```query",
-    detail: "WQL Analytics Query",
+    detail: "Analytics query block",
     type: "keyword",
+    section: WORKOUT_SECTION,
     apply: snippet("```query\n${}\n```"),
     boost: 80,
   },
   {
-    label: "```wod",
-    detail: "Timer workout block (inserts ```time)",
+    label: "```widget",
+    detail: "Interactive embed widget",
     type: "keyword",
+    section: WORKOUT_SECTION,
+    apply: snippet("```widget:${name}\n${}\n```"),
+    boost: 75,
+  },
+  {
+    label: "```wod",
+    detail: "Legacy alias for ```time",
+    type: "keyword",
+    section: WORKOUT_SECTION,
     apply: snippet("```time\n${}\n```"),
-    boost: 78,
+    boost: 10,
   },
   {
     label: "```whiteboard",
-    detail: "Timer workout block (inserts ```time)",
+    detail: "Legacy fence alias for ```time",
     type: "keyword",
+    section: WORKOUT_SECTION,
     apply: snippet("```time\n${}\n```"),
-    boost: 77,
-  },
-  {
-    label: "```widget",
-    detail: "Custom React Widget",
-    type: "keyword",
-    apply: snippet("```widget:${name}\n${}\n```"),
-    boost: 75,
+    boost: 9,
   },
 ];
 
 export const SLASH_COMMANDS: Completion[] = [
   {
     label: "/time",
-    detail: "Timer block (```time fence)",
+    detail: "Timer workout block",
     type: "keyword",
+    section: WORKOUT_SECTION,
     apply: snippet("```time\n${10:00 Run}\n```"),
     boost: 95,
   },
   {
-    label: "/wod",
-    detail: "Alias for /time (```time fence)",
-    type: "keyword",
-    apply: snippet("```time\n${10:00 Run}\n```"),
-    boost: 94,
-  },
-  {
     label: "/log",
-    detail: "Completed workout log block",
+    detail: "Completed workout log",
     type: "keyword",
-    apply: snippet("```log\n${5x5 Back Squat 100kg}\n```"),
+    section: WORKOUT_SECTION,
+    apply: snippet("```log\n${5x5 Back Squat @100kg}\n```"),
     boost: 92,
   },
   {
     label: "/query",
-    detail: "WQL analytics query block",
+    detail: "Analytics query chart or table",
     type: "keyword",
-    apply: snippet("```query\n${sum:reps{} every week}\n```"),
+    section: WORKOUT_SECTION,
+    apply: snippet("```query\n${:sum{metric:reps} by {week} last 4w | :bar{}}\n```"),
     boost: 90,
   },
   {
     label: "/table",
-    detail: "Markdown data table",
-    type: "keyword",
+    detail: "Data comparison table",
+    type: "text",
+    section: MARKDOWN_SECTION,
     apply: snippet("| ${Movement} | ${Sets} | ${Load} |\n| --- | --- | --- |\n| ${Squat} | ${5} | ${100kg} |"),
     boost: 85,
   },
   {
     label: "/task",
-    detail: "Interactive task item",
-    type: "keyword",
+    detail: "Interactive checklist item",
+    type: "text",
+    section: MARKDOWN_SECTION,
     apply: snippet("- [ ] ${}"),
     boost: 82,
   },
   {
     label: "/h1",
-    detail: "Section title (H1)",
-    type: "keyword",
+    detail: "Primary section heading (H1)",
+    type: "text",
+    section: MARKDOWN_SECTION,
     apply: snippet("# ${}"),
     boost: 80,
   },
   {
     label: "/h2",
     detail: "Subsection heading (H2)",
-    type: "keyword",
+    type: "text",
+    section: MARKDOWN_SECTION,
     apply: snippet("## ${}"),
     boost: 78,
   },
   {
     label: "/h3",
     detail: "Minor heading (H3)",
-    type: "keyword",
+    type: "text",
+    section: MARKDOWN_SECTION,
     apply: snippet("### ${}"),
     boost: 76,
   },
   {
     label: "/quote",
-    detail: "Editorial blockquote",
-    type: "keyword",
+    detail: "Callout or blockquote",
+    type: "text",
+    section: MARKDOWN_SECTION,
     apply: snippet("> ${}"),
     boost: 74,
   },
   {
     label: "/link",
-    detail: "External or workspace link",
-    type: "keyword",
+    detail: "External or workspace hyperlink",
+    type: "text",
+    section: MARKDOWN_SECTION,
     apply: snippet("[${Label}](${https://})"),
     boost: 72,
   },
   {
     label: "/divider",
-    detail: "Horizontal rule",
-    type: "keyword",
+    detail: "Horizontal section divider",
+    type: "text",
+    section: MARKDOWN_SECTION,
     apply: "---\n",
     boost: 70,
+  },
+  {
+    label: "/wod",
+    detail: "Alias for /time block",
+    type: "keyword",
+    section: WORKOUT_SECTION,
+    apply: snippet("```time\n${10:00 Run}\n```"),
+    boost: 10,
   },
 ];
 
@@ -444,6 +472,10 @@ export function nestedCompletion(
   const whiteboard = section.type === "time" || section.type === "log";
   const query = section.type === "query" || wqlFenceAt(context.state, section.from);
   if (!whiteboard && !query) return null;
+  if (section.type === "query") {
+    const editingSections = context.state.field(editingQuerySectionsField, false);
+    if (editingSections && !editingSections.has(section.id)) return null;
+  }
   if (context.pos < contentFrom || context.pos > contentTo) return null;
 
   const { state } = context;
@@ -491,8 +523,105 @@ export async function wodCompletionSource(context: CompletionContext): Promise<C
   );
 }
 
+export const mobileDockedCompletionFacet = Facet.define<boolean, boolean>({
+  combine: (values) => values.some(Boolean),
+});
+
+const SEMANTIC_SVG_PATHS: Record<string, string> = {
+  effort: '<path d="M6.5 6.5h11M6.5 17.5h11M4 9v6M20 9v6M7 4v16M17 4v16"/>',
+  unit: '<path d="M4 17V7m4 10V11m4 6V7m4 10v-4m4 4V7"/>',
+  tag: '<path d="M5 9h14M5 15h14M11 4L8 20M16 4l-3 16"/>',
+  keyword: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5M9 2h6"/>',
+  template: '<rect x="3" y="4" width="18" height="6" rx="1.5"/><path d="M3 14h18M3 19h12"/>',
+  property: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
+  create: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L10.5 5.42"/><path d="M14 11a5 5 0 0 0-7.07 0l-2.12 2.12a5 5 0 0 0 7.07 7.07l1.61-1.61"/>',
+};
+
+function iconKindForCompletion(completion: Completion): string {
+  switch (completion.type) {
+    case "variable":
+      return "effort";
+    case "unit":
+      return "unit";
+    case "constant":
+      return "tag";
+    case "keyword":
+      return "keyword";
+    case "property":
+      return "property";
+    case "create":
+      return "create";
+    case "class":
+      return "link";
+    default:
+      return "template";
+  }
+}
+
+export const wodCompletionIconOption = {
+  position: 20,
+  render: (completion: Completion): Node => {
+    const kind = iconKindForCompletion(completion);
+    const span = document.createElement("span");
+    span.className = `cm-wod-ac-icon cm-wod-ac-icon--${kind}`;
+    span.setAttribute("aria-hidden", "true");
+    span.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SEMANTIC_SVG_PATHS[kind] ?? SEMANTIC_SVG_PATHS.template}</svg>`;
+    return span;
+  },
+};
+
+/**
+ * Accept the highlighted suggestion or fall back to the first option when no row
+ * has been explicitly arrow-selected (`selectOnOpen: false`). While async
+ * sources are still resolving (`pending`), consume Tab without indenting.
+ */
+export function acceptCompletionOrFirst(view: EditorView): boolean {
+  const status = completionStatus(view.state);
+  if (status === null) return false;
+  if (status === "pending") return true;
+  if (selectedCompletionIndex(view.state) === null) {
+    if (currentCompletions(view.state).length === 0) return true;
+    view.dispatch({ effects: setSelectedCompletion(0) });
+  }
+  acceptCompletion(view);
+  return true;
+}
+
+/**
+ * Shared completion keyboard contract across Markdown NoteEditor and standalone
+ * dialects: Tab commits (top option if none highlighted), Enter preserves
+ * newlines unless an option was explicitly selected with ArrowDown/ArrowUp.
+ */
+export const wodCompletionKeymap: Extension = Prec.highest(
+  keymap.of([
+    {
+      key: "Tab",
+      run: acceptCompletionOrFirst,
+    },
+    {
+      key: "Enter",
+      run: (view) => {
+        if (completionStatus(view.state) === null) return false;
+        if (selectedCompletionIndex(view.state) !== null) {
+          return acceptCompletion(view);
+        }
+        closeCompletion(view);
+        return false;
+      },
+    },
+  ]),
+);
+
 export const wodAutocompletion: Extension = autocompletion({
+  selectOnOpen: false,
   interactionDelay: 0,
+  icons: false,
+  addToOptions: [wodCompletionIconOption],
+  tooltipClass: (state) =>
+    state.facet(mobileDockedCompletionFacet)
+      ? "cm-wod-tooltip cm-wod-tooltip-docked-hidden"
+      : "cm-wod-tooltip",
   activateOnCompletion: (completion) =>
     completion.type === "property" &&
     typeof completion.apply === "string" &&

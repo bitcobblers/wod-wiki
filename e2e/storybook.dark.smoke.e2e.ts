@@ -84,6 +84,8 @@ test('dark note editor completion tooltip maintains WCAG AA contrast on screens-
   await page.keyboard.type(':no');
   const menu = page.locator('.cm-tooltip-autocomplete');
   await expect(menu).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  await expect(menu.locator('li[aria-selected="true"]')).toBeVisible();
 
   const metrics = await page.evaluate(() => {
     const canvas = document.createElement('canvas');

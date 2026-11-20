@@ -24,58 +24,58 @@ export interface WhiteboardScriptSnippet {
 
 export const whiteboardScriptSnippets: readonly WhiteboardScriptSnippet[] = [
   {
-    name: 'circuit',
-    label: 'Circuit',
-    detail: 'Rounds over indented movements',
-    template: '(${1:3})\n  ${2:10 Air Squats}\n  ${3:10 Push Ups}\n  ${4:10 Ring Rows}\n${0}',
-  },
-  {
-    name: '5x5',
-    label: '5x5',
-    detail: 'Inline strength sets',
-    template: '${1:5}x${2:5} ${3:Back Squat} @${4:100kg}\n${0}',
-  },
-  {
     name: 'emom',
     label: 'EMOM',
     detail: 'Every minute on the minute',
-    template: '(${1:10}) ${2::60 EMOM}\n  + ${3:5 Burpees}\n  + ${4:10 Kettlebell Swings 24kg}\n${0}',
+    template: '(${1:10}) ${2::60 EMOM}\n  + ${3:10 Kettlebell Swing} @${4:24kg} #emom\n${0}',
   },
   {
     name: 'amrap',
     label: 'AMRAP',
-    detail: 'As many rounds as possible',
-    template: '${1:10:00 AMRAP}\n  ${2:5 Pull Ups}\n  ${3:10 Push Ups}\n  ${4:15 Air Squats}\n${0}',
+    detail: 'As many rounds as possible in time cap',
+    template: '${1:12:00 AMRAP}\n  ${2:10 Pull-up}\n  ${3:15 Push-up}\n  ${4:200m Run} #amrap\n${0}',
   },
   {
     name: 'tabata',
     label: 'Tabata',
-    detail: 'Work/rest intervals',
-    template: '(${1:8}) ${2::20 Work}\n  * ${3::10 Rest}\n  ${4:KB Snatch 16kg}\n${0}',
+    detail: '8 intervals of 20s work / 10s rest',
+    template: '(${1:8}) ${2::20 Work}\n  * ${3::10} [:rest]\n  ${4:10 Air Squat} #tabata\n${0}',
+  },
+  {
+    name: '5x5',
+    label: '5x5',
+    detail: 'Sets × reps barbell progression',
+    template: '${1:5}x${2:5} ${3:Back Squat} @${4:100kg} *${5:2:00} #strength\n${0}',
+  },
+  {
+    name: 'circuit',
+    label: 'Circuit',
+    detail: 'Multi-station timed rounds',
+    template: '(${1:3})\n  ${2:400m Run}\n  ${3:15 Wall Ball} @${4:9kg}\n  *${5:1:00} [:rest]\n${0}',
   },
   {
     name: 'ladder',
     label: 'Ladder',
-    detail: 'Rep ladder (21-15-9)',
-    template: '(${1:21-15-9})\n  ${2:Thrusters 95lb}\n  ${3:Pull-ups}\n${0}',
+    detail: 'Descending rep scheme (21-15-9)',
+    template: '(${1:21-15-9})\n  ${2:Thruster} @${3:43kg}\n  ${4:Pull-up} #for-time\n${0}',
   },
   {
     name: 'choice',
     label: 'Choice',
-    detail: 'Athlete choice between alternatives',
-    template: '${1:10 Power Cleans 135/95 lb}\n${0}',
+    detail: 'Scaled or equipment alternative (A | B)',
+    template: '(${1:5})\n  ${2:15 Kettlebell Swing} ${3:24 | 16 kg}\n${0}',
   },
   {
     name: 'superset',
     label: 'Superset',
     detail: 'Compound set via + lap markers',
-    template: '+ ${1:5 Pull Ups}\n+ ${2:10 Push Ups}\n${0}',
+    template: '+ ${1:5 Pull-up}\n+ ${2:10 Push-up}\n${0}',
   },
   {
     name: 'collectible',
     label: 'Collectible',
-    detail: 'Measure time instead of prescribing it (:?)',
-    template: '${1::? 400m Run}\n${0}',
+    detail: 'Open clock measure-until-done (:?)',
+    template: '${1::? 2000m Row} #for-time\n${0}',
   },
 ];
 
@@ -97,6 +97,8 @@ export function snippetCompletions(): Completion[] {
     snippetCompletion(snippet.template, {
       label: snippet.label,
       detail: snippet.detail,
+      info: applyTemplateDefaults(snippet.template).trim(),
+      section: { name: 'Templates', rank: 3 },
       type: 'text',
       boost: 10,
     })

@@ -12,7 +12,15 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorView } from "@codemirror/view";
-import { startCompletion } from "@codemirror/autocomplete";
+import {
+  acceptCompletion,
+  closeCompletion,
+  completionStatus,
+  currentCompletions,
+  setSelectedCompletion,
+  startCompletion,
+  type Completion,
+} from "@codemirror/autocomplete";
 import { indentLess, indentMore, undo } from "@codemirror/commands";
 import {
   ArrowCounterClockwiseIcon,
@@ -79,10 +87,28 @@ const SYNTAX_KEYS: ReadonlyArray<{
   { label: "@", ariaLabel: "Insert resistance prefix @", insert: "@" },
   { label: "*", ariaLabel: "Insert rest prefix *", insert: "*" },
   { label: ":", ariaLabel: "Insert timer separator :", insert: ":" },
+  { label: "[:", ariaLabel: "Insert action cue [:", insert: "[:", triggerComplete: true },
   { label: "()", ariaLabel: "Insert rounds parentheses ()", insert: "()", cursorOffset: 1 },
   { label: "[[", ariaLabel: "Insert wiki link [[", insert: "[[", triggerComplete: true },
   { label: "|", ariaLabel: "Insert WQL pipe |", insert: " | " },
 ];
+
+function dotClassForCompletion(completion: Completion): string {
+  switch (completion.type) {
+    case "variable":
+      return "bg-metric-effort";
+    case "unit":
+      return "bg-metric-resistance";
+    case "constant":
+      return "bg-metric-action";
+    case "keyword":
+      return "bg-metric-time";
+    case "property":
+      return "bg-muted-foreground";
+    default:
+      return "bg-primary";
+  }
+}
 
 function mapSlotToTokenKind(slot: WheelSlot): InspectorTokenKind {
   const mt = slot.metricType?.toLowerCase();
@@ -443,12 +469,14 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
 
   const handleReturnToWheel = useCallback(() => {
     if (!view) return;
+    closeCompletion(view);
     view.contentDOM.setAttribute("inputmode", "none");
     onSwitchToTyping(false);
     view.focus();
   }, [view, onSwitchToTyping]);
 
   const handleDone = useCallback(() => {
+    if (view) closeCompletion(view);
     if (typeof document !== "undefined") {
       delete document.documentElement.dataset.mobileEditorOpen;
       document.documentElement.style.removeProperty("--mobile-editor-inset");
@@ -536,6 +564,15 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
   const { height: vvHeight, keyboardOffsetBottom } = viewportState;
 
   if (isTypingMode) {
+    const activeCompletions =
+      completionStatus(view.state) === "active"
+        ? currentCompletions(view.state).slice(0, 18)
+        : [];
+    const applyDockedCompletion = (index: number) => {
+      view.dispatch({ effects: setSelectedCompletion(index) });
+      acceptCompletion(view);
+      view.focus();
+    };
     return (
       <div
         ref={attachDeckRef}
@@ -548,6 +585,40 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
         }}
         className="fixed inset-x-0 z-40 flex flex-col border-t border-border bg-card text-card-foreground shadow-lg select-none overscroll-contain pb-[env(safe-area-inset-bottom,0px)]"
       >
+        {/* Docked predictive suggestion strip (replaces floating tooltip on <1024px typing mode) */}
+        {activeCompletions.length > 0 && (
+          <div
+            role="listbox"
+            aria-label="Autocomplete suggestions"
+            className="flex min-h-[44px] items-center gap-1.5 overflow-x-auto border-b border-border bg-muted/30 px-2 py-1 scrollbar-none"
+          >
+            {activeCompletions.map((completion, index) => (
+              <button
+                key={`${completion.label}-${index}`}
+                type="button"
+                role="option"
+                aria-selected={false}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => applyDockedCompletion(index)}
+                className="inline-flex h-9 min-w-[44px] shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs text-foreground hover:bg-muted cursor-pointer transition-colors"
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClassForCompletion(completion))}
+                />
+                <span className="font-mono font-semibold whitespace-nowrap">
+                  {completion.displayLabel ?? completion.label}
+                </span>
+                {completion.detail && (
+                  <span className="max-w-[96px] truncate text-[11px] text-muted-foreground">
+                    {completion.detail}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Persistent Live Token Rail above OS keyboard */}
         <div className="flex min-h-[48px] items-center gap-1.5 overflow-x-auto overscroll-x-contain border-b border-border bg-muted/40 px-2.5 scrollbar-none">
           <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground tabular-nums">

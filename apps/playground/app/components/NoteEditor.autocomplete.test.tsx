@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { act } from 'react';
 import type { EditorView } from '@codemirror/view';
-import { completionStatus, currentCompletions, setSelectedCompletion, startCompletion } from '@codemirror/autocomplete';
+import { completionStatus, currentCompletions, selectedCompletionIndex, setSelectedCompletion, startCompletion } from '@codemirror/autocomplete';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
+import { getAppEffortRegistry } from '@/services/effortRegistry';
 import { InMemoryStorage, resetStorageForTesting, setStorageForTesting, storageService } from '@/hooks/useBrowserServices';
 import type { Tag } from '@/types/storage';
 
@@ -61,12 +62,12 @@ describe('NoteEditor frontmatter keyboard behavior', () => {
     expect(view.state.doc.toString()).toBe('---\ndomain:\n  - running');
   });
 
-  it('consumes Tab rather than indenting when completion has no selected option', async () => {
+  it('accepts the top suggestion on Tab even when no option is arrow-selected', async () => {
     const view = editor('---\ndom');
     await complete(view, 'domain');
-    act(() => { view.dispatch({ effects: setSelectedCompletion(-1) }); });
+    expect(selectedCompletionIndex(view.state)).toBeNull();
     key(view, 'Tab');
-    expect(view.state.doc.toString()).toBe('---\ndom');
+    expect(view.state.doc.toString()).toBe('---\ndomain:\n  - ');
   });
 
   for (const context of ['domain:', 'domain:\n  - ']) {
@@ -83,17 +84,63 @@ describe('NoteEditor frontmatter keyboard behavior', () => {
     }
   }
 
-  it('preserves typed property and value acceptance with Enter', async () => {
+  it('keeps Enter for newlines unless an option is explicitly selected, and accepts when selected', async () => {
     const view = editor('---\ndom');
     await complete(view, 'domain');
+    expect(selectedCompletionIndex(view.state)).toBeNull();
+    key(view, 'Enter');
+    expect(view.state.doc.toString()).toBe('---\ndom\n');
+    expect(completionStatus(view.state)).toBeNull();
+
+    // Explicit arrow/index selection + Enter commits in frontmatter.
+    act(() => {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '---\ndom' }, selection: { anchor: 7 } });
+    });
+    await complete(view, 'domain');
+    const domIdx = currentCompletions(view.state).findIndex((o) => o.label === 'domain');
+    act(() => { view.dispatch({ effects: setSelectedCompletion(domIdx) }); });
     key(view, 'Enter');
     expect(view.state.doc.toString()).toBe('---\ndomain:\n  - ');
+
     act(() => {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '---\nformat:a' }, selection: { anchor: 12 } });
     });
     await complete(view, 'amrap');
+    const amrapIdx = currentCompletions(view.state).findIndex((o) => o.label === 'amrap');
+    act(() => { view.dispatch({ effects: setSelectedCompletion(amrapIdx) }); });
     key(view, 'Enter');
     expect(view.state.doc.toString()).toBe('---\nformat:amrap');
+  });
+
+  it('preserves Enter for newlines inside workout blocks when typeahead is open without selection', async () => {
+    const doc = '```time\n10 \n```';
+    const pos = doc.indexOf('10 ') + 3;
+    const view = editor(doc, pos);
+    await complete(view, 'kg');
+    expect(selectedCompletionIndex(view.state)).toBeNull();
+    key(view, 'Enter');
+    expect(view.state.doc.toString()).toBe('```time\n10 \n\n```');
+    expect(completionStatus(view.state)).toBeNull();
+  });
+
+  it('offers effort, discipline, and intensity completions in raw frontmatter YAML', async () => {
+    await getAppEffortRegistry().upsert({
+      id: 'eff-bs',
+      slug: 'back-squat',
+      label: 'Back Squat',
+      aliases: [],
+      baseAttributes: { met: 5.5, discipline: 'strength' },
+      registrySource: 'user',
+    });
+
+    const effView = editor('---\neffort: ');
+    await complete(effView, 'Back Squat (back-squat)');
+
+    const discView = editor('---\ndiscipline: ');
+    await complete(discView, 'strength');
+
+    const intView = editor('---\nintensity: ');
+    await complete(intView, 'high');
   });
 
   it('shows all values again after deleting a filter to empty', async () => {
@@ -178,7 +225,7 @@ describe('NoteEditor frontmatter raw editing reachability (preview on)', () => {
   it('keeps completion reachable in open frontmatter with preview enabled', async () => {
     const view = editor('---\ndom', undefined, { preview: true });
     await complete(view, 'domain');
-    key(view, 'Enter');
+    key(view, 'Tab');
     expect(view.state.doc.toString()).toBe('---\ndomain:\n  - ');
     await waitFor(() => expect(currentCompletions(view.state).map((option) => option.label)).toContain('climbing'));
     expect(view.state.selection.main.head).toBe(view.state.doc.length);

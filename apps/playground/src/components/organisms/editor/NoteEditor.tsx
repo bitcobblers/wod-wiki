@@ -19,7 +19,7 @@ import { useOptionalNavigate } from "@/hooks/useOptionalNavigate";
 import type { SessionActionContext } from "@bitcobblers/wod-wiki-ui";
 import { sessionDetailPath } from "@/lib/routes";
 import { AddToDashboardSheet } from "../../../../app/views/analytics/AddToDashboardSheet";
-import { Annotation, EditorState, Prec, StateEffect, type Extension } from "@codemirror/state";
+import { Annotation, EditorState, StateEffect, type Extension } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 import {
   EditorView,
@@ -31,18 +31,19 @@ import {
   lineNumbers,
   highlightActiveLineGutter,
   placeholder,
+  tooltips,
 } from "@codemirror/view";
 import {
   defaultKeymap,
   history,
   historyKeymap,
   indentWithTab,
-  insertNewlineAndIndent,
   undo,
 } from "@codemirror/commands";
 import { indentOnInput } from "@codemirror/language";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
-import { acceptCompletion, completionKeymap, completionStatus, closeCompletion, closeBrackets, closeBracketsKeymap, startCompletion } from "@codemirror/autocomplete";
+import { completionKeymap, completionStatus, closeCompletion, closeBrackets, closeBracketsKeymap, selectedCompletionIndex, startCompletion } from "@codemirror/autocomplete";
+import { EFFORT_DISCIPLINES } from "@bitcobblers/wod-wiki-lang";
 import { lintKeymap } from "@codemirror/lint";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 
@@ -67,7 +68,19 @@ import { markdownTablePreview } from '@bitcobblers/wod-wiki-ui/extensions';
 import { linkPreview } from '@bitcobblers/wod-wiki-ui/extensions';
 import { markdownSyntaxHiding } from '@bitcobblers/wod-wiki-ui/extensions';
 import { wodLinter } from '@bitcobblers/wod-wiki-ui/extensions';
-import { wodAutocompletion, wodEditorKeymap, wodAutoWrap, autocompleteTooltipTheme, customCompletionSources, nestedCompletionOptions, resolveCodeLanguage, type CustomCompletionSource, type NestedCompletionOptions } from '@bitcobblers/wod-wiki-ui/extensions';
+import {
+  wodAutocompletion,
+  wodCompletionKeymap,
+  wodEditorKeymap,
+  wodAutoWrap,
+  autocompleteTooltipTheme,
+  customCompletionSources,
+  mobileDockedCompletionFacet,
+  nestedCompletionOptions,
+  resolveCodeLanguage,
+  type CustomCompletionSource,
+  type NestedCompletionOptions,
+} from '@bitcobblers/wod-wiki-ui/extensions';
 import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete';
 import { storageService } from '@/hooks/useBrowserServices';
 import { wodOverlayPanel } from '@bitcobblers/wod-wiki-ui/extensions';
@@ -83,7 +96,19 @@ import { cursorFocusExtension } from "@/app/editor/cursorFocusExtension";
 import { createParser } from '@bitcobblers/wod-wiki-engine';
 import type { INotePersistence } from "@/services/persistence";
 import { queryService, onResultSaved } from "@/hooks/useCastSignaling";
-import { createAttachmentUrlExtension, createFileDropHandler, createFrontmatterSuggestions, createFrontmatterReferenceProvider, createMarkdownProseCompletionSource, loadReferenceCatalog, resolveNotePersistence, buildNestedCompletionOptions } from "@/app/editor/noteEditorServices";
+import { catalogueReload } from "@/app/editor/catalogueReload";
+import {
+  createAttachmentUrlExtension,
+  createFileDropHandler,
+  createFrontmatterSuggestions,
+  createFrontmatterReferenceProvider,
+  createInlineEffortFromToken,
+  createInlineTagFromSlug,
+  createMarkdownProseCompletionSource,
+  loadReferenceCatalog,
+  resolveNotePersistence,
+  buildNestedCompletionOptions,
+} from "@/app/editor/noteEditorServices";
 
 import { entryOpenHref } from '../../../../app/lib/entryActions';
 import { toEntry, blockToEntry } from '../../../../app/lib/entryMapper';
@@ -405,6 +430,12 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
   const readonlyRef = useRef(readonly);
   readonlyRef.current = readonly;
+  const noteIdRef = useRef(noteId);
+  noteIdRef.current = noteId;
+  const isWheelOpenRef = useRef(isWheelOpen);
+  isWheelOpenRef.current = isWheelOpen;
+  const notebookScopeRef = useRef<NotebookScopeSnapshot>(notebookScope);
+  notebookScopeRef.current = notebookScope;
   const drawerOpenRef = useRef(drawerOpen);
   drawerOpenRef.current = drawerOpen;
   const popoverOpenRef = useRef(popoverOpen);
@@ -416,6 +447,28 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const lineInspectionRef = useRef(lineInspection);
   lineInspectionRef.current = lineInspection;
 
+  const noteNestedCompletionOptions = useMemo<NestedCompletionOptions>(
+    () =>
+      buildNestedCompletionOptions({
+        getNotebookScope: () => notebookScopeRef.current,
+        onCreateEffort: async (raw) => {
+          await createInlineEffortFromToken(raw);
+          viewRef.current?.dispatch({ effects: [catalogueReload.of(null)] });
+          setCursorVersion((v) => v + 1);
+        },
+        onCreateTag: async (slug) => {
+          await createInlineTagFromSlug(slug);
+          viewRef.current?.dispatch({ effects: [catalogueReload.of(null)] });
+          const docText = viewRef.current?.state.doc.toString() ?? "";
+          void loadNotebookScopeSnapshot(noteIdRef.current, docText).then((snap) =>
+            setNotebookScope(snap),
+          );
+          setCursorVersion((v) => v + 1);
+        },
+      }),
+    [],
+  );
+
   const openUnifiedInspector = useCallback(
     (options?: {
       mode?: InspectorMode;
@@ -425,6 +478,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     }) => {
       const v = viewRef.current;
       if (!v || readonlyRef.current) return;
+      closeCompletion(v);
       const currentInspection = extractLineTokens(v.state);
       const head = v.state.selection.main.head;
       let chosenToken: InspectorToken | null = options?.token ?? null;
@@ -560,7 +614,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         event.stopPropagation();
         setDrawerOpen((prev) => {
           const next = !prev;
-          if (next) setPopoverOpen(false);
+          if (next) {
+            if (viewRef.current) closeCompletion(viewRef.current);
+            setPopoverOpen(false);
+          }
           return next;
         });
       } else if (isAltDot) {
@@ -924,28 +981,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       highlightSelectionMatches(),
 
       // Keybindings
-      Prec.highest(keymap.of([
-        {
-          key: "Tab",
-          run: (view) => {
-            if (completionStatus(view.state) === null) return false;
-            acceptCompletion(view);
-            return true;
-          },
-        },
-        {
-          key: "Enter",
-          run: (view) => {
-            const selection = view.state.selection.main;
-            const context = frontmatterValueContext(view.state, selection.head);
-            const line = view.state.doc.lineAt(selection.head);
-            if (!selection.empty || context?.value.trim() !== "" ||
-                line.text.slice(selection.head - line.from).trim()) return false;
-            closeCompletion(view);
-            return insertNewlineAndIndent(view);
-          },
-        },
-      ])),
+      wodCompletionKeymap,
       keymap.of([
         ...closeBracketsKeymap,
         ...markdownKeymap,
@@ -977,7 +1013,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             if (readonlyRef.current) return false;
             setDrawerOpen((prev) => {
               const next = !prev;
-              if (next) setPopoverOpen(false);
+              if (next) {
+                if (viewRef.current) closeCompletion(viewRef.current);
+                setPopoverOpen(false);
+              }
               return next;
             });
             return true;
@@ -1016,7 +1055,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       ...(enableLinting ? [wodLinter] : []),
 
       // Autocomplete (fence-tag + embed completions), the shared tooltip
-      // theme, and fence wrapping
+      // theme, body portal, and fence wrapping
+      tooltips({ parent: document.body }),
       wodAutocompletion,
       autocompleteTooltipTheme,
       wodEditorKeymap,
@@ -1025,7 +1065,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       // baseExtensions to survive the mode-sync reconfigure).
       customCompletionSources.of(frontmatterCompletionSource),
       customCompletionSources.of(markdownProseCompletionSource),
-      nestedCompletionOptions.of(NOTE_NESTED_WQL_OPTIONS),
+      nestedCompletionOptions.of(noteNestedCompletionOptions),
 
       // Overlay panel for Whiteboard Script blocks
       ...(enableOverlay ? [wodOverlayPanel] : []),
@@ -1184,6 +1224,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               void Promise.resolve(onCommitChange?.()).catch(() => {});
             }
           }
+        }
+        const prevCompStatus = completionStatus(update.startState);
+        const nextCompStatus = completionStatus(update.state);
+        const compChanged =
+          prevCompStatus !== nextCompStatus ||
+          selectedCompletionIndex(update.startState) !== selectedCompletionIndex(update.state);
+        if (prevCompStatus !== "active" && nextCompStatus === "active") {
+          setPopoverOpen(false);
+        }
+        if (!update.selectionSet && !update.docChanged && compChanged) {
+          setCursorVersion((version) => version + 1);
         }
         if (update.selectionSet || update.docChanged) {
           setCursorVersion((version) => version + 1);
@@ -1414,8 +1465,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   isMobileViewportRef.current = isMobileViewport;
   const isMobileTypingModeRef = useRef(isMobileTypingMode);
   isMobileTypingModeRef.current = isMobileTypingMode;
-  const isWheelOpenRef = useRef(isWheelOpen);
-  isWheelOpenRef.current = isWheelOpen;
 
   // Dismiss the mobile thumb deck on outside pointer taps even when focus had
   // shifted temporarily into a deck input or scrubber control.
@@ -1444,14 +1493,20 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             themeCompartment.of(editorTheme(isDark)),
             languageCompartment.of(languages),
             modeCompartment.of(modeExtensions),
-            inputModeCompartment.of(
+            inputModeCompartment.of([
               EditorView.contentAttributes.of({
                 inputmode:
                   isMobileViewportRef.current && !isMobileTypingModeRef.current
                     ? "none"
                     : "text",
               }),
-            ),
+              mobileDockedCompletionFacet.of(
+                isMobileViewportRef.current &&
+                  isWheelOpenRef.current &&
+                  isMobileTypingModeRef.current &&
+                  !readonlyRef.current,
+              ),
+            ]),
             ...(extraExtensions ?? []),
           ]),
         ],
@@ -1459,20 +1514,23 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   }, [baseExtensions, extraExtensions, mode, isDark, languages]);
 
-  // Sync mobile inputmode attribute via its dedicated compartment so opening
-  // the wheel or toggling [Type]/[Wheel] never reconfigures the whole editor
-  // or clobbers selection!
+  // Sync mobile inputmode attribute and docked completion suppression via
+  // their dedicated compartment so toggling [Type]/[Deck] never reconfigures
+  // the whole editor or clobbers selection!
   useEffect(() => {
     if (viewRef.current) {
       viewRef.current.dispatch({
-        effects: inputModeCompartment.reconfigure(
+        effects: inputModeCompartment.reconfigure([
           EditorView.contentAttributes.of({
             inputmode: isMobileViewport && !isMobileTypingMode ? "none" : "text",
           }),
-        ),
+          mobileDockedCompletionFacet.of(
+            isMobileViewport && isWheelOpen && isMobileTypingMode && !readonly,
+          ),
+        ]),
       });
     }
-  }, [isMobileViewport, isMobileTypingMode]);
+  }, [isMobileViewport, isWheelOpen, isMobileTypingMode, readonly]);
 
   // Focus on open / readonly->editable transition on desktop (>=1024px) only.
   // Mobile (<1024px) opens cleanly blurred so notes read as pure documents
@@ -1672,6 +1730,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             activeTokenId={activeInspectorToken?.id ?? null}
             drawerOpen={drawerOpen}
             onOpenInspector={(req) => {
+              if (activeView) closeCompletion(activeView);
               setInspectorMode(req.mode);
               setSelectedTokenId(req.token?.id ?? null);
               setPopoverAnchorRect(req.anchorRect);
@@ -1680,7 +1739,10 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             onToggleDrawer={() => {
               setDrawerOpen((prev) => {
                 const next = !prev;
-                if (next) setPopoverOpen(false);
+                if (next) {
+                  if (activeView) closeCompletion(activeView);
+                  setPopoverOpen(false);
+                }
                 return next;
               });
             }}
@@ -1814,6 +1876,7 @@ const frontmatterCompletionSource: CustomCompletionSource = async (context: Comp
   // Durable reference values (note defaults + definition lists) complete
   // from the same catalog the resolver uses; the slug is what's authored.
   const REF_VALUE_KIND: Record<string, 'effort' | 'equipment'> = {
+    effort: 'effort',
     'metrics.effort': 'effort',
     'metrics.equipment': 'equipment',
     equipment: 'equipment',
@@ -1837,29 +1900,58 @@ const frontmatterCompletionSource: CustomCompletionSource = async (context: Comp
     };
   }
 
-  const matchingType = tagTypes.find((t) => t.name.toLowerCase() === propertyKey.toLowerCase());
-  if (!matchingType) return null;
+  const lowerKey = propertyKey.toLowerCase();
+  const matchingType = tagTypes.find((t) => t.name.toLowerCase() === lowerKey);
+  const matchingTags = matchingType
+    ? allTags.filter((t) => t.type?.toLowerCase() === matchingType.name.toLowerCase())
+    : [];
+  if (matchingType && matchingTags.length > 0) {
+    return {
+      from: wordFrom,
+      options: matchingTags.map((t) => ({
+        label: t.label,
+        detail: matchingType.label,
+        type: 'constant',
+      })),
+      validFor: (text, from, to, state) => {
+        const current = frontmatterValueContext(state, to);
+        return /^[\w-]*$/.test(text) && current?.propertyKey === propertyKey && current.from === from;
+      },
+    };
+  }
 
-  const matchingTags = allTags.filter((t) => t.type?.toLowerCase() === matchingType.name.toLowerCase());
-  if (matchingTags.length === 0) return null;
+  if (lowerKey === 'discipline') {
+    return {
+      from: wordFrom,
+      options: EFFORT_DISCIPLINES.map((discipline) => ({
+        label: discipline,
+        detail: 'Discipline',
+        type: 'constant',
+      })),
+      validFor: (text, from, to, state) => {
+        const current = frontmatterValueContext(state, to);
+        return /^[\w-]*$/.test(text) && current?.propertyKey === propertyKey && current.from === from;
+      },
+    };
+  }
 
-  return {
-    from: wordFrom,
-    options: matchingTags.map((t) => ({
-      label: t.label,
-      detail: matchingType.label,
-      type: 'constant',
-    })),
-    validFor: (text, from, to, state) => {
-      const current = frontmatterValueContext(state, to);
-      return /^[\w-]*$/.test(text) && current?.propertyKey === propertyKey && current.from === from;
-    },
-  };
+  if (lowerKey === 'intensity' || lowerKey === 'intensitytier') {
+    return {
+      from: wordFrom,
+      options: ['low', 'moderate', 'high'].map((tier) => ({
+        label: tier,
+        detail: 'Intensity',
+        type: 'constant',
+      })),
+      validFor: (text, from, to, state) => {
+        const current = frontmatterValueContext(state, to);
+        return /^[\w-]*$/.test(text) && current?.propertyKey === propertyKey && current.from === from;
+      },
+    };
+  }
+
+  return null;
 };
-
-// Exactly the wqlCompletionSource options the standalone WQL editors configure,
-// so nested ```query/```wql bodies rank, apply, and insert identically.
-const NOTE_NESTED_WQL_OPTIONS: NestedCompletionOptions = buildNestedCompletionOptions();
 
 // ---------- Helpers ----------
 
