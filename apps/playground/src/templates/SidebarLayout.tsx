@@ -396,10 +396,10 @@ export function MainLandmark({ children }: React.PropsWithChildren) {
           role="status"
           aria-live="polite"
           data-testid="boot-import-progress"
-          className="pointer-events-none fixed z-30 max-lg:top-16 max-lg:bottom-auto max-lg:right-3 lg:bottom-4 lg:right-4 flex items-center gap-2 rounded-lg border border-border bg-card/95 px-3 py-1.5 text-xs text-foreground shadow-sm"
+          className="pointer-events-none fixed z-30 max-lg:bottom-[calc(0.75rem+var(--thumb-dock-lift,0px)+env(safe-area-inset-bottom,0px))] max-lg:left-3 max-lg:right-auto max-lg:max-w-[calc(100vw-5.5rem)] lg:bottom-4 lg:right-4 lg:left-auto flex items-center gap-2 rounded-lg border border-border bg-card/95 px-3 py-1.5 text-xs text-foreground shadow-sm"
         >
-          <span>{activeImportLabel ?? (progress ? feedProgressLabel(progress) : 'Importing library…')}</span>
-          {detail && <span className="text-muted-foreground">{detail}</span>}
+          <span className="truncate">{activeImportLabel ?? (progress ? feedProgressLabel(progress) : 'Importing library…')}</span>
+          {detail && <span className="text-muted-foreground shrink-0">{detail}</span>}
         </div>
       )}
     </main>
