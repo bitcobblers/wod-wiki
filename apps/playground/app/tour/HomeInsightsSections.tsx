@@ -48,13 +48,13 @@ function StepCopy({ scope }: { scope: Scope }) {
   const Tag = copy.heading
   return (
     <div>
-      <Tag className="flex items-baseline gap-4 text-[clamp(26px,3.2vw,44px)] font-extrabold leading-[1.1] tracking-[-0.03em]">
+      <Tag className="flex items-baseline gap-4 text-balance text-[clamp(26px,3.2vw,44px)] font-extrabold leading-[1.1] tracking-[-0.03em]">
         {copy.index && (
           <span className="font-mono text-xs font-normal tracking-normal text-muted-foreground">{copy.index}</span>
         )}
         <span>{copy.title}</span>
       </Tag>
-      <p className="mt-3 max-w-xl text-[clamp(14px,1.2vw,18px)] leading-[1.65] text-muted-foreground">{copy.blurb}</p>
+      <p className="mt-3 max-w-xl text-pretty text-[clamp(14px,1.2vw,18px)] leading-[1.65] text-muted-foreground">{copy.blurb}</p>
     </div>
   )
 }
@@ -73,7 +73,7 @@ function BackToEditorButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       title="Back to the editor"
       data-testid="tour-pane-back-to-editor"
-      className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className="relative flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-foreground after:absolute after:-inset-2 after:content-['']"
     >
       <ArrowUp className="size-3" />
       Editor
@@ -124,7 +124,7 @@ export const InsightsDashboardsSection = memo(function InsightsDashboardsSection
   const scopePane = (s: Scope) => {
     if (s === 'analytics') {
       return (
-        <MacOSChrome title="Session Insights" className="h-[460px]" headerActions={<BackToEditorButton onClick={onBackToEditor} />}>
+        <MacOSChrome title="Session Insights" className="h-full" headerActions={<BackToEditorButton onClick={onBackToEditor} />}>
           <TourSessionInsights result={session} onRun={onRun} />
         </MacOSChrome>
       )
@@ -221,9 +221,14 @@ export const InsightsDashboardsSection = memo(function InsightsDashboardsSection
   )
 
   const mobileStep = (s: Scope) => (
-    <div data-testid={`tour-step-mobile-${s}`} data-scope={s} className="flex flex-col gap-4">
+    <div
+      id={s === 'boards' ? 'tour-section-boards' : undefined}
+      data-testid={`tour-step-mobile-${s}`}
+      data-scope={s}
+      className="flex scroll-mt-[72px] flex-col gap-4"
+    >
       <StepCopy scope={s} />
-      <div className="h-[460px]">{scopePane(s)}</div>
+      <div className={s === 'analytics' ? 'h-[340px] sm:h-[420px]' : 'h-[460px]'}>{scopePane(s)}</div>
     </div>
   )
 

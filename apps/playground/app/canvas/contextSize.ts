@@ -14,11 +14,14 @@ import { useCallback, useEffect, useState } from 'react'
 /** Demo pane share of the measured context; the caption rail takes the rest. */
 export const DEMO_SHARE = 0.6
 
+/** Minimum measured context width before switching from stacked to side-by-side split. */
+export const SPLIT_MIN_WIDTH = 640
+
 export type ContextMode = 'split' | 'stack'
 
-/** Side-by-side when the measured context is at least as wide as tall. */
+/** Side-by-side when the measured context is at least 640px wide and at least as wide as tall. */
 export function contextMode(width: number, height: number): ContextMode {
-  return width >= height ? 'split' : 'stack'
+  return width >= SPLIT_MIN_WIDTH && width >= height ? 'split' : 'stack'
 }
 
 export interface ContextSize {

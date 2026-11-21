@@ -282,6 +282,12 @@ function ResponsiveActionsDock({
       setYieldToOverlay((prev) => (prev ? prev : true))
       return
     }
+    const vv = window.visualViewport
+    if (vv && window.innerHeight - (vv.height + vv.offsetTop) > 100) {
+      setSheetOpen((open) => (open ? false : open))
+      setYieldToOverlay((prev) => (prev ? prev : true))
+      return
+    }
     const resultsBar = document.querySelector<HTMLElement>(testIdSelector(TEST_IDS.RESULTS_MOBILE_BAR))
     if (resultsBar && !resultsBar.hidden) {
       const rcs = window.getComputedStyle(resultsBar)

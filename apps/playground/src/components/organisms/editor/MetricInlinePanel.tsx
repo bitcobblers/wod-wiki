@@ -226,7 +226,7 @@ const MetricChip: React.FC<{
   const IconComp = style?.Icon;
 
   const sharedClass = cn(
-    "inline-flex items-center gap-1 px-2 py-0.5 min-h-[22px] rounded-full border text-[11px] leading-tight font-medium whitespace-nowrap tabular-nums",
+    "inline-flex items-center gap-1 px-2 py-0.5 min-h-[24px] rounded-full border text-[11px] leading-tight font-medium whitespace-nowrap tabular-nums",
     "pointer-events-auto transition-all",
     style?.bgClass ?? "bg-muted/40",
     style?.textClass ?? "text-muted-foreground",
@@ -446,10 +446,12 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     }
   }, [view, focus]);
 
-  const isAutocompleteOpen =
+  const compStatus =
     view?.state && typeof view.state.field === "function"
-      ? completionStatus(view.state) === "active"
-      : false;
+      ? completionStatus(view.state)
+      : null;
+  const isAutocompleteOpen = compStatus === "active";
+  const isCompletionBusy = compStatus !== null;
   if (hidden || !pos || !focus?.section || isAutocompleteOpen) return null;
 
   const lineStatements =
@@ -787,7 +789,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
           maxWidth: pos.maxWidth,
         }}
         role="region"
-        aria-live="polite"
+        aria-live={isCompletionBusy ? "off" : "polite"}
         aria-label="Metric inline panel"
       >
         {hasWorkoutContent ? (

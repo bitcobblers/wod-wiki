@@ -55,7 +55,13 @@ export function MarqueeRow({ direction, children, testId, className }: MarqueeRo
     <div
       ref={containerRef}
       data-testid={testId}
-      className={cn('wod-marquee overflow-hidden', className)}
+      className={cn(
+        'wod-marquee',
+        reduceMotion
+          ? 'overflow-x-auto px-4 sm:px-6'
+          : 'overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_16px,black_calc(100%-16px),transparent)] sm:[mask-image:linear-gradient(to_right,transparent,black_48px,black_calc(100%-48px),transparent)]',
+        className,
+      )}
     >
       <div
         ref={trackRef}

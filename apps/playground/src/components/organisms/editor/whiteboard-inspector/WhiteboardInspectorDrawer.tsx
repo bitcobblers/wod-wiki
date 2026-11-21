@@ -241,6 +241,8 @@ export const WhiteboardInspectorDrawer: React.FC<WhiteboardInspectorDrawerProps>
         <span className="inline-flex items-center gap-1 font-medium text-foreground">
           <Keyboard className="h-3 w-3" />
         </span>
+        <span>Ctrl+Space Typeahead</span>
+        <span>/ Blocks</span>
         <span>Alt+. Popover</span>
         <span>Ctrl+Alt+I / Cmd+Alt+I Drawer</span>
         <span>Ctrl+←/→ Step</span>

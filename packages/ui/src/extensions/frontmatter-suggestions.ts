@@ -115,7 +115,7 @@ export class SuggestionPanel {
     list.setAttribute("aria-label", options.label);
     list.tabIndex = -1;
     list.className =
-      "fixed z-[60] max-h-64 overflow-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md text-xs";
+      "fixed z-[60] max-h-64 overflow-auto rounded-lg border border-border bg-card p-1 text-card-foreground shadow-lg text-[13px]";
     list.hidden = true;
     this.element = list;
     // The popup lives outside the editor: it must not change the height of
@@ -147,7 +147,7 @@ export class SuggestionPanel {
       option.id = `${this.listId}-${index}`;
       option.setAttribute("role", "option");
       option.setAttribute("aria-selected", "false");
-      option.className = "cursor-pointer px-2 py-1.5 hover:bg-muted";
+      option.className = "flex min-h-[34px] items-center rounded-md cursor-pointer px-2.5 py-1.5 leading-5 hover:bg-muted/60";
       option.textContent = choice.label;
       // Keep the field focused so the blur handler does not close the panel
       // before the click lands.

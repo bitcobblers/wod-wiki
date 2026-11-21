@@ -212,6 +212,76 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     expect(offered).toContain('heavy');
   });
 
+  it('offers tag slugs immediately on bare # inside workout blocks while keeping # Heading suppressed', async () => {
+    const options: WhiteboardScriptCompletionOptions = {
+      tags: () => [{ value: 'emom' }, { value: 'heavy' }],
+    };
+    expect(await labels('20 #', options)).toEqual(expect.arrayContaining(['emom', 'heavy']));
+    expect(await labels('#', options)).toEqual(expect.arrayContaining(['emom', 'heavy']));
+    expect(await labels('# Warmup', options)).toEqual([]);
+  });
+
+  it('excludes structure keywords after quantities and boosts preferred canonical units above efforts', async () => {
+    const options: WhiteboardScriptCompletionOptions = {
+      efforts: () => [{ value: 'Kettlebell Swing' }],
+      preferredUnits: () => ['lb'],
+    };
+    const state = EditorState.create({ doc: '20 ', extensions: whiteboardScript(options) });
+    const result = await whiteboardScriptCompletionSource(options)(new CompletionContext(state, state.doc.length, true));
+    const opts = result?.options ?? [];
+    const offered = opts.map(o => o.label);
+    expect(offered).not.toContain('AMRAP');
+    expect(offered).not.toContain('EMOM');
+    expect(offered).not.toContain('FOR TIME');
+    const lbOpt = opts.find(o => o.label === 'lb');
+    const kgOpt = opts.find(o => o.label === 'kg');
+    const bwOpt = opts.find(o => o.label === 'bw');
+    const secRank = (s: typeof opts[number]['section']) => (typeof s === 'object' ? (s?.rank ?? 999) : 999);
+    expect((lbOpt?.boost ?? 0)).toBeGreaterThan(kgOpt?.boost ?? 0);
+    expect((kgOpt?.boost ?? 0)).toBeGreaterThan(bwOpt?.boost ?? 0);
+    expect(secRank(kgOpt?.section)).toBeLessThan(secRank(opts.find(o => o.label === 'Kettlebell Swing')?.section));
+  });
+
+  it('deduplicates EMOM/AMRAP at line start and demotes property keys with trailing colon', async () => {
+    const state = EditorState.create({ doc: 'em', extensions: whiteboardScript() });
+    const startResult = await whiteboardScriptCompletionSource()(new CompletionContext(state, state.doc.length, true));
+    const opts = startResult?.options ?? [];
+    expect(opts.filter(o => o.label === 'EMOM')).toHaveLength(1);
+    expect(opts.filter(o => o.label === 'AMRAP')).toHaveLength(1);
+
+    const propState = EditorState.create({ doc: 'soun', extensions: whiteboardScript() });
+    const propResult = await whiteboardScriptCompletionSource()(new CompletionContext(propState, propState.doc.length, true));
+    const soundOpt = propResult?.options.find(o => o.label === 'sound');
+    expect(soundOpt?.apply).toBe('sound: ');
+    expect((soundOpt?.boost ?? 0)).toBeLessThan(0);
+  });
+
+  it('offers inline + Create option for unknown efforts and unknown tags when handlers are provided', async () => {
+    let createdEffort = '';
+    let createdTag = '';
+    const options: WhiteboardScriptCompletionOptions = {
+      efforts: () => [{ value: 'Back Squat' }],
+      tags: () => [{ value: 'heavy' }],
+      onCreateEffort: (raw) => { createdEffort = raw; },
+      onCreateTag: (slug) => { createdTag = slug; },
+    };
+    const effortState = EditorState.create({ doc: '10 Cossack Squ', extensions: whiteboardScript(options) });
+    const effortRes = await whiteboardScriptCompletionSource(options)(new CompletionContext(effortState, effortState.doc.length, true));
+    const createEffort = effortRes?.options.find(o => o.type === 'create');
+    expect(createEffort?.displayLabel).toBe('+ Create "Cossack Squ"');
+    expect(createdEffort).toBe('');
+
+    const tagState = EditorState.create({ doc: '10 Back Squat #tempo', extensions: whiteboardScript(options) });
+    const tagRes = await whiteboardScriptCompletionSource(options)(new CompletionContext(tagState, tagState.doc.length, true));
+    const createTag = tagRes?.options.find(o => o.type === 'create');
+    expect(createTag?.displayLabel).toBe('+ Create "#tempo"');
+    expect(createdTag).toBe('');
+
+    const exactState = EditorState.create({ doc: '10 Back Squat', extensions: whiteboardScript(options) });
+    const exactRes = await whiteboardScriptCompletionSource(options)(new CompletionContext(exactState, exactState.doc.length, true));
+    expect(exactRes?.options.some(o => o.type === 'create')).toBe(false);
+  });
+
   it('offers action cues on [: prefix', async () => {
     const offered = await labels(':30 Plank [:re');
     expect(offered).toContain('[:rest]');

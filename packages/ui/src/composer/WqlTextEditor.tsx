@@ -424,7 +424,8 @@ export function WqlTextEditor({
                 const icon = document.createElement('span');
                 icon.className = 'wql-completion-icon';
                 icon.setAttribute('aria-hidden', 'true');
-                icon.innerHTML = completion.label === 'find' ? completionIcons.search
+                icon.innerHTML = (completion.type === 'keyword' && completion.label.startsWith(':'))
+                  ? completionIcons.search
                   : completion.type === 'keyword' || completion.type === 'variable' ? completionIcons.metric
                   : completion.type === 'property' ? completionIcons.filter : completionIcons.value;
                 return icon;

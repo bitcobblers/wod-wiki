@@ -148,6 +148,55 @@ describe('ScrollGate', () => {
     expect(gate.dataset.scrollGate).toBe('yield')
   })
 
+  it('keeps a captured gate locked during scroll while mobile editing is active', async () => {
+    const { getByTestId } = render(
+      <ScrollTrackProvider>
+        <Anchor id="hero" testId="anchor-hero" />
+        <Anchor id="write" testId="anchor-write" />
+        <ScrollGate gateId="hero-pane" segmentId="hero">
+          <input data-testid="hero-field" />
+        </ScrollGate>
+      </ScrollTrackProvider>,
+    )
+    const heroEl = getByTestId('anchor-hero')
+    const writeEl = getByTestId('anchor-write')
+    const gate = document.querySelector('[data-gate-id="hero-pane"]') as HTMLElement
+
+    stubRect(heroEl, 0, 700)
+    stubRect(writeEl, 700, 2000)
+    window.dispatchEvent(new window.Event('scroll'))
+    await flushMeasure()
+
+    fireEvent.focusIn(getByTestId('hero-field'))
+    expect(gate.dataset.scrollGate).toBe('captured')
+
+    document.documentElement.dataset.mobileEditorOpen = 'true'
+    try {
+      stubRect(heroEl, -800, 700)
+      stubRect(writeEl, -100, 2000)
+      window.dispatchEvent(new window.Event('scroll'))
+      await flushMeasure()
+      expect(gate.dataset.scrollGate).toBe('captured')
+    } finally {
+      delete document.documentElement.dataset.mobileEditorOpen
+    }
+
+    window.dispatchEvent(new window.Event('scroll'))
+    await flushMeasure()
+    expect(gate.dataset.scrollGate).toBe('captured')
+
+    // Moving to a new segment after mobile editing ends releases normally on next handoff
+    stubRect(heroEl, 0, 700)
+    stubRect(writeEl, 700, 2000)
+    window.dispatchEvent(new window.Event('scroll'))
+    await flushMeasure()
+    stubRect(heroEl, -800, 700)
+    stubRect(writeEl, -100, 2000)
+    window.dispatchEvent(new window.Event('scroll'))
+    await flushMeasure()
+    expect(gate.dataset.scrollGate).toBe('yield')
+  })
+
   it('is inert outside a provider', () => {
     render(
       <ScrollGate gateId="lonely">

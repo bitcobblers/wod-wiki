@@ -72,8 +72,8 @@ export const CanvasEditorPanel: React.FC<CanvasEditorPanelProps> = ({
       data-page-sticky-boundary="true"
       style={{
         top: `${MOBILE_STICKY_TOP}px`,
-        height: `min(var(--canvas-editor-preferred-height), calc(100dvh - ${MOBILE_STICKY_TOP}px - 1rem))`,
-        minHeight: '18rem',
+        height: `min(var(--canvas-editor-preferred-height), calc(100svh - ${MOBILE_STICKY_TOP}px - var(--mobile-editor-inset, 0px) - 0.75rem))`,
+        minHeight: `min(18rem, calc(100svh - ${MOBILE_STICKY_TOP}px - var(--mobile-editor-inset, 0px) - 0.75rem))`,
         '--canvas-editor-preferred-height': getEditorPreferredHeight(source),
       } as React.CSSProperties}
     >

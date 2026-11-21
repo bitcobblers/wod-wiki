@@ -647,9 +647,9 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
   const offeringsBlock = (
     <>
       <OfferingTiers />
-      <p className="-mt-8 text-center font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground xl:text-[11px]">
+      <p className="-mt-4 px-4 pb-8 text-center font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground xl:text-[11px]">
         — or learn the language with examples{' '}
-        <Link to="/syntax" className="text-foreground underline underline-offset-4 transition-colors hover:text-primary">
+        <Link to="/syntax" className="inline-flex min-h-11 items-center text-foreground underline underline-offset-4 transition-colors hover:text-primary">
           on the syntax page →
         </Link>
       </p>
@@ -677,7 +677,7 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
             </button>
           )
         }
-        className="h-[540px] lg:h-[600px] 2xl:h-[640px]"
+        className="h-[clamp(260px,42svh,360px)] sm:h-[clamp(300px,46svh,420px)] lg:h-[clamp(380px,50svh,480px)] 2xl:h-[520px]"
       >
         <TourEditorScreen
           doc={doc}
@@ -714,7 +714,7 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
       ref={editorSectionRef}
       id="tour-section-editor"
       data-testid={TEST_IDS.tour.SECTION_EDITOR}
-      className="flex w-full flex-col items-center px-5 py-8 text-center lg:px-10 xl:py-10 2xl:px-16"
+      className="flex w-full scroll-mt-[72px] flex-col items-center px-4 py-6 text-center sm:px-5 sm:py-8 lg:scroll-mt-[104px] lg:px-10 xl:py-10 2xl:px-16"
     >
       {(whyShrunk || docEdited) && (
         <div className="flex flex-wrap items-end justify-center gap-2">
@@ -777,7 +777,7 @@ function HomeTourInner({ wodFiles, theme, quests, editorSlot, timerSlot, deps, j
         ref={heroSectionRef}
         id="tour-hero"
         data-testid={TEST_IDS.tour.HERO}
-        className="relative flex min-h-[calc(100dvh-65px)] flex-col items-center justify-center gap-5 px-5 py-6 text-center lg:min-h-[calc(100dvh-104px)] lg:px-10 xl:gap-7 xl:py-8 2xl:px-16"
+        className="relative flex min-h-[calc(100svh-65px)] flex-col items-center justify-center gap-5 px-5 py-6 text-center lg:min-h-[calc(100svh-104px)] lg:px-10 xl:gap-7 xl:py-8 2xl:px-16"
       >
         <TourHeroHeading />
         {whyVideoBlock}

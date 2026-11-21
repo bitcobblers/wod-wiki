@@ -76,7 +76,7 @@ describe('real completion apply inserts parse-valid text', () => {
       units: UnitRegistry.standard().extend({ canonical: 'pood', dimension: 'mass', aliases: ['poods'] }),
     };
     for (const doc of ['10 ', '@100 ']) {
-      const state = EditorState.create({ doc });
+      const state = EditorState.create({ doc, extensions: [whiteboardScriptLanguage] });
       const result = await whiteboardScriptCompletionSource(options)(new CompletionContext(state, doc.length, true));
       expect(result).not.toBeNull();
       for (const option of result!.options) {
@@ -121,5 +121,10 @@ describe('real completion apply inserts parse-valid text', () => {
     });
     expect(text).toBe('effort: fran');
     expect(errorNodes(text)).toEqual([]);
+  });
+
+  it('property keys insert a trailing colon and space', async () => {
+    const text = await acceptOption('soun', 'sound');
+    expect(text).toBe('sound: ');
   });
 });

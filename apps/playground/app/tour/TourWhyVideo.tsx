@@ -84,7 +84,7 @@ export const TourWhyVideo = memo(function TourWhyVideo({ onWatched }: { onWatche
         data-testid="tour-scroll-hint"
         className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground"
       >
-        <ChevronDown className="size-4 animate-bounce" />
+        <ChevronDown className="size-4" aria-hidden />
         Keep scrolling for the demo
       </p>
 

@@ -4,7 +4,8 @@ import { act } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { CompletionContext, completionStatus, currentCompletions, startCompletion } from '@codemirror/autocomplete';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
-import { wodCompletionSource } from '@bitcobblers/wod-wiki-ui/extensions';
+import { wodCompletionSource, sectionField, setQuerySourceEditing } from '@bitcobblers/wod-wiki-ui/extensions';
+import { createInlineTagFromSlug } from '@/app/editor/noteEditorServices';
 import { InMemoryStorage, resetStorageForTesting, setStorageForTesting } from '@/hooks/useBrowserServices';
 
 const zeroRect = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) };
@@ -38,10 +39,26 @@ function labels(view: EditorView): string[] {
 }
 
 describe('NoteEditor nested completion', () => {
-  it('completes query fence bodies with the standalone WQL vocabulary', async () => {
+  it('completes query fence bodies with the standalone WQL vocabulary when source editing is active', async () => {
     const doc = '```query\nfind session{metric:re\n```';
-    const view = editor(doc, doc.indexOf('{metric:re') + '{metric:re'.length);
+    const pos = doc.indexOf('{metric:re') + '{metric:re'.length;
+    const view = editor(doc, pos);
+    const querySection = view.state.field(sectionField).sections.find((s) => s.type === 'query');
+    expect(querySection).toBeDefined();
+
+    // Collapsed preview blocks suppress floating typeahead until source editing begins.
     act(() => { startCompletion(view); });
+    await waitFor(() => expect(completionStatus(view.state)).toBeNull());
+    expect(labels(view)).toEqual([]);
+
+    // Entering query source edit mode enables full nested WQL completion.
+    act(() => {
+      view.dispatch({
+        selection: { anchor: pos },
+        effects: setQuerySourceEditing.of({ sectionId: querySection!.id, editing: true }),
+      });
+      startCompletion(view);
+    });
     await waitFor(() => expect(labels(view)).toContain('reps'));
     // Opening-fence suggestions never leak into the code body.
     expect(labels(view).every((label) => !label.startsWith('```'))).toBe(true);
@@ -76,5 +93,21 @@ describe('NoteEditor nested completion', () => {
     // Whiteboard Script only — no WQL, no opening-fence suggestions.
     expect(labels(view)).not.toContain('reps');
     expect(labels(view).every((label) => !label.startsWith('```'))).toBe(true);
+  });
+
+  it('triggers tag completion immediately on bare # inside workout blocks and ranks units above movements after a quantity', async () => {
+    await createInlineTagFromSlug('heavy');
+    const tagDoc = '```time\n20 #\n```';
+    const tagView = editor(tagDoc, tagDoc.indexOf('#') + 1);
+    act(() => { startCompletion(tagView); });
+    await waitFor(() => expect(labels(tagView)).toContain('heavy'));
+
+    const unitDoc = '```time\n20 \n```';
+    const unitView = editor(unitDoc, unitDoc.indexOf('20 ') + 3);
+    act(() => { startCompletion(unitView); });
+    await waitFor(() => expect(labels(unitView)).toContain('kg'));
+    const unitOpts = labels(unitView);
+    expect(unitOpts).not.toContain('AMRAP');
+    expect(unitOpts).not.toContain('EMOM');
   });
 });

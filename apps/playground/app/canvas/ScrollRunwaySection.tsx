@@ -84,8 +84,13 @@ export function ScrollRunwaySection({
   const setDoc = onDocChange ?? setInternalDoc
 
   const [interactive, setInteractive] = useState(false)
+  const [editorFocused, setEditorFocused] = useState(false)
 
-  const { slice, subscribe, resync } = useScrollRunway(runwayRef, interactive, stages)
+  const { slice, subscribe, resync } = useScrollRunway(
+    runwayRef,
+    interactive || editorFocused,
+    stages,
+  )
 
   // Only report stage entry once the runway is actually on-screen — the
   // section may be embedded far down a page, so resolving stage 0 at mount
@@ -120,14 +125,14 @@ export function ScrollRunwaySection({
     if (!interactive && runwayVisible) onStageEnter?.(stageId)
   }, [interactive, stageId, runwayVisible, onStageEnter])
 
-  // Re-sync after exiting playground mode and on stage change so newly-mounted
+  // Re-sync after exiting playground/edit mode and on stage change so newly-mounted
   // visuals get their first imperative frame immediately.
   useEffect(() => {
-    if (!interactive) {
+    if (!interactive && !editorFocused) {
       const id = requestAnimationFrame(resync)
       return () => cancelAnimationFrame(id)
     }
-  }, [interactive, resync])
+  }, [interactive, editorFocused, resync])
   useEffect(() => {
     const id = requestAnimationFrame(resync)
     return () => cancelAnimationFrame(id)
@@ -195,7 +200,22 @@ export function ScrollRunwaySection({
           </div>
         }
         pane={
-          <div className="absolute inset-0">
+          <div
+            className="absolute inset-0"
+            onFocusCapture={() => setEditorFocused(true)}
+            onBlurCapture={(e) => {
+              const related = e.relatedTarget as Node | null
+              if (related && e.currentTarget.contains(related)) return
+              if (
+                !related &&
+                typeof document !== 'undefined' &&
+                document.documentElement.dataset.mobileEditorOpen === 'true'
+              ) {
+                return
+              }
+              setEditorFocused(false)
+            }}
+          >
             <EditorWindow
               title={noteTitle ?? ''}
               noteId="canvas:scroll-runway"

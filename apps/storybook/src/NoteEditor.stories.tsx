@@ -254,6 +254,10 @@ function autocompleteMenu() {
 }
 
 function firstOptionLabel() {
+  return autocompleteMenu()?.querySelector<HTMLElement>('li .cm-completionLabel');
+}
+
+function selectedOptionLabel() {
   return autocompleteMenu()?.querySelector<HTMLElement>('li[aria-selected="true"] .cm-completionLabel');
 }
 
@@ -341,8 +345,8 @@ export const UniversalNoteEditorDialog: Story = {
       await expect(box.bottom).toBeLessThanOrEqual(window.innerHeight || 1000);
     });
 
-    // Accept into the doc
-    await userEvent.keyboard('{Enter}');
+    // Accept into the doc via Tab (Enter preserves newlines unless arrow-selected)
+    await userEvent.keyboard('{Tab}');
     await waitFor(async () => {
       await expect(autocompleteMenu()).toBeNull();
     });
@@ -381,7 +385,7 @@ export const CompletionNestedWqlQuery: Story = {
       await expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
     });
 
-    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{Tab}');
     await waitFor(async () => {
       await expect(autocompleteMenu()).toBeNull();
     });
@@ -417,7 +421,7 @@ export const CompletionNestedWqlWql: Story = {
       await expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
     });
 
-    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{Tab}');
     await waitFor(async () => {
       await expect(autocompleteMenu()).toBeNull();
     });
@@ -453,10 +457,10 @@ export const CompletionTimeBodyStructureAndUnits: Story = {
       await expect(autocompleteMenu()).toBeVisible();
       await expect(firstOptionLabel()?.textContent?.trim()).toBe('Circuit');
     });
-    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{Tab}');
     const view = getCmView(host);
     await waitFor(async () => {
-      await expect(view.state.doc.toString()).toContain('Air Squats');
+      await expect(view.state.doc.toString()).toContain('400m Run');
     });
 
     // 2. Unit completion after number
@@ -485,7 +489,7 @@ export const CompletionTimeBodyStructureAndUnits: Story = {
       await expect(autocompleteMenu()).toBeVisible();
       await expect(firstOptionLabel()?.textContent?.trim()).toBe('sound');
     });
-    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{Tab}');
     await waitFor(async () => {
       await expect(view.state.doc.toString()).toContain('sound');
     });
@@ -507,7 +511,7 @@ export const CompletionTimeBodyEffort: Story = {
       await expect(thrRow?.querySelector('.cm-completionDetail')?.textContent?.trim()).toBe('thruster');
     });
 
-    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{Tab}');
     const view = getCmView(host);
     await waitFor(async () => {
       await expect(view.state.doc.toString()).toContain('Thrusters');
@@ -577,11 +581,17 @@ export const CompletionKeyboardNavigation: Story = {
     await waitFor(async () => {
       await expect(autocompleteMenu()).toBeVisible();
       await expect(firstOptionLabel()?.textContent?.trim()).toBe('note');
+      await expect(selectedOptionLabel()).toBeNull();
     });
 
     await userEvent.keyboard('{ArrowDown}');
     await waitFor(async () => {
-      await expect(firstOptionLabel()?.textContent?.trim()).toBe('notes');
+      await expect(selectedOptionLabel()?.textContent?.trim()).toBe('note');
+    });
+
+    await userEvent.keyboard('{ArrowDown}');
+    await waitFor(async () => {
+      await expect(selectedOptionLabel()?.textContent?.trim()).toBe('notes');
     });
 
     await userEvent.keyboard('{Escape}');

@@ -249,7 +249,7 @@ export const TourJumpSection = memo(function TourJumpSection({ feedDeps }: { fee
               placeholder="Search feeds…"
               aria-label="Search feeds"
               data-testid="package-search-input"
-              className="h-11 w-full rounded-full border border-border bg-background pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/50"
+              className="h-11 w-full rounded-full border border-border bg-background pl-9 pr-9 text-base lg:text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/50"
             />
             {search && (
               <button
@@ -306,7 +306,7 @@ export const TourJumpSection = memo(function TourJumpSection({ feedDeps }: { fee
                   onChange={(e) => setSelectedFeedId(e.target.value ? e.target.value : undefined)}
                   aria-label="Filter by feed"
                   data-testid="filter-feed-source"
-                  className="min-h-11 h-11 rounded-full border border-border bg-background px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground outline-none transition-colors hover:border-foreground/25 focus:border-primary/50"
+                  className="min-h-11 h-11 rounded-full border border-border bg-background px-3 text-base font-semibold uppercase tracking-widest text-muted-foreground outline-none transition-colors hover:border-foreground/25 focus:border-primary/50 lg:text-[10px] lg:font-black"
                 >
                   <option value="">All feeds</option>
                   {feedSources.map((s) => (

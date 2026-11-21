@@ -404,7 +404,7 @@ export const TokenInspectorPanel: React.FC<TokenInspectorPanelProps> = ({
         placeholder={placeholder}
         aria-label={ariaLabel}
         className={cn(
-          'w-full pl-8 pr-2.5 rounded-md border border-field-border bg-background text-foreground placeholder:text-muted-foreground text-xs focus:outline-none focus:ring-2 focus:ring-ring',
+          'w-full pl-8 pr-2.5 rounded-md border border-field-border bg-background text-foreground placeholder:text-muted-foreground text-base lg:text-xs focus:outline-none focus:ring-2 focus:ring-ring',
           compact ? 'min-h-[44px]' : 'h-8',
         )}
       />

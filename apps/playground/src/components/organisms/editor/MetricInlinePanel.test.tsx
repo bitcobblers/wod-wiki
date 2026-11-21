@@ -4,8 +4,9 @@ import { MetricType, ParsedCodeStatement } from '@bitcobblers/wod-wiki-engine';
 import type { IMetric } from '@bitcobblers/wod-wiki-engine';
 import type { ICodeStatement } from '@bitcobblers/wod-wiki-engine';
 import type { EditorSection } from '@bitcobblers/wod-wiki-ui/extensions';
-import type { EditorView } from '@codemirror/view';
-import type { EditorState } from '@codemirror/state';
+import { EditorState } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
+import { autocompletion, closeCompletion, completionStatus, startCompletion } from '@codemirror/autocomplete';
 import { MetricInlinePanel } from './MetricInlinePanel';
 import { TEST_IDS } from '@/lib/testIds';
 import { usePaletteStore } from '@/components/organisms/command-palette/palette-store';
@@ -327,5 +328,96 @@ describe('MetricInlinePanel chip focus, hover, and palette click', () => {
     expect(screen.getByTestId('editor-link-alias-inline')).toBeDefined();
     expect(screen.getByTestId('editor-create-equipment-from-token')).toBeDefined();
     expect(screen.getByTestId('editor-create-tag-inline')).toBeDefined();
+  });
+
+  it('hides while completion is active, mutes aria-live while busy, and restores cleanly when closed', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const realView = new EditorView({
+      state: EditorState.create({
+        doc: '10 Back Squat',
+        extensions: [
+          autocompletion({
+            interactionDelay: 0,
+            override: [() => ({ from: 3, options: [{ label: 'Back Squat' }] })],
+          }),
+        ],
+      }),
+      parent: host,
+    });
+    realView.coordsAtPos = () => ({ left: 0, right: 80, top: 10, bottom: 28 });
+    realView.dom.getBoundingClientRect = () => ({
+      top: 0,
+      left: 0,
+      right: 500,
+      bottom: 200,
+      width: 500,
+      height: 200,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    realView.contentDOM.getBoundingClientRect = () => ({
+      top: 0,
+      left: 0,
+      right: 500,
+      bottom: 200,
+      width: 500,
+      height: 200,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    const section = makeSection();
+    const statement = makeStatement([
+      { type: MetricType.Rep, value: 10, image: '10', origin: 'parser' } as IMetric,
+    ]);
+    const getCursorFocusState = () => ({
+      section,
+      statement,
+      cursorLine: 1,
+      lineFrom: 0,
+      lineTo: 13,
+      focusedMetric: null,
+    });
+
+    try {
+      const { rerender } = render(
+        <MetricInlinePanel
+          view={realView}
+          cursorVersion={1}
+          getCursorFocusState={getCursorFocusState}
+        />,
+      );
+      const panel = await screen.findByLabelText('Metric inline panel');
+      expect(panel.getAttribute('aria-live')).toBe('polite');
+
+      startCompletion(realView);
+      await waitFor(() => expect(completionStatus(realView.state)).toBe('active'));
+      rerender(
+        <MetricInlinePanel
+          view={realView}
+          cursorVersion={2}
+          getCursorFocusState={getCursorFocusState}
+        />,
+      );
+      expect(screen.queryByLabelText('Metric inline panel')).toBeNull();
+
+      closeCompletion(realView);
+      await waitFor(() => expect(completionStatus(realView.state)).toBeNull());
+      rerender(
+        <MetricInlinePanel
+          view={realView}
+          cursorVersion={3}
+          getCursorFocusState={getCursorFocusState}
+        />,
+      );
+      const restored = await screen.findByLabelText('Metric inline panel');
+      expect(restored.getAttribute('aria-live')).toBe('polite');
+    } finally {
+      realView.destroy();
+      host.remove();
+    }
   });
 });

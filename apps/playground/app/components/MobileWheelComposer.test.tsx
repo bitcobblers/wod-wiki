@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { act } from 'react';
 import type { EditorView } from '@codemirror/view';
+import { createInlineTagFromSlug } from '@/app/editor/noteEditorServices';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { TEST_IDS } from '@/lib/testIds';
 import {
@@ -385,6 +386,151 @@ describe('MobileWheelComposer in NoteEditor', () => {
     });
     await waitFor(() => {
       expect(document.documentElement.dataset.mobileEditorOpen).toBeUndefined();
+    });
+  });
+
+  it('publishes --mobile-editor-inset, avoids pb-[48dvh], strips bottom safe-area padding when keyboard opens, and respects autoFocus={false}', async () => {
+    const originalVisualViewport = window.visualViewport;
+    const originalInnerHeight = window.innerHeight;
+    const vvListeners = new Map<string, Set<EventListener>>();
+    const mockVv = {
+      height: 844,
+      offsetTop: 0,
+      scale: 1,
+      addEventListener: (type: string, cb: EventListener) => {
+        if (!vvListeners.has(type)) vvListeners.set(type, new Set());
+        vvListeners.get(type)!.add(cb);
+      },
+      removeEventListener: (type: string, cb: EventListener) => {
+        vvListeners.get(type)?.delete(cb);
+      },
+    };
+    Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: 844 });
+    Object.defineProperty(window, 'visualViewport', { configurable: true, writable: true, value: mockVv });
+
+    try {
+      const doc = '# Note\n\nProse line\n\n```time\n10:00 15 Kettlebell Swing\n```';
+      let view: EditorView | undefined;
+      const { container } = render(
+        <NoteEditor
+          value={doc}
+          onChange={() => {}}
+          onViewCreated={(v) => {
+            view = v;
+          }}
+        />,
+      );
+      if (!view) throw new Error('Editor did not mount');
+
+      const workoutPos = doc.indexOf('10:00') + 1;
+      act(() => {
+        view!.dispatch({ selection: { anchor: workoutPos } });
+        view!.contentDOM.focus();
+        fireEvent.focus(view!.contentDOM);
+      });
+
+      await screen.findByTestId('mobile-wheel-composer');
+      const editorHost = container.querySelector('.cm-note-editor') as HTMLElement;
+      expect(editorHost.dataset.mobileEditing).toBe('true');
+      expect(editorHost.className).not.toContain('pb-[48dvh]');
+      expect(document.documentElement.style.getPropertyValue('--mobile-editor-inset')).not.toBe('');
+
+      // Switch to typing mode and simulate native OS keyboard opening
+      act(() => {
+        fireEvent.click(screen.getByTestId('mobile-wheel-type-btn'));
+      });
+      const typingBar = await screen.findByTestId('mobile-typing-bar');
+      act(() => {
+        mockVv.height = 500;
+        for (const cb of vvListeners.get('resize') ?? []) cb(new Event('resize'));
+      });
+      await waitFor(() => {
+        expect(typingBar.style.bottom).toBe('344px');
+        expect(typingBar.style.paddingBottom).toBe('0px');
+      });
+
+      // Done clears inset and editing marker
+      act(() => {
+        fireEvent.click(screen.getByTestId('mobile-wheel-done-btn'));
+      });
+      await waitFor(() => {
+        expect(document.documentElement.style.getPropertyValue('--mobile-editor-inset')).toBe('');
+        expect(editorHost.dataset.mobileEditing).toBeUndefined();
+      });
+
+      // Desktop autoFocus={false} stays blurred on mount
+      cleanup();
+      setMobileMatchMedia(false);
+      let desktopView: EditorView | undefined;
+      render(
+        <NoteEditor
+          value="```time\n5:00 Run\n```"
+          onChange={() => {}}
+          autoFocus={false}
+          onViewCreated={(v) => {
+            desktopView = v;
+          }}
+        />,
+      );
+      expect(desktopView).toBeDefined();
+      expect(document.activeElement).not.toBe(desktopView!.contentDOM);
+    } finally {
+      Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: originalInnerHeight });
+      Object.defineProperty(window, 'visualViewport', { configurable: true, writable: true, value: originalVisualViewport });
+    }
+  });
+
+  it('docks active typeahead suggestions into mobile-typing-bar above syntax keys and applies on tap', async () => {
+    await createInlineTagFromSlug('heavy');
+    const doc = '```time\n10:00 Back Squat\n```';
+    let view: EditorView | undefined;
+    render(
+      <NoteEditor
+        value={doc}
+        onChange={() => {}}
+        onViewCreated={(v) => {
+          view = v;
+        }}
+      />,
+    );
+    if (!view) throw new Error('Editor did not mount');
+
+    const lineEnd = doc.indexOf('Back Squat') + 'Back Squat'.length;
+    act(() => {
+      view!.contentDOM.focus();
+      fireEvent.focus(view!.contentDOM);
+      view!.dispatch({ selection: { anchor: lineEnd } });
+    });
+
+    await screen.findByTestId('mobile-wheel-composer');
+    act(() => {
+      fireEvent.click(screen.getByTestId('mobile-wheel-type-btn'));
+    });
+
+    const typingBar = await screen.findByTestId('mobile-typing-bar');
+    // Insert space + # using the syntax key (triggers completion cleanly inside ```time)
+    act(() => {
+      const cur = view!.state.selection.main.head;
+      view!.dispatch({ changes: { from: cur, insert: ' ' }, selection: { anchor: cur + 1 } });
+    });
+    const hashBtn = within(typingBar).getByRole('button', { name: 'Insert tag prefix #' });
+    act(() => {
+      fireEvent.click(hashBtn);
+    });
+
+    const listbox = await within(typingBar).findByRole('listbox', { name: 'Autocomplete suggestions' });
+    const heavyOpt = await within(listbox).findByRole('option', { name: /heavy/i });
+
+    // Floating CM6 tooltip gets hidden docked class in mobile typing mode
+    const dockedHiddenTooltip = document.querySelector('.cm-tooltip-autocomplete.cm-wod-tooltip-docked-hidden');
+    expect(dockedHiddenTooltip).not.toBeNull();
+
+    act(() => {
+      fireEvent.click(heavyOpt);
+    });
+
+    await waitFor(() => {
+      expect(view!.state.doc.toString()).toContain('#heavy');
     });
   });
 });

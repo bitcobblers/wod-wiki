@@ -144,7 +144,7 @@ const DEFAULT_MASS_UNITS = ["kg", "lb", "pood", "%"];
 const DEFAULT_DISTANCE_UNITS = ["m", "km", "cal", "ft", "mi", "yd"];
 
 const ACTION_OPTIONS: WheelDrumOption[] = [
-  { id: "act-rest", label: "Rest", sublabel: ":rest", value: ":rest" },
+  { id: "act-rest", label: "Rest", sublabel: "[:rest]", value: "[:rest]" },
   { id: "act-emom", label: "EMOM", sublabel: "1:00", value: "1:00" },
   { id: "act-buyin", label: "Buy-in", sublabel: "Header", value: "Buy-in:" },
   { id: "act-cashout", label: "Cash-out", sublabel: "Header", value: "Cash-out:" },
@@ -733,7 +733,7 @@ function buildAddMetricDrum(
     { id: "add-weight", label: "Weight / Load", sublabel: `20${massUnit}`, value: `20${massUnit}` },
     { id: "add-distance", label: "Distance", sublabel: `400${distUnit}`, value: `400${distUnit}` },
     { id: "add-rounds", label: "Rounds", sublabel: "(3)", value: "(3)" },
-    { id: "add-rest", label: "Rest / Action", sublabel: ":rest", value: ":rest" },
+    { id: "add-rest", label: "Rest / Action", sublabel: "[:rest]", value: "[:rest]" },
     { id: "add-tag", label: "Tag (#)", sublabel: starterTag, value: starterTag },
     ...scope.customMetricTypes.map((custom) => ({
       id: `add-custom-${custom.type}`,
