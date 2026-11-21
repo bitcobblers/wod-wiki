@@ -9,7 +9,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { ArrowUpRight, FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Loader2, Copy, Share2, Pencil, Trash2, MoreHorizontal, ShieldCheck } from 'lucide-react'
-import { isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
+import { isNonPublishableNotebook, isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
 import { resolveFeedDisplayLabel } from '@/components/molecules/PublicationPill'
 import { feedSourceById } from '@/services/feed/feedSources'
 import {
@@ -263,17 +263,24 @@ export function LibraryRow({
             </span>
           )}
           {entry.kind === 'notebook' && entry.feedId === 'local' && (
-            <span
-              className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border ${
-                entry.isPublic
-                  ? 'border-emerald-700/30 dark:border-emerald-400/30 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
-                  : 'border-border bg-muted text-foreground'
-              }`}
-              data-testid={`library-row-visibility-${entry.sourceNotebook}`}
-            >
-              {entry.isPublic ? <Globe className="size-3" /> : <Lock className="size-3" />}
-              {entry.isPublic ? 'Public' : 'Private'}
-            </span>
+            isSystemReadOnlyNotebook(entry.sourceNotebook) ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border border-border bg-muted text-foreground">
+                <BookOpen className="size-3" aria-hidden="true" />
+                System
+              </span>
+            ) : (
+              <span
+                className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border ${
+                  entry.isPublic
+                    ? 'border-emerald-700/30 dark:border-emerald-400/30 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                    : 'border-border bg-muted text-foreground'
+                }`}
+                data-testid={`library-row-visibility-${entry.sourceNotebook}`}
+              >
+                {entry.isPublic ? <Globe className="size-3" /> : <Lock className="size-3" />}
+                {entry.isPublic ? 'Public' : 'Private'}
+              </span>
+            )
           )}
           {entry.kind === 'feed' && entry.unpublishedChanges && (
             <span className="text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border border-amber-700/30 dark:border-amber-400/30 bg-amber-500/15 text-amber-900 dark:text-amber-200">
@@ -396,6 +403,23 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
     && (entry.editable ?? true)
     && targets.length > 0
 
+  const isSystemNotebook = entry.kind === 'notebook' && isSystemReadOnlyNotebook(entry.sourceNotebook)
+  const canTogglePublicNotebook =
+    entry.kind === 'notebook'
+    && entry.feedId === 'local'
+    && !isNonPublishableNotebook(entry.sourceNotebook)
+    && !!onTogglePublicNotebook
+  const canEditNotebook =
+    entry.kind === 'notebook'
+    && entry.feedId === 'local'
+    && !isSystemNotebook
+    && !!onEditNotebook
+  const canDeleteNotebook =
+    entry.kind === 'notebook'
+    && entry.feedId === 'local'
+    && !isSystemNotebook
+    && !!onDeleteNotebook
+
   const hasSubscribe = (entry.kind === 'feed' || entry.kind === 'notebook') && entry.feedId !== 'local' && entry.feedId !== 'core' && !!onToggleSubscribe
   const hasPublish = entry.kind === 'feed' && entry.sourceNote === 'local' && !!onPublishFeed
   const hasCloneRemote = !!entry.isRemotePreview && !!onCloneRemote
@@ -407,7 +431,9 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
     || (canRun && hasCloneRemote)
     || canAdd
     || !!compareHref
-    || (entry.kind === 'notebook' && entry.feedId === 'local' && (!!onTogglePublicNotebook || !!onEditNotebook || (!!onDeleteNotebook && !confirmingDelete)))
+    || canTogglePublicNotebook
+    || canEditNotebook
+    || (canDeleteNotebook && !confirmingDelete)
     || (moveable && targets.length > 0)
 
   return (
@@ -461,7 +487,7 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
           <ArrowUpRight className="size-3.5" aria-hidden="true" />
         </ActionButton>
       )}
-      {entry.kind === 'notebook' && entry.feedId === 'local' && onDeleteNotebook && confirmingDelete && (
+      {canDeleteNotebook && confirmingDelete && (
         <button
           type="button"
           title="Notes in this notebook return to the journal"
@@ -537,27 +563,27 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
                   <span>Compare</span>
                 </MenuItem>
               )}
-              {entry.kind === 'notebook' && entry.feedId === 'local' && onTogglePublicNotebook && (
+              {canTogglePublicNotebook && (
                 <MenuItem
                   value="toggle-public"
                   data-testid={`row-toggle-public-${entry.sourceNotebook}`}
-                  onClick={() => onTogglePublicNotebook(entry)}
+                  onClick={() => onTogglePublicNotebook!(entry)}
                 >
                   {entry.isPublic ? <Lock className="size-4 shrink-0" aria-hidden="true" /> : <Globe className="size-4 shrink-0" aria-hidden="true" />}
                   <span>{entry.isPublic ? 'Make Private' : 'Make Public'}</span>
                 </MenuItem>
               )}
-              {entry.kind === 'notebook' && entry.feedId === 'local' && onEditNotebook && (
+              {canEditNotebook && (
                 <MenuItem
                   value="edit-notebook"
                   data-testid={`notebook-edit-${entry.sourceNotebook}`}
-                  onClick={() => onEditNotebook(entry)}
+                  onClick={() => onEditNotebook!(entry)}
                 >
                   <Pencil className="size-4 shrink-0" aria-hidden="true" />
                   <span>Edit notebook</span>
                 </MenuItem>
               )}
-              {entry.kind === 'notebook' && entry.feedId === 'local' && onDeleteNotebook && !confirmingDelete && (
+              {canDeleteNotebook && !confirmingDelete && (
                 <MenuItem
                   value="delete-notebook"
                   data-testid={`notebook-delete-${entry.sourceNotebook}`}

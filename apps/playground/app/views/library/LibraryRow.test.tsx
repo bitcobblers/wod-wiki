@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'bun:test'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { TEST_IDS } from '@/lib/testIds'
 import { LibraryRow } from './LibraryRow'
 import type { Entry } from '../../lib/entryMapper'
 
@@ -212,5 +213,96 @@ describe('LibraryRow — field projection adaptation', () => {
     expect(container.innerHTML).not.toContain('text-[9px]')
     expect(container.innerHTML).not.toContain('text-[10px]')
     expect(container.innerHTML).not.toContain('sm:opacity-0')
+  })
+
+  it('renders System badge and hides Private/publish/edit/delete controls for read-only system notebooks', () => {
+    const systemNotebook: Entry = {
+      id: 'notebook:guides',
+      kind: 'notebook',
+      feedId: 'local',
+      sourceNotebook: 'guides',
+      sourceNote: 'guides',
+      title: 'Guides',
+      date: null,
+      isPublic: false,
+    }
+
+    render(
+      <MemoryRouter>
+        <LibraryRow
+          entry={systemNotebook}
+          onTogglePublicNotebook={() => {}}
+          onEditNotebook={() => {}}
+          onDeleteNotebook={() => {}}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('System')).toBeDefined()
+    expect(screen.queryByTestId('library-row-visibility-guides')).toBeNull()
+    expect(screen.queryByText('Private')).toBeNull()
+    expect(screen.queryByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW)).toBeNull()
+    expect(screen.queryByTestId('row-toggle-public-guides')).toBeNull()
+    expect(screen.queryByTestId('notebook-edit-guides')).toBeNull()
+    expect(screen.queryByTestId('notebook-delete-guides')).toBeNull()
+  })
+
+  it('gates Make Public on non-publishable default notebooks while keeping user custom notebook controls', () => {
+    const journalNotebook: Entry = {
+      id: 'notebook:journal',
+      kind: 'notebook',
+      feedId: 'local',
+      sourceNotebook: 'journal',
+      sourceNote: 'journal',
+      title: 'Journal',
+      date: null,
+      isPublic: false,
+    }
+    const customNotebook: Entry = {
+      id: 'notebook:strength-block',
+      kind: 'notebook',
+      feedId: 'local',
+      sourceNotebook: 'strength-block',
+      sourceNote: 'strength-block',
+      title: 'Strength Block',
+      date: null,
+      isPublic: false,
+    }
+
+    render(
+      <MemoryRouter>
+        <LibraryRow
+          entry={journalNotebook}
+          onTogglePublicNotebook={() => {}}
+          onEditNotebook={() => {}}
+          onDeleteNotebook={() => {}}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByTestId('library-row-visibility-journal').textContent).toContain('Private')
+    fireEvent.click(screen.getByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW))
+    expect(screen.queryByTestId('row-toggle-public-journal')).toBeNull()
+    expect(screen.getByTestId('notebook-edit-journal')).toBeDefined()
+    expect(screen.getByTestId('notebook-delete-journal')).toBeDefined()
+
+    cleanup()
+
+    render(
+      <MemoryRouter>
+        <LibraryRow
+          entry={customNotebook}
+          onTogglePublicNotebook={() => {}}
+          onEditNotebook={() => {}}
+          onDeleteNotebook={() => {}}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByTestId('library-row-visibility-strength-block').textContent).toContain('Private')
+    fireEvent.click(screen.getByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW))
+    expect(screen.getByTestId('row-toggle-public-strength-block')).toBeDefined()
+    expect(screen.getByTestId('notebook-edit-strength-block')).toBeDefined()
+    expect(screen.getByTestId('notebook-delete-strength-block')).toBeDefined()
   })
 })
