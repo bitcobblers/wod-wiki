@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useEffect } from 'react';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 import {
   renderWithPlaygroundHost,
   type PlaygroundRenderResult,
@@ -403,5 +404,65 @@ describe('NoteByIdPage workout start & L3 outline parity', () => {
     });
     const allNotes = await host.storage.readonly('notes').getAll();
     expect(allNotes.filter((n) => n.type === 'playground')).toHaveLength(0);
+  });
+
+  it('starts template-cloned local ```wod journal notes across staged replay without STALE_SOURCE', async () => {
+    const wodRaw = '# Template WOD\n\n```wod\n0:25 AMRAP\n  5 Pull-up\n```';
+
+    const host = await renderWithPlaygroundHost(
+      <NoteByIdPage noteId="local-wod-template-note" theme="light" />,
+      {
+        route: '/note/local-wod-template-note',
+        world: {
+          notes: [
+            {
+              id: 'local-wod-template-note',
+              title: 'Template WOD',
+              rawContent: wodRaw,
+              type: 'journal',
+              notebookId: 'notebook/journal',
+              sourceId: 'guides:starter-template',
+            },
+          ],
+        },
+      },
+    );
+    activeHosts.push(host);
+
+    const runBtn = await waitFor(() => screen.getByTestId('editor-start-workout'));
+    await waitFor(() => {
+      expect(host.readAgentViewState()?.editor?.sourceRevision).toBe(1);
+    });
+
+    const mountNode = document.querySelector('.cm-editor')?.parentElement as {
+      __codemirrorView?: {
+        state: { doc: { length: number } };
+        dispatch: (spec: unknown) => void;
+      };
+    } | null;
+    expect(mountNode?.__codemirrorView).toBeDefined();
+
+    // Edit in CodeMirror (stages draft immediately in localStorage) and trigger
+    // an immediate sourceId read before the 350ms idle debounce fires.
+    await act(async () => {
+      const view = mountNode!.__codemirrorView!;
+      view.dispatch({ changes: { from: view.state.doc.length, insert: '\nReady' } });
+      await new IndexedDBContentProvider().getRecord('guides:starter-template');
+    });
+
+    await waitFor(() => {
+      expect(host.readAgentViewState()?.editor?.sourceRevision).toBeGreaterThanOrEqual(2);
+    });
+    expect(localStorage.getItem('wodwiki:pending-note-saves:v1')).toBeNull();
+    expect(screen.queryByRole('alert')?.textContent ?? null).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')?.textContent ?? null).toBeNull();
+      expect(screen.getByTestId('timer-stop-session')).toBeDefined();
+    });
   });
 });

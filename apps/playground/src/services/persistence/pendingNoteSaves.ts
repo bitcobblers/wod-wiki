@@ -67,30 +67,83 @@ export function clearStagedNoteSave(noteId: string): void {
   writeStagedNoteSaves(map);
 }
 
+type ActiveDraftFlusher = () => Promise<boolean>;
+const activeDraftFlushers = new Map<string, Set<ActiveDraftFlusher>>();
+
+/**
+ * Register a live editor draft so staged pagehide replays coordinate through
+ * the mounted draft state instead of writing behind its back.
+ */
+export function registerActiveDraft(noteId: string, flushIfDirty: ActiveDraftFlusher): () => void {
+  let set = activeDraftFlushers.get(noteId);
+  if (!set) {
+    set = new Set();
+    activeDraftFlushers.set(noteId, set);
+  }
+  set.add(flushIfDirty);
+  return () => {
+    const current = activeDraftFlushers.get(noteId);
+    if (!current) return;
+    current.delete(flushIfDirty);
+    if (current.size === 0) activeDraftFlushers.delete(noteId);
+  };
+}
+
 let replayStagedPromise: Promise<void> | null = null;
 
 /**
  * Commit every staged pagehide draft into IndexedDB. Deduped single-flight;
- * a staged entry whose revision already lost a race is dropped, not error'd.
+ * flushes any live dirty draft first so background reads never save behind its
+ * back, and drops orphaned staged copies whose revision already lost a race.
  */
 export function replayStagedNoteSaves(): Promise<void> {
   replayStagedPromise ??= (async () => {
     const staged = readStagedNoteSaves();
     for (const entry of Object.values(staged)) {
+      const inFlight = pendingNoteSaves.get(entry.noteId);
+      if (inFlight) {
+        await inFlight.then(() => undefined, () => undefined);
+      }
+      const currentStaged = readStagedNoteSaves()[entry.noteId];
+      if (!currentStaged) continue;
+
+      const flushers = activeDraftFlushers.get(currentStaged.noteId);
+      if (flushers && flushers.size > 0) {
+        let handledByLiveDraft = false;
+        for (const flushIfDirty of [...flushers]) {
+          try {
+            if (await flushIfDirty()) {
+              handledByLiveDraft = true;
+            }
+          } catch {
+            // The live draft owns the edit and surfaced the error; do not save
+            // behind its back or drop its staged draft.
+            handledByLiveDraft = true;
+          }
+        }
+        if (handledByLiveDraft) continue;
+      }
+
+      const savePromise = notePersistence.saveNote({
+        noteId: currentStaged.noteId,
+        rawContent: currentStaged.rawContent,
+        blocks: currentStaged.blocks,
+        expectedSourceRevision: currentStaged.expectedSourceRevision,
+        ...(currentStaged.metadata ? { metadata: currentStaged.metadata } : {}),
+        ...(currentStaged.noteType ? { noteType: currentStaged.noteType } : {}),
+      });
+      pendingNoteSaves.set(currentStaged.noteId, savePromise);
       try {
-        await notePersistence.saveNote({
-          noteId: entry.noteId,
-          rawContent: entry.rawContent,
-          blocks: entry.blocks,
-          expectedSourceRevision: entry.expectedSourceRevision,
-          ...(entry.metadata ? { metadata: entry.metadata } : {}),
-          ...(entry.noteType ? { noteType: entry.noteType } : {}),
-        });
+        await savePromise;
       } catch {
         // A newer revision already landed in IndexedDB (or the note is gone):
         // the durable draft served its purpose — drop it.
+      } finally {
+        if (pendingNoteSaves.get(currentStaged.noteId) === savePromise) {
+          pendingNoteSaves.delete(currentStaged.noteId);
+        }
       }
-      clearStagedNoteSave(entry.noteId);
+      clearStagedNoteSave(currentStaged.noteId);
     }
   })().finally(() => {
     replayStagedPromise = null;
@@ -108,9 +161,12 @@ export async function waitForPendingNoteSave(noteId: string): Promise<void> {
   await replayStagedNoteSaves();
 }
 
-export function waitForAllPendingNoteSaves(): Promise<void> {
-  const pending = [...pendingNoteSaves.values()].map((promise) =>
-    promise.then(() => undefined, () => undefined),
-  );
-  return Promise.all([replayStagedNoteSaves(), ...pending]).then(() => undefined);
+export async function waitForAllPendingNoteSaves(): Promise<void> {
+  if (pendingNoteSaves.size > 0) {
+    const pending = [...pendingNoteSaves.values()].map((promise) =>
+      promise.then(() => undefined, () => undefined),
+    );
+    await Promise.all(pending);
+  }
+  await replayStagedNoteSaves();
 }

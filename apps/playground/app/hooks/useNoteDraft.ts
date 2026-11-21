@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { NoteBlock } from '@/types/storage';
 import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import { revertBlock } from '@/components/organisms/editor/BlockHistory';
@@ -11,12 +11,15 @@ import {
   clearStagedNoteSave,
   pendingNoteSaves,
   readStagedNoteSaves,
+  registerActiveDraft,
   replayStagedNoteSaves,
   stageNoteSave,
   waitForAllPendingNoteSaves,
   waitForPendingNoteSave,
   type StagedNoteSave,
 } from '@/services/persistence/pendingNoteSaves';
+
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 export {
   replayStagedNoteSaves,
@@ -134,6 +137,17 @@ export function useNoteDraft({
     getSnapshotKey: snapshot => JSON.stringify([snapshot.rawContent, Object.values(snapshot.blocks).map(b => [b.id, b.from, b.to, b.kind, b.dialect, b.sport])]),
     onError: err => setActionError(`Save failed. ${err instanceof Error ? err.message : String(err)} Your draft is kept. Retry saving.`),
   });
+
+  const flushIfDirty = useCallback(async (): Promise<boolean> => {
+    if (!saves.hasDirtyDraft()) return false;
+    await saves.flush();
+    return true;
+  }, [saves.hasDirtyDraft, saves.flush]);
+
+  useIsomorphicLayoutEffect(() => {
+    if (!noteId) return;
+    return registerActiveDraft(noteId, flushIfDirty);
+  }, [noteId, flushIfDirty]);
 
   const stageDirtyDraft = useCallback((draft: EditorIdentitySnapshot) => {
     const title = derivedTitle(draft.rawContent, metadataRef.current);
