@@ -20,6 +20,10 @@
 import { v7 as uuidv7 } from 'uuid'
 import type { NavigateFunction } from 'react-router-dom'
 import {
+  KNOWN_SECTION_WIDGETS,
+  parseDocumentSections,
+} from '@bitcobblers/wod-wiki-core'
+import {
   ensurePinnedExternalWorkout,
   parseRemoteNoteId,
   resolveNoteOwnership,
@@ -33,7 +37,6 @@ import { pendingRuntimes } from '../runtimeStore'
 import { runPath, dayAutoStartPath } from './routes'
 import { journalNotes } from '../services/journalNotes'
 import { createJournalNoteFromWorkout } from '../services/journalWorkout'
-import { extractScriptBlocks } from '../services/paletteDataSources'
 import type { Entry } from './entryMapper'
 import { entryOpenHref, entryIsPlayground } from './entryActions'
 
@@ -65,9 +68,12 @@ function extractRawMarkdownFromResolution(resolution: RemoteWorkoutResolution): 
 }
 
 function extractRunnableFromMarkdown(raw: string): string | undefined {
-  const blocks = extractScriptBlocks(raw)
-  const runnable = blocks.find(b => b.dialect === 'time') ?? blocks[0]
-  return runnable?.script
+  const sections = parseDocumentSections(raw, { registeredWidgets: KNOWN_SECTION_WIDGETS })
+  const runnable =
+    sections.find(section => section.type === 'time' && section.scriptBlock?.content.trim()) ??
+    sections.find(section => section.type === 'log' && section.scriptBlock?.content.trim()) ??
+    sections.find(section => section.scriptBlock?.content.trim())
+  return runnable?.scriptBlock?.content
 }
 
 /** Resolve the wod script for the entry — remote previews fetch lazily on
@@ -170,7 +176,7 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction, de
   if (
     !deps.createJournalNoteFromWorkout &&
     !parseRemoteNoteId(entry.id).isRemote &&
-    entry.ownership?.kind === 'user'
+    (entry.ownership?.kind === 'user' || (!entry.ownership && entry.editable !== false))
   ) {
     const saved = await (deps.getNoteById ? deps.getNoteById(entry.id) : storageService.getNote(entry.id).catch(() => undefined))
     if (saved && resolveNoteOwnership(saved).kind === 'user') {

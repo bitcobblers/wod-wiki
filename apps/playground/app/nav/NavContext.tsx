@@ -370,21 +370,46 @@ export function NavProvider({ tree, children }: NavProviderProps) {
     dispatch({ type: 'SET_RIGHT_DRAWER', open: false })
     dispatch({ type: 'SET_INSPECTOR_DRAWER', open: false })
   }, [location.pathname])
+  const l3CallHandlersRef = useRef<Map<string, () => void>>(new Map())
   const setL3Items = useCallback((items: NavItemL3[]) => {
+    const nextHandlers = new Map<string, () => void>()
+    const wrapped = items.map((item) => {
+      const sec = item.secondaryAction
+      if (sec?.action.type !== 'call') return item
+      const key = `${item.id}:${sec.id}`
+      const handler = sec.action.handler
+      nextHandlers.set(key, handler)
+      return {
+        ...item,
+        secondaryAction: {
+          ...sec,
+          action: {
+            type: 'call' as const,
+            handler: () => {
+              const latest = l3CallHandlersRef.current.get(key)
+              if (latest) latest()
+              else handler()
+            },
+          },
+        },
+      }
+    })
+    l3CallHandlersRef.current = nextHandlers
     setL3ItemsInternal((prev) => {
       if (
-        prev.length === items.length &&
+        prev.length === wrapped.length &&
         prev.every(
           (item, i) =>
-            item.id === items[i]?.id &&
-            item.label === items[i]?.label &&
-            item.secondaryAction?.id === items[i]?.secondaryAction?.id &&
-            item.secondaryRunIcon === items[i]?.secondaryRunIcon,
+            item.id === wrapped[i]?.id &&
+            item.label === wrapped[i]?.label &&
+            item.secondaryAction?.id === wrapped[i]?.secondaryAction?.id &&
+            item.secondaryAction?.label === wrapped[i]?.secondaryAction?.label &&
+            item.secondaryRunIcon === wrapped[i]?.secondaryRunIcon,
         )
       ) {
         return prev
       }
-      return items
+      return wrapped
     })
   }, [])
   const scrollToSection = useCallback((id: string) => {

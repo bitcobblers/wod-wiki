@@ -209,4 +209,44 @@ describe('NotebookService (notes-store backed)', () => {
         const members = await service.listNotes(nb.id);
         expect(members.map((n) => n.id)).toEqual([clone.id]);
     });
+
+    it('getAll excludes cached/pinned/indexed/seed/feed notes and feed notebook slugs', async () => {
+        const feedNb = service.getFeedNotebooks()[0]!;
+        await saved({
+            id: 'cached-remote-1',
+            title: 'Cached Remote',
+            notebookId: 'notebook/some-remote-prog',
+            retention: 'cached',
+        });
+        await saved({
+            id: 'pinned-feed-1',
+            title: 'Pinned Feed',
+            notebookId: 'notebook/pinned-external',
+            retention: 'session-pinned',
+            seedOrigin: 'seed',
+            feedOrigin: 'feed',
+            feedSourceId: 'seed-crossfit',
+        });
+        await saved({
+            id: 'indexed-1',
+            title: 'Indexed Feed',
+            notebookId: 'notebook/indexed-external',
+            retention: 'indexed',
+        });
+        await saved({
+            id: 'seed-1',
+            title: 'Seed Note',
+            notebookId: 'notebook/seed-external',
+            seedOrigin: 'seed',
+        });
+        await saved({
+            id: 'feed-slug-leak',
+            title: 'Same Slug As Feed Notebook',
+            notebookId: feedNb.notebookId,
+        });
+        await service.create('User Custom Log');
+
+        const all = await service.getAll();
+        expect(all.map((n) => n.id)).toEqual(['notebook/user-custom-log']);
+    });
 });

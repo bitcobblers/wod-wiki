@@ -401,6 +401,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       const prepared = await prepareJournalSessionRun(this.storage.storage, {
         noteId: existingStored ? existingStored.id : input.noteId,
         blockId: session.blockId,
+        ...(session.blockContentId ? { blockContentId: session.blockContentId } : {}),
         sessionId: session.id,
         journalDate: localDateKey(new Date(session.startTime || Date.now())),
         startedAt: session.startTime,

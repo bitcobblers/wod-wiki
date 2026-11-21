@@ -15,10 +15,7 @@ import { queryService, refreshPageSources } from '@/services/queryService'
 import { dayPath, notePath, pagePath, ROUTE_PATTERNS, runPath } from '../lib/routes'
 import { appendWidget, notebookOriginOfItem, resolveEntityScope } from '@bitcobblers/wod-wiki-wql'
 import { isNoteEditable, type Note } from '@bitcobblers/wod-wiki-core'
-import {
-  parseRemoteNoteId,
-  prepareJournalSessionRun,
-} from '@bitcobblers/wod-wiki-engine'
+import { parseRemoteNoteId } from '@bitcobblers/wod-wiki-engine'
 import {
   ForkToMyNotesDialog,
   PublicationPill,
@@ -227,9 +224,13 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([])
   const [results, setResults] = useState<Session[]>([])
   const noteKey = entry?.id
+  const prevNoteKeyRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     setResults([])
-    setScriptBlocks([])
+    if (prevNoteKeyRef.current !== undefined && prevNoteKeyRef.current !== noteKey) {
+      setScriptBlocks([])
+    }
+    prevNoteKeyRef.current = noteKey
     if (!noteKey) return
     let cancelled = false
     const refresh = () => {
@@ -247,8 +248,13 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     }
   }, [noteKey])
 
+  const firstRunnableBlock = useMemo(
+    () => scriptBlocks.find(b => b.dialect === 'time') ?? scriptBlocks[0] ?? null,
+    [scriptBlocks],
+  )
+
   const draft = useNoteDraft({
-    noteId,
+    noteId: entry?.id ?? noteId,
     initialContent: entry?.rawContent ?? '',
     initialBlocks: entry?.blocks ?? {},
     initialRevision: entry?.sourceRevision ?? 0,
@@ -283,6 +289,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
             if (!res) return undefined;
             const meta = lookupRemoteRecord(id);
             return {
+              ...(res.note ? { note: res.note } : {}),
               row: res.row,
               canonicalNoteId: res.canonicalNoteId,
               remoteNoteId: res.remoteNoteId,
@@ -291,11 +298,6 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
               record: meta?.record,
             };
           };
-          await prepareJournalSessionRun(storageService.storage, {
-            noteId: runTargetId,
-            journalDate: localDateKey(new Date()),
-            resolveRemoteWorkout: resolveRemote,
-          }).catch(() => undefined);
           const captured = await captureStoredRun(
             runTargetId,
             block,
@@ -319,21 +321,21 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
         pendingRuntimes.set(captured.session.id, { block: captured.block, noteId: targetNoteId, captured, returnTo: notePath(targetNoteId) });
         void navigate(runPath(captured.session.id));
       } catch (err) {
-        if (ownershipMeta.isNonOwned) {
-          toast({
-            title: 'Workout not started',
-            description: err instanceof Error ? err.message : 'Unable to start workout.',
-            variant: 'destructive',
-          });
-        }
+        toast({
+          title: 'Workout not started',
+          description: err instanceof Error ? err.message : 'Unable to start workout.',
+          variant: 'destructive',
+        });
       }
     },
     [entry, ownershipMeta.isNonOwned, parsedRemote.isRemote, noteId, feedParam, draft.captureForRun, navigate],
   );
 
+  const liveContent = isReadOnly && entry ? entry.rawContent : draft.content
+
   const noteActions = useNoteActions({
     entry,
-    liveContent: draft.content,
+    liveContent,
     isReadOnly,
     deleteRedirectTo:
       ownership.up?.to ??
@@ -360,16 +362,16 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   })
 
   const noteScope = useMemo(
-    () => (entry ? resolveEntityScope({ noteId: entry.id, label: entry.title, rawContent: draft.content }) : null),
-    [entry, draft.content],
+    () => (entry ? resolveEntityScope({ noteId: entry.id, label: entry.title, rawContent: liveContent }) : null),
+    [entry, liveContent],
   );
   const stackedWidgets = useMemo(
-    () => (entry ? resolveNotePropertyStack(draft.content, { noteId: entry.id }).dashboardWidgets : []),
-    [entry, draft.content],
+    () => (entry ? resolveNotePropertyStack(liveContent, { noteId: entry.id }).dashboardWidgets : []),
+    [entry, liveContent],
   );
 
   useNotePageNav({
-    content: draft.content,
+    content: liveContent,
     scriptBlocks,
     onStartWorkout: (block) => {
       void handleStartWorkout(block);
@@ -388,7 +390,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
       ? {
           noteId: entry.id,
           stamps: ownership.stamps,
-          liveContent: draft.content,
+          liveContent,
           revision: placementRevision,
         }
       : { noteId: '', stamps: [] },
@@ -487,11 +489,11 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                 />
                 {ownershipMeta.isNonOwned && !isPageView && (
                   <div className="flex flex-wrap items-center gap-2">
-                    {scriptBlocks.length > 0 && (
+                    {firstRunnableBlock && (
                       <Button
                         type="button"
                         size="sm"
-                        onClick={() => void handleStartWorkout(scriptBlocks[0]!)}
+                        onClick={() => void handleStartWorkout(firstRunnableBlock)}
                         className="h-8 gap-1.5 px-3 text-xs"
                       >
                         <Play className="size-3.5" aria-hidden="true" />
@@ -655,33 +657,47 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                 </div>
               )}
               {sourcesReady ? (
-                <div className="rounded-lg border border-border bg-card p-4 shadow-sm min-h-[240px] focus-within:border-accent/80 transition-colors">
-                  <NoteEditor
-                    value={draft.content}
-                    onChange={draft.onSourceMutate}
-                    onBlur={draft.onBlur}
-                    noteId={entry.id}
-                    noteBlocks={draft.committedBlocks}
-                    sourceRevision={draft.committedRevision}
-                    onIdentityChange={draft.onIdentityChange}
-                    onSaved={draft.accept}
-                    beforeRun={async () => { await draft.flush(); return draft.committedSourceRevision(); }}
-                    onSaveRequest={draft.flush}
-                    onCommitChange={draft.flush}
-                    onCursorPositionChange={draft.onLineChange}
-                    readonly={isReadOnly}
-                    theme={theme}
-                    showLineNumbers={false}
-                    onCompleteWorkout={handleCompleteWorkout}
-                    onBlocksChange={setScriptBlocks}
-                    placeholder="Write workout or notes here…"
-                  />
-                </div>
+                <>
+                  <div className="rounded-lg border border-border bg-card p-4 shadow-sm min-h-[240px] focus-within:border-accent/80 transition-colors">
+                    <NoteEditor
+                      key={entry.id}
+                      value={isReadOnly ? entry.rawContent : draft.content}
+                      onChange={isReadOnly ? () => {} : draft.onSourceMutate}
+                      {...(isReadOnly
+                        ? {}
+                        : {
+                            onBlur: draft.onBlur,
+                            onIdentityChange: draft.onIdentityChange,
+                            onSaved: draft.accept,
+                            beforeRun: async () => { await draft.flush(); return draft.committedSourceRevision(); },
+                            onSaveRequest: draft.flush,
+                            onCommitChange: draft.flush,
+                            onCursorPositionChange: draft.onLineChange,
+                          })}
+                      noteId={entry.id}
+                      noteBlocks={isReadOnly ? (entry.blocks ?? {}) : draft.committedBlocks}
+                      sourceRevision={isReadOnly ? (entry.sourceRevision ?? 1) : draft.committedRevision}
+                      readonly={isReadOnly}
+                      enableInlineRuntime={!ownershipMeta.isNonOwned}
+                      onStartWorkout={ownershipMeta.isNonOwned ? handleStartWorkout : undefined}
+                      theme={theme}
+                      showLineNumbers={false}
+                      onCompleteWorkout={handleCompleteWorkout}
+                      onBlocksChange={setScriptBlocks}
+                      placeholder="Write workout or notes here…"
+                    />
+                  </div>
+                  {!isReadOnly && draft.saveError ? (
+                    <p role="alert" className="text-sm text-destructive">
+                      {draft.saveError}
+                    </p>
+                  ) : null}
+                </>
               ) : (
                 <div className="flex items-center justify-center text-zinc-400 text-sm py-8">Loading…</div>
               )}
               <WorkoutSessionsList sessions={results} />
-              <BlockHistory noteId={entry.id} blocks={draft.committedBlocks} sourceRevision={draft.committedRevision} onRevert={isReadOnly ? undefined : draft.restoreRevision} />
+              <BlockHistory noteId={entry.id} blocks={isReadOnly ? (entry.blocks ?? {}) : draft.committedBlocks} sourceRevision={isReadOnly ? (entry.sourceRevision ?? 1) : draft.committedRevision} onRevert={isReadOnly ? undefined : draft.restoreRevision} />
               <ForkToMyNotesDialog
                 open={forkOpen}
                 onOpenChange={setForkOpen}
@@ -696,11 +712,6 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                 }}
                 onForked={(forked) => { void navigate(`${notePath(forked.id)}?edit=1`) }}
               />
-              {draft.saveError && (
-                <p role="alert" className="text-sm text-destructive">
-                  {draft.saveError}
-                </p>
-              )}
             </div>
           }
         />

@@ -13,7 +13,7 @@ import { v7 as uuidv7 } from 'uuid'
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
 import { BlockHistory, revertBlock } from '@/components/organisms/editor/BlockHistory'
 import { sectionField } from '@bitcobblers/wod-wiki-ui/extensions';
-import { captureStoredRun } from '@/services/runCapture';
+import { captureRun, captureStoredRun } from '@/services/runCapture';
 import { JournalPageShell } from '@/panels/page-shells'
 import type { WidgetRegistry } from '@/components/Editor/widgets/types'
 import { PlaygroundRunTipWidget } from '../components/molecules/PlaygroundRunTipWidget'
@@ -131,7 +131,22 @@ export function PlaygroundNotePage({
       try {
         await flush();
         const runtimeId = uuidv7();
-        const captured = await captureStoredRun(runtimeNoteId, block, runtimeId, 'playground');
+        const existing = await storageService.getNote(runtimeNoteId).catch(() => undefined);
+        const captured = existing
+          ? await captureStoredRun(runtimeNoteId, block, runtimeId, 'playground')
+          : await captureRun(
+              {
+                noteId: runtimeNoteId,
+                rawContent: content,
+                blocks: noteBlocks,
+                expectedSourceRevision: committedSourceRevision(),
+                metadata: { title: pageTitle },
+                noteType: 'playground',
+              },
+              block,
+              runtimeId,
+              'playground',
+            );
         onSaved({ rawContent: captured.note.rawContent, blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision });
         pendingRuntimes.set(runtimeId, { block: captured.block, noteId: captured.session.noteId, captured, origin: 'playground', returnTo: `/playground/${encodeURIComponent(pageName)}` });
         onRunWorkout();
@@ -140,7 +155,7 @@ export function PlaygroundNotePage({
         toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
     },
-    [runtimeNoteId, pageName, navigate, onRunWorkout, flush, onSaved],
+    [runtimeNoteId, content, noteBlocks, committedSourceRevision, pageTitle, pageName, navigate, onRunWorkout, flush, onSaved],
   )
 
   const handleAddToToday = useCallback(

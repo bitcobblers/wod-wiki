@@ -40,6 +40,7 @@ import {
   type EventRecord,
   type Note,
   type NoteBlock,
+  type NoteOwnershipKind,
   type NoteProvenance,
   type NoteUpstreamStatus,
   type NotebookId,
@@ -168,6 +169,7 @@ export interface PinnedExternalWorkoutResult {
 export interface PrepareJournalSessionRunInput {
   noteId: string;
   blockId?: string;
+  blockContentId?: string;
   sessionId?: string;
   journalDate?: string;
   startedAt?: number;
@@ -190,6 +192,7 @@ export interface PreparedJournalSessionRun {
 export interface LogSessionAgainstExternalWorkoutInput {
   noteId: string;
   blockId?: string;
+  blockContentId?: string;
   sessionId?: string;
   journalDate?: string;
   startedAt?: number;
@@ -244,6 +247,28 @@ function computeWodContentId(blockSource: string): string | undefined {
   if (sec?.scriptBlock?.contentId) return sec.scriptBlock.contentId;
   if (sec?.scriptBlock?.content) return blockContentId(sec.scriptBlock.content);
   return undefined;
+}
+
+function selectWorkoutBlock(
+  sourceNote: Note,
+  ownershipKind: NoteOwnershipKind,
+  blockId?: string,
+  blockContentId?: string,
+): NoteBlock | undefined {
+  const sourceBlocks = Object.values(sourceNote.blocks ?? {});
+  if (blockId) {
+    const exact = sourceNote.blocks?.[blockId] ?? sourceBlocks.find((b) => b.id === blockId);
+    if (exact) return exact;
+    if (ownershipKind !== 'user' && blockContentId) {
+      return sourceBlocks.find(
+        (b) =>
+          b.kind === 'wod' &&
+          computeWodContentId(sourceNote.rawContent.slice(b.from, b.to)) === blockContentId,
+      );
+    }
+    return undefined;
+  }
+  return sourceBlocks.find((b) => b.kind === 'wod');
 }
 
 function extractTitleFromMarkdown(rawContent: string, sourcePath?: string): string {
@@ -764,19 +789,21 @@ export async function prepareJournalSessionRun(
         throw new Error(`Session already exists: ${sessionId}`);
       }
 
-      const sourceBlocks = Object.values(sourceNote.blocks);
-      const selectedSourceBlock = input.blockId
-        ? sourceNote.blocks[input.blockId] ?? sourceBlocks.find((b) => b.id === input.blockId)
-        : sourceBlocks.find((b) => b.kind === 'wod');
+      const nbOrigin = notebookOriginOfItem(sourceNote);
+      const resolvedNb = notebookOfItem(sourceNote);
+      const ownership = resolveNoteOwnership(sourceNote, nbOrigin, resolvedNb);
+      const selectedSourceBlock = selectWorkoutBlock(
+        sourceNote,
+        ownership.kind,
+        input.blockId,
+        input.blockContentId,
+      );
 
       if (!selectedSourceBlock || selectedSourceBlock.kind !== 'wod') {
         throw new Error(`Selected workout block is unavailable on Note '${input.noteId}'.`);
       }
 
       const targetPage = await getOrCreateJournalPageInTx(tx, journalDate, startedAt);
-      const nbOrigin = notebookOriginOfItem(sourceNote);
-      const resolvedNb = notebookOfItem(sourceNote);
-      const ownership = resolveNoteOwnership(sourceNote, nbOrigin, resolvedNb);
 
       let revision = await tx
         .readonly('block_revisions')
@@ -929,10 +956,13 @@ export async function logSessionAgainstExternalWorkout(
         throw new Error(`Session already exists: ${sessionId}`);
       }
 
-      const blocks = Object.values(note.blocks);
-      const selectedBlock = input.blockId
-        ? note.blocks[input.blockId] ?? blocks.find((b) => b.id === input.blockId)
-        : blocks.find((b) => b.kind === 'wod');
+      const ownership = resolveNoteOwnership(note, notebookOriginOfItem(note), notebookOfItem(note));
+      const selectedBlock = selectWorkoutBlock(
+        note,
+        ownership.kind,
+        input.blockId,
+        input.blockContentId,
+      );
       if (!selectedBlock || selectedBlock.kind !== 'wod') {
         throw new Error(`Selected workout block is unavailable on Note '${note.id}'.`);
       }

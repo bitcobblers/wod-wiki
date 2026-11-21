@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  KNOWN_SECTION_WIDGETS,
+  blockContentId,
   ensurePinnedExternalWorkout,
   forkNoteToUserNotebook,
   logSessionAgainstExternalWorkout,
+  parseDocumentSections,
   prepareJournalSessionRun,
   reconcileNoteBlocks,
   resolveNoteOwnership,
@@ -350,6 +353,97 @@ describe('External-Workout Session Intake, Single Archival Pinning & User Forkin
     expect(intake.session.origin).toBe('playground');
     expect(intake.note.notebookIds).toContain('notebook/journal');
     expect(intake.note.notebookIds).toContain('notebook/playground');
+
+    await storage.close();
+  });
+
+  it('resolves external workout block by blockContentId when editor blockId differs, while still rejecting unknown blockId without matching contentId', async () => {
+    const storage = createRealSqlStorage();
+    const raw = '# Grace\n\n```time\n30 Clean & Jerks 135lb\n```\n';
+    const blocks = reconcileNoteBlocks(raw, { sourceRevision: 1 });
+    const wod = Object.values(blocks).find((b) => b.kind === 'wod')!;
+    const sec = parseDocumentSections(raw, { registeredWidgets: KNOWN_SECTION_WIDGETS }).find(
+      (s) => s.scriptBlock,
+    )!;
+    const contentHash = sec.scriptBlock!.contentId ?? blockContentId(sec.scriptBlock!.content);
+
+    const feedNote: Note = {
+      id: 'feed-grace-001',
+      title: 'Grace',
+      rawContent: raw,
+      sourceRevision: 1,
+      blocks,
+      createdAt: 1000,
+      sourceId: 'notebook:crossfit-girls/grace',
+      sourcePath: 'markdown/notebooks/crossfit-girls/grace.md',
+      seedOrigin: 'seed',
+      feedOrigin: 'feed',
+      feedSourceId: 'sport-cf',
+    };
+    await storage.readwrite('notes').put(feedNote);
+
+    // Mismatched editor UUID + valid blockContentId resolves cleanly to the canonical stored block
+    const prepared = await prepareJournalSessionRun(storage, {
+      noteId: feedNote.id,
+      blockId: 'ephemeral-editor-uuid',
+      blockContentId: contentHash,
+      sessionId: 'sess-grace-cid-1',
+      journalDate: '2026-11-16',
+      startedAt: 5000,
+    });
+    expect(prepared.session.blockId).toBe(wod.id);
+    expect(prepared.session.blockContentId).toBe(contentHash);
+    expect(prepared.pinnedExternalWorkout).toBe(true);
+
+    const logged = await logSessionAgainstExternalWorkout(storage, {
+      noteId: feedNote.id,
+      blockId: 'ephemeral-editor-uuid-2',
+      blockContentId: contentHash,
+      sessionId: 'sess-grace-cid-2',
+      journalDate: '2026-11-16',
+      startedAt: 6000,
+      durationMs: 120_000,
+    });
+    expect(logged.session.blockId).toBe(wod.id);
+
+    // Unknown blockId WITHOUT matching blockContentId still throws
+    await expect(
+      prepareJournalSessionRun(storage, {
+        noteId: feedNote.id,
+        blockId: 'bogus-block-id',
+        sessionId: 'sess-grace-fail-1',
+      }),
+    ).rejects.toThrow(/unavailable/i);
+
+    await expect(
+      prepareJournalSessionRun(storage, {
+        noteId: feedNote.id,
+        blockId: 'bogus-block-id',
+        blockContentId: 'non-matching-content-id',
+        sessionId: 'sess-grace-fail-2',
+      }),
+    ).rejects.toThrow(/unavailable/i);
+
+    // Editable user notes still require exact blockId even if blockContentId matches
+    const userNote: Note = {
+      id: 'user-grace-local',
+      title: 'My Grace',
+      rawContent: raw,
+      sourceRevision: 1,
+      blocks,
+      createdAt: 2000,
+      type: 'journal',
+      seedOrigin: 'user',
+    };
+    await storage.readwrite('notes').put(userNote);
+    await expect(
+      prepareJournalSessionRun(storage, {
+        noteId: userNote.id,
+        blockId: 'ephemeral-editor-uuid',
+        blockContentId: contentHash,
+        sessionId: 'sess-user-fail',
+      }),
+    ).rejects.toThrow(/unavailable/i);
 
     await storage.close();
   });

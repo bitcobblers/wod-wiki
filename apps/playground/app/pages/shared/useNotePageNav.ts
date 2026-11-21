@@ -123,9 +123,9 @@ export function wirePageIndexLinks(
     // Log links are display-only (#891/#894): badges yes, Run affordance no.
     if (link.type === 'log') return { ...link, ...badge }
 
-    // Pages without a run handler (reference-material bodies) keep time
-    // links display-only too.
-    if (!onStartWorkout) return { ...link, ...badge }
+    // Pages without a run handler (reference-material bodies) or links whose
+    // runtime block has not been parsed yet keep time links display-only.
+    if (!onStartWorkout || !block) return { ...link, ...badge }
 
     return {
       ...link,

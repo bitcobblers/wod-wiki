@@ -22,7 +22,7 @@ import { CalendarCard } from '@/components/atoms/CalendarCard';
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui';
 import { Button } from '@bitcobblers/wod-wiki-ui/primitives';
 import { toNotebookId } from '@bitcobblers/wod-wiki-core';
-import { parseRemoteNoteId, prepareJournalSessionRun } from '@bitcobblers/wod-wiki-engine';
+import { parseRemoteNoteId } from '@bitcobblers/wod-wiki-engine';
 import { notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql';
 import { buildScriptNotebooks, findNotebookItem } from '@/repositories/script-notebooks';
 import { useSeedContent } from '@/services/content/seedContent';
@@ -84,6 +84,7 @@ export function NotebookItemPage({
   const files = useSeedContent();
   const [storedNote, setStoredNote] = useState<Note | null>(null);
   const [resolvedRemote, setResolvedRemote] = useState<ResolvedRemoteWorkout | null>(null);
+  const [resolvingNote, setResolvingNote] = useState(true);
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [remoteError, setRemoteError] = useState<string | null>(null);
   const [remoteRetryTick, setRemoteRetryTick] = useState(0);
@@ -100,68 +101,75 @@ export function NotebookItemPage({
 
   useEffect(() => {
     let cancelled = false;
+    setResolvingNote(true);
+    setStoredNote(null);
+    setResolvedRemote(null);
     setRemoteError(null);
     const targetSourceId = `notebook:${slug}/${itemDate}/${item}`;
     const resolveLocalOrRemote = async () => {
-      const notes = await storageService.getAllNotes().catch(() => [] as Note[]);
-      if (cancelled) return;
-      const found = notes.find(
-        (n) =>
-          (remoteParam && n.id === remoteParam) ||
-          n.sourceId === targetSourceId ||
-          n.sourcePath?.includes(`${slug}/${itemDate}/${item}`),
-      );
-      if (found) {
-        setStoredNote(found);
-        setResolvedRemote(null);
-        return;
-      }
-      const bundledMatch = files
-        ? findNotebookItem(buildScriptNotebooks(files).find((n) => n.id === slug), itemDate, item)
-        : undefined;
-      if (bundledMatch) return;
-
-      const remoteCandidates = await playgroundFeedCatalogStore
-        .getRemoteNotebookNotes(slug, feedParam)
-        .catch(() => [] as Note[]);
-      if (cancelled) return;
-      const matchedRemote = remoteCandidates.find((r) => {
-        const parsed = parseRemoteNoteId(r.id);
-        const uuid = parsed.isRemote ? parsed.uuid : r.id;
-        return (
-          (remoteParam && (uuid === remoteParam || r.id === remoteParam)) ||
-          r.title.toLowerCase() === item.toLowerCase() ||
-          r.sourceId?.toLowerCase().endsWith(`/${item.toLowerCase()}`) ||
-          r.sourcePath?.toLowerCase().includes(`/${item.toLowerCase()}.`)
-        );
-      });
-      const locator =
-        remoteParam && feedParam
-          ? `remote:${feedParam}:${remoteParam}`
-          : matchedRemote
-            ? matchedRemote.id
-            : remoteParam;
-      if (!locator) return;
-
-      setRemoteLoading(true);
       try {
-        const res = await resolveRemoteWorkout(locator, {
-          storage: storageService.storage,
-          ...(feedParam ? { feedId: feedParam } : {}),
-        });
+        const notes = await storageService.getAllNotes().catch(() => [] as Note[]);
         if (cancelled) return;
-        if (!res) {
-          setRemoteError('This workout could not be fetched from its feed.');
-        } else {
-          setResolvedRemote(res);
-          setStoredNote(res.note);
+        const found = notes.find(
+          (n) =>
+            (remoteParam && n.id === remoteParam) ||
+            n.sourceId === targetSourceId ||
+            n.sourcePath?.includes(`${slug}/${itemDate}/${item}`),
+        );
+        if (found) {
+          setStoredNote(found);
+          setResolvedRemote(null);
+          return;
         }
-      } catch (err) {
-        if (!cancelled) {
-          setRemoteError(err instanceof Error ? err.message : 'Unable to fetch workout from feed.');
+        const bundledMatch = files
+          ? findNotebookItem(buildScriptNotebooks(files).find((n) => n.id === slug), itemDate, item)
+          : undefined;
+        if (bundledMatch) return;
+
+        const remoteCandidates = await playgroundFeedCatalogStore
+          .getRemoteNotebookNotes(slug, feedParam)
+          .catch(() => [] as Note[]);
+        if (cancelled) return;
+        const matchedRemote = remoteCandidates.find((r) => {
+          const parsed = parseRemoteNoteId(r.id);
+          const uuid = parsed.isRemote ? parsed.uuid : r.id;
+          return (
+            (remoteParam && (uuid === remoteParam || r.id === remoteParam)) ||
+            r.title.toLowerCase() === item.toLowerCase() ||
+            r.sourceId?.toLowerCase().endsWith(`/${item.toLowerCase()}`) ||
+            r.sourcePath?.toLowerCase().includes(`/${item.toLowerCase()}.`)
+          );
+        });
+        const locator =
+          remoteParam && feedParam
+            ? `remote:${feedParam}:${remoteParam}`
+            : matchedRemote
+              ? matchedRemote.id
+              : remoteParam;
+        if (!locator) return;
+
+        setRemoteLoading(true);
+        try {
+          const res = await resolveRemoteWorkout(locator, {
+            storage: storageService.storage,
+            ...(feedParam ? { feedId: feedParam } : {}),
+          });
+          if (cancelled) return;
+          if (!res) {
+            setRemoteError('This workout could not be fetched from its feed.');
+          } else {
+            setResolvedRemote(res);
+            setStoredNote(res.note);
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setRemoteError(err instanceof Error ? err.message : 'Unable to fetch workout from feed.');
+          }
+        } finally {
+          if (!cancelled) setRemoteLoading(false);
         }
       } finally {
-        if (!cancelled) setRemoteLoading(false);
+        if (!cancelled) setResolvingNote(false);
       }
     };
     void resolveLocalOrRemote();
@@ -171,7 +179,7 @@ export function NotebookItemPage({
   }, [slug, itemDate, item, files, feedParam, remoteParam, remoteRetryTick]);
 
   const playgroundCategory = `notebook/${slug}/${itemDate}`;
-  const { content, loading: contentLoading, noteBlocks, sourceRevision, onIdentityChange, onSaved, onChange, onLineChange, onBlur, flush } = usePlaygroundContent({
+  const { content, loading: contentLoading, noteBlocks, sourceRevision } = usePlaygroundContent({
     category: playgroundCategory,
     name: item,
     mdContent: resolvedRemote?.note.rawContent ?? notebookItem?.content ?? '',
@@ -183,6 +191,8 @@ export function NotebookItemPage({
   const canonicalNoteId = resolvedRemote?.canonicalNoteId ?? storedNote?.id ?? noteId;
   const runTargetId = resolvedRemote?.remoteNoteId ?? canonicalNoteId;
   const effectiveContent = resolvedRemote?.note.rawContent ?? storedNote?.rawContent ?? content;
+  const effectiveBlocks = resolvedRemote?.note.blocks ?? storedNote?.blocks ?? noteBlocks;
+  const effectiveRevision = resolvedRemote?.note.sourceRevision ?? storedNote?.sourceRevision ?? sourceRevision;
   const displayTitle = resolvedRemote?.note.title || notebookItem?.name || item;
 
   useEffect(() => {
@@ -218,6 +228,7 @@ export function NotebookItemPage({
       if (!res) return undefined;
       const meta = lookupRemoteRecord(id);
       return {
+        ...(res.note ? { note: res.note } : {}),
         row: res.row,
         canonicalNoteId: res.canonicalNoteId,
         remoteNoteId: res.remoteNoteId,
@@ -238,11 +249,6 @@ export function NotebookItemPage({
         const resolveRemote = buildRemoteResolver();
         const noteExists = Boolean(storedNote || resolvedRemote);
         if (noteExists) {
-          await prepareJournalSessionRun(storageService.storage, {
-            noteId: runTargetId,
-            journalDate: localDateKey(new Date()),
-            resolveRemoteWorkout: resolveRemote,
-          }).catch(() => undefined);
           const captured = await captureStoredRun(runTargetId, block, runtimeId, 'journal', {
             resolveRemoteWorkout: resolveRemote,
           });
@@ -256,8 +262,8 @@ export function NotebookItemPage({
           {
             noteId: canonicalNoteId,
             rawContent: effectiveContent,
-            blocks: noteBlocks,
-            expectedSourceRevision: sourceRevision,
+            blocks: effectiveBlocks,
+            expectedSourceRevision: effectiveRevision,
             metadata: { title: displayTitle },
           },
           block,
@@ -270,7 +276,7 @@ export function NotebookItemPage({
         toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
     },
-    [buildRemoteResolver, storedNote, resolvedRemote, runTargetId, canonicalNoteId, effectiveContent, noteBlocks, sourceRevision, displayTitle, itemPath, navigate],
+    [buildRemoteResolver, storedNote, resolvedRemote, runTargetId, canonicalNoteId, effectiveContent, effectiveBlocks, effectiveRevision, displayTitle, itemPath, navigate],
   );
 
   const handleAddToToday = useCallback(async (block: ScriptBlock) => {
@@ -367,7 +373,7 @@ export function NotebookItemPage({
     noteId: corpusId,
     stamps: ownership.stamps,
     liveContent: effectiveContent,
-    revision: sourceRevision,
+    revision: effectiveRevision,
   });
 
   const commands = useScriptBlockCommands('notebook-readonly', {
@@ -416,7 +422,7 @@ export function NotebookItemPage({
     </div>
   );
 
-  if (contentLoading || remoteLoading) {
+  if (contentLoading || resolvingNote || remoteLoading) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground" role="status">
         {remoteLoading ? 'Loading workout from feed…' : 'Loading…'}
@@ -463,18 +469,13 @@ export function NotebookItemPage({
             <NoteContextNav data={contextData} up={ownership.up} />
             {ownershipHeaderBar}
             <NoteEditor
+              key={canonicalNoteId}
               readonly={true}
               value={effectiveContent}
-              onChange={onChange}
-              onCursorPositionChange={onLineChange}
-              onBlur={onBlur}
+              onChange={() => {}}
               noteId={canonicalNoteId}
-              noteBlocks={noteBlocks}
-              sourceRevision={sourceRevision}
-              onIdentityChange={snapshot => onIdentityChange({ rawContent: snapshot.rawContent, noteBlocks: snapshot.blocks, sourceRevision: snapshot.sourceRevision })}
-              onSaved={onSaved}
-              onSaveRequest={flush}
-              onCommitChange={flush}
+              noteBlocks={effectiveBlocks}
+              sourceRevision={effectiveRevision}
               commands={commands}
               enableInlineRuntime={false}
               onViewCreated={onViewCreated}

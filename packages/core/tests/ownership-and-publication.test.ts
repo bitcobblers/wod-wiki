@@ -59,6 +59,56 @@ describe('Note authorship, retention & publication helpers', () => {
     expect(isNoteEditable(userDashboard, 'feed', 'notebook/dashboards')).toBe(true);
   });
 
+  it('keeps local user journal and playground notes cloned from system templates as user-owned and editable', () => {
+    const journalFromGuide: Partial<Note> = {
+      id: 'user-journal-from-guide',
+      type: 'journal',
+      seedOrigin: 'user',
+      sourceId: 'guides:page/guide-clock',
+    };
+    expect(resolveNoteOwnership(journalFromGuide)).toEqual({
+      kind: 'user',
+      editable: true,
+      canPublish: false,
+      sourceNotebookId: 'notebook/journal',
+    });
+    expect(isNoteEditable(journalFromGuide)).toBe(true);
+
+    const playgroundFromSystemNb: Partial<Note> = {
+      id: 'user-pg-from-defaults',
+      type: 'playground',
+      sourceId: 'notebook:defaults/starter',
+      provenance: {
+        sourceNoteId: 'defaults-starter',
+        sourceNotebookId: 'notebook/defaults',
+      },
+    };
+    expect(resolveNoteOwnership(playgroundFromSystemNb)).toEqual({
+      kind: 'user',
+      editable: true,
+      canPublish: false,
+      sourceNotebookId: 'notebook/defaults',
+    });
+    expect(isNoteEditable(playgroundFromSystemNb)).toBe(true);
+
+    // Explicit read-only notebookId or seed/feed stamps remain non-user
+    expect(
+      resolveNoteOwnership({
+        id: 'seed-journal-stub',
+        type: 'journal',
+        seedOrigin: 'seed',
+        sourceId: 'guides:page/guide-clock',
+      }).kind,
+    ).toBe('system');
+    expect(
+      resolveNoteOwnership({
+        id: 'explicit-ro-journal',
+        type: 'journal',
+        notebookId: 'notebook/guides',
+      }).kind,
+    ).toBe('system');
+  });
+
   it('classifies live feed notes, remote indexed previews, system notes, and archived feed notes', () => {
     const liveFeed: Partial<Note> = {
       id: 'seed-fran',

@@ -102,6 +102,19 @@ function hasExplicitSystemOrFeedStamp(
   );
 }
 
+function isUserLocalJournalOrPlayground(note: NoteOwnershipInput): boolean {
+  return Boolean(
+    (note.type === 'journal' || note.type === 'playground') &&
+      note.seedOrigin !== 'seed' &&
+      note.feedOrigin !== 'feed' &&
+      !note.retention &&
+      !note.id?.startsWith('remote:') &&
+      !note.feedSourceId &&
+      !(note.notebookId?.trim() && isSystemReadOnlyNotebook(note.notebookId)) &&
+      !note.notebookIds?.some((id) => Boolean(id?.trim()) && isSystemReadOnlyNotebook(id)),
+  );
+}
+
 function inferSourceNotebookId(
   note: NoteOwnershipInput,
   resolvedNotebookId?: string,
@@ -117,6 +130,9 @@ function inferSourceNotebookId(
   }
   if (note.notebookId?.trim()) {
     return toNotebookId(note.notebookId);
+  }
+  if (isUserLocalJournalOrPlayground(note)) {
+    return note.type === 'playground' ? 'notebook/playground' : 'notebook/journal';
   }
   if (note.sourceId?.startsWith('notebook:')) {
     const rest = note.sourceId.slice('notebook:'.length);
@@ -168,12 +184,17 @@ export function resolveNoteOwnership(
     note.feedSourceId?.trim() ||
     note.provenance?.feedSourceId?.trim() ||
     undefined;
+  const localDefaultNb: NotebookId | undefined = isUserLocalJournalOrPlayground(note)
+    ? note.type === 'playground'
+      ? 'notebook/playground'
+      : 'notebook/journal'
+    : undefined;
   const sourceNotebookId = inferSourceNotebookId(note, resolvedNotebookId);
   const targetNb = resolvedNotebookId?.trim()
     ? toNotebookId(resolvedNotebookId)
     : note.notebookId?.trim()
       ? toNotebookId(note.notebookId)
-      : sourceNotebookId;
+      : (localDefaultNb ?? sourceNotebookId);
 
   const isRemotePreview =
     Boolean(note.id?.startsWith('remote:')) || note.retention === 'indexed';

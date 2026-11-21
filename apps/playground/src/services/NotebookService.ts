@@ -111,11 +111,21 @@ export class NotebookService {
         const landings = notes.filter(isNotebookLanding);
         const landingSlugs = new Set(landings.map((n) => n.id.slice('notebook/'.length)));
         const userNotebooks = landings.map(landingToNotebook);
+        const feedSlugs = new Set(this.getFeedNotebooks().map((n) => n.slug));
 
         for (const note of notes) {
+            if (
+                note.feedOrigin === 'feed' ||
+                note.seedOrigin === 'seed' ||
+                note.retention === 'cached' ||
+                note.retention === 'session-pinned' ||
+                note.retention === 'indexed'
+            ) {
+                continue;
+            }
             if (note.notebookId?.startsWith('notebook/')) {
                 const slug = note.notebookId.slice('notebook/'.length);
-                if (slug && !RESERVED_SLUGS.has(slug) && !landingSlugs.has(slug)) {
+                if (slug && !RESERVED_SLUGS.has(slug) && !feedSlugs.has(slug) && !landingSlugs.has(slug)) {
                     landingSlugs.add(slug);
                     userNotebooks.push({
                         id: note.notebookId,
