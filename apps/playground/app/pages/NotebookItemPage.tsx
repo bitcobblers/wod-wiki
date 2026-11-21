@@ -12,7 +12,7 @@
  */
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
 import { EditorView } from '@codemirror/view';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
@@ -20,16 +20,34 @@ import { JournalPageShell } from '@/panels/page-shells';
 import type { ScriptBlock } from '@/components/Editor/types';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui';
+import { Button } from '@bitcobblers/wod-wiki-ui/primitives';
+import { toNotebookId } from '@bitcobblers/wod-wiki-core';
+import { parseRemoteNoteId, prepareJournalSessionRun } from '@bitcobblers/wod-wiki-engine';
+import { notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql';
 import { buildScriptNotebooks, findNotebookItem } from '@/repositories/script-notebooks';
 import { useSeedContent } from '@/services/content/seedContent';
 import { storageService } from '@/services/storage';
-import type { Note } from '@/types/storage';
+import { onResultSaved } from '@/services/resultRecorder';
+import { captureRun, captureStoredRun } from '@/services/runCapture';
+import type { Note, Session } from '@/types/storage';
+import {
+  ForkToMyNotesDialog,
+  OwnershipPillBadge,
+  WorkoutSessionsList,
+  resolveOwnershipPresentation,
+} from '@/components/molecules/PublicationPill';
+import {
+  lookupRemoteRecord,
+  playgroundFeedCatalogStore,
+  resolveRemoteWorkout,
+  type ResolvedRemoteWorkout,
+} from '@/services/feed/feedCatalog';
 import { usePlaygroundContent } from '../hooks/usePlaygroundContent';
 import { createJournalNoteFromWorkout } from '../services/journalWorkout';
 import { pendingRuntimes } from '../runtimeStore';
-import { dayAutoStartPath, dayPath } from '../lib/routes';
+import { dayPath, notePath, runPath } from '../lib/routes';
+import { GitFork, Play, RefreshCw } from 'lucide-react';
 import { useNotePageNav } from './shared/useNotePageNav';
-import { appendTimerBlock } from './shared/pageUtils';
 import {
   NoteContextNav,
   noteOwnership,
@@ -59,20 +77,18 @@ export function NotebookItemPage({
   onViewCreated,
 }: NotebookItemPageProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const feedParam = searchParams.get('feed') ?? undefined;
+  const remoteParam = searchParams.get('remote') ?? undefined;
 
   const files = useSeedContent();
   const [storedNote, setStoredNote] = useState<Note | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const targetSourceId = `notebook:${slug}/${itemDate}/${item}`;
-    storageService.getAllNotes().then(notes => {
-      if (cancelled) return;
-      const found = notes.find(n => n.sourceId === targetSourceId || n.sourcePath?.includes(`${slug}/${itemDate}/${item}`));
-      if (found) setStoredNote(found);
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [slug, itemDate, item]);
+  const [resolvedRemote, setResolvedRemote] = useState<ResolvedRemoteWorkout | null>(null);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
+  const [remoteRetryTick, setRemoteRetryTick] = useState(0);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [forkOpen, setForkOpen] = useState(false);
 
   const notebookItem = useMemo(() => {
     if (storedNote) {
@@ -81,20 +97,137 @@ export function NotebookItemPage({
     if (!files) return undefined;
     return findNotebookItem(buildScriptNotebooks(files).find((n) => n.id === slug), itemDate, item);
   }, [storedNote, files, slug, itemDate, item]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRemoteError(null);
+    const targetSourceId = `notebook:${slug}/${itemDate}/${item}`;
+    const resolveLocalOrRemote = async () => {
+      const notes = await storageService.getAllNotes().catch(() => [] as Note[]);
+      if (cancelled) return;
+      const found = notes.find(
+        (n) =>
+          (remoteParam && n.id === remoteParam) ||
+          n.sourceId === targetSourceId ||
+          n.sourcePath?.includes(`${slug}/${itemDate}/${item}`),
+      );
+      if (found) {
+        setStoredNote(found);
+        setResolvedRemote(null);
+        return;
+      }
+      const bundledMatch = files
+        ? findNotebookItem(buildScriptNotebooks(files).find((n) => n.id === slug), itemDate, item)
+        : undefined;
+      if (bundledMatch) return;
+
+      const remoteCandidates = await playgroundFeedCatalogStore
+        .getRemoteNotebookNotes(slug, feedParam)
+        .catch(() => [] as Note[]);
+      if (cancelled) return;
+      const matchedRemote = remoteCandidates.find((r) => {
+        const parsed = parseRemoteNoteId(r.id);
+        const uuid = parsed.isRemote ? parsed.uuid : r.id;
+        return (
+          (remoteParam && (uuid === remoteParam || r.id === remoteParam)) ||
+          r.title.toLowerCase() === item.toLowerCase() ||
+          r.sourceId?.toLowerCase().endsWith(`/${item.toLowerCase()}`) ||
+          r.sourcePath?.toLowerCase().includes(`/${item.toLowerCase()}.`)
+        );
+      });
+      const locator =
+        remoteParam && feedParam
+          ? `remote:${feedParam}:${remoteParam}`
+          : matchedRemote
+            ? matchedRemote.id
+            : remoteParam;
+      if (!locator) return;
+
+      setRemoteLoading(true);
+      try {
+        const res = await resolveRemoteWorkout(locator, {
+          storage: storageService.storage,
+          ...(feedParam ? { feedId: feedParam } : {}),
+        });
+        if (cancelled) return;
+        if (!res) {
+          setRemoteError('This workout could not be fetched from its feed.');
+        } else {
+          setResolvedRemote(res);
+          setStoredNote(res.note);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setRemoteError(err instanceof Error ? err.message : 'Unable to fetch workout from feed.');
+        }
+      } finally {
+        if (!cancelled) setRemoteLoading(false);
+      }
+    };
+    void resolveLocalOrRemote();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, itemDate, item, files, feedParam, remoteParam, remoteRetryTick]);
+
   const playgroundCategory = `notebook/${slug}/${itemDate}`;
-  // Store local edits under a deterministic key in playgroundContent.
-  // The notebook item's canonical content is the mdContent fallback.
-  // seedOnMount: false — viewing a notebook item is read-only against the
-  // local index; seeding created undated ghost notes in the library (#856).
-  const { content, noteBlocks, sourceRevision, onIdentityChange, onSaved, onChange, onLineChange, onBlur, flush } = usePlaygroundContent({
+  const { content, loading: contentLoading, noteBlocks, sourceRevision, onIdentityChange, onSaved, onChange, onLineChange, onBlur, flush } = usePlaygroundContent({
     category: playgroundCategory,
     name: item,
-    mdContent: notebookItem?.content ?? `# ${item}\n\n*Notebook item not found.*\n`,
+    mdContent: resolvedRemote?.note.rawContent ?? notebookItem?.content ?? '',
     seedOnMount: false,
   });
 
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([])
   const noteId = `notebook/${slug}/${itemDate}/${item}`;
+  const canonicalNoteId = resolvedRemote?.canonicalNoteId ?? storedNote?.id ?? noteId;
+  const runTargetId = resolvedRemote?.remoteNoteId ?? canonicalNoteId;
+  const effectiveContent = resolvedRemote?.note.rawContent ?? storedNote?.rawContent ?? content;
+  const displayTitle = resolvedRemote?.note.title || notebookItem?.name || item;
+
+  useEffect(() => {
+    setSessions([]);
+    const refresh = () => {
+      void storageService.getSessionsForNote(canonicalNoteId).then(setSessions).catch(() => {});
+    };
+    refresh();
+    const unsub = onResultSaved((saved) => {
+      if (saved.noteId === canonicalNoteId) refresh();
+    });
+    return () => {
+      unsub();
+    };
+  }, [canonicalNoteId]);
+
+  const ownershipMeta = useMemo(() => {
+    const stub = resolvedRemote?.note ?? storedNote;
+    return resolveOwnershipPresentation(stub, {
+      noteId: runTargetId,
+      notebookOrigin: stub ? notebookOriginOfItem(stub) : feedParam ? 'feed' : undefined,
+      resolvedNotebookId: toNotebookId(slug),
+      fallbackReadOnly: true,
+    });
+  }, [resolvedRemote?.note, storedNote, runTargetId, feedParam, slug]);
+
+  const buildRemoteResolver = useCallback(
+    () => async (id: string) => {
+      const res = await resolveRemoteWorkout(id, {
+        storage: storageService.storage,
+        ...(feedParam ? { feedId: feedParam } : {}),
+      }).catch(() => undefined);
+      if (!res) return undefined;
+      const meta = lookupRemoteRecord(id);
+      return {
+        row: res.row,
+        canonicalNoteId: res.canonicalNoteId,
+        remoteNoteId: res.remoteNoteId,
+        feedId: res.feedId,
+        notebookSlug: meta?.notebookSlug ?? slug,
+        record: meta?.record,
+      };
+    },
+    [feedParam, slug],
+  );
 
   const itemPath = `/notebook/${encodeURIComponent(slug)}/${itemDate}/${encodeURIComponent(item)}`;
 
@@ -102,34 +235,54 @@ export function NotebookItemPage({
     async (block: ScriptBlock) => {
       try {
         const runtimeId = uuidv7();
-        const journalNote = await createJournalNoteFromWorkout({
-          workoutName: notebookItem?.name ?? item,
-          category: slug,
-          sourceNoteId: noteId,
-          sourceNoteLabel: slug,
-          sourceNotePath: itemPath,
-          wodContent: block.content,
-        });
-        const occurrence = Object.values(journalNote.blocks ?? {}).find(candidate => candidate.kind === 'wod');
-        if (!occurrence) throw new Error('The saved journal workout is unavailable.');
-        pendingRuntimes.set(runtimeId, { block: { ...block, id: occurrence.id }, noteId: journalNote.id });
-        void navigate(dayAutoStartPath(journalNote.journalDate ?? '', runtimeId));
+        const resolveRemote = buildRemoteResolver();
+        const noteExists = Boolean(storedNote || resolvedRemote);
+        if (noteExists) {
+          await prepareJournalSessionRun(storageService.storage, {
+            noteId: runTargetId,
+            journalDate: localDateKey(new Date()),
+            resolveRemoteWorkout: resolveRemote,
+          }).catch(() => undefined);
+          const captured = await captureStoredRun(runTargetId, block, runtimeId, 'journal', {
+            resolveRemoteWorkout: resolveRemote,
+          });
+          const refreshed = await storageService.getNote(captured.note.id).catch(() => undefined);
+          if (refreshed) setStoredNote(refreshed);
+          pendingRuntimes.set(runtimeId, { block: captured.block, noteId: captured.note.id, captured, returnTo: itemPath });
+          void navigate(runPath(captured.session.id));
+          return;
+        }
+        const captured = await captureRun(
+          {
+            noteId: canonicalNoteId,
+            rawContent: effectiveContent,
+            blocks: noteBlocks,
+            expectedSourceRevision: sourceRevision,
+            metadata: { title: displayTitle },
+          },
+          block,
+          runtimeId,
+          'journal',
+        );
+        pendingRuntimes.set(runtimeId, { block: captured.block, noteId: captured.note.id, captured, returnTo: itemPath });
+        void navigate(runPath(captured.session.id));
       } catch (error) {
         toast({ title: 'Workout not started', description: error instanceof Error ? error.message : 'Save failed. Your draft is kept.', variant: 'destructive' });
       }
     },
-    [slug, item, itemPath, noteId, notebookItem, navigate],
+    [buildRemoteResolver, storedNote, resolvedRemote, runTargetId, canonicalNoteId, effectiveContent, noteBlocks, sourceRevision, displayTitle, itemPath, navigate],
   );
 
   const handleAddToToday = useCallback(async (block: ScriptBlock) => {
     try {
       const journalNote = await createJournalNoteFromWorkout({
-        workoutName: notebookItem?.name ?? item,
+        workoutName: displayTitle,
         category: slug,
-        sourceNoteId: noteId,
-        sourceNoteLabel: slug,
+        sourceNoteId: runTargetId,
+        sourceNoteLabel: ownershipMeta.feedLabel ?? slug,
         sourceNotePath: itemPath,
         wodContent: block.content,
+        resolveRemoteWorkout: buildRemoteResolver(),
       });
       const today = localDateKey(new Date());
       toast({
@@ -143,7 +296,7 @@ export function NotebookItemPage({
     } catch {
       toast({ title: 'Error', description: 'Could not add to journal', variant: 'destructive' });
     }
-  }, [slug, item, itemPath, noteId, notebookItem, navigate]);
+  }, [slug, displayTitle, itemPath, runTargetId, ownershipMeta.feedLabel, buildRemoteResolver, navigate]);
 
   const [pendingScheduleBlock, setPendingScheduleBlock] = useState<ScriptBlock | null>(null);
 
@@ -154,12 +307,14 @@ export function NotebookItemPage({
     const dateKey = `${y}-${m}-${d}`;
     try {
       await createJournalNoteFromWorkout({
-        workoutName: notebookItem?.name ?? item,
+        workoutName: displayTitle,
         category: slug,
-        sourceNoteLabel: slug,
+        sourceNoteId: runTargetId,
+        sourceNoteLabel: ownershipMeta.feedLabel ?? slug,
         sourceNotePath: itemPath,
         wodContent: block.content,
         date: date,
+        resolveRemoteWorkout: buildRemoteResolver(),
       });
       void navigate(dayPath(dateKey));
       toast({
@@ -173,7 +328,7 @@ export function NotebookItemPage({
     } catch {
       toast({ title: 'Error', description: 'Could not schedule workout', variant: 'destructive' });
     }
-  }, [slug, item, itemPath, notebookItem, navigate]);
+  }, [slug, displayTitle, itemPath, runTargetId, ownershipMeta.feedLabel, buildRemoteResolver, navigate]);
 
   // Whiteboard notebook-member L3: Add to today, Plan, Open in playground
   // after the outline — page-level shortcuts over the first runnable block
@@ -184,15 +339,13 @@ export function NotebookItemPage({
     [scriptBlocks],
   );
   const itemHelpfulActions = useMemo(() => {
-    const actions = [{ id: 'add-timer', label: 'Add timer', onRun: () => onChange(appendTimerBlock(content)) }];
-    if (!firstWodBlock) return actions;
+    if (!firstWodBlock) return [];
     return [
-      ...actions,
       { id: 'add-to-today', label: 'Add to today', onRun: () => void handleAddToToday(firstWodBlock) },
       { id: 'plan', label: 'Plan for a date', onRun: () => setPendingScheduleBlock(firstWodBlock) },
       { id: 'open-in-playground', label: 'Open in playground', onRun: () => void openBlockInPlayground(firstWodBlock, navigate) },
     ];
-  }, [firstWodBlock, content, handleAddToToday, navigate, onChange]);
+  }, [firstWodBlock, handleAddToToday, navigate]);
 
   // Canonical corpus id (`notebook/<slug>/<date>/<item>`) drives ownership
   // and the block indexes. Notebook runs stamp the listing path as
@@ -200,7 +353,7 @@ export function NotebookItemPage({
   const corpusId = `notebook/${slug}/${itemDate}/${item}`;
 
   useNotePageNav({
-    content,
+    content: effectiveContent,
     scriptBlocks,
     onStartWorkout: (block) => {
       void handleStartWorkout(block);
@@ -213,7 +366,7 @@ export function NotebookItemPage({
   const contextData = useNoteContextLinks({
     noteId: corpusId,
     stamps: ownership.stamps,
-    liveContent: content,
+    liveContent: effectiveContent,
     revision: sourceRevision,
   });
 
@@ -231,16 +384,76 @@ export function NotebookItemPage({
     },
   });
 
+  const ownershipHeaderBar = (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card/60 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 min-w-0">
+        <OwnershipPillBadge presentation={ownershipMeta} />
+        <span className="text-xs text-muted-foreground">{ownershipMeta.guidanceCopy}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
+        {firstWodBlock && (
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void handleStartWorkout(firstWodBlock)}
+            className="h-8 gap-1.5 px-3 text-xs"
+          >
+            <Play className="size-3.5" aria-hidden="true" />
+            Start / Log Workout
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setForkOpen(true)}
+          className="h-8 gap-1.5 px-3 text-xs"
+        >
+          <GitFork className="size-3.5" aria-hidden="true" />
+          Fork to My Notes
+        </Button>
+      </div>
+    </div>
+  );
+
+  if (contentLoading || remoteLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground" role="status">
+        {remoteLoading ? 'Loading workout from feed…' : 'Loading…'}
+      </div>
+    );
+  }
+
+  if (remoteError || (!storedNote && !notebookItem && !resolvedRemote && !effectiveContent.trim())) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center" role="alert">
+        <p className="text-sm font-semibold text-foreground">Workout unavailable</p>
+        <p className="max-w-md text-xs text-muted-foreground">
+          {remoteError ?? `Could not find "${item}" in notebook "${slug}".`}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button variant="default" size="sm" onClick={() => setRemoteRetryTick(t => t + 1)} className="gap-1.5">
+            <RefreshCw className="size-3.5" aria-hidden="true" />
+            Retry
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/feeds')}>
+            Browse feeds
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <JournalPageShell
-        title={notebookItem?.name ?? item}
+        title={displayTitle}
         actions={
           <div className="flex items-center gap-2">
             <ResponsiveActions label="Workout actions" />
             <PageActions
               mode="notebook-readonly"
-              currentWorkout={{ name: notebookItem?.name ?? item, content }}
+              currentWorkout={{ name: displayTitle, content: effectiveContent }}
               index={[]}
             />
           </div>
@@ -248,12 +461,14 @@ export function NotebookItemPage({
         editor={
           <div className="flex flex-col gap-3 px-4 py-6 sm:px-6">
             <NoteContextNav data={contextData} up={ownership.up} />
+            {ownershipHeaderBar}
             <NoteEditor
-              value={content}
+              readonly={true}
+              value={effectiveContent}
               onChange={onChange}
               onCursorPositionChange={onLineChange}
               onBlur={onBlur}
-              noteId={noteId}
+              noteId={canonicalNoteId}
               noteBlocks={noteBlocks}
               sourceRevision={sourceRevision}
               onIdentityChange={snapshot => onIdentityChange({ rawContent: snapshot.rawContent, noteBlocks: snapshot.blocks, sourceRevision: snapshot.sourceRevision })}
@@ -267,8 +482,24 @@ export function NotebookItemPage({
               showLineNumbers={false}
               onBlocksChange={setScriptBlocks}
             />
+            <WorkoutSessionsList sessions={sessions} />
           </div>
         }
+      />
+      <ForkToMyNotesDialog
+        open={forkOpen}
+        onOpenChange={setForkOpen}
+        sourceNoteId={runTargetId}
+        sourceTitle={displayTitle}
+        storageInstance={storageService.storage}
+        resolveRemoteWorkoutFn={buildRemoteResolver()}
+        fallbackRemote={!storedNote && effectiveContent ? {
+          title: displayTitle,
+          content: effectiveContent,
+          feedId: feedParam,
+          notebookSlug: slug,
+        } : undefined}
+        onForked={(forked) => { void navigate(`${notePath(forked.id)}?edit=1`); }}
       />
       {pendingScheduleBlock && (
         <EditorDialog

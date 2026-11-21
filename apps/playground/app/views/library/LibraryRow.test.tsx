@@ -162,4 +162,55 @@ describe('LibraryRow — field projection adaptation', () => {
     expect(btn.getAttribute('aria-busy')).toBe('true')
     expect(btn.textContent).toContain('Subscribing…')
   })
+
+  it('differentiates personal notebook notes, read-only feed notes, and archived local copies cleanly', () => {
+    const ownedNote: Entry = {
+      id: 'user-1',
+      kind: 'note',
+      sourceNotebook: 'strength-block',
+      sourceNote: 'user-1',
+      title: 'Heavy Squat Day',
+      date: '2026-10-01',
+      editable: true,
+      ownership: { kind: 'user', editable: true, canPublish: true },
+    }
+    const feedNote: Entry = {
+      id: 'feed-1',
+      kind: 'note',
+      sourceNotebook: 'girls',
+      sourceNote: 'fran',
+      title: 'Fran',
+      date: null,
+      feedId: 'sport-crossfit',
+      editable: false,
+      ownership: { kind: 'feed', editable: false, canPublish: false, feedSourceId: 'sport-crossfit', upstreamStatus: 'live' },
+    }
+    const archivedNote: Entry = {
+      id: 'arch-1',
+      kind: 'note',
+      sourceNotebook: 'kettlebell',
+      sourceNote: 'simple',
+      title: 'Simple & Sinister',
+      date: null,
+      feedId: 'sport-kettlebell',
+      editable: false,
+      ownership: { kind: 'feed-archived', editable: false, canPublish: false, feedSourceId: 'sport-kettlebell', upstreamStatus: 'unsubscribed' },
+    }
+
+    const { container } = render(
+      <MemoryRouter>
+        <LibraryRow entry={ownedNote} />
+        <LibraryRow entry={feedNote} />
+        <LibraryRow entry={archivedNote} />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('My Note')).toBeDefined()
+    expect(screen.getByText('CrossFit')).toBeDefined()
+    expect(screen.getByText('Upstream Removed')).toBeDefined()
+    expect(screen.queryByText('Notebook')).toBeNull()
+    expect(container.innerHTML).not.toContain('text-[9px]')
+    expect(container.innerHTML).not.toContain('text-[10px]')
+    expect(container.innerHTML).not.toContain('sm:opacity-0')
+  })
 })

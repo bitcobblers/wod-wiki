@@ -8,9 +8,30 @@ import {
   TagIcon,
   WrenchScrewdriverIcon,
 } from '@heroicons/react/20/solid'
+import { CalendarPlus, ChevronDown, Loader2, Play, Search } from 'lucide-react'
 import { EditorDialog, WqlComposer } from '@bitcobblers/wod-wiki-ui'
 import { effortToDocument, tagRecordToDocument } from '@bitcobblers/wod-wiki-lang'
-import type { Tag } from '@bitcobblers/wod-wiki-core'
+import {
+  isSystemReadOnlyNotebook,
+  notebookSlugFromId,
+  resolveNoteOwnership,
+  type Note,
+  type Tag,
+} from '@bitcobblers/wod-wiki-core'
+import { parseRemoteNoteId } from '@bitcobblers/wod-wiki-engine'
+import { notebookOfItem, notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
+import { isFeedSubscribed } from '@/services/feed/feedSubscriptions'
+import {
+  lookupRemoteRecord,
+  playgroundFeedCatalogStore,
+  resolveRemoteWorkout,
+} from '@/services/feed/feedCatalog'
+import { resolveFeedDisplayLabel } from '@/components/molecules/PublicationPill'
+import { createJournalNoteFromWorkout } from '../../../services/journalWorkout'
+import { startEntryRun } from '../../../lib/entryRun'
+import { entryOpenHref } from '../../../lib/entryActions'
+import type { Entry } from '../../../lib/entryMapper'
+import { dayPath } from '../../../lib/routes'
 import {
   Button,
   Combobox,
@@ -31,7 +52,7 @@ import { getAppEquipmentRegistry, hydrateAppEquipmentRegistry } from '@/services
 import { getScriptNotebooks, type ScriptNotebook } from '@/repositories/script-notebooks'
 import type { HistoryRecord } from '@/types/history'
 import type { Notebook } from '@/types/notebook'
-import { formatDateHeader } from '@/lib/dateFormat'
+import { formatDateHeader, localDateKey } from '@/lib/dateFormat'
 import { useOptionalEffortRegistry } from '../../../contexts/EffortRegistryContext'
 import { useOptionalEquipmentRegistry } from '../../../contexts/EquipmentRegistryContext'
 import {
@@ -150,6 +171,16 @@ export function CreateJournalNoteDialog({
   const [creating, setCreating] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
+  const [noteMode, setNoteMode] = useState<'write' | 'pick'>('write')
+  const [advancedOpen, setAdvancedOpen] = useState(defaultKind === 'page')
+  const [workoutSearchQuery, setWorkoutSearchQuery] = useState('')
+  const [myWorkoutNotes, setMyWorkoutNotes] = useState<Note[] | null>(null)
+  const [remoteFeedWorkouts, setRemoteFeedWorkouts] = useState<
+    Array<{ nbName: string; nbSlug: string; feedId: string; note: Note }>
+  >([])
+  const [pickerBusyId, setPickerBusyId] = useState<string | null>(null)
+  const [pickerError, setPickerError] = useState<string | null>(null)
+
   // Optional Page route (/page/<slug>) — can be attached to any note being created.
   const [enablePageRoute, setEnablePageRoute] = useState(defaultKind === 'page')
   const [customPageSlug, setCustomPageSlug] = useState('')
@@ -176,6 +207,11 @@ export function CreateJournalNoteDialog({
     templatesReq.current++
     targetsReq.current++
     setKind(toComposerKind(defaultKind))
+    setNoteMode('write')
+    setAdvancedOpen(defaultKind === 'page')
+    setWorkoutSearchQuery('')
+    setPickerBusyId(null)
+    setPickerError(null)
     setDate(defaultDate && parseJournalDate(defaultDate) ? defaultDate : getTodayDateKey())
     setTitle('')
     setBody('')
@@ -192,6 +228,8 @@ export function CreateJournalNoteDialog({
     setTargetNotebooks(null)
     setTargetNotebooksError(null)
     setNotebookNotes(null)
+    setMyWorkoutNotes(null)
+    setRemoteFeedWorkouts([])
     setSources(null)
   }, [open, defaultKind, defaultDate, defaultNotebookSlug, defaultMode])
 
@@ -202,7 +240,16 @@ export function CreateJournalNoteDialog({
     notebookService
       .getAll()
       .then(notebooks => {
-        if (targetsReq.current === token) setTargetNotebooks(notebooks)
+        if (targetsReq.current === token) {
+          setTargetNotebooks(
+            notebooks.filter(
+              nb =>
+                !isSystemReadOnlyNotebook(nb.notebookId ?? nb.id ?? nb.slug) &&
+                !isSystemReadOnlyNotebook(nb.slug) &&
+                nb.origin !== 'feed',
+            ),
+          )
+        }
       })
       .catch(() => {
         if (targetsReq.current === token) setTargetNotebooksError('Could not load your notebooks.')
@@ -228,7 +275,12 @@ export function CreateJournalNoteDialog({
       getScriptNotebooks().catch(() => []),
     ]).then(([notes, userNotebooks, scriptNotebooks]) => {
       if (templatesReq.current !== token) return
-      const userSlugs = new Set(['defaults', ...userNotebooks.map(nb => nb.slug)])
+      setMyWorkoutNotes(notes)
+      const userSlugs = new Set(
+        userNotebooks
+          .filter(nb => !isSystemReadOnlyNotebook(nb.id ?? nb.slug))
+          .map(nb => nb.slug),
+      )
       setNotebookNotes(
         notes
           .filter(n => {
@@ -247,6 +299,30 @@ export function CreateJournalNoteDialog({
         if (note.sourcePath) sourceIdByPath[note.sourcePath] = note.id
       }
       setSources({ notebooks: scriptNotebooks, sourceIdByPath })
+      void (async () => {
+        try {
+          const allCatalogNbs = await playgroundFeedCatalogStore.getAllNotebooks().catch(() => [])
+          if (templatesReq.current !== token) return
+          const subFeedNbs = allCatalogNbs.filter(nb => nb.origin === 'feed' && isFeedSubscribed(nb.feedId))
+          const loadedRemote = await Promise.all(
+            subFeedNbs.map(async nb => {
+              const remoteNotes = await playgroundFeedCatalogStore
+                .getRemoteNotebookNotes(nb.slug, nb.feedId)
+                .catch(() => [] as Note[])
+              return remoteNotes.map(note => ({
+                nbName: nb.name || nb.slug,
+                nbSlug: nb.slug,
+                feedId: nb.feedId,
+                note,
+              }))
+            }),
+          )
+          if (templatesReq.current !== token) return
+          setRemoteFeedWorkouts(loadedRemote.flat())
+        } catch {
+          // Ignore catalog preview failures during dialog mount
+        }
+      })()
     })
     return () => {
       templatesReq.current++
@@ -568,6 +644,192 @@ export function CreateJournalNoteDialog({
   const activeKindOption = KIND_OPTIONS.find(k => k.kind === kind) ?? KIND_OPTIONS[0]!
   const workspaceKinds = KIND_OPTIONS.filter(k => k.group === 'workspace')
   const catalogKinds = KIND_OPTIONS.filter(k => k.group === 'catalog')
+  const isPickWorkoutMode = kind === 'note' && noteMode === 'pick'
+
+  interface PickerWorkoutItem {
+    id: string
+    title: string
+    sourceBadge: string
+    isMine: boolean
+    subtitle: string
+    searchText: string
+    entry: Entry
+    rawContent?: string
+    notebookSlug: string
+    sourceNotePath?: string
+  }
+
+  const pickerWorkouts = useMemo<PickerWorkoutItem[]>(() => {
+    const items: PickerWorkoutItem[] = []
+    const seenIds = new Set<string>()
+    for (const note of myWorkoutNotes ?? []) {
+      if (note.id.startsWith('notebook/')) continue
+      const nbId = notebookOfItem(note)
+      const nbSlug = nbId ? notebookSlugFromId(nbId) : 'journal'
+      if (isSystemReadOnlyNotebook(nbSlug)) continue
+      const ownership = resolveNoteOwnership(note, notebookOriginOfItem(note), nbId)
+      if (ownership.kind !== 'user') continue
+      const hasWorkoutFence = /```(?:wod|time|log|whiteboard)/i.test(note.rawContent ?? '')
+      if (!hasWorkoutFence) continue
+      seenIds.add(note.id)
+      const title = note.title || 'Untitled workout'
+      const noteDate = note.date ? localDateKey(new Date(note.date)) : undefined
+      const subtitle = nbSlug === 'journal' ? (noteDate || 'Journal') : nbSlug
+      items.push({
+        id: note.id,
+        title,
+        sourceBadge: 'Mine',
+        isMine: true,
+        subtitle,
+        searchText: `${title} mine ${subtitle}`.toLowerCase(),
+        entry: {
+          id: note.id,
+          kind: 'note',
+          sourceNotebook: nbSlug,
+          sourceNote: note.id,
+          title,
+          date: noteDate ?? null,
+          editable: true,
+          ownership,
+          notebookId: nbId,
+        },
+        rawContent: note.rawContent,
+        notebookSlug: nbSlug,
+      })
+    }
+
+    for (const remoteItem of remoteFeedWorkouts) {
+      const { note, nbName, nbSlug, feedId } = remoteItem
+      const parsed = parseRemoteNoteId(note.id)
+      const uuid = parsed.isRemote ? parsed.uuid : note.id
+      const remoteId = parsed.isRemote ? note.id : `remote:${feedId}:${uuid}`
+      if (seenIds.has(remoteId) || seenIds.has(uuid)) continue
+      seenIds.add(remoteId)
+      const feedLabel = resolveFeedDisplayLabel(feedId) ?? feedId
+      const title = note.title || 'Workout'
+      items.push({
+        id: remoteId,
+        title,
+        sourceBadge: feedLabel,
+        isMine: false,
+        subtitle: nbName,
+        searchText: `${title} ${feedLabel} ${nbName}`.toLowerCase(),
+        entry: {
+          id: remoteId,
+          kind: 'note',
+          sourceNotebook: nbSlug,
+          sourceNote: uuid,
+          title,
+          date: null,
+          feedId,
+          isRemotePreview: true,
+          editable: false,
+          sourcePath: note.sourcePath,
+        },
+        rawContent: note.rawContent || undefined,
+        notebookSlug: nbSlug,
+        sourceNotePath: note.sourcePath,
+      })
+    }
+
+    if (sources) {
+      for (const nb of sources.notebooks) {
+        const feedLabel = nb.name
+        for (const nbItem of nb.items) {
+          const itemId = sources.sourceIdByPath[nbItem.path] ?? `notebook/${nb.id}/${nbItem.date}/${nbItem.id}`
+          if (seenIds.has(itemId)) continue
+          seenIds.add(itemId)
+          items.push({
+            id: itemId,
+            title: nbItem.name,
+            sourceBadge: feedLabel,
+            isMine: false,
+            subtitle: nb.name,
+            searchText: `${nbItem.name} ${feedLabel} ${nb.name}`.toLowerCase(),
+            entry: {
+              id: itemId,
+              kind: 'note',
+              sourceNotebook: nb.id,
+              sourceNote: nbItem.id,
+              title: nbItem.name,
+              date: nbItem.date ?? null,
+              feedId: 'core',
+              editable: false,
+              sourcePath: `/notebook/${encodeURIComponent(nb.id)}/${nbItem.date}/${encodeURIComponent(nbItem.id)}`,
+            },
+            rawContent: nbItem.content,
+            notebookSlug: nb.id,
+            sourceNotePath: `/notebook/${encodeURIComponent(nb.id)}/${nbItem.date}/${encodeURIComponent(nbItem.id)}`,
+          })
+        }
+      }
+    }
+
+    const q = workoutSearchQuery.trim().toLowerCase()
+    return q ? items.filter(it => it.searchText.includes(q)) : items
+  }, [myWorkoutNotes, remoteFeedWorkouts, sources, workoutSearchQuery])
+
+  const handleOpenOrRunPickedWorkout = async (item: PickerWorkoutItem) => {
+    if (pickerBusyId) return
+    setPickerBusyId(item.id)
+    setPickerError(null)
+    try {
+      try {
+        await startEntryRun(item.entry, navigate)
+      } catch {
+        void navigate(entryOpenHref(item.entry))
+      }
+      onOpenChange(false)
+    } catch (err) {
+      setPickerError(err instanceof Error ? err.message : 'Could not open workout.')
+    } finally {
+      setPickerBusyId(null)
+    }
+  }
+
+  const handleSchedulePickedWorkout = async (item: PickerWorkoutItem) => {
+    if (pickerBusyId) return
+    setPickerBusyId(item.id)
+    setPickerError(null)
+    try {
+      const targetDate = dateParsed?.date ?? new Date()
+      let wodContent = item.rawContent ?? ''
+      let resolvedPayload: Awaited<ReturnType<typeof resolveRemoteWorkout>> | undefined
+      if (!wodContent && item.entry.isRemotePreview) {
+        resolvedPayload = await resolveRemoteWorkout(item.id, { storage: storageService.storage })
+        wodContent = resolvedPayload?.row.content ?? ''
+      }
+      const created = await createJournalNoteFromWorkout({
+        workoutName: item.title,
+        category: item.notebookSlug,
+        sourceNoteId: item.id,
+        sourceNoteLabel: item.isMine ? 'My Notes' : item.sourceBadge,
+        sourceNotePath: item.sourceNotePath ?? entryOpenHref(item.entry),
+        wodContent,
+        date: targetDate,
+        resolveRemoteWorkout: async (id) => {
+          const res = resolvedPayload ?? (await resolveRemoteWorkout(id, { storage: storageService.storage }).catch(() => undefined))
+          if (!res) return undefined
+          const meta = lookupRemoteRecord(id)
+          return {
+            row: res.row,
+            canonicalNoteId: res.canonicalNoteId,
+            remoteNoteId: res.remoteNoteId,
+            feedId: res.feedId,
+            notebookSlug: meta?.notebookSlug ?? item.notebookSlug,
+            record: meta?.record,
+          }
+        },
+      })
+      onCreated?.(created)
+      onOpenChange(false)
+      void navigate(dayPath(created.journalDate ?? formatDateHeader(targetDate)))
+    } catch (err) {
+      setPickerError(err instanceof Error ? err.message : 'Could not schedule workout.')
+    } finally {
+      setPickerBusyId(null)
+    }
+  }
 
   return (
     <EditorDialog
@@ -575,23 +837,31 @@ export function CreateJournalNoteDialog({
       onClose={() => {
         if (!inFlight.current) onOpenChange(false)
       }}
-      title={`New ${activeKindOption.label}`}
-      description={activeKindOption.subtitle}
+      title={isPickWorkoutMode ? 'Pick / Log a Workout' : `New ${activeKindOption.label}`}
+      description={isPickWorkoutMode ? 'Start a workout directly or schedule it to a journal date without duplicating notes.' : activeKindOption.subtitle}
       presentation="sheet"
       footer={
-        <div className="flex w-full items-center justify-between gap-2">
-          <span className="hidden text-xs text-muted-foreground sm:inline">
-            Press Enter ↵ to create
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            <Button type="button" variant="outline" size="lg" onClick={() => onOpenChange(false)} disabled={creating} data-testid={TEST_IDS.ENTRY_CREATE_CANCEL_BTN}>
+        isPickWorkoutMode ? (
+          <div className="flex w-full items-center justify-end gap-2">
+            <Button type="button" variant="outline" size="lg" onClick={() => onOpenChange(false)} disabled={Boolean(pickerBusyId)} data-testid={TEST_IDS.ENTRY_CREATE_CANCEL_BTN}>
               Cancel
             </Button>
-            <Button type="submit" form="create-journal-note-form" size="lg" disabled={submitDisabled} data-testid={TEST_IDS.ENTRY_CREATE_SUBMIT_BTN}>
-              {creating ? 'Creating…' : 'Create'}
-            </Button>
           </div>
-        </div>
+        ) : (
+          <div className="flex w-full items-center justify-between gap-2">
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              Press Enter ↵ to create
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button type="button" variant="outline" size="lg" onClick={() => onOpenChange(false)} disabled={creating} data-testid={TEST_IDS.ENTRY_CREATE_CANCEL_BTN}>
+                Cancel
+              </Button>
+              <Button type="submit" form="create-journal-note-form" size="lg" disabled={submitDisabled} data-testid={TEST_IDS.ENTRY_CREATE_SUBMIT_BTN}>
+                {creating ? 'Creating…' : 'Create'}
+              </Button>
+            </div>
+          </div>
+        )
       }
     >
       <form
@@ -600,13 +870,13 @@ export function CreateJournalNoteDialog({
         className="flex flex-col gap-5 sm:flex-row sm:items-start"
         noValidate
       >
-        {/* Left Rail (desktop) / 3x2 Touch Grid (mobile): Resource Kind */}
+        {/* Left Rail (desktop) / 2-col Touch Grid (mobile): Resource Kind */}
         <div
           role="group"
           aria-label="Resource type"
-          className="grid grid-cols-3 gap-1.5 sm:flex sm:w-44 sm:shrink-0 sm:flex-col sm:border-r sm:border-border sm:pr-4"
+          className="grid grid-cols-2 gap-1.5 sm:flex sm:w-44 sm:shrink-0 sm:flex-col sm:border-r sm:border-border sm:pr-4"
         >
-          <span className="hidden px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:block">
+          <span className="col-span-2 px-1 pb-0.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:pb-1">
             Create
           </span>
           {workspaceKinds.map(item => {
@@ -624,7 +894,7 @@ export function CreateJournalNoteDialog({
                 disabled={creating}
                 data-testid={`new-entry-${item.kind}`}
                 className={
-                  'flex min-h-10 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-left transition-colors sm:justify-start sm:gap-2.5 sm:px-2.5 ' +
+                  'flex min-h-10 items-center justify-start gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors ' +
                   (active
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border/70 text-foreground hover:bg-muted/60 sm:border-transparent')
@@ -633,13 +903,13 @@ export function CreateJournalNoteDialog({
                 <Icon className="size-4 shrink-0" />
                 <div className="min-w-0">
                   <div className="truncate text-xs font-semibold leading-tight">{item.label}</div>
-                  <div className="hidden truncate text-[10px] text-muted-foreground sm:block">{item.subtitle}</div>
+                  <div className="hidden truncate text-[11px] text-muted-foreground sm:block">{item.subtitle}</div>
                 </div>
               </button>
             )
           })}
 
-          <span className="hidden px-2 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:block">
+          <span className="col-span-2 px-1 pt-2 pb-0.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:pt-3 sm:pb-1">
             Catalog
           </span>
           {catalogKinds.map(item => {
@@ -657,7 +927,7 @@ export function CreateJournalNoteDialog({
                 disabled={creating}
                 data-testid={`new-entry-${item.kind}`}
                 className={
-                  'flex min-h-10 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-left transition-colors sm:justify-start sm:gap-2.5 sm:px-2.5 ' +
+                  'flex min-h-10 items-center justify-start gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors ' +
                   (active
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border/70 text-foreground hover:bg-muted/60 sm:border-transparent')
@@ -666,7 +936,7 @@ export function CreateJournalNoteDialog({
                 <Icon className="size-4 shrink-0" />
                 <div className="min-w-0">
                   <div className="truncate text-xs font-semibold leading-tight">{item.label}</div>
-                  <div className="hidden truncate text-[10px] text-muted-foreground sm:block">{item.subtitle}</div>
+                  <div className="hidden truncate text-[11px] text-muted-foreground sm:block">{item.subtitle}</div>
                 </div>
               </button>
             )
@@ -675,6 +945,129 @@ export function CreateJournalNoteDialog({
 
         {/* Right Pane: Focused Composer */}
         <div className="flex min-w-0 flex-1 flex-col gap-4">
+          {kind === 'note' && (
+            <div
+              role="tablist"
+              aria-label="Note action mode"
+              className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted/40 p-1"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={noteMode === 'write'}
+                onClick={() => setNoteMode('write')}
+                className={
+                  'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ' +
+                  (noteMode === 'write'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground')
+                }
+              >
+                Write a Note
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={noteMode === 'pick'}
+                onClick={() => setNoteMode('pick')}
+                className={
+                  'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ' +
+                  (noteMode === 'pick'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground')
+                }
+              >
+                Pick / Log a Workout
+              </button>
+            </div>
+          )}
+
+          {isPickWorkoutMode ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={workoutSearchQuery}
+                    onChange={e => setWorkoutSearchQuery(e.target.value)}
+                    placeholder="Search workouts or feeds…"
+                    aria-label="Search workouts"
+                    className={`${fieldClass} pl-9`}
+                  />
+                </div>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={e => setDate(e.target.value)}
+                  aria-label="Schedule date"
+                  className={`${fieldClass} sm:w-40`}
+                />
+              </div>
+
+              {pickerError && (
+                <p role="alert" className="text-xs text-destructive">{pickerError}</p>
+              )}
+
+              {pickerWorkouts.length === 0 ? (
+                <div className="rounded-lg border border-border bg-muted/20 px-4 py-6 text-center text-xs text-muted-foreground">
+                  {workoutSearchQuery.trim()
+                    ? `No workouts matched "${workoutSearchQuery}".`
+                    : 'No workouts found in your personal notes or subscribed feeds yet.'}
+                </div>
+              ) : (
+                <ul className="max-h-72 overflow-y-auto divide-y divide-border rounded-lg border border-border bg-background/60">
+                  {pickerWorkouts.slice(0, 40).map((item) => {
+                    const rowBusy = pickerBusyId === item.id
+                    return (
+                      <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="truncate text-xs font-semibold text-foreground">{item.title}</span>
+                            <span
+                              className={
+                                'shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ' +
+                                (item.isMine
+                                  ? 'border-primary/30 bg-primary/15 text-primary'
+                                  : 'border-sky-700/30 bg-sky-500/15 text-sky-900 dark:border-sky-400/30 dark:text-sky-100')
+                              }
+                            >
+                              {item.sourceBadge}
+                            </span>
+                          </div>
+                          <div className="truncate text-[11px] text-muted-foreground">{item.subtitle}</div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={Boolean(pickerBusyId)}
+                            onClick={() => void handleOpenOrRunPickedWorkout(item)}
+                            className="h-8 gap-1 px-2.5 text-xs"
+                          >
+                            {rowBusy ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <Play className="size-3" aria-hidden="true" />}
+                            Open / Run
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={Boolean(pickerBusyId)}
+                            onClick={() => void handleSchedulePickedWorkout(item)}
+                            className="h-8 gap-1 px-2.5 text-xs"
+                          >
+                            <CalendarPlus className="size-3" aria-hidden="true" />
+                            Schedule
+                          </Button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <>
           {/* 1. Hero Input: Title / Name first */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="journal-create-title" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -836,61 +1229,76 @@ export function CreateJournalNoteDialog({
             </div>
           )}
 
-          {/* 4. Optional Page route (/page/<slug>) on any Note */}
+          {/* 4. Advanced options (Page route & Initial WQL Widget) */}
           {kind === 'note' && (
             <div className="rounded-lg border border-border/80 bg-muted/20 p-3">
-              <label className="flex cursor-pointer items-center justify-between gap-2">
-                <div className="flex flex-col">
-                  <span className="text-xs font-medium text-foreground">Publish as Page route</span>
-                  <span className="text-[11px] text-muted-foreground">
-                    Give this note a direct <code className="font-mono">/page/&lt;slug&gt;</code> address
-                  </span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={enablePageRoute}
-                  onChange={e => setEnablePageRoute(e.target.checked)}
-                  disabled={creating}
-                  data-testid="journal-create-page-toggle"
-                  className="size-4 accent-primary"
+              <button
+                type="button"
+                aria-expanded={advancedOpen}
+                onClick={() => setAdvancedOpen(v => !v)}
+                className="flex w-full items-center justify-between gap-2 text-left text-xs font-semibold text-foreground"
+              >
+                <span>Advanced options</span>
+                <ChevronDown
+                  className={`size-4 text-muted-foreground transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+                  aria-hidden="true"
                 />
-              </label>
-              {enablePageRoute && (
-                <div className="mt-2.5 flex items-center rounded-md border border-input bg-background px-2.5 focus-within:ring-2 focus-within:ring-ring">
-                  <span className="select-none font-mono text-xs text-muted-foreground">/page/</span>
-                  <input
-                    id="journal-create-page-slug"
-                    type="text"
-                    value={pageSlugTouched ? customPageSlug : suggestedPageSlug}
-                    onChange={e => {
-                      setPageSlugTouched(true)
-                      setCustomPageSlug(e.target.value)
-                    }}
-                    placeholder="my-page-slug"
-                    autoCapitalize="none"
-                    spellCheck={false}
-                    disabled={creating}
-                    data-testid="journal-create-page-slug"
-                    className="h-9 min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground focus:outline-none"
-                  />
-                </div>
-              )}
-            </div>
-          )}
+              </button>
 
-          {kind === 'note' && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">
-                Initial WQL Widget <span className="font-normal text-muted-foreground/80">(optional — embeds a query block in this note)</span>
-              </span>
-              <div data-testid="note-create-wql-composer">
-                <WqlComposer
-                  query={wqlScope}
-                  onQueryChange={setWqlScope}
-                  compact
-                  showDiagnostics={false}
-                  placeholder="e.g. :note{domain:crossfit} or sum:totalVolume{} by {week}"
-                />
+              <div className={`${advancedOpen ? 'mt-3 space-y-3 border-t border-border/60 pt-3' : 'hidden'}`} aria-hidden={!advancedOpen}>
+                <div>
+                  <label className="flex cursor-pointer items-center justify-between gap-2">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium text-foreground">Publish as Page route</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Give this note a direct <code className="font-mono">/page/&lt;slug&gt;</code> address
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={enablePageRoute}
+                      onChange={e => setEnablePageRoute(e.target.checked)}
+                      disabled={creating}
+                      data-testid="journal-create-page-toggle"
+                      className="size-4 accent-primary"
+                    />
+                  </label>
+                  {enablePageRoute && (
+                    <div className="mt-2.5 flex items-center rounded-md border border-input bg-background px-2.5 focus-within:ring-2 focus-within:ring-ring">
+                      <span className="select-none font-mono text-xs text-muted-foreground">/page/</span>
+                      <input
+                        id="journal-create-page-slug"
+                        type="text"
+                        value={pageSlugTouched ? customPageSlug : suggestedPageSlug}
+                        onChange={e => {
+                          setPageSlugTouched(true)
+                          setCustomPageSlug(e.target.value)
+                        }}
+                        placeholder="my-page-slug"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        disabled={creating}
+                        data-testid="journal-create-page-slug"
+                        className="h-9 min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground focus:outline-none"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Initial WQL Widget <span className="font-normal text-muted-foreground">(optional — embeds a query block in this note)</span>
+                  </span>
+                  <div data-testid="note-create-wql-composer">
+                    <WqlComposer
+                      query={wqlScope}
+                      onQueryChange={setWqlScope}
+                      compact
+                      showDiagnostics={false}
+                      placeholder="e.g. :note{domain:crossfit} or sum:totalVolume{} by {week}"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -936,6 +1344,8 @@ export function CreateJournalNoteDialog({
             <p role="alert" className="text-sm text-destructive">
               {submitError}
             </p>
+          )}
+            </>
           )}
         </div>
       </form>

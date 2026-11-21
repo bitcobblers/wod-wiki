@@ -277,4 +277,23 @@ describe('CreateJournalNoteDialog unified wizard', () => {
     expect(templatePayload?.rawContent).toContain('21-15-9')
     expect(templatePayload?.rawContent).toContain('Scaled to 65lb')
   })
+
+  it('splits Write a Note vs Pick / Log a Workout and tucks Advanced options behind disclosure', async () => {
+    render(
+      <MemoryRouter>
+        <CreateJournalNoteDialog open onOpenChange={() => {}} defaultKind="journal" />
+      </MemoryRouter>,
+    )
+
+    const advancedBtn = screen.getByRole('button', { name: /Advanced options/i })
+    expect(advancedBtn.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(advancedBtn)
+    expect(advancedBtn.getAttribute('aria-expanded')).toBe('true')
+
+    const pickTab = screen.getByRole('tab', { name: /Pick \/ Log a Workout/i })
+    fireEvent.click(pickTab)
+    await waitFor(() => {
+      expect(screen.getByLabelText('Search workouts')).toBeDefined()
+    })
+  })
 })

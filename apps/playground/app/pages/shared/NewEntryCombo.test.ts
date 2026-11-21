@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { resolveNewEntryRoute, routeSupportsCreation, type NewEntryKind } from './NewEntryCombo'
+import { isReadOnlyNotebookOrigin, resolveNewEntryRoute, routeSupportsCreation, type NewEntryKind } from './NewEntryCombo'
 
 describe('resolveNewEntryRoute', () => {
   it.each<[string, NewEntryKind]>([
@@ -69,5 +69,15 @@ describe('routeSupportsCreation', () => {
     '/notebook/training/fran',
   ])('does not infer creation on %s', pathname => {
     expect(routeSupportsCreation(pathname)).toBe(false)
+  })
+})
+
+describe('isReadOnlyNotebookOrigin', () => {
+  it('flags feed notebooks and built-in read-only system notebooks as read-only targets', () => {
+    expect(isReadOnlyNotebookOrigin('girls', 'feed')).toBe(true)
+    expect(isReadOnlyNotebookOrigin('defaults', 'default')).toBe(true)
+    expect(isReadOnlyNotebookOrigin('guides', 'default')).toBe(true)
+    expect(isReadOnlyNotebookOrigin('training', 'user')).toBe(false)
+    expect(isReadOnlyNotebookOrigin(undefined, null)).toBe(false)
   })
 })

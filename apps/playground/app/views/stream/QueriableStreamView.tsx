@@ -20,7 +20,27 @@ import {
   TriangleAlertIcon,
 } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
+import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+  Button,
+  Dialog,
+  DialogBackdrop,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+} from "@bitcobblers/wod-wiki-ui/primitives";
+import { isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
+import { listWritableNotebooks, type WritableNotebookTarget } from '@/components/molecules/PublicationPill'
+import { createUserNotebookLanding } from '@bitcobblers/wod-wiki-engine'
+import { FolderPlus, Loader2 } from 'lucide-react'
 import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
 import { useFeedImportPending, useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'
@@ -120,7 +140,7 @@ function BatchingSentinel({
           observer on this same div. */}
       <button
         type="button"
-        className="text-xs text-muted-foreground/60 hover:text-foreground hover:underline underline-offset-2"
+        className="text-xs text-muted-foreground hover:text-foreground hover:underline underline-offset-2"
         data-testid={`${testId}-button`}
         onClick={() => batch.growTo(batch.visible.length + LIBRARY_BATCH_SIZE)}
       >
@@ -680,7 +700,7 @@ export function QueriableStreamView({
       if (cancelled) return
       setMoveNotebookTargets(all
         .filter(nb => nb.origin === 'user' || nb.origin === 'default')
-        .filter(nb => nb.slug !== 'guides' && nb.slug !== 'playground')
+        .filter(nb => nb.slug !== 'playground' && !isSystemReadOnlyNotebook(nb.notebookId) && !isSystemReadOnlyNotebook(nb.slug))
         .map(nb => ({ id: nb.notebookId, name: nb.name, icon: nb.icon })))
     }).catch(() => undefined)
     return () => {
@@ -698,33 +718,54 @@ export function QueriableStreamView({
   }, [])
   const subscribingIdsRef = useRef<Set<string>>(new Set())
   const [subscribingIds, setSubscribingIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [pendingUnsubscribeFeed, setPendingUnsubscribeFeed] = useState<{ feedId: string; label: string } | null>(null)
+  const [pendingCloneEntry, setPendingCloneEntry] = useState<Entry | null>(null)
+  const [cloneTargetNotebooks, setCloneTargetNotebooks] = useState<WritableNotebookTarget[]>([])
+  const [cloneTargetId, setCloneTargetId] = useState<string>('notebook/journal')
+  const [cloneCreateNew, setCloneCreateNew] = useState(false)
+  const [cloneNewName, setCloneNewName] = useState('')
+  const [cloningRemote, setCloningRemote] = useState(false)
+  const [pullingRemotePreview, setPullingRemotePreview] = useState(false)
+
+  const handleConfirmUnsubscribe = useCallback(async () => {
+    if (!pendingUnsubscribeFeed) return
+    const { feedId } = pendingUnsubscribeFeed
+    if (subscribingIdsRef.current.has(feedId)) return
+    setActionError(null)
+    subscribingIdsRef.current.add(feedId)
+    setSubscribingIds(new Set(subscribingIdsRef.current))
+    try {
+      await unsubscribeFeedSource(feedId)
+      setPendingUnsubscribeFeed(null)
+      setSavedTick(t => t + 1)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      subscribingIdsRef.current.delete(feedId)
+      setSubscribingIds(new Set(subscribingIdsRef.current))
+    }
+  }, [pendingUnsubscribeFeed])
+
   const handleToggleSubscribeEntry = useCallback(async (entry: Entry) => {
     const subKey = entry.feedId ?? entry.id
     if (subscribingIdsRef.current.has(subKey)) return
     setActionError(null)
+    const nextSub = !entry.subscribed
+    if (entry.kind === 'feed' && entry.feedId && !nextSub) {
+      const label = entry.title || feedSourceById(entry.feedId)?.label || entry.feedId
+      setPendingUnsubscribeFeed({ feedId: entry.feedId, label })
+      return
+    }
     subscribingIdsRef.current.add(subKey)
     setSubscribingIds(new Set(subscribingIdsRef.current))
     try {
-      const nextSub = !entry.subscribed
-      if (entry.kind === 'feed' && entry.feedId) {
-        if (nextSub) {
-          const outcome = await syncFeedSource(entry.feedId)
-          if (outcome === 'imported' || outcome === 'current' || outcome === 'server-stale') {
-            setFeedSubscribed(entry.feedId, true)
-          } else {
-            setActionError(outcome === 'busy' ? 'Another tab is already syncing.' : 'Feed sync failed.')
-            return
-          }
+      if (entry.kind === 'feed' && entry.feedId && nextSub) {
+        const outcome = await syncFeedSource(entry.feedId)
+        if (outcome === 'imported' || outcome === 'current' || outcome === 'server-stale') {
+          setFeedSubscribed(entry.feedId, true)
         } else {
-          const label = entry.title || feedSourceById(entry.feedId)?.label || entry.feedId
-          if (
-            !window.confirm(
-              `Unsubscribe from "${label}"? Imported content for this feed's content is removed from your library; the source stays listed so you can subscribe again. Your own notes are never touched.`,
-            )
-          ) {
-            return
-          }
-          await unsubscribeFeedSource(entry.feedId)
+          setActionError(outcome === 'busy' ? 'Another tab is already syncing.' : 'Feed sync failed.')
+          return
         }
       } else if (entry.kind === 'notebook' && entry.feedId && entry.seedChunkId) {
         await toggleNotebookSubscription(entry.feedId, entry.seedChunkId, nextSub)
@@ -771,20 +812,58 @@ export function QueriableStreamView({
     }
   }, [])
 
-  const handleCloneRemoteEntry = useCallback(async (entry: Entry) => {
+  const handleCloneRemoteEntry = useCallback((entry: Entry) => {
+    setActionError(null)
+    setCloneCreateNew(false)
+    setCloneNewName('')
+    setPendingCloneEntry(entry)
+    void listWritableNotebooks(storage).then((targets) => {
+      setCloneTargetNotebooks(targets)
+      setCloneTargetId((prev) =>
+        targets.some((nb) => nb.id === prev) ? prev : (targets[0]?.id ?? 'notebook/journal'),
+      )
+    })
+  }, [])
+
+  const handleConfirmCloneRemote = useCallback(async () => {
+    if (!pendingCloneEntry || cloningRemote) return
+    setCloningRemote(true)
     setActionError(null)
     try {
-      const targetNb = moveNotebookTargets[0]?.id ?? 'notebook/defaults'
-      const cloned = await cloneRemotePreviewNoteToNotebook(entry.id, targetNb)
+      let targetNb = cloneTargetId
+      if (cloneCreateNew && cloneNewName.trim()) {
+        const cleanName = cloneNewName.trim()
+        const slug = cleanName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '') || 'custom'
+        const candidateId = `notebook/${slug}` as Notebook['id']
+        if (isSystemReadOnlyNotebook(candidateId)) {
+          setActionError(`"${cleanName}" is reserved for a read-only system notebook. Choose another name.`)
+          return
+        }
+        targetNb = await createUserNotebookLanding(storage, cleanName)
+      }
+      if (isSystemReadOnlyNotebook(targetNb)) {
+        setActionError('Cannot clone into a read-only system notebook.')
+        return
+      }
+      const cloned = await cloneRemotePreviewNoteToNotebook(pendingCloneEntry.id, targetNb)
+      const destLabel = cloneTargetNotebooks.find((n) => n.id === targetNb)?.name || targetNb.replace(/^notebook\//, '')
       toast({
         title: `Cloned "${cloned.title}"`,
-        description: `Saved to ${targetNb.replace(/^notebook\//, '')}. You own this copy and can edit or publish it.`,
+        description: `Saved to ${destLabel}. You own this copy and can edit or publish it.`,
       })
+      setPendingCloneEntry(null)
+      setCloneNewName('')
+      setCloneCreateNew(false)
       setSavedTick(t => t + 1)
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCloningRemote(false)
     }
-  }, [moveNotebookTargets])
+  }, [pendingCloneEntry, cloningRemote, cloneTargetId, cloneCreateNew, cloneNewName, cloneTargetNotebooks])
   useEffect(() => onResultSaved(() => setSavedTick((t) => t + 1)), [])
   // The effort corpus keeps importing after the readiness gate flips (the
   // gate ungates on first paint; the effort chunk lands later). When the
@@ -1552,29 +1631,41 @@ export function QueriableStreamView({
 
       {/* Zero-import remote preview banner when viewing an unsubscribed remote Notebook */}
       {entries.length > 0 && entries.every(e => e.isRemotePreview) && notebookStreamSlug && (
-        <div className="mx-6 mt-4 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs" data-testid="remote-notebook-preview-banner">
+        <div className="mx-6 mt-4 rounded-xl border border-sky-700/30 dark:border-sky-400/30 bg-sky-500/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs" data-testid="remote-notebook-preview-banner">
           <div>
             <p className="font-semibold text-foreground">
-              Zero-import Remote Preview · {entries.length} note{entries.length === 1 ? '' : 's'}
+              Index Preview · {entries.length} workout{entries.length === 1 ? '' : 's'} — loaded on demand
             </p>
             <p className="text-muted-foreground mt-0.5">
-              Browsing directly from published Feed index without importing into your vault. Clone individual workouts or subscribe to pull the notebook locally.
+              Browsing directly from the feed index without downloading everything upfront. Open any workout on demand, clone a copy to My Notes, or subscribe for offline access.
             </p>
           </div>
           {entries[0]?.feedId && (
             <Button
               size="sm"
-              onClick={() => void toggleNotebookSubscription(entries[0]!.feedId!, `notebook.${notebookStreamSlug}`, true).then(() => setSavedTick(t => t + 1))}
+              disabled={pullingRemotePreview}
+              aria-busy={pullingRemotePreview}
+              onClick={() => {
+                const feedId = entries[0]!.feedId!
+                const chunkId = entries[0]!.seedChunkId ?? `notebook.${notebookStreamSlug}`
+                setPullingRemotePreview(true)
+                void toggleNotebookSubscription(feedId, chunkId, true)
+                  .then(() => { setSavedTick(t => t + 1) })
+                  .catch((err) => { setActionError(err instanceof Error ? err.message : String(err)) })
+                  .finally(() => { setPullingRemotePreview(false) })
+              }}
               data-testid="remote-preview-subscribe-btn"
+              className="gap-1.5"
             >
-              + Subscribe &amp; Pull Notebook
+              {pullingRemotePreview ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
+              {pullingRemotePreview ? 'Downloading offline…' : '+ Subscribe & Download Offline'}
             </Button>
           )}
         </div>
       )}
       {/* Unified Stream Content across all Library routes (/feeds, /notebooks, /notes, /journal, /sessions, /efforts, /tags) */}
       {readmeOverride ? null : (layout === 'rows' || layout === 'agenda' || layout === 'planner') && entries.length === 0 && (!hasSettledRun || loading) ? (
-        <div className="py-16 text-center text-xs text-muted-foreground/60" data-testid="stream-loading">
+        <div className="py-16 text-center text-xs text-muted-foreground" data-testid="stream-loading">
           Loading…
         </div>
       ) : layout === 'rows' ? (
@@ -1627,7 +1718,7 @@ export function QueriableStreamView({
             onDeleteNotebook={e => void handleDeleteNotebookEntry(e)}
           />
         ) : loading && entries.length === 0 ? (
-          <div className="py-16 text-center text-xs text-muted-foreground/60" data-testid="stream-loading">
+          <div className="py-16 text-center text-xs text-muted-foreground" data-testid="stream-loading">
             Loading…
           </div>
         ) : entries.length === 0 && !loading ? (
@@ -1659,7 +1750,7 @@ export function QueriableStreamView({
                           )}
                           <Rss className="size-3.5 text-amber-500" />
                           <span className="text-xs font-bold text-foreground">{group.label}</span>
-                          <span className="text-[10px] font-bold text-muted-foreground/60 bg-muted px-1.5 py-0.5 rounded-full">
+                          <span className="text-[11px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                             {totalInGroup}
                           </span>
                         </div>
@@ -1697,7 +1788,7 @@ export function QueriableStreamView({
                       icon={<CalendarIcon className="size-3.5 shrink-0 text-muted-foreground" />}
                       label={group.label}
                       badge={group.isToday ? (
-                        <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                        <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                           Today
                         </span>
                       ) : undefined}
@@ -1731,7 +1822,7 @@ export function QueriableStreamView({
             </div>
           ) : loading && entries.length === 0 ? (
             /* Initial loading state */
-            <div className="py-16 text-center text-xs text-muted-foreground/60" data-testid="stream-loading">
+            <div className="py-16 text-center text-xs text-muted-foreground" data-testid="stream-loading">
               Loading…
             </div>
           ) : entries.length === 0 && !loading ? (
@@ -1756,6 +1847,115 @@ export function QueriableStreamView({
           setSavedTick(t => t + 1)
         }}
       />
+
+      {/* Safe Unsubscribe Confirmation Dialog */}
+      <AlertDialog
+        open={pendingUnsubscribeFeed !== null}
+        onOpenChange={(open) => { if (!open) setPendingUnsubscribeFeed(null) }}
+      >
+        <AlertDialogBackdrop />
+        <AlertDialogContent className="max-w-sm">
+          <DialogHeader>
+            <AlertDialogTitle>
+              Unsubscribe from &ldquo;{pendingUnsubscribeFeed?.label}&rdquo;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Index entries from this feed will leave your feed browser, while the feed stays listed so you can subscribe again later. Any personal notes and workouts where you&apos;ve logged sessions remain pinned locally.
+            </AlertDialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <AlertDialogClose disabled={pendingUnsubscribeFeed ? subscribingIds.has(pendingUnsubscribeFeed.feedId) : false}>
+              Cancel
+            </AlertDialogClose>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={pendingUnsubscribeFeed ? subscribingIds.has(pendingUnsubscribeFeed.feedId) : false}
+              onClick={() => void handleConfirmUnsubscribe()}
+            >
+              {pendingUnsubscribeFeed && subscribingIds.has(pendingUnsubscribeFeed.feedId) ? 'Unsubscribing…' : 'Unsubscribe'}
+            </Button>
+          </DialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Safe Remote Clone Target Notebook Picker Dialog */}
+      <Dialog
+        open={pendingCloneEntry !== null}
+        onOpenChange={(open) => { if (!open && !cloningRemote) setPendingCloneEntry(null) }}
+      >
+        <DialogBackdrop />
+        <DialogContent className="max-w-md bg-popover text-popover-foreground border border-border">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Clone to My Notes</DialogTitle>
+            <DialogDescription>
+              Choose one of your writable notebooks for &ldquo;{pendingCloneEntry?.title}&rdquo;. You will own this personal copy and can edit or publish it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1.5">
+              <label htmlFor="clone-target-notebook" className="block text-xs font-medium text-foreground">
+                Destination notebook
+              </label>
+              <select
+                id="clone-target-notebook"
+                value={cloneTargetId}
+                onChange={(e) => {
+                  setCloneTargetId(e.target.value)
+                  setCloneCreateNew(false)
+                }}
+                disabled={cloneCreateNew || cloningRemote}
+                className="w-full min-h-10 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {cloneTargetNotebooks.map((nb) => (
+                  <option key={nb.id} value={nb.id}>
+                    {nb.name || nb.slug}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setCloneCreateNew(v => !v)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline underline-offset-2"
+              >
+                <FolderPlus className="size-3.5" aria-hidden="true" />
+                {cloneCreateNew ? 'Use existing notebook instead' : 'Or create a new notebook'}
+              </button>
+              {cloneCreateNew && (
+                <Input
+                  type="text"
+                  value={cloneNewName}
+                  onValueChange={setCloneNewName}
+                  placeholder="e.g., Kettlebell Block"
+                  aria-label="New notebook name"
+                  className="min-h-10"
+                />
+              )}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={cloningRemote}
+              onClick={() => setPendingCloneEntry(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={cloningRemote || (cloneCreateNew && !cloneNewName.trim())}
+              onClick={() => void handleConfirmCloneRemote()}
+            >
+              {cloningRemote ? 'Cloning…' : 'Clone to Notebook'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ponytail: L3 controls (filters, layout, visible fields, grouping) live in L3 (SecondaryNav) */}
     </div>

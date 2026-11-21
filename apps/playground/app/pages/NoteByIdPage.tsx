@@ -14,7 +14,25 @@ import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { queryService, refreshPageSources } from '@/services/queryService'
 import { dayPath, notePath, pagePath, ROUTE_PATTERNS, runPath } from '../lib/routes'
 import { appendWidget, notebookOriginOfItem, resolveEntityScope } from '@bitcobblers/wod-wiki-wql'
-import { isNoteEditable } from '@bitcobblers/wod-wiki-core'
+import { isNoteEditable, type Note } from '@bitcobblers/wod-wiki-core'
+import {
+  parseRemoteNoteId,
+  prepareJournalSessionRun,
+} from '@bitcobblers/wod-wiki-engine'
+import {
+  ForkToMyNotesDialog,
+  PublicationPill,
+  WorkoutSessionsList,
+  resolveOwnershipPresentation,
+} from '@/components/molecules/PublicationPill'
+import {
+  lookupRemoteRecord,
+  resolveRemoteWorkout,
+} from '@/services/feed/feedCatalog'
+import { feedSourceById } from '@/services/feed/feedSources'
+import { captureStoredRun } from '@/services/runCapture'
+import { toast } from '@/hooks/use-toast'
+import { GitFork, Play, RefreshCw } from 'lucide-react'
 import { resolveNotePropertyStack } from '@/app/editor/runtimeTimerModel'
 import { WidgetComposerDialog } from '../views/dashboards/WidgetComposerDialog'
 import { slugifyRoute } from '../components/organisms/journal/CreateJournalNoteDialog'
@@ -27,7 +45,6 @@ import type { ScriptBlock } from '@/components/Editor/types'
 import { useNotePageNav } from './shared/useNotePageNav'
 import { useNoteActions } from './shared/useNoteActions'
 import { PageActions } from './shared/PageActions'
-import { PublicationPill } from '@/components/molecules/PublicationPill'
 import {
   NoteContextNav,
   noteOwnership,
@@ -55,12 +72,32 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const [entry, setEntry] = useState<HistoryRecord | null>(null)
+  const [rawNote, setRawNote] = useState<Note | null>(null)
   const [missing, setMissing] = useState(false)
+  const [remoteLoading, setRemoteLoading] = useState(false)
+  const [remoteError, setRemoteError] = useState<string | null>(null)
+  const [remoteRetryTick, setRemoteRetryTick] = useState(0)
+  const [forkOpen, setForkOpen] = useState(false)
   const flushRef = useRef<() => Promise<void>>(async () => {});
-  const isReadOnly = location.pathname.startsWith('/page/')
+  const isPageView = location.pathname.startsWith('/page/')
+  const parsedRemote = parseRemoteNoteId(noteId)
+  const remoteUuid = parsedRemote.isRemote ? parsedRemote.uuid : undefined
+  const feedParam = searchParams.get('feed') ?? (parsedRemote.isRemote ? parsedRemote.feedId : undefined)
+  const remoteParam = searchParams.get('remote') ?? remoteUuid
+  const ownershipMeta = useMemo(() => {
+    const stub = rawNote ?? entry
+    return resolveOwnershipPresentation(stub, {
+      noteId,
+      notebookOrigin: stub ? notebookOriginOfItem(stub) : undefined,
+      resolvedNotebookId: entry?.notebookId ?? rawNote?.notebookIds?.[0],
+      resolveFeedLabel: (id) => feedSourceById(id)?.label,
+    })
+  }, [rawNote, entry, noteId])
+  const isReadOnly = isPageView
+    || ownershipMeta.isNonOwned
     || (entry !== null && (
       entry.seedOrigin === 'seed'
-      || !isNoteEditable(entry, notebookOriginOfItem(entry))
+      || !isNoteEditable(rawNote ?? entry, notebookOriginOfItem(rawNote ?? entry))
     ))
   // saveError is managed by useNoteDraft
   const [editingPageSlug, setEditingPageSlug] = useState(false)
@@ -84,23 +121,83 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     setMissing(false)
     // saveError handled in draft
     // Await any in-flight draft flush for this noteId (e.g. Ctrl+S / unmount right before Back).
-    waitForPendingNoteSave(noteId)
-      .then(() => contentProvider.getRecord(noteId))
-      .then((loaded) => {
+    setMissing(false)
+    setRemoteError(null)
+    setRemoteLoading(false)
+    const lookupKey = remoteUuid ?? noteId
+    waitForPendingNoteSave(lookupKey)
+      .then(async () => {
+        const [loaded, fetchedRaw] = await Promise.all([
+          contentProvider.getRecord(lookupKey),
+          storageService.getNote(lookupKey),
+        ])
         if (cancelled) return
-        if (!loaded) {
-          setMissing(true)
+        if (loaded) {
+          setRawNote(fetchedRaw ?? null)
+          setEntry(loaded)
           return
         }
-        setEntry(loaded)
+        if (parsedRemote.isRemote || feedParam || remoteParam) {
+          setRemoteLoading(true)
+          const locator = parsedRemote.isRemote
+            ? noteId
+            : feedParam
+              ? `remote:${feedParam}:${remoteParam ?? noteId}`
+              : (remoteParam ?? noteId)
+          const resolved = await resolveRemoteWorkout(locator, {
+            storage: storageService.storage,
+            ...(feedParam ? { feedId: feedParam } : {}),
+          })
+          if (cancelled) return
+          if (!resolved) {
+            setRemoteError('This remote workout could not be fetched from its feed.')
+            setRemoteLoading(false)
+            return
+          }
+          const [afterRecord, afterRaw] = await Promise.all([
+            contentProvider.getRecord(resolved.canonicalNoteId),
+            storageService.getNote(resolved.canonicalNoteId),
+          ])
+          if (cancelled) return
+          setRawNote(afterRaw ?? resolved.note)
+          if (afterRecord) {
+            setEntry(afterRecord)
+          } else {
+            setEntry({
+              id: resolved.canonicalNoteId,
+              type: 'note',
+              title: resolved.note.title,
+              rawContent: resolved.note.rawContent,
+              blocks: resolved.note.blocks,
+              tags: resolved.note.tags ?? [],
+              createdAt: resolved.note.createdAt,
+              updatedAt: resolved.note.createdAt ?? Date.now(),
+              targetDate: resolved.note.date ?? resolved.note.createdAt ?? Date.now(),
+              schemaVersion: 1,
+              sourceRevision: resolved.note.sourceRevision,
+              sourceId: resolved.note.sourceId,
+              seedOrigin: 'seed',
+              notebookId: resolved.note.notebookIds?.[0],
+            })
+          }
+          setRemoteLoading(false)
+          return
+        }
+        setMissing(true)
       })
-      .catch(() => {
-        if (!cancelled) setMissing(true)
+      .catch((err) => {
+        if (cancelled) return
+        if (parsedRemote.isRemote || feedParam || remoteParam) {
+          setRemoteError(err instanceof Error ? err.message : 'Unable to load this remote workout.')
+          setRemoteLoading(false)
+        } else {
+          setMissing(true)
+        }
       })
     return () => {
       cancelled = true
     }
-  }, [noteId, searchParams])
+  }, [noteId, searchParams, parsedRemote.isRemote, remoteUuid, feedParam, remoteParam, remoteRetryTick])
 
   // Resolve the source lineage's title so it can link to the original note.
   const sourceId = entry?.provenance?.sourceNoteId ?? entry?.sourceId
@@ -176,15 +273,62 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     async (block: ScriptBlock) => {
       if (!entry) return;
       try {
+        if (ownershipMeta.isNonOwned) {
+          const runTargetId = parsedRemote.isRemote ? noteId : entry.id;
+          const resolveRemote = async (id: string) => {
+            const res = await resolveRemoteWorkout(id, {
+              storage: storageService.storage,
+              ...(feedParam ? { feedId: feedParam } : {}),
+            }).catch(() => undefined);
+            if (!res) return undefined;
+            const meta = lookupRemoteRecord(id);
+            return {
+              row: res.row,
+              canonicalNoteId: res.canonicalNoteId,
+              remoteNoteId: res.remoteNoteId,
+              feedId: res.feedId,
+              notebookSlug: meta?.notebookSlug,
+              record: meta?.record,
+            };
+          };
+          await prepareJournalSessionRun(storageService.storage, {
+            noteId: runTargetId,
+            journalDate: localDateKey(new Date()),
+            resolveRemoteWorkout: resolveRemote,
+          }).catch(() => undefined);
+          const captured = await captureStoredRun(
+            runTargetId,
+            block,
+            uuidv7(),
+            'journal',
+            { resolveRemoteWorkout: resolveRemote },
+          );
+          const refreshedRaw = await storageService.getNote(captured.note.id).catch(() => undefined);
+          if (refreshedRaw) setRawNote(refreshedRaw);
+          pendingRuntimes.set(captured.session.id, {
+            block: captured.block,
+            noteId: captured.note.id,
+            captured,
+            returnTo: notePath(captured.note.id),
+          });
+          void navigate(runPath(captured.session.id));
+          return;
+        }
         const captured = await draft.captureForRun(block, uuidv7());
         const targetNoteId = captured.note.id;
         pendingRuntimes.set(captured.session.id, { block: captured.block, noteId: targetNoteId, captured, returnTo: notePath(targetNoteId) });
         void navigate(runPath(captured.session.id));
-      } catch {
-        // error is tracked and rendered by draft.saveError
+      } catch (err) {
+        if (ownershipMeta.isNonOwned) {
+          toast({
+            title: 'Workout not started',
+            description: err instanceof Error ? err.message : 'Unable to start workout.',
+            variant: 'destructive',
+          });
+        }
       }
     },
-    [entry, draft.captureForRun, navigate],
+    [entry, ownershipMeta.isNonOwned, parsedRemote.isRemote, noteId, feedParam, draft.captureForRun, navigate],
   );
 
   const noteActions = useNoteActions({
@@ -261,9 +405,31 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const handleCompleteWorkout = useCallback(() => Promise.resolve(), []);
 
   let body: ReactNode
-  if (missing) {
+  if (remoteLoading) {
     body = (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-zinc-400">
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+        <p>Loading workout from feed…</p>
+      </div>
+    )
+  } else if (remoteError) {
+    body = (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center" role="alert">
+        <p className="text-sm font-semibold text-foreground">Workout unavailable</p>
+        <p className="max-w-md text-xs text-muted-foreground">{remoteError}</p>
+        <div className="flex items-center gap-2">
+          <Button variant="default" size="sm" onClick={() => setRemoteRetryTick(t => t + 1)} className="gap-1.5">
+            <RefreshCw className="size-3.5" aria-hidden="true" />
+            Retry
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/feeds')}>
+            Browse feeds
+          </Button>
+        </div>
+      </div>
+    )
+  } else if (missing) {
+    body = (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
         <p>Note not found.</p>
         <Button variant="outline" onClick={() => navigate(-1)}>
           Go back
@@ -305,10 +471,45 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                   notebookId={entry.notebookId}
                   sessions={results}
                   isReadOnlyFeedNote={isReadOnly}
+                  note={rawNote ?? entry}
+                  ownershipOverride={ownershipMeta.ownership}
+                  resolveFeedLabel={(id) => feedSourceById(id)?.label}
+                  resolveRemoteWorkoutFn={async (id) => {
+                    const res = await resolveRemoteWorkout(id, { storage: storageService.storage, ...(feedParam ? { feedId: feedParam } : {}) }).catch(() => undefined);
+                    if (!res) return undefined;
+                    const meta = lookupRemoteRecord(id);
+                    return { row: res.row, canonicalNoteId: res.canonicalNoteId, remoteNoteId: res.remoteNoteId, feedId: res.feedId, notebookSlug: meta?.notebookSlug, record: meta?.record };
+                  }}
                   open={noteActions.promotionOpen}
                   onOpenChange={noteActions.setPromotionOpen}
                   onCloneRequest={() => noteActions.setPlacement('clone')}
+                  onForked={(forked) => { void navigate(`${notePath(forked.id)}?edit=1`) }}
                 />
+                {ownershipMeta.isNonOwned && !isPageView && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {scriptBlocks.length > 0 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => void handleStartWorkout(scriptBlocks[0]!)}
+                        className="h-8 gap-1.5 px-3 text-xs"
+                      >
+                        <Play className="size-3.5" aria-hidden="true" />
+                        Start / Log Workout
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setForkOpen(true)}
+                      className="h-8 gap-1.5 px-3 text-xs"
+                    >
+                      <GitFork className="size-3.5" aria-hidden="true" />
+                      Fork to My Notes
+                    </Button>
+                  </div>
+                )}
                 {entry.journalDate && entry.journalDate !== entry.title && (
                     <Link to={dayPath(entry.journalDate)} className="underline-offset-2 hover:underline">
                       {entry.journalDate}
@@ -379,7 +580,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                             setEditingPageSlug(true)
                           }}
                           data-testid="note-edit-page-slug-btn"
-                          className="text-[11px] text-muted-foreground/70 hover:text-foreground underline-offset-2 hover:underline"
+                          className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
                         >
                           Edit slug
                         </button>
@@ -479,7 +680,22 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
               ) : (
                 <div className="flex items-center justify-center text-zinc-400 text-sm py-8">Loading…</div>
               )}
+              <WorkoutSessionsList sessions={results} />
               <BlockHistory noteId={entry.id} blocks={draft.committedBlocks} sourceRevision={draft.committedRevision} onRevert={isReadOnly ? undefined : draft.restoreRevision} />
+              <ForkToMyNotesDialog
+                open={forkOpen}
+                onOpenChange={setForkOpen}
+                sourceNoteId={parsedRemote.isRemote ? noteId : entry.id}
+                sourceTitle={entry.title}
+                storageInstance={storageService.storage}
+                resolveRemoteWorkoutFn={async (id) => {
+                  const res = await resolveRemoteWorkout(id, { storage: storageService.storage, ...(feedParam ? { feedId: feedParam } : {}) }).catch(() => undefined);
+                  if (!res) return undefined;
+                  const meta = lookupRemoteRecord(id);
+                  return { row: res.row, canonicalNoteId: res.canonicalNoteId, remoteNoteId: res.remoteNoteId, feedId: res.feedId, notebookSlug: meta?.notebookSlug, record: meta?.record };
+                }}
+                onForked={(forked) => { void navigate(`${notePath(forked.id)}?edit=1`) }}
+              />
               {draft.saveError && (
                 <p role="alert" className="text-sm text-destructive">
                   {draft.saveError}

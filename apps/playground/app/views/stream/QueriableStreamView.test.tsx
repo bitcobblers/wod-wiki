@@ -6,6 +6,7 @@ import type { Entry } from '../../lib/entryMapper'
 import { StreamQueryEngine } from '../../lib/entrySearch'
 import * as toastModule from '@/hooks/use-toast'
 import * as feedSyncModule from '@/services/feed/feedSync'
+import * as feedCatalogModule from '@/services/feed/feedCatalog'
 import * as seedContentModule from '@/services/content/seedContent'
 import * as effortRegistryModule from '@/services/effortRegistry'
 import * as createPlaygroundPageModule from '../../services/createPlaygroundPage'
@@ -519,7 +520,8 @@ describe('QueriableStreamView component', () => {
       expect(screen.getByText('Fran Workout')).toBeDefined()
     })
 
-    const addButton = screen.getByTestId('action-add')
+    fireEvent.click(screen.getByTestId('library-row-overflow'))
+    const addButton = await waitFor(() => screen.getByTestId('action-add'))
     fireEvent.click(addButton)
     expect(handleAdd).toHaveBeenCalledTimes(1)
     expect(handleAdd.mock.calls[0][0].id).toBe('res-42')
@@ -562,7 +564,8 @@ describe('QueriableStreamView component', () => {
       expect(screen.getByText('Fran Workout')).toBeDefined()
     })
 
-    const addButton = screen.getByTestId('action-add')
+    fireEvent.click(screen.getByTestId('library-row-overflow'))
+    const addButton = await waitFor(() => screen.getByTestId('action-add'))
     fireEvent.click(addButton)
 
     await waitFor(() => {
@@ -1704,11 +1707,10 @@ describe('QueriableStreamView — query truth and retained state', () => {
     expect(screen.getByTestId('route-wql-empty-options')).toBeDefined()
   })
 
-  it('gates feed card Unsubscribe behind window.confirm on /feeds (WW-016)', async () => {
+  it('gates feed card Unsubscribe behind an accessible AlertDialog on /feeds (WW-016)', async () => {
     const unsubscribeSpy = spyOn(feedSyncModule, 'unsubscribeFeedSource').mockImplementation(
       (async () => ({ deleted: 5 })) as never,
     )
-    const confirmSpy = spyOn(window, 'confirm').mockImplementation(() => false)
 
     const feedEntries: Entry[] = [
       {
@@ -1732,18 +1734,21 @@ describe('QueriableStreamView — query truth and retained state', () => {
 
     const unsubBtn = await waitFor(() => screen.getByTestId('row-unsubscribe-sport-hyrox'))
 
+    // Clicking Unsubscribe opens an accessible AlertDialog mentioning the feed & pinned local sessions.
+    fireEvent.click(unsubBtn)
+    const alertDialog = await waitFor(() => screen.getByRole('alertdialog'))
+    expect(alertDialog.textContent).toContain('HYROX Workouts')
+    expect(alertDialog.textContent).toContain('pinned locally')
+
     // Declined confirmation -> unsubscribeFeedSource is not called.
-    await act(async () => {
-      fireEvent.click(unsubBtn)
-    })
-    expect(confirmSpy).toHaveBeenCalledTimes(1)
-    expect(confirmSpy.mock.calls[0]?.[0]).toContain('HYROX Workouts')
+    fireEvent.click(within(alertDialog).getByRole('button', { name: 'Cancel' }))
     expect(unsubscribeSpy).not.toHaveBeenCalled()
 
     // Accepted confirmation -> unsubscribeFeedSource runs with feedId.
-    confirmSpy.mockImplementation(() => true)
+    fireEvent.click(unsubBtn)
+    const confirmDialog = await waitFor(() => screen.getByRole('alertdialog'))
     await act(async () => {
-      fireEvent.click(unsubBtn)
+      fireEvent.click(within(confirmDialog).getByRole('button', { name: 'Unsubscribe' }))
     })
     await waitFor(() => {
       expect(unsubscribeSpy).toHaveBeenCalledTimes(1)
@@ -1916,6 +1921,70 @@ describe('QueriableStreamView — query truth and retained state', () => {
       })
       expect(screen.queryByTestId('notebook-not-found')).toBeNull()
     } finally {
+      resetStorageForTesting()
+    }
+  })
+
+  it('prompts with a writable notebook picker dialog before cloning a remote preview note and never defaults to notebook/defaults', async () => {
+    setStorageForTesting(new InMemoryStorage())
+    const cloneSpy = spyOn(feedCatalogModule, 'cloneRemotePreviewNoteToNotebook').mockResolvedValue({
+      id: 'cloned-note-1',
+      title: 'KB Day 1',
+      rawContent: '# KB Day 1',
+      sourceRevision: 1,
+      blocks: {},
+      createdAt: Date.now(),
+    } as Note)
+    const subSpy = spyOn(feedSyncModule, 'toggleNotebookSubscription').mockResolvedValue(undefined)
+    try {
+      const remoteEntries: Entry[] = [
+        {
+          id: 'remote:peer-kb:uuid-1',
+          kind: 'note',
+          sourceNotebook: 'kettlebell-club',
+          sourceNote: 'kb-day-1',
+          title: 'KB Day 1',
+          date: null,
+          feedId: 'peer-kb',
+          seedChunkId: 'notebook.kettlebell-custom',
+          isRemotePreview: true,
+          editable: false,
+        },
+      ]
+      const { engine } = stubEngine(() => remoteEntries)
+      render(
+        <MemoryRouter initialEntries={['/notebook/kettlebell-club?feed=peer-kb']}>
+          <QueriableStreamView profile={createNotebookProfile('kettlebell-club')} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+
+      const banner = await waitFor(() => screen.getByTestId('remote-notebook-preview-banner'))
+      expect(banner.textContent).toContain('Index Preview · 1 workout — loaded on demand')
+
+      // Subscribe CTA passes entries[0].seedChunkId instead of hardcoded slug
+      fireEvent.click(screen.getByTestId('remote-preview-subscribe-btn'))
+      await waitFor(() => {
+        expect(subSpy).toHaveBeenCalledWith('peer-kb', 'notebook.kettlebell-custom', true)
+      })
+
+      // Clone button opens destination notebook picker dialog instead of silent dump
+      fireEvent.click(screen.getByTestId('row-clone-remote-remote:peer-kb:uuid-1'))
+      const dialog = await waitFor(() => screen.getByRole('dialog'))
+      const select = within(dialog).getByLabelText('Destination notebook') as HTMLSelectElement
+      await waitFor(() => {
+        expect(Array.from(select.options).some(o => o.value === 'notebook/custom')).toBe(true)
+      })
+      expect(Array.from(select.options).some(o => o.value === 'notebook/defaults')).toBe(false)
+      expect(cloneSpy).not.toHaveBeenCalled()
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Clone to Notebook' }))
+      await waitFor(() => {
+        expect(cloneSpy).toHaveBeenCalledTimes(1)
+      })
+      expect(cloneSpy.mock.calls[0]![1]).not.toBe('notebook/defaults')
+    } finally {
+      cloneSpy.mockRestore()
+      subSpy.mockRestore()
       resetStorageForTesting()
     }
   })

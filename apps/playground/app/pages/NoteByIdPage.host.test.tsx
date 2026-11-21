@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import {
   renderWithPlaygroundHost,
   type PlaygroundRenderResult,
 } from '@/testing/host';
+import * as feedCatalogModule from '@/services/feed/feedCatalog';
 import { journalNotes } from '../services/journalNotes';
 import { useNav, type L3ActionItem } from '../nav/NavContext';
 import { NoteByIdPage } from './NoteByIdPage';
@@ -191,5 +192,75 @@ describe('NoteByIdPage Delete note action (WW-005)', () => {
       expect(latestActions.some((a) => a.label === 'Clone')).toBe(true);
     });
     expect(latestActions.some((a) => a.label === 'Delete note')).toBe(false);
+  });
+
+  it('renders 3-state authorship badge, Fork to My Notes, and remote on-demand loading/error fallback', async () => {
+    const spy = vi.spyOn(feedCatalogModule, 'resolveRemoteWorkout').mockResolvedValueOnce({
+      canonicalNoteId: 'remote-uuid-1',
+      remoteNoteId: 'remote:sport-crossfit:remote-uuid-1',
+      feedId: 'sport-crossfit',
+      fromCache: false,
+      note: {
+        id: 'remote-uuid-1',
+        title: 'Cindy',
+        rawContent: '# Cindy\n\n```wod\n20:00 AMRAP\n  5 Pull-up\n  10 Push-up\n  15 Air Squat\n```',
+        sourceRevision: 1,
+        blocks: {},
+        createdAt: Date.now(),
+        feedOrigin: 'feed',
+        feedSourceId: 'sport-crossfit',
+        retention: 'cached',
+        upstreamStatus: 'live',
+      },
+      seedRow: {
+        path: 'girls/cindy.md',
+        content: '# Cindy\n\n```wod\n20:00 AMRAP\n```',
+        blocks: {},
+        blockIndex: [],
+        blockEfforts: [],
+        blockEquipment: [],
+      },
+      row: {
+        path: 'girls/cindy.md',
+        content: '# Cindy\n\n```wod\n20:00 AMRAP\n```',
+        blocks: {},
+        blockIndex: [],
+        blockEfforts: [],
+        blockEquipment: [],
+      },
+    });
+
+    try {
+      const host = await renderWithPlaygroundHost(
+        <NoteByIdPage noteId="remote:sport-crossfit:remote-uuid-1" theme="light" />,
+        { route: '/note/remote:sport-crossfit:remote-uuid-1' },
+      );
+      activeHosts.push(host);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('publication-pill').textContent).toContain('From CrossFit · Read-only');
+      });
+      expect(screen.getByTestId('publication-pill').textContent).not.toContain('Private');
+      expect(screen.getByRole('button', { name: /Fork to My Notes/i })).toBeDefined();
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+
+    const failSpy = vi.spyOn(feedCatalogModule, 'resolveRemoteWorkout').mockResolvedValueOnce(undefined);
+    try {
+      const host = await renderWithPlaygroundHost(
+        <NoteByIdPage noteId="remote:sport-crossfit:missing-uuid" theme="light" />,
+        { route: '/note/remote:sport-crossfit:missing-uuid' },
+      );
+      activeHosts.push(host);
+
+      await waitFor(() => {
+        expect(screen.getByText('Workout unavailable')).toBeDefined();
+      });
+      expect(screen.getByRole('button', { name: /Retry/i })).toBeDefined();
+    } finally {
+      failSpy.mockRestore();
+    }
   });
 });

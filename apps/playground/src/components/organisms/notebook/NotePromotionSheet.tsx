@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type SyntheticEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from 'react';
+import { Link, useInRouterContext, useNavigate } from 'react-router-dom';
 import {
   Button,
   Drawer,
@@ -12,26 +12,39 @@ import {
 } from '@bitcobblers/wod-wiki-ui/primitives';
 import { X } from 'lucide-react';
 import {
+  derivePublicationStatusLabel,
   isNonPublishableNotebook,
   isPublishableNotebookLanding,
   notebookSlugFromId,
   toNotebookId,
+  type Note,
   type NotebookId,
+  type NoteOwnershipInput,
   type PublicationVisibilitySummary,
   type Session,
 } from '@bitcobblers/wod-wiki-core';
 import {
   createUserNotebookLanding,
+  forkNoteToUserNotebook,
   getNoteNotebooks,
+  parseRemoteNoteId,
   promoteNoteToNotebooks,
   removeNoteFromNotebook,
   resolveUpstreamProvenance,
   setNotebookPublic,
   setSessionPublic,
+  type RemoteWorkoutResolution,
   type ResolvedUpstreamProvenance,
 } from '@bitcobblers/wod-wiki-engine';
+import { notebookOfItem, notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql';
 import type { IStorage } from '@bitcobblers/wod-wiki-storage';
 import { storageBackend } from '@/hooks/useBrowserServices';
+import {
+  listWritableNotebooks,
+  resolveOwnershipPresentation,
+  type OwnershipPresentation,
+  type WritableNotebookTarget,
+} from '@/components/molecules/PublicationPill';
 import {
   exportFeedRepositoryToDirectory,
   exportFeedRepositoryZip,
@@ -48,8 +61,13 @@ export interface NotePromotionSheetProps {
   summary: PublicationVisibilitySummary;
   noteSessions: readonly Session[];
   isReadOnlyFeedNote?: boolean;
+  ownershipPresentation?: OwnershipPresentation;
+  note?: NoteOwnershipInput;
+  resolveFeedLabel?: (feedSourceId: string) => string | undefined;
+  resolveRemoteWorkoutFn?: (noteId: string) => Promise<RemoteWorkoutResolution | undefined>;
   onRefresh: () => Promise<void>;
   onCloneRequest?: () => void;
+  onForked?: (forked: Note) => void;
 }
 
 interface UserNotebookRow {
@@ -68,10 +86,21 @@ export function NotePromotionSheet({
   summary,
   noteSessions,
   isReadOnlyFeedNote = false,
+  ownershipPresentation,
+  note: noteProp,
+  resolveFeedLabel,
+  resolveRemoteWorkoutFn,
   onRefresh,
   onCloneRequest,
+  onForked,
 }: NotePromotionSheetProps) {
+  const inRouter = useInRouterContext();
+  const navigate = useNavigate();
   const [userNotebooks, setUserNotebooks] = useState<UserNotebookRow[]>([]);
+  const [writableForkTargets, setWritableForkTargets] = useState<WritableNotebookTarget[]>([]);
+  const [forkTargetNotebookId, setForkTargetNotebookId] = useState<string>('notebook/journal');
+  const [forking, setForking] = useState(false);
+  const [loadedNote, setLoadedNote] = useState<Note | null>(null);
   const [linkedIds, setLinkedIds] = useState<NotebookId[]>([]);
   const [provenance, setProvenance] = useState<ResolvedUpstreamProvenance | null>(null);
   const [newNotebookName, setNewNotebookName] = useState('');
@@ -82,13 +111,25 @@ export function NotePromotionSheet({
   useEffect(() => {
     setLocalSessions([...noteSessions]);
   }, [noteSessions]);
+
+  const parsedRemote = parseRemoteNoteId(noteId);
+  const canonicalNoteId = parsedRemote.isRemote ? parsedRemote.uuid : noteId;
+
   const loadSheetState = useCallback(async () => {
     try {
-      const [allNotes, currentLinks] = await Promise.all([
+      const [allNotes, currentLinks, writable] = await Promise.all([
         storageInstance.readonly('notes').getAll(),
-        getNoteNotebooks(storageInstance, noteId),
+        getNoteNotebooks(storageInstance, canonicalNoteId),
+        listWritableNotebooks(storageInstance),
       ]);
-      const currentNote = allNotes.find((n) => n.id === noteId);
+      const currentNote =
+        allNotes.find((n) => n.id === canonicalNoteId) ??
+        allNotes.find((n) => n.id === noteId);
+      setLoadedNote(currentNote ?? null);
+      setWritableForkTargets(writable);
+      setForkTargetNotebookId((prev) =>
+        writable.some((nb) => nb.id === prev) ? prev : (writable[0]?.id ?? 'notebook/journal'),
+      );
       if (currentNote) {
         setProvenance(await resolveUpstreamProvenance(storageInstance, currentNote));
       } else {
@@ -124,7 +165,7 @@ export function NotePromotionSheet({
       // Ignore transient unmount/storage errors
       setHydrated(true);
     }
-  }, [storageInstance, noteId]);
+  }, [storageInstance, noteId, canonicalNoteId]);
 
   useEffect(() => {
     if (open) {
@@ -198,7 +239,7 @@ export function NotePromotionSheet({
   };
 
   const handleToggleNotebookPublic = async (nbId: NotebookId, nextPublic: boolean) => {
-    if (busy || isReadOnlyFeedNote) return;
+    if (busy || isNonOwned) return;
     setUserNotebooks((prev) =>
       prev.some((n) => n.id === nbId)
         ? prev.map((n) => (n.id === nbId ? { ...n, isPublic: nextPublic } : n))
@@ -229,8 +270,64 @@ export function NotePromotionSheet({
     }
   };
 
+  const ownershipMeta = useMemo(() => {
+    const resolvedNote = (noteProp ?? loadedNote ?? undefined) as
+      | (NoteOwnershipInput & { id?: string })
+      | undefined;
+    return (
+      ownershipPresentation ??
+      resolveOwnershipPresentation(resolvedNote, {
+        noteId,
+        notebookOrigin: loadedNote ? notebookOriginOfItem(loadedNote) : undefined,
+        resolvedNotebookId: loadedNote ? notebookOfItem(loadedNote) : undefined,
+        fallbackReadOnly: isReadOnlyFeedNote,
+        resolveFeedLabel,
+      })
+    );
+  }, [ownershipPresentation, noteProp, loadedNote, noteId, isReadOnlyFeedNote, resolveFeedLabel]);
+
+  const isNonOwned = isReadOnlyFeedNote || ownershipMeta.isNonOwned;
+  const userVisibilityLabel = derivePublicationStatusLabel(
+    summary.visibility,
+    ownershipMeta.ownership,
+  );
+
+  const handleForkToMyNotes = async () => {
+    if (forking) return;
+    setForking(true);
+    try {
+      const forked = await forkNoteToUserNotebook(
+        storageInstance,
+        noteId,
+        forkTargetNotebookId,
+        {
+          resolveRemoteWorkout: resolveRemoteWorkoutFn,
+        },
+      );
+      toast({
+        title: 'Forked to My Notes',
+        description: `Created editable copy "${forked.title || 'Workout'}"`,
+      });
+      onOpenChange(false);
+      await onRefresh();
+      if (onForked) {
+        onForked(forked);
+      } else if (inRouter) {
+        void navigate(`/note/${encodeURIComponent(forked.id)}?edit=1`);
+      }
+    } catch (err) {
+      toast({
+        title: 'Could not fork workout',
+        description: err instanceof Error ? err.message : 'Unable to create a personal copy.',
+        variant: 'destructive',
+      });
+    } finally {
+      setForking(false);
+    }
+  };
+
   const handleToggleSessionPublic = async (sess: Session, nextPublic: boolean) => {
-    if (busy) return;
+    if (busy || isNonOwned) return;
     setLocalSessions((prev) =>
       prev.map((s) => (s.id === sess.id ? { ...s, public: nextPublic } : s)),
     );
@@ -301,10 +398,10 @@ export function NotePromotionSheet({
         <div className="flex items-start justify-between gap-3 border-b border-border pb-3.5">
           <div className="space-y-0.5">
             <DrawerTitle className="text-sm font-semibold tracking-tight">
-              Notebooks &amp; Publication
+              {isNonOwned ? 'Provenance & Local Copy' : 'Notebooks & Publication'}
             </DrawerTitle>
             <DrawerDescription className="text-xs text-muted-foreground">
-              {summary.visibility} · Journal stays private
+              {isNonOwned ? `${ownershipMeta.badgeLabel} · Sessions stay private` : `${userVisibilityLabel} · Journal stays private`}
             </DrawerDescription>
           </div>
           <DrawerClose
@@ -339,21 +436,49 @@ export function NotePromotionSheet({
           </div>
         )}
 
-        {isReadOnlyFeedNote ? (
+        {isNonOwned ? (
           <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Read-only upstream Note. Running any workout on this Note automatically snapshots a versioned copy into your private Journal, or you can clone it directly.
+              {ownershipMeta.guidanceCopy}
             </p>
+            <div className="space-y-2 rounded-md border border-border/80 bg-background/80 p-3">
+              <label htmlFor="promotion-fork-notebook" className="block text-xs font-medium text-foreground">
+                Fork to editable personal notebook
+              </label>
+              <select
+                id="promotion-fork-notebook"
+                value={forkTargetNotebookId}
+                onChange={(e) => setForkTargetNotebookId(e.target.value)}
+                disabled={forking}
+                className="w-full min-h-9 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {writableForkTargets.map((nb) => (
+                  <option key={nb.id} value={nb.id}>
+                    {nb.name || nb.slug}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                disabled={forking}
+                onClick={() => void handleForkToMyNotes()}
+                className="min-h-10 w-full text-xs gap-1.5"
+              >
+                {forking ? 'Forking…' : 'Fork to My Notes'}
+              </Button>
+            </div>
             {onCloneRequest && (
               <Button
+                type="button"
+                variant="outline"
                 onClick={() => {
                   onOpenChange(false);
                   onCloneRequest();
                 }}
                 data-testid="promotion-clone-readonly-btn"
-                className="min-h-11 w-full text-xs"
+                className="min-h-10 w-full text-xs"
               >
-                Clone to Journal
+                Place in Journal / Page…
               </Button>
             )}
           </div>
@@ -373,7 +498,7 @@ export function NotePromotionSheet({
                 </svg>
                 <span className="font-medium">Journal</span>
               </div>
-              <span className="rounded-full bg-muted px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              <span className="rounded-full bg-muted px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                 Private · Permanent
               </span>
             </div>
@@ -410,7 +535,7 @@ export function NotePromotionSheet({
                         </span>
                         <div className="min-w-0">
                           <div className="font-medium truncate">{nb.title}</div>
-                          <div className="font-mono text-[10px] text-muted-foreground">notebook/{nb.slug}</div>
+                          <div className="font-mono text-[11px] text-muted-foreground">notebook/{nb.slug}</div>
                         </div>
                       </button>
 
@@ -428,7 +553,7 @@ export function NotePromotionSheet({
                                 : `publication-notebook-public-toggle-${nb.slug}`
                             }
                           />
-                          <span className="font-mono text-[10px] uppercase tracking-wider">
+                          <span className="font-mono text-[11px] uppercase tracking-wider">
                             {nb.isPublic ? 'Public' : 'Private'}
                           </span>
                         </label>
@@ -443,7 +568,7 @@ export function NotePromotionSheet({
               <label className="flex items-center justify-between gap-2 min-h-11 rounded-lg border border-border px-3 py-2 cursor-pointer text-xs">
                 <div>
                   <div className="font-medium">Public Notebook</div>
-                  <div className="font-mono text-[10px] text-muted-foreground">notebook/{primaryUserNotebook.slug}</div>
+                  <div className="font-mono text-[11px] text-muted-foreground">notebook/{primaryUserNotebook.slug}</div>
                 </div>
                 <input
                   type="checkbox"
@@ -501,37 +626,43 @@ export function NotePromotionSheet({
                   <li key={sess.id} className="flex items-center justify-between gap-2 min-h-11 px-3 py-2 text-xs">
                     <div className="min-w-0">
                       <div className="font-medium truncate">{dateStr}</div>
-                      <div className="font-mono text-[10px] text-muted-foreground">
+                      <div className="font-mono text-[11px] text-muted-foreground">
                         {durSec}s · {sess.completed ? 'completed' : 'partial'}
                       </div>
                     </div>
-                    <label className="inline-flex items-center gap-1.5 cursor-pointer shrink-0 min-h-9">
-                      <input
-                        type="checkbox"
-                        className="size-3.5 accent-primary"
-                        checked={sess.public === true}
-                        disabled={busy}
-                        onChange={(e) => void handleToggleSessionPublic(sess, e.target.checked)}
-                        data-testid={`publication-session-toggle-${sess.id}`}
-                      />
-                      <span className="font-mono text-[10px] uppercase tracking-wider">
-                        {sess.public ? 'Public' : 'Private'}
+                    {isNonOwned ? (
+                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider text-foreground">
+                        Private (local)
                       </span>
-                    </label>
+                    ) : (
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer shrink-0 min-h-9">
+                        <input
+                          type="checkbox"
+                          className="size-3.5 accent-primary"
+                          checked={sess.public === true}
+                          disabled={busy}
+                          onChange={(e) => void handleToggleSessionPublic(sess, e.target.checked)}
+                          data-testid={`publication-session-toggle-${sess.id}`}
+                        />
+                        <span className="font-mono text-[11px] uppercase tracking-wider">
+                          {sess.public ? 'Public' : 'Private'}
+                        </span>
+                      </label>
+                    )}
                   </li>
                 );
               })}
             </ul>
           )}
 
-          {!summary.notebookPublic && summary.publicSessions > 0 && (
-            <p className="rounded-md bg-warning/15 text-warning px-3 py-2 text-[11px]">
+          {!isNonOwned && !summary.notebookPublic && summary.publicSessions > 0 && (
+            <p className="rounded-md border border-amber-700/25 bg-amber-500/15 text-amber-900 dark:text-amber-100 px-3 py-2 text-[11px]">
               Shared Sessions stay Private until at least one linked user Notebook is marked Public.
             </p>
           )}
         </div>
 
-        {summary.notebookPublic && !isReadOnlyFeedNote && (
+        {summary.notebookPublic && !isNonOwned && (
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
             {storageBackend === 'api' ? (
               <Button

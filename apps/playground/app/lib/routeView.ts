@@ -26,6 +26,7 @@ import { deriveNav } from './routeNav'
 import { resolveDayRoute, isNoteUuid } from './dayRoute'
 import { parseJournalDate } from '../services/parseJournalDate'
 import { PLAYGROUND_CONTENT } from '@/constants/defaultContent'
+import { feedSourceById } from '@/services/feed/feedSources'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -217,7 +218,12 @@ function deriveWorkout(
     return { name: decodeURIComponent(flags.notebookItemMatch[2]), content: '', category: 'notebook' }
   }
   if (flags.feedDetailMatch) {
-    return { name: decodeURIComponent(flags.feedDetailMatch), content: '', category: 'feed' }
+    const slug = decodeURIComponent(flags.feedDetailMatch)
+    return {
+      name: feedSourceById(flags.feedDetailMatch)?.label ?? feedSourceById(slug)?.label ?? slug,
+      content: '',
+      category: 'feed',
+    }
   }
   if (pathname.startsWith('/t/')) {
     return { name: 'Tags', content: '', category: 'tags' }
@@ -264,7 +270,7 @@ function deriveWorkout(
     // looks up the wrong page and renders the default notebook.
     return found
       ? { name: found.name, content: found.content, category: found.category }
-      : { name, content: PLAYGROUND_CONTENT, category }
+      : { name, content: '', category }
   }
 
   return { name: 'Home', content: PLAYGROUND_CONTENT, category: 'General' }
