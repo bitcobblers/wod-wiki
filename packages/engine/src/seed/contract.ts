@@ -19,10 +19,14 @@ export interface SeedRow {
   version?: number;
 }
 
+export type FeedOfflinePolicy = 'index-only' | 'offline-full';
+
 export interface SeedRecordRef {
   uuid: string;
   path: string;
-  recordPath: string;
+  recordPath?: string;
+  /** Optional relative path or http(s) URL to raw portable Markdown (.md). */
+  rawUrl?: string;
   commit: string;
   version: number;
   sha256: string;
@@ -42,6 +46,10 @@ export interface NotebookIndexSummary {
   builtAt: string;
   sha256: string;
   bytes: number;
+  /** Optional lightweight index size in bytes when distinct from offline bundle bytes. */
+  indexBytes?: number;
+  /** Optional offline chunk bundle size in bytes. */
+  chunkBytes?: number;
   count: number;
 }
 
@@ -71,6 +79,10 @@ export interface SeedManifest {
   builtAt: string;
   chunks: ManifestChunk[];
   notebooks?: NotebookIndexSummary[];
+  /** Optional total index bytes across notebooks. */
+  indexBytes?: number;
+  /** Optional total offline chunk bytes across chunks. */
+  chunkBytes?: number;
 }
 export type SeedPrecedenceTier = 'core' | 'community' | 'imported' | 'user';
 export const SEED_PRECEDENCE_RANK: Readonly<Record<SeedPrecedenceTier, number>> = {
@@ -102,6 +114,10 @@ export interface SeedMetaRecord {
   tier?: SeedPrecedenceTier;
 }
 export const SEED_BROADCAST_CHANNEL = 'wodwiki.seed';
+export const FEED_INDEX_META_PREFIX = 'feed:index:';
+export function feedIndexMetaKey(feedId: string, notebookId: string): string {
+  return `${FEED_INDEX_META_PREFIX}${feedId}:${notebookId}`;
+}
 export const EFFORTS_CHUNK_ID = 'efforts';
 export const EQUIPMENT_CHUNK_ID = 'equipment';
 export const CANVAS_CHUNK_ID = 'canvas';

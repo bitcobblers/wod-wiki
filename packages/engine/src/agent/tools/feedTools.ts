@@ -80,6 +80,8 @@ export const wodFeedManageTool = defineAgentTool({
         importedAt?: number;
         chunkCount: number;
         subscribed?: boolean;
+        offlinePolicy?: 'index-only' | 'offline-full';
+        autoSync?: boolean;
       }> = [];
       for (const row of metaRows) {
         const obj = row as {
@@ -91,13 +93,16 @@ export const wodFeedManageTool = defineAgentTool({
         };
         if (typeof obj.key === 'string' && obj.key.startsWith('seed:') && obj.key !== seedMetaKey('user')) {
           const sourceId = obj.key.slice('seed:'.length);
+          const sub = subscriptions[sourceId];
           installedFeeds.push({
             sourceId,
             seedVersion: obj.seedVersion,
             builtAt: obj.builtAt,
             importedAt: obj.importedAt,
             chunkCount: Object.keys(obj.chunks ?? {}).length,
-            subscribed: subscriptions[sourceId]?.subscribed ?? true,
+            subscribed: sub?.subscribed ?? true,
+            offlinePolicy: sub?.offlinePolicy ?? (sourceId === 'core' ? 'offline-full' : 'index-only'),
+            autoSync: sub?.autoSync ?? (sourceId === 'core'),
           });
         }
       }

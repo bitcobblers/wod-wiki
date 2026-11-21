@@ -8,7 +8,16 @@
  * no explicit boolean verdict has been recorded for that Feed ID yet.
  */
 
-import { setFeedAutoSync, setFeedSubscribed } from './feedSubscriptions';
+import {
+  setFeedAutoSync,
+  setFeedOfflinePolicy,
+  setFeedSubscribed,
+} from './feedSubscriptions';
+import {
+  getAutoSyncCache,
+  getOfflinePolicyCache,
+  getSubsEntriesCache,
+} from './feedRegistryStore';
 
 export const PLAYGROUND_DEFAULT_SAMPLE_FEED_IDS = [
   'samples-movement',
@@ -39,14 +48,28 @@ export function ensurePlaygroundDefaultSubscriptions(
   sources: ReadonlyArray<{ id: string }>,
 ): string[] {
   const available = new Set(sources.map((s) => s.id));
-  const persistedSubs = readPersistedKeys(SUBSCRIPTIONS_STORAGE_KEY);
-  const persistedAuto = readPersistedKeys(AUTO_SYNC_STORAGE_KEY);
+  const hydratedEntries = getSubsEntriesCache() ?? {};
+  const persistedSubs = new Set([
+    ...readPersistedKeys(SUBSCRIPTIONS_STORAGE_KEY),
+    ...Object.keys(hydratedEntries),
+  ]);
+  const persistedAuto = new Set([
+    ...readPersistedKeys(AUTO_SYNC_STORAGE_KEY),
+    ...Object.keys(getAutoSyncCache() ?? {}),
+    ...Object.entries(hydratedEntries)
+      .filter(([, entry]) => entry.autoSync !== undefined)
+      .map(([id]) => id),
+  ]);
+  const explicitPolicies = getOfflinePolicyCache() ?? {};
   const seeded: string[] = [];
 
   for (const id of PLAYGROUND_DEFAULT_SAMPLE_FEED_IDS) {
     if (!available.has(id)) continue;
     if (!persistedSubs.has(id)) {
       setFeedSubscribed(id, true);
+      if (!explicitPolicies[id] && !hydratedEntries[id]?.offlinePolicy) {
+        setFeedOfflinePolicy(id, 'offline-full');
+      }
       seeded.push(id);
     }
     if (!persistedAuto.has(id)) {

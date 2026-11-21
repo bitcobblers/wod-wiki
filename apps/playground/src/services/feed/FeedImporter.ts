@@ -1,4 +1,4 @@
-import { assertNotebookIndex, assertSeedManifest, assertSeedRows, assertSeedRow, seedNoteId, type SeedChunkResult, type SeedChunkWrite, type SeedRow, type SeedManifest } from '@bitcobblers/wod-wiki-engine';
+import { assertNotebookIndex, assertSeedManifest, assertSeedRows, assertSeedRow, compileSeedRowFromMarkdown, seedNoteId, type SeedChunkResult, type SeedChunkWrite, type SeedRecordRef, type SeedRow, type SeedManifest } from '@bitcobblers/wod-wiki-engine';
 type SeedManifestChunk = SeedManifest['chunks'][number];
 type SeedManifestNotebook = NonNullable<SeedManifest['notebooks']>[number];
 import { CANVAS_CHUNK_ID, EFFORTS_CHUNK_ID, EQUIPMENT_CHUNK_ID, SEED_SCHEMA, emptySeedMeta, seedMetaKey, type SeedMetaRecord } from '@/types/seed';
@@ -40,7 +40,24 @@ export class FeedImporter {
     let expected = stored?.schema === SEED_SCHEMA ? stored : undefined;
     let meta = expected ?? emptySeedMeta(key);
     if (manifest.version < meta.seedVersion) throw new Error('Seed manifest is older than the stored checkpoint');
-    const targetChunks = manifest.chunks.filter((c) => {
+
+    // Synthesize virtual chunk entries for index-first notebooks that have no
+    // monolithic chunks/*.json entry in manifest.chunks (e.g. raw .md / records feeds).
+    const chunkIdsInManifest = new Set(manifest.chunks.map((c) => c.id));
+    const effectiveChunks: SeedManifestChunk[] = [
+      ...manifest.chunks,
+      ...(manifest.notebooks ?? [])
+        .filter((nb) => !chunkIdsInManifest.has(nb.notebookId))
+        .map((nb): SeedManifestChunk => ({
+          id: nb.notebookId,
+          path: nb.indexPath,
+          sha256: nb.sha256,
+          bytes: nb.bytes,
+          count: nb.count,
+        })),
+    ];
+
+    const targetChunks = effectiveChunks.filter((c) => {
       if (opts.notebookIds !== undefined && opts.notebookIds !== null) {
         if (opts.notebookIds.length === 0) return false;
         if (!opts.notebookIds.includes(c.id) && c.id !== EFFORTS_CHUNK_ID && c.id !== EQUIPMENT_CHUNK_ID) {
@@ -62,8 +79,8 @@ export class FeedImporter {
       return chunkStored.sha256 !== c.sha256;
     });
     plan.sort((a, b) => Number(b.id === CANVAS_CHUNK_ID) - Number(a.id === CANVAS_CHUNK_ID));
-    const vanished = Object.keys(meta.chunks).filter((id) => !manifest.chunks.some((c) => c.id === id));
-    const result: FeedImportResult = { status: 'current', appliedChunks: 0, totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
+    const vanished = Object.keys(meta.chunks).filter((id) => !effectiveChunks.some((c) => c.id === id));
+    const result: FeedImportResult = { status: 'current', appliedChunks: 0, totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, preservedPinned: 0, addedNotes: 0, updatedNotes: 0 };
     if (!plan.length && !vanished.length && manifest.version === meta.seedVersion && manifest.builtAt === meta.builtAt) return result;
     result.status = 'imported';
     const report = (phase: FeedImportProgress['phase'], chunkId: string | null, recordId?: string | null, completedRecords?: number, totalRecords?: number) =>
@@ -78,6 +95,7 @@ export class FeedImporter {
         totalBlocks: result.totalBlocks,
         skippedUserOwned: result.skippedUserOwned,
         deleted: result.deleted,
+        preservedPinned: result.preservedPinned,
         addedNotes: result.addedNotes,
         updatedNotes: result.updatedNotes,
         ...(recordId !== undefined ? { recordId } : {}),
@@ -91,6 +109,7 @@ export class FeedImporter {
       result.totalBlocks += committed.totalBlocks;
       result.skippedUserOwned += committed.skippedUserOwned;
       result.deleted += committed.deleted;
+      result.preservedPinned = (result.preservedPinned ?? 0) + (committed.preservedPinned ?? 0);
       result.addedNotes += committed.addedNotes;
       result.updatedNotes += committed.updatedNotes;
     };
@@ -114,7 +133,7 @@ export class FeedImporter {
     if (plan[0]?.id === CANVAS_CHUNK_ID) {
       const canvasChunk = plan[0];
       const notebook = manifest.notebooks?.find((n) => n.notebookId === canvasChunk.id);
-      const { rows, noteIds } = await this.fetchChunkData(canvasChunk, notebook, meta, opts, report);
+      const { rows, noteIds } = await this.fetchChunkData(canvasChunk, notebook, meta, opts, report, chunkIdsInManifest.has(canvasChunk.id));
       const next = buildChunkMeta(canvasChunk, notebook, noteIds);
       report('applying', canvasChunk.id);
       const committed = await this.storage.applyChunk({ chunkId: canvasChunk.id, rows, manifest, expectedMeta: expected, meta: next });
@@ -132,7 +151,7 @@ export class FeedImporter {
       const batch = plan.slice(i, i + 4);
       const batchResults = await Promise.all(batch.map(async (chunk) => {
         const notebook = manifest.notebooks?.find((n) => n.notebookId === chunk.id);
-        const { rows, noteIds } = await this.fetchChunkData(chunk, notebook, meta, opts, report);
+        const { rows, noteIds } = await this.fetchChunkData(chunk, notebook, meta, opts, report, chunkIdsInManifest.has(chunk.id));
         return { chunk, notebook, rows, noteIds };
       }));
       fetchedRemaining.push(...batchResults);
@@ -176,17 +195,43 @@ export class FeedImporter {
     return result;
   }
 
+  private async fetchSingleRecordRow(rec: SeedRecordRef): Promise<SeedRow[]> {
+    if (rec.recordPath) {
+      try {
+        const fetched = await this.source.fetchChunk(rec.recordPath);
+        return Array.isArray(fetched) ? assertSeedRows(fetched) : [assertSeedRow(fetched)];
+      } catch (err) {
+        if (!rec.rawUrl && !/\.md$/i.test(rec.path)) throw err;
+      }
+    }
+    const rawTarget = rec.rawUrl ?? rec.path;
+    const markdown = this.source.fetchText
+      ? await this.source.fetchText(rawTarget)
+      : String(await this.source.fetchChunk(rawTarget));
+    const compiled = await compileSeedRowFromMarkdown({
+      path: rec.path,
+      markdown,
+      uuid: rec.uuid,
+      commit: rec.commit,
+      version: rec.version,
+      title: rec.title,
+      date: rec.date,
+    });
+    return [compiled];
+  }
+
   private async fetchChunkData(
     chunk: SeedManifestChunk,
     notebook: SeedManifestNotebook | undefined,
     meta: SeedMetaRecord,
     opts: FeedImportOptions,
     report: (phase: FeedImportProgress['phase'], chunkId: string | null, recordId?: string | null, completedRecords?: number, totalRecords?: number) => void,
+    hasMonolithicChunk: boolean,
   ): Promise<{ rows: SeedRow[]; noteIds: string[] }> {
     let rows: SeedRow[];
     let records = chunk.records;
     const isIncremental = Boolean(meta.chunks[chunk.id] && opts.granularRecords && (notebook?.indexPath || chunk.records));
-    const useGranular = isIncremental || Boolean(opts.granularRecords && chunk.records && chunk.records.length > 0);
+    const useGranular = !hasMonolithicChunk || isIncremental || Boolean(opts.granularRecords && chunk.records && chunk.records.length > 0);
     if (useGranular) {
       if (notebook?.indexPath) {
         const fetchedIndex = assertNotebookIndex(await this.source.fetchChunk(notebook.indexPath));
@@ -199,7 +244,7 @@ export class FeedImporter {
         const neededRecords = commits
           ? records.filter((r) => commits.get(r.uuid) !== r.commit)
           : records;
-        if (isIncremental && neededRecords.length > records.length / 2) {
+        if (hasMonolithicChunk && isIncremental && neededRecords.length > records.length / 2) {
           report('fetching', chunk.id);
           const fetched = await this.source.fetchChunk(chunk.path);
           rows = assertSeedRows(fetched);
@@ -210,19 +255,18 @@ export class FeedImporter {
           for (let j = 0; j < neededRecords.length; j += CONCURRENCY) {
             const slice = neededRecords.slice(j, j + CONCURRENCY);
             report('fetching', chunk.id, slice[0]?.uuid, j, neededRecords.length);
-            const results = await Promise.all(slice.map(async (rec) => {
-              const fetched = await this.source.fetchChunk(rec.recordPath);
-              return Array.isArray(fetched) ? assertSeedRows(fetched) : [assertSeedRow(fetched)];
-            }));
+            const results = await Promise.all(slice.map((rec) => this.fetchSingleRecordRow(rec)));
             for (const r of results) fetchedRows.push(...r);
           }
           rows = fetchedRows;
         }
-      } else {
+      } else if (hasMonolithicChunk) {
         report('fetching', chunk.id);
         const fetched = await this.source.fetchChunk(chunk.path);
         rows = assertSeedRows(fetched);
         if (rows.length !== chunk.count) throw new Error('Seed chunk count mismatch');
+      } else {
+        rows = [];
       }
     } else {
       report('fetching', chunk.id);

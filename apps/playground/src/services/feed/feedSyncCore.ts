@@ -10,6 +10,14 @@
  * source-update snapshotting, check timestamps) happens in the driver
  * that interprets the returned SourceSyncCoreResult.
  */
+import {
+  FEED_SUBSCRIPTIONS_META_KEY,
+  assertNotebookIndex,
+  feedIndexMetaKey,
+  type FeedOfflinePolicy,
+  type FeedSubscriptionsMetaRecord,
+  type NotebookIndex,
+} from '@bitcobblers/wod-wiki-engine';
 import { assertManifest, type IFeedSource } from './IFeedSource';
 import { FeedImporter, type FeedImportProgress } from './FeedImporter';
 import type { FeedImportStorage } from './FeedImportStorage';
@@ -42,6 +50,8 @@ export interface SourceSyncCoreInput {
   tier?: SeedPrecedenceTier;
   notebookIds?: string[];
   granularRecords?: boolean;
+  /** Default `'index-only'` for non-core distributed feeds; `'offline-full'` downloads chunks/records. */
+  offlinePolicy?: FeedOfflinePolicy;
 }
 
 export interface SourceSyncCoreDeps {
@@ -76,6 +86,7 @@ export interface SourceSyncCoreResult {
   /** Import counters — set when chunks applied. */
   added?: number;
   updated?: number;
+  preservedPinned?: number;
   manifest?: SeedManifest;
 }
 
@@ -101,6 +112,32 @@ function freshClaimIsOther(meta: SeedMetaRecord | undefined, owner: string, now:
   return !!claim && claim.owner !== owner && now - claim.at < SEED_CLAIM_TTL_MS;
 }
 
+interface StoredNotebookIndexMeta {
+  key: string;
+  feedId: string;
+  notebookId: string;
+  index: NotebookIndex;
+  updatedAt: number;
+}
+
+async function resolveEffectiveOfflinePolicy(
+  input: SourceSyncCoreInput,
+  storage: FeedImportStorage,
+): Promise<FeedOfflinePolicy> {
+  if (input.offlinePolicy) return input.offlinePolicy;
+  if (input.id === 'core') return 'offline-full';
+  try {
+    const subs = await storage.getMeta?.<FeedSubscriptionsMetaRecord>(FEED_SUBSCRIPTIONS_META_KEY);
+    const storedPolicy = subs?.entries?.[input.id]?.offlinePolicy;
+    if (storedPolicy === 'index-only' || storedPolicy === 'offline-full') {
+      return storedPolicy;
+    }
+  } catch {
+    // Ignore metadata probe errors; default to index-only.
+  }
+  return 'index-only';
+}
+
 export async function runSourceSyncCore(
   input: SourceSyncCoreInput,
   deps: SourceSyncCoreDeps,
@@ -113,10 +150,16 @@ export async function runSourceSyncCore(
   try {
     const stored = await storage.getSeedMeta(metaKey);
     result.hadCheckpoint = (stored?.seedVersion ?? 0) > 0;
+    const effectivePolicy = await resolveEffectiveOfflinePolicy(input, storage);
 
     // Skip-fetch fast path: this bundle's own seed is already stored
     // (return-visit background refresh passes probeManifests to bypass).
-    if (!deps.force && !deps.probeManifests && storedFeedIsCurrent(stored, input.embeddedVersion)) {
+    if (
+      effectivePolicy === 'offline-full' &&
+      !deps.force &&
+      !deps.probeManifests &&
+      storedFeedIsCurrent(stored, input.embeddedVersion)
+    ) {
       result.outcome = 'current';
       return result;
     }
@@ -128,6 +171,73 @@ export async function runSourceSyncCore(
     const manifest = assertManifest(await input.source.fetchManifest());
     result.manifestChecked = true;
     result.manifest = manifest;
+    await storage.putMeta?.({
+      key: `catalog:${input.id}`,
+      feedId: input.id,
+      manifest,
+      updatedAt: now(),
+    }).catch(() => undefined);
+
+    const hasNotebookIndexes = Array.isArray(manifest.notebooks) && manifest.notebooks.length > 0;
+    if (effectivePolicy === 'index-only' && hasNotebookIndexes) {
+      const targetNotebooks = manifest.notebooks!.filter((nb) => {
+        if (input.notebookIds !== undefined && input.notebookIds !== null) {
+          if (input.notebookIds.length === 0) return false;
+          return input.notebookIds.includes(nb.notebookId);
+        }
+        return true;
+      });
+      const existingIndexes = await Promise.all(
+        targetNotebooks.map((nb) =>
+          storage.getMeta?.<StoredNotebookIndexMeta>(feedIndexMetaKey(input.id, nb.notebookId))
+            .catch(() => undefined),
+        ),
+      );
+      if (deps.background && !input.autoSyncOn) {
+        const hasPending = targetNotebooks.some((nb, i) => {
+          const cached = existingIndexes[i];
+          if (!cached?.index) return true;
+          if (nb.version > (cached.index.version ?? 0)) return true;
+          return Boolean(nb.sha256 && cached.index.sha256 !== nb.sha256);
+        });
+        result.outcome = hasPending ? 'update-pending' : 'current';
+        return result;
+      }
+
+      let anyFetched = false;
+      let preservedPinned = 0;
+      for (const [i, nb] of targetNotebooks.entries()) {
+        const cached = existingIndexes[i];
+        const stale =
+          deps.force === true ||
+          !cached?.index ||
+          nb.version > (cached.index.version ?? 0) ||
+          Boolean(nb.sha256 && cached.index.sha256 !== nb.sha256);
+        if (!stale) continue;
+        const nbIndex = assertNotebookIndex(await input.source.fetchChunk(nb.indexPath));
+        await storage.putMeta?.({
+          key: feedIndexMetaKey(input.id, nb.notebookId),
+          feedId: input.id,
+          notebookId: nb.notebookId,
+          index: nbIndex,
+          updatedAt: now(),
+        });
+        const liveUuids = new Set(nbIndex.records.map((r) => r.uuid));
+        const sweep = await storage.reconcileRemovedRecords?.(input.id, nb.notebookId, liveUuids);
+        preservedPinned += sweep?.preservedPinned ?? 0;
+        anyFetched = true;
+      }
+      result.outcome = anyFetched ? 'imported' : 'current';
+      if (anyFetched) {
+        result.applied = true;
+        result.importedVersion = manifest.version;
+        result.added = 0;
+        result.updated = 0;
+      }
+      if (preservedPinned > 0) result.preservedPinned = preservedPinned;
+      return result;
+    }
+
     const decision = deps.force ? 'import' : decideFeedImport(stored?.seedVersion, manifest.version);
     if (decision === 'server-stale') {
       result.outcome = 'server-stale';
@@ -192,6 +302,7 @@ export async function runSourceSyncCore(
         result.importedVersion = manifest.version;
         result.added = applied.addedNotes;
         result.updated = applied.updatedNotes;
+        if (applied.preservedPinned) result.preservedPinned = applied.preservedPinned;
       }
     } finally {
       const after = await storage.getSeedMeta(metaKey);

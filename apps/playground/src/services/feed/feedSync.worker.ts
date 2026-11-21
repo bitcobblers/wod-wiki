@@ -12,6 +12,7 @@
 import { IndexedDBStorage } from '@bitcobblers/wod-wiki-storage/idb';
 import type { FeedImportProgress } from './FeedImporter';
 import { HttpFeedSource } from './HttpFeedSource';
+import type { FeedOfflinePolicy } from '@bitcobblers/wod-wiki-engine';
 import type { SeedPrecedenceTier } from '@/types/seed';
 import { IndexedDBFeedImportStorage } from './FeedImportStorage';
 import { runSourceSyncCore, type FeedSyncOutcome, type SourceSyncCoreResult } from './feedSyncCore';
@@ -26,6 +27,7 @@ interface WorkerSourceSpec {
   autoSyncOn: boolean;
   notebookIds?: string[];
   granularRecords?: boolean;
+  offlinePolicy?: FeedOfflinePolicy;
 }
 
 interface RunMessage {
@@ -73,6 +75,7 @@ ctx.onmessage = (event: MessageEvent<RunMessage>): void => {
           ...(spec.tier ? { tier: spec.tier } : {}),
           notebookIds: spec.notebookIds,
           granularRecords: spec.granularRecords ?? true,
+          ...(spec.offlinePolicy ? { offlinePolicy: spec.offlinePolicy } : {}),
         },
         { storage, owner: msg.owner, now: Date.now, force: msg.force, probeManifests: msg.probeManifests, background: msg.background },
         {

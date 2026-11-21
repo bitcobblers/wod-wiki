@@ -10,6 +10,7 @@ import {
   derivePublicationVisibility,
   isNonPublishableNotebook,
   isPublishableNotebookLanding,
+  isSystemReadOnlyNotebook,
   parseDocumentSections,
   parseNoteBundleFromJsonl,
   reconcileNoteBlocks,
@@ -22,25 +23,36 @@ import {
   type EventRecord,
   type Note,
   type NoteBlock,
+  type NoteProvenance,
   type NoteTag,
   type NoteTelemetryBundle,
+  type NotebookLink,
   type PublicationVisibilitySummary,
   type Session,
   type Tag,
 } from '@bitcobblers/wod-wiki-core';
-import type { IStorage } from '@bitcobblers/wod-wiki-storage';
+import {
+  bundledEfforts,
+  createReferenceIndex,
+  extractStatementRefs,
+  parseScript,
+  type ReferenceIndex,
+} from '@bitcobblers/wod-wiki-lang';
+import type { IReadWriteStore, IStorage } from '@bitcobblers/wod-wiki-storage';
 import { notebookOfItem, notebooksOfItem } from '@bitcobblers/wod-wiki-wql';
-import { getNoteNotebooks } from '../notebook/membership';
+import { getNoteNotebooks, makeNotebookLinkId } from '../notebook/membership';
 import {
   composeNoteMarkdown,
   csvToTelemetryBundle,
+  parseFrontmatterDateMs,
   parseNoteMarkdown,
+  readFrontmatterMeta,
   telemetryBundleToCsv,
 } from '../exchange';
-import type { NotebookIndex, SeedRecordRef, SeedRow } from '../seed/contract';
+import { SEED_REGISTERED_WIDGETS, type NotebookIndex, type SeedRecordRef, type SeedRow } from '../seed/contract';
 import { seedNoteId } from '../seed/runtime';
 import { assertNotebookIndex, assertSeedRow } from '../seed/validation';
-import { decodeUtf8, type FeedTreeReader } from './tree';
+import { decodeUtf8, FeedTreeError, type FeedTreeReader, type FetchLike } from './tree';
 
 function mintUuidV4(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -186,6 +198,185 @@ export async function setSessionPublic(
 
 // ── Zero-import Remote Preview & Single-Record Clone ────────────────────────
 
+let cachedDefaultReferenceIndex: ReferenceIndex | null = null;
+function defaultLazyReferenceIndex(): ReferenceIndex {
+  if (!cachedDefaultReferenceIndex) {
+    cachedDefaultReferenceIndex = createReferenceIndex({
+      efforts: [...bundledEfforts],
+      equipment: [],
+    });
+  }
+  return cachedDefaultReferenceIndex;
+}
+
+function titleFromMarkdown(path: string, markdown: string): string {
+  const fm = readFrontmatterMeta(markdown);
+  const fmTitle = typeof fm['title'] === 'string' ? fm['title'].trim().replace(/^["']|["']$/g, '') : '';
+  if (fmTitle) return fmTitle;
+  const heading = markdown.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  if (heading) return heading;
+  return (path.split('/').at(-1) ?? path)
+    .replace(/\.md$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function notebookSlugFromFeedPath(path: string): string | undefined {
+  const match = /^markdown\/notebooks\/([^/]+)\//.exec(path);
+  return match?.[1] && match[1] !== '_root' ? match[1] : undefined;
+}
+
+export interface CompileMarkdownSeedRowInput {
+  path: string;
+  markdown: string;
+  uuid?: string;
+  commit?: string;
+  version?: number;
+  title?: string;
+  date?: number;
+  sourceId?: string;
+  routeId?: string;
+  createdAt?: number;
+  referenceIndex?: ReferenceIndex;
+}
+
+/**
+ * Compile a raw portable `.md` document into a validated `SeedRow` lazily
+ * in-client (headless; zero DOM/React/Node fs dependencies).
+ */
+export async function compileSeedRowFromMarkdown(
+  input: CompileMarkdownSeedRowInput,
+): Promise<SeedRow> {
+  const path = input.path.replace(/^\/+/, '');
+  if (!path || path.split('/').includes('..')) {
+    throw new Error(`Invalid seed markdown path: '${input.path}'`);
+  }
+  const content = input.markdown;
+  const uuid = input.uuid || (await seedNoteId(path));
+  const fm = readFrontmatterMeta(content);
+  const title = input.title?.trim() || titleFromMarkdown(path, content);
+  const rawDate = typeof fm['date'] === 'string' ? fm['date'] : undefined;
+  const parsedDate = parseFrontmatterDateMs(rawDate);
+  const createdAt = input.date ?? parsedDate ?? input.createdAt ?? 0;
+
+  let ordinal = 0;
+  const blocks: Record<string, NoteBlock> = reconcileNoteBlocks(content, {
+    sourceRevision: 1,
+    registeredWidgets: SEED_REGISTERED_WIDGETS,
+    createId: () => `seed:${path}:${ordinal++}`,
+  });
+
+  const sections = parseDocumentSections(content, { registeredWidgets: SEED_REGISTERED_WIDGETS });
+  const blockIndex: BlockIndexRow[] = Object.values(blocks).map((block, position) => {
+    const section = sections.find((s) => s.from === block.from && s.to === block.to);
+    const fingerprint =
+      block.kind === 'wod'
+        ? blockContentId(section?.scriptBlock?.content ?? content.slice(block.from, block.to))
+        : undefined;
+    return {
+      id: `${uuid}:${block.id}`,
+      noteId: uuid,
+      blockId: block.id,
+      blockVersion: 1,
+      sourceRevision: 1,
+      from: block.from,
+      to: block.to,
+      position,
+      dataType: block.kind,
+      ...(fingerprint ? { blockContentId: fingerprint } : {}),
+      rawContent: content.slice(block.from, block.to),
+      noteTitle: title,
+      createdAt,
+      isStatic: true,
+      ...(input.sourceId ? { sourceId: input.sourceId } : {}),
+      sourcePath: path,
+      ...(input.routeId ? { routeId: input.routeId } : {}),
+    };
+  });
+
+  const referenceIndex = input.referenceIndex ?? defaultLazyReferenceIndex();
+  const blockEfforts: BlockEffort[] = [];
+  const blockEquipment: BlockEquipment[] = [];
+
+  for (const proj of blockIndex) {
+    if (proj.dataType !== 'wod' || !proj.rawContent) continue;
+    const sec = parseDocumentSections(proj.rawContent, { registeredWidgets: SEED_REGISTERED_WIDGETS }).find(
+      (s) => s.scriptBlock,
+    );
+    const parsed = parseScript(sec?.scriptBlock?.content ?? proj.rawContent, { references: referenceIndex });
+    const refs = extractStatementRefs(parsed.statements);
+
+    const seenEfforts = new Set<string>();
+    for (const rawSlug of refs.efforts) {
+      const canonical = referenceIndex.resolveEffort(rawSlug)?.slug;
+      if (!canonical || seenEfforts.has(canonical)) continue;
+      seenEfforts.add(canonical);
+      blockEfforts.push({
+        id: `${proj.id}:${canonical}`,
+        noteId: uuid,
+        blockId: proj.blockId,
+        ...(proj.blockContentId ? { blockContentId: proj.blockContentId } : {}),
+        effortSlug: canonical,
+        isStatic: true,
+        sourcePath: path,
+        createdAt,
+      });
+    }
+
+    const seenEquipment = new Set<string>();
+    for (const rawSlug of refs.equipment) {
+      const canonical = referenceIndex.resolveEquipment(rawSlug)?.slug;
+      if (!canonical || seenEquipment.has(canonical)) continue;
+      seenEquipment.add(canonical);
+      blockEquipment.push({
+        id: `${proj.id}:${canonical}`,
+        noteId: uuid,
+        blockId: proj.blockId,
+        ...(proj.blockContentId ? { blockContentId: proj.blockContentId } : {}),
+        equipmentSlug: canonical,
+        isStatic: true,
+        sourcePath: path,
+        createdAt,
+      });
+    }
+  }
+
+  return assertSeedRow({
+    path,
+    content,
+    blocks,
+    blockIndex,
+    blockEfforts,
+    blockEquipment,
+    uuid,
+    commit: input.commit ?? '',
+    version: input.version ?? 1,
+  });
+}
+
+async function readTextFromReaderOrUrl(
+  reader: FeedTreeReader,
+  target: string,
+  fetchImpl?: FetchLike,
+): Promise<string> {
+  if (/^https?:\/\//i.test(target)) {
+    const parsed = new URL(target);
+    if (parsed.username || parsed.password) {
+      throw new FeedTreeError('permission', 'Disallowed credentials in feed URL');
+    }
+    const doFetch = fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
+    const res = await doFetch(parsed.toString());
+    if (res.status === 404) {
+      throw new FeedTreeError('not-found', `HTTP 404 for ${parsed.toString()}`);
+    }
+    if (!res.ok) {
+      throw new FeedTreeError('permission', `HTTP ${res.status} fetching ${parsed.toString()}`);
+    }
+    return await res.text();
+  }
+  return decodeUtf8(await reader.read(target));
+}
+
 export async function previewRemoteNotebook(
   reader: FeedTreeReader,
   indexPath: string,
@@ -196,10 +387,40 @@ export async function previewRemoteNotebook(
 
 export async function previewRemoteRecord(
   reader: FeedTreeReader,
-  recordPath: string,
+  recordOrPath: string | SeedRecordRef,
+  options?: { fetchImpl?: FetchLike },
 ): Promise<SeedRow> {
-  const raw = decodeUtf8(await reader.read(recordPath));
-  return assertSeedRow(JSON.parse(raw));
+  if (typeof recordOrPath === 'string') {
+    if (/\.md$/i.test(recordOrPath)) {
+      const markdown = await readTextFromReaderOrUrl(reader, recordOrPath, options?.fetchImpl);
+      return compileSeedRowFromMarkdown({ path: recordOrPath, markdown });
+    }
+    const raw = await readTextFromReaderOrUrl(reader, recordOrPath, options?.fetchImpl);
+    return assertSeedRow(JSON.parse(raw));
+  }
+
+  if (recordOrPath.recordPath) {
+    try {
+      const raw = await readTextFromReaderOrUrl(reader, recordOrPath.recordPath, options?.fetchImpl);
+      return assertSeedRow(JSON.parse(raw));
+    } catch (err) {
+      const hasMarkdownFallback = Boolean(recordOrPath.rawUrl || /\.md$/i.test(recordOrPath.path));
+      const isNotFound = err instanceof FeedTreeError && err.code === 'not-found';
+      if (!isNotFound || !hasMarkdownFallback) throw err;
+    }
+  }
+
+  const rawTarget = recordOrPath.rawUrl ?? recordOrPath.path;
+  const markdown = await readTextFromReaderOrUrl(reader, rawTarget, options?.fetchImpl);
+  return compileSeedRowFromMarkdown({
+    path: recordOrPath.path,
+    markdown,
+    uuid: recordOrPath.uuid,
+    commit: recordOrPath.commit,
+    version: recordOrPath.version,
+    title: recordOrPath.title,
+    date: recordOrPath.date,
+  });
 }
 
 export async function cloneRemoteRecord(
@@ -209,11 +430,15 @@ export async function cloneRemoteRecord(
     feedId: string;
     record: SeedRecordRef;
     targetNotebookId: string;
+    sourceNotebookId?: string;
     includePublicTelemetry?: boolean;
   },
 ): Promise<Note> {
   const targetNotebookId = toNotebookId(input.targetNotebookId);
-  const seedRow = await previewRemoteRecord(reader, input.record.recordPath);
+  if (isSystemReadOnlyNotebook(targetNotebookId)) {
+    throw new Error(`Target notebook '${targetNotebookId}' is read-only`);
+  }
+  const seedRow = await previewRemoteRecord(reader, input.record);
   const newNoteId = mintUuidV4();
   const now = Date.now();
 
@@ -262,6 +487,25 @@ export async function cloneRemoteRecord(
     isStatic: false,
   }));
 
+  const inferredNbSlug = notebookSlugFromFeedPath(seedRow.path);
+  const sourceNotebookId = input.sourceNotebookId
+    ? toNotebookId(input.sourceNotebookId)
+    : inferredNbSlug
+      ? toNotebookId(inferredNbSlug)
+      : undefined;
+  const sourceNoteId = input.record.uuid || seedRow.uuid || (await seedNoteId(seedRow.path));
+  const sourceVersion = input.record.version ?? seedRow.version;
+  const sourceCommit = (input.record.commit || seedRow.commit) || undefined;
+  const provenance: NoteProvenance = {
+    sourceNoteId,
+    ...(sourceVersion !== undefined ? { sourceVersion } : {}),
+    ...(sourceCommit ? { sourceCommit } : {}),
+    feedSourceId: input.feedId,
+    ...(sourceNotebookId ? { sourceNotebookId } : {}),
+    sourcePath: seedRow.path,
+    clonedAt: now,
+  };
+
   const clonedNote: Note = {
     id: newNoteId,
     title: input.record.title || seedRow.blockIndex[0]?.noteTitle || 'Cloned Note',
@@ -271,6 +515,8 @@ export async function cloneRemoteRecord(
     ...(input.record.date !== undefined ? { date: input.record.date } : {}),
     createdAt: now,
     notebookId: targetNotebookId,
+    notebookIds: [targetNotebookId],
+    provenance,
     sourceId: `feed:${input.feedId}/${seedRow.path}`,
     sourcePath: seedRow.path,
     seedOrigin: 'user',
@@ -302,8 +548,17 @@ export async function cloneRemoteRecord(
     }
   }
 
+  const notebookLink: NotebookLink = {
+    id: makeNotebookLinkId(targetNotebookId, 'note', newNoteId),
+    notebookId: targetNotebookId,
+    targetKind: 'note',
+    targetId: newNoteId,
+    noteId: newNoteId,
+    createdAt: now,
+  };
+
   await storage.transaction(
-    ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'sessions', 'events'],
+    ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'sessions', 'events', 'notebook_links'],
     'readwrite',
     async (tx) => {
       const landing = await tx.readonly('notes').get(targetNotebookId);
@@ -311,6 +566,7 @@ export async function cloneRemoteRecord(
         throw new Error(`Target notebook '${targetNotebookId}' is read-only`);
       }
       await tx.readwrite('notes').put(clonedNote);
+      await tx.readwrite('notebook_links').put(notebookLink);
       if (revisions.length > 0) await tx.readwrite('block_revisions').putMany(revisions);
       if (blockIndex.length > 0) await tx.readwrite('block_index').putMany(blockIndex);
       if (blockEfforts.length > 0) await tx.readwrite('block_efforts').putMany(blockEfforts);
@@ -321,6 +577,182 @@ export async function cloneRemoteRecord(
   );
 
   return clonedNote;
+}
+
+type RetentionNote = Note & {
+  retention?: 'indexed' | 'cached' | 'session-pinned';
+  upstreamStatus?: 'live' | 'unsubscribed' | 'removed';
+};
+
+async function clearRowsByNoteIndex<T>(
+  store: IReadWriteStore<T>,
+  noteId: string,
+  keyOf: (row: T) => IDBValidKey | undefined,
+): Promise<void> {
+  let rows: T[];
+  try {
+    rows = await store.getAllFromIndex('by-note', noteId);
+  } catch {
+    rows = await store.getAll();
+  }
+  for (const row of rows) {
+    const rec = row as unknown as Record<string, unknown> | undefined;
+    if (!rec || rec['noteId'] !== noteId) continue;
+    const key = keyOf(row);
+    if (key !== undefined) await store.delete(key);
+  }
+}
+
+/**
+ * Persist an on-demand fetched/compiled remote workout under its canonical
+ * UUID with `retention: 'cached'` and `upstreamStatus: 'live'`.
+ * Never overwrites user-authored notes or `session-pinned` local copies.
+ */
+export async function materializeCachedRemoteRecord(
+  storage: IStorage,
+  input: {
+    feedId?: string;
+    notebookId?: string;
+    notebookSlug?: string;
+    record?: SeedRecordRef;
+    seedRow: SeedRow;
+    retention?: 'cached' | 'session-pinned';
+    upstreamStatus?: 'live' | 'unsubscribed' | 'removed';
+  },
+): Promise<RetentionNote> {
+  const canonicalId = input.record?.uuid || input.seedRow.uuid || (await seedNoteId(input.seedRow.path));
+  const inferredNbSlug = input.notebookSlug ?? notebookSlugFromFeedPath(input.seedRow.path);
+  const notebookId = input.notebookId
+    ? toNotebookId(input.notebookId)
+    : inferredNbSlug
+      ? toNotebookId(inferredNbSlug)
+      : undefined;
+  const seedChunkId = inferredNbSlug
+    ? `notebook.${inferredNbSlug}`
+    : notebookId
+      ? `notebook.${notebookId.replace(/^notebook\//, '')}`
+      : undefined;
+  const version = input.record?.version ?? input.seedRow.version ?? 1;
+  const title =
+    input.record?.title ||
+    input.seedRow.blockIndex[0]?.noteTitle ||
+    titleFromMarkdown(input.seedRow.path, input.seedRow.content);
+  const commit = (input.record?.commit || input.seedRow.commit) || undefined;
+  const now = Date.now();
+
+  return storage.transaction(
+    ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment'],
+    'readwrite',
+    async (tx) => {
+      const notesStore = tx.readwrite('notes');
+      const existing = (await notesStore.get(canonicalId)) as RetentionNote | undefined;
+      if (existing) {
+        const isUserOwned =
+          existing.seedOrigin !== 'seed' && existing.feedOrigin !== 'feed' && !existing.retention;
+        if (isUserOwned || existing.retention === 'session-pinned') {
+          return existing;
+        }
+        if (
+          existing.rawContent === input.seedRow.content &&
+          Object.keys(existing.blocks).length > 0 &&
+          existing.retention === 'cached'
+        ) {
+          if (
+            existing.upstreamStatus !== (input.upstreamStatus ?? 'live') ||
+            (input.feedId && existing.feedSourceId !== input.feedId)
+          ) {
+            const refreshed: RetentionNote = {
+              ...existing,
+              ...(input.feedId ? { feedOrigin: 'feed', feedSourceId: input.feedId } : {}),
+              upstreamStatus: input.upstreamStatus ?? 'live',
+            };
+            await notesStore.put(refreshed);
+            return refreshed;
+          }
+          return existing;
+        }
+      }
+
+      const sourceRevision = existing ? existing.sourceRevision + 1 : 1;
+      const blocks: Record<string, NoteBlock> = {};
+      const revisions: BlockRevision[] = [];
+      const revStore = tx.readwrite('block_revisions');
+      const blockVer = existing ? sourceRevision : 1;
+
+      for (const [key, block] of Object.entries(input.seedRow.blocks)) {
+        blocks[key] = { ...block, version: blockVer, sourceRevision };
+        revisions.push({
+          noteId: canonicalId,
+          blockId: block.id,
+          version: blockVer,
+          kind: block.kind,
+          rawContent: input.seedRow.content.slice(block.from, block.to),
+          savedAt: now,
+          ...(block.dialect ? { dialect: block.dialect } : {}),
+          ...(block.sport ? { sport: block.sport } : {}),
+        });
+      }
+
+      const cachedSourceId = input.feedId ? `feed:${input.feedId}/${input.seedRow.path}` : input.seedRow.path;
+      const blockIndexStore = tx.readwrite('block_index');
+      const blockEffortsStore = tx.readwrite('block_efforts');
+      const blockEquipmentStore = tx.readwrite('block_equipment');
+      await clearRowsByNoteIndex(blockIndexStore, canonicalId, (r) => r.id);
+      await clearRowsByNoteIndex(blockEffortsStore, canonicalId, (r) => r.id);
+      await clearRowsByNoteIndex(blockEquipmentStore, canonicalId, (r) => r.id);
+
+      const blockIndex: BlockIndexRow[] = input.seedRow.blockIndex.map((proj) => ({
+        ...proj,
+        id: `${canonicalId}:${proj.blockId}`,
+        noteId: canonicalId,
+        blockVersion: blockVer,
+        sourceRevision,
+        isStatic: true,
+        sourceId: cachedSourceId,
+        sourcePath: input.seedRow.path,
+        ...(notebookId ? { notebookId } : {}),
+      }));
+      const blockEfforts: BlockEffort[] = input.seedRow.blockEfforts.map((eff) => ({
+        ...eff,
+        id: `${canonicalId}:${eff.blockId}:${eff.effortSlug}`,
+        noteId: canonicalId,
+        isStatic: true,
+      }));
+      const blockEquipment: BlockEquipment[] = input.seedRow.blockEquipment.map((eq) => ({
+        ...eq,
+        id: `${canonicalId}:${eq.blockId}:${eq.equipmentSlug}`,
+        noteId: canonicalId,
+        isStatic: true,
+      }));
+
+      const cachedNote: RetentionNote = {
+        id: canonicalId,
+        title,
+        rawContent: input.seedRow.content,
+        sourceRevision,
+        blocks,
+        ...(input.record?.date !== undefined ? { date: input.record.date } : existing?.date !== undefined ? { date: existing.date } : {}),
+        createdAt: existing?.createdAt ?? input.record?.date ?? now,
+        ...(notebookId ? { notebookId, notebookIds: [notebookId] } : existing?.notebookId ? { notebookId: existing.notebookId } : {}),
+        ...(input.feedId ? { feedOrigin: 'feed' as const, feedSourceId: input.feedId } : existing?.feedOrigin ? { feedOrigin: existing.feedOrigin, feedSourceId: existing.feedSourceId } : {}),
+        seedOrigin: 'seed',
+        ...(seedChunkId ? { seedChunkId } : existing?.seedChunkId ? { seedChunkId: existing.seedChunkId } : {}),
+        seedVersion: version,
+        ...(commit ? { seedCommit: commit } : {}),
+        sourceId: cachedSourceId,
+        sourcePath: input.seedRow.path,
+        retention: input.retention ?? 'cached',
+        upstreamStatus: input.upstreamStatus ?? 'live',
+      };
+
+      await notesStore.put(cachedNote);
+      if (revisions.length > 0) await revStore.putMany(revisions);
+      if (blockIndex.length > 0) await blockIndexStore.putMany(blockIndex);
+      if (blockEfforts.length > 0) await blockEffortsStore.putMany(blockEfforts);
+      if (blockEquipment.length > 0) await blockEquipmentStore.putMany(blockEquipment);
+      return cachedNote;
+    },
+  );
 }
 
 // ── Symmetric Portable Files Export & Import (.md + .jsonl / .csv) ──────────

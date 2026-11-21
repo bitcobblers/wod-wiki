@@ -34,6 +34,7 @@ export interface FeedFileStat {
 
 export interface FeedTreeReader {
   read(path: FeedPath): Promise<Uint8Array>;
+  readText?(path: FeedPath): Promise<string>;
   stat(path: FeedPath): Promise<FeedFileStat | undefined>;
   list?(prefix?: string): Promise<FeedPath[]>;
 }
@@ -172,6 +173,10 @@ export class HttpFeedTree implements FeedTreeReader {
   async readJson<T = unknown>(path: FeedPath): Promise<T> {
     const text = decodeUtf8(await this.read(path));
     return JSON.parse(text) as T;
+  }
+
+  async readText(path: FeedPath): Promise<string> {
+    return decodeUtf8(await this.read(path));
   }
 
   async stat(path: FeedPath): Promise<FeedFileStat | undefined> {
