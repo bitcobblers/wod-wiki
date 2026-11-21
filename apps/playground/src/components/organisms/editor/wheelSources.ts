@@ -791,13 +791,18 @@ function extractWorkoutLineSlots(state: EditorState): WheelSlot[] {
       if (!meta) return;
 
       let from = contentFrom + meta.startOffset;
-      const to = contentFrom + meta.endOffset;
+      let to = contentFrom + meta.endOffset;
       if (metric.type === MetricType.Effort) {
         for (const eq of equipmentRanges) {
           if (eq.from === from && eq.to < to) {
             from = eq.to;
             while (from < to && /\s/.test(state.doc.sliceString(from, from + 1))) {
               from++;
+            }
+          } else if (eq.to === to && eq.from > from) {
+            to = eq.from;
+            while (to > from && /\s/.test(state.doc.sliceString(to - 1, to))) {
+              to--;
             }
           }
         }

@@ -287,11 +287,13 @@ export function buildNestedCompletionOptions(sources?: NoteCompletionSources): N
         return catalog.efforts.map((effort) => {
           const score = scoreCatalogEffort(effort, scope, keywords);
           const discipline = effort.baseAttributes?.discipline;
+          const equipmentFields = effort.equipment?.length ? { equipment: effort.equipment } : {};
           if (score > 0) {
             return {
               value: effort.slug,
               label: effort.label,
               aliases: effort.aliases,
+              ...equipmentFields,
               detail: discipline ? `In notebook · ${discipline}` : 'In this notebook',
               section: 'In this notebook',
               boost: Math.min(25, 10 + Math.round(score / 10)),
@@ -301,6 +303,7 @@ export function buildNestedCompletionOptions(sources?: NoteCompletionSources): N
             value: effort.slug,
             label: effort.label,
             aliases: effort.aliases,
+            ...equipmentFields,
             detail: discipline ?? effort.slug,
             section: 'Movements',
           };

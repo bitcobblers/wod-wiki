@@ -171,13 +171,32 @@ export function classifyStatements(facts: SyntaxFacts, references?: ParseReferen
 }
 
 /**
- * The meta of the equipment token itself — the prefix of the authored label.
+ * The meta of the equipment token itself — prefix or suffix of the authored label.
  *
- * `KB swings` resolves to the equipment `KB` and the effort `swings`; the
- * equipment's own range is `KB`, so the two marks do not overlap.
+ * `KB swings` resolves to equipment `KB` (prefix) and effort `swings`;
+ * `Snatch Kettlebell` resolves to effort `Snatch` and equipment `Kettlebell` (suffix).
+ * Their marks cover disjoint ranges and never overlap.
  */
 function equipmentMeta(resolution: ResolvedReferences, authored: string, meta: SyntaxMeta): SyntaxMeta {
   if (resolution.matched !== 'split' || !resolution.remaining) return meta;
+  if (resolution.equipmentSpan) {
+    const leadingTrim = authored.length - authored.trimStart().length;
+    const start = leadingTrim + resolution.equipmentSpan.start;
+    const end = leadingTrim + resolution.equipmentSpan.end;
+    const raw = meta.raw.slice(start, end);
+    const length = raw.length;
+    if (length > 0) {
+      return {
+        ...meta,
+        startOffset: meta.startOffset + start,
+        endOffset: meta.startOffset + end,
+        length,
+        columnStart: meta.columnStart + start,
+        columnEnd: meta.columnStart + end,
+        raw,
+      };
+    }
+  }
   const prefixEnd = authored.trimEnd().length - resolution.remaining.length;
   if (prefixEnd <= 0) return meta;
   const raw = meta.raw.slice(0, prefixEnd).trimEnd();

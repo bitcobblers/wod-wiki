@@ -75,7 +75,7 @@ describe('real completion apply inserts parse-valid text', () => {
       efforts: () => [{ value: 'Back Squat' }],
       units: UnitRegistry.standard().extend({ canonical: 'pood', dimension: 'mass', aliases: ['poods'] }),
     };
-    for (const doc of ['10 ', '@100 ']) {
+    for (const doc of ['10', '10 ', '@100 ']) {
       const state = EditorState.create({ doc, extensions: [whiteboardScriptLanguage] });
       const result = await whiteboardScriptCompletionSource(options)(new CompletionContext(state, doc.length, true));
       expect(result).not.toBeNull();
@@ -126,5 +126,70 @@ describe('real completion apply inserts parse-valid text', () => {
   it('property keys insert a trailing colon and space', async () => {
     const text = await acceptOption('soun', 'sound');
     expect(text).toBe('sound: ');
+  });
+
+  it('inserts reps, rounds, rep-ladder reps, and paren rounds cleanly with zero syntax errors', async () => {
+    for (const [doc, label, expected] of [
+      ['10', 'reps', '10 reps'],
+      ['3', 'rounds', '3 rounds'],
+      ['3ro', 'rounds', '3 rounds'],
+      ['10r', 'reps', '10 reps'],
+      ['10', 'kg', '10kg'],
+      ['9-7-5', 'reps', '9-7-5 reps'],
+      ['(3', 'rounds', '(3 rounds)'],
+      ['(3 ', 'rounds', '(3 rounds)'],
+    ] as const) {
+      const text = await acceptOption(doc, label);
+      expect(text).toBe(expected);
+      expect(errorNodes(`${text}\n`), `${doc} -> ${label}`).toEqual([]);
+    }
+
+    // In real EditorView, CM6 prefix-filters `'3ro'` down to `rounds` and drops `reps`.
+    const view3ro = new EditorView({
+      state: EditorState.create({
+        doc: '3ro',
+        extensions: [whiteboardScriptLanguage, autocompletion({ override: [whiteboardScriptCompletionSource()], interactionDelay: 0 })],
+      }),
+      parent: host,
+    });
+    try {
+      view3ro.dispatch({ selection: { anchor: 3 } });
+      startCompletion(view3ro);
+      await vi.waitFor(() => expect(completionStatus(view3ro.state)).toBe('active'));
+      const filteredLabels = currentCompletions(view3ro.state).map(o => o.label);
+      expect(filteredLabels).toContain('rounds');
+      expect(filteredLabels).not.toContain('reps');
+    } finally {
+      view3ro.destroy();
+    }
+  });
+
+  it('applies compositional equipment suffix and full-phrase effort upgrades cleanly', async () => {
+    const catalogOptions: WhiteboardScriptCompletionOptions = {
+      efforts: () => [
+        { value: 'snatch', label: 'Snatch', equipment: ['dumbbell'] },
+        { value: 'kettlebell-snatch', label: 'Kettlebell Snatch', aliases: ['kb snatch'], equipment: ['kettlebell'] },
+        { value: 'walking-3-mph', label: 'Walking', aliases: ['walk'] },
+        { value: 'kettlebell-swing', label: 'Kettlebell Swing', aliases: ['swing', 'kbs'], equipment: ['kettlebell'] },
+      ],
+      equipment: () => [
+        { value: 'kettlebell', label: 'Kettlebell', aliases: ['kb'] },
+        { value: 'weight-vest', label: 'Weight Vest' },
+      ],
+    };
+
+    for (const [doc, label, expected] of [
+      ['10 Snatch KB', 'Kettlebell', '10 Snatch Kettlebell'],
+      ['10 Snatch KB', 'Kettlebell Snatch', '10 Kettlebell Snatch'],
+      ['10 Snatch ', 'Kettlebell', '10 Snatch Kettlebell'],
+      ['10 Snatch ', 'Kettlebell Snatch', '10 Kettlebell Snatch'],
+      ['10 Walking weight v', 'Weight Vest', '10 Walking Weight Vest'],
+      ['10 Weight Vest wal', 'Walking', '10 Weight Vest Walking'],
+      ['10 Kettlebell Sw', 'Kettlebell Swing', '10 Kettlebell Swing'],
+    ] as const) {
+      const text = await acceptOption(doc, label, catalogOptions);
+      expect(text).toBe(expected);
+      expect(errorNodes(`${text}\n`), `${doc} -> ${label}`).toEqual([]);
+    }
   });
 });

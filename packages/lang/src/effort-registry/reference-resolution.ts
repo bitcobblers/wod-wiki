@@ -49,8 +49,10 @@ export interface ResolvedReferences {
   effortRef: ReferenceRef | null;
   /** Ordered deduplicated canonical equipment refs. */
   equipment: ReferenceRef[];
-  /** Remaining movement text after the equipment prefix strip (split path). */
+  /** Remaining movement text after the equipment prefix/suffix strip (split path). */
   remaining: string;
+  /** Character span `[start, end)` of the authored equipment token within trimmed `label` (when `matched === 'split'`). */
+  equipmentSpan?: { start: number; end: number };
   /** Unknown/ambiguous/invalid findings — never silently dropped. */
   diagnostics: ReferenceDiagnostic[];
 }
@@ -111,6 +113,14 @@ function buildExactIndex<T extends { slug: string; label: string; aliases: reado
       }
       const topTier = direct.filter((candidate) => resolveEntityRank(candidate) === maxRank);
       if (topTier.length === 1) return { entity: topTier[0], ambiguous: [] };
+      const trimmedLower = key.trim().toLowerCase();
+      const slugified = normalizeForFuzzy(key).replace(/\s+/g, '-');
+      const exactSlugMatches = topTier.filter(
+        (candidate) => candidate.slug.toLowerCase() === trimmedLower || candidate.slug.toLowerCase() === slugified,
+      );
+      if (exactSlugMatches.length === 1) {
+        return { entity: exactSlugMatches[0], ambiguous: [] };
+      }
       return { entity: null, ambiguous: topTier };
     },
   };
@@ -148,8 +158,8 @@ export function createReferenceIndex(
   const efforts = buildExactIndex(catalog.efforts ?? []);
   const equipment = buildExactIndex(dedupedEquipment);
 
-  // Longest-first prefix candidates; rebuilt only here, at hydration.
-  const prefixCandidates: PrefixCandidate[] = dedupedEquipment
+  // Longest-first equipment candidates; rebuilt only here, at hydration.
+  const equipmentCandidates: PrefixCandidate[] = dedupedEquipment
     .flatMap(entity => [entity.label, ...entity.aliases]
       .filter(name => !!name && !!name.trim())
       .map(name => ({ lower: name.trim().toLowerCase(), entity })))
@@ -250,6 +260,7 @@ export function createReferenceIndex(
       let remaining = '';
       let equipmentRefs: ReferenceRef[] = [];
       let equipmentAuthored = false;
+      let equipmentSpan: { start: number; end: number } | undefined;
 
       /** Note defaults (above definition equipment) then effort-definition equipment. */
       const fillEquipment = () => {
@@ -374,10 +385,11 @@ export function createReferenceIndex(
         // JSON without reference keys falls through to plain-label handling.
       }
 
-      // 2. Exact equipment prefix + remaining effort — BOTH must resolve uniquely.
+      // 2. Exact equipment prefix + remaining effort — unless whole phrase is a dedicated effort with that equipment.
       // Try longest prefix first; an invalid remainder falls back to shorter candidates.
+      const wholeFound = resolveEffortExact(source);
       const lowerSource = source.toLowerCase();
-      for (const candidate of prefixCandidates) {
+      for (const candidate of equipmentCandidates) {
         if (!lowerSource.startsWith(candidate.lower)) continue;
         const after = source.slice(candidate.lower.length);
         if (after && !/^\s/.test(after)) continue; // word boundary required
@@ -403,6 +415,15 @@ export function createReferenceIndex(
         }
         if (!equipmentFound.entity) continue;
         const effortFound = resolveEffortExact(candidateRemaining);
+        if (
+          wholeFound.entity &&
+          wholeFound.entity.equipment?.includes(equipmentFound.entity.slug) &&
+          (effortFound.entity || effortFound.diagnostic?.reason === 'ambiguous-effort')
+        ) {
+          matched = 'whole';
+          effortEntity = wholeFound.entity;
+          break;
+        }
         if (effortFound.entity) {
           matched = 'split';
           effortEntity = effortFound.entity;
@@ -415,9 +436,10 @@ export function createReferenceIndex(
           }];
           equipmentAuthored = true;
           remaining = candidateRemaining;
+          equipmentSpan = { start: 0, end: rawPrefix.length };
           break;
         }
-        if (effortFound.diagnostic?.reason === 'ambiguous-effort') {
+        if (effortFound.diagnostic?.reason === 'ambiguous-effort' && !wholeFound.entity) {
           push(effortFound.diagnostic);
           return {
             matched: 'none',
@@ -434,13 +456,12 @@ export function createReferenceIndex(
 
       // 3. Whole-label exact (slug or alias) — only when no valid split was found.
       if (matched === 'none') {
-        const found = resolveEffortExact(source);
-        if (found.entity) {
-          effortEntity = found.entity;
+        if (wholeFound.entity) {
+          effortEntity = wholeFound.entity;
           matched = 'whole';
-        } else if (found.diagnostic?.reason === 'ambiguous-effort') {
+        } else if (wholeFound.diagnostic?.reason === 'ambiguous-effort') {
           // Ambiguity never falls through to defaults or partial matches.
-          push(found.diagnostic);
+          push(wholeFound.diagnostic);
           return {
             matched: 'none',
             label: source,
@@ -450,8 +471,69 @@ export function createReferenceIndex(
             remaining: '',
             diagnostics,
           };
-        } else if (found.diagnostic) {
-          push(found.diagnostic);
+        } else if (wholeFound.diagnostic) {
+          push(wholeFound.diagnostic);
+        }
+      }
+
+      // 4. Exact effort + trailing equipment suffix (e.g. `Snatch Kettlebell`, `Walking Weight Vest`).
+      if (matched === 'none') {
+        for (const candidate of equipmentCandidates) {
+          if (!lowerSource.endsWith(candidate.lower)) continue;
+          const beforeLen = source.length - candidate.lower.length;
+          if (beforeLen <= 0 || !/\s$/.test(source.slice(0, beforeLen))) continue;
+          const candidateRemaining = source.slice(0, beforeLen).trim();
+          if (!candidateRemaining) continue;
+          const equipmentFound = equipment.lookup(candidate.lower);
+          if (equipmentFound.ambiguous.length > 0) {
+            diagnostics.length = 0;
+            push({
+              reason: 'ambiguous-equipment',
+              message: `"${candidate.lower}" matches multiple equipment entries.`,
+              token: source,
+              candidates: equipmentFound.ambiguous.map(e => e.slug),
+            });
+            return {
+              matched: 'none',
+              label: source,
+              effort: null,
+              effortRef: null,
+              equipment: [],
+              remaining: '',
+              diagnostics,
+            };
+          }
+          if (!equipmentFound.entity) continue;
+          const effortFound = resolveEffortExact(candidateRemaining);
+          if (effortFound.entity) {
+            diagnostics.length = 0;
+            matched = 'split';
+            effortEntity = effortFound.entity;
+            const rawSuffix = source.slice(beforeLen);
+            equipmentRefs = [{
+              ...equipmentRef(equipmentFound.entity),
+              ...(rawSuffix.toLowerCase() !== equipmentFound.entity.label.toLowerCase()
+                ? { matchedAlias: rawSuffix }
+                : {}),
+            }];
+            equipmentAuthored = true;
+            remaining = candidateRemaining;
+            equipmentSpan = { start: beforeLen, end: source.length };
+            break;
+          }
+          if (effortFound.diagnostic?.reason === 'ambiguous-effort') {
+            diagnostics.length = 0;
+            push(effortFound.diagnostic);
+            return {
+              matched: 'none',
+              label: source,
+              effort: null,
+              effortRef: null,
+              equipment: [],
+              remaining: '',
+              diagnostics,
+            };
+          }
         }
       }
 
@@ -474,6 +556,7 @@ export function createReferenceIndex(
           : null,
         equipment: equipmentRefs,
         remaining,
+        ...(equipmentSpan ? { equipmentSpan } : {}),
         diagnostics,
       };
     },

@@ -9,8 +9,9 @@ import { QUERY_SEED_PRESETS } from '@/components/organisms/editor/whiteboard-ins
 import { TokenScrubber } from '@/components/organisms/editor/whiteboard-inspector/TokenScrubber';
 import { QUERY_STAGES } from '@/components/organisms/editor/wheelSources';
 import { TEST_IDS } from '@/lib/testIds';
-import { storageService } from '@/hooks/useBrowserServices';
+import { getAppEffortRegistry, getAppEquipmentRegistry, storageService } from '@/hooks/useBrowserServices';
 import { createInlineTagFromSlug } from '@/app/editor/noteEditorServices';
+import { extractLineTokens } from '@/components/organisms/editor/whiteboard-inspector/tokenModel';
 import { setupPlaygroundTestHost, type PlaygroundHostHandle } from '@/testing/host';
 
 const zeroRect = {
@@ -529,6 +530,71 @@ describe('Unified Whiteboard Syntax Inspector & Prose Completions', () => {
         const opts = currentCompletions(view.state);
         expect(opts.some((o) => o.label === '#heavy')).toBe(true);
       });
+    } finally {
+      restoreCoords();
+    }
+  });
+
+  it('trims suffix equipment effort spans without overlap while keeping whole dedicated efforts intact', async () => {
+    await getAppEffortRegistry().upsert({
+      id: 'eff-snatch',
+      slug: 'snatch',
+      label: 'Snatch',
+      aliases: [],
+      equipment: ['dumbbell'],
+      baseAttributes: { met: 9 },
+      registrySource: 'user',
+    });
+    await getAppEffortRegistry().upsert({
+      id: 'eff-kb-snatch',
+      slug: 'kettlebell-snatch',
+      label: 'Kettlebell Snatch',
+      aliases: ['kb snatch'],
+      equipment: ['kettlebell'],
+      baseAttributes: { met: 9.5 },
+      registrySource: 'user',
+    });
+    await getAppEquipmentRegistry().upsert({
+      id: 'eq-kb',
+      slug: 'kettlebell',
+      label: 'Kettlebell',
+      aliases: ['kb'],
+      registrySource: 'user',
+    });
+
+    const doc = '# Session\n\n```time\n10 Snatch Kettlebell\n10 Kettlebell Snatch\n```';
+    const { view, restoreCoords } = mountEditor(doc);
+
+    try {
+      const splitOffset = doc.indexOf('Snatch Kettlebell') + 1;
+      act(() => {
+        view.dispatch({ selection: { anchor: splitOffset } });
+      });
+
+      const splitInspection = extractLineTokens(view.state);
+      const splitEffort = splitInspection.tokens.find((t) => t.kind === 'effort');
+      const splitEq = splitInspection.tokens.find((t) => t.kind === 'equipment');
+      expect(splitEffort?.raw).toBe('Snatch');
+      expect(splitEffort?.refSlug).toBe('snatch');
+      expect(splitEffort?.diagnostic).toBeUndefined();
+      expect(splitEq?.raw).toBe('Kettlebell');
+      expect(splitEq?.refSlug).toBe('kettlebell');
+      expect(splitEq?.diagnostic).toBeUndefined();
+      expect(splitEffort!.to).toBeLessThanOrEqual(splitEq!.from);
+
+      const wholeOffset = doc.indexOf('Kettlebell Snatch') + 1;
+      act(() => {
+        view.dispatch({ selection: { anchor: wholeOffset } });
+      });
+
+      const wholeInspection = extractLineTokens(view.state);
+      const wholeEfforts = wholeInspection.tokens.filter((t) => t.kind === 'effort');
+      const wholeEqs = wholeInspection.tokens.filter((t) => t.kind === 'equipment');
+      expect(wholeEfforts).toHaveLength(1);
+      expect(wholeEfforts[0]?.raw).toBe('Kettlebell Snatch');
+      expect(wholeEfforts[0]?.refSlug).toBe('kettlebell-snatch');
+      expect(wholeEfforts[0]?.diagnostic).toBeUndefined();
+      expect(wholeEqs).toHaveLength(0);
     } finally {
       restoreCoords();
     }

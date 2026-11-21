@@ -2,10 +2,27 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import type { EditorView } from '@codemirror/view';
-import { CompletionContext, completionStatus, currentCompletions, startCompletion } from '@codemirror/autocomplete';
+import {
+  CompletionContext,
+  acceptCompletion,
+  completionStatus,
+  currentCompletions,
+  setSelectedCompletion,
+  startCompletion,
+} from '@codemirror/autocomplete';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { wodCompletionSource, sectionField, setQuerySourceEditing } from '@bitcobblers/wod-wiki-ui/extensions';
 import { createInlineTagFromSlug } from '@/app/editor/noteEditorServices';
+import {
+  getAppEffortRegistry,
+  hydrateAppEffortRegistry,
+  resetAppEffortRegistryForTesting,
+} from '@/services/effortRegistry';
+import {
+  getAppEquipmentRegistry,
+  hydrateAppEquipmentRegistry,
+  resetAppEquipmentRegistryForTesting,
+} from '@/services/equipmentRegistry';
 import { InMemoryStorage, resetStorageForTesting, setStorageForTesting } from '@/hooks/useBrowserServices';
 
 const zeroRect = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) };
@@ -19,6 +36,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   resetStorageForTesting();
+  resetAppEffortRegistryForTesting();
+  resetAppEquipmentRegistryForTesting();
 });
 
 function editor(doc: string, cursor: number) {
@@ -95,19 +114,108 @@ describe('NoteEditor nested completion', () => {
     expect(labels(view).every((label) => !label.startsWith('```'))).toBe(true);
   });
 
-  it('triggers tag completion immediately on bare # inside workout blocks and ranks units above movements after a quantity', async () => {
+  it('triggers tag completion on bare # and transitions from glued number units to post-space missing elements', async () => {
     await createInlineTagFromSlug('heavy');
+    await hydrateAppEffortRegistry(getAppEffortRegistry());
+    await hydrateAppEquipmentRegistry(getAppEquipmentRegistry());
+    await getAppEffortRegistry().upsert({
+      id: 'eff-bs',
+      slug: 'back-squat',
+      label: 'Back Squat',
+      aliases: [],
+      baseAttributes: { met: 6 },
+      registrySource: 'user',
+    });
+
     const tagDoc = '```time\n20 #\n```';
     const tagView = editor(tagDoc, tagDoc.indexOf('#') + 1);
     act(() => { startCompletion(tagView); });
     await waitFor(() => expect(labels(tagView)).toContain('heavy'));
 
-    const unitDoc = '```time\n20 \n```';
-    const unitView = editor(unitDoc, unitDoc.indexOf('20 ') + 3);
-    act(() => { startCompletion(unitView); });
-    await waitFor(() => expect(labels(unitView)).toContain('kg'));
-    const unitOpts = labels(unitView);
-    expect(unitOpts).not.toContain('AMRAP');
-    expect(unitOpts).not.toContain('EMOM');
+    const gluedDoc = '```time\n20\n```';
+    const gluedView = editor(gluedDoc, gluedDoc.indexOf('20') + 2);
+    act(() => { startCompletion(gluedView); });
+    await waitFor(() => expect(labels(gluedView)).toContain('kg'));
+    const gluedOpts = labels(gluedView);
+    expect(gluedOpts).toContain('reps');
+    expect(gluedOpts).toContain('rounds');
+    expect(gluedOpts).not.toContain('AMRAP');
+    expect(gluedOpts).not.toContain('EMOM');
+
+    const spacedDoc = '```time\n20 \n```';
+    const spacedView = editor(spacedDoc, spacedDoc.indexOf('20 ') + 3);
+    act(() => { startCompletion(spacedView); });
+    await waitFor(() => expect(labels(spacedView)).toContain('Back Squat'));
+    const spacedOpts = labels(spacedView);
+    expect(spacedOpts).not.toContain('kg');
+    expect(spacedOpts).not.toContain('reps');
+    expect(spacedOpts).not.toContain('rounds');
+  });
+
+  it('applies coordinate-invariant compositional suffix and live effort upgrades inside nested fences', async () => {
+    await hydrateAppEffortRegistry(getAppEffortRegistry());
+    await hydrateAppEquipmentRegistry(getAppEquipmentRegistry());
+    await getAppEffortRegistry().upsert({
+      id: 'eff-snatch',
+      slug: 'snatch',
+      label: 'Snatch',
+      aliases: [],
+      equipment: ['dumbbell'],
+      baseAttributes: { met: 9 },
+      registrySource: 'user',
+    });
+    await getAppEffortRegistry().upsert({
+      id: 'eff-kb-snatch',
+      slug: 'kettlebell-snatch',
+      label: 'Kettlebell Snatch',
+      aliases: ['kb snatch'],
+      equipment: ['kettlebell'],
+      baseAttributes: { met: 9.5 },
+      registrySource: 'user',
+    });
+    await getAppEffortRegistry().upsert({
+      id: 'eff-walk',
+      slug: 'walking-3-mph',
+      label: 'Walking',
+      aliases: ['walk'],
+      baseAttributes: { met: 3.5 },
+      registrySource: 'user',
+    });
+    await getAppEquipmentRegistry().upsert({
+      id: 'eq-kb',
+      slug: 'kettlebell',
+      label: 'Kettlebell',
+      aliases: ['kb'],
+      registrySource: 'user',
+    });
+    await getAppEquipmentRegistry().upsert({
+      id: 'eq-vest',
+      slug: 'weight-vest',
+      label: 'Weight Vest',
+      aliases: ['vest'],
+      registrySource: 'user',
+    });
+
+    const acceptInNested = async (doc: string, needle: string, optionLabel: string): Promise<string> => {
+      const view = editor(doc, doc.indexOf(needle) + needle.length);
+      act(() => { startCompletion(view); });
+      await waitFor(() => expect(labels(view)).toContain(optionLabel));
+      const idx = currentCompletions(view.state).findIndex((option) => option.label === optionLabel);
+      act(() => {
+        view.dispatch({ effects: setSelectedCompletion(idx) });
+        acceptCompletion(view);
+      });
+      return view.state.doc.toString();
+    };
+
+    expect(await acceptInNested('```time\n10 Snatch KB\n```', '10 Snatch KB', 'Kettlebell')).toBe(
+      '```time\n10 Snatch Kettlebell\n```',
+    );
+    expect(await acceptInNested('```time\n10 Snatch KB\n```', '10 Snatch KB', 'Kettlebell Snatch')).toBe(
+      '```time\n10 Kettlebell Snatch\n```',
+    );
+    expect(await acceptInNested('```time\n10 Walking weight v\n```', '10 Walking weight v', 'Weight Vest')).toBe(
+      '```time\n10 Walking Weight Vest\n```',
+    );
   });
 });

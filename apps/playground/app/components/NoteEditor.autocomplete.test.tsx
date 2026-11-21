@@ -113,13 +113,13 @@ describe('NoteEditor frontmatter keyboard behavior', () => {
   });
 
   it('preserves Enter for newlines inside workout blocks when typeahead is open without selection', async () => {
-    const doc = '```time\n10 \n```';
-    const pos = doc.indexOf('10 ') + 3;
+    const doc = '```time\n10\n```';
+    const pos = doc.indexOf('10') + 2;
     const view = editor(doc, pos);
     await complete(view, 'kg');
     expect(selectedCompletionIndex(view.state)).toBeNull();
     key(view, 'Enter');
-    expect(view.state.doc.toString()).toBe('```time\n10 \n\n```');
+    expect(view.state.doc.toString()).toBe('```time\n10\n\n```');
     expect(completionStatus(view.state)).toBeNull();
   });
 

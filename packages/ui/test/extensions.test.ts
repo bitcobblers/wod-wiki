@@ -338,9 +338,14 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     expect(efforts?.options.map((option) => option.apply)).toContain('fran');
     const equipment = await at(nested('equipment:bar'), 'equipment:bar');
     expect(equipment?.options.map((option) => option.apply)).toContain('barbell');
-    // Units after a number.
-    const units = await at(nested('10 cal'), '10 cal');
-    expect(units?.options.map((option) => option.label)).toContain('km');
+    // Units on a glued number and partial unit word after space.
+    const gluedUnits = await at(nested('10'), '10');
+    expect(gluedUnits?.options.map((option) => option.label)).toEqual(
+      expect.arrayContaining(['km', 'kg', 'reps', 'rounds']),
+    );
+    const partialUnits = await at(nested('10 cal'), '10 cal');
+    expect(partialUnits?.options.map((option) => option.label)).toContain('cal');
+    expect(partialUnits?.options.map((option) => option.label)).not.toContain('km');
   });
 
   it('nested log bodies add climb vocabulary from the fence sport', async () => {
@@ -370,16 +375,21 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
   });
 
   it('keeps dialect-extended unit sets inside their own editor configuration', async () => {
-    const doc = '```time\n10 \n```';
-    const labels = async (options: NestedCompletionOptions) => {
+    const gluedDoc = '```time\n10\n```';
+    const spacedDoc = '```time\n10 \n```';
+    const labels = async (options: NestedCompletionOptions, doc = gluedDoc) => {
+      const needle = doc === gluedDoc ? '10' : '10 ';
       const state = EditorState.create({ doc, extensions: [sectionField, nestedCompletionOptions.of(options)] });
-      return (await nestedCompletion(new CompletionContext(state, doc.indexOf('10 ') + 3, true)))?.options.map((option) => option.label) ?? [];
+      return (await nestedCompletion(new CompletionContext(state, doc.indexOf(needle) + needle.length, true)))
+        ?.options.map((option) => option.label) ?? [];
     };
     const units = UnitRegistry.standard().extend({ canonical: 'pood', dimension: 'mass', aliases: ['poods'] });
 
     expect(await labels({ whiteboardScript: { units } })).toContain('pood');
     expect(await labels({ whiteboardScript: {} })).not.toContain('pood');
     expect(await labels({})).toContain('kg');
+    expect(await labels({ whiteboardScript: { units } }, spacedDoc)).not.toContain('pood');
+    expect(await labels({}, spacedDoc)).not.toContain('kg');
   });
 
   it('keeps fence and nested suggestions inside their own sections', async () => {
