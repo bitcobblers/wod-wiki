@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { forkNoteToUserNotebook, resolveNoteOwnership } from '../../src/index';
 import { DomainScenarioHarness, HARNESS_EPOCH } from '../harness/DomainScenarioHarness';
 
 /** `:session{}` run-card slice the assertions read. */
@@ -6,7 +7,7 @@ interface SessionFindResult {
   runs: Array<{ resultId: string; noteId: string }>;
 }
 
-describe('Domain — Journal Session intake, provenance lineage & EventRecord persistence', () => {
+describe('Domain — Journal Session intake, archival pinning, provenance & EventRecord persistence', () => {
   let harness: DomainScenarioHarness;
   afterEach(() => harness?.dispose());
 
@@ -33,7 +34,7 @@ describe('Domain — Journal Session intake, provenance lineage & EventRecord pe
     '',
   ].join('\n');
 
-  it('clones a read-only Feed Note into notebook/journal on run, pins the Session to the exact block occurrence, and persists EventRecords', async () => {
+  it('pins a read-only Feed Note in place as one immutable archival copy on run, aggregates repeated sessions on its canonical ID, and persists EventRecords', async () => {
     harness = await DomainScenarioHarness.create();
 
     // A read-only Note delivered by a subscribed Feed, carrying two workout blocks.
@@ -59,16 +60,19 @@ describe('Domain — Journal Session intake, provenance lineage & EventRecord pe
       startedAt: HARNESS_EPOCH + 50_000,
     });
 
-    // The read-only source was cloned verbatim into the Journal.
-    expect(run.clonedFromReadOnly).toBe(true);
-    expect(run.noteId).not.toBe(seed.note.id);
-    const clone = await harness.storage.readonly('notes').get(run.noteId);
-    expect(clone?.rawContent).toBe(heroRaw);
-    expect(clone?.notebookIds).toContain('notebook/journal');
-    expect(clone?.seedOrigin).toBe('user');
-    expect(clone?.feedOrigin).toBeUndefined();
+    // Single archival copy: no duplicate Journal Note was spawned.
+    expect(run.clonedFromReadOnly).toBe(false);
+    expect(run.pinnedExternalWorkout).toBe(true);
+    expect(run.noteId).toBe(seed.note.id);
+    const pinnedNote = await harness.storage.readonly('notes').get(run.noteId);
+    expect(pinnedNote?.rawContent).toBe(heroRaw);
+    expect(pinnedNote?.retention).toBe('session-pinned');
+    expect(pinnedNote?.upstreamStatus).toBe('live');
+    expect(pinnedNote?.seedOrigin).toBe('seed');
+    expect(pinnedNote?.feedOrigin).toBe('feed');
+    expect(await harness.storage.readonly('notes').getAll()).toHaveLength(1);
 
-    // Note Provenance lineage points back at the upstream Feed Note.
+    // Note Provenance lineage points at the upstream Feed source.
     expect(run.provenance).toMatchObject({
       sourceNoteId: seed.note.id,
       feedSourceId: 'sport-crossfit',
@@ -76,40 +80,47 @@ describe('Domain — Journal Session intake, provenance lineage & EventRecord pe
       sourcePath: 'markdown/notebooks/crossfit-heroes/dt.md',
     });
 
-    // The Session pins the Journal clone, never the upstream Seed Note.
-    expect(run.session.noteId).toBe(run.noteId);
+    // The Session pins the canonical Note ID and links to today's Journal Page + notebook/journal.
+    expect(run.session.noteId).toBe(seed.note.id);
     expect(run.session.completed).toBe(true);
-    const seedSessions = await harness.storage.readonly('sessions').getAllFromIndex('by-note', seed.note.id);
-    const cloneSessions = await harness.storage.readonly('sessions').getAllFromIndex('by-note', run.noteId);
-    expect(seedSessions).toHaveLength(0);
-    expect(cloneSessions.map((s) => s.id)).toEqual(['sess-dt-run-1']);
-
-    // Calendar placement: the run lands on the 2026-11-10 Journal Page.
+    expect(run.session.notebookIds).toContain('notebook/journal');
     const pages = await harness.storage.readonly('page').getAllFromIndex('by-date', '2026-11-10');
     expect(pages).toHaveLength(1);
-    const placements = await harness.storage.readonly('page_notes').getAllFromIndex('by-note', run.noteId);
-    expect(placements.map((p) => p.pageId)).toEqual([pages[0]!.id]);
+    expect(run.session.pageId).toBe(pages[0]!.id);
+
+    // Second run on the same Feed workout aggregates onto the exact same canonical Note ID.
+    const run2 = await harness.prepareAndRunSession({
+      noteId: seed.note.id,
+      blockId: wodBlocks[1]!.blockId,
+      sessionId: 'sess-dt-run-2',
+      journalDate: '2026-11-11',
+      startedAt: HARNESS_EPOCH + 90_000,
+    });
+    expect(run2.noteId).toBe(seed.note.id);
+    expect(await harness.storage.readonly('notes').getAll()).toHaveLength(1);
+
+    const canonicalSessions = await harness.storage.readonly('sessions').getAllFromIndex('by-note', seed.note.id);
+    expect(canonicalSessions.map((s) => s.id).sort()).toEqual(['sess-dt-run-1', 'sess-dt-run-2']);
 
     // EventRecords persisted from the real runtime run — the 800m distance survives.
     expect(run.events.length).toBeGreaterThan(0);
     const allEvents = await harness.storage.readonly('events').getAll();
     expect(allEvents.length).toBeGreaterThan(0);
-    expect(allEvents.every((e) => e.noteId === run.noteId && e.resultId === 'sess-dt-run-1')).toBe(true);
+    expect(allEvents.some((e) => e.noteId === seed.note.id && e.resultId === 'sess-dt-run-1')).toBe(true);
     const distanceEvent = allEvents.find((e) => e.metrics.some((m) => m.type === 'distance'));
     expect(distanceEvent).toBeDefined();
     expect(distanceEvent!.metrics.find((m) => m.type === 'distance')!.value).toEqual({ amount: 800, unit: 'm' });
 
-    // The WQL session plane reads the same rows back over the live stores.
-    const found = await harness.queryWql<SessionFindResult>(':session{note:' + run.noteId + '}');
-    expect(found.runs).toHaveLength(1);
-    expect(found.runs[0]!.resultId).toBe('sess-dt-run-1');
-    expect(found.runs[0]!.noteId).toBe(run.noteId);
+    // The WQL session plane reads both runs back against the canonical workout ID.
+    const found = await harness.queryWql<SessionFindResult>(':session{note:' + seed.note.id + '}');
+    expect(found.runs).toHaveLength(2);
+    expect(found.runs.map((r) => r.resultId).sort()).toEqual(['sess-dt-run-1', 'sess-dt-run-2']);
 
-    // Live upstream lineage resolves while the Feed Note exists.
-    expect(run.upstream).toMatchObject({ exists: true, sourceNoteId: seed.note.id, title: 'Hero DT + Cashout' });
+    // Live upstream lineage resolves while the Feed Note is live.
+    expect(run.upstream).toMatchObject({ exists: true, sourceNoteId: seed.note.id, upstreamStatus: 'live' });
   });
 
-  it('keeps the Journal clone and its Session pinned when the upstream Note updates, then reports a broken lineage after deletion', async () => {
+  it('keeps BlockRevision v1 pinned when upstream updates to v2, preserves archival copy on unsubscribe, and supports explicit user forking', async () => {
     harness = await DomainScenarioHarness.create();
 
     const seed = await harness.authorNote({
@@ -143,22 +154,37 @@ describe('Domain — Journal Session intake, provenance lineage & EventRecord pe
       sourcePath: 'markdown/notebooks/crossfit-heroes/dt.md',
     });
 
-    // The Journal clone and its pinned Session are untouched by the upstream sync.
-    const cloneAfterSync = await harness.storage.readonly('notes').get(run.noteId);
-    expect(cloneAfterSync?.rawContent).toContain('800m Run');
-    expect(cloneAfterSync?.rawContent).not.toContain('1600m Run');
-    const pinnedSessions = await harness.storage.readonly('sessions').getAllFromIndex('by-note', run.noteId);
-    expect(pinnedSessions.map((s) => s.id)).toEqual(['sess-dt-run-1']);
+    // Pinned Session still points at BlockRevision v1 (pre-update text)
+    const rev1 = await harness.storage.readonly('block_revisions').get([
+      run.session.noteId,
+      run.session.blockId,
+      run.session.blockVersion,
+    ]);
+    expect(rev1).toBeDefined();
+    expect(rev1?.version).toBe(1);
 
-    const liveLineage = await harness.upstreamProvenance(run.noteId);
-    expect(liveLineage?.exists).toBe(true);
-    expect(liveLineage?.sourceNoteId).toBe('seed-dt');
+    // Archival copy stays protected across unsubscribe (`upstreamStatus: 'unsubscribed'`)
+    const current = (await harness.storage.readonly('notes').get('seed-dt'))!;
+    await harness.storage.readwrite('notes').put({
+      ...current,
+      retention: 'session-pinned',
+      upstreamStatus: 'unsubscribed',
+    });
+    const archived = (await harness.storage.readonly('notes').get('seed-dt'))!;
+    expect(resolveNoteOwnership(archived).kind).toBe('feed-archived');
 
-    // Unsubscribing deletes the upstream Seed Note — the clone reports a broken lineage but keeps everything.
-    await harness.storage.readwrite('notes').delete('seed-dt');
     const brokenLineage = await harness.upstreamProvenance(run.noteId);
-    expect(brokenLineage).toMatchObject({ exists: false, sourceNoteId: 'seed-dt' });
-    const cloneAfterDelete = await harness.storage.readonly('notes').get(run.noteId);
-    expect(cloneAfterSync?.rawContent).toBe(cloneAfterDelete?.rawContent);
+    expect(brokenLineage).toMatchObject({
+      exists: false,
+      sourceNoteId: 'seed-dt',
+      upstreamStatus: 'unsubscribed',
+    });
+
+    // Explicit Fork to My Notes creates a separate editable user Note with full provenance
+    const forked = await forkNoteToUserNotebook(harness.storage, 'seed-dt', 'notebook/my-benchmarks');
+    expect(forked.id).not.toBe('seed-dt');
+    expect(forked.seedOrigin).toBe('user');
+    expect(resolveNoteOwnership(forked).editable).toBe(true);
+    expect(forked.provenance?.sourceNoteId).toBe('seed-dt');
   });
 });

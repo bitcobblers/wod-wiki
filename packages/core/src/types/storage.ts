@@ -47,6 +47,9 @@ export interface NoteProvenance {
   clonedAt: number;
 }
 
+export type NoteRetention = 'indexed' | 'cached' | 'session-pinned';
+export type NoteUpstreamStatus = 'live' | 'unsubscribed' | 'removed';
+
 export interface Note {
   id: string; // UUID — canonical storage identity
   title: string; // Display name
@@ -82,6 +85,11 @@ export interface Note {
   seedCommit?: string;
   /** Whether a user-owned notebook landing note (`notebook/{slug}`) publishes its member notes to the outbound Feed. */
   public?: boolean;
+  /** Local retention tier for external/feed notes ('indexed' remote preview,
+   *  'cached' locally materialized, or 'session-pinned' immutable archival copy). */
+  retention?: NoteRetention;
+  /** Lifecycle state of the upstream feed record when known. */
+  upstreamStatus?: NoteUpstreamStatus;
 }
 
 // ---------------------------------------------------------------------------

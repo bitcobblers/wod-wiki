@@ -3,12 +3,17 @@ import {
   isNoteEditable,
   parseDocumentSections,
   reconcileNoteBlocks,
+  resolveNoteOwnership,
   KNOWN_SECTION_WIDGETS,
   projectPlacements,
   resolvePlacements,
   type PageTarget,
 } from '@bitcobblers/wod-wiki-core';
-import { createParser, prepareJournalSessionRun } from '@bitcobblers/wod-wiki-engine';
+import {
+  createParser,
+  parseRemoteNoteId,
+  prepareJournalSessionRun,
+} from '@bitcobblers/wod-wiki-engine';
 import { notebookOfItem, notebookOriginOfItem, toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import type { DomainDetail, DomainPredicate, DomainQuery } from '@bitcobblers/wod-wiki-storage';
 
@@ -19,6 +24,7 @@ import { toShortId } from '@/lib/idUtils';
 import { formatPlaygroundTimestampId } from '@/lib/playgroundDisplay';
 import { captureWellnessFacts } from '@/services/analytics/wellness';
 import { replayResultAnalytics } from '@/services/analytics/workoutDerivation';
+import { loadRemoteRecordDetail, lookupRemoteRecord } from '@/services/feed/feedCatalog';
 import { storageService, type StorageService } from '@/services/storage';
 import type {
   AttachmentCreateInput,
@@ -347,22 +353,59 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
     if (session.noteId !== input.noteId) {
       throw new NotePersistenceError('RESULT_NOTE_MISMATCH', 'Session belongs to another Note');
     }
-    const existingStored = await this.storage.getNote(input.noteId);
+    const parsedRemote = parseRemoteNoteId(input.noteId);
+    const lookupId = parsedRemote.isRemote ? parsedRemote.uuid : input.noteId;
+    const existingStored =
+      (await this.storage.getNote(lookupId)) ??
+      (lookupId !== input.noteId ? await this.storage.getNote(input.noteId) : undefined);
+
     if (
-      existingStored &&
-      !isNoteEditable(
-        existingStored,
-        notebookOriginOfItem(existingStored),
-        notebookOfItem(existingStored),
-      )
+      parsedRemote.isRemote ||
+      (existingStored &&
+        (!isNoteEditable(
+          existingStored,
+          notebookOriginOfItem(existingStored),
+          notebookOfItem(existingStored),
+        ) ||
+          resolveNoteOwnership(
+            existingStored,
+            notebookOriginOfItem(existingStored),
+            notebookOfItem(existingStored),
+          ).kind !== 'user'))
     ) {
+      let remotePayload: Parameters<typeof prepareJournalSessionRun>[1]['remotePayload'];
+      if (!existingStored && parsedRemote.isRemote) {
+        const seedRow = await loadRemoteRecordDetail(input.noteId).catch(() => undefined);
+        const meta = lookupRemoteRecord(input.noteId);
+        if (seedRow) {
+          remotePayload = {
+            row: seedRow,
+            canonicalNoteId: meta?.record.uuid ?? parsedRemote.uuid,
+            remoteNoteId: input.noteId,
+            feedId: meta?.feedId ?? parsedRemote.feedId,
+            notebookSlug: meta?.notebookSlug,
+            record: meta?.record,
+          };
+        } else if (input.rawContent?.trim()) {
+          remotePayload = {
+            id: parsedRemote.uuid,
+            title: input.metadata?.title,
+            rawContent: input.rawContent,
+            blocks: input.blocks,
+            feedSourceId: meta?.feedId ?? parsedRemote.feedId,
+            sourceNotebookId: meta?.notebookSlug ? `notebook/${meta.notebookSlug}` : undefined,
+          };
+        }
+      }
+
       const prepared = await prepareJournalSessionRun(this.storage.storage, {
-        noteId: existingStored.id,
+        noteId: existingStored ? existingStored.id : input.noteId,
         blockId: session.blockId,
         sessionId: session.id,
         journalDate: localDateKey(new Date(session.startTime || Date.now())),
         startedAt: session.startTime,
         origin: session.origin,
+        ...(remotePayload ? { remotePayload } : {}),
       });
       preparedJournalSessions.set(prepared.session.id, prepared.session);
       return {
@@ -394,6 +437,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           blockVersion: revision.version,
           blockContentId: section?.scriptBlock?.contentId,
           status: 'in-progress',
+          notebookIds: session.notebookIds?.length ? session.notebookIds : ['notebook/journal'],
         };
         await scoped.saveSession(pinned);
         return { note, revision, session: pinned };
@@ -422,17 +466,16 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
         createdAt: createdAt ?? previous.createdAt,
       };
       await scoped.saveSession(session);
-      if (!storedPrevious && session.notebookIds?.length) {
-        const links = session.notebookIds.map((notebookId) => ({
-          id: `${notebookId}:session:${session.id}`,
-          notebookId,
-          targetKind: 'session' as const,
-          targetId: session.id,
-          noteId: session.noteId,
-          createdAt: session.createdAt,
-        }));
-        await scoped.storage.readwrite('notebook_links').putMany(links);
-      }
+      const nbIds = session.notebookIds?.length ? session.notebookIds : ['notebook/journal'];
+      const links = nbIds.map((notebookId) => ({
+        id: `${notebookId}:session:${session.id}`,
+        notebookId,
+        targetKind: 'session' as const,
+        targetId: session.id,
+        noteId: session.noteId,
+        createdAt: session.createdAt,
+      }));
+      await scoped.storage.readwrite('notebook_links').putMany(links);
       if (data.logs?.length) {
         const identity = {
           noteId: session.noteId,
@@ -804,6 +847,20 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       const note = await scoped.getNote(resolved.id);
       if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${resolved.id}`);
       const rawContent = patch.rawContent ?? note.rawContent;
+      const mustProtectImmutableExternalSource =
+        note.id.startsWith('remote:') ||
+        note.retention === 'indexed' ||
+        note.retention === 'session-pinned' ||
+        note.retention === 'cached' ||
+        note.feedOrigin === 'feed' ||
+        note.upstreamStatus === 'unsubscribed' ||
+        note.upstreamStatus === 'removed';
+      if (patch.rawContent !== undefined && patch.rawContent !== note.rawContent && mustProtectImmutableExternalSource) {
+        const ownership = resolveNoteOwnership(note, notebookOriginOfItem(note), notebookOfItem(note));
+        if (!ownership.editable) {
+          throw new Error(`Note '${note.id}' is read-only (${ownership.kind}) and cannot be edited directly.`);
+        }
+      }
       if (patch.rawContent !== undefined && patch.expectedSourceRevision === undefined) {
         throw new NotePersistenceError('STALE_SOURCE', `An expected source revision is required for ${note.id}`);
       }

@@ -2,8 +2,10 @@ import { z } from 'zod';
 import {
   KNOWN_SECTION_WIDGETS,
   parseDocumentSections,
+  toNotebookId,
   type EventRecord,
   type IOutputStatement,
+  type NotebookLink,
   type Session,
 } from '@bitcobblers/wod-wiki-core';
 import {
@@ -21,6 +23,7 @@ import {
 } from '@bitcobblers/wod-wiki-lang';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import { setSessionPublic } from '../../feed/ingestor';
+import { makeNotebookLinkId } from '../../notebook/membership';
 import { resolveScopedPropertyCatalog } from '../../notebook/propertyInheritance';
 import { prepareJournalSessionRun } from '../../notebook/sessionIntake';
 import {
@@ -217,8 +220,20 @@ export const wodSessionRunHeadlessTool = defineAgentTool({
       ...(args.public !== undefined ? { public: args.public } : {}),
     };
 
-    await ctx.storage.transaction(['sessions', 'events'], 'readwrite', async (tx) => {
+    await ctx.storage.transaction(['sessions', 'events', 'notebook_links'], 'readwrite', async (tx) => {
       await tx.readwrite('sessions').put(finalizedSession);
+      const nbIds = finalizedSession.notebookIds?.length ? finalizedSession.notebookIds : ['notebook/journal'];
+      const links: NotebookLink[] = nbIds.map((nbId) => ({
+        id: makeNotebookLinkId(toNotebookId(nbId), 'session', finalizedSession.id),
+        notebookId: toNotebookId(nbId),
+        targetKind: 'session',
+        targetId: finalizedSession.id,
+        noteId: finalizedSession.noteId,
+        createdAt: finalizedSession.createdAt,
+      }));
+      if (links.length > 0) {
+        await tx.readwrite('notebook_links').putMany(links);
+      }
       if (allEvents.length > 0) {
         await tx.readwrite('events').putMany(allEvents);
       }
@@ -236,6 +251,7 @@ export const wodSessionRunHeadlessTool = defineAgentTool({
       blockId: finalizedSession.blockId,
       blockVersion: finalizedSession.blockVersion,
       clonedFromReadOnly: intake.clonedFromReadOnly,
+      pinnedExternalWorkout: intake.pinnedExternalWorkout,
       ...(intake.upstreamNoteId ? { upstreamNoteId: intake.upstreamNoteId } : {}),
       completed,
       stepsExecuted: steps,

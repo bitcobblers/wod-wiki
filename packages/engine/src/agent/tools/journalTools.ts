@@ -89,6 +89,15 @@ export const wodJournalDayTool = defineAgentTool({
       })
       .sort((a, b) => a.startTime - b.startTime);
 
+    for (const s of daySessions) {
+      if (seenIds.has(s.noteId)) continue;
+      const n = notesById.get(s.noteId);
+      if (n) {
+        dayNotes.push(n);
+        seenIds.add(n.id);
+      }
+    }
+
     const prefix = (ctx.baseUrl ?? '').replace(/\/+$/, '');
     return {
       date: dateKey,

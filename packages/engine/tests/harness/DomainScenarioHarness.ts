@@ -42,6 +42,7 @@ import {
   extractPropertyRulesFromMeta,
   getNotePublicationSummary,
   isFindQuery,
+  makeNotebookLinkId,
   MemoryFeedTree,
   parseQuery,
   prepareJournalSessionRun,
@@ -55,6 +56,7 @@ import {
   seedMetaKey,
   setNotebookPublic,
   setSessionPublic,
+  toNotebookId,
   toStoredOutputStatement,
   type BlockEffort,
   type BlockEquipment,
@@ -111,9 +113,10 @@ export interface SessionRunInput {
 
 export interface SessionRunResult {
   sessionId: string;
-  /** The Note the Session is pinned to — the Journal clone for read-only sources. */
+  /** The Note the Session is pinned to — the canonical Note for user or session-pinned external workouts. */
   noteId: string;
   clonedFromReadOnly: boolean;
+  pinnedExternalWorkout: boolean;
   provenance?: NoteProvenance;
   session: Session;
   outputs: IOutputStatement[];
@@ -399,8 +402,18 @@ export class DomainScenarioHarness {
       origin: session.origin ?? input.origin,
       workoutTimestamp: endTime,
     });
-    await this.storage.transaction(['sessions', 'events'], 'readwrite', async (tx) => {
+    await this.storage.transaction(['sessions', 'events', 'notebook_links'], 'readwrite', async (tx) => {
       await tx.readwrite('sessions').put(session);
+      const nbIds = session.notebookIds?.length ? session.notebookIds : ['notebook/journal'];
+      const links: NotebookLink[] = nbIds.map((nbId) => ({
+        id: makeNotebookLinkId(toNotebookId(nbId), 'session', session.id),
+        notebookId: toNotebookId(nbId),
+        targetKind: 'session',
+        targetId: session.id,
+        noteId: session.noteId,
+        createdAt: session.createdAt,
+      }));
+      if (links.length > 0) await tx.readwrite('notebook_links').putMany(links);
       if (events.length) await tx.readwrite('events').putMany(events);
     });
 
@@ -408,6 +421,7 @@ export class DomainScenarioHarness {
       sessionId: session.id,
       noteId: session.noteId,
       clonedFromReadOnly: intake.clonedFromReadOnly,
+      pinnedExternalWorkout: intake.pinnedExternalWorkout,
       ...(intake.note.provenance ? { provenance: intake.note.provenance } : {}),
       session,
       outputs,

@@ -189,7 +189,7 @@ describe('@bitcobblers/wod-wiki-engine/agent — 22 portable domain tools', () =
       const cloned = await wodNoteCloneTool.execute({ sourceNoteId: 'benchmarks/fran' }, ctx);
       expect(cloned.noteId).not.toBe('benchmarks/fran');
 
-      // Running headless session directly on read-only seed note auto-clones into notebook/journal
+      // Running headless session directly on read-only seed note pins one archival copy under canonical ID
       const runRes = await wodSessionRunHeadlessTool.execute(
         {
           noteId: 'benchmarks/fran',
@@ -198,9 +198,13 @@ describe('@bitcobblers/wod-wiki-engine/agent — 22 portable domain tools', () =
         },
         ctx,
       );
-      expect(runRes.clonedFromReadOnly).toBe(true);
-      expect(runRes.noteId).not.toBe('benchmarks/fran');
+      expect(runRes.clonedFromReadOnly).toBe(false);
+      expect(runRes.pinnedExternalWorkout).toBe(true);
+      expect(runRes.noteId).toBe('benchmarks/fran');
       expect(runRes.sessionId).toBeTruthy();
+
+      const pinnedNote = await ctx.storage.readonly('notes').get('benchmarks/fran');
+      expect(pinnedNote?.retention).toBe('session-pinned');
 
       const sessions = await wodSessionListTool.execute({ limit: 10 }, ctx);
       expect(sessions.totalCount).toBe(1);
@@ -209,9 +213,10 @@ describe('@bitcobblers/wod-wiki-engine/agent — 22 portable domain tools', () =
       expect(sessionDetail.session.id).toBe(runRes.sessionId);
       expect(sessionDetail.eventCount).toBeGreaterThan(0);
 
-      // Journal day shows the scheduled cloned note and session
+      // Journal day shows the session and the pinned workout note performed on that date
       const day = await wodJournalDayTool.execute({ date: '2026-11-11' }, ctx);
       expect(day.date).toBe('2026-11-11');
+      expect(day.sessions.some((s) => s.id === runRes.sessionId)).toBe(true);
       expect(day.notes.some((n) => n.id === runRes.noteId)).toBe(true);
     } finally {
       await close();

@@ -1,7 +1,10 @@
 import {
   createParser,
+  ensurePinnedExternalWorkout,
   getNoteNotebooks,
+  parseRemoteNoteId,
   resolveScopedPropertyCatalog,
+  type RemoteWorkoutResolution,
   type ResolvedScopedCatalog,
 } from '@bitcobblers/wod-wiki-engine';
 import {
@@ -10,6 +13,7 @@ import {
   InMemoryEffortRegistry,
 } from '@bitcobblers/wod-wiki-lang';
 import { parseDocumentSections } from '@bitcobblers/wod-wiki-core';
+import { loadRemoteRecordDetail, lookupRemoteRecord } from '@/services/feed/feedCatalog';
 import { notePersistence, type INotePersistence, type SaveNoteInput } from '@/services/persistence';
 import { storageService } from '@/services/storage';
 import { getTagIndex } from '@/services/tags/tagCatalogue';
@@ -106,6 +110,9 @@ export async function captureRun(input: SaveNoteInput, block: ScriptBlock, resul
     status: 'in-progress',
     createdAt: startedAt,
   });
+  if (captured.note.id !== input.noteId) {
+    useActiveRunStore.getState().setActiveSessionMeta(resultId, captured.note.id);
+  }
   const backingStorage =
     (persistence as { persistenceStorage?: { storage?: typeof storageService.storage } })
       .persistenceStorage?.storage ?? storageService.storage;
@@ -134,8 +141,45 @@ export async function captureRun(input: SaveNoteInput, block: ScriptBlock, resul
   return { ...captured, block: capturedBlock };
 }
 
-export async function captureStoredRun(noteId: string, block: ScriptBlock, resultId: string, origin?: ResultOrigin): Promise<CapturedRun> {
-  const note = await storageService.getNote(noteId);
+export async function captureStoredRun(
+  noteId: string,
+  block: ScriptBlock,
+  resultId: string,
+  origin?: ResultOrigin,
+  options?: { resolveRemoteWorkout?: (id: string) => Promise<RemoteWorkoutResolution | undefined> },
+): Promise<CapturedRun> {
+  const parsedRemote = parseRemoteNoteId(noteId);
+  const lookupId = parsedRemote.isRemote ? parsedRemote.uuid : noteId;
+  let note =
+    (await storageService.getNote(lookupId)) ??
+    (lookupId !== noteId ? await storageService.getNote(noteId) : undefined);
+
+  if (!note && parsedRemote.isRemote) {
+    const resolved = options?.resolveRemoteWorkout
+      ? await options.resolveRemoteWorkout(noteId)
+      : await loadRemoteRecordDetail(noteId).catch(() => undefined);
+    const meta = lookupRemoteRecord(noteId);
+    const remotePayload: RemoteWorkoutResolution | undefined = resolved
+      ? 'content' in resolved && 'path' in resolved
+        ? {
+            row: resolved,
+            canonicalNoteId: meta?.record.uuid ?? parsedRemote.uuid,
+            remoteNoteId: noteId,
+            feedId: meta?.feedId ?? parsedRemote.feedId,
+            notebookSlug: meta?.notebookSlug,
+            record: meta?.record,
+          }
+        : resolved
+      : undefined;
+    if (remotePayload) {
+      const pinned = await ensurePinnedExternalWorkout(storageService.storage, {
+        noteId,
+        remotePayload,
+      });
+      note = pinned.note;
+    }
+  }
+
   if (!note) throw new Error('The note is unavailable. Save the note before starting a workout.');
   return captureRun({ noteId: note.id, rawContent: note.rawContent, blocks: note.blocks, expectedSourceRevision: note.sourceRevision }, block, resultId, origin);
 }
