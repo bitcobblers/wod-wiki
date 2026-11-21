@@ -23,7 +23,7 @@ export interface UseCanvasEditorSourceReturn {
   isEditorLoading: boolean
   activeSourceKey: string
   activeOriginalSource: string
-  swapSource: (raw: string, sourceKey?: string) => void
+  swapSource: (raw: string, sourceKey?: string, options?: { focus?: boolean }) => void
   handleEditorChange: (value: string) => void
   resetActiveSource: () => void
   /** Forward this to `<CanvasPanelContent onViewCreated={...}>` (and onward to `NoteEditor`). */
@@ -54,7 +54,7 @@ export function useCanvasEditorSource({
     requestAnimationFrame(() => editorViewRef.current?.focus())
   }, [])
 
-  const swapSource = useCallback((raw: string, sourceKey: string = raw) => {
+  const swapSource = useCallback((raw: string, sourceKey: string = raw, options?: { focus?: boolean }) => {
     const saved = sourceEditsRef.current.get(sourceKey)
     const nextSource = saved?.current ?? raw
     const originalSource = saved?.original ?? raw
@@ -65,7 +65,8 @@ export function useCanvasEditorSource({
 
     setActiveSourceKey(sourceKey)
     setActiveOriginalSource(originalSource)
-    focusEditor()
+    const shouldFocus = options?.focus !== false
+    if (shouldFocus) focusEditor()
 
     if (nextSource === editorSourceRef.current) {
       setIsEditorLoading(false)
@@ -81,7 +82,7 @@ export function useCanvasEditorSource({
       setEditorOpacity(1)
       setIsEditorLoading(false)
       swapTimerRef.current = undefined
-      focusEditor()
+      if (shouldFocus) focusEditor()
     }, 180)
   }, [focusEditor])
 

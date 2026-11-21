@@ -117,17 +117,24 @@ export function ScrollTrackProvider({ children }: { children: ReactNode }) {
 
     const spans: SegmentSpan[] = []
     rects.forEach((rect, id) => spans.push({ id, top: rect.top, bottom: rect.top + rect.height }))
+    const isMobileEditing =
+      typeof document !== 'undefined' &&
+      document.documentElement.dataset.mobileEditorOpen === 'true'
     const nextActive = resolveActiveSegmentId(spans, viewportH)
     if (nextActive !== activeRef.current) {
       activeRef.current = nextActive
       // The scroll target hands off between sections: a gate captured in
-      // a segment that no longer owns the reading line releases.
+      // a segment that no longer owns the reading line releases — except
+      // while mobile editing is open, so scrolling the edit row clear of
+      // the keyboard/deck never locks .cm-scroller mid-edit.
       const captured = capturedRef.current
-      if (captured && captured.segmentId !== nextActive) {
+      if (captured && captured.segmentId !== nextActive && !isMobileEditing) {
         capturedRef.current = null
         setCapturedGateId(null)
       }
     }
+
+    if (isMobileEditing) return
 
     driversRef.current.forEach((driver, id) => {
       const rect = rects.get(id)
@@ -285,6 +292,13 @@ export function ScrollGate({
         }
       }}
       onBlur={(e) => {
+        if (
+          !(e.relatedTarget instanceof Node) &&
+          typeof document !== 'undefined' &&
+          document.documentElement.dataset.mobileEditorOpen === 'true'
+        ) {
+          return
+        }
         if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) {
           track.releaseGate(gateId)
         }
@@ -294,7 +308,7 @@ export function ScrollGate({
       {(overflowing || mode === 'captured') && (
         <button
           type="button"
-          className="min-h-11 self-start rounded px-3 py-2 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary"
+          className="mt-2 inline-flex min-h-9 max-lg:min-h-11 items-center gap-1.5 self-end rounded-full border border-border/80 bg-card px-3 py-1.5 font-mono text-[11px] font-medium text-muted-foreground shadow-xs transition-colors hover:border-foreground/25 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           aria-label={`${mode === 'captured' ? 'Scroll page' : 'Scroll panel'}: ${gateId.replace(/-/g, ' ')} content`}
           aria-pressed={mode === 'captured'}
           onClick={() => mode === 'captured'

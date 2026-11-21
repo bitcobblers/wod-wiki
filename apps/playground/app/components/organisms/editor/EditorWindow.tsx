@@ -181,6 +181,7 @@ export function EditorWindow({
             commands={effectiveCommands}
             hideDefaultCommands={effectiveHideDefaultCommands}
             onViewCreated={onViewCreated}
+            autoFocus={false}
             className="h-full"
           />
           {children}

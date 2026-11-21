@@ -90,7 +90,7 @@ export function GuideIndexFooter({ variant = 'index' }: { variant?: 'index' | 'u
               <li
                 key={c.id}
                 className={cn(
-                  'flex flex-col gap-5 rounded-lg border border-border p-5 md:flex-row md:items-center md:gap-8 md:p-6',
+                  'flex flex-col gap-5 rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary/30 md:flex-row md:items-center md:gap-8 md:p-6',
                   idx % 2 === 1 && 'md:flex-row-reverse',
                 )}
               >
@@ -112,8 +112,8 @@ export function GuideIndexFooter({ variant = 'index' }: { variant?: 'index' | 'u
                     <Play className="size-9 fill-white text-white" />
                   </span>
                 </button>
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <Link to={c.to} className="font-semibold hover:underline">
+                <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
+                  <Link to={c.to} className="inline-flex min-h-10 items-center font-semibold hover:underline">
                     {c.label}
                   </Link>
                   <p className="text-sm leading-relaxed text-muted-foreground">

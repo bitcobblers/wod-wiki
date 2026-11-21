@@ -28,6 +28,57 @@
   min-width: 0;
 }
 
+/* Bounded panel editors (Home, Canvas, Guide runways) scroll inside their
+   fixed-height card; ScrollGate's yield rule below still freezes scroll with
+   !important until captured. */
+.cm-note-editor.h-full .cm-editor,
+.cm-note-editor.h-full .cm-scroller {
+  height: 100%;
+  min-height: 0;
+}
+.cm-note-editor.h-full .cm-scroller {
+  overflow-y: auto;
+}
+
+/* Clear visual anchor for the active edit row across desktop focus and mobile
+   custom selector interactions (when DOM focus briefly moves into the deck). */
+.cm-note-editor .cm-editor.cm-focused .cm-activeLine,
+.cm-note-editor[data-mobile-editing="true"] .cm-activeLine {
+  background-color: hsl(var(--primary) / 0.09);
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.24);
+  border-radius: 3px;
+}
+.cm-note-editor[data-mobile-editing="true"] .cm-selectionBackground {
+  background-color: hsl(var(--primary) / 0.18);
+}
+
+@media (max-width: 1023px) {
+  /* 16px minimum prevents iOS Safari auto-zoom when tapping into CodeMirror. */
+  .cm-note-editor .cm-editor {
+    font-size: 16px;
+  }
+  .cm-note-editor .cm-content {
+    line-height: 24px;
+  }
+
+  html[data-mobile-editor-open="true"] {
+    scroll-padding-top: calc(var(--mobile-sticky-top, 65px) + 16px);
+    scroll-padding-bottom: calc(var(--mobile-editor-inset, 44svh) + 16px);
+  }
+
+  /* Unbounded full-page editors get tail clearance above the deck/keyboard;
+     bounded .h-full / gated editors pad inside .cm-scroller instead so the
+     outer box never collapses. */
+  .cm-note-editor[data-mobile-editing="true"]:not(.h-full) {
+    padding-bottom: calc(var(--mobile-editor-inset, 44svh) + 2rem);
+  }
+  .cm-note-editor[data-mobile-editing="true"].h-full .cm-scroller,
+  [data-scroll-gate] .cm-note-editor[data-mobile-editing="true"] .cm-scroller {
+    padding-bottom: 140px;
+    scroll-padding-block: 16px;
+  }
+}
+
 /* Panels yield to native page gestures. Editing or Scroll panel enables
    inner scrolling; boundaries chain back to the page without JS dragging. */
 [data-scroll-gate] .cm-editor,

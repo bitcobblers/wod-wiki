@@ -221,6 +221,7 @@ export const TourEditorScreen: React.FC<TourEditorScreenProps> = ({
           showFrontmatter={false}
           enableOverlay={false}
           enableInlineRuntime={false}
+          autoFocus={false}
           className="h-full"
         />
         {withRingTargets && blockBox && (

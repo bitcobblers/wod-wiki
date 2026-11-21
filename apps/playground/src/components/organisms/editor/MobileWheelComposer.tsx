@@ -49,6 +49,7 @@ import {
   type InspectorToken,
   type InspectorTokenKind,
 } from "./whiteboard-inspector/tokenModel";
+import { revealMobileEditRow } from "./mobileEditViewport";
 
 export interface MobileWheelComposerProps {
   view: EditorView | null;
@@ -57,6 +58,7 @@ export interface MobileWheelComposerProps {
   isOpen: boolean;
   isTypingMode: boolean;
   onSwitchToTyping: (typing: boolean) => void;
+  onDeckInteract?: () => void;
   onClose: () => void;
 }
 
@@ -140,6 +142,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
   isOpen,
   isTypingMode,
   onSwitchToTyping,
+  onDeckInteract,
   onClose,
 }) => {
   const [scope, setScope] = useState<NotebookScopeSnapshot>(EMPTY_SCOPE);
@@ -148,7 +151,19 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
   const [deckMode, setDeckMode] = useState<InspectorMode>("token");
   const lastLineRef = useRef<number>(-1);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
-  const [keyboardOffsetBottom, setKeyboardOffsetBottom] = useState(0);
+  const deckRef = useRef<HTMLElement | null>(null);
+  const [deckEl, setDeckEl] = useState<HTMLElement | null>(null);
+  const attachDeckRef = useCallback((node: HTMLElement | null) => {
+    deckRef.current = node;
+    setDeckEl(node);
+  }, []);
+  const revealRafRef = useRef(0);
+  const revealTimerRef = useRef<number | null>(null);
+  const [viewportState, setViewportState] = useState<{
+    height: number | null;
+    offsetTop: number;
+    keyboardOffsetBottom: number;
+  }>({ height: null, offsetTop: 0, keyboardOffsetBottom: 0 });
   const [queryStageToken, setQueryStageToken] = useState(0);
 
   const docText = view?.state.doc.toString() ?? "";
@@ -177,26 +192,71 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
     };
   }, [isOpen, noteId, docText, view]);
 
-  // Track visualViewport offset when native keyboard is up in typing mode.
+  // Track visualViewport height and bottom offset in BOTH Deck mode and Typing mode.
   useEffect(() => {
-    if (!isOpen || !isTypingMode || typeof window === "undefined") {
-      setKeyboardOffsetBottom(0);
+    if (!isOpen || typeof window === "undefined") {
+      setViewportState({ height: null, offsetTop: 0, keyboardOffsetBottom: 0 });
       return;
     }
     const vv = window.visualViewport;
-    if (!vv) return;
+    if (!vv) {
+      setViewportState({
+        height: window.innerHeight,
+        offsetTop: 0,
+        keyboardOffsetBottom: 0,
+      });
+      return;
+    }
+    let rafId = 0;
     const syncViewport = () => {
+      rafId = 0;
       const bottomGap = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
-      setKeyboardOffsetBottom(bottomGap);
+      setViewportState((prev) =>
+        prev.height === vv.height &&
+        prev.offsetTop === vv.offsetTop &&
+        prev.keyboardOffsetBottom === bottomGap
+          ? prev
+          : {
+              height: vv.height,
+              offsetTop: vv.offsetTop,
+              keyboardOffsetBottom: bottomGap,
+            },
+      );
+    };
+    const scheduleSync = () => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(syncViewport);
     };
     syncViewport();
-    vv.addEventListener("resize", syncViewport);
-    vv.addEventListener("scroll", syncViewport);
+    vv.addEventListener("resize", scheduleSync);
+    vv.addEventListener("scroll", scheduleSync);
     return () => {
-      vv.removeEventListener("resize", syncViewport);
-      vv.removeEventListener("scroll", syncViewport);
+      if (rafId) cancelAnimationFrame(rafId);
+      vv.removeEventListener("resize", scheduleSync);
+      vv.removeEventListener("scroll", scheduleSync);
     };
-  }, [isOpen, isTypingMode]);
+  }, [isOpen]);
+
+  // Publish exact mobile editor bottom inset so CanvasEditorPanel and full-page editors yield cleanly.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (!isOpen || !view || !deckEl) {
+      document.documentElement.style.removeProperty("--mobile-editor-inset");
+      return;
+    }
+    const publishInset = () => {
+      const measuredHeight = Math.round(deckEl.getBoundingClientRect().height);
+      const inset = measuredHeight + viewportState.keyboardOffsetBottom;
+      document.documentElement.style.setProperty("--mobile-editor-inset", `${inset}px`);
+    };
+    publishInset();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(publishInset) : null;
+    ro?.observe(deckEl);
+    return () => {
+      ro?.disconnect();
+      document.documentElement.style.removeProperty("--mobile-editor-inset");
+    };
+  }, [isOpen, view, deckEl, viewportState.keyboardOffsetBottom]);
 
   // Reset preferred slot index whenever cursor moves to a different line.
   useEffect(() => {
@@ -222,11 +282,62 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
     return extractLineTokens(view.state);
   }, [view, isOpen, cursorVersion]);
 
-  const revealLineAboveDeck = useCallback((targetView: EditorView, pos: number) => {
-    targetView.dispatch({
-      effects: EditorView.scrollIntoView(pos, { y: "center", yMargin: 32 }),
-    });
+  const scheduleRevealEditRow = useCallback(
+    (opts?: { pos?: number; forceCenter?: boolean; followUp?: boolean }) => {
+      if (!view || !isOpen) return;
+      if (revealRafRef.current) cancelAnimationFrame(revealRafRef.current);
+      if (revealTimerRef.current !== null) {
+        window.clearTimeout(revealTimerRef.current);
+        revealTimerRef.current = null;
+      }
+      const runReveal = () => {
+        revealMobileEditRow(view, {
+          pos: opts?.pos,
+          overlayEl: deckRef.current,
+          forceCenter: opts?.forceCenter,
+        });
+      };
+      revealRafRef.current = requestAnimationFrame(() => {
+        revealRafRef.current = 0;
+        runReveal();
+      });
+      if (opts?.followUp) {
+        revealTimerRef.current = window.setTimeout(() => {
+          revealTimerRef.current = null;
+          runReveal();
+        }, 120);
+      }
+    },
+    [view, isOpen],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (revealRafRef.current) cancelAnimationFrame(revealRafRef.current);
+      if (revealTimerRef.current !== null) window.clearTimeout(revealTimerRef.current);
+    };
   }, []);
+
+  // Re-center edit row whenever deck/keyboard/mode transitions settle.
+  useEffect(() => {
+    if (!isOpen || !view) return;
+    scheduleRevealEditRow({ forceCenter: true, followUp: true });
+  }, [
+    isOpen,
+    view,
+    isTypingMode,
+    viewportState.keyboardOffsetBottom,
+    viewportState.height,
+    deckMode,
+    useScrubber,
+    scheduleRevealEditRow,
+  ]);
+
+  // Keep edit row visible whenever cursor or doc changes.
+  useEffect(() => {
+    if (!isOpen || !view) return;
+    scheduleRevealEditRow();
+  }, [isOpen, view, cursorVersion, scheduleRevealEditRow]);
 
   const activateSlot = useCallback(
     (index: number) => {
@@ -241,17 +352,17 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
         view.dispatch({
           selection: { anchor: slot.from, head: slot.to },
         });
-        revealLineAboveDeck(view, slot.from);
+        scheduleRevealEditRow({ pos: slot.from });
       } else if (slot.kind === "add-metric") {
         view.dispatch({
           selection: { anchor: slot.from, head: slot.from },
         });
-        revealLineAboveDeck(view, slot.from);
+        scheduleRevealEditRow({ pos: slot.from });
       } else if (slot.kind === "query-stage") {
         setQueryStageToken((n) => n + 1);
       }
     },
-    [view, model, revealLineAboveDeck],
+    [view, model, scheduleRevealEditRow],
   );
 
   const stepSlot = useCallback(
@@ -284,7 +395,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
           selection: { anchor: tokenStart, head: tokenEnd },
           userEvent: "input.wheel",
         });
-        revealLineAboveDeck(view, tokenStart);
+        scheduleRevealEditRow({ pos: tokenStart });
         return;
       }
 
@@ -299,10 +410,10 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
           selection: { anchor: activeSlot.from, head: newTo },
           userEvent: "input.wheel",
         });
-        revealLineAboveDeck(view, activeSlot.from);
+        scheduleRevealEditRow({ pos: activeSlot.from });
       }
     },
-    [view, model, revealLineAboveDeck],
+    [view, model, scheduleRevealEditRow],
   );
 
   const handleInsertNewLine = useCallback(() => {
@@ -320,8 +431,8 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
       selection: { anchor: nextPos },
       userEvent: "input.wheel",
     });
-    revealLineAboveDeck(view, nextPos);
-  }, [view, revealLineAboveDeck]);
+    scheduleRevealEditRow({ pos: nextPos });
+  }, [view, scheduleRevealEditRow]);
 
   const handleEnterTypingMode = useCallback(() => {
     if (!view) return;
@@ -338,6 +449,10 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
   }, [view, onSwitchToTyping]);
 
   const handleDone = useCallback(() => {
+    if (typeof document !== "undefined") {
+      delete document.documentElement.dataset.mobileEditorOpen;
+      document.documentElement.style.removeProperty("--mobile-editor-inset");
+    }
     view?.contentDOM.blur();
     onClose();
   }, [view, onClose]);
@@ -353,20 +468,30 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
         userEvent: "input",
       });
       view.focus();
+      scheduleRevealEditRow({ pos: nextCursor });
       if (keySpec.triggerComplete) {
         queueMicrotask(() => {
           startCompletion(view);
         });
       }
     },
-    [view],
+    [view, scheduleRevealEditRow],
   );
 
-  const onPointerStart = useCallback((clientX: number, clientY: number) => {
-    swipeStartRef.current = { x: clientX, y: clientY };
+  const onRailPointerStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('[role="listbox"], input, textarea, select')) {
+      swipeStartRef.current = null;
+      return;
+    }
+    if (e.currentTarget.scrollWidth > e.currentTarget.clientWidth + 4) {
+      swipeStartRef.current = null;
+      return;
+    }
+    swipeStartRef.current = { x: e.clientX, y: e.clientY };
   }, []);
 
-  const onPointerFinish = useCallback(
+  const onRailPointerFinish = useCallback(
     (clientX: number, clientY: number) => {
       const start = swipeStartRef.current;
       swipeStartRef.current = null;
@@ -408,15 +533,23 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
     activeToken !== null &&
     effectiveMode === "token";
 
+  const { height: vvHeight, keyboardOffsetBottom } = viewportState;
+
   if (isTypingMode) {
     return (
       <div
+        ref={attachDeckRef}
         data-testid="mobile-typing-bar"
-        style={{ bottom: `${keyboardOffsetBottom}px` }}
-        className="fixed inset-x-0 z-40 flex flex-col border-t border-border bg-card text-card-foreground shadow-lg select-none pb-[env(safe-area-inset-bottom,0px)]"
+        data-mobile-editor-deck="true"
+        onPointerDownCapture={() => onDeckInteract?.()}
+        style={{
+          bottom: `${keyboardOffsetBottom}px`,
+          ...(keyboardOffsetBottom > 0 ? { paddingBottom: 0 } : {}),
+        }}
+        className="fixed inset-x-0 z-40 flex flex-col border-t border-border bg-card text-card-foreground shadow-lg select-none overscroll-contain pb-[env(safe-area-inset-bottom,0px)]"
       >
         {/* Persistent Live Token Rail above OS keyboard */}
-        <div className="flex min-h-[48px] items-center gap-1.5 overflow-x-auto border-b border-border bg-muted/40 px-2.5 scrollbar-none">
+        <div className="flex min-h-[48px] items-center gap-1.5 overflow-x-auto overscroll-x-contain border-b border-border bg-muted/40 px-2.5 scrollbar-none">
           <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground tabular-nums">
             L{model.lineNumber}
           </span>
@@ -446,7 +579,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
 
         {/* Syntax Accessory Keys + Deck / Done Bar */}
         <div className="flex min-h-[48px] items-center justify-between gap-1.5 px-2 py-1">
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none">
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain scrollbar-none">
             <button
               type="button"
               data-testid="mobile-return-wheel-btn"
@@ -515,31 +648,42 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
     );
   }
 
+  const deckDynamicStyle: React.CSSProperties = {
+    bottom: `${keyboardOffsetBottom}px`,
+    ...(vvHeight !== null && keyboardOffsetBottom > 0
+      ? {
+          paddingBottom: 0,
+          height: `${Math.min(276, Math.max(184, Math.round(vvHeight * 0.52)))}px`,
+          minHeight: "184px",
+        }
+      : vvHeight !== null
+        ? {
+            maxHeight: `${Math.min(360, Math.max(252, Math.round(vvHeight * 0.44)))}px`,
+          }
+        : {}),
+  };
+
   return (
     <section
+      ref={attachDeckRef}
       aria-label="Mobile workout and note thumb deck"
       data-testid="mobile-wheel-composer"
+      data-mobile-editor-deck="true"
+      onPointerDownCapture={() => onDeckInteract?.()}
       onMouseDown={(e) => {
         if ((e.target as HTMLElement).tagName !== "INPUT") {
           e.preventDefault();
         }
       }}
-      onTouchStart={(e) => {
-        const t = e.touches[0];
-        if (t) onPointerStart(t.clientX, t.clientY);
-      }}
-      onTouchEnd={(e) => {
-        const t = e.changedTouches[0];
-        if (t) onPointerFinish(t.clientX, t.clientY);
-      }}
-      className="fixed inset-x-0 bottom-0 z-40 h-[46dvh] max-h-[380px] min-h-[268px] flex flex-col border-t border-border bg-card text-card-foreground shadow-xl select-none pb-[env(safe-area-inset-bottom,0px)]"
+      style={deckDynamicStyle}
+      className="fixed inset-x-0 bottom-0 z-40 h-[min(42svh,360px)] max-h-[380px] min-h-[252px] flex flex-col border-t border-border bg-card text-card-foreground shadow-xl select-none overscroll-contain pb-[env(safe-area-inset-bottom,0px)]"
     >
       {/* Region 1: Live Token Rail */}
       <div
         data-testid="mobile-wheel-slot-rail"
-        onPointerDown={(e) => onPointerStart(e.clientX, e.clientY)}
-        onPointerUp={(e) => onPointerFinish(e.clientX, e.clientY)}
-        className="flex min-h-[48px] items-center gap-1.5 overflow-x-auto border-b border-border bg-muted/40 px-2 scrollbar-none"
+        onPointerDown={onRailPointerStart}
+        onPointerUp={(e) => onRailPointerFinish(e.clientX, e.clientY)}
+        className="flex min-h-[48px] items-center gap-1.5 overflow-x-auto overscroll-x-contain border-b border-border bg-muted/40 px-2 scrollbar-none"
       >
         <div className="flex shrink-0 items-center gap-1 pr-1">
           <button
@@ -627,7 +771,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
       </div>
 
       {/* Region 2: Unified Contextual Action Body */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2.5">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-2.5">
         {model.context === "workout" &&
         activeSlot?.kind === "add-metric" &&
         effectiveMode !== "block" &&
@@ -687,6 +831,7 @@ export const MobileWheelComposer: React.FC<MobileWheelComposerProps> = ({
             onModeChange={(nextMode) => setDeckMode(nextMode)}
             onMutate={() => {
               // Line state refreshes via CM6 updateListener -> cursorVersion
+              scheduleRevealEditRow();
             }}
           />
         )}

@@ -274,7 +274,7 @@ export function MarkdownCanvasPage({
       // Scrolled back above the first content-owning section — restore the
       // panel's original source instead of leaving a later section's example
       // showing.
-      swapSource(initialSource, initialSourceKey)
+      swapSource(initialSource, initialSourceKey, { focus: false })
       return
     }
 
@@ -283,7 +283,7 @@ export function MarkdownCanvasPage({
       const selectedIndex = selectedExamples[owner.id] ?? 0
       const example = ownerExamples[selectedIndex] ?? ownerExamples[0]
       if (example?.source) {
-        swapSource(resolveSource(example.source, wodFilesRef.current), example.source)
+        swapSource(resolveSource(example.source, wodFilesRef.current), example.source, { focus: false })
       }
     }
 
@@ -303,7 +303,7 @@ export function MarkdownCanvasPage({
     // restores the previous stage's source when scrolling back up).
     const guideSource = guideOwnerBySection ? guideOwnerSource?.get(owner.id) : undefined
     if (guideSource) {
-      swapSource(resolveSource(guideSource, wodFilesRef.current), guideSource)
+      swapSource(resolveSource(guideSource, wodFilesRef.current), guideSource, { focus: false })
     }
   }, [selectedExamples, swapSource, contentOwnerBySection, guideOwnerBySection, guideOwnerSource, initialActiveSection, initialSource, initialSourceKey])
 
@@ -377,6 +377,13 @@ export function MarkdownCanvasPage({
     scrollDirection: 'topmost-when-up',
     debounceMs: 50,
     shouldAcceptChange: () => {
+      if (
+        typeof document !== 'undefined' &&
+        (document.documentElement.dataset.mobileEditorOpen === 'true' ||
+          Boolean(document.activeElement?.closest('.cm-note-editor')))
+      ) {
+        return false
+      }
       if (!hasUserScrolledRef.current) {
         hasUserScrolledRef.current = window.scrollY > 0
         return hasUserScrolledRef.current

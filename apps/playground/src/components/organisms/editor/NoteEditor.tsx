@@ -103,6 +103,7 @@ import { InlineCommandBar } from "@/components/organisms/editor/InlineCommandBar
 import { EditorCastBridge } from "@/components/organisms/editor/EditorCastBridge";
 import { MetricInlinePanel } from "@/components/organisms/editor/MetricInlinePanel";
 import { MobileWheelComposer } from "@/components/organisms/editor/MobileWheelComposer";
+import { revealMobileEditRow } from "@/components/organisms/editor/mobileEditViewport";
 import { SelectionFormatBar } from "@/components/organisms/editor/SelectionFormatBar";
 import {
   loadNotebookScopeSnapshot,
@@ -232,6 +233,8 @@ export interface NoteEditorProps {
   defaultInspectorDrawerOpen?: boolean;
   /** Drawer layout mode: viewport-fixed docked right or inline beside the editor. */
   inspectorDrawerLayout?: "docked-right" | "inline";
+  /** Automatically focus the editor on desktop mount/editable transitions (default: true). */
+  autoFocus?: boolean;
 }
 export interface EditorIdentitySnapshot {
   rawContent: string;
@@ -301,10 +304,12 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   placeholder: placeholderText,
   defaultInspectorDrawerOpen = false,
   inspectorDrawerLayout = "docked-right",
+  autoFocus = true,
 }) => {
   const editorWrapperRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const deckInteractionUntilRef = useRef(0);
   const navigate = useOptionalNavigate();
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
@@ -1139,7 +1144,12 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           if (!related || !related.closest(".cm-tooltip")) {
             closeCompletion(view);
           }
-          if (!related || !editorRef.current?.contains(related)) {
+          const insideEditor = Boolean(related && editorRef.current?.contains(related));
+          const insideDeck = Boolean(
+            related?.closest('[data-mobile-editor-deck="true"]') ||
+              (!related && Date.now() < deckInteractionUntilRef.current),
+          );
+          if (!insideEditor && !insideDeck) {
             setIsWheelOpen(false);
             setIsMobileTypingMode(false);
           }
@@ -1308,10 +1318,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     const revealKeyboardCaret = () => {
       cancelAnimationFrame(keyboardScrollFrame);
       keyboardScrollFrame = requestAnimationFrame(() => {
-        if (view.hasFocus && viewport?.scale === 1 && viewport.height < window.innerHeight) {
-          view.dispatch({
-            effects: EditorView.scrollIntoView(view.state.selection.main.head, { y: "nearest", yMargin: 24 }),
-          });
+        if (isWheelOpenRef.current) return;
+        const scaleOk = !viewport || viewport.scale <= 1.05;
+        const resized = !viewport || viewport.height < window.innerHeight;
+        if (view.hasFocus && scaleOk && resized) {
+          if (isMobileViewportRef.current) {
+            revealMobileEditRow(view, { forceCenter: true });
+          } else {
+            view.dispatch({
+              effects: EditorView.scrollIntoView(view.state.selection.main.head, { y: "nearest", yMargin: 24 }),
+            });
+          }
         }
       });
     };
@@ -1397,6 +1414,24 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   isMobileViewportRef.current = isMobileViewport;
   const isMobileTypingModeRef = useRef(isMobileTypingMode);
   isMobileTypingModeRef.current = isMobileTypingMode;
+  const isWheelOpenRef = useRef(isWheelOpen);
+  isWheelOpenRef.current = isWheelOpen;
+
+  // Dismiss the mobile thumb deck on outside pointer taps even when focus had
+  // shifted temporarily into a deck input or scrubber control.
+  useEffect(() => {
+    if (!isMobileViewport || !isWheelOpen || readonly || typeof document === "undefined") return;
+    const onOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (editorRef.current?.contains(target)) return;
+      if (target.closest('[data-mobile-editor-deck="true"], .cm-tooltip')) return;
+      setIsWheelOpen(false);
+      setIsMobileTypingMode(false);
+    };
+    document.addEventListener("pointerdown", onOutsidePointerDown, true);
+    return () => document.removeEventListener("pointerdown", onOutsidePointerDown, true);
+  }, [isMobileViewport, isWheelOpen, readonly]);
 
   // Sync mode and extensions
   useEffect(() => {
@@ -1443,12 +1478,13 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   // Mobile (<1024px) opens cleanly blurred so notes read as pure documents
   // without auto-popping the OS keyboard or wheel deck until a line is tapped.
   useEffect(() => {
+    if (!autoFocus) return;
     const isMobile =
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
       window.matchMedia("(max-width: 1023px)").matches;
     if (!readonly && !isMobile) viewRef.current?.focus();
-  }, [readonly]);
+  }, [readonly, autoFocus]);
 
   // Handle external scroll requests
   useEffect(() => {
@@ -1578,15 +1614,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     setCursorVersion((v) => v + 1);
   }, []);
 
-  const mobileDeckPadding =
-    isMobileViewport && isWheelOpen && !isMobileTypingMode && !readonly
-      ? "pb-[48dvh]"
-      : "";
-
   const activeView = viewInstance ?? viewRef.current;
   const showDesktopInspector = !isMobileViewport && !readonly;
   const isInlineDrawerActive =
     showDesktopInspector && inspectorDrawerLayout === "inline" && drawerOpen;
+  const isMobileEditing = isMobileViewport && isWheelOpen && !readonly;
 
   return (
     <>
@@ -1597,7 +1629,16 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       >
         <div
           ref={editorRef}
-          className={`cm-note-editor relative w-full min-w-0 flex-1 ${mobileDeckPadding} ${className}`}
+          data-mobile-editing={isMobileEditing ? "true" : undefined}
+          onBlur={(e) => {
+            if (!isMobileViewport || !isWheelOpen) return;
+            const related = e.relatedTarget as HTMLElement | null;
+            if (related && editorRef.current?.contains(related)) return;
+            if (!related && Date.now() < deckInteractionUntilRef.current) return;
+            setIsWheelOpen(false);
+            setIsMobileTypingMode(false);
+          }}
+          className={`cm-note-editor relative w-full min-w-0 flex-1 ${className}`}
         >
           {enableOverlay && (
             <OverlayTrack
@@ -1673,6 +1714,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               isOpen={isWheelOpen}
               isTypingMode={isMobileTypingMode}
               onSwitchToTyping={setIsMobileTypingMode}
+              onDeckInteract={() => {
+                deckInteractionUntilRef.current = Date.now() + 300;
+              }}
               onClose={() => {
                 setIsWheelOpen(false);
                 setIsMobileTypingMode(false);

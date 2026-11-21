@@ -37,7 +37,7 @@ const TEAM_FEATURES = [
 
 const quietLink = 'underline-offset-4 transition-colors hover:text-foreground hover:underline'
 function CardLink(props: { to?: string; href?: string; onClick?: () => void; children: React.ReactNode }) {
-  const className = 'inline-flex w-fit items-center gap-1.5 font-medium text-foreground underline-offset-4 transition-colors hover:underline'
+  const className = 'inline-flex min-h-10 max-lg:min-h-11 w-fit items-center gap-1.5 py-1 font-medium text-foreground underline-offset-4 transition-colors hover:underline'
   const inner = (
     <>
       {props.children}
@@ -76,7 +76,7 @@ function Bullet({ children }: { children: React.ReactNode }) {
 
 function ActiveBadge() {
   return (
-    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-emerald-800">
+    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
       Active
     </span>
   )
@@ -90,7 +90,7 @@ function FeatureRow(props: {
   onInterested: (id: string) => void
 }) {
   return (
-    <li className="flex flex-col gap-0.5">
+    <li className="flex flex-col gap-1">
       <span className="flex gap-2.5 text-[13px] leading-5 text-muted-foreground">
         <span aria-hidden className="mt-[9px] size-1 shrink-0 rounded-full bg-muted-foreground/50" />
         <span>{props.feature.label}</span>
@@ -101,9 +101,9 @@ function FeatureRow(props: {
         onClick={() => props.onInterested(props.feature.id)}
         disabled={props.interested}
         aria-pressed={props.interested}
-        className={`ml-[13px] w-fit shrink-0 rounded-full border px-2 py-px text-[11px] font-medium transition-colors ${
+        className={`ml-[13px] inline-flex min-h-8 max-lg:min-h-9 w-fit shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
           props.interested
-            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'
+            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
             : 'border-border text-muted-foreground hover:border-primary/50 hover:text-primary'
         }`}
       >
@@ -125,7 +125,7 @@ function SurveyFooter() {
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-hidden />
+          <CheckCircle2 className="size-5 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden />
           <div className="text-sm">
             <p className="font-medium text-foreground">Thanks for showing interest — please fill out the survey and give us feedback.</p>
             <p className="text-xs text-muted-foreground">Opens the interest survey in a new tab.</p>
@@ -173,7 +173,7 @@ function OfferingCard(props: {
         {props.badge}
       </div>
       {props.eyebrow && (
-        <p className={`mt-3.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] ${props.us ? 'text-emerald-800' : 'text-muted-foreground'}`}>
+        <p className={`mt-3.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] ${props.us ? 'text-emerald-800 dark:text-emerald-300' : 'text-muted-foreground'}`}>
           {props.eyebrow}
         </p>
       )}
@@ -193,7 +193,7 @@ function FeatureGroup({ label, features, interested, onInterested }: {
   return (
     <>
       <p className="mt-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground first:mt-0">{label}</p>
-      <ul className="space-y-2">
+      <ul className="space-y-3 lg:space-y-2">
         {features.map((feature) => (
           <FeatureRow key={feature.id} feature={feature} interested={interested.has(feature.id)} onInterested={onInterested} />
         ))}
@@ -242,7 +242,7 @@ export function OfferingTiers() {
 
   const playgroundBadge =
     activeMode === 'turso-invalid' ? (
-      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-amber-600">
+      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-amber-700 dark:text-amber-300">
         Invalid config
       </span>
     ) : activeMode === 'api' ? undefined : (
@@ -284,7 +284,7 @@ export function OfferingTiers() {
               type="button"
               onClick={clearData}
               disabled={clearing}
-              className={`mt-1 text-left text-xs text-muted-foreground disabled:opacity-50 ${quietLink}`}
+              className={`mt-1 inline-flex min-h-10 max-lg:min-h-11 items-center text-left text-xs text-muted-foreground disabled:opacity-50 ${quietLink}`}
             >
               {clearing ? 'Clearing…' : 'Clear my data'}
             </button>

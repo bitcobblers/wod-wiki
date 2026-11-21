@@ -169,8 +169,16 @@ function GuideRunwayGroup({
 }: GuideRunwayGroupProps) {
   const trackRef = useRef<HTMLElement | null>(null)
   const stages = useMemo(() => guideStages(sections), [sections])
+  const [editingLocked, setEditingLocked] = useState(false)
 
-  const { slice, subscribe } = useScrollRunway(trackRef, false, stages)
+  const { slice, subscribe, resync } = useScrollRunway(trackRef, editingLocked, stages)
+
+  useEffect(() => {
+    if (!editingLocked) {
+      const id = requestAnimationFrame(resync)
+      return () => cancelAnimationFrame(id)
+    }
+  }, [editingLocked, resync])
 
   // Sections are parsed once per route; keep a ref so the effects below key
   // on reach/stage only, not on host re-renders.
@@ -264,7 +272,28 @@ function GuideRunwayGroup({
           height={`${(sections.length + 1) * 100}vh`}
           stages={stages}
           activeIndex={slice.index}
-          pane={reached ? pane : null}
+          pane={
+            reached ? (
+              <div
+                className="absolute inset-0"
+                onFocusCapture={() => setEditingLocked(true)}
+                onBlurCapture={(e) => {
+                  const related = e.relatedTarget as Node | null
+                  if (related && e.currentTarget.contains(related)) return
+                  if (
+                    !related &&
+                    typeof document !== 'undefined' &&
+                    document.documentElement.dataset.mobileEditorOpen === 'true'
+                  ) {
+                    return
+                  }
+                  setEditingLocked(false)
+                }}
+              >
+                {pane}
+              </div>
+            ) : null
+          }
           captions={<GuideCaptionRail sections={sections} activeIndex={slice.index} part={part} args={cardArgs} />}
           status={
             <div className="truncate font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">

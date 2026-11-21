@@ -124,6 +124,12 @@ export function useScrollRunway(
   const measureLocal = useCallback(() => {
     rafRef.current = 0
     if (interactiveRef.current) return
+    if (
+      typeof document !== 'undefined' &&
+      document.documentElement.dataset.mobileEditorOpen === 'true'
+    ) {
+      return
+    }
     const el = runwayRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
