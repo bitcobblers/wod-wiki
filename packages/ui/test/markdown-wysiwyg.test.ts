@@ -1,17 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { act } from 'react';
-import { EditorState } from '@codemirror/state';
+import React, { act } from 'react';
+import { EditorState, StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { CompletionContext } from '@codemirror/autocomplete';
 import {
   editorFocusTracker,
+  linkPreview,
   markdownSyntaxHiding,
+  markdownTablePreview,
   previewDecorations,
   queryBlockPreview,
+  registeredSectionWidgets,
   sectionField,
   setEditorFocused,
   slashBlockCompletion,
   toggleInlineMarkdown,
+  widgetBlockPreview,
 } from '../src/extensions';
 
 describe('markdownSyntaxHiding & focus-gated WYSIWYG', () => {
@@ -171,6 +175,155 @@ describe('slashBlockCompletion, dialect toggle & pinned query preview', () => {
       view.dispatch({ selection: { anchor: doc.length } });
     });
     expect(container.querySelector('[data-testid="query-block-view"]')).not.toBeNull();
+
+    view.destroy();
+    container.remove();
+  });
+
+  it('preserves mounted table, link, checkbox, badge, and query DOM elements when typing above them and still targets shifted offsets', async () => {
+    const doc = [
+      'Intro line.',
+      '',
+      '- [ ] Warm up',
+      '',
+      'See [Guide](/guide) next.',
+      '',
+      '| Lift | Reps |',
+      '| --- | --- |',
+      '| Squat | 5 |',
+      '',
+      '```time',
+      '10:00 AMRAP',
+      '```',
+      '',
+      '```query',
+      'sum:reps{}',
+      '```',
+      '',
+      'End.',
+    ].join('\n');
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let view!: EditorView;
+    await act(async () => {
+      view = new EditorView({
+        parent: container,
+        state: EditorState.create({
+          doc,
+          extensions: [
+            sectionField,
+            editorFocusTracker,
+            markdownSyntaxHiding(),
+            linkPreview,
+            markdownTablePreview,
+            previewDecorations,
+            queryBlockPreview(),
+          ],
+        }),
+      });
+      view.dispatch({ selection: { anchor: doc.length }, effects: setEditorFocused.of(true) });
+    });
+
+    const beforeCheckbox = container.querySelector('button.cm-md-task-checkbox') as HTMLButtonElement;
+    const beforePill = container.querySelector('.cm-link-pill') as HTMLElement;
+    const beforeTable = container.querySelector('.cm-table-preview') as HTMLElement;
+    const beforeBadge = container.querySelector('.cm-wod-dialect-badge') as HTMLButtonElement;
+    const beforeQuery = container.querySelector('.cm-query-block-preview') as HTMLElement;
+
+    expect(beforeCheckbox).not.toBeNull();
+    expect(beforePill).not.toBeNull();
+    expect(beforeTable).not.toBeNull();
+    expect(beforeBadge).not.toBeNull();
+    expect(beforeQuery).not.toBeNull();
+
+    // Type above all widgets, shifting every byte offset forward.
+    await act(async () => {
+      view.dispatch({
+        changes: { from: 0, to: 0, insert: 'Prefix note text. ' },
+        selection: { anchor: view.state.doc.length + 'Prefix note text. '.length },
+      });
+    });
+
+    expect(container.querySelector('button.cm-md-task-checkbox')).toBe(beforeCheckbox);
+    expect(container.querySelector('.cm-link-pill')).toBe(beforePill);
+    expect(container.querySelector('.cm-table-preview')).toBe(beforeTable);
+    expect(container.querySelector('.cm-wod-dialect-badge')).toBe(beforeBadge);
+    expect(container.querySelector('.cm-query-block-preview')).toBe(beforeQuery);
+
+    // Interactive widgets still resolve their shifted live offsets on click.
+    beforeCheckbox.click();
+    expect(view.state.doc.toString()).toContain('- [x] Warm up');
+
+    beforeBadge.click();
+    expect(view.state.doc.toString()).toContain('```log\n10:00 AMRAP');
+
+    view.destroy();
+    container.remove();
+  });
+
+  it('preserves mounted query and widget DOM nodes across StateEffect.reconfigure', async () => {
+    const doc = [
+      'Intro',
+      '',
+      '```widget:demo-card',
+      '{"title":"Ready"}',
+      '```',
+      '',
+      '```query',
+      'sum:reps{}',
+      '```',
+      '',
+      'Outro',
+    ].join('\n');
+
+    const registry = new Map([
+      [
+        'demo-card',
+        () => React.createElement('div', { 'data-testid': 'demo-card-widget' }, 'Ready'),
+      ],
+    ]);
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let view!: EditorView;
+    await act(async () => {
+      view = new EditorView({
+        parent: container,
+        state: EditorState.create({
+          doc,
+          extensions: [
+            registeredSectionWidgets.of(['demo-card']),
+            sectionField,
+            editorFocusTracker,
+            widgetBlockPreview(registry),
+            queryBlockPreview({ readOnly: false }),
+          ],
+        }),
+      });
+      view.dispatch({ selection: { anchor: doc.length } });
+    });
+
+    const beforeWidget = container.querySelector('.cm-widget-block-preview');
+    const beforeQuery = container.querySelector('.cm-query-block-preview');
+    expect(beforeWidget).not.toBeNull();
+    expect(beforeQuery).not.toBeNull();
+
+    // Reconfiguring with fresh widgetBlockPreview / queryBlockPreview calls preserves module StateFields & DOM.
+    await act(async () => {
+      view.dispatch({
+        effects: StateEffect.reconfigure.of([
+          registeredSectionWidgets.of(['demo-card']),
+          sectionField,
+          editorFocusTracker,
+          widgetBlockPreview(registry),
+          queryBlockPreview({ readOnly: true }),
+        ]),
+      });
+    });
+
+    expect(container.querySelector('.cm-widget-block-preview')).toBe(beforeWidget);
+    expect(container.querySelector('.cm-query-block-preview')).toBe(beforeQuery);
 
     view.destroy();
     container.remove();

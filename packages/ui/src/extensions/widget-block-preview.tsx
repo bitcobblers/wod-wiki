@@ -31,6 +31,7 @@ import {
 import type { DecorationSet } from "@codemirror/view";
 import {
   Extension,
+  Facet,
   StateField,
   Range,
   EditorState,
@@ -703,6 +704,22 @@ class ReactWidgetBlock extends WidgetType {
     return wrapper;
   }
 
+  updateDOM(dom: HTMLElement, view: EditorView): boolean {
+    const root = getOrCreateRoot(dom);
+    this.container = dom;
+    this.root = root;
+    root.render(
+      React.createElement(WidgetBlockPreviewWrapper, {
+        widgetName: this.widgetName,
+        rawContent: this.rawContent,
+        sectionId: this.sectionId,
+        registry: this.registry,
+        view,
+      }),
+    );
+    return true;
+  }
+
   destroy(dom?: HTMLElement): void {
     const targetDom = dom ?? this.container;
     const r = this.root;
@@ -860,6 +877,33 @@ const widgetNavKeymap = Prec.high(keymap.of([
   { key: "ArrowUp", run: skipWidgetUp },
 ]));
 
+const widgetRegistryFacet = Facet.define<WidgetRegistry, WidgetRegistry>({
+  combine: (values) => values[values.length - 1] ?? new Map(),
+});
+
+const widgetPreviewField = StateField.define<DecorationSet>({
+  create(state) {
+    return buildWidgetDecos(state, state.facet(widgetRegistryFacet));
+  },
+  update(value, tr) {
+    // Only rebuild decorations if:
+    // 1. The document changed (content/structure update)
+    // 2. An edit-toggle effect was dispatched
+    // 3. The selection moved (cursor inside a widget reveals its source)
+    // 4. The widget registry facet changed on reconfigure
+    const hasToggle = tr.effects.some((e) => e.is(toggleWidgetEdit));
+    const selectionChanged = !tr.startState.selection.eq(tr.newSelection);
+    const registryChanged =
+      tr.startState.facet(widgetRegistryFacet) !== tr.state.facet(widgetRegistryFacet);
+
+    if (tr.docChanged || hasToggle || selectionChanged || registryChanged) {
+      return buildWidgetDecos(tr.state, tr.state.facet(widgetRegistryFacet));
+    }
+    return value;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
 // ── Factory ──────────────────────────────────────────────────────────
 
 /**
@@ -867,25 +911,10 @@ const widgetNavKeymap = Prec.high(keymap.of([
  * Block decorations MUST come from a StateField (not a ViewPlugin) per CM6 constraints.
  */
 export function widgetBlockPreview(registry: WidgetRegistry): Extension {
-  const widgetPreviewField = StateField.define<DecorationSet>({
-    create(state) {
-      return buildWidgetDecos(state, registry);
-    },
-    update(value, tr) {
-      // Only rebuild decorations if:
-      // 1. The document changed (content/structure update)
-      // 2. An edit-toggle effect was dispatched
-      // 3. The selection moved (cursor inside a widget reveals its source)
-      const hasToggle = tr.effects.some((e) => e.is(toggleWidgetEdit));
-      const selectionChanged = !tr.startState.selection.eq(tr.newSelection);
-
-      if (tr.docChanged || hasToggle || selectionChanged) {
-        return buildWidgetDecos(tr.state, registry);
-      }
-      return value;
-    },
-    provide: (f) => EditorView.decorations.from(f),
-  });
-
-  return [widgetPreviewField, editingWidgetsField, widgetNavKeymap];
+  return [
+    widgetRegistryFacet.of(registry),
+    widgetPreviewField,
+    editingWidgetsField,
+    widgetNavKeymap,
+  ];
 }

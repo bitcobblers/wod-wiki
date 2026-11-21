@@ -230,11 +230,39 @@ class LinkPillWidget extends WidgetType {
     return (
       this.label === other.label &&
       this.url === other.url &&
-      this.from === other.from &&
-      this.to === other.to &&
       this.readOnly === other.readOnly &&
       this.affiliateTag === other.affiliateTag
     );
+  }
+
+  private resolveLiveRange(pill: HTMLElement, view: EditorView): { from: number; to: number } {
+    const field = view.state.field(linkPreviewField, false);
+    if (field && view.dom.contains(pill)) {
+      try {
+        const domPos = view.posAtDOM(pill);
+        const searchFrom = Math.max(0, domPos - 1);
+        const searchTo = Math.min(view.state.doc.length, domPos + 1);
+        let found: { from: number; to: number } | null = null;
+        field.between(searchFrom, searchTo, (from, to, value) => {
+          const widget = (value.spec as { widget?: unknown })?.widget;
+          if (
+            widget instanceof LinkPillWidget &&
+            widget.label === this.label &&
+            widget.url === this.url
+          ) {
+            found = { from, to };
+            return false;
+          }
+        });
+        if (found) return found;
+      } catch {
+        // Fall back to captured range
+      }
+    }
+    return {
+      from: Math.max(0, Math.min(this.from, view.state.doc.length)),
+      to: Math.max(0, Math.min(this.to, view.state.doc.length)),
+    };
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -256,9 +284,10 @@ class LinkPillWidget extends WidgetType {
       label.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        const range = this.resolveLiveRange(pill, view);
         openLinkEditPopover(pill, view, {
-          from: this.from,
-          to: this.to,
+          from: range.from,
+          to: range.to,
           label: this.label,
           url: this.url,
         });

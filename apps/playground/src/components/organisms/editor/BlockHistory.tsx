@@ -90,9 +90,9 @@ export function BlockHistory({ noteId, sourceRevision, blocks = {}, persistence 
       setBusy(false);
     }
   };
-  return <details open={open} onToggle={event => setOpen(event.currentTarget.open)} className="rounded-lg border border-border p-3">
+  return <details open={open} onToggle={event => setOpen(event.currentTarget.open)} className="border-t border-border/50 pt-3">
     <summary
-      className="cursor-pointer font-medium focus-visible:ring-2"
+      className="cursor-pointer rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={event => {
         event.preventDefault();
         setOpen(prev => !prev);

@@ -130,4 +130,64 @@ describe('QueryBlockView with injected QueryExecutor and onResultSaved', () => {
       expect(screen.getByText('4')).toBeDefined();
     });
   });
+
+  it('reserves realistic loading height and preserves previous rendered result while recalculating', async () => {
+    // Chart placeholder reserves 220px height on initial load before settling.
+    const pendingChartExecutor: QueryExecutor = {
+      runQuery: vi.fn(() => new Promise<QueryResult>(() => {})),
+      runFind: vi.fn(async () => ({} as never)),
+      runRows: vi.fn(async () => ({} as never)),
+    };
+    const chartRender = render(
+      <QueryBlockView query="sum:reps{}" widgetType="timeseries" executor={pendingChartExecutor} />,
+    );
+    expect(chartRender.container.querySelector('.min-h-\\[220px\\]')).not.toBeNull();
+    chartRender.unmount();
+
+    let resolveNext: ((res: QueryResult) => void) | undefined;
+    let callCount = 0;
+    const runQuery = vi.fn((q: string) => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve(mockScalarResult(q, 42));
+      }
+      return new Promise<QueryResult>((resolve) => {
+        resolveNext = resolve;
+      });
+    });
+    const executor: QueryExecutor = {
+      runQuery,
+      runFind: vi.fn(async () => ({} as never)),
+      runRows: vi.fn(async () => ({} as never)),
+    };
+
+    const { rerender, container } = render(
+      <QueryBlockView query="sum:reps{}" widgetType="value" executor={executor} />,
+    );
+
+    // Initial KPI loading state reserves 64px height rather than collapsing.
+    expect(container.querySelector('.min-h-\\[64px\\]')).not.toBeNull();
+
+    // First scalar settles.
+    await waitFor(() => {
+      expect(screen.getByText('42')).toBeDefined();
+    });
+
+    // Trigger recalculation with an updated query that stays pending.
+    rerender(<QueryBlockView query="sum:reps{effort:squat}" widgetType="value" executor={executor} />);
+
+    // Previous result remains visible; no Loading… flash occurs while pending.
+    expect(screen.getByText('42')).toBeDefined();
+    expect(screen.queryByText('Loading…')).toBeNull();
+    const busyEl = container.querySelector('[data-recalculating="true"]');
+    expect(busyEl).not.toBeNull();
+    expect(busyEl?.getAttribute('aria-busy')).toBe('true');
+
+    // Complete pending execution -> swaps cleanly to updated result and clears busy state.
+    resolveNext?.(mockScalarResult('sum:reps{effort:squat}', 99));
+    await waitFor(() => {
+      expect(screen.getByText('99')).toBeDefined();
+    });
+    expect(container.querySelector('[data-recalculating="true"]')).toBeNull();
+  });
 });

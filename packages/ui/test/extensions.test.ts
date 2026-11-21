@@ -22,6 +22,8 @@ import {
   linkOpen,
   navigationFacet,
   editorTheme,
+  editorFocusTracker,
+  setEditorFocused,
   previewDecorations,
   smartIncrement,
   autocompleteTooltipTheme,
@@ -125,25 +127,44 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
   });
 
   it('previewDecorations styles fence and inner lines without layout-shifting spacers', () => {
-    const doc = '# Workout\n\n```time\n(21-15-9)\nThrusters\nPull-ups\n```\n';
+    const doc = '# Workout\n\n```time\n(21-15-9)\nThrusters\nPull-ups\n```\n\n```log\n5x5 Back Squat\n```\n\n```time\n```\n';
     const state = EditorState.create({
       doc,
-      extensions: [sectionField, previewDecorations],
+      extensions: [sectionField, editorFocusTracker, previewDecorations],
     });
 
     const container = document.createElement('div');
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
-    expect(container.querySelector('.cm-wod-fence-open')).not.toBeNull();
-    expect(container.querySelector('.cm-wod-inner')).not.toBeNull();
-    expect(container.querySelector('.cm-wod-fence-close')).not.toBeNull();
+    const openFences = container.querySelectorAll('.cm-wod-fence-open');
+    expect(openFences).toHaveLength(3);
+    expect(openFences[0].classList.contains('cm-wod-block-time')).toBe(true);
+    expect(openFences[1].classList.contains('cm-wod-block-log')).toBe(true);
+
+    const innerLines = container.querySelectorAll('.cm-wod-inner');
+    expect(innerLines).toHaveLength(4);
+    expect(innerLines[0].classList.contains('cm-wod-inner-first')).toBe(true);
+    expect(innerLines[2].classList.contains('cm-wod-inner-last')).toBe(true);
+    expect(innerLines[3].classList.contains('cm-wod-block-log')).toBe(true);
+    expect(innerLines[3].classList.contains('cm-wod-inner-first')).toBe(true);
+    expect(innerLines[3].classList.contains('cm-wod-inner-last')).toBe(true);
+
+    const closeFences = container.querySelectorAll('.cm-wod-fence-close');
+    expect(closeFences).toHaveLength(3);
+    expect(closeFences[2].classList.contains('cm-wod-fence-close-empty')).toBe(true);
+    expect(container.querySelector('.cm-wod-dialect-log')?.textContent).toBe('LOG');
     expect(container.querySelector('.cm-wod-insert-spacer')).toBeNull();
 
-    // Moving cursor inside workout section does not inject inter-line block spacers
+    // Moving cursor inside focused workout section marks block active without inter-line spacers
     const thrustersPos = doc.indexOf('Thrusters');
-    view.dispatch({ selection: { anchor: thrustersPos, head: thrustersPos } });
+    view.dispatch({
+      selection: { anchor: thrustersPos, head: thrustersPos },
+      effects: setEditorFocused.of(true),
+    });
     expect(container.querySelector('.cm-wod-insert-spacer')).toBeNull();
+    expect(container.querySelectorAll('.cm-wod-fence-open.cm-wod-block-active')).toHaveLength(1);
+    expect(container.querySelectorAll('.cm-wod-inner.cm-wod-block-active')).toHaveLength(3);
 
     view.destroy();
     container.remove();

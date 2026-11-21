@@ -746,15 +746,49 @@ export function NoteContextNav(props: NoteContextNavProps) {
     [props.data, props.up, props.source, props.relatedLabel, hasCalendar, props.sections, props.trailingSections],
   )
 
+  const lastPublishedSigRef = useRef<string | null>(null)
+  const specSig = useMemo(
+    () =>
+      JSON.stringify([
+        location.pathname,
+        hasCalendar,
+        spec.map((item) =>
+          item.kind !== 'section'
+            ? [item.kind, item.id, 'label' in item ? item.label : '']
+            : [
+                's',
+                item.id,
+                item.label,
+                item.entries.map((entry) =>
+                  entry.kind === 'link'
+                    ? [
+                        entry.id,
+                        entry.label,
+                        entry.to ?? '',
+                        entry.badge ?? '',
+                        entry.filterTo ?? '',
+                        entry.filterLabel ?? '',
+                      ]
+                    : [entry.kind, entry.id],
+                ),
+              ],
+        ),
+      ]),
+    [location.pathname, hasCalendar, spec],
+  )
+
   useEffect(() => {
     return () => {
+      lastPublishedSigRef.current = null
       setContextNav(prev => (prev?.pathname === location.pathname ? undefined : prev))
     }
   }, [location.pathname, setContextNav])
 
   useEffect(() => {
+    if (lastPublishedSigRef.current === specSig) return
+    lastPublishedSigRef.current = specSig
     setContextNav({ pathname: location.pathname, spec })
-  }, [spec, location.pathname, setContextNav])
+  }, [spec, specSig, location.pathname, setContextNav])
 
   return null
 }

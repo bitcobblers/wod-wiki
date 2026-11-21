@@ -1,6 +1,6 @@
 import { Decoration, WidgetType, EditorView } from "@codemirror/view";
 import type { DecorationSet } from "@codemirror/view";
-import { StateEffect, StateField, RangeSetBuilder, EditorState } from "@codemirror/state";
+import { Facet, StateEffect, StateField, RangeSetBuilder, EditorState } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import React from "react";
 // @ts-ignore
@@ -138,7 +138,6 @@ class ReactQueryBlock extends WidgetType {
     return (
       this.queryText === other.queryText &&
       this.sectionId === other.sectionId &&
-      this.sectionFrom === other.sectionFrom &&
       this.widgetType === other.widgetType &&
       this.widgetError === other.widgetError &&
       JSON.stringify(this.attributes ?? {}) === JSON.stringify(other.attributes ?? {}) &&
@@ -255,6 +254,10 @@ class ReactQueryBlock extends WidgetType {
     return true;
   }
 
+  get estimatedHeight(): number {
+    return this.widgetType === "value" ? 96 : 220;
+  }
+
   get block(): boolean {
     return true;
   }
@@ -266,7 +269,7 @@ class QueryPreviewToggleWidget extends WidgetType {
   }
 
   eq(other: QueryPreviewToggleWidget): boolean {
-    return this.sectionId === other.sectionId && this.exitPos === other.exitPos;
+    return this.sectionId === other.sectionId;
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -284,7 +287,8 @@ class QueryPreviewToggleWidget extends WidgetType {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const targetPos = Math.min(this.exitPos, view.state.doc.length);
+      const liveExitPos = findQueryBlockSection(view, this.sectionId)?.to ?? this.exitPos;
+      const targetPos = Math.min(liveExitPos, view.state.doc.length);
       view.dispatch({
         selection: { anchor: targetPos },
         effects: setQuerySourceEditing.of({
@@ -407,24 +411,37 @@ const queryBlockPreviewTheme = EditorView.baseTheme({
   },
 });
 
-export function queryBlockPreview(options?: QueryBlockPreviewOptions): Extension {
-  const decoField = StateField.define<DecorationSet>({
-    create(state) {
-      return buildQueryBlockDecos(state, options);
-    },
-    update(deco, tr) {
-      if (
-        tr.docChanged ||
-        tr.selection ||
-        tr.startState.field(sectionField) !== tr.state.field(sectionField) ||
-        tr.effects.some((e) => e.is(setQuerySourceEditing) || e.is(setEditorFocused))
-      ) {
-        return buildQueryBlockDecos(tr.state, options);
-      }
-      return deco;
-    },
-    provide: (f) => EditorView.decorations.from(f),
-  });
+const queryBlockOptionsFacet = Facet.define<
+  QueryBlockPreviewOptions | undefined,
+  QueryBlockPreviewOptions | undefined
+>({
+  combine: (values) => values[values.length - 1],
+});
 
-  return [editingQuerySectionsField, decoField, queryBlockPreviewTheme];
+const queryBlockDecoField = StateField.define<DecorationSet>({
+  create(state) {
+    return buildQueryBlockDecos(state, state.facet(queryBlockOptionsFacet));
+  },
+  update(deco, tr) {
+    if (
+      tr.docChanged ||
+      tr.selection ||
+      tr.startState.field(sectionField) !== tr.state.field(sectionField) ||
+      tr.startState.facet(queryBlockOptionsFacet) !== tr.state.facet(queryBlockOptionsFacet) ||
+      tr.effects.some((e) => e.is(setQuerySourceEditing) || e.is(setEditorFocused))
+    ) {
+      return buildQueryBlockDecos(tr.state, tr.state.facet(queryBlockOptionsFacet));
+    }
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+export function queryBlockPreview(options?: QueryBlockPreviewOptions): Extension {
+  return [
+    queryBlockOptionsFacet.of(options),
+    editingQuerySectionsField,
+    queryBlockDecoField,
+    queryBlockPreviewTheme,
+  ];
 }

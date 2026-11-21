@@ -2130,7 +2130,33 @@ export const frontmatterPreviewField = StateField.define<DecorationSet>({
     return buildFrontmatterDecos(state);
   },
   update(deco, tr) {
-    if (tr.docChanged || tr.reconfigured || tr.selection || tr.effects.some((e) => e.is(referenceIndexReload) || e.is(setFrontmatterDetailed) || e.is(setFrontmatterSource))) {
+    if (
+      tr.reconfigured ||
+      tr.effects.some((e) => e.is(referenceIndexReload) || e.is(setFrontmatterDetailed) || e.is(setFrontmatterSource)) ||
+      tr.startState.field(frontmatterDetailed, false) !== tr.state.field(frontmatterDetailed, false) ||
+      tr.startState.field(frontmatterSource, false) !== tr.state.field(frontmatterSource, false) ||
+      tr.startState.readOnly !== tr.state.readOnly ||
+      tr.startState.facet(frontmatterVisibility) !== tr.state.facet(frontmatterVisibility) ||
+      tr.startState.facet(frontmatterDebugMode) !== tr.state.facet(frontmatterDebugMode)
+    ) {
+      return buildFrontmatterDecos(tr.state);
+    }
+    if (tr.docChanged) {
+      const prevFm = tr.startState.field(sectionField, false)?.sections.find((s) => s.type === "frontmatter");
+      const nextFm = tr.state.field(sectionField, false)?.sections.find((s) => s.type === "frontmatter");
+      if (
+        prevFm &&
+        nextFm &&
+        prevFm.id === nextFm.id &&
+        prevFm.from === nextFm.from &&
+        prevFm.to === nextFm.to &&
+        !tr.changes.touchesRange(0, prevFm.to)
+      ) {
+        return deco;
+      }
+      if (!prevFm && !nextFm && !tr.changes.touchesRange(0, 0)) {
+        return deco;
+      }
       return buildFrontmatterDecos(tr.state);
     }
     return deco;

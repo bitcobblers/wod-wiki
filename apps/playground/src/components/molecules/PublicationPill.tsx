@@ -522,7 +522,7 @@ export function WorkoutSessionsList({ sessions, className = '' }: WorkoutSession
   return (
     <section
       aria-label="Logged workouts"
-      className={`rounded-lg border border-border bg-card/70 px-3.5 py-2.5 space-y-2 ${className}`}
+      className={`border-t border-border/50 pt-4 space-y-2 ${className}`}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">

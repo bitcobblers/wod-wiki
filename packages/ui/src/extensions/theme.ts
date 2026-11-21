@@ -20,6 +20,10 @@ export function editorTheme(isDark: boolean, dialect = "markdown"): Extension {
       fontSize: "14px",
       textAlign: "left",
       color: "hsl(var(--foreground))",
+      backgroundColor: "transparent",
+    },
+    "&.cm-editor": {
+      backgroundColor: "transparent",
     },
     "&.cm-focused": {
       outline: "none",

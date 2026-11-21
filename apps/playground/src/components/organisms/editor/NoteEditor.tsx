@@ -387,14 +387,30 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   });
 
   const liveDocText = viewInstance?.state.doc.toString() ?? value;
+  const lastScopeNoteIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (readonly) return;
     let cancelled = false;
-    void loadNotebookScopeSnapshot(noteId, liveDocText).then((snap) => {
-      if (!cancelled) setNotebookScope(snap);
-    });
+    const isInitialOrNoteSwitch = lastScopeNoteIdRef.current !== noteId;
+    lastScopeNoteIdRef.current = noteId;
+    const run = () => {
+      void loadNotebookScopeSnapshot(noteId, liveDocText).then((snap) => {
+        if (cancelled) return;
+        setNotebookScope((prev) =>
+          JSON.stringify(prev) === JSON.stringify(snap) ? prev : snap,
+        );
+      });
+    };
+    if (isInitialOrNoteSwitch) {
+      run();
+      return () => {
+        cancelled = true;
+      };
+    }
+    const timer = setTimeout(run, 300);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [noteId, liveDocText, readonly]);
 
@@ -432,6 +448,31 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   readonlyRef.current = readonly;
   const noteIdRef = useRef(noteId);
   noteIdRef.current = noteId;
+  const enableOverlayRef = useRef(enableOverlay);
+  enableOverlayRef.current = enableOverlay;
+  const isDarkRef = useRef(isDark);
+  isDarkRef.current = isDark;
+  const hasInitializedExtensionsRef = useRef(false);
+  const callbacksRef = useRef({
+    onChange,
+    onCursorPositionChange,
+    onBlur,
+    onDocUpdate,
+    onBlocksChange,
+    onIdentityChange,
+    onSaveRequest,
+    onCommitChange,
+  });
+  callbacksRef.current = {
+    onChange,
+    onCursorPositionChange,
+    onBlur,
+    onDocUpdate,
+    onBlocksChange,
+    onIdentityChange,
+    onSaveRequest,
+    onCommitChange,
+  };
   const isWheelOpenRef = useRef(isWheelOpen);
   isWheelOpenRef.current = isWheelOpen;
   const notebookScopeRef = useRef<NotebookScopeSnapshot>(notebookScope);
@@ -995,7 +1036,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           key: "Mod-s",
           run: () => {
             // Always handled: prevents the browser's native Save-Page dialog.
-            void onSaveRequest?.();
+            void callbacksRef.current.onSaveRequest?.();
             return true;
           },
         },
@@ -1193,7 +1234,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             setIsWheelOpen(false);
             setIsMobileTypingMode(false);
           }
-          onBlur?.();
+          callbacksRef.current.onBlur?.();
           return false;
         },
       }),
@@ -1202,16 +1243,16 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           const identity = update.state.field(sectionField);
-          onIdentityChange?.({ rawContent: identity.rawContent, blocks: identity.noteBlocks, sourceRevision: identity.sourceRevision });
+          callbacksRef.current.onIdentityChange?.({ rawContent: identity.rawContent, blocks: identity.noteBlocks, sourceRevision: identity.sourceRevision });
           const isExternalValueSync = update.transactions.every(
             (t) => t.annotation(externalValueSyncAnnotation) === true,
           );
           if (!isExternalValueSync) {
             pendingEmittedValuesRef.current.push(identity.rawContent);
-            onChange(identity.rawContent);
+            callbacksRef.current.onChange(identity.rawContent);
           }
-          onDocUpdate?.(update);
-          notifyBlockChanges(update.state, onBlocksChange, lastBlocksJsonRef);
+          callbacksRef.current.onDocUpdate?.(update);
+          notifyBlockChanges(update.state, callbacksRef.current.onBlocksChange, lastBlocksJsonRef);
           if (!isExternalValueSync) {
             // Typing-like transactions stay coalesced; everything else (widget
             // commits, query-block inserts, undo) is a deliberate commit — save now.
@@ -1221,7 +1262,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               || t.isUserEvent("paste")
               || t.isUserEvent("drop"));
             if (!typed) {
-              void Promise.resolve(onCommitChange?.()).catch(() => {});
+              void Promise.resolve(callbacksRef.current.onCommitChange?.()).catch(() => {});
             }
           }
         }
@@ -1266,14 +1307,16 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           }
           const { head } = update.state.selection.main;
           const line = update.state.doc.lineAt(head);
-          onCursorPositionChange?.(line.number, head - line.from + 1);
+          callbacksRef.current.onCursorPositionChange?.(line.number, head - line.from + 1);
 
           // Update overlay track state
           const cursorSec = activeCursorSection(update.state);
           setCursorSectionId(cursorSec?.id ?? null);
           setCursorLine(line.number);
-          const { sections: secs } = update.state.field(sectionField);
-          setSections(secs);
+          if (enableOverlayRef.current) {
+            const { sections: secs } = update.state.field(sectionField);
+            setSections(secs);
+          }
 
           if (
             update.selectionSet &&
@@ -1300,17 +1343,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       ...(placeholderText ? [placeholder(placeholderText)] : []),
       EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial doc/identity seed; ongoing value/block syncs ride in separate effects below
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial doc/identity seed; ongoing callbacks ride in callbacksRef
     [
-      onChange,
-      onCursorPositionChange,
-      onBlur,
-      onDocUpdate,
-      onBlocksChange,
-      onIdentityChange,
       readonly,
-      onSaveRequest,
-      onCommitChange,
       showLineNums,
       initialLineWrapping,
       enablePreview,
@@ -1337,14 +1372,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         doc: value,
         extensions: [
           ...baseExtensions,
-          themeCompartment.of(editorTheme(isDark)),
+          themeCompartment.of(editorTheme(isDarkRef.current)),
           languageCompartment.of(languages),
           modeCompartment.of([]),
-          inputModeCompartment.of(
+          inputModeCompartment.of([
             EditorView.contentAttributes.of({
               inputmode: isMobileViewport && !isMobileTypingMode ? "none" : "text",
             }),
-          ),
+            mobileDockedCompletionFacet.of(
+              isMobileViewport && isWheelOpen && isMobileTypingMode && !readonly,
+            ),
+          ]),
           ...(extraExtensions ?? []),
         ],
       });
@@ -1413,6 +1451,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       viewport?.removeEventListener("resize", revealKeyboardCaret);
       view.contentDOM.removeEventListener("focus", revealKeyboardCaret);
       delete (mountNode as unknown as { __codemirrorView?: EditorView }).__codemirrorView;
+      hasInitializedExtensionsRef.current = false;
       setViewInstance(null);
       view.destroy();
     };
@@ -1484,35 +1523,38 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
   // Sync mode and extensions
   useEffect(() => {
-    if (viewRef.current) {
-      const modeExtensions: Extension = mode === "track" ? [] : [];
-      viewRef.current.dispatch({
-        effects: [
-          StateEffect.reconfigure.of([
-            ...baseExtensions,
-            themeCompartment.of(editorTheme(isDark)),
-            languageCompartment.of(languages),
-            modeCompartment.of(modeExtensions),
-            inputModeCompartment.of([
-              EditorView.contentAttributes.of({
-                inputmode:
-                  isMobileViewportRef.current && !isMobileTypingModeRef.current
-                    ? "none"
-                    : "text",
-              }),
-              mobileDockedCompletionFacet.of(
-                isMobileViewportRef.current &&
-                  isWheelOpenRef.current &&
-                  isMobileTypingModeRef.current &&
-                  !readonlyRef.current,
-              ),
-            ]),
-            ...(extraExtensions ?? []),
-          ]),
-        ],
-      });
+    if (!viewRef.current) return;
+    if (!hasInitializedExtensionsRef.current) {
+      hasInitializedExtensionsRef.current = true;
+      return;
     }
-  }, [baseExtensions, extraExtensions, mode, isDark, languages]);
+    const modeExtensions: Extension = mode === "track" ? [] : [];
+    viewRef.current.dispatch({
+      effects: [
+        StateEffect.reconfigure.of([
+          ...baseExtensions,
+          themeCompartment.of(editorTheme(isDarkRef.current)),
+          languageCompartment.of(languages),
+          modeCompartment.of(modeExtensions),
+          inputModeCompartment.of([
+            EditorView.contentAttributes.of({
+              inputmode:
+                isMobileViewportRef.current && !isMobileTypingModeRef.current
+                  ? "none"
+                  : "text",
+            }),
+            mobileDockedCompletionFacet.of(
+              isMobileViewportRef.current &&
+                isWheelOpenRef.current &&
+                isMobileTypingModeRef.current &&
+                !readonlyRef.current,
+            ),
+          ]),
+          ...(extraExtensions ?? []),
+        ]),
+      ],
+    });
+  }, [baseExtensions, extraExtensions, mode, languages]);
 
   // Sync mobile inputmode attribute and docked completion suppression via
   // their dedicated compartment so toggling [Type]/[Deck] never reconfigures

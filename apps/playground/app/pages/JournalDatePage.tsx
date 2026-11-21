@@ -506,7 +506,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
           ) : (
             <div className="space-y-6">
               {notes.map((note, index) => (
-                <div key={note.id} id={`note-${note.id}`} className="rounded-lg border border-border/60 p-4 space-y-2">
+                <div key={note.id} id={`note-${note.id}`} className="border-t border-border/60 pt-6 first:border-t-0 first:pt-0 space-y-2">
                   <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
                     <Link
                       to={notePath(note.id)}

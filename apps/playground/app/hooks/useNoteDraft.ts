@@ -84,6 +84,10 @@ export function useNoteDraft({
   const savedSnapshotRef = useRef<EditorIdentitySnapshot | null>(null);
   const metadataRef = useRef(metadata);
   metadataRef.current = metadata;
+  const onExternalChangeRef = useRef(onExternalChange);
+  onExternalChangeRef.current = onExternalChange;
+  const onSavedRecordRef = useRef(onSavedRecord);
+  onSavedRecordRef.current = onSavedRecord;
   const loadedNoteIdRef = useRef<string | null>(null);
 
   // When a note finishes loading, install its source and blocks once
@@ -101,11 +105,12 @@ export function useNoteDraft({
     const draft = draftRef.current;
     const sameDraft = draft.rawContent === saved.rawContent && areBlocksEqual(draft.blocks, saved.blocks);
     setCommitted(prev => ({ blocks: sameDraft ? saved.blocks : prev.blocks, sourceRevision: saved.sourceRevision }));
-    onSavedRecord?.(saved);
-  }, [onSavedRecord]);
+    onSavedRecordRef.current?.(saved);
+  }, []);
 
   const save = useCallback(async (snapshot: EditorIdentitySnapshot) => {
-    const effectiveMetadata = { ...metadata, ...derivedTitle(snapshot.rawContent, metadata) };
+    const currentMetadata = metadataRef.current;
+    const effectiveMetadata = { ...currentMetadata, ...derivedTitle(snapshot.rawContent, currentMetadata) };
     const savePromise = notePersistence.saveNote({
       noteId,
       rawContent: snapshot.rawContent,
@@ -131,7 +136,7 @@ export function useNoteDraft({
     accept(snapshotSaved);
     setActionError(null);
     return snapshotSaved;
-  }, [noteId, metadata, noteType, accept]);
+  }, [noteId, noteType, accept]);
   const saves = useEditorSave<EditorIdentitySnapshot>({
     onSave: async snapshot => { await save(snapshot); },
     getSnapshotKey: snapshot => JSON.stringify([snapshot.rawContent, Object.values(snapshot.blocks).map(b => [b.id, b.from, b.to, b.kind, b.dialect, b.sport])]),
@@ -197,8 +202,8 @@ export function useNoteDraft({
       ? draftRef.current.blocks
       : reconcileNoteBlocks(nextContent, { sourceRevision: rev, blocks: draftRef.current.blocks, registeredWidgets: KNOWN_SECTION_WIDGETS });
     onIdentityChange({ rawContent: nextContent, blocks, sourceRevision: committedRevisionRef.current });
-    onExternalChange?.(nextContent);
-  }, [onIdentityChange, onExternalChange]);
+    onExternalChangeRef.current?.(nextContent);
+  }, [onIdentityChange]);
 
   const restoreRevision = useCallback(async (revision: Parameters<typeof revertBlock>[1]) => {
     await saves.flush();
@@ -208,8 +213,8 @@ export function useNoteDraft({
     const saved = await save(restored);
     draftRef.current = saved;
     setRestoredContent(restored.rawContent);
-    onExternalChange?.(restored.rawContent);
-  }, [saves.flush, save, onExternalChange]);
+    onExternalChangeRef.current?.(restored.rawContent);
+  }, [saves.flush, save]);
 
   const captureForRun = useCallback(async (block: Parameters<typeof captureRun>[1], runtimeId: string) => {
     setActionError(null);
@@ -217,7 +222,7 @@ export function useNoteDraft({
       await saves.flush();
       const draft = draftRef.current;
       const captured = await captureRun(
-        { noteId, rawContent: draft.rawContent, blocks: draft.blocks, expectedSourceRevision: committedRevisionRef.current, metadata, noteType },
+        { noteId, rawContent: draft.rawContent, blocks: draft.blocks, expectedSourceRevision: committedRevisionRef.current, metadata: metadataRef.current, noteType },
         block,
         runtimeId,
       );
@@ -228,7 +233,7 @@ export function useNoteDraft({
       setActionError(msg);
       throw err;
     }
-  }, [saves.flush, noteId, metadata, noteType, accept]);
+  }, [saves.flush, noteId, noteType, accept]);
 
   const flush = useCallback(async (): Promise<void> => {
     await saves.flush();

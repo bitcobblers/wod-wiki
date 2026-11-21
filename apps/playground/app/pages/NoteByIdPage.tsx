@@ -214,9 +214,37 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   }, [sourceId])
 
   // ── Source-aware navigation: owning list ("Up"), L1 zone, sourceNote stamps
+  const hasEntryForOwnership = Boolean(entry)
+  const ownershipId = entry?.id
+  const ownershipType = entry?.type
+  const ownershipSourceId = entry?.sourceId
+  const ownershipJournalDate = entry?.journalDate
+  const ownershipSlug = entry?.slug
+  const ownershipPageId = entry?.pageId
+  const ownershipNotebookId = entry?.notebookId
   const ownership = useMemo(
-    () => (entry ? noteOwnership(entry) : { zone: null, up: null, stamps: [] }),
-    [entry],
+    () =>
+      hasEntryForOwnership && ownershipId !== undefined
+        ? noteOwnership({
+            id: ownershipId,
+            type: ownershipType,
+            sourceId: ownershipSourceId,
+            journalDate: ownershipJournalDate,
+            slug: ownershipSlug,
+            pageId: ownershipPageId,
+            notebookId: ownershipNotebookId,
+          })
+        : { zone: null, up: null, stamps: [] },
+    [
+      hasEntryForOwnership,
+      ownershipId,
+      ownershipType,
+      ownershipSourceId,
+      ownershipJournalDate,
+      ownershipSlug,
+      ownershipPageId,
+      ownershipNotebookId,
+    ],
   )
   useNoteL1Zone(ownership.zone)
 
@@ -467,7 +495,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
           editor={
             <div className="flex flex-col gap-4 px-4 py-6 sm:px-6 min-w-0 max-w-full">
               <NoteContextNav data={contextLinks} up={ownership.up} calendar={calendar} />
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground" data-testid="note-header-meta-row">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border/50 pb-3 text-xs text-muted-foreground" data-testid="note-header-meta-row">
                 <PublicationPill
                   noteId={entry.id}
                   notebookId={entry.notebookId}
@@ -596,7 +624,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                         setEditingPageSlug(true)
                       }}
                       data-testid="note-upgrade-to-page-btn"
-                      className="inline-flex items-center gap-1 rounded border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                      className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
                     >
                       + Upgrade to Page
                     </button>
@@ -658,7 +686,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
               )}
               {sourcesReady ? (
                 <>
-                  <div className="rounded-lg border border-border bg-card p-4 shadow-sm min-h-[240px] focus-within:border-accent/80 transition-colors">
+                  <div className="min-h-[240px] min-w-0">
                     <NoteEditor
                       key={entry.id}
                       value={isReadOnly ? entry.rawContent : draft.content}

@@ -43,7 +43,7 @@ class TaskCheckboxWidget extends WidgetType {
   }
 
   eq(other: TaskCheckboxWidget): boolean {
-    return this.checked === other.checked && this.bracketPos === other.bracketPos;
+    return this.checked === other.checked;
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -76,13 +76,30 @@ class TaskCheckboxWidget extends WidgetType {
       event.preventDefault();
       event.stopPropagation();
       if (view.state.readOnly) return;
-      const charAtPos = view.state.doc.sliceString(this.bracketPos + 1, this.bracketPos + 2);
+      let bracketPos = this.bracketPos;
+      try {
+        if (view.dom.contains(btn)) {
+          const domPos = Math.max(0, Math.min(view.posAtDOM(btn), view.state.doc.length));
+          const line = view.state.doc.lineAt(domPos);
+          const match = TASK_RE.exec(line.text);
+          if (match) {
+            const bracketIdx = line.text.indexOf("[", match[1].length + match[2].length);
+            if (bracketIdx >= 0) {
+              bracketPos = line.from + bracketIdx;
+            }
+          }
+        }
+      } catch {
+        // Fall back to captured bracketPos
+      }
+      if (bracketPos < 0 || bracketPos + 2 > view.state.doc.length) return;
+      const charAtPos = view.state.doc.sliceString(bracketPos + 1, bracketPos + 2);
       if (charAtPos !== " " && charAtPos !== "x" && charAtPos !== "X") return;
       const nextChar = this.checked ? " " : "x";
       view.dispatch({
         changes: {
-          from: this.bracketPos + 1,
-          to: this.bracketPos + 2,
+          from: bracketPos + 1,
+          to: bracketPos + 2,
           insert: nextChar,
         },
         userEvent: "input.toggle",
