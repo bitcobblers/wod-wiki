@@ -9,7 +9,7 @@ priority: P0-gate
 
 # FED-01 — Feed Subscription & Auto-Sync Lifecycle
 
-External `Feed`s require explicit Athlete consent at `/subscribe?source=<url>` before registering in `localStorage` or importing `Seed` chunks. Subscribed Feeds import every published Notebook chunk, support automatic version-bump syncing vs. manual check-only updates on `/settings/sync` (reachable from `/notebooks` via L2 navigation on desktop and the mobile drawer), and purge unmodified Seed rows on `Unsubscribe` / `Delete` without harming user-authored `Note`s.
+External `Feed`s require explicit Athlete consent at `/subscribe?source=<url>` before registering in authoritative `IStorage` (`feed:registry` / `feed:subscriptions`) or importing `Seed` chunks. Subscribed Feeds default to `index-only` (zero eager chunk download, with opt-in `Download for offline`), support automatic version-bump syncing vs. manual check-only updates on `/settings/sync` (reachable from `/notebooks` via L2 navigation on desktop and the mobile drawer), and purge unmodified Seed rows via accessible `EditorDialog` `Unsubscribe` / `Delete` confirmations without harming user-authored or session-pinned `Note`s.
 
 ### Scenario 1: Subscription intake requires consent, reaches /settings/sync via L2 navigation, and remembers auto-sync across desktop and 375×812 mobile
 
@@ -17,19 +17,19 @@ Given an unregistered peer Feed ('Training catalog') served at `https://catalog.
 
 1. Athlete opens '/subscribe?source=<url>' at both 1280×900 desktop and 375×812 mobile, checks 'Auto-sync updates', and clicks Subscribe (`feed-intake-subscribe`).
 2. From `/notebooks`, Athlete opens '/settings/sync' via `notebooks-configure-sources` (directly in L2 on desktop, or inside the navigation drawer on 375×812 mobile) and inspects the registered Feed row.
-- expect: Before clicking Subscribe, `wodwiki.seedSources` remains unset; after Subscribe, `/notebooks?q=:notebook{feed:training-catalog}` renders zero retired `/c/` or `/collections` links and zero horizontal overflow at 375×812.
+- expect: Before clicking Subscribe, `feed:registry` has no `training-catalog` entry; after Subscribe, `/notebooks?q=:notebook{feed:training-catalog}` renders zero retired `/c/` or `/collections` links, `feed:subscriptions` stores `offlinePolicy: 'index-only'`, `/settings/sync` shows `Index active`, and zero horizontal overflow occurs at 375×812.
 - expect: Step 2 navigates cleanly to `/settings/sync` and lists `feed-source-training-catalog` with `feed-autosync-training-catalog` checked and a clean browser console.
 
-### Scenario 2: Decline and Import Once honor non-subscribing consent choices
+### Scenario 2: Decline leaves source unregistered while default Subscribe is index-only and Download for offline imports chunks
 
 Given the same unregistered peer Feed at '/subscribe?source=<url>':
 
 1. Athlete clicks Decline on the intake banner.
-2. Athlete reopens '/subscribe?source=<url>', checks 'Auto-sync updates', and clicks Import Once (`feed-intake-once`), then inspects '/settings/sync' with 'Subscribed only' unchecked.
-- expect: Step 1 navigates to `/notebooks` without registering any source in `wodwiki.seedSources`.
+2. Athlete reopens '/subscribe?source=<url>', checks 'Auto-sync updates', leaves 'Download for offline' unchecked, clicks 'Subscribe', verifies zero eager chunk fetches and `/settings/sync` shows `Index active`, then clicks `Download offline`.
+- expect: Step 1 navigates to `/notebooks` without registering any source in `feed:registry` or `localStorage`; Step 2 subscribes index-only without downloading chunks; Step 3 downloads chunks offline and transitions status to `Up to date`.
 - expect: Step 2 imports the snapshot once while leaving `feed-subscribe-training-catalog` visible and `feed-autosync-training-catalog` unchecked.
 
-### Scenario 3: Multi-Notebook import, overflow menu dismissal, auto-sync vs check-only updates, and Unsubscribe/Delete preserve user Notes
+### Scenario 3: Multi-Notebook index-first subscribe, Download offline, overflow menu dismissal, auto-sync vs manual updates, and Unsubscribe/Delete EditorDialog preserve user Notes
 
 Given a multi-Notebook registered Feed ('Manage Library', v42, publishing two Notebook chunks) and a user-authored Note ('My own note') on `/settings/sync`:
 

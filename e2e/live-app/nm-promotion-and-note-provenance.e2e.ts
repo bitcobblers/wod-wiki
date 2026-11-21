@@ -75,7 +75,7 @@ test.describe('NBK-02 — N:M Notebook Promotion & Note Provenance', () => {
     app.assertCleanConsole();
   });
 
-  test('read-only Feed Note clones to Journal via NotePromotionSheet with live Note Provenance lineage', async ({
+  test('read-only Feed Note shows ownership badge and forks to editable copy via NotePromotionSheet with live Note Provenance lineage', async ({
     app,
   }) => {
     test.setTimeout(120_000);
@@ -92,26 +92,36 @@ test.describe('NBK-02 — N:M Notebook Promotion & Note Provenance', () => {
     await app.goto(`/subscribe?source=${encodeURIComponent(PEER_BASE)}`);
     const banner = page.getByTestId(TEST_IDS.UNKNOWN_FEED_INTAKE_BANNER);
     await expect(banner).toBeVisible();
+    // Opt into full offline download so the upstream read-only Note is locally cached for direct /note/:id inspection.
+    await banner.getByRole('checkbox', { name: /Download for offline/i }).check();
     await banner.getByTestId(TEST_IDS.FEED_INTAKE_SUBSCRIBE).click();
     await expect(page).toHaveURL(/\/notebooks\?q=(:|%3A)notebook\{feed(:|%3A)nbk-02-peer-feed\}$/i);
     await app.feeds.waitForReady();
     await expect.poll(() => getNoteContentByRouteId(page, upstreamId), { timeout: 15_000 }).toBe(CINDY_MD);
 
-    // Open upstream read-only Note and trigger Clone to Journal
+    // Open upstream read-only Note and verify Feed ownership UI (no "Private" padlock)
     await app.editor.openNote(upstreamId);
+    const pill = page.getByTestId(TEST_IDS.PUBLICATION_PILL);
+    await expect(pill).toBeVisible();
+    await expect(pill).toHaveAttribute('data-ownership', 'feed');
+    await expect(pill).toContainText(/From NBK-02 Peer Feed.*Read-only/i);
+    await expect(pill).not.toContainText(/Private/i);
+
+    // Open NotePromotionSheet and fork into an editable user notebook copy
     await app.feeds.openPromotionPopover();
-    const cloneBtn = page.getByTestId(TEST_IDS.PROMOTION_CLONE_READONLY_BTN);
-    await expect(cloneBtn).toBeVisible();
-    await cloneBtn.click();
+    const popover = page.getByTestId(TEST_IDS.PUBLICATION_PILL_POPOVER);
+    await expect(popover).toContainText('Provenance & Local Copy');
+    await expect(popover).toContainText(/From NBK-02 Peer Feed.*Read-only/i);
+    await expect(popover.locator('#promotion-fork-notebook')).toBeVisible();
+    await popover.getByRole('button', { name: 'Fork to My Notes', exact: true }).click();
 
-    const submitCloneBtn = page.getByTestId(TEST_IDS.PLACEMENT_CLONE_SUBMIT_BTN);
-    await expect(submitCloneBtn).toBeVisible();
-    await submitCloneBtn.click();
-
-    await expect(page).not.toHaveURL(new RegExp(`/note/${upstreamId}$`), { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/note\/[^/]+\?edit=1$/, { timeout: 15_000 });
+    await expect(page).not.toHaveURL(new RegExp(`/note/${upstreamId}`), { timeout: 15_000 });
     await expect(page.locator('.cm-content').first()).toContainText('20:00 AMRAP', { timeout: 15_000 });
 
-    // Inspect NotePromotionSheet on the cloned Note -> Origin links back to upstreamId
+    // Forked user copy becomes writable with Origin provenance back to upstreamId
+    const forkedPill = page.getByTestId(TEST_IDS.PUBLICATION_PILL);
+    await expect(forkedPill).toHaveAttribute('data-ownership', 'user');
     await app.feeds.openPromotionPopover();
     const provenanceRow = page.getByTestId(TEST_IDS.PROMOTION_PROVENANCE_ROW);
     await expect(provenanceRow).toBeVisible();
@@ -122,7 +132,7 @@ test.describe('NBK-02 — N:M Notebook Promotion & Note Provenance', () => {
     app.assertCleanConsole();
   });
 
-  test('Register-only peer Feed previews a remote Notebook with zero bulk import and clones a single Note', async ({
+  test('index-first peer Feed previews a remote Notebook on demand with zero bulk import and clones via Clone to My Notes dialog', async ({
     app,
   }) => {
     const { page } = app;
@@ -138,13 +148,16 @@ test.describe('NBK-02 — N:M Notebook Promotion & Note Provenance', () => {
     await app.goto(`/subscribe?source=${encodeURIComponent(REMOTE_PREVIEW_BASE)}`);
     const banner = page.getByTestId(TEST_IDS.UNKNOWN_FEED_INTAKE_BANNER);
     await expect(banner).toBeVisible();
-    await banner.getByRole('button', { name: /Register only/i }).click();
+    // Default Subscribe is index-first (zero eager bulk chunk download)
+    await expect(banner.getByRole('checkbox', { name: /Download for offline/i })).not.toBeChecked();
+    await banner.getByTestId(TEST_IDS.FEED_INTAKE_SUBSCRIBE).click();
     await expect(page).toHaveURL(/\/notebooks\?q=(:|%3A)notebook\{feed(:|%3A)peer-kettlebell-feed/i);
+    await app.feeds.waitForReady();
 
     // Zero bulk import: upstream note is not yet stored in IndexedDB
     expect(await getNoteContentByRouteId(page, peer.noteIds[0]!)).toBeNull();
 
-    // Open remote Notebook preview and clone single Note
+    // Open remote Notebook preview, clone via Clone to My Notes dialog, then verify on-demand single-workout viewing
     await app.goto('/notebook/kettlebell-club?feed=peer-kettlebell-feed');
     await expect(page.getByTestId(TEST_IDS.REMOTE_NOTEBOOK_PREVIEW_BANNER)).toBeVisible();
     const stream = page.getByTestId(TEST_IDS.STREAM_VIEW);
@@ -153,7 +166,20 @@ test.describe('NBK-02 — N:M Notebook Promotion & Note Provenance', () => {
     const cloneBtn = stream.locator('[data-testid^="row-clone-remote-"]').first();
     await expect(cloneBtn).toBeVisible();
     await cloneBtn.click();
+
+    const cloneDialog = page.getByRole('dialog');
+    await expect(cloneDialog.getByRole('heading', { name: 'Clone to My Notes' })).toBeVisible();
+    await expect(cloneDialog.locator('#clone-target-notebook')).toBeVisible();
+    await cloneDialog.getByRole('button', { name: 'Clone to Notebook', exact: true }).click();
     await expect(page.getByText(/Cloned "KB Day 1"/i).first()).toBeVisible();
+
+    // On-demand workout viewing loads the note read-only without importing the whole chunk
+    await stream.getByText('KB Day 1').first().click();
+    await expect(page).toHaveURL(/\/notebook\/kettlebell-club\/day-1\?feed=peer-kettlebell-feed/);
+    await expect(page.locator('.cm-content').first()).toContainText('100 Kettlebell Swings', { timeout: 15_000 });
+    await expect(page.getByText(/Feed · Read-only/i).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start / Log Workout', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fork to My Notes', exact: true })).toBeVisible();
 
     app.assertCleanConsole();
   });

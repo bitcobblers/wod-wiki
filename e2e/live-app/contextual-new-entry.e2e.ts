@@ -23,7 +23,40 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await expect(dialog.getByTestId('new-entry-equipment')).toBeVisible();
     await expect(dialog.getByTestId('new-entry-tag')).toBeVisible();
     await expect(dialog.getByTestId('new-entry-dashboard')).toHaveCount(0);
+    const writeTab = dialog.getByRole('tab', { name: 'Write a Note' });
+    const pickTab = dialog.getByRole('tab', { name: 'Pick / Log a Workout' });
+    await expect(writeTab).toHaveAttribute('aria-selected', 'true');
+    await expect(pickTab).toHaveAttribute('aria-selected', 'false');
+
+    // Switch to Pick / Log a Workout, search, verify Schedule works cleanly, then reopen on /journal to verify resets
+    await pickTab.click();
+    await expect(pickTab).toHaveAttribute('aria-selected', 'true');
+    const searchBox = dialog.getByRole('searchbox', { name: 'Search workouts' });
+    await expect(searchBox).toBeVisible();
+    await searchBox.fill('1500m');
+    await expect(dialog.getByRole('button', { name: 'Open / Run' }).first()).toBeVisible();
+    const scheduleBtn = dialog.getByRole('button', { name: 'Schedule' }).first();
+    await expect(scheduleBtn).toBeVisible();
+    await scheduleBtn.click();
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(/\/day\/\d{4}-\d{2}-\d{2}$/, { timeout: 15_000 });
+    await app.goto('/journal');
+
+    await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('tab', { name: 'Write a Note' })).toHaveAttribute('aria-selected', 'true');
+    const advBtn = dialog.getByRole('button', { name: /Advanced options/i });
+    await expect(advBtn).toHaveAttribute('aria-expanded', 'false');
+    await advBtn.click();
+    await expect(advBtn).toHaveAttribute('aria-expanded', 'true');
     await expect(dialog.getByTestId('journal-create-page-toggle')).not.toBeChecked();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toBeHidden();
+
+    // Reopen again on /journal -> Advanced options resets back to collapsed
+    await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Advanced options/i })).toHaveAttribute('aria-expanded', 'false');
     await page.keyboard.press('Escape');
 
     await app.goto('/playgrounds');
@@ -37,6 +70,8 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await expect(page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY)).toHaveText('+ Add');
     await expect(page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY)).toHaveAttribute('aria-label', '+ Add Page');
     await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await expect(page.getByRole('dialog').getByRole('tab', { name: 'Write a Note' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('dialog').getByRole('button', { name: /Advanced options/i })).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByRole('dialog').getByTestId('journal-create-page-toggle')).toBeChecked();
     await page.keyboard.press('Escape');
 

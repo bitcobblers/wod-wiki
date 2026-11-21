@@ -17,7 +17,7 @@ Given a hydrated Playground workspace at `1280×900`:
 
 1. Athlete opens `/journal`, inspects the `+ Add` wizard options (`new-entry-note`, `new-entry-playground`, `new-entry-notebook`, `new-entry-effort`, `new-entry-equipment`, `new-entry-tag`), and checks `/playgrounds`, `/notebooks`, and `/pages` create controls.
 2. Athlete creates a Playground from `/journal`, creates a blank Journal Note and adds a timer, creates a Note inside a newly created Notebook, and creates a Tag Property Note (`E2E catalog tag`) from the wizard.
-- expect: Step 1 adapts `+ Add` labels and defaults (`journal-create-page-toggle` checked on `/pages`) without offering dashboard creation inside the library wizard.
+- expect: Step 1 adapts `+ Add` labels and defaults (`Advanced options` collapsed on `/journal` with `journal-create-page-toggle` unchecked, expanded on `/pages` with `journal-create-page-toggle` checked), defaults to `Write a Note` mode while supporting `Pick / Log a Workout` search/actions, and resets mode and `Advanced options` on reopen without offering dashboard creation inside the library wizard.
 - expect: Step 2 navigates to `/playground/:id`, `/note/:noteId?edit=1`, `/notebook/:slug/:noteId`, and `/t/tag/e2e-catalog-tag`, adds `10:00` timers cleanly, and updates the document H1 title across browser reload.
 
 ### Scenario 2: Mobile 375×812 thumb-dock ordering, WQL dashboard creation bounds, and H1 persistence across reload
