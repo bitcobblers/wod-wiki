@@ -26,10 +26,10 @@ Given a user-owned workout Note ('N:M Promotion WOD') in IndexedDB:
 
 Given a subscribed peer Feed delivering a read-only Seed Note ('Benchmark Cindy'):
 
-1. Athlete subscribes via '/subscribe?source=<peer-feed-url>' and opens `/note/:upstreamId` for 'Benchmark Cindy'.
+1. Athlete checks 'Download for offline', subscribes via '/subscribe?source=<peer-feed-url>', and opens `/note/:upstreamId` for 'Benchmark Cindy'.
 2. Athlete verifies the `From NBK-02 Peer Feed · Read-only` badge (never `"Private"`), opens `PublicationPill` -> `NotePromotionSheet`, and clicks `Fork to My Notes`.
-3. Athlete opens `NotePromotionSheet` on the newly minted clone Note.
-- expect: Step 2 navigates to a fresh editable Note UUID distinct from `upstreamId`, preserving the 'Benchmark Cindy' workout Markdown.
+3. Athlete opens `NotePromotionSheet` on the newly forked Note.
+- expect: Step 2 navigates to `/note/:forkId?edit=1` distinct from `upstreamId` with `data-ownership="user"` and the 'Benchmark Cindy' workout Markdown.
 - expect: Step 3 renders `promotion-provenance-row` ('Origin') linking back to `/note/:upstreamId`, leaves the upstream Feed Note untouched, and keeps the browser console clean.
 
 ### Scenario 3: Index-first peer Feed previews a remote Notebook on demand with zero bulk import and clones via Clone to My Notes dialog
@@ -37,6 +37,6 @@ Given a subscribed peer Feed delivering a read-only Seed Note ('Benchmark Cindy'
 Given a peer Feed ('Peer Kettlebell Feed') publishing Notebook 'Kettlebell Club' with Note 'KB Day 1':
 
 1. Athlete opens '/subscribe?source=<peer-feed-url>' and clicks default index-first 'Subscribe' without checking 'Download for offline'.
-2. Athlete opens '/notebook/kettlebell-club?feed=peer-kettlebell-feed' to preview the unsubscribed remote Notebook and clicks the row clone button (`row-clone-remote-*`) on 'KB Day 1'.
-- expect: Step 1 redirects to `/notebooks?q=:notebook{feed:peer-kettlebell-feed}` without bulk-importing chunks.
-- expect: Step 2 displays `remote-notebook-preview-banner`, lists 'KB Day 1' in the stream, clones the single Note (`Cloned "KB Day 1"`), and keeps the browser console clean.
+2. Athlete opens '/notebook/kettlebell-club?feed=peer-kettlebell-feed', clicks the row clone button (`row-clone-remote-*`) and confirms the `Clone to My Notes` dialog (`#clone-target-notebook` -> `Clone to Notebook`), then clicks 'KB Day 1' to view it on demand.
+- expect: Step 1 redirects to `/notebooks?q=:notebook{feed:peer-kettlebell-feed}` without bulk-importing chunks (`notes` store has no local `KB Day 1` copy).
+- expect: Step 2 displays `remote-notebook-preview-banner`, confirms `Clone to My Notes` (`Cloned "KB Day 1"`), loads `/notebook/kettlebell-club/day-1?feed=peer-kettlebell-feed` on demand showing `'100 Kettlebell Swings'`, `'Feed · Read-only'`, `'Start / Log Workout'`, and `'Fork to My Notes'`, and keeps the browser console clean.

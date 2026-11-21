@@ -25,26 +25,28 @@ Given an unregistered peer Feed ('Training catalog') served at `https://catalog.
 Given the same unregistered peer Feed at '/subscribe?source=<url>':
 
 1. Athlete clicks Decline on the intake banner.
-2. Athlete reopens '/subscribe?source=<url>', checks 'Auto-sync updates', leaves 'Download for offline' unchecked, clicks 'Subscribe', verifies zero eager chunk fetches and `/settings/sync` shows `Index active`, then clicks `Download offline`.
-- expect: Step 1 navigates to `/notebooks` without registering any source in `feed:registry` or `localStorage`; Step 2 subscribes index-only without downloading chunks; Step 3 downloads chunks offline and transitions status to `Up to date`.
-- expect: Step 2 imports the snapshot once while leaving `feed-subscribe-training-catalog` visible and `feed-autosync-training-catalog` unchecked.
+2. Athlete reopens '/subscribe?source=<url>', checks 'Auto-sync updates', leaves 'Download for offline' unchecked, and clicks 'Subscribe' (`feed-intake-subscribe`).
+3. Athlete opens '/settings/sync', verifies `Index active` and `Auto-sync` checked on `feed-source-training-catalog`, and clicks `Download offline` (`feed-download-offline-training-catalog`).
+- expect: Step 1 navigates to `/notebooks` without registering any source in `feed:registry` or `localStorage`.
+- expect: Step 2 subscribes index-only without eagerly downloading chunks (`chunkFetches` empty; note remains absent from `notes` store).
+- expect: Step 3 downloads chunks offline, transitions `feed-sync-status` to `Up to date`, and persists the note locally.
 
 ### Scenario 3: Multi-Notebook index-first subscribe, Download offline, overflow menu dismissal, auto-sync vs manual updates, and Unsubscribe/Delete EditorDialog preserve user Notes
 
-Given a multi-Notebook registered Feed ('Manage Library', v42, publishing two Notebook chunks) and a user-authored Note ('My own note') on `/settings/sync`:
+Given a multi-Notebook registered Feed ('Manage Library', v42, publishing two Notebook chunks) in `feed:registry` and a user-authored Note ('My own note') on `/settings/sync`:
 
 1. Athlete inspects the unsubscribed row's origin URL, disabled Auto-sync toggle, and overflow menu links (`Published HTML` and `Git source directory`), dismissing the overflow menu with `Escape` and backdrop click.
-2. Athlete subscribes to 'Manage Library' (v42), enables Auto-sync, reloads against published v43, then disables Auto-sync, reloads against v44, and clicks manual Sync.
-3. Athlete opens the Feed overflow menu, clicks Unsubscribe, and then clicks Delete.
+2. Athlete clicks `Subscribe` on 'Manage Library' (index-only, zero eager chunk fetches), then clicks `Download offline` (`feed-download-offline-manage-library`), enables Auto-sync and reloads against published v43, then disables Auto-sync, reloads against v44, and clicks manual Sync.
+3. Athlete opens the Feed overflow menu, clicks Unsubscribe and confirms in the `EditorDialog`, then clicks Delete and confirms in the `EditorDialog`.
 - expect: Step 1 dismisses `details[data-testid^="feed-more-"]` cleanly on both `Escape` and `feed-more-backdrop` click.
-- expect: Step 2 imports every Notebook chunk the Feed publishes, auto-updates to `v43` when Auto-sync is on, and pauses at 'Update available' until manual Sync updates to `v44` when Auto-sync is off.
-- expect: Step 3 Unsubscribe purges all imported Seed rows while keeping the source entry, Delete removes the source entry completely, and 'My own note' remains intact throughout with a clean browser console.
+- expect: Step 2 keeps initial Subscribe index-only (`Index active`, zero chunk downloads), imports every Notebook chunk on `Download offline` (`Up to date`, `v42`), auto-updates to `v43` when Auto-sync is on, and pauses at 'Update available' until manual Sync updates to `v44` when Auto-sync is off.
+- expect: Step 3 Unsubscribe `EditorDialog` ('Unsubscribe', mentioning pinned notes) purges unmodified Seed rows while keeping the source entry, Delete `EditorDialog` ('Delete source') removes the source entry completely, and 'My own note' remains intact throughout with a clean browser console.
 
 ### Scenario 4: Bare /subscribe, /feed/:slug CTA, curated HYROX copy stability, /page/guide-start smoke, and /load import UI
 
 Given an Athlete inspecting Feed catalog deep links, Guide routes, and portable bundle routes:
 
 1. Athlete opens bare `/subscribe`, `/load`, `/load/journal`, and `/page/guide-start`.
-2. Athlete opens `/feed/sport-hyrox`, subscribes to HYROX, navigates across `/feeds` and `/journal`, and inspects the HYROX card heading, description, and `wodwiki.seedSubscriptions`.
+2. Athlete opens `/feed/sport-hyrox`, subscribes to HYROX, navigates across `/feeds` and `/journal` to inspect curated copy and authoritative `feed:subscriptions` in `IStorage`, and unsubscribes via `EditorDialog` on `/settings/sync`.
 - expect: Step 1 keeps `/subscribe`, `/load`, and `/load/journal` mounted with intake/portable-import UIs and resolves `/page/guide-start` with title `'Wod.Wiki - Pages'`.
-- expect: Step 2 keeps curated title `'HYROX'` and curated description `'HYROX race preparation and simulation workouts.'` on `/feeds` and retains `sport-hyrox: true` in `wodwiki.seedSubscriptions` across SPA navigation with a clean browser console.
+- expect: Step 2 keeps curated title `'HYROX'` and curated description `'HYROX race preparation and simulation workouts.'` on `/feeds`, persists `sport-hyrox` `subscribed: true` in IDB `feed:subscriptions` across navigation, and cleans up via `EditorDialog` Unsubscribe with a clean browser console.
