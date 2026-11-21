@@ -71,6 +71,7 @@ import { wodLinter } from '@bitcobblers/wod-wiki-ui/extensions';
 import {
   wodAutocompletion,
   wodCompletionKeymap,
+  wodIndentKeymap,
   wodEditorKeymap,
   wodAutoWrap,
   autocompleteTooltipTheme,
@@ -1023,6 +1024,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
       // Keybindings
       wodCompletionKeymap,
+      wodIndentKeymap,
       keymap.of([
         ...closeBracketsKeymap,
         ...markdownKeymap,

@@ -480,6 +480,47 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     expect(await labels('10 Walking Weight Vest ', richCatalog)).toEqual([]);
     expect(await labels('10 Frog Jumps Weight Vest ', richCatalog)).toEqual([]);
   });
+
+  it('anchors mid-token completions from token/effort start and covers trailing characters', async () => {
+    const catalog: WhiteboardScriptCompletionOptions = {
+      efforts: () => [
+        { value: 'back-squat', label: 'Back Squat' },
+        { value: 'snatch', label: 'Snatch' },
+      ],
+      tags: () => [{ value: 'heavy' }, { value: 'hero' }],
+    };
+
+    const queryAtCaret = async (docWithCaret: string) => {
+      const pos = docWithCaret.indexOf('|');
+      const doc = docWithCaret.slice(0, pos) + docWithCaret.slice(pos + 1);
+      const state = EditorState.create({ doc, extensions: whiteboardScript(catalog) });
+      return whiteboardScriptCompletionSource(catalog)(new CompletionContext(state, pos, true));
+    };
+
+    const midEffort = await queryAtCaret('10 Back Sq|at');
+    expect(midEffort?.from).toBe('10 '.length);
+    expect(midEffort?.to).toBe('10 Back Sqat'.length);
+    expect(midEffort?.options.map(o => o.label)).toContain('Back Squat');
+
+    const midStart = await queryAtCaret('Sn|tch');
+    expect(midStart?.from).toBe(0);
+    expect(midStart?.to).toBe('Sntch'.length);
+    expect(midStart?.options.map(o => o.label)).toContain('Snatch');
+
+    const midTag = await queryAtCaret('10 Back Squat #he|vy');
+    expect(midTag?.from).toBe('10 Back Squat #'.length);
+    expect(midTag?.to).toBe('10 Back Squat #hevy'.length);
+    expect(midTag?.options.map(o => o.label)).toEqual(expect.arrayContaining(['heavy', 'hero']));
+
+    const midUnit = await queryAtCaret('10k|g');
+    expect(midUnit?.from).toBe('10'.length);
+    expect(midUnit?.to).toBe('10kg'.length);
+    expect(midUnit?.options.map(o => o.label)).toContain('kg');
+
+    const preEffortNum = await queryAtCaret('100| Run');
+    expect(preEffortNum?.from).toBe('100'.length);
+    expect(preEffortNum?.options.map(o => o.label)).toEqual(expect.arrayContaining(['m', 'reps', 'rounds']));
+  });
 });
 
 describe('whiteboardScriptCompletionSource — dialect options by sport', () => {

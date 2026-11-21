@@ -192,4 +192,54 @@ describe('real completion apply inserts parse-valid text', () => {
       expect(errorNodes(`${text}\n`), `${doc} -> ${label}`).toEqual([]);
     }
   });
+
+  it('replaces mid-token and pre-effort deletions cleanly with zero syntax errors', async () => {
+    const options: WhiteboardScriptCompletionOptions = {
+      efforts: () => [
+        { value: 'back-squat', label: 'Back Squat' },
+        { value: 'snatch', label: 'Snatch' },
+      ],
+      tags: () => [{ value: 'heavy' }],
+    };
+
+    const acceptAtCaret = async (docWithCaret: string, label: string): Promise<string> => {
+      const pos = docWithCaret.indexOf('|');
+      const doc = docWithCaret.slice(0, pos) + docWithCaret.slice(pos + 1);
+      const view = new EditorView({
+        state: EditorState.create({
+          doc,
+          selection: { anchor: pos },
+          extensions: [
+            whiteboardScriptLanguage,
+            autocompletion({ override: [whiteboardScriptCompletionSource(options)], interactionDelay: 0 }),
+          ],
+        }),
+        parent: host,
+      });
+      try {
+        startCompletion(view);
+        await vi.waitFor(() => expect(completionStatus(view.state)).toBe('active'));
+        const idx = currentCompletions(view.state).findIndex(o => o.label === label);
+        expect(idx, `${docWithCaret} -> ${label}`).toBeGreaterThanOrEqual(0);
+        view.dispatch({ effects: setSelectedCompletion(idx) });
+        expect(acceptCompletion(view)).toBe(true);
+        return view.state.doc.toString();
+      } finally {
+        view.destroy();
+      }
+    };
+
+    for (const [docWithCaret, label, expected] of [
+      ['10 Back Sq|at', 'Back Squat', '10 Back Squat'],
+      ['Sn|tch', 'Snatch', 'Snatch'],
+      ['10 Back Squat #he|vy', 'heavy', '10 Back Squat #heavy'],
+      ['10k|g', 'kg', '10kg'],
+      ['100| Run', 'm', '100m Run'],
+      ['100| Run', 'reps', '100 reps Run'],
+    ] as const) {
+      const text = await acceptAtCaret(docWithCaret, label);
+      expect(text).toBe(expected);
+      expect(errorNodes(`${text}\n`), `${docWithCaret} -> ${label}`).toEqual([]);
+    }
+  });
 });

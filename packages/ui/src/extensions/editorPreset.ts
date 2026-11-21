@@ -25,12 +25,14 @@ import { embedPreviewDecorations } from "./embed-preview";
 import { wodLinter } from "./whiteboard-linter";
 import {
   wodAutocompletion,
+  wodBackspaceCompletion,
   wodCompletionKeymap,
   wodCompletionIconOption,
   wodEditorKeymap,
   wodAutoWrap,
   nestedCompletionOptions,
 } from "./whiteboard-autocomplete";
+import { wodIndentKeymap } from "./whiteboard-indent";
 import { lineIdsExtension } from "./line-ids";
 import { linkOpen } from "./link-open";
 import { smartIncrement } from "./smart-increment";
@@ -148,6 +150,8 @@ export function editorPreset(optionsOrDialect: string | EditorPresetOptions = 'm
         addToOptions: [wodCompletionIconOption],
       }),
       wodCompletionKeymap,
+      wodIndentKeymap,
+      wodBackspaceCompletion,
       wodLinter,
     );
   } else {
@@ -164,6 +168,7 @@ export function editorPreset(optionsOrDialect: string | EditorPresetOptions = 'm
       ...(whiteboardScriptCompletion ? { whiteboardScript: whiteboardScriptCompletion } : {}),
     };
     extensions.push(
+      wodIndentKeymap,
       markdown({ codeLanguages: resolveCodeLanguage }),
       editorFocusTracker,
       sectionField,

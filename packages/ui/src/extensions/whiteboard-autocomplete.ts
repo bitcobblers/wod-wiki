@@ -8,12 +8,14 @@ import {
   selectedCompletionIndex,
   setSelectedCompletion,
   snippet,
+  startCompletion,
 } from "@codemirror/autocomplete";
 import type {
   CompletionResult,
   Completion,
 } from "@codemirror/autocomplete";
 import { EditorView, keymap } from "@codemirror/view";
+import type { ViewUpdate } from "@codemirror/view";
 import { EditorSelection, EditorState, Facet, Prec } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import {
@@ -25,6 +27,7 @@ import { wqlCompletionSource, wqlLanguage } from "@bitcobblers/wod-wiki-wql";
 import type { WqlCompletionOptions } from "@bitcobblers/wod-wiki-wql";
 import { activeCursorSection, sectionAtPos } from "./section-state";
 import { editingQuerySectionsField } from "./query-block-preview";
+import { isWhiteboardScriptBody } from "./whiteboard-indent";
 
 const WORKOUT_SECTION = { name: "Workout & Data", rank: 1 };
 const MARKDOWN_SECTION = { name: "Markdown Structure", rank: 2 };
@@ -613,21 +616,82 @@ export const wodCompletionKeymap: Extension = Prec.highest(
   ]),
 );
 
-export const wodAutocompletion: Extension = autocompletion({
-  selectOnOpen: false,
-  interactionDelay: 0,
-  icons: false,
-  addToOptions: [wodCompletionIconOption],
-  tooltipClass: (state) =>
-    state.facet(mobileDockedCompletionFacet)
-      ? "cm-wod-tooltip cm-wod-tooltip-docked-hidden"
-      : "cm-wod-tooltip",
-  activateOnCompletion: (completion) =>
-    completion.type === "property" &&
-    typeof completion.apply === "string" &&
-    completion.apply.endsWith(":\n  - "),
-  override: [
-    // Explicit provider order — see wodCompletionSource.
-    wodCompletionSource,
-  ],
+/**
+ * True when a `delete.backward` update landed in a slot where the user expects
+ * typeahead to re-open:
+ * - Workout blocks: at a number (`10|`, `@100|`, `9-7-5|`, `(3|`), partial unit (`10k|`),
+ *   post-number space (`10 |`), partial/completed effort or equipment (`10 Back Squa|`),
+ *   tag (`#heav|`, `#heavy|`, `#|`), property value (`effort: fr|`), or action cue (`[:re|`).
+ * - Markdown prose: inside or landing at the end of `#tag` or `[[wiki link`.
+ * Never triggers when joining lines (`\n` deleted), on empty/whitespace-only lines,
+ * inside comments (`//`), inside headings, or in frontmatter.
+ */
+export function shouldTriggerBackspaceCompletion(update: ViewUpdate): boolean {
+  if (!update.docChanged || update.state.readOnly) return false;
+  if (completionStatus(update.state) !== null) return false;
+  if (!update.state.selection.main.empty) return false;
+
+  const backspaces = update.transactions.filter((tr) => tr.isUserEvent("delete.backward"));
+  if (backspaces.length === 0) return false;
+
+  for (const tr of backspaces) {
+    let deletedNewline = false;
+    tr.changes.iterChanges((fromA, toA) => {
+      if (tr.startState.doc.sliceString(fromA, toA).includes("\n")) {
+        deletedNewline = true;
+      }
+    });
+    if (deletedNewline) return false;
+  }
+
+  const head = update.state.selection.main.head;
+  const line = update.state.doc.lineAt(head);
+  const before = line.text.slice(0, head - line.from);
+
+  if (isWhiteboardScriptBody(update.state, head)) {
+    const trimmedBefore = before.trim();
+    if (!trimmedBefore) return false;
+    if (/\/\//.test(before)) return false;
+    if (/^#(?![A-Za-z0-9])/.test(trimmedBefore)) return false;
+    if (/(?:^|\s)[*^]?\d*:\d*$/.test(before)) return false;
+    return true;
+  }
+
+  const section = activeCursorSection(update.state);
+  if (!section || section.type === "markdown") {
+    if (/^\s*#{1,6}(?:\s|$)/.test(before)) return false;
+    if (/(?:^#[a-zA-Z][a-zA-Z0-9-]*|(?<=\s)#[a-zA-Z0-9-]*)$/.test(before)) return true;
+    if (/\[\[[^\]]*$/.test(before)) return true;
+  }
+  return false;
+}
+
+export const wodBackspaceCompletion: Extension = EditorView.updateListener.of((update) => {
+  if (shouldTriggerBackspaceCompletion(update)) {
+    queueMicrotask(() => {
+      if (update.view.state === update.state) startCompletion(update.view);
+    });
+  }
 });
+
+export const wodAutocompletion: Extension = [
+  autocompletion({
+    selectOnOpen: false,
+    interactionDelay: 0,
+    icons: false,
+    addToOptions: [wodCompletionIconOption],
+    tooltipClass: (state) =>
+      state.facet(mobileDockedCompletionFacet)
+        ? "cm-wod-tooltip cm-wod-tooltip-docked-hidden"
+        : "cm-wod-tooltip",
+    activateOnCompletion: (completion) =>
+      completion.type === "property" &&
+      typeof completion.apply === "string" &&
+      completion.apply.endsWith(":\n  - "),
+    override: [
+      // Explicit provider order — see wodCompletionSource.
+      wodCompletionSource,
+    ],
+  }),
+  wodBackspaceCompletion,
+];

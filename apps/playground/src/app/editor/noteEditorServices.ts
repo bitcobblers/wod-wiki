@@ -461,25 +461,39 @@ export function createMarkdownProseCompletionSource(): CustomCompletionSource {
       const from = line.from + tagStart;
       const tags = getTagIndex().list().filter((d) => !d.isCategory);
       if (tags.length === 0) return null;
+      const options = tags.map((tag) => {
+        const first = tag.contributions[0];
+        const detail =
+          first?.kind === 'metric'
+            ? first.type
+            : first?.kind === 'function'
+              ? first.name
+              : first?.kind === 'tag'
+                ? `#${first.slug}`
+                : 'Tag';
+        return {
+          label: `#${tag.slug}`,
+          detail,
+          type: 'keyword',
+          apply: `#${tag.slug} `,
+        };
+      });
+      const restTag = /^[a-zA-Z0-9-]*/.exec(line.text.slice(context.pos - line.from))![0];
+      if (restTag.length > 0) {
+        const typedLower = (tagMatch[1] ?? tagMatch[2] ?? '').toLowerCase();
+        const filtered = options.filter((opt) => opt.label.toLowerCase().includes(`#${typedLower}`));
+        return filtered.length > 0
+          ? {
+              from,
+              to: context.pos + restTag.length,
+              options: filtered,
+              filter: false,
+            }
+          : null;
+      }
       return {
         from,
-        options: tags.map((tag) => {
-          const first = tag.contributions[0];
-          const detail =
-            first?.kind === 'metric'
-              ? first.type
-              : first?.kind === 'function'
-                ? first.name
-                : first?.kind === 'tag'
-                  ? `#${first.slug}`
-                  : 'Tag';
-          return {
-            label: `#${tag.slug}`,
-            detail,
-            type: 'keyword',
-            apply: `#${tag.slug} `,
-          };
-        }),
+        options,
         validFor: /^#[a-zA-Z0-9-]*$/,
       };
     }

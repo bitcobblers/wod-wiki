@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView, runScopeHandlers } from '@codemirror/view';
+import { deleteCharBackward } from '@codemirror/commands';
 
 const zeroRect = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) };
 if (typeof Range !== 'undefined' && !Range.prototype.getClientRects) {
@@ -8,6 +9,7 @@ if (typeof Range !== 'undefined' && !Range.prototype.getClientRects) {
   Object.defineProperty(Range.prototype, 'getBoundingClientRect', { configurable: true, value: () => zeroRect });
 }
 import {
+  acceptCompletion,
   CompletionContext,
   completionStatus,
   currentCompletions,
@@ -22,6 +24,7 @@ import {
   wodAutocompletion,
   wodCompletionKeymap,
 } from './whiteboard-autocomplete';
+import { editorPreset } from './editorPreset';
 import { sectionField } from './section-state';
 import { editingQuerySectionsField, setQuerySourceEditing } from './query-block-preview';
 
@@ -153,6 +156,177 @@ describe('nestedCompletion & wodCompletionKeymap', () => {
     } finally {
       view.destroy();
       host.remove();
+    }
+  });
+});
+
+describe('wodBackspaceCompletion', () => {
+  function mountWorkoutEditor(docWithCaret: string) {
+    const caret = docWithCaret.indexOf('|');
+    const doc = docWithCaret.slice(0, caret) + docWithCaret.slice(caret + 1);
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        selection: { anchor: caret },
+        extensions: editorPreset({
+          dialect: 'markdown',
+          whiteboardScript: {
+            efforts: () => [
+              { value: 'back-squat', label: 'Back Squat' },
+              { value: 'run', label: 'Run' },
+            ],
+            tags: () => [{ value: 'heavy' }, { value: 'hero' }],
+          },
+        }),
+      }),
+      parent: host,
+    });
+    return {
+      view,
+      cleanup: () => {
+        view.destroy();
+        host.remove();
+      },
+    };
+  }
+
+  it('re-opens unit typeahead when backspacing a unit down to a glued number', async () => {
+    const { view, cleanup } = mountWorkoutEditor('```time\n10kg|\n```');
+    try {
+      deleteCharBackward(view); // -> 10k|
+      await vi.waitFor(() => expect(completionStatus(view.state)).toBe('active'));
+      expect(currentCompletions(view.state).map((c) => c.label)).toContain('kg');
+
+      deleteCharBackward(view); // -> 10|
+      await vi.waitFor(() => {
+        expect(completionStatus(view.state)).toBe('active');
+        const labels = currentCompletions(view.state).map((c) => c.label);
+        expect(labels).toContain('reps');
+        expect(labels).toContain('rounds');
+        expect(labels).toContain('kg');
+        expect(labels).toContain('m');
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('re-opens units across spaced unit deletion, @quantity, and pre-effort unit deletion', async () => {
+    const spaced = mountWorkoutEditor('```time\n10 kg|\n```');
+    try {
+      deleteCharBackward(spaced.view); // -> 10 k|
+      await vi.waitFor(() => expect(completionStatus(spaced.view.state)).toBe('active'));
+      expect(currentCompletions(spaced.view.state).map((c) => c.label)).toContain('kg');
+
+      deleteCharBackward(spaced.view); // -> 10 |
+      await vi.waitFor(() => expect(completionStatus(spaced.view.state)).toBe('active'));
+      expect(currentCompletions(spaced.view.state).map((c) => c.label)).toContain('Back Squat');
+
+      deleteCharBackward(spaced.view); // -> 10|
+      await vi.waitFor(() => {
+        expect(completionStatus(spaced.view.state)).toBe('active');
+        expect(currentCompletions(spaced.view.state).map((c) => c.label)).toEqual(
+          expect.arrayContaining(['reps', 'rounds', 'kg']),
+        );
+      });
+    } finally {
+      spaced.cleanup();
+    }
+
+    const atMass = mountWorkoutEditor('```time\n@100kg|\n```');
+    try {
+      deleteCharBackward(atMass.view); // -> @100k|
+      deleteCharBackward(atMass.view); // -> @100|
+      await vi.waitFor(() => {
+        expect(completionStatus(atMass.view.state)).toBe('active');
+        const labels = currentCompletions(atMass.view.state).map((c) => c.label);
+        expect(labels).toContain('kg');
+        expect(labels).not.toContain('m');
+      });
+    } finally {
+      atMass.cleanup();
+    }
+
+    const preEffort = mountWorkoutEditor('```time\n100m| Run\n```');
+    try {
+      deleteCharBackward(preEffort.view); // -> 100| Run
+      await vi.waitFor(() => {
+        expect(completionStatus(preEffort.view.state)).toBe('active');
+        expect(currentCompletions(preEffort.view.state).map((c) => c.label)).toEqual(
+          expect.arrayContaining(['m', 'reps', 'rounds']),
+        );
+      });
+    } finally {
+      preEffort.cleanup();
+    }
+  });
+
+  it('re-opens effort completion from the beginning of the effort when deleting letters', async () => {
+    const { view, cleanup } = mountWorkoutEditor('```time\n10 Back Squat|\n```');
+    try {
+      deleteCharBackward(view); // -> 10 Back Squa|
+      await vi.waitFor(() => {
+        expect(completionStatus(view.state)).toBe('active');
+        expect(currentCompletions(view.state).map((c) => c.label)).toContain('Back Squat');
+      });
+      const idx = currentCompletions(view.state).findIndex((c) => c.label === 'Back Squat');
+      view.dispatch({ effects: setSelectedCompletion(idx) });
+      acceptCompletion(view);
+      expect(view.state.doc.toString()).toBe('```time\n10 Back Squat\n```');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('re-opens tag completion when deleting letters of a tag or backspacing onto the end of a tag', async () => {
+    const editingTag = mountWorkoutEditor('```time\n10 Back Squat #heavy|\n```');
+    try {
+      deleteCharBackward(editingTag.view); // -> #heav|
+      await vi.waitFor(() => {
+        expect(completionStatus(editingTag.view.state)).toBe('active');
+        expect(currentCompletions(editingTag.view.state).map((c) => c.label)).toContain('heavy');
+      });
+      for (let i = 0; i < 4; i++) deleteCharBackward(editingTag.view); // -> #|
+      await vi.waitFor(() => {
+        expect(completionStatus(editingTag.view.state)).toBe('active');
+        expect(currentCompletions(editingTag.view.state).map((c) => c.label)).toEqual(
+          expect.arrayContaining(['heavy', 'hero']),
+        );
+      });
+    } finally {
+      editingTag.cleanup();
+    }
+
+    const landingAtEnd = mountWorkoutEditor('```time\n10 Back Squat #heavy |\n```');
+    try {
+      deleteCharBackward(landingAtEnd.view); // -> #heavy|
+      await vi.waitFor(() => {
+        expect(completionStatus(landingAtEnd.view.state)).toBe('active');
+        expect(currentCompletions(landingAtEnd.view.state).map((c) => c.label)).toContain('heavy');
+      });
+    } finally {
+      landingAtEnd.cleanup();
+    }
+  });
+
+  it('stays quiet on empty lines, line joins, comments, headings, and plain Markdown prose', async () => {
+    for (const sample of [
+      '```time\n1|\n```',
+      '```time\n10\n|5\n```',
+      '```time\n// note|\n```',
+      '```time\n# Title|\n```',
+      'Hello world|\n',
+    ]) {
+      const { view, cleanup } = mountWorkoutEditor(sample);
+      try {
+        deleteCharBackward(view);
+        await new Promise((r) => setTimeout(r, 40));
+        expect(completionStatus(view.state), sample).toBeNull();
+      } finally {
+        cleanup();
+      }
     }
   });
 });

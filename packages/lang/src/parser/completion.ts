@@ -969,6 +969,23 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
           });
         }
       }
+      const restTag = /^[A-Za-z0-9-]*/.exec(line.text.slice(pos - line.from))![0];
+      if (restTag.length > 0) {
+        const lower = word.toLowerCase();
+        const filteredTags = tagOptions.filter(opt => {
+          if (opt.type === 'create') return true;
+          const applyLower = typeof opt.apply === 'string' ? opt.apply.toLowerCase() : '';
+          return opt.label.toLowerCase().includes(lower) || applyLower.includes(lower);
+        });
+        return filteredTags.length > 0
+          ? {
+              from: pos - word.length,
+              to: pos + restTag.length,
+              options: filteredTags,
+              filter: false,
+            }
+          : null;
+      }
       return {
         from: pos - word.length,
         options: tagOptions,
@@ -1040,11 +1057,12 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
         .map(e => ({ opt: e.completion, score: scoreCatalogEntry(typedRaw, e) }))
         .filter((x): x is { opt: Completion; score: number } => x.score !== null)
         .sort((a, b) => b.score - a.score);
+      const restWord = /^[A-Za-z0-9-]*/.exec(line.text.slice(pos - line.from))![0];
       const hasAliasOrFuzzyOnly =
         (fuzzyEfforts.length > 0 || fuzzyEquipment.length > 0) &&
         (!hasSubstringOrPrefix || (typedStart.length >= 2 && fuzzyEfforts.some(e => completionMatchesWord(e.opt, typedStart) === 'alias')));
 
-      if (hasAliasOrFuzzyOnly) {
+      if (hasAliasOrFuzzyOnly || restWord.length > 0) {
         const otherMatched = [...snippets, ...startKeywords, ...sportWords, ...propertyOptions]
           .filter(opt => scoreCompletionOption(typedRaw, opt) !== null);
         const matched = [
@@ -1055,6 +1073,7 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
         const suppressCreate = isExactAliasOrTermSplit(typedRaw, catalog);
         return {
           from: pos - typedRaw.length,
+          ...(restWord.length > 0 ? { to: pos + restWord.length } : {}),
           options: appendCreateEffortOption(matched, typedRaw, options.onCreateEffort, suppressCreate),
           filter: false,
         };
@@ -1071,7 +1090,7 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
     let end = nodes.length;
     while (end > 0 && nodes[end - 1].from >= pos) end--;
     const last = nodes[end - 1];
-    const completingWord = last?.firstChild?.name === 'Effort' && last.to === pos;
+    const completingWord = last?.firstChild?.name === 'Effort' && last.from < pos && pos <= last.to;
     const qtyIdx = completingWord ? end - 2 : end - 1;
     const quantityFragment = qtyIdx >= 0 ? nodes[qtyIdx] : undefined;
     const quantity = quantityFragment?.firstChild?.name === 'Quantity' ? quantityFragment.firstChild : null;
@@ -1099,11 +1118,12 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
       if (hasAtSign) {
         const massPool = unitCompletions(units, 'mass', preferredSet.size > 0 ? preferredSet : undefined);
         const wordText = completingWord ? context.state.doc.sliceString(last.from, pos) : '';
-        if (completingWord && wordText.length >= 2) {
+        if (completingWord && (last.to > pos || wordText.length >= 2)) {
           const hasAlias = massPool.some(opt => completionMatchesWord(opt, wordText.toLowerCase()) === 'alias');
-          if (hasAlias) {
+          if (hasAlias || last.to > pos) {
             return {
               from: last.from,
+              ...(last.to > pos ? { to: last.to } : {}),
               options: massPool.filter(opt => scoreCompletionOption(wordText, opt) !== null),
               filter: false,
             };
@@ -1135,7 +1155,14 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
             ? ladderReps
             : [...(isGlued ? [] : makeCountQualifiers(false, false, ladderDetail)), ...missingLineElements, ...keywords.filter(k => k.label === 'FOR TIME')];
           const matched = scorePhrasePool(wordText, pool, catalog, options.onCreateEffort, !isGlued);
-          return matched.length > 0 ? { from: last.from, options: matched, filter: false } : null;
+          return matched.length > 0
+            ? {
+                from: last.from,
+                ...(last.to > pos ? { to: last.to } : {}),
+                options: matched,
+                filter: false,
+              }
+            : null;
         }
         return {
           from: pos,
@@ -1156,9 +1183,10 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
         if (completingWord) {
           const wordText = context.state.doc.sliceString(last.from, pos);
           const hasAliasHit = unitPool.some(opt => completionMatchesWord(opt, wordText.toLowerCase()) === 'alias');
-          if (hasAliasHit) {
+          if (hasAliasHit || last.to > pos) {
             return {
               from: last.from,
+              ...(last.to > pos ? { to: last.to } : {}),
               options: unitPool.filter(opt => scoreCompletionOption(wordText, opt) !== null),
               filter: false,
             };
@@ -1221,6 +1249,7 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
         return hasAliasHit || combined.length > 0 || (options.onCreateEffort && !prefixLine.hasEffort)
           ? {
               from: last.from,
+              ...(last.to > pos ? { to: last.to } : {}),
               options: !prefixLine.hasEffort
                 ? appendCreateEffortOption(combined, wordText, options.onCreateEffort, suppressCreate)
                 : combined,
@@ -1434,6 +1463,7 @@ export function whiteboardScriptCompletionSource(options: WhiteboardScriptComple
       if (withCreate.length === 0) return null;
       return {
         from: phraseFrom,
+        ...(runLast.to > pos ? { to: runLast.to } : {}),
         options: withCreate,
         filter: false,
       };
