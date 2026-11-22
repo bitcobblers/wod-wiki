@@ -10,7 +10,7 @@ export const StreamAgentTools: React.FC<{ stream: ActiveStreamBridge }> = () => 
     return trackMountedWebMcpTool({
       name: 'ui_set_stream_query',
       title: 'Set Live Stream WQL Query or Layout',
-      description: 'Update live WQL query, layout, or grouping on the mounted stream view.',
+      description: 'Update live WQL query, layout, grouping, calendar month, or overlay filter on the mounted stream view.',
       tier: 1,
       scope: 'stream-ui',
     });
@@ -20,7 +20,7 @@ export const StreamAgentTools: React.FC<{ stream: ActiveStreamBridge }> = () => 
     name: 'ui_set_stream_query',
     title: 'Set Live Stream WQL Query or Layout',
     description:
-      'Update the live WQL query, layout (`cards`, `rows`, `feed`, `agenda`, `planner`), or grouping on the currently mounted stream view, or pass `resetToDefault: true` to restore the route default query.',
+      'Update the live WQL query, layout (`cards`, `rows`, `feed`, `agenda`, `planner`), grouping, calendar `month` (`YYYY-MM`), or calendar `overlayMode` (`all`, `planned`, `logged`) on the currently mounted stream view, or pass `resetToDefault: true` to restore the route default query.',
     inputSchema: uiSetStreamQuerySchema,
     annotations: {
       title: 'Set Live Stream Query',
@@ -47,6 +47,12 @@ export const StreamAgentTools: React.FC<{ stream: ActiveStreamBridge }> = () => 
         if (args.groupBy !== undefined) {
           current.setGroupBy(args.groupBy === null ? undefined : args.groupBy);
         }
+        if (args.month !== undefined) {
+          current.setMonth?.(args.month);
+        }
+        if (args.overlayMode !== undefined) {
+          current.setOverlayMode?.(args.overlayMode);
+        }
         await waitForStreamSettle();
         const after = getActiveStreamBridge() ?? current;
         const viewStateRaw = document.getElementById('agent-view-state')?.textContent;
@@ -56,6 +62,8 @@ export const StreamAgentTools: React.FC<{ stream: ActiveStreamBridge }> = () => 
           query: after.query,
           layout: after.layout,
           groupBy: after.groupBy ?? null,
+          month: after.month ?? null,
+          overlayMode: after.overlayMode ?? null,
           totalUnbatchedCount: parsedState?.stream?.totalUnbatchedCount ?? null,
         };
         recordWebMcpToolInvocation({

@@ -17,6 +17,12 @@ import {
   wodNotebookDeleteTool,
   wodNotebookListTool,
   wodNotebookSaveTool,
+  wodScheduleAddTool,
+  wodScheduleBatchTool,
+  wodScheduleListTool,
+  wodScheduleRemoveTool,
+  wodScheduleUpdateTool,
+  wodSessionAttributeTool,
   wodSessionDeleteTool,
   wodSessionGetTool,
   wodSessionListTool,
@@ -302,6 +308,7 @@ export async function runAgentNounVerbCommand(env: AgentCliExecutionEnv): Promis
               search: parsed.search,
               ...(origin ? { origin } : {}),
               ...(parsed.includeSeed !== undefined ? { includeSeed: parsed.includeSeed } : {}),
+              ...(parsed.orphanedOnly ? { orphanedOnly: true } : {}),
               limit: parsed.limit,
             },
             ctx,
@@ -401,20 +408,21 @@ export async function runAgentNounVerbCommand(env: AgentCliExecutionEnv): Promis
           const date = arg1 ?? parsed.date ?? 'today';
           const sourceNoteId = parsed.sourceNoteId ?? parsed.noteId;
           if (sourceNoteId && !parsed.markdown && !arg2) {
-            const cloned = await wodNoteCloneTool.execute(
+            const scheduled = await wodScheduleAddTool.execute(
               {
-                sourceNoteId,
-                title: parsed.title,
-                targetNotebookId: toNotebookId(parsed.notebook ?? 'journal'),
-                journalDate: date,
+                noteId: sourceNoteId,
+                date,
+                ...(parsed.slot ? { slot: parsed.slot } : {}),
+                ...(parsed.position !== undefined ? { position: parsed.position } : {}),
+                ...(parsed.description ? { notes: parsed.description } : {}),
               },
               ctx,
             );
             return emitSuccess(
               env,
-              wodNoteCloneTool.name,
-              cloned,
-              `[wod journal add] cloned ${sourceNoteId} → ${cloned.noteId} on ${date}`,
+              wodScheduleAddTool.name,
+              scheduled,
+              `[wod journal add] scheduled ${sourceNoteId} on ${scheduled.item.date} (schedule=${scheduled.item.id})`,
             );
           }
           const content = await readContentArg(arg2, parsed.markdown, env.readStdin);
@@ -436,6 +444,134 @@ export async function runAgentNounVerbCommand(env: AgentCliExecutionEnv): Promis
           );
         }
         throw new Error(`Unknown journal verb "${verb}" (expected: day | add)`);
+      }
+
+      if (noun === 'schedule') {
+        if (verb === 'list' || !verb) {
+          const out = await wodScheduleListTool.execute(
+            {
+              ...(parsed.fromDate ? { from: parsed.fromDate } : {}),
+              ...(parsed.toDate ? { to: parsed.toDate } : {}),
+              ...(parsed.noteId ?? (verb === 'list' ? arg1 : undefined)
+                ? { noteId: parsed.noteId ?? arg1 }
+                : {}),
+            },
+            ctx,
+          );
+          return emitSuccess(
+            env,
+            wodScheduleListTool.name,
+            out,
+            out.items
+              .map(
+                (i) =>
+                  `${i.id}  ${i.date}  [${i.status}]${i.slot ? ` (${i.slot})` : ''}  ${i.noteTitle} (${i.noteId})`,
+              )
+              .join('\n') || '[wod schedule list] 0 schedule item(s)',
+          );
+        }
+        if (verb === 'add') {
+          const noteId = arg1 ?? parsed.noteId;
+          if (!noteId) {
+            throw new Error('Usage: wod schedule add <noteId> [--date YYYY-MM-DD] [--slot AM] [--position 0]');
+          }
+          const out = await wodScheduleAddTool.execute(
+            {
+              noteId,
+              date: parsed.date ?? arg2,
+              ...(parsed.slot ? { slot: parsed.slot } : {}),
+              ...(parsed.position !== undefined ? { position: parsed.position } : {}),
+              ...(parsed.description ? { notes: parsed.description } : {}),
+            },
+            ctx,
+          );
+          return emitSuccess(
+            env,
+            wodScheduleAddTool.name,
+            out,
+            `[wod schedule add] ${out.item.id} → ${out.item.noteId} on ${out.item.date}`,
+          );
+        }
+        if (verb === 'batch') {
+          const rawJson = parsed.itemsJson ?? (await env.readStdin());
+          let parsedItems: Array<{
+            noteId: string;
+            date: string;
+            slot?: string;
+            position?: number;
+            notes?: string;
+          }>;
+          try {
+            const decoded = JSON.parse(rawJson) as unknown;
+            if (!Array.isArray(decoded)) {
+              throw new Error('Expected JSON array for wod schedule batch');
+            }
+            parsedItems = decoded as typeof parsedItems;
+          } catch (err) {
+            throw new Error(
+              `Invalid --items / stdin JSON for wod schedule batch: ${err instanceof Error ? err.message : String(err)}`,
+              { cause: err },
+            );
+          }
+          const out = await wodScheduleBatchTool.execute({ items: parsedItems }, ctx);
+          return emitSuccess(
+            env,
+            wodScheduleBatchTool.name,
+            out,
+            `[wod schedule batch] scheduled ${out.scheduledCount} item(s)`,
+          );
+        }
+        if (verb === 'update') {
+          const scheduleItemId = arg1 ?? parsed.scheduleItemId;
+          if (!scheduleItemId) {
+            throw new Error(
+              'Usage: wod schedule update <scheduleItemId> [--date YYYY-MM-DD] [--status planned|completed|moved|skipped] [--slot AM] [--position 0]',
+            );
+          }
+          const status =
+            parsed.status === 'planned' ||
+            parsed.status === 'completed' ||
+            parsed.status === 'moved' ||
+            parsed.status === 'skipped'
+              ? parsed.status
+              : undefined;
+          if (parsed.status && !status) {
+            throw new Error(
+              `Invalid --status "${parsed.status}" (expected: planned | completed | moved | skipped)`,
+            );
+          }
+          const out = await wodScheduleUpdateTool.execute(
+            {
+              scheduleItemId,
+              ...(parsed.date ? { date: parsed.date } : {}),
+              ...(status ? { status } : {}),
+              ...(parsed.slot ? { slot: parsed.slot } : {}),
+              ...(parsed.position !== undefined ? { position: parsed.position } : {}),
+              ...(parsed.description ? { notes: parsed.description } : {}),
+            },
+            ctx,
+          );
+          return emitSuccess(
+            env,
+            wodScheduleUpdateTool.name,
+            out,
+            `[wod schedule update] ${out.item.id} (${out.item.date}, status=${out.item.status})`,
+          );
+        }
+        if (verb === 'remove' || verb === 'delete') {
+          const scheduleItemId = arg1 ?? parsed.scheduleItemId;
+          if (!scheduleItemId) {
+            throw new Error('Usage: wod schedule remove <scheduleItemId>');
+          }
+          const out = await wodScheduleRemoveTool.execute({ scheduleItemId }, ctx);
+          return emitSuccess(
+            env,
+            wodScheduleRemoveTool.name,
+            out,
+            `[wod schedule remove] removed=${out.removed} scheduleItem=${out.scheduleItemId}`,
+          );
+        }
+        throw new Error(`Unknown schedule verb "${verb}" (expected: list | add | batch | update | remove)`);
       }
 
       if (noun === 'notebook') {
@@ -556,6 +692,7 @@ export async function runAgentNounVerbCommand(env: AgentCliExecutionEnv): Promis
               title: parsed.title,
               sport: parsed.sport,
               journalDate: parsed.date,
+              ...(parsed.scheduleItemId ? { scheduleItemId: parsed.scheduleItemId } : {}),
               collectibles: parsed.setPairs.length > 0 ? parseSetPairs(parsed.setPairs) : undefined,
             },
             ctx,
@@ -565,6 +702,32 @@ export async function runAgentNounVerbCommand(env: AgentCliExecutionEnv): Promis
             wodSessionRunHeadlessTool.name,
             out,
             `[wod session run] session ${out.sessionId} on note ${out.noteId} (${out.eventCount} events, ${out.summaryCount} summaries)`,
+          );
+        }
+        if (verb === 'attribute') {
+          const sessionId = arg1;
+          if (!sessionId) {
+            throw new Error(
+              'Usage: wod session attribute <sessionId> [--date YYYY-MM-DD] [--schedule-item <id> | --unlink]',
+            );
+          }
+          const out = await wodSessionAttributeTool.execute(
+            {
+              sessionId,
+              ...(parsed.date ? { sessionDate: parsed.date } : {}),
+              ...(parsed.unlink
+                ? { scheduleItemId: null }
+                : parsed.scheduleItemId
+                  ? { scheduleItemId: parsed.scheduleItemId }
+                  : {}),
+            },
+            ctx,
+          );
+          return emitSuccess(
+            env,
+            wodSessionAttributeTool.name,
+            out,
+            `[wod session attribute] ${out.session.id} date=${out.session.sessionDate ?? 'unset'} scheduleItem=${out.session.scheduleItemId ?? 'none'}`,
           );
         }
         if (verb === 'delete') {
@@ -578,7 +741,7 @@ export async function runAgentNounVerbCommand(env: AgentCliExecutionEnv): Promis
             `[wod session delete] deleted=${out.deleted} session=${out.sessionId}`,
           );
         }
-        throw new Error(`Unknown session verb "${verb}" (expected: list | get | run | delete)`);
+        throw new Error(`Unknown session verb "${verb}" (expected: list | get | run | attribute | delete)`);
       }
 
       if (noun === 'catalog' || noun === 'tag') {

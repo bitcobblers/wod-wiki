@@ -107,6 +107,7 @@ arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/sr
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/agent/tools/journalTools.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/agent/tools/noteTools.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/agent/tools/notebookTools.ts> .
+arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/agent/tools/scheduleTools.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/agent/tools/scriptTools.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/agent/tools/sessionTools.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/agent/tools/wqlTools.ts> .
@@ -123,6 +124,7 @@ arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/sr
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/notebook/lifecycle.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/notebook/membership.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/notebook/propertyInheritance.ts> .
+arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/notebook/schedule.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/notebook/sessionIntake.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/pack.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/react.ts> .
@@ -772,4 +774,9 @@ arch:adr_0008 a arch:ArchitectureDecision ;
     rdfs:label "ADR 0008: System Meta-Ontology (`sys:`) and 4-Kind Sub-Ontology Governance" ;
     arch:adrNumber "0008" ;
     arch:adrFile <https://wod.wiki/code/file/docs/adrs/0008-system-meta-ontology-and-slice-kinds.md> .
+
+arch:ADR-0009 a arch:ArchitectureDecision ;
+    rdfs:label "ADR 0009: Many-to-Many Schedule Items, Session Overlay Attribution, and Versioned Session Notes" ;
+    arch:adrNumber "0009" ;
+    arch:adrFile <https://wod.wiki/code/file/docs/adrs/0009-schedule-items-session-overlay-and-note-versioning.md> .
 

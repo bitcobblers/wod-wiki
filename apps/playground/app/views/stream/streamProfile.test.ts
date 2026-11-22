@@ -255,6 +255,7 @@ describe('NOTES_STREAM_PROFILE default query (WW-003)', () => {
     expect(result.notes.map((n) => n.id).sort()).toEqual([
       '01950000-0000-7000-8000-000000000001',
       'crossfit-girls/fran',
+      'root-readme',
       'unfiled-1',
       'user-nb-1',
     ])

@@ -42,6 +42,15 @@ export const uiSetStreamQuerySchema = z.strictObject({
     .nullable()
     .optional()
     .describe('Grouping dimension (e.g. "date", "week", "notebook") or null to clear.'),
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'Expected YYYY-MM calendar month')
+    .optional()
+    .describe('Calendar month anchor in YYYY-MM format (syncs ?month= on calendar/journal views).'),
+  overlayMode: z
+    .enum(['all', 'planned', 'logged'])
+    .optional()
+    .describe('Calendar schedule/session overlay filter (`all`, `planned`, or `logged`).'),
   resetToDefault: z
     .boolean()
     .optional()
@@ -238,7 +247,7 @@ export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
       name: 'ui_set_stream_query',
       title: 'Set Live Stream WQL Query or Layout',
       description:
-        'Update the live WQL query, layout (`cards`, `rows`, `feed`, `agenda`, `planner`), or grouping on the currently mounted stream view, or reset to the route default.',
+        'Update the live WQL query, layout (`cards`, `rows`, `feed`, `agenda`, `planner`), grouping, calendar `month` (`YYYY-MM`), or calendar `overlayMode` (`all`, `planned`, `logged`) on the currently mounted stream view, or reset to the route default.',
       tier: 1,
       surfaces: ['webmcp'],
       mountScope: 'mounted stream routes (/journal, /notes, /notebooks, /sessions, /efforts, /tags, /feeds)',

@@ -453,6 +453,8 @@ export function QueriableStreamView({
       layout,
       availableLayouts,
       groupBy: settings.groupBy,
+      month: urlMonthParam,
+      overlayMode,
       setQuery,
       setLayout: (nextLayout) => {
         if (availableLayouts.includes(nextLayout as LayoutMode)) {
@@ -460,8 +462,10 @@ export function QueriableStreamView({
         }
       },
       setGroupBy,
+      setMonth: handleMonthChange,
+      setOverlayMode,
     })
-  }, [profile.route, profile.defaultWql, query, streamBusy, layout, availableLayouts, settings.groupBy, setQuery, setLayout, setGroupBy])
+  }, [profile.route, profile.defaultWql, query, streamBusy, layout, availableLayouts, settings.groupBy, urlMonthParam, overlayMode, setQuery, setLayout, setGroupBy, handleMonthChange, setOverlayMode])
   const [actionError, setActionError] = useState<string | null>(null)
   // Mobile: the query bar portals into the app navbar (no page header).
   const isMobile = useIsMobile()

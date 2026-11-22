@@ -606,9 +606,7 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
  *  strings, typed pages and dashboards all surface; positive `source:`
  *  filters and source negations do the scoping. */
 function applyNoteSelectionStages(notes: Note[], parsed: ParsedFindQuery): Note[] {
-  let rows = applySourceFilter(notes, parsed.filters).filter(
-    (n) => n.sourceId !== 'notebook:_root',
-  );
+  let rows = applySourceFilter(notes, parsed.filters);
   if (parsed.sourceScope?.length) {
     const scope = parsed.sourceScope;
     rows = rows.filter((n) => scope.some((k) => sourceMatches(n, k)));

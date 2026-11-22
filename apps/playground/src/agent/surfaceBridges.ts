@@ -41,9 +41,13 @@ export interface ActiveStreamBridge {
   layout: string;
   availableLayouts: readonly string[];
   groupBy?: string;
+  month?: string;
+  overlayMode?: 'all' | 'planned' | 'logged';
   setQuery: (nextQuery: string) => void;
   setLayout: (layout: string) => void;
   setGroupBy: (groupBy?: string) => void;
+  setMonth?: (month: string) => void;
+  setOverlayMode?: (mode: 'all' | 'planned' | 'logged') => void;
 }
 
 export interface ActiveExplorerBridge {

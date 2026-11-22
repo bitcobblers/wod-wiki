@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { orderPlacements, type Note, type Page, type Session } from '@bitcobblers/wod-wiki-core';
+import { getJournalDayOverlay } from '../../notebook/schedule';
 import {
   civilDateKey,
   normalizeMarkdownOrBareScript,
@@ -33,6 +34,7 @@ export const wodJournalDayTool = defineAgentTool({
   cliEquivalent: 'wod journal [today|YYYY-MM-DD] --json',
   async execute(args, ctx) {
     const dateKey = civilDateKey(args.date);
+    const overlay = await getJournalDayOverlay(ctx.storage, dateKey);
     const dayStart = Date.parse(`${dateKey}T00:00:00Z`);
     const dayEnd = Date.parse(`${dateKey}T23:59:59.999Z`);
 
@@ -54,18 +56,21 @@ export const wodJournalDayTool = defineAgentTool({
       }
     }
 
-    const [allNotes, allSessions] = await Promise.all([
-      ctx.storage.readonly('notes').getAll(),
-      ctx.storage.readonly('sessions').getAll(),
-    ]);
-
+    const allNotes = await ctx.storage.readonly('notes').getAll();
     const notesById = new Map<string, Note>(allNotes.map((n) => [n.id, n]));
     const dayNotes: Note[] = [];
     const seenIds = new Set<string>();
 
+    for (const { item, note } of overlay.planned) {
+      const resolved = note ?? notesById.get(item.noteId);
+      if (resolved && !seenIds.has(resolved.id)) {
+        dayNotes.push(resolved);
+        seenIds.add(resolved.id);
+      }
+    }
     for (const id of placedNoteIds) {
       const n = notesById.get(id);
-      if (n) {
+      if (n && !seenIds.has(n.id)) {
         dayNotes.push(n);
         seenIds.add(n.id);
       }
@@ -81,13 +86,16 @@ export const wodJournalDayTool = defineAgentTool({
       }
     }
 
-    const daySessions: Session[] = allSessions
-      .filter((s) => {
-        if (page && s.pageId === page.id) return true;
-        if (seenIds.has(s.noteId) && s.startTime >= dayStart && s.startTime <= dayEnd) return true;
-        return s.startTime >= dayStart && s.startTime <= dayEnd;
-      })
-      .sort((a, b) => a.startTime - b.startTime);
+    const overlaySessionsById = new Map<string, Session>();
+    for (const p of overlay.planned) {
+      for (const s of p.pairedSessions) overlaySessionsById.set(s.id, s);
+    }
+    for (const a of overlay.adhocSessions) {
+      overlaySessionsById.set(a.session.id, a.session);
+    }
+    const daySessions: Session[] = Array.from(overlaySessionsById.values()).sort(
+      (a, b) => a.startTime - b.startTime,
+    );
 
     for (const s of daySessions) {
       if (seenIds.has(s.noteId)) continue;
@@ -101,8 +109,29 @@ export const wodJournalDayTool = defineAgentTool({
     const prefix = (ctx.baseUrl ?? '').replace(/\/+$/, '');
     return {
       date: dateKey,
-      url: `${prefix}/journal/${dateKey}`,
+      url: `${prefix}/day/${dateKey}`,
       pageId: page?.id ?? null,
+      plannedCount: overlay.planned.length,
+      planned: overlay.planned.map(({ item, note, pairedSessions }) => ({
+        scheduleItemId: item.id,
+        noteId: item.noteId,
+        noteTitle: note?.title ?? item.noteId,
+        status: pairedSessions.length > 0 ? 'completed' : item.status,
+        ...(item.slot ? { slot: item.slot } : {}),
+        ...(item.notes ? { notes: item.notes } : {}),
+        pairedSessionIds: pairedSessions.map((s) => s.id),
+      })),
+      adhocSessionCount: overlay.adhocSessions.length,
+      adhocSessions: overlay.adhocSessions.map(({ session: s, note }) => ({
+        id: s.id,
+        noteId: s.noteId,
+        noteTitle: note?.title ?? s.noteId,
+        status: s.status,
+        completed: s.completed,
+        duration: s.duration,
+        startTime: s.startTime,
+        ...(s.noteSourceRevision ? { noteSourceRevision: s.noteSourceRevision } : {}),
+      })),
       noteCount: dayNotes.length,
       notes: dayNotes.map((n) => ({
         id: n.id,
@@ -124,6 +153,9 @@ export const wodJournalDayTool = defineAgentTool({
         completed: s.completed,
         duration: s.duration,
         startTime: s.startTime,
+        ...(s.scheduleItemId ? { scheduleItemId: s.scheduleItemId } : {}),
+        ...(s.sessionDate ? { sessionDate: s.sessionDate } : {}),
+        ...(s.noteSourceRevision ? { noteSourceRevision: s.noteSourceRevision } : {}),
       })),
     };
   },
@@ -143,14 +175,14 @@ const journalAddInputSchema = z.strictObject({
   notebookId: z
     .string()
     .optional()
-    .describe('Optional additional user Notebook to promote this Journal Note into.'),
+    .describe('Optional user Notebook ID to assign this Note into (omit to keep unfiled on Journal).'),
 });
 
 export const wodJournalAddTool = defineAgentTool({
   name: 'wod_journal_add',
   title: 'Add Workout to Journal Day',
   description:
-    'Create a new workout Note in `notebook/journal` and place it onto the specified calendar day (`YYYY-MM-DD` or `today`).',
+    'Create a lightweight workout Note (unfiled unless `notebookId` is given) and schedule it onto the specified calendar day via a `ScheduleItem`.',
   tier: 1,
   domain: 'journal',
   annotations: {
@@ -184,13 +216,15 @@ export const wodJournalAddTool = defineAgentTool({
       'page',
       'page_notes',
       'notebook_links',
+      'schedule_items',
     ]);
 
     const prefix = (ctx.baseUrl ?? '').replace(/\/+$/, '');
     return {
       date: dateKey,
       noteId: saved.note.id,
-      journalUrl: `${prefix}/journal/${dateKey}`,
+      ...(saved.scheduleItemId ? { scheduleItemId: saved.scheduleItemId } : {}),
+      journalUrl: `${prefix}/day/${dateKey}`,
       note: {
         id: saved.note.id,
         title: saved.note.title,

@@ -100,6 +100,7 @@ export interface CliParsedArgs {
     | 'skills'
     | 'note'
     | 'journal'
+    | 'schedule'
     | 'notebook'
     | 'session'
     | 'catalog'
@@ -132,9 +133,18 @@ export interface CliParsedArgs {
   /** Explicit Note / Block / Notebook / Date / Filter options for agent noun-verb commands. */
   noteId?: string;
   sourceNoteId?: string;
+  scheduleItemId?: string;
   blockId?: string;
   notebook?: string;
   date?: string;
+  fromDate?: string;
+  toDate?: string;
+  slot?: string;
+  status?: string;
+  position?: number;
+  itemsJson?: string;
+  orphanedOnly?: boolean;
+  unlink?: boolean;
   title?: string;
   description?: string;
   markdown?: string;
@@ -227,9 +237,15 @@ type CliValueFlagArgs = Pick<
   | 'serverUrl'
   | 'noteId'
   | 'sourceNoteId'
+  | 'scheduleItemId'
   | 'blockId'
   | 'notebook'
   | 'date'
+  | 'fromDate'
+  | 'toDate'
+  | 'slot'
+  | 'status'
+  | 'itemsJson'
   | 'title'
   | 'description'
   | 'markdown'
@@ -265,9 +281,15 @@ const VALUE_FLAGS: ReadonlyArray<readonly [flag: string, key: keyof CliValueFlag
   ['--server', 'serverUrl'],
   ['--note', 'noteId'],
   ['--source-note', 'sourceNoteId'],
+  ['--schedule-item', 'scheduleItemId'],
   ['--block', 'blockId'],
   ['--notebook', 'notebook'],
   ['--date', 'date'],
+  ['--from', 'fromDate'],
+  ['--to', 'toDate'],
+  ['--slot', 'slot'],
+  ['--status', 'status'],
+  ['--items', 'itemsJson'],
   ['--title', 'title'],
   ['--description', 'description'],
   ['--markdown', 'markdown'],
@@ -431,6 +453,21 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
     } else if (arg === '--no-seed') {
       result.includeSeed = false;
       i++;
+    } else if (arg === '--orphaned-only') {
+      result.orphanedOnly = true;
+      i++;
+    } else if (arg === '--unlink') {
+      result.unlink = true;
+      i++;
+    } else if (arg === '--position' || arg === '--order') {
+      const v = Number(args[++i]);
+      if (Number.isSafeInteger(v) && v >= 0) result.position = v;
+      i++;
+    } else if (arg.startsWith('--position=') || arg.startsWith('--order=')) {
+      const rawVal = arg.startsWith('--position=') ? arg.slice('--position='.length) : arg.slice('--order='.length);
+      const v = Number(rawVal);
+      if (Number.isSafeInteger(v) && v >= 0) result.position = v;
+      i++;
     } else if (arg === '--limit') {
       const v = Number(args[++i]);
       if (Number.isSafeInteger(v) && v > 0) result.limit = v;
@@ -481,6 +518,7 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
         arg === 'skills' ||
         arg === 'note' ||
         arg === 'journal' ||
+        arg === 'schedule' ||
         arg === 'notebook' ||
         arg === 'session' ||
         arg === 'catalog' ||
@@ -635,8 +673,9 @@ DB OPTIONS (for 'wod db'):
 AGENT NOUN-VERB COMMANDS (all support --json and --server <url>):
   wod note <list|get|create|update|clone|delete> [args]
   wod journal <day|add> [date] [options]
+  wod schedule <list|add|batch|update|remove> [args] [options]
   wod notebook <list|save|delete> [slug] [options]
-  wod session <list|get|run|delete> [id] [options]
+  wod session <list|get|run|attribute|delete> [id] [options]
   wod catalog <lookup|get|upsert> [effort|equipment|tag|tag-type] [name]
   wod tag <list|upsert> [label] [--type <tagType>]
   wod feed <list|status|subscribe|sync|unsubscribe|publish> [options]
@@ -1509,6 +1548,7 @@ export async function cliMain(
     if (
       parsed.subcommand === 'note' ||
       parsed.subcommand === 'journal' ||
+      parsed.subcommand === 'schedule' ||
       parsed.subcommand === 'notebook' ||
       parsed.subcommand === 'session' ||
       parsed.subcommand === 'catalog' ||

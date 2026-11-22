@@ -273,7 +273,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
 
 ---
 
-## Portable Domain Tools (22 tools — WebMCP + MCP Server + CLI)
+## Portable Domain Tools (28 tools — WebMCP + MCP Server + CLI)
 
 ### `wod_parse_script` (Tier 0 — script)
 - **Title**: Parse Whiteboard Script
@@ -413,6 +413,10 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "description": "Include read-only Seed/Feed notes (default true; pass false for user-authored notes only).",
       "type": "boolean"
     },
+    "orphanedOnly": {
+      "description": "When true, return only user Notes not belonging to any Notebook (equivalent to `:note{!notebook:*}`).",
+      "type": "boolean"
+    },
     "limit": {
       "description": "Max notes to return (default 50).",
       "type": "integer",
@@ -481,7 +485,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "maximum": 9007199254740991
     },
     "notebookId": {
-      "description": "Optional user Notebook ID/slug to link this Note into (always stays anchored in notebook/journal).",
+      "description": "Optional user Notebook ID/slug to assign this Note into (omit for unfiled/existing memberships).",
       "type": "string"
     },
     "journalDate": {
@@ -579,7 +583,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
 
 ### `wod_journal_add` (Tier 1 — journal)
 - **Title**: Add Workout to Journal Day
-- **Description**: Create a new workout Note in `notebook/journal` and place it onto the specified calendar day (`YYYY-MM-DD` or `today`).
+- **Description**: Create a lightweight workout Note (unfiled unless `notebookId` is given) and schedule it onto the specified calendar day via a `ScheduleItem`.
 - **CLI Equivalent**: `wod journal add <file|-> --date YYYY-MM-DD --json`
 - **Input Schema**:
 ```json
@@ -605,12 +609,206 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "type": "string"
     },
     "notebookId": {
-      "description": "Optional additional user Notebook to promote this Journal Note into.",
+      "description": "Optional user Notebook ID to assign this Note into (omit to keep unfiled on Journal).",
       "type": "string"
     }
   },
   "required": [
     "content"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_schedule_list` (Tier 0 — journal)
+- **Title**: List Scheduled Workouts
+- **Description**: List M:N ScheduleItem instances by date range (`from`/`to`) or for a specific Note ID.
+- **CLI Equivalent**: `wod schedule list --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "from": {
+      "description": "Start date in YYYY-MM-DD format (inclusive, or \"today\").",
+      "type": "string"
+    },
+    "to": {
+      "description": "End date in YYYY-MM-DD format (inclusive, or \"today\").",
+      "type": "string"
+    },
+    "noteId": {
+      "description": "Optional Note ID to list scheduled dates for one workout.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### `wod_schedule_add` (Tier 1 — journal)
+- **Title**: Schedule Workout onto Day
+- **Description**: Link an existing Note onto a Journal calendar date via a ScheduleItem (M:N link-first scheduling without cloning user Notes or forcing notebook/journal).
+- **CLI Equivalent**: `wod schedule add <noteId> --date YYYY-MM-DD --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "noteId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Canonical Note ID to schedule onto a calendar day."
+    },
+    "date": {
+      "description": "Calendar date YYYY-MM-DD or \"today\" (defaults to \"today\").",
+      "type": "string"
+    },
+    "slot": {
+      "description": "Optional slot badge such as \"AM\", \"PM\", or \"Warmup\".",
+      "type": "string"
+    },
+    "position": {
+      "description": "Optional ordering index within the day.",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "notes": {
+      "description": "Optional scaling or session intent notes for this scheduled instance.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "noteId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_schedule_batch` (Tier 1 — journal)
+- **Title**: Batch Schedule Workouts
+- **Description**: Schedule one or more existing Notes across target calendar dates atomically via ScheduleItem links.
+- **CLI Equivalent**: `wod schedule batch --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "items": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "noteId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "date": {
+            "type": "string",
+            "description": "Calendar date YYYY-MM-DD or \"today\"."
+          },
+          "slot": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId",
+          "date"
+        ],
+        "additionalProperties": false
+      },
+      "description": "List of Note + date pairs to schedule atomically."
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_schedule_update` (Tier 1 — journal)
+- **Title**: Update Scheduled Workout
+- **Description**: Reschedule, reorder, or update status (`planned`, `completed`, `moved`, `skipped`) on a ScheduleItem.
+- **CLI Equivalent**: `wod schedule update <scheduleItemId> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "scheduleItemId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ScheduleItem ID to update."
+    },
+    "date": {
+      "description": "New calendar date YYYY-MM-DD or \"today\".",
+      "type": "string"
+    },
+    "status": {
+      "description": "Updated schedule status.",
+      "type": "string",
+      "enum": [
+        "planned",
+        "completed",
+        "moved",
+        "skipped"
+      ]
+    },
+    "slot": {
+      "description": "Updated slot label.",
+      "type": "string"
+    },
+    "position": {
+      "description": "Updated intra-day ordering index.",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "notes": {
+      "description": "Updated intent or scaling notes.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "scheduleItemId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_schedule_remove` (Tier 1 — journal)
+- **Title**: Unschedule Workout Instance
+- **Description**: Remove a single ScheduleItem from a calendar day while leaving the canonical Note and recorded Sessions intact.
+- **CLI Equivalent**: `wod schedule remove <scheduleItemId> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "scheduleItemId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ScheduleItem ID to remove from the calendar."
+    }
+  },
+  "required": [
+    "scheduleItemId"
   ],
   "additionalProperties": false
 }
@@ -739,7 +937,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
   "type": "object",
   "properties": {
     "noteId": {
-      "description": "Existing Note ID to execute (read-only Seed/Feed Notes are automatically cloned to notebook/journal).",
+      "description": "Existing Note ID to execute (read-only Seed/Feed Notes pin one immutable copy on first run).",
       "type": "string"
     },
     "blockId": {
@@ -759,7 +957,11 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "type": "string"
     },
     "journalDate": {
-      "description": "Optional YYYY-MM-DD or \"today\" Journal calendar date.",
+      "description": "Optional YYYY-MM-DD or \"today\" attributed Session calendar date.",
+      "type": "string"
+    },
+    "scheduleItemId": {
+      "description": "Optional ScheduleItem ID that triggered this workout run.",
       "type": "string"
     },
     "collectibles": {
@@ -839,6 +1041,40 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "type": "string",
       "minLength": 1,
       "description": "Session ID to inspect."
+    }
+  },
+  "required": [
+    "sessionId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### `wod_session_attribute` (Tier 1 — session)
+- **Title**: Attribute Session to Day or Plan
+- **Description**: Associate a recorded workout Session with a specific Journal civil date and/or pair or unlink it with a planned ScheduleItem.
+- **CLI Equivalent**: `wod session attribute <sessionId> --json`
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "sessionId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Session ID to attribute to a calendar date or ScheduleItem."
+    },
+    "sessionDate": {
+      "description": "Attributed Journal date (YYYY-MM-DD).",
+      "type": "string"
+    },
+    "scheduleItemId": {
+      "description": "ScheduleItem ID to link this Session with, or null to unlink into an ad-hoc Session.",
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "required": [
@@ -1202,7 +1438,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
 ### `ui_set_stream_query` (Tier 1 — WebMCP UI)
 - **Title**: Set Live Stream WQL Query or Layout
 - **Mount Scope**: mounted stream routes (/journal, /notes, /notebooks, /sessions, /efforts, /tags, /feeds)
-- **Description**: Update the live WQL query, layout (`cards`, `rows`, `feed`, `agenda`, `planner`), or grouping on the currently mounted stream view, or reset to the route default.
+- **Description**: Update the live WQL query, layout (`cards`, `rows`, `feed`, `agenda`, `planner`), grouping, calendar `month` (`YYYY-MM`), or calendar `overlayMode` (`all`, `planned`, `logged`) on the currently mounted stream view, or reset to the route default.
 - **Input Schema**:
 ```json
 {
@@ -1229,6 +1465,20 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "type": [
         "string",
         "null"
+      ]
+    },
+    "month": {
+      "description": "Calendar month anchor in YYYY-MM format (syncs ?month= on calendar/journal views).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}$"
+    },
+    "overlayMode": {
+      "description": "Calendar schedule/session overlay filter (`all`, `planned`, or `logged`).",
+      "type": "string",
+      "enum": [
+        "all",
+        "planned",
+        "logged"
       ]
     },
     "resetToDefault": {

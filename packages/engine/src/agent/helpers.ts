@@ -129,6 +129,7 @@ export interface UpsertNoteInStorageResult {
   effortSlugs: string[];
   equipmentSlugs: string[];
   tagLabels: string[];
+  scheduleItemId?: string;
 }
 
 async function diffProjectionRows(
@@ -466,6 +467,7 @@ export async function upsertNoteInStorage(
       }
 
       // Optional Journal calendar Page + ScheduleItem placement (V35)
+      let scheduleItemId: string | undefined;
       if (input.journalDate) {
         const dateKey = civilDateKey(input.journalDate, now);
         let pages: Page[];
@@ -500,13 +502,17 @@ export async function upsertNoteInStorage(
         }
         try {
           const existingSchedules = await tx.readonly('schedule_items').getAllFromIndex('by-date', dateKey);
-          if (!existingSchedules.some((s) => s.noteId === noteId)) {
+          const matchedSched = existingSchedules.find((s) => s.noteId === noteId);
+          if (matchedSched) {
+            scheduleItemId = matchedSched.id;
+          } else {
             const maxSchedPos = existingSchedules.reduce(
               (m, s) => (typeof s.position === 'number' && s.position > m ? s.position : m),
               -1,
             );
+            const nextSchedId = mintAgentUuid();
             await tx.readwrite('schedule_items').put({
-              id: mintAgentUuid(),
+              id: nextSchedId,
               date: dateKey,
               noteId,
               pageId: targetPage.id,
@@ -517,6 +523,7 @@ export async function upsertNoteInStorage(
               createdAt: now,
               updatedAt: now,
             });
+            scheduleItemId = nextSchedId;
           }
         } catch {
           // Optional store on minimal mocks
@@ -530,6 +537,7 @@ export async function upsertNoteInStorage(
         effortSlugs: [...allEffortSlugs],
         equipmentSlugs: [...allEquipSlugs],
         tagLabels: extractedTags.map((t) => t.label),
+        ...(scheduleItemId ? { scheduleItemId } : {}),
       };
     },
   );

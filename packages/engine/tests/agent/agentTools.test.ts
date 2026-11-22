@@ -27,6 +27,12 @@ import {
   wodParseScriptTool,
   wodQueryWqlTool,
   wodResetStorageTool,
+  wodScheduleAddTool,
+  wodScheduleBatchTool,
+  wodScheduleListTool,
+  wodScheduleRemoveTool,
+  wodScheduleUpdateTool,
+  wodSessionAttributeTool,
   wodSessionDeleteTool,
   wodSessionGetTool,
   wodSessionListTool,
@@ -58,13 +64,13 @@ async function createTestAgentContext(
   };
 }
 
-describe('@bitcobblers/wod-wiki-engine/agent — 22 portable domain tools', () => {
-  it('registers all 22 tools with valid Draft 2020-12 JSON Schemas', () => {
-    expect(DOMAIN_AGENT_TOOLS).toHaveLength(22);
-    expect(DOMAIN_AGENT_TOOLS_BY_NAME.size).toBe(22);
+describe('@bitcobblers/wod-wiki-engine/agent — 28 portable domain tools', () => {
+  it('registers all 28 tools with valid Draft 2020-12 JSON Schemas', () => {
+    expect(DOMAIN_AGENT_TOOLS).toHaveLength(28);
+    expect(DOMAIN_AGENT_TOOLS_BY_NAME.size).toBe(28);
 
     const manifest = exportAgentCapabilitiesManifest();
-    expect(manifest.domainTools).toHaveLength(22);
+    expect(manifest.domainTools).toHaveLength(28);
     for (const entry of manifest.domainTools) {
       expect(entry.name).toMatch(/^wod_/);
       expect(entry.inputSchema['type']).toBe('object');
@@ -346,6 +352,93 @@ describe('@bitcobblers/wod-wiki-engine/agent — 22 portable domain tools', () =
 
       const wiped = await wodResetStorageTool.execute({ confirmToken: 'WIPE_STORAGE' }, ctx);
       expect(wiped.wiped).toBe(true);
+    } finally {
+      await close();
+    }
+  });
+
+  it('supports M:N ScheduleItem CRUD, Session attribution, and orphaned Note filtering', async () => {
+    const { ctx, close } = await createTestAgentContext();
+    try {
+      const nb = await wodNotebookSaveTool.execute({ action: 'create', name: 'Conditioning' }, ctx);
+      const filed = await wodNoteUpsertTool.execute(
+        {
+          title: 'DT',
+          notebookId: nb.notebookId,
+          content: '# DT\n\n```time\n5 Rounds\n  12 Deadlifts @155lb\n```\n',
+        },
+        ctx,
+      );
+      const orphan = await wodNoteUpsertTool.execute(
+        {
+          title: 'Quick Sprint',
+          content: '# Quick Sprint\n\n```time\n5x200m Run\n```\n',
+        },
+        ctx,
+      );
+
+      // Orphaned notes only returns unfiled Notes outside any Notebook
+      const orphans = await wodNoteListTool.execute({ orphanedOnly: true }, ctx);
+      expect(orphans.notes.map((n) => n.id)).toContain(orphan.noteId);
+      expect(orphans.notes.map((n) => n.id)).not.toContain(filed.noteId);
+
+      // Link-first batch & single scheduling without cloning the filed Note
+      const batch = await wodScheduleBatchTool.execute(
+        {
+          items: [
+            { noteId: filed.noteId, date: '2026-11-23', slot: 'AM', position: 0 },
+            { noteId: filed.noteId, date: '2026-11-27', slot: 'PM', position: 0 },
+          ],
+        },
+        ctx,
+      );
+      expect(batch.scheduledCount).toBe(2);
+
+      const single = await wodScheduleAddTool.execute(
+        { noteId: orphan.noteId, date: '2026-11-24', slot: 'Warmup' },
+        ctx,
+      );
+      expect(single.item.noteId).toBe(orphan.noteId);
+
+      const range = await wodScheduleListTool.execute(
+        { from: '2026-11-23', to: '2026-11-27' },
+        ctx,
+      );
+      expect(range.totalCount).toBe(3);
+
+      // Execute a headless session linked to the first scheduled slot, then re-attribute it
+      const run = await wodSessionRunHeadlessTool.execute(
+        {
+          noteId: filed.noteId,
+          journalDate: '2026-11-23',
+          scheduleItemId: batch.items[0]!.id,
+        },
+        ctx,
+      );
+      expect(run.sessionId).toBeTruthy();
+
+      const reattributed = await wodSessionAttributeTool.execute(
+        {
+          sessionId: run.sessionId,
+          sessionDate: '2026-11-27',
+          scheduleItemId: batch.items[1]!.id,
+        },
+        ctx,
+      );
+      expect(reattributed.session.scheduleItemId).toBe(batch.items[1]!.id);
+      expect(reattributed.session.sessionDate).toBe('2026-11-27');
+
+      const upd = await wodScheduleUpdateTool.execute(
+        { scheduleItemId: single.item.id, status: 'skipped', notes: 'Rest day' },
+        ctx,
+      );
+      expect(upd.item.status).toBe('skipped');
+
+      const detail = await wodNoteGetTool.execute({ noteId: filed.noteId }, ctx);
+      expect(detail.scheduleCount).toBe(2);
+
+      const rm = await wodScheduleRemoveTool.execute({ scheduleItemId: single.item.id }, ctx);
+      expect(rm.removed).toBe(true);
     } finally {
       await close();
     }
