@@ -73,6 +73,8 @@ import { AnalyticsExplorerPage } from './AnalyticsExplorerPage';
 import { NavProvider } from '../../nav/NavContext';
 import { SecondaryNav } from '../../nav/SecondaryNav';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
+import { TEST_IDS } from '@/lib/testIds';
+import { EXAMPLE_QUERIES } from '@/utils/analytics/explorerQueries';
 
 afterEach(cleanup);
 afterEach(() => mock.restore());
@@ -170,16 +172,24 @@ describe('AnalyticsExplorerPage', () => {
     expect(runFindCalls).not.toContain(':dashboard{}');
   });
 
-  it('runs example deep links; the examples themselves live in the L2 panel', async () => {
-    // The L2 panel deep-links analyticsExplorerPath({ q }) — the page only
-    // has to run whatever ?q= carries (the semantic example match lives in
-    // the panel). Empty braces drop in the clause round-trip, so this link
-    // also guards restore normalization.
+  it('houses the 13 Explorer examples inside the inline Explorer bar popover and runs selected examples', async () => {
     renderPage('avg:tis{} by {round}');
     await waitFor(() => expect(pageRuns()).toContain('avg:tis{} by {round}'));
 
-    // No combo remains on the page surface.
-    expect(screen.queryByTestId('explorer-examples')).toBeNull();
+    const inlineBar = screen.getByTestId(TEST_IDS.EXPLORER_INLINE_BAR);
+    const trigger = within(inlineBar).getByTestId(TEST_IDS.EXPLORER_EXAMPLES_TRIGGER);
+    expect(trigger.textContent).toContain(`Examples (${EXAMPLE_QUERIES.length})`);
+    expect(screen.queryByTestId(TEST_IDS.EXPLORER_EXAMPLES_POPOVER)).toBeNull();
+
+    fireEvent.click(trigger);
+    const popover = screen.getByTestId(TEST_IDS.EXPLORER_EXAMPLES_POPOVER);
+    expect(within(popover).getAllByRole('menuitem')).toHaveLength(EXAMPLE_QUERIES.length);
+
+    fireEvent.click(within(popover).getByText('Weekly strength volume'));
+    await waitFor(() =>
+      expect(pageRuns()).toContain('sum:totalVolume{discipline:strength} by {week}'),
+    );
+    expect(screen.queryByTestId(TEST_IDS.EXPLORER_EXAMPLES_POPOVER)).toBeNull();
   });
 
   it('hides pipeline anatomy behind the Inspect pipeline disclosure', async () => {
@@ -361,19 +371,30 @@ describe('AnalyticsExplorerPage', () => {
     expect(screen.queryByTestId('records-wql')).toBeNull();
   });
 
-  it('publishes range and units into L3 analyticsControls; examples are not duplicated on the page', async () => {
-    renderPage('sum:totalVolume{}');
+  it('unifies RangeSelector + Units inside the inline Explorer bar, relocates Available fields below StickyPageHeader, and keeps L3 empty', async () => {
+    const { container } = renderPage('sum:totalVolume{}');
     await waitFor(() => expect(pageRuns()).toContain('sum:totalVolume{}'));
 
-    // Range and units live in L3 Slot 1 (`l3-analytics-controls`); examples stay in L2 only.
-    const l3Controls = await waitFor(() => screen.getByTestId('l3-analytics-controls'));
-    expect(within(l3Controls).getByText('Past 4 weeks')).toBeDefined();
-    expect(within(l3Controls).getByTestId('l3-unit-kg')).toBeDefined();
-    expect(screen.queryByText('Weekly strength volume')).toBeNull();
+    // Explorer hides L3 rail (0px resting L3).
+    expect(screen.queryByTestId('l3-analytics-controls')).toBeNull();
+    expect(screen.queryByTestId('l3-actions')).toBeNull();
 
-    // Changing the range in L3 re-runs the submitted analytics query.
+    // Available fields sits BELOW StickyPageHeader in document order.
+    const stickyHeader = container.querySelector('[data-page-sticky-boundary="true"]')!;
+    const availableFields = screen.getByTestId('available-fields');
+    expect(Boolean(stickyHeader.compareDocumentPosition(availableFields) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+
+    // Inline Explorer bar holds unified RangeSelector (4w/8w/16w), Units (kg/lb), Run, and Save.
+    const inlineBar = screen.getByTestId(TEST_IDS.EXPLORER_INLINE_BAR);
+    expect(within(inlineBar).getByText('4w')).toBeDefined();
+    expect(within(inlineBar).getByTestId(TEST_IDS.EXPLORER_UNIT_KG)).toBeDefined();
+    expect(within(inlineBar).getByTestId(TEST_IDS.EXPLORER_UNIT_LB)).toBeDefined();
+    expect(within(inlineBar).getByTestId(TEST_IDS.EXPLORER_RUN_BTN)).toBeDefined();
+    expect(within(inlineBar).getByTestId('save-query')).toBeDefined();
+
+    // Changing the unified RangeSelector re-runs the submitted analytics query.
     const runsBefore = pageRuns().length;
-    fireEvent.click(within(l3Controls).getByText('Past 4 weeks'));
+    fireEvent.click(within(inlineBar).getByText('4w'));
     await waitFor(() => expect(pageRuns().length).toBeGreaterThan(runsBefore));
   });
 

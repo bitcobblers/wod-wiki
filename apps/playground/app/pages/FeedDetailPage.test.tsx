@@ -14,7 +14,9 @@ import { addCustomFeedSource } from '@/services/feed/feedSources';
 import { saveFeedCatalogManifest } from '@/services/feed/feedCatalog';
 import type { FeedSyncOutcome } from '@/services/feed/feedSync';
 import type { SeedManifest } from '@bitcobblers/wod-wiki-engine';
+import { TEST_IDS } from '@/lib/testIds';
 import { useNav, type L3ActionItem } from '../nav/NavContext';
+import { SecondaryNav } from '../nav/SecondaryNav';
 import { FeedDetailPage } from './FeedDetailPage';
 
 if (typeof globalThis.requestAnimationFrame !== 'function') {
@@ -53,7 +55,7 @@ describe('FeedDetailPage Subscribe/Unsubscribe, Manifest Notebooks & Offline Dow
     }
   });
 
-  it('shows pending state while subscribing index-first and toggles header + L3 actions to Unsubscribe', async () => {
+  it('shows pending state while subscribing index-first via L3 and keeps StickyPageHeader free of standalone S3 actions', async () => {
     let resolveSync!: (outcome: FeedSyncOutcome) => void;
     let subscribeCalls = 0;
     let latestL3: L3ActionItem[] = [];
@@ -78,11 +80,19 @@ describe('FeedDetailPage Subscribe/Unsubscribe, Manifest Notebooks & Offline Dow
               },
             }}
           />
+          <SecondaryNav />
         </PlaygroundProviderTree>,
       );
     });
 
-    const subscribeBtn = screen.getByTestId('feed-detail-subscribe-button') as HTMLButtonElement;
+    // Sticky header carries < Feeds parent breadcrumb and zero standalone S3 buttons
+    const header = document.querySelector('[data-page-sticky-boundary="true"]') as HTMLElement;
+    expect(header).toBeTruthy();
+    const breadcrumb = within(header).getByTestId(TEST_IDS.PAGE_HEADER_PARENT_BREADCRUMB);
+    expect(breadcrumb.getAttribute('href')).toBe('/feeds');
+    expect(within(header).queryByTestId(TEST_IDS.FEED_DETAIL_SUBSCRIBE_BUTTON)).toBeNull();
+
+    const subscribeBtn = screen.getByTestId(TEST_IDS.FEED_DETAIL_SUBSCRIBE_BUTTON) as HTMLButtonElement;
     expect(subscribeBtn.textContent).toContain('Subscribe');
     expect(subscribeBtn.disabled).toBe(false);
     expect(screen.getByTestId('feed-detail-subscription-status').textContent).toContain('Not subscribed');
@@ -93,7 +103,6 @@ describe('FeedDetailPage Subscribe/Unsubscribe, Manifest Notebooks & Offline Dow
     await waitFor(() => {
       expect(subscribeBtn.disabled).toBe(true);
     });
-    expect(subscribeBtn.getAttribute('aria-busy')).toBe('true');
     expect(subscribeBtn.textContent).toContain('Subscribing…');
     expect(subscribeCalls).toBe(1);
 
@@ -102,16 +111,16 @@ describe('FeedDetailPage Subscribe/Unsubscribe, Manifest Notebooks & Offline Dow
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('feed-detail-unsubscribe-button')).toBeTruthy();
+      expect(screen.getByTestId(TEST_IDS.L3_FEED_UNSUBSCRIBE)).toBeTruthy();
     });
     expect(screen.getByTestId('feed-detail-subscription-status').textContent).toContain('Subscribed');
     expect(screen.getByText('Index-only')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Download offline/i })).toBeTruthy();
+    expect(screen.getByTestId(TEST_IDS.L3_FEED_DOWNLOAD_OFFLINE)).toBeTruthy();
     expect(latestL3.some((a) => a.label === 'Unsubscribe')).toBe(true);
     expect(latestL3.some((a) => a.label === 'Subscribe')).toBe(false);
   });
 
-  it('lists real notebooks from cached custom feed manifest (never a bogus placeholder) and supports Download offline', async () => {
+  it('lists real notebooks from cached custom feed manifest (never a bogus placeholder) and supports Download offline via L3', async () => {
     const added = addCustomFeedSource('Strength Gym', 'https://gym.example.org/feed/');
     const manifest: SeedManifest = {
       name: 'Strength Gym',
@@ -169,6 +178,7 @@ describe('FeedDetailPage Subscribe/Unsubscribe, Manifest Notebooks & Offline Dow
               },
             }}
           />
+          <SecondaryNav />
         </PlaygroundProviderTree>,
       );
     });
@@ -185,7 +195,7 @@ describe('FeedDetailPage Subscribe/Unsubscribe, Manifest Notebooks & Offline Dow
     expect(strengthLink.className).toContain('no-underline');
     expect(strengthLink.getAttribute('href')).toContain(`/notebook/strength-cycle?feed=${added.id}`);
 
-    const dlBtn = screen.getByRole('button', { name: /Download offline/i });
+    const dlBtn = screen.getByTestId(TEST_IDS.L3_FEED_DOWNLOAD_OFFLINE);
     expect(dlBtn.textContent).toContain('8.0 KB');
     await act(async () => {
       fireEvent.click(dlBtn);
@@ -213,11 +223,12 @@ describe('FeedDetailPage Subscribe/Unsubscribe, Manifest Notebooks & Offline Dow
               },
             }}
           />
+          <SecondaryNav />
         </PlaygroundProviderTree>,
       );
     });
 
-    const unsubBtn = screen.getByTestId('feed-detail-unsubscribe-button');
+    const unsubBtn = screen.getByTestId(TEST_IDS.L3_FEED_UNSUBSCRIBE);
     fireEvent.click(unsubBtn);
 
     const dialog = await screen.findByRole('dialog');
@@ -243,7 +254,7 @@ describe('FeedDetailPage Subscribe/Unsubscribe, Manifest Notebooks & Offline Dow
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('feed-detail-subscribe-button')).toBeTruthy();
+      expect(screen.getByTestId(TEST_IDS.FEED_DETAIL_SUBSCRIBE_BUTTON)).toBeTruthy();
     });
     expect(unsubCalls).toBe(1);
     expect(screen.getByTestId('feed-detail-subscription-status').textContent).toContain('Not subscribed');
@@ -257,13 +268,14 @@ describe('FeedDetailPage Subscribe/Unsubscribe, Manifest Notebooks & Offline Dow
         <PlaygroundProviderTree route="/feed/core">
           <L3ActionProbe onActions={(items) => { latestL3 = items; }} />
           <FeedDetailPage feedSlug="core" />
+          <SecondaryNav />
         </PlaygroundProviderTree>,
       );
     });
 
     expect(screen.getByTestId('feed-detail-subscription-status').textContent).toContain('Subscribed');
-    expect(screen.queryByTestId('feed-detail-subscribe-button')).toBeNull();
-    expect(screen.queryByTestId('feed-detail-unsubscribe-button')).toBeNull();
+    expect(screen.queryByTestId(TEST_IDS.FEED_DETAIL_SUBSCRIBE_BUTTON)).toBeNull();
+    expect(screen.queryByTestId(TEST_IDS.L3_FEED_UNSUBSCRIBE)).toBeNull();
     expect(latestL3.some((a) => a.label === 'Unsubscribe')).toBe(false);
   });
 });

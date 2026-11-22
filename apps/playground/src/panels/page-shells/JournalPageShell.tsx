@@ -11,15 +11,19 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { PAGE_SHELL_CONTENT_SURFACE_CLASS, PAGE_SHELL_CONTAINER_CLASS } from './contentSurface';
-import { StickyPageHeader } from './StickyPageHeader';
+import { StickyPageHeader, type StickyPageHeaderParent } from './StickyPageHeader';
 
 export interface JournalPageShellProps {
   /** Editor panel content — typically a PlanPanel with stored note */
   editor: ReactNode;
 
+  /** Guaranteed `< Parent` breadcrumb shown top-left beside the title */
+  parent?: StickyPageHeaderParent | null;
+
   /** Title shown in the sticky header */
   title?: string;
   subtitle?: ReactNode;
+  titleAccessory?: ReactNode;
 
   /** Optional data-testid for the sticky-header title element (e2e/TestIdContract) */
   titleTestId?: string;
@@ -57,8 +61,10 @@ export interface JournalPageShellProps {
  */
 export function JournalPageShell({
   editor,
+  parent,
   title,
   subtitle,
+  titleAccessory,
   titleTestId,
   actions,
   timerOverlay,
@@ -82,8 +88,10 @@ export function JournalPageShell({
       )}>
         {/* Responsive actions own mobile placement; the header stays desktop-only. */}
         <StickyPageHeader
+          parent={parent}
           title={title}
           subtitle={subtitle}
+          titleAccessory={titleAccessory}
           titleTestId={titleTestId}
           actions={actions}
         />

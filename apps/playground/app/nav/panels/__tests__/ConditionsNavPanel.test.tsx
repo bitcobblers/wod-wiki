@@ -424,6 +424,24 @@ describe('ConditionsNavPanel', () => {
     expect(closed).toBe(1)
     expect(routedQuery()).toBe(':notebook{tags:endurance}')
   })
+
+  it('enforces compact 5 Recent cap and max-lg:min-h-11 mobile touch targets across controls', () => {
+    expect(RECENT_RESULTS_LIMIT).toBe(5)
+
+    const custom = encodeURIComponent(':notebook{tags:strength}')
+    renderPanel(`/feeds?q=${custom}`)
+
+    expect(screen.getByTestId('conditions-nav-shortcut-add').className).toContain('max-lg:min-h-11')
+    expect(screen.getByTestId('conditions-nav-edit-toggle').className).toContain('max-lg:min-h-11')
+    expect(screen.getByTestId('conditions-nav-custom-save').className).toContain('max-lg:min-h-11')
+    expect(screen.getByTestId('conditions-nav-custom-clear').className).toContain('max-lg:min-h-11')
+
+    fireEvent.click(screen.getByTestId('conditions-nav-shortcut-add'))
+    expect(screen.getByTestId('conditions-nav-editor-label').className).toContain('max-lg:min-h-11')
+    expect(screen.getByTestId('conditions-nav-editor-wql').className).toContain('max-lg:min-h-11')
+    expect(screen.getByTestId('conditions-nav-editor-save').className).toContain('max-lg:min-h-11')
+    expect(screen.getByTestId('conditions-nav-editor-cancel').className).toContain('max-lg:min-h-11')
+  })
 })
 
 // Guard: every toggle result must stay a parseable find query.

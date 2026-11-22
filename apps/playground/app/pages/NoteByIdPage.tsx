@@ -8,7 +8,7 @@ import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
 import { BlockHistory } from '@/components/organisms/editor/BlockHistory'
 import { useNoteDraft, waitForPendingNoteSave } from '../hooks/useNoteDraft'
 import { useColdRouteResolution } from '../hooks/useColdRouteResolution'
-import { useNoteL1Zone } from '../nav/NavContext'
+import { useNav, useNoteL1Zone } from '../nav/NavContext'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { storageService } from '@/services/storage'
 import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
@@ -52,7 +52,9 @@ import {
   provenanceLink,
   useJournalEntryDates,
   useNoteContextLinks,
+  type ContextNoteLink,
 } from './shared/noteContextLinks'
+import type { NoteHelpfulAction } from './shared/useNotePageNav'
 const contentProvider = new IndexedDBContentProvider()
 
 export interface NoteByIdPageProps {
@@ -266,7 +268,23 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
       ownershipNotebookId,
     ],
   )
-  useNoteL1Zone(ownership.zone)
+  const nav = useNav()
+  // Reconcile `/note/:id` L1 active zone: only fall back to entity ownership when
+  // no canonical route zone in the nav tree already matched `location` (prevents
+  // L1 `Pages` vs L2 `NOTEBOOKS` split on `/note/:id`).
+  const routeMatchesL1 = useMemo(
+    () => nav.tree.some((item) => item.isActive?.(location)),
+    [nav.tree, location],
+  )
+  useNoteL1Zone(routeMatchesL1 ? null : ownership.zone)
+  const parentLink: ContextNoteLink = useMemo(
+    () =>
+      ownership.up ??
+      (isPageView
+        ? { id: 'pages', title: 'Pages', to: ROUTE_PATTERNS.pages }
+        : { id: 'notes', title: 'Notes', to: ROUTE_PATTERNS.notes }),
+    [ownership.up, isPageView],
+  )
 
   // ── Outline (L3) + Run + result badges, wired like the other note pages
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([])
@@ -431,6 +449,42 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     [entry, liveContent],
   );
 
+  const l3HelpfulActions = useMemo<NoteHelpfulAction[]>(() => {
+    const primary: NoteHelpfulAction[] = []
+    if (firstRunnableBlock) {
+      primary.push({
+        id: 'run-workout',
+        label: ownershipMeta.isNonOwned ? 'Start / Log Workout' : 'Run Workout',
+        icon: Play,
+        group: 'primary',
+        onRun: () => {
+          void handleStartWorkout(firstRunnableBlock)
+        },
+      })
+    } else if (ownershipMeta.isNonOwned && !isPageView) {
+      primary.push({
+        id: 'fork-to-my-notes',
+        label: 'Fork to My Notes',
+        icon: GitFork,
+        group: 'primary',
+        onRun: () => setForkOpen(true),
+      })
+    }
+    const extraNonOwned: NoteHelpfulAction[] =
+      ownershipMeta.isNonOwned && !isPageView && firstRunnableBlock
+        ? [
+            {
+              id: 'fork-to-my-notes',
+              label: 'Fork to My Notes',
+              icon: GitFork,
+              group: 'organize',
+              onRun: () => setForkOpen(true),
+            },
+          ]
+        : []
+    return [...primary, ...extraNonOwned, ...noteActions.helpfulActions]
+  }, [firstRunnableBlock, ownershipMeta.isNonOwned, isPageView, handleStartWorkout, noteActions.helpfulActions])
+
   useNotePageNav({
     content: liveContent,
     scriptBlocks,
@@ -439,7 +493,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     },
     results,
     noteId: entry?.id,
-    helpfulActions: noteActions.helpfulActions,
+    helpfulActions: l3HelpfulActions,
   });
   const [contextVersion, setContextVersion] = useState(0)
   const placementRevision = entry
@@ -523,18 +577,12 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     body = (
       <>
         <JournalPageShell
+          parent={parentLink.to ? { label: parentLink.title, to: parentLink.to } : null}
           title={entry.title}
-          subtitle={
-            ownership.up ? (
-              <Link to={ownership.up.to} className="underline-offset-2 hover:underline">
-                {ownership.up.title}
-              </Link>
-            ) : undefined
-          }
           actions={pageActions}
           editor={
             <div className="flex flex-col gap-4 px-4 py-6 sm:px-6 min-w-0 max-w-full">
-              <NoteContextNav data={contextLinks} up={ownership.up} calendar={calendar} />
+              <NoteContextNav data={contextLinks} up={parentLink} calendar={calendar} peekMode />
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border/50 pb-3 text-xs text-muted-foreground" data-testid="note-header-meta-row">
                 <PublicationPill
                   noteId={entry.id}
@@ -711,18 +759,6 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                         </button>
                       )}
                     </span>
-                  ) : !isReadOnly ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPageSlugInput(slugifyRoute(entry.title) || `page-${entry.id.slice(0, 8)}`)
-                        setEditingPageSlug(true)
-                      }}
-                      data-testid="note-upgrade-to-page-btn"
-                      className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-                    >
-                      + Upgrade to Page
-                    </button>
                   ) : null}
                   {(entry.provenance || entry.sourceId) && (
                     <span data-testid="note-provenance-banner">

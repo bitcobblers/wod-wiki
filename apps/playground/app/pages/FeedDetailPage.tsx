@@ -8,14 +8,16 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CloudDownload, ExternalLink, HardDriveDownload, Layers, Loader2, RefreshCw } from 'lucide-react';
+import { CloudDownload, ExternalLink, HardDriveDownload, Layers, Loader2 } from 'lucide-react';
 import { resolveEntityScope } from '@bitcobblers/wod-wiki-wql';
 import { Button } from '@bitcobblers/wod-wiki-ui/primitives';
 import { EditorDialog } from '@bitcobblers/wod-wiki-ui';
 import type { FeedNotebookCatalogRow, SeedManifest } from '@bitcobblers/wod-wiki-engine';
-import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import { toast } from '@/hooks/use-toast';
-import { L3DrawerTrigger } from '@/panels/page-shells';
+import { StickyPageHeader } from '@/panels/page-shells';
+import { TEST_IDS } from '@/lib/testIds';
+import { PageActions } from './shared/PageActions';
+import type { GroupedL3ActionItem } from './shared/useNotePageNav';
 import { feedSourceById, listFeedSources, notebooksOfFeed, subscribeFeedSources } from '@/services/feed/feedSources';
 import { useColdRouteResolution } from '../hooks/useColdRouteResolution';
 import {
@@ -331,8 +333,13 @@ export function FeedDetailPage({ feedSlug, deps }: FeedDetailPageProps) {
     requestUnsubscribe();
   }, [requestUnsubscribe]);
 
+  const runDownloadOfflineAction = useCallback(() => {
+    void handleDownloadOffline();
+  }, [handleDownloadOffline]);
+
   // L3: Slot 2 ("On this page") holds the notebooks anchor; Slot 3 ("Actions")
-  // holds Subscribe/Unsubscribe, Settings to Sync, and Copy link.
+  // holds grouped Subscribe / Download offline, Settings to Sync, Copy link, and
+  // separated red Danger Unsubscribe (zero duplication in StickyPageHeader).
   const { setL3Items, setL3Actions } = useNav();
   useEffect(() => {
     const links: NavItemL3[] = notebooks.length > 0
@@ -343,38 +350,60 @@ export function FeedDetailPage({ feedSlug, deps }: FeedDetailPageProps) {
   }, [notebooks, setL3Items]);
 
   useEffect(() => {
-    const actions: L3ActionItem[] = [];
+    const actions: GroupedL3ActionItem[] = [];
     if (feed && !isCoreFeed) {
       if (!subscribed) {
         actions.push({
           id: 'helpful-feed-subscribe',
           label: pendingAction === 'subscribing' ? 'Subscribing…' : 'Subscribe',
+          icon: CloudDownload,
           disabled: pendingAction !== null,
-          testId: 'l3-feed-subscribe',
+          testId: TEST_IDS.FEED_DETAIL_SUBSCRIBE_BUTTON,
+          group: 'primary',
           onRun: runSubscribeAction,
         });
       } else {
+        if (!isOfflineDownloaded && (hasOfflineChunks || !manifest)) {
+          actions.push({
+            id: 'helpful-feed-download-offline',
+            label:
+              pendingAction === 'downloading'
+                ? 'Downloading…'
+                : `Download offline${chunkBytes > 0 ? ` (${formatFeedBytes(chunkBytes)})` : ''}`,
+            icon: HardDriveDownload,
+            disabled: pendingAction !== null,
+            testId: TEST_IDS.L3_FEED_DOWNLOAD_OFFLINE,
+            group: 'primary',
+            onRun: runDownloadOfflineAction,
+          });
+        }
         actions.push({
           id: 'helpful-feed-unsubscribe',
           label: pendingAction === 'unsubscribing' ? 'Unsubscribing…' : 'Unsubscribe',
           disabled: pendingAction !== null,
-          testId: 'l3-feed-unsubscribe',
+          testId: TEST_IDS.L3_FEED_UNSUBSCRIBE,
+          group: 'danger',
           onRun: runUnsubscribeAction,
         });
       }
     }
     actions.push(
-      { id: 'helpful-settings-sync', label: 'Settings to Sync', onRun: handleSettingsSync },
-      { id: 'helpful-copy-link', label: copied ? 'Copied' : 'Copy link', onRun: handleCopyLink },
+      { id: 'helpful-settings-sync', label: 'Settings to Sync', group: 'organize', onRun: handleSettingsSync },
+      { id: 'helpful-copy-link', label: copied ? 'Copied' : 'Copy link', group: 'share', onRun: handleCopyLink },
     );
-    setL3Actions?.(actions);
+    setL3Actions?.(actions as L3ActionItem[]);
   }, [
+    chunkBytes,
     copied,
     feed,
     handleCopyLink,
     handleSettingsSync,
+    hasOfflineChunks,
     isCoreFeed,
+    isOfflineDownloaded,
+    manifest,
     pendingAction,
+    runDownloadOfflineAction,
     runSubscribeAction,
     runUnsubscribeAction,
     setL3Actions,
@@ -436,138 +465,61 @@ export function FeedDetailPage({ feedSlug, deps }: FeedDetailPageProps) {
   return (
     <div className="flex-1 overflow-y-auto">
       <NoteContextNav data={EMPTY_NOTE_CONTEXT} up={FEEDS_UP} sections={l2} />
-      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 flex flex-col gap-6">
-        <header className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold">{feed.label}</h1>
+      <StickyPageHeader
+        parent={{ label: FEEDS_UP.title, to: FEEDS_UP.to }}
+        title={feed.label}
+        actions={<PageActions mode="notebook-readonly" index={[]} />}
+      />
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 flex flex-col gap-6">
+        <header className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              data-testid="feed-detail-subscription-status"
+              className={`text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 ${
+                subscribed
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300'
+                  : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              {subscribed ? 'Subscribed' : 'Not subscribed'}
+            </span>
+            {subscribed && !isCoreFeed && (
               <span
-                data-testid="feed-detail-subscription-status"
-                className={`text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 ${
-                  subscribed
-                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300'
-                    : 'bg-muted text-muted-foreground'
-                }`}
+                className="text-[11px] font-medium px-2 py-0.5 rounded bg-muted text-foreground shrink-0"
               >
-                {subscribed ? 'Subscribed' : 'Not subscribed'}
+                {isOfflineDownloaded ? 'Downloaded offline' : 'Index-only'}
               </span>
-              {subscribed && !isCoreFeed && (
-                <span
-                  className="text-[11px] font-medium px-2 py-0.5 rounded bg-muted text-foreground shrink-0"
-                >
-                  {isOfflineDownloaded ? 'Downloaded offline' : 'Index-only'}
-                </span>
-              )}
-              {isCoreFeed ? (
-                <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-                  Core
-                </span>
-              ) : null}
-            </div>
-            {description ? (
-              <p className="text-sm text-muted-foreground text-pretty max-w-prose">{description}</p>
+            )}
+            {isCoreFeed ? (
+              <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                Core
+              </span>
             ) : null}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          </div>
+          {description ? (
+            <p className="text-sm text-muted-foreground text-pretty max-w-prose">{description}</p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <a
+              href={feed.url}
+              target="_blank"
+              rel="noreferrer"
+              className="no-underline hover:underline inline-flex items-center gap-1 hover:text-foreground"
+            >
+              <ExternalLink className="size-3" aria-hidden="true" />
+              Published directory
+            </a>
+            {feed.repositoryUrl ? (
               <a
-                href={feed.url}
+                href={feed.repositoryUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="no-underline hover:underline inline-flex items-center gap-1 hover:text-foreground"
               >
                 <ExternalLink className="size-3" aria-hidden="true" />
-                Published directory
+                Repository
               </a>
-              {feed.repositoryUrl ? (
-                <a
-                  href={feed.repositoryUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="no-underline hover:underline inline-flex items-center gap-1 hover:text-foreground"
-                >
-                  <ExternalLink className="size-3" aria-hidden="true" />
-                  Repository
-                </a>
-              ) : null}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {!isCoreFeed ? (
-              !subscribed ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={runSubscribeAction}
-                  disabled={pendingAction !== null}
-                  aria-busy={pendingAction === 'subscribing'}
-                  data-testid="feed-detail-subscribe-button"
-                  className="gap-2"
-                >
-                  {pendingAction === 'subscribing' ? (
-                    <>
-                      <RefreshCw className="size-3.5 animate-spin" aria-hidden="true" />
-                      <span>Subscribing…</span>
-                    </>
-                  ) : (
-                    <>
-                      <CloudDownload className="size-3.5" aria-hidden="true" />
-                      <span>Subscribe</span>
-                    </>
-                  )}
-                </Button>
-              ) : (
-                <>
-                  {!isOfflineDownloaded && (hasOfflineChunks || !manifest) && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void handleDownloadOffline()}
-                      disabled={pendingAction !== null}
-                      aria-busy={pendingAction === 'downloading'}
-                      className="gap-2"
-                    >
-                      {pendingAction === 'downloading' ? (
-                        <>
-                          <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                          <span>Downloading…</span>
-                        </>
-                      ) : (
-                        <>
-                          <HardDriveDownload className="size-3.5" aria-hidden="true" />
-                          <span>
-                            Download offline{chunkBytes > 0 ? ` (${formatFeedBytes(chunkBytes)})` : ''}
-                          </span>
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={runUnsubscribeAction}
-                    disabled={pendingAction !== null}
-                    aria-busy={pendingAction === 'unsubscribing'}
-                    data-testid="feed-detail-unsubscribe-button"
-                    className="gap-2"
-                  >
-                    {pendingAction === 'unsubscribing' ? (
-                      <>
-                        <RefreshCw className="size-3.5 animate-spin" aria-hidden="true" />
-                        <span>Unsubscribing…</span>
-                      </>
-                    ) : (
-                      <span>Unsubscribe</span>
-                    )}
-                  </Button>
-                </>
-              )
             ) : null}
-            {/* Cast + lg–2xl Page options: shared navbar on mobile, desktop header here. */}
-            <div className="max-lg:hidden flex items-center gap-1.5">
-              <CastButtonRpc />
-              <L3DrawerTrigger />
-            </div>
           </div>
         </header>
 

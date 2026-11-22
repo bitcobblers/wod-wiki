@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
 import type { FindQueryResult, QueryResult, RowsRun } from '@bitcobblers/wod-wiki-wql';
 import { TEST_IDS } from '@/lib/testIds';
@@ -12,6 +13,8 @@ import * as seedContentModule from '@/services/content/seedContent';
 import * as useDashboardsModule from '../hooks/useDashboards';
 import { MainLandmark } from '@/templates/SidebarLayout';
 import { MobileQuerySlotProvider, MobileQuerySlotTarget } from '@/panels/page-shells';
+import { NavProvider } from '../nav/NavContext';
+import { SecondaryNav } from '../nav/SecondaryNav';
 import { SessionResultsPage } from './SessionResultsPage';
 
 if (typeof globalThis.requestAnimationFrame !== 'function') {
@@ -139,14 +142,19 @@ const PRIOR_RUN: RowsRun = {
 
 function renderAt(path: string, withMobileSlot = false) {
   const tree = (
-    <MemoryRouter initialEntries={[path]}>
-      <MainLandmark>
-        <Routes>
-          <Route path="/results/:sessionId" element={<SessionResultsPage />} />
-        </Routes>
-      </MainLandmark>
-      {withMobileSlot && <MobileQuerySlotTarget />}
-    </MemoryRouter>
+    <NuqsTestingAdapter>
+      <MemoryRouter initialEntries={[path]}>
+        <NavProvider tree={[]}>
+          <MainLandmark>
+            <Routes>
+              <Route path="/results/:sessionId" element={<SessionResultsPage />} />
+            </Routes>
+          </MainLandmark>
+          <SecondaryNav />
+          {withMobileSlot && <MobileQuerySlotTarget />}
+        </NavProvider>
+      </MemoryRouter>
+    </NuqsTestingAdapter>
   );
   return render(withMobileSlot ? <MobileQuerySlotProvider>{tree}</MobileQuerySlotProvider> : tree);
 }
@@ -254,10 +262,20 @@ describe('SessionResultsPage', () => {
     });
   });
 
-  it('opens AddToDashboardSheet from the hero action CTA', async () => {
+  it('opens AddToDashboardSheet from L3 action and keeps StickyPageHeader free of standalone S3 actions', async () => {
     renderAt('/results/res-fran-1');
 
+    const header = document.querySelector('[data-page-sticky-boundary="true"]') as HTMLElement;
+    expect(header).toBeTruthy();
+    const breadcrumb = within(header).getByTestId(TEST_IDS.PAGE_HEADER_PARENT_BREADCRUMB);
+    expect(breadcrumb.getAttribute('href')).toBe('/sessions');
+    expect(within(header).queryByTestId(TEST_IDS.RESULTS_ADD_DASHBOARD_BTN)).toBeNull();
+    expect(within(header).queryByTestId(TEST_IDS.SAVE_STREAM_QUERY)).toBeNull();
+    expect(within(header).queryByTestId(TEST_IDS.RESULTS_SOURCE_DRAWER_BTN)).toBeNull();
+
     const cta = await screen.findByTestId(TEST_IDS.RESULTS_ADD_DASHBOARD_BTN);
+    expect(screen.getByTestId(TEST_IDS.SAVE_STREAM_QUERY)).toBeDefined();
+    expect(screen.getByTestId(TEST_IDS.RESULTS_SOURCE_DRAWER_BTN)).toBeDefined();
     fireEvent.click(cta);
 
     const sheet = await screen.findByTestId(TEST_IDS.ADD_DASHBOARD_SHEET);

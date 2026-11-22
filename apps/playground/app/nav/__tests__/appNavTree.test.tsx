@@ -213,8 +213,8 @@ describe('appNavTree - Pages L2 roll-up navigation', () => {
     expect(pages?.panel).toBeDefined()
   })
 
-  it('renders Pages L2 with Notes, Orphaned notes, and mutually exclusive active state', () => {
-    render(
+  it('renders Pages L2 with Notes, Orphaned notes, and mutually exclusive single active row', () => {
+    const pagesView = render(
       <MemoryRouter initialEntries={['/pages']}>
         <NavProvider tree={appNavTree}>
           <NavSidebar />
@@ -223,16 +223,32 @@ describe('appNavTree - Pages L2 roll-up navigation', () => {
     )
 
     expect(screen.getAllByText('All pages').length).toBeGreaterThan(0)
+    expect(screen.queryByText('All Pages')).toBeNull()
     expect(screen.getByText('Notes')).toBeDefined()
     expect(screen.getByText('Orphaned notes')).toBeDefined()
     expect(screen.queryByText('Sessions')).toBeNull()
     expect(screen.queryByText('Efforts')).toBeNull()
     expect(screen.queryByText('Equipment')).toBeNull()
     expect(screen.queryByText('Tags')).toBeNull()
+    // Exactly one active L2 row on /pages (no duplicate "All pages" + "All Pages")
+    expect(pagesView.container.querySelectorAll('[aria-current="page"]').length).toBe(1)
+
+    cleanup()
+    const notesView = render(
+      <MemoryRouter initialEntries={['/notes']}>
+        <NavProvider tree={appNavTree}>
+          <NavSidebar />
+        </NavProvider>
+      </MemoryRouter>,
+    )
+    expect(screen.getAllByText('All notes').length).toBeGreaterThan(0)
+    expect(screen.getByText('All Pages')).toBeDefined()
+    // Exactly one active L2 row on /notes (no duplicate "All notes" + "Notes")
+    expect(notesView.container.querySelectorAll('[aria-current="page"]').length).toBe(1)
 
     cleanup()
     const orphanedHref = encodeURIComponent(':note{!notebook:*}')
-    render(
+    const orphanView = render(
       <MemoryRouter initialEntries={[`/notes?q=${orphanedHref}`]}>
         <NavProvider tree={appNavTree}>
           <NavSidebar />
@@ -243,6 +259,7 @@ describe('appNavTree - Pages L2 roll-up navigation', () => {
     const notesItem = screen.getByText('Notes').closest('[aria-current]')
     expect(orphanItem?.getAttribute('aria-current')).toBe('page')
     expect(notesItem).toBeNull()
+    expect(orphanView.container.querySelectorAll('[aria-current="page"]').length).toBe(1)
   })
 
   it('renders Sessions conditions with its own custom-query row on /sessions', () => {

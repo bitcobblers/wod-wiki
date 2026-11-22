@@ -86,12 +86,13 @@ export function buildNoteHelpfulActionsForEntry(params: {
   } = params
 
   return [
-    ...(!isReadOnly && onEditPageSlug
+    ...(!isReadOnly && onMutateContent
       ? [
           {
-            id: 'upgrade-to-page',
-            label: entry.slug ? 'Edit page route' : 'Upgrade to Page',
-            onRun: () => onEditPageSlug(entry),
+            id: 'add-timer',
+            label: 'Add timer',
+            group: 'author' as const,
+            onRun: () => onMutateContent(entry, appendTimerBlock(liveContent)),
           },
         ]
       : []),
@@ -100,13 +101,49 @@ export function buildNoteHelpfulActionsForEntry(params: {
           {
             id: 'add-widget',
             label: 'Add widget',
+            group: 'author' as const,
             onRun: () => onAddWidget(entry),
           },
         ]
       : []),
+    ...(!isReadOnly && onEditPageSlug
+      ? [
+          {
+            id: 'upgrade-to-page',
+            label: entry.slug ? 'Edit page route' : 'Upgrade to Page',
+            group: 'organize' as const,
+            onRun: () => onEditPageSlug(entry),
+          },
+        ]
+      : []),
+    {
+      id: 'promote-notebooks',
+      label: 'Notebooks & Promotion',
+      group: 'organize' as const,
+      onRun: () => onOpenPromotion(entry),
+    },
+    {
+      id: 'placements',
+      label: 'Note placements',
+      group: 'organize' as const,
+      onRun: () => onOpenPlacement(entry, 'relationships'),
+    },
+    {
+      id: 'clone',
+      label: 'Clone',
+      group: 'organize' as const,
+      onRun: () => onOpenPlacement(entry, 'clone'),
+    },
+    {
+      id: 'copy-link',
+      label: copied ? 'Copied' : 'Copy link',
+      group: 'share' as const,
+      onRun: () => onCopyLink(entry),
+    },
     {
       id: 'export-md',
       label: 'Export Note (.md)',
+      group: 'share' as const,
       onRun: () => {
         void exportNote(entry, provider, { format: 'md' })
       },
@@ -114,6 +151,7 @@ export function buildNoteHelpfulActionsForEntry(params: {
     {
       id: 'export-jsonl',
       label: 'Export Session Data (.jsonl)',
+      group: 'share' as const,
       onRun: () => {
         void exportNote(entry, provider, { format: 'jsonl' })
       },
@@ -121,38 +159,10 @@ export function buildNoteHelpfulActionsForEntry(params: {
     {
       id: 'export-csv',
       label: 'Export Session Data (.csv)',
+      group: 'share' as const,
       onRun: () => {
         void exportNote(entry, provider, { format: 'csv' })
       },
-    },
-    {
-      id: 'promote-notebooks',
-      label: 'Notebooks & Promotion',
-      onRun: () => onOpenPromotion(entry),
-    },
-    {
-      id: 'placements',
-      label: 'Note placements',
-      onRun: () => onOpenPlacement(entry, 'relationships'),
-    },
-    ...(!isReadOnly && onMutateContent
-      ? [
-          {
-            id: 'add-timer',
-            label: 'Add timer',
-            onRun: () => onMutateContent(entry, appendTimerBlock(liveContent)),
-          },
-        ]
-      : []),
-    {
-      id: 'clone',
-      label: 'Clone',
-      onRun: () => onOpenPlacement(entry, 'clone'),
-    },
-    {
-      id: 'copy-link',
-      label: copied ? 'Copied' : 'Copy link',
-      onRun: () => onCopyLink(entry),
     },
     ...(!isReadOnly
       ? [
@@ -160,6 +170,7 @@ export function buildNoteHelpfulActionsForEntry(params: {
             id: 'delete-note',
             label: 'Delete note',
             icon: Trash2,
+            group: 'danger' as const,
             disabled: deletingNote,
             testId: 'l3-delete-note',
             onRun: () => onRequestDelete(entry),

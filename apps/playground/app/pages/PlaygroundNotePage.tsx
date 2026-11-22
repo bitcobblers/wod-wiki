@@ -28,7 +28,7 @@ import { usePlaygroundContent } from '../hooks/usePlaygroundContent'
 import { pageId } from '../services/playgroundContent'
 import { storageService } from '@/services/storage'
 import { pendingRuntimes } from '../runtimeStore'
-import { dayPath, notePath, playgroundPath, runPath } from '../lib/routes'
+import { dayPath, notePath, playgroundPath, playgroundsPath, runPath } from '../lib/routes'
 import { PageActions } from './shared/PageActions'
 import { useNotePageNav } from './shared/useNotePageNav'
 import { appendTimerBlock } from './shared/pageUtils'
@@ -48,9 +48,8 @@ import { DEFAULT_PLAYGROUND_CONTENT } from '../templates/defaultPlaygroundConten
 import { formatPlaygroundPageTitle } from '@/lib/playgroundDisplay'
 import { localDateKey } from '@/lib/dateFormat'
 import { useOnboardingEvents } from '../hooks/useOnboardingEvents'
-import { CalendarPlus } from 'lucide-react'
-import { ResponsiveActions } from '../nav/ResponsiveActions'
-import { useIsMobile } from '../hooks/useIsMobile'
+import { CalendarPlus, Play } from 'lucide-react'
+import { TEST_IDS } from '@/lib/testIds'
 import { provenanceLink, type ContextNoteLink } from './shared/noteContextLinks'
 
 export interface PlaygroundNotePageProps {
@@ -73,7 +72,6 @@ export function PlaygroundNotePage({
   // (V8 notes), with the composite as the legacy fallback.
   const noteId = pageId('playground', pageName)
   const navigate = useNavigate()
-  const isMobile = useIsMobile()
   // ponytail: only seed template on bare /playground route; detail routes stay read-only on load.
   const isDefaultPlayground = !id || id === 'playground'
   const { content, loading, entryId, entryTitle, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange: persistOnChange, onLineChange, onBlur, flush, committedSourceRevision, resetToOriginal } = usePlaygroundContent({
@@ -262,6 +260,7 @@ export function PlaygroundNotePage({
     }
   }, [content, navigate])
 
+  const firstBlock = scriptBlocks[0] ?? null
   const index = useNotePageNav({
     content,
     scriptBlocks,
@@ -270,13 +269,45 @@ export function PlaygroundNotePage({
     },
     results,
     noteId: runtimeNoteId,
-    // Whiteboard playground L3: Move to journal, Reset, Clone after the
-    // outline (Move also stays the sticky pill below).
+    // Grouped L3 Actions: Primary Run/Move, Author Add timer, Organize Move/Clone, Danger Reset.
     helpfulActions: [
-      { id: 'move-to-journal', label: 'Move to journal', onRun: () => setMoveToJournalOpen(true) },
-      { id: 'add-timer', label: 'Add timer', onRun: () => onChange(appendTimerBlock(content)) },
-      { id: 'reset', label: 'Reset to default', onRun: () => void resetToOriginal() },
-      { id: 'clone', label: 'Clone', onRun: () => void handleClone() },
+      ...(firstBlock
+        ? [
+            {
+              id: 'run-workout',
+              label: 'Run Workout',
+              icon: Play,
+              group: 'primary' as const,
+              onRun: () => void handleStartWorkout(firstBlock),
+            },
+          ]
+        : []),
+      {
+        id: 'move-to-journal',
+        label: 'Move to journal',
+        icon: CalendarPlus,
+        testId: TEST_IDS.L3_PLAYGROUND_MOVE_JOURNAL,
+        group: firstBlock ? ('organize' as const) : ('primary' as const),
+        onRun: () => setMoveToJournalOpen(true),
+      },
+      {
+        id: 'add-timer',
+        label: 'Add timer',
+        group: 'author' as const,
+        onRun: () => onChange(appendTimerBlock(content)),
+      },
+      {
+        id: 'clone',
+        label: 'Clone',
+        group: 'organize' as const,
+        onRun: () => void handleClone(),
+      },
+      {
+        id: 'reset',
+        label: 'Reset to default',
+        group: 'danger' as const,
+        onRun: () => void resetToOriginal(),
+      },
     ],
   })
 
@@ -284,6 +315,11 @@ export function PlaygroundNotePage({
   // runtime note is UUID-keyed; ownership derives the /playground/<name>
   // stamp journal copies carry.
   const ownership = useMemo(() => noteOwnership({ id: runtimeNoteId, type: 'playground' }), [runtimeNoteId])
+  const parentLink: ContextNoteLink = ownership.up ?? {
+    id: 'playgrounds',
+    title: 'Playgrounds',
+    to: playgroundsPath(),
+  }
   const contextData = useNoteContextLinks({
     noteId: runtimeNoteId,
     stamps: ownership.stamps,
@@ -304,33 +340,14 @@ export function PlaygroundNotePage({
     return () => { cancelled = true }
   }, [runtimeNoteId])
 
-  // The page header is hidden below lg — ResponsiveActions relocates desktop
-  // header actions, while Move to journal stays desktop header + L3 Actions so
-  // it is not triplicated into the mobile dock overflow sheet.
+  // Sticky header keeps Cast + passive Sync (+ <2xl L3DrawerTrigger) only;
+  // Move to journal, Add timer, Clone, and Reset live in grouped L3 Actions.
   const headerActions = (
-    <ResponsiveActions label="Playground actions">
-      {!isMobile && (
-        <>
-          <button
-            type="button"
-            onClick={() => setMoveToJournalOpen(true)}
-            title="Move this playground to a journal date"
-            className="inline-flex items-center gap-1 rounded-pill border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent"
-          >
-            <CalendarPlus className="size-3.5" aria-hidden="true" />
-            Move to journal
-          </button>
-          {/* Whiteboard playground sticky: Move to journal + Cast/sync/options.
-              Reset and Clone live in L3 (helpfulActions); dropping `index` lets
-              the ⋯ menu mirror NavContext l3Items (outline + helpful). */}
-          <PageActions
-            mode="playground"
-            currentWorkout={{ name: pageTitle, content }}
-            index={[]}
-          />
-        </>
-      )}
-    </ResponsiveActions>
+    <PageActions
+      mode="playground"
+      currentWorkout={{ name: pageTitle, content }}
+      index={[]}
+    />
   )
 
   const commands = useScriptBlockCommands('playground', {
@@ -424,11 +441,12 @@ export function PlaygroundNotePage({
   return (
     <>
       <JournalPageShell
+        parent={parentLink.to ? { label: parentLink.title, to: parentLink.to } : null}
         title={pageTitle}
         actions={headerActions}
         editor={
           <div className="flex flex-col gap-3 px-4 py-6 sm:px-6">
-            <NoteContextNav data={contextData} up={ownership.up} source={spawnLink?.noteId === runtimeNoteId ? spawnLink.link : null} />
+            <NoteContextNav data={contextData} up={parentLink} source={spawnLink?.noteId === runtimeNoteId ? spawnLink.link : null} peekMode />
             <NoteEditor
               value={content}
               onChange={onChange}

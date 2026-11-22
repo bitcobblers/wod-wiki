@@ -56,6 +56,12 @@ export interface UseNotePageNavOptions {
   enabled?: boolean
 }
 
+/** Grouping bucket for L3 Slot 3 ("Actions") rendered by SecondaryNav. */
+export type L3ActionGroup = 'primary' | 'author' | 'organize' | 'share' | 'danger'
+
+/** L3ActionItem extended with the optional `group` bucket (natively consumed by shell-core). */
+export type GroupedL3ActionItem = L3ActionItem & { group?: L3ActionGroup }
+
 /** A per-page L3 context action rendered under the "Actions" section. */
 export interface NoteHelpfulAction {
   id: string
@@ -64,6 +70,7 @@ export interface NoteHelpfulAction {
   onRun: () => void
   disabled?: boolean
   testId?: string
+  group?: L3ActionGroup
   /**
    * Bump to re-publish when the handler closes over freshly loaded data
    * (e.g. the resolved effort). ids/labels already re-publish.
@@ -82,6 +89,7 @@ export function helpfulActionsToL3Actions(
     icon: a.icon,
     disabled: a.disabled,
     testId: a.testId,
+    ...(a.group ? { group: a.group } : {}),
     onRun: () => {
       if (actionsRef) {
         const latest = actionsRef.current.find(item => item.id === a.id)
@@ -92,7 +100,7 @@ export function helpfulActionsToL3Actions(
       }
       a.onRun()
     },
-  }))
+  }) as L3ActionItem)
 }
 
 /**
@@ -186,6 +194,7 @@ export function useNotePageNav({
         id: `define-${item.suggestedKind}-${item.candidateSlug}`,
         label: `Define "${displayLabel}"…`,
         icon: PlusCircle,
+        group: 'author' as const,
         testId: `l3-define-${item.candidateSlug}`,
         key: noteId ?? '',
         onRun: () => openCreateReferenceDialog({ item, noteId }),
@@ -199,12 +208,12 @@ export function useNotePageNav({
   )
 
   // Latest helpful actions by ref; the publish effect re-runs when their
-  // signature (ids + labels + keys + disabled) changes, so freshly loaded
+  // signature (ids + labels + groups + keys + disabled) changes, so freshly loaded
   // closures replace the published handlers without re-running every render.
   const helpfulRef = useRef<readonly NoteHelpfulAction[]>(combinedActions)
   helpfulRef.current = combinedActions
   const helpfulSig = helpfulRef.current
-    .map(a => [a.id, a.label, a.key ?? '', a.disabled ? '1' : '0'].join(':'))
+    .map(a => [a.id, a.label, a.group ?? '', a.key ?? '', a.disabled ? '1' : '0'].join(':'))
     .join(';')
 
   const { setL3Items, setL3Actions, setAnalyticsControls } = useNav()

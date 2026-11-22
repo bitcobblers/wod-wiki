@@ -23,28 +23,40 @@ function renderPanel(at: string) {
 }
 
 describe('DashboardsNavPanel', () => {
-  it('promotes the examples to the explorer L2, lists saved dashboards, and highlights the active example semantically', () => {
-    // Deep link drops the catalog's empty `{}` braces — textually different
-    // from 'avg:tis{} by {round}', canonically the same query. Raw string
-    // equality would leave the row unhighlighted.
-    renderPanel('/dashboards?q=avg:tis%20by%20%7Bround%7D');
+  it('renders unified SidebarItem rows on /dashboards without 13 inline examples or 9px prebuilt badges', () => {
+    const { container } = renderPanel('/dashboards');
 
-    expect(screen.getByText('TIS by round').closest('button')!.className).toContain('bg-primary/10');
-    expect(screen.getByText('Reps by lift').closest('button')!.className).not.toContain('bg-primary/10');
-    // Saved dashboards and New dashboard are also reachable directly from /dashboards L2.
+    const explorerBtn = screen.getByText('Explorer').closest('button')!;
+    expect(explorerBtn.getAttribute('aria-current')).toBe('page');
+    expect(explorerBtn.getAttribute('data-current')).toBe('true');
+
+    // Examples moved into the inline Explorer bar on AnalyticsExplorerPage.
+    expect(screen.queryByText('TIS by round')).toBeNull();
+    expect(screen.queryByText('Reps by lift')).toBeNull();
+
+    // Saved dashboards, Prebuilt boards, and New dashboard footer are cleanly listed without 9px badges.
+    expect(screen.getByTestId('dashboards-nav-saved')).toBeDefined();
+    expect(screen.getByTestId('dashboards-nav-prebuilt')).toBeDefined();
     expect(screen.getByText('PR Board')).toBeDefined();
-    expect(screen.getByTestId('dashboards-nav-new')).toBeDefined();
+    expect(screen.getByText('Strength Trends')).toBeDefined();
+    expect(screen.queryByText('prebuilt')).toBeNull();
+    expect(container.innerHTML).not.toContain('text-[9px]');
+    expect(container.innerHTML).not.toContain('text-[10px]');
+
+    // Mobile 44px touch target floor enforced on New dashboard CTA and SidebarItems.
+    const newBtn = screen.getByTestId('dashboards-nav-new');
+    expect(newBtn.className).toContain('max-lg:min-h-11');
+    expect(explorerBtn.className).toContain('min-h-11');
   });
 
-  it('keeps the dashboard list split into Saved dashboards and Prebuilt on detail paths; examples off', () => {
+  it('highlights the active dashboard row via SidebarItem on detail paths', () => {
     renderPanel('/dashboard/pr-board');
 
     expect(screen.getByTestId('dashboards-nav-saved')).toBeDefined();
     expect(screen.getByTestId('dashboards-nav-prebuilt')).toBeDefined();
-    expect(screen.getByText('PR Board').closest('button')!.className).toContain('bg-primary/10');
-    expect(screen.getByText('Strength Trends').closest('button')!.className).not.toContain('bg-primary/10');
+    expect(screen.getByText('PR Board').closest('button')!.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByText('Strength Trends').closest('button')!.getAttribute('aria-current')).toBeNull();
     expect(screen.getByTestId('dashboards-nav-new')).toBeDefined();
-    expect(screen.queryByText('TIS by round')).toBeNull();
   });
 
   it('closes mobile drawer on navigation click', () => {
@@ -56,7 +68,7 @@ describe('DashboardsNavPanel', () => {
         </NavigationDrawerProvider>
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByText('TIS by round'));
+    fireEvent.click(screen.getByText('PR Board'));
     expect(closed).toBe(1);
   });
 });

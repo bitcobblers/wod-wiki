@@ -22,12 +22,22 @@
  */
 
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TEST_IDS } from '@/lib/testIds';
 import { L3DrawerTrigger, useL3DrawerState } from './L3DrawerTrigger';
+
+export interface StickyPageHeaderParent {
+  label: string;
+  to: string;
+}
 
 export interface StickyPageHeaderProps {
   /** DOM anchor on the sticky zone (e.g. L3 "page title" scroll target). */
   id?: string;
+  /** Guaranteed `< Parent` breadcrumb pill shown top-left beside the title on detail & board routes. */
+  parent?: StickyPageHeaderParent | null;
   /** Page title shown in the sticky bar. When omitted, the row space is
    *  left for the queryBar/actions (e.g. stream pages). */
   title?: string;
@@ -35,7 +45,7 @@ export interface StickyPageHeaderProps {
   subtitle?: ReactNode;
   /** Content rendered next to the title (e.g. a challenge badge). */
   titleAccessory?: ReactNode;
-  /** Right-side actions (e.g. search, cast, actions menu). */
+  /** Right-side chrome (CastButtonRpc, passive SyncActivityIndicators, View popover on streams — never standalone S3 page actions). */
   actions?: ReactNode;
   /**
    * Content rendered below the title row inside the sticky zone.
@@ -54,6 +64,7 @@ export interface StickyPageHeaderProps {
 
 export function StickyPageHeader({
   id,
+  parent,
   title,
   subtitle,
   titleAccessory,
@@ -84,23 +95,37 @@ export function StickyPageHeader({
           queryBar ? 'items-start' : 'items-center',
         )}
       >
-        {title && (
+        {(parent || title) && (
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="h-5 w-1.5 shrink-0 rounded-full bg-primary" />
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="min-w-0">
-                <h1
-                  data-testid={titleTestId}
-                  className="text-base sm:text-lg font-black tracking-tight text-foreground leading-none truncate"
-                >
-                  {title}
-                </h1>
-                {subtitle && (
-                  <p className="mt-0.5 text-xs text-muted-foreground truncate">{subtitle}</p>
-                )}
-              </div>
-              {titleAccessory}
-            </div>
+            {parent && (
+              <Link
+                to={parent.to}
+                data-testid={TEST_IDS.PAGE_HEADER_PARENT_BREADCRUMB}
+                className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground shrink-0 no-underline"
+              >
+                <ChevronLeft className="size-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate max-w-[140px]">{parent.label}</span>
+              </Link>
+            )}
+            {title && (
+              <>
+                {!parent && <div className="h-5 w-1.5 shrink-0 rounded-full bg-primary" />}
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="min-w-0">
+                    <h1
+                      data-testid={titleTestId}
+                      className="text-base sm:text-lg font-black tracking-tight text-foreground leading-none truncate"
+                    >
+                      {title}
+                    </h1>
+                    {subtitle && (
+                      <p className="mt-0.5 text-xs text-muted-foreground truncate">{subtitle}</p>
+                    )}
+                  </div>
+                  {titleAccessory}
+                </div>
+              </>
+            )}
           </div>
         )}
         {queryBar && <div className="min-w-0 flex-1">{queryBar}</div>}

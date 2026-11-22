@@ -22,13 +22,16 @@ import {
   effortUsageLinks,
   EMPTY_NOTE_CONTEXT,
   equipmentLinks,
+  MAX_RELATED,
   noteLinkPath,
   noteOwnership,
   notesFacetFilterPath,
   pagePlacementLinks,
   provenanceLink,
   relatedBlockLinks,
+  scheduleLinks,
   tagLinks,
+  type NotePeekTarget,
 } from './noteContextLinks'
 
 describe('extractPageIndex — query and widget fences', () => {
@@ -82,9 +85,9 @@ describe('noteLinkPath — stored-note routing', () => {
 })
 
 describe('noteOwnership — source-aware zone / up / stamps', () => {
-  it('journal entry: notebooks zone (the journal view lives inside it), date page up, id stamp', () => {
+  it('journal entry: journal zone, date page up, id stamp', () => {
     const own = noteOwnership({ id: '018f3c2a-9b7c-7d4e-8f1a-2b3c4d5e6f70', type: 'journal', journalDate: '2026-01-12' })
-    expect(own.zone).toBe('notebooks')
+    expect(own.zone).toBe('journal')
     expect(own.up).toMatchObject({ title: 'Journal', to: '/day/2026-01-12' })
     expect(own.stamps).toEqual(['018f3c2a-9b7c-7d4e-8f1a-2b3c4d5e6f70'])
   })
@@ -373,6 +376,7 @@ describe('buildNoteContextSpec — whiteboard L2 ordering', () => {
     })
 
     const collectionsSec = spec.find(s => s.id === 'note-context-collections')
+    expect(collectionsSec && collectionsSec.kind === 'section' && collectionsSec.label).toBe('Notebooks')
     expect(
       collectionsSec && collectionsSec.kind === 'section' && collectionsSec.entries.map(e => (e.kind === 'link' ? e.label : '')),
     ).toEqual(['hero-wods'])
@@ -380,5 +384,123 @@ describe('buildNoteContextSpec — whiteboard L2 ordering', () => {
     expect(
       pagesSec && pagesSec.kind === 'section' && pagesSec.entries.map(e => (e.kind === 'link' ? e.label : '')),
     ).toEqual(['Prep Cycle'])
+  })
+
+  it('caps Used in / related at 5 items and appends View all N in Notes → when count > 5', () => {
+    expect(MAX_RELATED).toBe(5)
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      id: `note-${i}`,
+      title: `Workout ${i}`,
+      to: `/note/note-${i}`,
+    }))
+    const viewAllTo = notesFacetFilterPath('effort', 'air-squat')
+    const spec = buildNoteContextSpec({
+      data: {
+        efforts: [],
+        related: many,
+        backlinks: [],
+      },
+      relatedLabel: 'Used in',
+      relatedViewAllTo: viewAllTo,
+    })
+    const relatedSec = spec.find(s => s.id === 'note-context-related')
+    expect(relatedSec?.kind).toBe('section')
+    if (relatedSec?.kind === 'section') {
+      expect(relatedSec.label).toBe('Used in')
+      expect(relatedSec.entries).toHaveLength(6)
+      const viewAll = relatedSec.entries[5]
+      expect(viewAll?.kind === 'link' && viewAll.label).toBe('View all 12 in Notes →')
+      expect(viewAll?.kind === 'link' && viewAll.to).toBe(viewAllTo)
+    }
+
+    // At or below 5 items: no View all link.
+    const smallSpec = buildNoteContextSpec({
+      data: { efforts: [], related: many.slice(0, 5), backlinks: [] },
+      relatedLabel: 'Used in',
+    })
+    const smallSec = smallSpec.find(s => s.id === 'note-context-related')
+    expect(smallSec?.kind === 'section' && smallSec.entries).toHaveLength(5)
+  })
+
+  it('cleanly separates Notebooks, Schedules, and Pages and suppresses currentPath self-links', () => {
+    const schedules = scheduleLinks([
+      { id: 's2', date: '2026-04-15', status: 'planned' },
+      { id: 's1', date: '2026-04-12', status: 'completed' },
+    ])
+    const spec = buildNoteContextSpec({
+      data: {
+        collections: [{ id: 'strength', title: 'Strength', to: '/notebook/strength' }],
+        schedules,
+        pages: [
+          { id: 'p-self', title: 'Air Squat', to: '/effort/air-squat' },
+          { id: 'p-board', title: 'Prep Cycle', to: '/page/prep-cycle' },
+        ],
+        efforts: [],
+        related: [],
+        backlinks: [],
+      },
+      currentPath: '/effort/air-squat',
+    })
+    expect(spec.map(s => (s.kind === 'section' ? [s.id, s.label] : [s.id, '']))).toEqual([
+      ['note-context-collections', 'Notebooks'],
+      ['note-context-schedules', 'Schedules'],
+      ['note-context-pages', 'Pages'],
+    ])
+    const pagesSec = spec.find(s => s.id === 'note-context-pages')
+    expect(pagesSec?.kind === 'section' && pagesSec.entries.map(e => (e.kind === 'link' ? e.label : ''))).toEqual([
+      'Prep Cycle',
+    ])
+  })
+
+  it('wires onPeekEntity onSelect callbacks for Efforts, Equipment, Tags, Notebooks, and Related Notes while keeping View all direct', () => {
+    const peeked: NotePeekTarget[] = []
+    const manyRelated = Array.from({ length: 6 }, (_, i) => ({
+      id: `n-${i}`,
+      title: `Session ${i}`,
+      to: `/note/n-${i}`,
+    }))
+    const spec = buildNoteContextSpec({
+      data: {
+        collections: [{ id: 'girls', title: 'Girls', to: '/notebook/girls' }],
+        tags: [{ id: 'domain:strength', title: '#strength', to: '/t/domain/strength', filterTo: '/notes?q=...' }],
+        efforts: [{ id: 'back-squat', title: 'Back Squat', to: '/effort/back-squat', filterTo: '/notes?q=...' }],
+        equipment: [{ id: 'barbell', title: 'Barbell', to: '/equipment/barbell', filterTo: '/notes?q=...' }],
+        related: manyRelated,
+        backlinks: [{ id: 'copy-1', title: 'Copy 1', to: '/note/copy-1' }],
+      },
+      onPeekEntity: (target) => peeked.push(target),
+    })
+
+    for (const secId of ['note-context-collections', 'note-context-tags', 'note-context-efforts', 'note-context-equipment', 'note-context-backlinks']) {
+      const sec = spec.find(s => s.id === secId)
+      expect(sec?.kind).toBe('section')
+      if (sec?.kind === 'section') {
+        const entry = sec.entries[0]
+        expect(entry?.kind).toBe('link')
+        if (entry?.kind === 'link') {
+          expect(entry.onSelect).toBeDefined()
+          expect(entry.filterTo).toBeUndefined()
+          entry.onSelect?.()
+        }
+      }
+    }
+
+    const relSec = spec.find(s => s.id === 'note-context-related')
+    if (relSec?.kind === 'section') {
+      const first = relSec.entries[0]
+      if (first?.kind === 'link') first.onSelect?.()
+      const viewAll = relSec.entries[5]
+      expect(viewAll?.kind === 'link' && viewAll.onSelect).toBeUndefined()
+      expect(viewAll?.kind === 'link' && viewAll.to).toBe('/notes')
+    }
+
+    expect(peeked).toEqual([
+      { kind: 'notebook', slug: 'girls', title: 'Girls' },
+      { kind: 'tag', tagType: 'domain', label: 'strength' },
+      { kind: 'effort', slug: 'back-squat', label: 'Back Squat' },
+      { kind: 'equipment', slug: 'barbell', label: 'Barbell' },
+      { kind: 'note', noteId: 'copy-1', title: 'Copy 1' },
+      { kind: 'note', noteId: 'n-0', title: 'Session 0' },
+    ])
   })
 })

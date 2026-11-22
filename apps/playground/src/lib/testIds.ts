@@ -423,6 +423,25 @@ export const TEST_IDS = {
   FACET_PILL_INCLUDE: 'facet-pill-include',
   FACET_PILL_EXCLUDE: 'facet-pill-exclude',
   FACET_PILL_OFF: 'facet-pill-off',
+
+  // ── Detail & Boards ────────────────────────────────────────────────────────
+  PAGE_HEADER_PARENT_BREADCRUMB: 'page-header-parent-breadcrumb',
+  DASHBOARD_EDIT_TOGGLE: 'dashboard-edit-toggle',
+  EXPLORER_INLINE_BAR: 'explorer-inline-bar',
+  EXPLORER_EXAMPLES_TRIGGER: 'explorer-examples-trigger',
+  EXPLORER_EXAMPLES_POPOVER: 'explorer-examples-popover',
+  EXPLORER_UNIT_KG: 'explorer-unit-kg',
+  EXPLORER_UNIT_LB: 'explorer-unit-lb',
+  EXPLORER_RUN_BTN: 'explorer-run-btn',
+  EXPLORER_QUERY_SETTINGS_BTN: 'explorer-query-settings-btn',
+  L3_EFFORT_OVERRIDE: 'l3-effort-override',
+  L3_EFFORT_SHOW_RESOLVED: 'l3-effort-show-resolved',
+  L3_EQUIPMENT_OVERRIDE: 'l3-equipment-override',
+  L3_FEED_DOWNLOAD_OFFLINE: 'l3-feed-download-offline',
+  L3_FEED_UNSUBSCRIBE: 'feed-detail-unsubscribe-button',
+  L3_DASHBOARD_CLONE: 'l3-dashboard-clone',
+  L3_DASHBOARD_DELETE: 'l3-dashboard-delete',
+  L3_PLAYGROUND_MOVE_JOURNAL: 'l3-playground-move-journal',
 } as const;
 
 type LeafValues<T> = T extends string ? T : T extends Record<string, unknown> ? LeafValues<T[keyof T]> : never;

@@ -50,6 +50,10 @@ import { AddToDashboardSheet } from '../views/analytics/AddToDashboardSheet';
 import { QueryToDashboardDialog } from '../views/analytics/QueryToDashboardDialog';
 import { plainTextFallbackQuery } from '../views/stream/QueriableStreamView';
 import { StreamQueryBar } from '../views/stream/StreamQueryBar';
+import { useNav, type L3ActionItem } from '../nav/NavContext';
+import type { NavItemL3 } from '../nav/navTypes';
+import { PageActions } from './shared/PageActions';
+import type { GroupedL3ActionItem } from './shared/useNotePageNav';
 
 function extractSessionIdFromPath(pathname: string): string {
   const match = /^\/results\/([^/]+)/.exec(pathname);
@@ -286,6 +290,60 @@ function SessionResultsPageInner({ sessionId }: { sessionId: string }) {
     [sessionActionCtx],
   );
 
+  // L3 Outline + Grouped Actions (Primary Promote to dashboard, Organize Add to
+  // dashboard, Share Source & History — stripped out of StickyPageHeader).
+  const { setL3Items, setL3Actions } = useNav();
+  useEffect(() => {
+    if (!baseRun) {
+      setL3Items([]);
+      return;
+    }
+    const items: NavItemL3[] = [
+      { id: 'results-summary-section', label: 'Session Summary', level: 3, action: { type: 'scroll', sectionId: 'results-summary-section' } },
+      { id: 'results-spreadsheet-section', label: 'Splits & Metrics', level: 3, action: { type: 'scroll', sectionId: 'results-spreadsheet-section' } },
+    ];
+    setL3Items(items);
+    return () => setL3Items([]);
+  }, [baseRun, setL3Items]);
+
+  useEffect(() => {
+    const actions: GroupedL3ActionItem[] = [
+      ...(baseRun
+        ? [
+            {
+              id: 'results-promote-dashboard',
+              label: 'Promote to dashboard',
+              icon: BarChart3,
+              testId: TEST_IDS.RESULTS_ADD_DASHBOARD_BTN,
+              group: 'primary' as const,
+              onRun: () => openAddToDashboard(),
+            },
+          ]
+        : []),
+      {
+        id: 'results-add-to-dashboard',
+        label: 'Add to dashboard',
+        icon: Save,
+        testId: TEST_IDS.SAVE_STREAM_QUERY,
+        group: 'organize' as const,
+        onRun: () => setQueryDialogOpen(true),
+      },
+      {
+        id: 'results-source-history',
+        label: 'Source & History',
+        icon: History,
+        testId: TEST_IDS.RESULTS_SOURCE_DRAWER_BTN,
+        group: 'share' as const,
+        onRun: () => setSourceDrawerOpen(true),
+      },
+    ];
+    setL3Actions?.(actions as L3ActionItem[]);
+  }, [baseRun, openAddToDashboard, setL3Actions]);
+
+  useEffect(() => {
+    return () => setL3Actions?.([]);
+  }, [setL3Actions]);
+
   useEffect(() => {
     return registerActiveStreamBridge({
       route: routePath,
@@ -478,42 +536,8 @@ function SessionResultsPageInner({ sessionId }: { sessionId: string }) {
 
       <StickyPageHeader
         className="max-lg:hidden"
-        actions={
-          <div className="flex items-center gap-2">
-            {baseRun && !isMobile && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                data-testid={TEST_IDS.RESULTS_ADD_DASHBOARD_BTN}
-                onClick={() => openAddToDashboard()}
-              >
-                <BarChart3 className="size-3.5" aria-hidden="true" />
-                <span>Promote to dashboard</span>
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-testid={TEST_IDS.SAVE_STREAM_QUERY}
-              onClick={() => setQueryDialogOpen(true)}
-            >
-              <Save className="size-3.5" aria-hidden="true" />
-              <span>Add to dashboard</span>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-testid={TEST_IDS.RESULTS_SOURCE_DRAWER_BTN}
-              onClick={() => setSourceDrawerOpen(true)}
-            >
-              <History className="size-3.5" aria-hidden="true" />
-              <span>Source &amp; History</span>
-            </Button>
-          </div>
-        }
+        parent={{ label: 'Sessions', to: sessionsPath() }}
+        actions={<PageActions mode="notebook-readonly" index={[]} />}
         queryBar={
           !isMobile ? (
             <StreamQueryBar
@@ -595,7 +619,7 @@ function SessionResultsPageInner({ sessionId }: { sessionId: string }) {
         ) : (
           baseRun && (
             <>
-              <div data-testid={TEST_IDS.RESULTS_SESSION_KPI_STRIP}>
+              <div id="results-summary-section" data-testid={TEST_IDS.RESULTS_SESSION_KPI_STRIP}>
                 <SessionSummaryCard
                   run={baseRun}
                   prHighlights={prHighlights}
@@ -611,24 +635,26 @@ function SessionResultsPageInner({ sessionId }: { sessionId: string }) {
 
               <SessionAttributionPanel sessionId={sessionId} onAttributed={() => setRefreshTick((t) => t + 1)} />
 
-              <ResultsSpreadsheetGrid
-                run={gridRun ?? baseRun}
-                compareRuns={compareRuns}
-                prHighlights={prHighlights}
-                noteTitle={summary?.noteTitle}
-                tableTestId={TEST_IDS.PROPERTY_TABLE}
-                showCustomSummariesStrip
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                mobileViewMode={mobileViewMode}
-                onMobileViewModeChange={setMobileViewMode}
-                onEditMetric={handleEditMetric}
-                onClearMetric={handleClearMetric}
-                onCaptureRpe={handleCaptureRpe}
-                onAddToDashboard={(ctx) => openAddToDashboard(ctx)}
-                onSelectCompareRun={(id) => void navigate(sessionDetailPath(id))}
-                renderEditSheet={renderClockEditSheet}
-              />
+              <div id="results-spreadsheet-section">
+                <ResultsSpreadsheetGrid
+                  run={gridRun ?? baseRun}
+                  compareRuns={compareRuns}
+                  prHighlights={prHighlights}
+                  noteTitle={summary?.noteTitle}
+                  tableTestId={TEST_IDS.PROPERTY_TABLE}
+                  showCustomSummariesStrip
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  mobileViewMode={mobileViewMode}
+                  onMobileViewModeChange={setMobileViewMode}
+                  onEditMetric={handleEditMetric}
+                  onClearMetric={handleClearMetric}
+                  onCaptureRpe={handleCaptureRpe}
+                  onAddToDashboard={(ctx) => openAddToDashboard(ctx)}
+                  onSelectCompareRun={(id) => void navigate(sessionDetailPath(id))}
+                  renderEditSheet={renderClockEditSheet}
+                />
+              </div>
             </>
           )
         )}

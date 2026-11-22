@@ -61,8 +61,8 @@ export interface ConditionsPanelSpec {
 
 const urlQuery = (loc: Location): string => new URLSearchParams(loc.search).get('q') ?? ''
 
-/** Deterministic cap on the L2 Recent links — the committed run's head rows. */
-export const RECENT_RESULTS_LIMIT = 8
+/** Deterministic cap on the L2 Recent links — the committed run's head rows (compact 5). */
+export const RECENT_RESULTS_LIMIT = 5
 
 // WW-033: lightweight LRU of deep-link visits (`/notebook/:slug`,
 // `/note/:id`, `/effort/:slug`, `/equipment/:slug`, `/dashboard/:slug`,
@@ -182,8 +182,12 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
     const landingWql = allShortcut?.wql ?? ''
     const landingLabel = allShortcut?.label ?? spec.landingLabel
     const LandingIcon = allShortcut ? SHORTCUT_ICONS[allShortcut.icon]! : spec.icon
+    const anyExtraChildActive = Boolean(spec.extraChildren?.some(child => child.isActive?.(location)))
     const customQuery =
-      matchCtx.query && !parseQuery(matchCtx.query).error && !shortcuts.some(s => shortcutMatches(s, matchCtx))
+      matchCtx.query &&
+      !anyExtraChildActive &&
+      !parseQuery(matchCtx.query).error &&
+      !shortcuts.some(s => shortcutMatches(s, matchCtx))
         ? effectiveQuery
         : null
 
@@ -316,7 +320,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
               aria-label="Shortcut label"
               data-testid="conditions-nav-editor-label"
               autoFocus
-              className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="w-full max-lg:min-h-11 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
             />
           </div>
 
@@ -337,7 +341,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                 aria-label="Shortcut query"
                 data-testid="conditions-nav-editor-wql"
                 aria-invalid={wqlError ? true : undefined}
-                className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="w-full max-lg:min-h-11 rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               />
               {wqlError && (
                 <p
@@ -365,8 +369,8 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                   onClick={() => setEditorDraft(prev => (prev ? { ...prev, icon: name } : prev))}
                   className={
                     editorDraft.icon === name
-                      ? 'grid size-7 max-lg:size-8 place-items-center rounded-md border border-primary bg-primary/10 text-primary'
-                      : 'grid size-7 max-lg:size-8 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground'
+                      ? 'grid size-7 max-lg:min-h-11 max-lg:min-w-11 place-items-center rounded-md border border-primary bg-primary/10 text-primary'
+                      : 'grid size-7 max-lg:min-h-11 max-lg:min-w-11 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground'
                   }
                 >
                   <Icon className="size-3.5" aria-hidden="true" />
@@ -389,7 +393,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                 setStorageError(null)
               }}
               data-testid="conditions-nav-editor-cancel"
-              className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+              className="max-lg:min-h-11 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
             >
               Cancel
             </button>
@@ -397,7 +401,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
               type="submit"
               disabled={!canSaveDraft}
               data-testid="conditions-nav-editor-save"
-              className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              className="max-lg:min-h-11 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
               Save
             </button>
@@ -427,7 +431,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                 aria-label="Add saved link"
                 title="Add saved link"
                 data-testid="conditions-nav-shortcut-add"
-                className="grid size-7 max-lg:size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                className="grid size-7 max-lg:min-h-11 max-lg:min-w-11 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
               >
                 <Plus className="size-3.5" aria-hidden="true" />
               </button>
@@ -447,7 +451,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                 aria-pressed={manageMode}
                 title={manageMode ? 'Done' : 'Edit saved links'}
                 data-testid="conditions-nav-edit-toggle"
-                className={`inline-flex h-7 max-lg:h-8 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium transition-colors ${
+                className={`inline-flex h-7 max-lg:min-h-11 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors ${
                   manageMode
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -477,7 +481,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                     aria-label={`Edit ${landingLabel}`}
                     title={`Edit ${landingLabel}`}
                     data-testid={`conditions-nav-shortcut-edit-${ALL_SHORTCUT_ID}`}
-                    className="grid size-7 max-lg:size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    className="grid size-7 max-lg:min-h-11 max-lg:min-w-11 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                   >
                     <Pencil className="size-3.5" aria-hidden="true" />
                   </button>
@@ -504,7 +508,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                             aria-label={`Move ${s.label} up`}
                             title="Move up"
                             data-testid={`conditions-nav-shortcut-up-${s.id}`}
-                            className="grid size-7 max-lg:size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-30"
+                            className="grid size-7 max-lg:min-h-11 max-lg:min-w-11 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-30"
                           >
                             <ChevronUp className="size-3.5" aria-hidden="true" />
                           </button>
@@ -515,7 +519,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                             aria-label={`Move ${s.label} down`}
                             title="Move down"
                             data-testid={`conditions-nav-shortcut-down-${s.id}`}
-                            className="grid size-7 max-lg:size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-30"
+                            className="grid size-7 max-lg:min-h-11 max-lg:min-w-11 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-30"
                           >
                             <ChevronDown className="size-3.5" aria-hidden="true" />
                           </button>
@@ -527,7 +531,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                         aria-label={`Edit ${s.label}`}
                         title={`Edit ${s.label}`}
                         data-testid={`conditions-nav-shortcut-edit-${s.id}`}
-                        className="grid size-7 max-lg:size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                        className="grid size-7 max-lg:min-h-11 max-lg:min-w-11 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                       >
                         <Pencil className="size-3.5" aria-hidden="true" />
                       </button>
@@ -537,7 +541,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                         aria-label={`Delete ${s.label}`}
                         title={`Delete ${s.label}`}
                         data-testid={`conditions-nav-shortcut-delete-${s.id}`}
-                        className="grid size-7 max-lg:size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        className="grid size-7 max-lg:min-h-11 max-lg:min-w-11 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="size-3.5" aria-hidden="true" />
                       </button>
@@ -570,7 +574,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                     aria-label="Save shortcut"
                     title="Save shortcut"
                     data-testid="conditions-nav-custom-save"
-                    className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                    className="grid size-8 max-lg:min-h-11 max-lg:min-w-11 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
                   >
                     <BookmarkPlus className="size-4" aria-hidden="true" />
                   </button>
@@ -587,7 +591,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                     aria-label="Clear query"
                     title="Clear to all entries"
                     data-testid="conditions-nav-custom-clear"
-                    className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                    className="grid size-8 max-lg:min-h-11 max-lg:min-w-11 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
                   >
                     <X className="size-4" aria-hidden="true" />
                   </button>
@@ -676,7 +680,7 @@ export function createConditionsNavPanel(spec: ConditionsPanelSpec) {
                 >
                   <SidebarLabel>{entry.title}</SidebarLabel>
                   {timeLabel && (
-                    <span className="ml-auto text-[10px] text-muted-foreground tabular-nums shrink-0">
+                    <span className="ml-auto text-[11px] text-muted-foreground tabular-nums shrink-0">
                       {timeLabel}
                     </span>
                   )}
