@@ -12,6 +12,7 @@ import { useLocation } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 import {
   File,
+  FileQuestion,
   Rss,
 } from 'lucide-react'
 import { ROUTE_PATTERNS } from '../../lib/routes'
@@ -23,6 +24,13 @@ import type { NavItem, NavPanelProps } from '../navTypes'
 import { startsWithAny, guideChildrenFrom } from '../appNavTree'
 import { createConditionsNavPanel } from './ConditionsNavPanel'
 import type { CanvasRoute } from '../../canvas/canvasRoutes'
+
+const ORPHANED_NOTES_WQL = ':note{!notebook:*}'
+
+function isOrphanedNotesLocation(loc: Location): boolean {
+  if (loc.pathname !== ROUTE_PATTERNS.notes) return false
+  return new URLSearchParams(loc.search).get('q')?.trim() === ORPHANED_NOTES_WQL
+}
 
 export function pagesVariationChildren(canvasRoutes: CanvasRoute[] = []): NavItem[] {
   return [
@@ -41,7 +49,19 @@ export function pagesVariationChildren(canvasRoutes: CanvasRoute[] = []): NavIte
       icon: Rss,
       action: { type: 'route', to: ROUTE_PATTERNS.notes },
       isActive: (loc: Location) =>
-        loc.pathname === '/notes' || (loc.pathname.startsWith('/note/') && !loc.pathname.startsWith('/notebook')),
+        (loc.pathname === '/notes' && !isOrphanedNotesLocation(loc)) ||
+        (loc.pathname.startsWith('/note/') && !loc.pathname.startsWith('/notebook')),
+    },
+    {
+      id: 'pages-sub-orphaned-notes',
+      label: 'Orphaned notes',
+      level: 2,
+      icon: FileQuestion,
+      action: {
+        type: 'route',
+        to: `${ROUTE_PATTERNS.notes}?q=${encodeURIComponent(ORPHANED_NOTES_WQL)}`,
+      },
+      isActive: isOrphanedNotesLocation,
     },
     ...guideChildrenFrom(canvasRoutes),
   ]

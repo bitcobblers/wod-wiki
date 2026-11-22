@@ -15,7 +15,8 @@ import { usePageSourcesReady } from '@/hooks/usePageSourcesReady'
 import { queryService, refreshPageSources } from '@/services/queryService'
 import { dayPath, notePath, pagePath, ROUTE_PATTERNS, runPath } from '../lib/routes'
 import { appendWidget, notebookOriginOfItem, resolveEntityScope } from '@bitcobblers/wod-wiki-wql'
-import { isNoteEditable, type Note } from '@bitcobblers/wod-wiki-core'
+import { isNoteEditable, type Note, type NoteRevision, type ScheduleItem } from '@bitcobblers/wod-wiki-core'
+import { journalSchedule, subscribeSchedule } from '../services/journalSchedule'
 import { parseRemoteNoteId } from '@bitcobblers/wod-wiki-engine'
 import {
   ForkToMyNotesDialog,
@@ -270,10 +271,16 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   // ── Outline (L3) + Run + result badges, wired like the other note pages
   const [scriptBlocks, setScriptBlocks] = useState<ScriptBlock[]>([])
   const [results, setResults] = useState<Session[]>([])
+  const [noteSchedules, setNoteSchedules] = useState<ScheduleItem[]>([])
+  const [noteRevisions, setNoteRevisions] = useState<NoteRevision[]>([])
+  const [scheduleTick, setScheduleTick] = useState(0)
+  useEffect(() => subscribeSchedule(() => setScheduleTick(t => t + 1)), [])
   const noteKey = entry?.id
   const prevNoteKeyRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     setResults([])
+    setNoteSchedules([])
+    setNoteRevisions([])
     if (prevNoteKeyRef.current !== undefined && prevNoteKeyRef.current !== noteKey) {
       setScriptBlocks([])
     }
@@ -284,6 +291,12 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
       storageService.getSessionsForNote(noteKey).then((rows) => {
         if (!cancelled) setResults(rows)
       }).catch(() => {})
+      journalSchedule.listForNote(noteKey).then((items) => {
+        if (!cancelled) setNoteSchedules(items)
+      }).catch(() => {})
+      journalSchedule.listNoteRevisions(noteKey).then((revs) => {
+        if (!cancelled) setNoteRevisions(revs)
+      }).catch(() => {})
     }
     refresh()
     const unsubscribe = onResultSaved((saved) => {
@@ -293,7 +306,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
       cancelled = true
       unsubscribe()
     }
-  }, [noteKey])
+  }, [noteKey, scheduleTick])
 
   const firstRunnableBlock = useMemo(
     () => scriptBlocks.find(b => b.dialect === 'time') ?? scriptBlocks[0] ?? null,
@@ -543,6 +556,60 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                   onForked={(forked) => { void navigate(`${notePath(forked.id)}?edit=1`) }}
                   onChanged={() => setContextVersion((v) => v + 1)}
                 />
+                {!isReadOnly && (noteSchedules.length > 0 || results.length > 0 || (entry.notebookIds?.length ?? 0) > 1 || (entry.notebookIds?.length ?? -1) === 0) && (
+                  <div
+                    data-testid={TEST_IDS.NOTE_SHARED_BANNER}
+                    className="mt-1 flex w-full flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex flex-wrap items-center gap-2 font-medium text-foreground">
+                        {entry.notebookIds?.length === 0 ? (
+                          <span>Unfiled note · not in a Notebook</span>
+                        ) : (
+                          <span>
+                            In {entry.notebookIds?.length ?? (entry.notebookId ? 1 : 0)} notebook
+                            {(entry.notebookIds?.length ?? (entry.notebookId ? 1 : 0)) === 1 ? '' : 's'}
+                          </span>
+                        )}
+                        {noteSchedules.length > 0 && (
+                          <span>· Scheduled on {noteSchedules.length} day{noteSchedules.length === 1 ? '' : 's'}</span>
+                        )}
+                        {results.length > 0 && (
+                          <span>· {results.length} logged session{results.length === 1 ? '' : 's'}</span>
+                        )}
+                      </div>
+                      {results.length > 0 && (
+                        <p data-testid={TEST_IDS.NOTE_REVISIONS_NOTICE} className="text-[11px] text-muted-foreground">
+                          Edits create a new version (v{(entry.sourceRevision ?? 1) + 1}). Your {results.length} historical session
+                          {results.length === 1 ? '' : 's'} remain pinned to v{entry.sourceRevision ?? 1}
+                          {noteRevisions.length > 0 ? ` (${noteRevisions.length} archived revision${noteRevisions.length === 1 ? '' : 's'})` : ''}.
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {entry.notebookIds?.length === 0 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => noteActions.setPromotionOpen(true)}
+                          className="h-7 px-2.5 text-[11px]"
+                        >
+                          Add to notebook
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => noteActions.setPlacement('clone')}
+                        className="h-7 px-2.5 text-[11px]"
+                      >
+                        Fork copy
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 {ownershipMeta.isNonOwned && !isPageView && (
                   <div className="flex flex-wrap items-center gap-2">
                     {firstRunnableBlock && (

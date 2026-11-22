@@ -10,6 +10,7 @@ import type { WidgetOpResult } from '@bitcobblers/wod-wiki-wql';
 
 import { normalizeNoteTitle } from '@/lib/noteTitle';
 import { parseJournalDate } from './parseJournalDate';
+import { journalSchedule } from './journalSchedule';
 
 export interface CreateJournalNoteInput {
   /** Optional - dashboard and other non-journal notes carry no date. */
@@ -20,6 +21,8 @@ export interface CreateJournalNoteInput {
   slug?: string;
   sourceId?: string;
   type?: 'note' | 'playground' | 'journal' | 'dashboard';
+  /** Explicit Notebook memberships (defaults to [] when unfiled on Journal). */
+  notebookIds?: string[];
 }
 
 export interface JournalNotes {
@@ -40,6 +43,8 @@ export interface JournalNotesDependencies {
    *  date change routed through it would leave the note on both dates. */
   moveRecordPlacement?: (noteId: string, fromPageId: string, target: { date: string } | { slug: string }) => Promise<HistoryRecord>;
   addRecordPlacement?: (noteId: string, target: { date: string } | { slug: string }) => Promise<HistoryRecord>;
+  onScheduleNote?: (noteId: string, journalDate: string) => Promise<void>;
+  listOverlayNotes?: (journalDate: string) => Promise<HistoryRecord[]>;
   uuid?: () => string;
 }
 
@@ -52,6 +57,8 @@ export function createJournalNotes({
   persistence,
   moveRecordPlacement,
   addRecordPlacement,
+  onScheduleNote,
+  listOverlayNotes,
   uuid = uuidv7,
 }: JournalNotesDependencies): JournalNotes {
   // Serialize per-note mutations: asynchronous reads before the write transaction
@@ -61,7 +68,7 @@ export function createJournalNotes({
   return {
     async create(input) {
       const targetDate = input.journalDate ? dateTimestamp(input.journalDate) : Date.now();
-      return persistence.createNote({
+      const created = await persistence.createNote({
         id: uuid(),
         title: normalizeNoteTitle(input.title),
         rawContent: input.rawContent,
@@ -71,7 +78,12 @@ export function createJournalNotes({
         type: input.type ?? 'journal',
         slug: input.slug,
         sourceId: input.sourceId,
+        notebookIds: input.notebookIds ?? [],
       });
+      if (input.journalDate && input.type !== 'dashboard' && input.type !== 'playground' && onScheduleNote) {
+        await onScheduleNote(created.id, input.journalDate).catch(() => {});
+      }
+      return created;
     },
 
     getById(noteId) {
@@ -94,6 +106,9 @@ export function createJournalNotes({
 
     async listByDate(journalDate) {
       dateTimestamp(journalDate);
+      if (listOverlayNotes) {
+        return listOverlayNotes(journalDate);
+      }
       const notes = await persistence.listNotes({
         journalDate,
         kind: 'journal',
@@ -171,4 +186,41 @@ export const journalNotes = createJournalNotes({
   persistence: notePersistence,
   moveRecordPlacement: (noteId, fromPageId, target) => placementProvider.moveRecordPlacement(noteId, fromPageId, target),
   addRecordPlacement: (noteId, target) => placementProvider.addRecordPlacement(noteId, target),
+  onScheduleNote: async (noteId, journalDate) => {
+    await journalSchedule.scheduleNote({ noteId, date: journalDate });
+  },
+  listOverlayNotes: async (journalDate) => {
+    const [overlay, placedNotes] = await Promise.all([
+      journalSchedule.getDayOverlay(journalDate).catch(() => undefined),
+      notePersistence.listNotes({ journalDate, projection: 'summary' }).catch(() => []),
+    ]);
+    const byId = new Map<string, HistoryRecord>();
+    for (const note of placedNotes) byId.set(note.id, note);
+    if (overlay) {
+      const scheduledNotes = overlay.planned.map((entry) => entry.note).filter(Boolean);
+      for (const note of scheduledNotes) {
+        if (!note || byId.has(note.id)) continue;
+        byId.set(note.id, {
+          id: note.id,
+          title: note.title,
+          createdAt: note.createdAt,
+          updatedAt: note.createdAt,
+          targetDate: note.date ?? dateTimestamp(journalDate),
+          journalDate,
+          rawContent: note.rawContent,
+          sourceRevision: note.sourceRevision,
+          blocks: note.blocks,
+          tags: note.tags ?? [],
+          schemaVersion: 1,
+          type: note.type ?? 'note',
+          sourceId: note.sourceId,
+          notebookId: note.notebookId,
+          notebookIds: note.notebookIds,
+          provenance: note.provenance,
+          seedOrigin: note.seedOrigin,
+        });
+      }
+    }
+    return Array.from(byId.values()).sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  },
 });

@@ -66,6 +66,9 @@ export interface LibraryRowProps {
   onTogglePublicNotebook?: (entry: Entry) => void
   onEditNotebook?: (entry: Entry) => void
   onDeleteNotebook?: (entry: Entry) => void
+  /** Multi-select checkbox support (used for Notebook batch scheduling). */
+  selected?: boolean
+  onToggleSelect?: (entry: Entry) => void
 }
 
 const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
@@ -125,6 +128,8 @@ export function LibraryRow({
   onTogglePublicNotebook,
   onEditNotebook,
   onDeleteNotebook,
+  selected,
+  onToggleSelect,
 }: LibraryRowProps) {
   const navigate = useNavigate()
   // Annotation 4 — plain `note` kind conflates journal/guide/playground and
@@ -210,6 +215,16 @@ export function LibraryRow({
       }`}
       data-testid={`library-row-${entry.kind}`}
     >
+      {onToggleSelect && entry.kind === 'note' && (
+        <input
+          type="checkbox"
+          checked={Boolean(selected)}
+          onChange={() => onToggleSelect(entry)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select ${entry.title || 'note'} for batch scheduling`}
+          className="size-4 shrink-0 rounded border-input accent-primary"
+        />
+      )}
       {leading}
       <div className={`flex-shrink-0 size-9 rounded-xl flex items-center justify-center transition-colors ${kindTone}`}>
         <Icon className="size-4" />
@@ -248,6 +263,33 @@ export function LibraryRow({
           >
             {kindLabel}
           </span>
+          {entry.kind === 'note' &&
+            entry.ownership?.kind === 'user' &&
+            Array.isArray(entry.notebookIds) &&
+            entry.notebookIds.length === 0 && (
+              <span
+                className="text-[10px] font-semibold uppercase tracking-wider rounded-full border border-dashed border-border px-2 py-0.5 text-muted-foreground"
+                title="Not assigned to any Notebook"
+              >
+                Unfiled
+              </span>
+            )}
+          {entry.kind === 'note' && (entry.scheduleCount ?? 0) > 0 && (
+            <span
+              className="text-[10px] font-semibold rounded-full bg-primary/10 px-2 py-0.5 text-primary"
+              title={`Scheduled ${entry.scheduleCount} time${entry.scheduleCount === 1 ? '' : 's'}`}
+            >
+              Scheduled ×{entry.scheduleCount}
+            </span>
+          )}
+          {entry.kind === 'note' && (entry.sessionCount ?? 0) > 0 && (
+            <span
+              className="text-[10px] font-semibold rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-700 dark:text-emerald-300"
+              title={`${entry.sessionCount} logged session${entry.sessionCount === 1 ? '' : 's'}`}
+            >
+              {entry.sessionCount} run{entry.sessionCount === 1 ? '' : 's'}
+            </span>
+          )}
           {entry.kind === 'result' && entry.execution?.rpe != null && (
             <span className="text-[11px] font-mono font-semibold tabular-nums rounded-full border border-border bg-muted/60 px-2 py-0.5 text-foreground">
               RPE {entry.execution.rpe}/10
@@ -399,6 +441,9 @@ interface RowActionsProps {
   onTogglePublicNotebook?: (entry: Entry) => void
   onEditNotebook?: (entry: Entry) => void
   onDeleteNotebook?: (entry: Entry) => void
+  /** Multi-select checkbox support (used for Notebook batch scheduling). */
+  selected?: boolean
+  onToggleSelect?: (entry: Entry) => void
 }
 
 function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook, onToggleSubscribe, subscribing, onCloneRemote, onPublishFeed, onTogglePublicNotebook, onEditNotebook, onDeleteNotebook }: RowActionsProps) {

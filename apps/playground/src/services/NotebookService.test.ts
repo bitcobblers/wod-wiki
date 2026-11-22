@@ -165,16 +165,15 @@ describe('NotebookService (notes-store backed)', () => {
         expect(await store.getNote(survivor.id)).toBeDefined();
     });
 
-    it('supports many-to-many promoteNote across multiple user notebooks while preserving journal membership', async () => {
+    it('supports many-to-many promoteNote across multiple user notebooks without forcing journal membership', async () => {
         const nbA = await service.create('Open Prep');
         const nbB = await service.create('Garage Gym');
         await saved({ id: 'w-multi', title: 'Murph' });
 
         const promoted = await service.promoteNote('w-multi', [nbA.id, nbB.id]);
-        expect(promoted.notebookIds).toEqual(['notebook/journal', nbA.notebookId, nbB.notebookId]);
+        expect(promoted.notebookIds).toEqual([nbA.notebookId, nbB.notebookId]);
         expect((await service.listNotes(nbA.id)).map((n) => n.id)).toEqual(['w-multi']);
         expect((await service.listNotes(nbB.id)).map((n) => n.id)).toEqual(['w-multi']);
-        expect((await service.listNotes('notebook/journal')).map((n) => n.id)).toContain('w-multi');
     });
 
     it('cloneNote copies content into a user notebook, editable, with source lineage', async () => {

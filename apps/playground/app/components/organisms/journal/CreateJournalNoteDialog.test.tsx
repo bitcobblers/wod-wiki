@@ -105,8 +105,8 @@ describe('CreateJournalNoteDialog unified wizard', () => {
       journalDate: '2026-11-15',
       title: 'Heavy Squat Day',
       type: 'note',
+      notebookIds: ['notebook/strength'],
     })
-    expect(moveNoteMock).toHaveBeenCalledWith('note-123', 'notebook/strength')
     expect(onCreated).toHaveBeenCalledTimes(1)
   })
 

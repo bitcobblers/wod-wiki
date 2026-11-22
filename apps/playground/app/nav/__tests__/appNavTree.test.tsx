@@ -213,7 +213,7 @@ describe('appNavTree - Pages L2 roll-up navigation', () => {
     expect(pages?.panel).toBeDefined()
   })
 
-  it('renders Pages L2 with its remaining Notes variation', () => {
+  it('renders Pages L2 with Notes, Orphaned notes, and mutually exclusive active state', () => {
     render(
       <MemoryRouter initialEntries={['/pages']}>
         <NavProvider tree={appNavTree}>
@@ -224,10 +224,25 @@ describe('appNavTree - Pages L2 roll-up navigation', () => {
 
     expect(screen.getAllByText('All pages').length).toBeGreaterThan(0)
     expect(screen.getByText('Notes')).toBeDefined()
+    expect(screen.getByText('Orphaned notes')).toBeDefined()
     expect(screen.queryByText('Sessions')).toBeNull()
     expect(screen.queryByText('Efforts')).toBeNull()
     expect(screen.queryByText('Equipment')).toBeNull()
     expect(screen.queryByText('Tags')).toBeNull()
+
+    cleanup()
+    const orphanedHref = encodeURIComponent(':note{!notebook:*}')
+    render(
+      <MemoryRouter initialEntries={[`/notes?q=${orphanedHref}`]}>
+        <NavProvider tree={appNavTree}>
+          <NavSidebar />
+        </NavProvider>
+      </MemoryRouter>,
+    )
+    const orphanItem = screen.getByText('Orphaned notes').closest('[aria-current]')
+    const notesItem = screen.getByText('Notes').closest('[aria-current]')
+    expect(orphanItem?.getAttribute('aria-current')).toBe('page')
+    expect(notesItem).toBeNull()
   })
 
   it('renders Sessions conditions with its own custom-query row on /sessions', () => {

@@ -190,6 +190,8 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction, de
           noteId: saved.id,
           origin: 'journal',
           returnTo: openHref,
+          ...(entry.scheduleItemId ? { scheduleItemId: entry.scheduleItemId } : {}),
+          ...(entry.date ? { sessionDate: entry.date } : {}),
         })
         void navigate(runPath(runtimeId))
         return
@@ -207,6 +209,7 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction, de
     sourceNoteLabel: entry.subtitle ?? entry.title,
     sourceNotePath: entry.sourcePath ?? openHref,
     wodContent: content,
+    createScheduleItem: false,
     ...(remoteResolution
       ? { resolveRemoteWorkout: async () => remoteResolution }
       : deps.resolveRemoteWorkout
@@ -220,6 +223,8 @@ export async function startEntryRun(entry: Entry, navigate: NavigateFunction, de
     noteId: pinnedNote.id,
     origin: 'journal',
     returnTo: openHref,
+    ...(entry.scheduleItemId ? { scheduleItemId: entry.scheduleItemId } : {}),
+    ...(entry.date ? { sessionDate: entry.date } : {}),
   })
   void navigate(
     pinnedNote.journalDate

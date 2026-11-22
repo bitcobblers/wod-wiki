@@ -124,7 +124,7 @@ export interface ResolveRemoteWorkoutOptions {
 }
 
 type RetentionNote = Note & {
-  retention?: 'indexed' | 'cached' | 'session-pinned';
+  retention?: 'indexed' | 'cached' | 'schedule-pinned' | 'session-pinned';
   upstreamStatus?: 'live' | 'unsubscribed' | 'removed';
 };
 
@@ -592,7 +592,12 @@ export async function resolveRemoteWorkout(
           existing.retention === 'cached' &&
           existing.rawContent.length > 0 &&
           (requestedVer === 0 || currentVer >= requestedVer);
-        if (isUserOwned || existing.retention === 'session-pinned' || cachedFresh) {
+        if (
+          isUserOwned ||
+          existing.retention === 'session-pinned' ||
+          existing.retention === 'schedule-pinned' ||
+          cachedFresh
+        ) {
           const fallbackRow = seedRowFromExistingNote(existing);
           const resolvedFeed = existing.feedSourceId ?? requestedFeedId;
           return {

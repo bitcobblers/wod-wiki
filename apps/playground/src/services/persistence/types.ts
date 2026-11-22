@@ -53,6 +53,8 @@ export interface CreateNoteInput {
   slug?: string;
   /** N-10 — the note this one was created from (template/collection source). */
   sourceId?: string;
+  /** Explicit user Notebook IDs (may be [] for unfiled Notes). */
+  notebookIds?: string[];
 }
 
 export interface SaveNoteInput {
@@ -88,6 +90,7 @@ export interface NoteQuery {
   projection?: 'summary' | 'history-detail';
   journalDate?: string;
   kind?: NoteKind;
+  orphanedOnly?: boolean;
 }
 
 export interface AttachmentFileInput {
@@ -137,6 +140,8 @@ export interface NoteMutation {
     origin?: ResultOrigin;  // Which surface produced the result; default filters exclude 'playground'
     data: Sessions;
     createdAt?: number;
+    scheduleItemId?: string;
+    sessionDate?: string;
   };
   /** Kind supplied by callers creating a missing Note through saveNote. */
   noteType?: NoteKind;

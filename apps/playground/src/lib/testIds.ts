@@ -345,6 +345,26 @@ export const TEST_IDS = {
   ADD_DASHBOARD_WQL_DISCLOSURE: 'add-dashboard-wql-disclosure',
   DASHBOARD_DEST_CLONE: 'dashboard-dest-clone',
   DASHBOARD_DEST_NEW: 'dashboard-dest-new',
+
+  // ── Unified Journal, Schedule Overlay, Peek Drawer & Orphaned Notes ───────
+  PAGES_SUB_ORPHANED_NOTES: 'pages-sub-orphaned-notes',
+  STREAM_VIEW_POPOVER_TRIGGER: 'stream-view-popover-trigger',
+  STREAM_VIEW_POPOVER_CONTENT: 'stream-view-popover-content',
+  CALENDAR_OVERLAY_FILTER: 'calendar-overlay-filter',
+  CALENDAR_PEEK_DRAWER: 'calendar-peek-drawer',
+  CALENDAR_PEEK_CLOSE: 'calendar-peek-close',
+  CALENDAR_MORE_POPOVER: 'calendar-more-popover',
+  CALENDAR_UNDATED_TOGGLE: 'calendar-undated-toggle',
+  NOTEBOOK_BATCH_SCHEDULE_BAR: 'notebook-batch-schedule-bar',
+  NOTEBOOK_BATCH_SCHEDULE_SUBMIT: 'notebook-batch-schedule-submit',
+  NOTE_SHARED_BANNER: 'note-shared-banner',
+  NOTE_REVISIONS_NOTICE: 'note-revisions-notice',
+  NOTE_SCHEDULES_TAB: 'note-schedules-tab',
+  RUNNER_CONTEXT_PILL: 'runner-context-pill',
+  SESSION_ATTRIBUTION_CARD: 'session-attribution-card',
+  SESSION_SMART_MATCH_BANNER: 'session-smart-match-banner',
+  DAY_SCHEDULED_SECTION: 'day-scheduled-section',
+  DAY_LOGGED_SECTION: 'day-logged-section',
 } as const;
 
 type LeafValues<T> = T extends string ? T : T extends Record<string, unknown> ? LeafValues<T[keyof T]> : never;

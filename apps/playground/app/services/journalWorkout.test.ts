@@ -3,6 +3,7 @@ import { reconcileNoteBlocks, type Note } from '@bitcobblers/wod-wiki-core';
 import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
 import { resetStorageForTesting, setStorageForTesting, storageService } from '@/services/storage';
 import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
+import { listScheduleItemsForNote } from '@bitcobblers/wod-wiki-engine';
 import { createJournalNoteFromWorkout } from './journalWorkout';
 
 describe('Journal workout cloning & read-only Session intake', () => {
@@ -63,7 +64,7 @@ describe('Journal workout cloning & read-only Session intake', () => {
     expect(pinned.id).toBe('seed-murph-id');
     expect(pinned.rawContent).toBe(fullMd);
     const storedMurph = await storageService.getNote('seed-murph-id');
-    expect(storedMurph?.retention).toBe('session-pinned');
+    expect(storedMurph?.retention).toBe('schedule-pinned');
     expect(storedMurph?.provenance).toMatchObject({
       sourceNoteId: 'seed-murph-id',
       sourceVersion: 7,
@@ -73,7 +74,7 @@ describe('Journal workout cloning & read-only Session intake', () => {
     expect(await storageService.getAllNotes()).toHaveLength(1);
   });
 
-  it('clones user-owned non-journal source notes with full provenance', async () => {
+  it('schedules user-owned non-journal source notes via ScheduleItem without cloning or polluting notebookIds (ADR 0009)', async () => {
     const raw = '# My Custom Complex\n\n```time\n5x3 Hang Clean\n```\n';
     const blocks = reconcileNoteBlocks(raw, { sourceRevision: 1 });
     await storageService.saveNoteSource({
@@ -90,7 +91,7 @@ describe('Journal workout cloning & read-only Session intake', () => {
       notebookIds: ['notebook/custom'],
     } as Note);
 
-    const cloned = await createJournalNoteFromWorkout({
+    const linked = await createJournalNoteFromWorkout({
       workoutName: 'My Custom Complex',
       category: 'custom',
       sourceNoteId: 'user-custom-id',
@@ -98,8 +99,12 @@ describe('Journal workout cloning & read-only Session intake', () => {
       date: new Date('2026-11-10T12:00:00Z'),
     });
 
-    expect(cloned.id).not.toBe('user-custom-id');
-    expect(cloned.provenance?.sourceNoteId).toBe('user-custom-id');
+    expect(linked.id).toBe('user-custom-id');
+    expect(linked.notebookIds).toEqual(['notebook/custom']);
+    const schedule = await listScheduleItemsForNote(storageService.storage, 'user-custom-id');
+    expect(schedule).toHaveLength(1);
+    expect(schedule[0]?.sourceNotebookId).toBe('notebook/custom');
+    expect(await storageService.getAllNotes()).toHaveLength(1);
   });
 
   it('IndexedDBNotePersistence.startSession pins a single archival copy for read-only Seed/Feed Notes without 0s phantom sessions (WW-052)', async () => {
@@ -225,7 +230,7 @@ describe('Journal workout cloning & read-only Session intake', () => {
 
     expect(pinned.id).toBe('uuid-cindy-1');
     const stored = await storageService.getNote('uuid-cindy-1');
-    expect(stored?.retention).toBe('session-pinned');
+    expect(stored?.retention).toBe('schedule-pinned');
     expect(stored?.feedOrigin).toBe('feed');
     expect(stored?.feedSourceId).toBe('daily-feed');
     expect(stored?.seedOrigin).toBe('seed');

@@ -61,6 +61,8 @@ const preparedJournalSessions = new Map<string, Session>();
 const MUTATION_STORES = [
   'notes',
   'block_revisions',
+  'note_revisions',
+  'schedule_items',
   'page',
   'page_notes',
   'tags',
@@ -206,6 +208,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       type: input.type ?? 'note',
       slug: input.slug,
       sourceId: input.sourceId,
+      ...(input.notebookIds !== undefined ? { notebookIds: input.notebookIds } : {}),
     });
   }
 
@@ -409,13 +412,15 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
         }
       }
 
+      const civilDate = session.sessionDate ?? localDateKey(new Date(session.createdAt || session.startTime || Date.now()));
       const prepared = await prepareJournalSessionRun(this.storage.storage, {
         noteId: existingStored ? existingStored.id : input.noteId,
         blockId: session.blockId,
         ...(session.blockContentId ? { blockContentId: session.blockContentId } : {}),
         sessionId: session.id,
-        journalDate: localDateKey(new Date(session.startTime || Date.now())),
+        journalDate: civilDate,
         startedAt: session.startTime,
+        ...(session.scheduleItemId ? { scheduleItemId: session.scheduleItemId } : {}),
         origin: session.origin,
         ...(remotePayload ? { remotePayload } : {}),
       });
@@ -427,7 +432,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       };
     }
     return this.storage.withTransaction(
-      ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'sessions', 'events', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'notebook_links'],
+      ['notes', 'block_revisions', 'note_revisions', 'schedule_items', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'sessions', 'events', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'notebook_links'],
       async scoped => {
         const scopedPersistence = new IndexedDBNotePersistence(scoped);
         await scopedPersistence.saveNote(input);
@@ -445,13 +450,19 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           throw new Error(`Session already exists: ${session.id}`);
         }
         const section = parseDocumentSections(revision.rawContent, BLOCK_OPTIONS).find(sec => sec.scriptBlock);
+        const civilDate = session.sessionDate ?? localDateKey(new Date(session.createdAt || session.startTime || Date.now()));
+        const explicitNotebooks = session.notebookIds?.length
+          ? session.notebookIds
+          : (note.notebookIds && note.notebookIds.length > 0 ? note.notebookIds : undefined);
         const pinned: Session = {
           ...session,
           blockId: block.id,
           blockVersion: revision.version,
           blockContentId: section?.scriptBlock?.contentId,
+          noteSourceRevision: session.noteSourceRevision ?? note.sourceRevision,
+          sessionDate: civilDate,
           status: 'in-progress',
-          notebookIds: session.notebookIds?.length ? session.notebookIds : ['notebook/journal'],
+          ...(explicitNotebooks ? { notebookIds: explicitNotebooks } : {}),
         };
         if (options?.deferPersist) {
           preparedJournalSessions.set(pinned.id, pinned);
@@ -465,14 +476,16 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
 
   async finishSession(sessionId: string, data: Sessions, createdAt?: number): Promise<Session> {
     await this.provider.persistenceReady;
-    const finished = await this.storage.withTransaction(['sessions', 'block_revisions', 'events', 'notebook_links'], async scoped => {
+    const finished = await this.storage.withTransaction(['sessions', 'block_revisions', 'events', 'notebook_links', 'schedule_items'], async scoped => {
       const storedPrevious = await scoped.getSessionById(sessionId);
       const previous = storedPrevious ?? preparedJournalSessions.get(sessionId);
       if (!previous) throw new NotePersistenceError('RESULT_NOT_FOUND', `Session not found: ${sessionId}`);
       const revision = await scoped.getBlockRevision(previous.noteId, previous.blockId, previous.blockVersion);
       if (!revision) throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Pinned workout revision is missing');
+      const civilDate = previous.sessionDate ?? localDateKey(new Date(data.endTime || data.startTime || previous.createdAt || Date.now()));
       const session: Session = {
         ...previous,
+        sessionDate: civilDate,
         startTime: data.startTime,
         endTime: data.endTime,
         duration: data.duration ?? 0,
@@ -484,16 +497,33 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
         createdAt: createdAt ?? previous.createdAt,
       };
       await scoped.saveSession(session);
-      const nbIds = session.notebookIds?.length ? session.notebookIds : ['notebook/journal'];
-      const links = nbIds.map((notebookId) => ({
-        id: `${notebookId}:session:${session.id}`,
-        notebookId,
-        targetKind: 'session' as const,
-        targetId: session.id,
-        noteId: session.noteId,
-        createdAt: session.createdAt,
-      }));
-      await scoped.storage.readwrite('notebook_links').putMany(links);
+      if (session.scheduleItemId) {
+        try {
+          const scheduleStore = scoped.storage.readwrite('schedule_items');
+          const scheduled = await scheduleStore.get(session.scheduleItemId);
+          if (scheduled && scheduled.status !== 'completed') {
+            await scheduleStore.put({
+              ...scheduled,
+              status: 'completed',
+              updatedAt: session.endTime || Date.now(),
+            });
+          }
+        } catch {
+          // Optional schedule_items store on minimal mocks
+        }
+      }
+      const nbIds = session.notebookIds ?? [];
+      if (nbIds.length > 0) {
+        const links = nbIds.map((notebookId) => ({
+          id: `${notebookId}:session:${session.id}`,
+          notebookId,
+          targetKind: 'session' as const,
+          targetId: session.id,
+          noteId: session.noteId,
+          createdAt: session.createdAt,
+        }));
+        await scoped.storage.readwrite('notebook_links').putMany(links);
+      }
       if (data.logs?.length) {
         const identity = {
           noteId: session.noteId,
@@ -870,30 +900,33 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
             await scoped.saveNote({ ...written, seedOrigin });
           }
         } else {
+          const hasExplicitTargets = entry.notebookIds !== undefined || entry.notebookId !== undefined;
           const requestedTargets = [...(entry.notebookIds ?? []), ...(entry.notebookId ? [entry.notebookId] : [])]
             .map((raw) => raw.trim())
             .filter(Boolean)
             .map((raw) => toNotebookId(raw))
             .filter((nb) => !isSystemReadOnlyNotebook(nb));
+          const priorTargets = hasExplicitTargets && entry.notebookIds !== undefined
+            ? []
+            : (previous?.notebookIds ?? [])
+                .filter(Boolean)
+                .map((raw) => toNotebookId(raw))
+                .filter((nb) => !isSystemReadOnlyNotebook(nb));
           const merged = Array.from(
             new Set<NotebookId>([
-              'notebook/journal',
               ...(written.type === 'playground' || written.sourceId === 'playground'
                 ? (['notebook/playground'] as const)
                 : []),
-              ...(previous?.notebookIds ?? [])
-                .filter(Boolean)
-                .map((raw) => toNotebookId(raw))
-                .filter((nb) => !isSystemReadOnlyNotebook(nb)),
+              ...priorTargets,
               ...requestedTargets,
             ]),
           );
-          const primaryUserNb = merged.find((nb) => nb !== 'notebook/journal' && nb !== 'notebook/playground');
-          const nextNote = {
+          const primaryUserNb = merged.find((nb) => nb !== 'notebook/playground') ?? merged[0];
+          const nextNote: Note = {
             ...written,
             seedOrigin,
             notebookIds: merged,
-            ...(primaryUserNb ? { notebookId: primaryUserNb } : {}),
+            ...(primaryUserNb ? { notebookId: primaryUserNb } : { notebookId: undefined }),
           };
           if (!rowsEqual(written, nextNote)) {
             await scoped.saveNote(nextNote);
@@ -901,11 +934,19 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           try {
             const linkStore = scoped.storage.readwrite('notebook_links');
             const existingLinks = await linkStore.getAllFromIndex('by-note', noteId);
+            const mergedSet = new Set(merged);
             const existingByNb = new Set(
               existingLinks
                 .filter((l) => l.targetKind === 'note' && l.targetId === noteId)
                 .map((l) => toNotebookId(l.notebookId)),
             );
+            if (entry.notebookIds !== undefined) {
+              for (const link of existingLinks) {
+                if (link.targetKind === 'note' && link.targetId === noteId && !mergedSet.has(toNotebookId(link.notebookId))) {
+                  await linkStore.delete(link.id);
+                }
+              }
+            }
             const linkNow = Date.now();
             const toPut = merged
               .filter((nbId) => !existingByNb.has(nbId))
@@ -996,6 +1037,14 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           blockId: patch.blockId,
           blockVersion: patch.blockVersion,
           blockContentId: patch.blockContentId,
+          noteSourceRevision: previous?.noteSourceRevision ?? note.sourceRevision,
+          sessionDate:
+            patch.sessionDate ??
+            previous?.sessionDate ??
+            localDateKey(new Date(data.endTime ?? data.startTime ?? previous?.createdAt ?? Date.now())),
+          ...(patch.scheduleItemId ?? previous?.scheduleItemId
+            ? { scheduleItemId: patch.scheduleItemId ?? previous?.scheduleItemId }
+            : {}),
           origin: patch.origin ?? previous?.origin,
           startTime: data.startTime,
           endTime: data.endTime,
@@ -1008,6 +1057,17 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           createdAt: previous?.createdAt ?? data.endTime ?? Date.now(),
         };
         await scoped.saveSession(session);
+        if (session.scheduleItemId) {
+          try {
+            const schedStore = scoped.storage.readwrite('schedule_items');
+            const sched = await schedStore.get(session.scheduleItemId);
+            if (sched && sched.status !== 'completed') {
+              await schedStore.put({ ...sched, status: 'completed', updatedAt: session.endTime || Date.now() });
+            }
+          } catch {
+            // Optional store on mocks
+          }
+        }
         if (data.logs?.length) {
           const identity = {
             noteId: session.noteId,

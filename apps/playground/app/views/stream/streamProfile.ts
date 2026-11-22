@@ -153,7 +153,7 @@ export const NOTEBOOKS_STREAM_PROFILE: StreamProfile = {
   title: 'Notebooks',
   // The notebook plane: displays subscribed notebooks by default
   defaultWql: ':notebook{subscribed:true} by {feed}',
-  level: 'session',
+  level: 'note',
   target: 'note',
   scopeOptions: ['notebooks'],
   shelfVisible: false,
@@ -165,8 +165,8 @@ export const NOTEBOOKS_STREAM_PROFILE: StreamProfile = {
 export const NOTES_STREAM_PROFILE: StreamProfile = {
   route: '/notes',
   title: 'Notes',
-  // Notes belonging to notebooks
-  defaultWql: ':note{notebook:*}',
+  // All notes across Notebooks + unfiled/orphaned notes
+  defaultWql: ':note{}',
   level: 'note',
   target: 'note',
   scopeOptions: ['journal', 'notebooks'],
@@ -291,7 +291,7 @@ export function createNotebookProfile(notebookSlug: string): StreamProfile {
     route: `/notebook/${notebookSlug}`,
     title: toDisplayName(cleanSlug),
     defaultWql: `:note{notebook:${cleanSlug}} by {date}`,
-    level: 'session',
+    level: 'note',
     target: 'note',
     scopeOptions: ['notebooks'],
     shelfVisible: false,

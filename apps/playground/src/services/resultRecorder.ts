@@ -13,6 +13,8 @@ export interface RecordResultInput {
   data: Sessions;
   createdAt: number;
   origin?: ResultOrigin;
+  scheduleItemId?: string;
+  sessionDate?: string;
 }
 
 export interface ResultRecorder {

@@ -356,17 +356,18 @@ export class NotebookService {
                 createdAt: now,
                 metadata: { title: title ?? source.title, type: 'note', sourceId: source.id, ...(source.tags?.length ? { tags: [...source.tags] } : {}) },
             });
+            const membership: NotebookId[] = target === 'notebook/journal' ? ['notebook/journal'] : [target];
             const stamped: Note = {
                 ...clone,
                 notebookId: target,
-                notebookIds: target === 'notebook/journal' ? ['notebook/journal'] : ['notebook/journal', target],
+                notebookIds: membership,
                 seedOrigin: 'user',
                 provenance: buildNoteProvenance(source, sourceNb, now),
             };
             await this.store.saveNote(stamped);
             await enginePromoteNote(this.store.storage, {
                 noteId: stamped.id,
-                notebookIds: target === 'notebook/journal' ? ['notebook/journal'] : [target],
+                notebookIds: membership,
             });
             return (await this.store.getNote(stamped.id)) ?? stamped;
         }, true);

@@ -31,6 +31,7 @@ import {
   CalendarMonthBar,
   CalendarUndatedShelf,
   useCalendarMonth,
+  type OverlayFilterMode,
 } from './CalendarChrome'
 
 export interface CalendarAgendaViewProps {
@@ -52,6 +53,11 @@ export interface CalendarAgendaViewProps {
    * host opens the new-note dialog for that date.
    */
   onCreateOnDay?: (dateKey: string) => void
+  monthParam?: string
+  onMonthChange?: (monthKey: string) => void
+  overlayMode?: OverlayFilterMode
+  onOverlayModeChange?: (mode: OverlayFilterMode) => void
+  onInspectEntry?: (entry: Entry) => void
 }
 
 /** Singular/plural entry-count copy shared across agenda headers, day cells, and month meta. */
@@ -162,20 +168,35 @@ export function CalendarAgendaView({
   moveNotebookTargets,
   onMoveNotebook,
   onCreateOnDay,
+  monthParam,
+  onMonthChange,
+  overlayMode,
+  onOverlayModeChange,
+  onInspectEntry,
 }: CalendarAgendaViewProps) {
-  const nav = useCalendarMonth()
+  const nav = useCalendarMonth(monthParam, onMonthChange)
   const buckets = useMemo(() => buildDayBuckets(entries), [entries])
   const agenda = useMemo(() => buildMonthAgenda(nav.anchor, buckets), [nav.anchor, buckets])
   const grid = useMemo(() => buildMonthGrid(nav.anchor, buckets), [nav.anchor, buckets])
 
   const monthPrefix = `${nav.anchor.getFullYear()}-${String(nav.anchor.getMonth() + 1).padStart(2, '0')}`
-  const inMonth = entries.filter(entry => entry.date?.startsWith(monthPrefix))
-  const dated = entries.filter(entry => entry.date).length
+  const inMonth = entries.filter(
+    (entry) =>
+      entry.scheduledDates?.some((d) => d.startsWith(monthPrefix)) ||
+      entry.date?.startsWith(monthPrefix),
+  )
+  const dated = entries.filter(
+    (entry) => Boolean(entry.date) || Boolean(entry.scheduledDates?.length),
+  ).length
 
   if (entries.length === 0) {
     return (
       <div className="flex flex-1 flex-col bg-background" data-testid="calendar-agenda-view">
-        <CalendarMonthBar nav={nav} />
+        <CalendarMonthBar
+          nav={nav}
+          overlayMode={overlayMode}
+          onOverlayModeChange={onOverlayModeChange}
+        />
         <p className="px-4 py-16 text-center text-xs text-muted-foreground">No entries match your search.</p>
       </div>
     )
@@ -186,6 +207,8 @@ export function CalendarAgendaView({
       <CalendarMonthBar
         nav={nav}
         meta={`${inMonth.length} of ${formatEntryCount(dated, 'dated')} in ${nav.label}`}
+        overlayMode={overlayMode}
+        onOverlayModeChange={onOverlayModeChange}
       />
       <DensityRibbon days={grid.flatMap(week => week.days)} />
 
@@ -199,17 +222,22 @@ export function CalendarAgendaView({
             <section key={day.key}>
               <AgendaDayHeader day={day} top={stickyOffset} onCreateOnDay={onCreateOnDay ?? (() => {})} />
               <div className="divide-y divide-border/30">
-                {day.entries.map(entry => (
-                  <LibraryRow
-                    key={entry.id}
-                    entry={entry}
-                    visibleFieldIds={visibleFieldIds}
-                    tone={day.isToday ? 'primary' : 'secondary'}
-                    onAddToToday={onAddToToday}
-                    onRunStart={onRunStart}
-                    moveNotebookTargets={moveNotebookTargets}
-                    onMoveNotebook={onMoveNotebook}
-                  />
+                {day.entries.map((entry, idx) => (
+                  <div
+                    key={entry.scheduleItemId ?? `${entry.id}-${idx}`}
+                    onClick={onInspectEntry ? () => onInspectEntry(entry) : undefined}
+                    className={onInspectEntry ? 'cursor-pointer' : undefined}
+                  >
+                    <LibraryRow
+                      entry={entry}
+                      visibleFieldIds={visibleFieldIds}
+                      tone={day.isToday ? 'primary' : 'secondary'}
+                      onAddToToday={onAddToToday}
+                      onRunStart={onRunStart}
+                      moveNotebookTargets={moveNotebookTargets}
+                      onMoveNotebook={onMoveNotebook}
+                    />
+                  </div>
                 ))}
               </div>
             </section>

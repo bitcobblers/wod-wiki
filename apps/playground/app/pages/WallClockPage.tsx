@@ -21,11 +21,21 @@ import type { ScriptBlock, Sessions } from '@/components/Editor/types'
 import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
 import { storageService } from '@/services/storage';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
+import { notifyScheduleChanged } from '../services/journalSchedule';
+import { TEST_IDS } from '@/lib/testIds';
 import { sessionQueryFence, sessionQueryWql } from '@bitcobblers/wod-wiki-ui/extensions';
 
 async function injectSessionQueryIntoNote(noteId: string, blockId: string, resultId: string): Promise<void> {
   const note = await storageService.getNote(noteId);
   if (!note) return;
+  // ADR 0009: Never inject query fences into feed/pinned/Notebook workout recipes —
+  // only standalone unfiled Journal or Playground scratchpads receive inline queries.
+  const isNotebookRecipe =
+    note.feedOrigin === 'feed' ||
+    note.retention === 'schedule-pinned' ||
+    note.retention === 'session-pinned' ||
+    (Array.isArray(note.notebookIds) && note.notebookIds.length > 0 && note.type !== 'journal' && note.type !== 'playground');
+  if (isNotebookRecipe) return;
   const wql = sessionQueryWql(resultId);
   if (note.rawContent.includes(wql)) return;
   const block = Object.values(note.blocks ?? {}).find(b => b.id === blockId);
@@ -53,6 +63,8 @@ function resolveInitialWallClockRun(runtimeId: string | undefined): InitialWallC
       captured: parked.captured,
       origin: parked.origin,
       returnTo: parked.returnTo,
+      scheduleItemId: parked.scheduleItemId,
+      sessionDate: parked.sessionDate,
     },
     adoptedRuntime: parked.runtime,
   }
@@ -137,8 +149,16 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
     if (!pending || !runtimeId) throw new Error('The pending workout is unavailable.');
     if (pending.captured) { captureRef.current = pending.captured; return pending.captured.block; }
     if (!captureRef.current) captureRef.current = pending.snapshot
-      ? await captureRun(pending.snapshot, pending.block, runtimeId, pending.origin, undefined, { deferPersist: true })
-      : await captureStoredRun(pending.noteId, pending.block, runtimeId, pending.origin, { deferPersist: true });
+      ? await captureRun(pending.snapshot, pending.block, runtimeId, pending.origin, undefined, {
+          deferPersist: true,
+          ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+          ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
+        })
+      : await captureStoredRun(pending.noteId, pending.block, runtimeId, pending.origin, {
+          deferPersist: true,
+          ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+          ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
+        });
     return captureRef.current.block;
   }, [runtimeId]);
 
@@ -168,7 +188,10 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
         data: results,
         createdAt: results.endTime || Date.now(),
         ...(pending.origin ? { origin: pending.origin } : {}),
+        ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+        ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
       }).then(async () => {
+        notifyScheduleChanged()
         discardRunRef.current = true
         clearParkedRun(runtimeId)
         if (results.completed) {
@@ -217,6 +240,8 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
       captured: captureRef.current ?? activePending.captured,
       origin: activePending.origin,
       returnTo: activePending.returnTo,
+      scheduleItemId: activePending.scheduleItemId,
+      sessionDate: activePending.sessionDate,
       runtime,
     })
   }, [runtimeId])
@@ -303,9 +328,20 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
   }
 
   const noteContent = pending.captured?.note.rawContent ?? pending.snapshot?.rawContent;
+  const attributionLabel = pending.scheduleItemId
+    ? `Scheduled${pending.sessionDate ? ` · ${pending.sessionDate}` : ''}`
+    : pending.sessionDate
+      ? `Logged for ${pending.sessionDate}`
+      : 'Ad-hoc · Today';
 
   return (
     <main data-agent-status="ready" aria-busy={false} className="contents">
+      <div
+        data-testid={TEST_IDS.RUNNER_CONTEXT_PILL}
+        className="pointer-events-none fixed left-1/2 top-2.5 z-50 -translate-x-1/2 rounded-full border border-border/70 bg-background/90 px-3 py-1 text-[11px] font-semibold text-foreground shadow-sm backdrop-blur-sm"
+      >
+        {attributionLabel}
+      </div>
       <FullscreenTimer
         block={pending.block}
         noteContent={noteContent}

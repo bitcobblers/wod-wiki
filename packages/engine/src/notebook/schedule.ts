@@ -19,7 +19,6 @@ import {
   type Note,
   type NoteRevision,
   type Page,
-  type PageNote,
   type ScheduleItem,
   type ScheduleStatus,
   type Session,

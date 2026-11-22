@@ -9,20 +9,25 @@
  * Everything here is pure presentation over the geometry in
  * `app/lib/calendarModel.ts` — no fetching, no query mutation.
  */
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarIcon, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleDot, SkipForward } from 'lucide-react'
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
+import { formatDurationMMSS } from '@bitcobblers/wod-wiki-core'
+import { TEST_IDS } from '@/lib/testIds'
 import type { Entry } from '../../lib/entryMapper'
 import { entryOpenHref } from '../../lib/entryActions'
 import {
   calendarNotebookKey,
   monthLabel,
   notebookAccent,
+  parseDayKey,
   shiftMonth,
   WEEKDAY_SHORT,
   type CalendarDay,
 } from '../../lib/calendarModel'
+
+export type OverlayFilterMode = 'all' | 'planned' | 'logged'
 
 // ── Month navigator ────────────────────────────────────────────────────────
 
@@ -39,19 +44,52 @@ export interface CalendarMonthNav {
   today: () => void
 }
 
-/** The month anchor the calendar layouts navigate with. */
-export function useCalendarMonth(initial?: Date): CalendarMonthNav {
-  const [anchor, setAnchor] = useState(() => initial ?? new Date())
+function monthAnchorKey(anchor: Date): string {
+  return `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, '0')}`
+}
+
+function parseMonthAnchorKey(value?: string): Date | null {
+  if (!value || !/^\d{4}-\d{2}$/.test(value)) return null
+  return parseDayKey(`${value}-01`)
+}
+
+/** The month anchor the calendar layouts navigate with, optionally controlled via ?month=YYYY-MM. */
+export function useCalendarMonth(
+  initial?: Date | string,
+  onMonthChange?: (monthKey: string) => void,
+): CalendarMonthNav {
+  const controlledDate = typeof initial === 'string' ? parseMonthAnchorKey(initial) : undefined
+  const [internalAnchor, setInternalAnchor] = useState(() =>
+    controlledDate ?? (initial instanceof Date ? initial : new Date()),
+  )
+  useEffect(() => {
+    if (controlledDate) setInternalAnchor(controlledDate)
+  }, [typeof initial === 'string' ? initial : ''])
+  const anchor = controlledDate ?? internalAnchor
+  const setAnchorAndNotify = useCallback(
+    (compute: (current: Date) => Date) => {
+      const next = compute(anchor)
+      setInternalAnchor(next)
+      onMonthChange?.(monthAnchorKey(next))
+    },
+    [anchor, onMonthChange],
+  )
   return {
     anchor,
     label: monthLabel(anchor),
-    previous: useCallback(() => setAnchor(a => shiftMonth(a, -1)), []),
-    next: useCallback(() => setAnchor(a => shiftMonth(a, 1)), []),
-    today: useCallback(() => setAnchor(new Date()), []),
+    previous: useCallback(() => setAnchorAndNotify((a) => shiftMonth(a, -1)), [setAnchorAndNotify]),
+    next: useCallback(() => setAnchorAndNotify((a) => shiftMonth(a, 1)), [setAnchorAndNotify]),
+    today: useCallback(() => setAnchorAndNotify(() => new Date()), [setAnchorAndNotify]),
   }
 }
 
 // ── Month bar ──────────────────────────────────────────────────────────────
+
+const OVERLAY_OPTIONS: ReadonlyArray<{ id: OverlayFilterMode; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'planned', label: 'Planned' },
+  { id: 'logged', label: 'Logged' },
+]
 
 /**
  * The calendar's own toolbar. The stream surfaces have no page header below
@@ -62,15 +100,19 @@ export function CalendarMonthBar({
   nav,
   meta,
   right,
+  overlayMode,
+  onOverlayModeChange,
 }: {
   nav: CalendarMonthNav
   /** Context line — e.g. "12 of 45 notes in October". */
   meta?: ReactNode
   right?: ReactNode
+  overlayMode?: OverlayFilterMode
+  onOverlayModeChange?: (mode: OverlayFilterMode) => void
 }) {
   return (
     <div className="border-b border-border/60 px-4 py-2">
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button variant="ghost" size="icon" onClick={nav.previous} aria-label="Previous month" className="size-11 shrink-0">
           <ChevronLeft className="size-4" aria-hidden />
         </Button>
@@ -78,6 +120,33 @@ export function CalendarMonthBar({
           <div className="truncate text-sm font-bold text-foreground">{nav.label}</div>
           {meta && <div className="truncate text-[11px] text-muted-foreground">{meta}</div>}
         </div>
+        {onOverlayModeChange && (
+          <div
+            data-testid={TEST_IDS.CALENDAR_OVERLAY_FILTER}
+            role="group"
+            aria-label="Overlay filter"
+            className="inline-flex items-center rounded-md border border-border bg-muted/40 p-0.5"
+          >
+            {OVERLAY_OPTIONS.map((opt) => {
+              const active = (overlayMode ?? 'all') === opt.id
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => onOverlayModeChange(opt.id)}
+                  aria-pressed={active}
+                  className={`rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
+                    active
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
         <Button variant="ghost" size="icon" onClick={nav.next} aria-label="Next month" className="size-11 shrink-0">
           <ChevronRight className="size-4" aria-hidden />
         </Button>
@@ -104,17 +173,79 @@ export function calendarDayLabel(day: CalendarDay): string {
  * the entry is a chip: a notebook-colored bar and a truncated title. The
  * whole chip is the link to the entry.
  */
-export function CalendarEntryChip({ entry }: { entry: Entry }) {
+export function CalendarEntryChip({
+  entry,
+  onInspect,
+}: {
+  entry: Entry
+  onInspect?: (entry: Entry) => void
+}) {
   const accent = notebookAccent(calendarNotebookKey(entry))
+  const pairedDuration = entry.pairedSessions?.[0]?.duration
+  const isCompleted = entry.scheduleStatus === 'completed' || (entry.pairedSessions?.length ?? 0) > 0
+  const isSkipped = entry.scheduleStatus === 'skipped'
+  const isAdhocLogged = entry.overlayKind === 'logged' && !entry.scheduleItemId
+  const isPlannedOnly = entry.overlayKind === 'planned' && !isCompleted && !isSkipped
+
+  const chipTone = isSkipped
+    ? 'border-border/50 bg-muted/40 text-muted-foreground line-through'
+    : isCompleted
+      ? 'border-emerald-500/40 bg-emerald-500/10 text-foreground hover:bg-emerald-500/15'
+      : isPlannedOnly
+        ? 'border-dashed border-border bg-card/70 text-foreground hover:bg-muted/60'
+        : isAdhocLogged
+          ? 'border-sky-500/40 bg-sky-500/10 text-foreground hover:bg-sky-500/15'
+          : 'border-border/60 bg-card text-foreground hover:bg-muted/60'
+
+  const chipBody = (
+    <>
+      <span className={`h-3 w-0.5 shrink-0 rounded-full ${accent.bar}`} aria-hidden />
+      {isCompleted && <CheckCircle2 className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />}
+      {isSkipped && <SkipForward className="size-3 shrink-0 text-muted-foreground" aria-hidden />}
+      {isAdhocLogged && <CircleDot className="size-3 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />}
+      <span className="min-w-0 flex-1 truncate">{entry.title || 'Untitled'}</span>
+      {entry.scheduleSlot && (
+        <span className="shrink-0 rounded bg-muted px-1 text-[9px] font-bold uppercase text-muted-foreground">
+          {entry.scheduleSlot}
+        </span>
+      )}
+      {typeof pairedDuration === 'number' && pairedDuration > 0 && (
+        <span className="shrink-0 font-mono text-[9px] text-emerald-700 dark:text-emerald-300">
+          {formatDurationMMSS(pairedDuration)}
+        </span>
+      )}
+    </>
+  )
+
+  if (onInspect) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onInspect(entry)
+        }}
+        className={`flex min-h-6 w-full items-center gap-1 rounded border px-1.5 py-0.5 text-left text-[11px] transition-colors ${chipTone}`}
+        title={`${entry.title} — ${calendarNotebookKey(entry)}`}
+        data-testid="calendar-entry-chip"
+        data-overlay-state={
+          isSkipped ? 'skipped' : isCompleted ? 'completed' : isAdhocLogged ? 'logged' : isPlannedOnly ? 'planned' : 'note'
+        }
+      >
+        {chipBody}
+      </button>
+    )
+  }
+
   return (
     <Link
       to={entryOpenHref(entry)}
-      className="flex min-h-6 items-center gap-1.5 rounded border border-border/60 bg-card px-1.5 py-0.5 text-[11px] text-foreground transition-colors hover:bg-muted/60"
+      onClick={(e) => e.stopPropagation()}
+      className={`flex min-h-6 items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] transition-colors ${chipTone}`}
       title={`${entry.title} — ${calendarNotebookKey(entry)}`}
       data-testid="calendar-entry-chip"
     >
-      <span className={`h-3 w-0.5 shrink-0 rounded-full ${accent.bar}`} aria-hidden />
-      <span className="min-w-0 truncate">{entry.title || 'Untitled'}</span>
+      {chipBody}
     </Link>
   )
 }
@@ -122,39 +253,57 @@ export function CalendarEntryChip({ entry }: { entry: Entry }) {
 // ── Undated shelf ──────────────────────────────────────────────────────────
 
 /**
- * The shelf for entries the calendar cannot place.
- *
- * An entry with no date is NEVER silently dropped — dropping a third of the
- * result set would make the calendar lie about coverage. The shelf names the
- * problem instead.
+ * The collapsible shelf for entries the calendar cannot place.
+ * Defaults collapsed so unfiled/undated library notes never visually bloat
+ * the planner board, while staying honest and one tap away.
  */
 export function CalendarUndatedShelf({ entries }: { entries: readonly Entry[] }) {
+  const [expanded, setExpanded] = useState(false)
   if (entries.length === 0) return null
   return (
-    <div className="mx-4 mb-6 rounded-lg border border-dashed border-border bg-muted/30 p-3">
-      <div className="flex items-center gap-1.5">
+    <div className="mx-4 mb-6 rounded-lg border border-dashed border-border bg-muted/30 p-2.5">
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        data-testid={TEST_IDS.CALENDAR_UNDATED_TOGGLE}
+        className="flex w-full items-center gap-1.5 text-left"
+      >
+        {expanded ? (
+          <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden />
+        ) : (
+          <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden />
+        )}
         <CalendarIcon className="size-3.5 text-muted-foreground" aria-hidden />
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
           Undated · {entries.length}
-        </h3>
-      </div>
-      <p className="mt-1 text-[11px] text-muted-foreground">
-        The calendar has no day for these. Give them one to place them.
-      </p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {entries.map(entry => (
-          <span
-            key={entry.id}
-            className="inline-flex min-h-6 items-center gap-1.5 rounded border border-border/60 bg-card px-1.5 py-0.5 text-[11px]"
-          >
-            <span
-              className={`h-3 w-0.5 shrink-0 rounded-full ${notebookAccent(calendarNotebookKey(entry)).bar}`}
-              aria-hidden
-            />
-            <span className="max-w-[16rem] truncate">{entry.title || 'Untitled'}</span>
-          </span>
-        ))}
-      </div>
+        </span>
+        <span className="ml-auto text-[11px] text-muted-foreground">
+          {expanded ? 'Hide undated notes' : 'Show undated notes'}
+        </span>
+      </button>
+      {expanded && (
+        <>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            The calendar has no day for these. Open or schedule one onto a day to place it.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {entries.map((entry) => (
+              <Link
+                key={entry.id}
+                to={entryOpenHref(entry)}
+                className="inline-flex min-h-6 items-center gap-1.5 rounded border border-border/60 bg-card px-1.5 py-0.5 text-[11px] hover:bg-muted/60"
+              >
+                <span
+                  className={`h-3 w-0.5 shrink-0 rounded-full ${notebookAccent(calendarNotebookKey(entry)).bar}`}
+                  aria-hidden
+                />
+                <span className="max-w-[16rem] truncate">{entry.title || 'Untitled'}</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

@@ -302,8 +302,9 @@ export function CreateJournalNoteDialog({
   const templatesReq = useRef(0)
   const inFlight = useRef(false)
 
-  // The TARGET notebook — where the new note lands. '' = the journal.
+  // The TARGET notebook — where the new note lands. '' = Unfiled (Journal only).
   const [targetNotebookId, setTargetNotebookId] = useState('')
+  const [scheduleOnDate, setScheduleOnDate] = useState(() => Boolean(defaultDate) || !defaultNotebookSlug)
   const [targetNotebooks, setTargetNotebooks] = useState<Notebook[] | null>(null)
   const [targetNotebooksError, setTargetNotebooksError] = useState<string | null>(null)
   const targetsReq = useRef(0)
@@ -332,6 +333,7 @@ export function CreateJournalNoteDialog({
     setCreating(false)
     setSubmitError(null)
     setTargetNotebookId(defaultNotebookSlug ? `notebook/${defaultNotebookSlug}` : '')
+    setScheduleOnDate(Boolean(defaultDate) || !defaultNotebookSlug)
     setTargetNotebooks(null)
     setTargetNotebooksError(null)
     setNotebookNotes(null)
@@ -492,8 +494,9 @@ export function CreateJournalNoteDialog({
   )
 
   const dateParsed = parseJournalDate(date)
-  const dateInvalid = supportsDateAndTarget && date !== '' && !dateParsed
   const isNotebookTarget = Boolean(targetNotebookId)
+  const effectiveScheduleOnDate = isNotebookTarget ? scheduleOnDate : true
+  const dateInvalid = supportsDateAndTarget && effectiveScheduleOnDate && date !== '' && !dateParsed
 
   const fallbackTitle =
     kind === 'note'
@@ -531,7 +534,7 @@ export function CreateJournalNoteDialog({
 
   const submitDisabled =
     creating ||
-    (supportsDateAndTarget && !dateParsed) ||
+    (supportsDateAndTarget && effectiveScheduleOnDate && !dateParsed) ||
     (requiresTitle && !title.trim()) ||
     (kind === 'note' && enablePageRoute && !resolvedPageSlug)
 
@@ -639,10 +642,11 @@ export function CreateJournalNoteDialog({
       }
 
       // kind === 'note' (unifies Journal entry, Notebook note, and Page-routed note)
-      const parsed = parseJournalDate(date)
-      if (!parsed) return
+      const parsed = effectiveScheduleOnDate ? parseJournalDate(date) : null
+      if (effectiveScheduleOnDate && !parsed) return
       const effectiveType = isNotebookTarget || enablePageRoute ? 'note' : 'journal'
       const slugForNote = enablePageRoute && resolvedPageSlug ? resolvedPageSlug : undefined
+      const explicitNotebookIds = targetNotebookId ? [targetNotebookId] : []
 
       const trimmedBody = body.trim()
       const withOptionalBody = (base: string): string => {
@@ -653,13 +657,14 @@ export function CreateJournalNoteDialog({
       let input: CreateJournalNoteInput
       if (selectedTemplate?.kind === 'notebook') {
         input = {
-          journalDate: parsed.dateKey,
+          journalDate: parsed?.dateKey,
           title: title.trim() || selectedTemplate.note.title || fallbackTitle,
           rawContent: withOptionalBody(selectedTemplate.note.rawContent),
           tags: selectedTemplate.note.tags,
           sourceId: selectedTemplate.note.id,
           slug: slugForNote,
           type: effectiveType,
+          notebookIds: explicitNotebookIds,
         }
       } else if (selectedTemplate?.kind === 'source') {
         if (!selectedTemplate.sourceId) {
@@ -667,13 +672,14 @@ export function CreateJournalNoteDialog({
           return
         }
         input = {
-          journalDate: parsed.dateKey,
+          journalDate: parsed?.dateKey,
           title: title.trim() || selectedTemplate.item.name,
           rawContent: withOptionalBody(selectedTemplate.item.content),
           tags: [],
           sourceId: selectedTemplate.sourceId,
           slug: slugForNote,
           type: effectiveType,
+          notebookIds: explicitNotebookIds,
         }
       } else {
         const resolvedTitle = title.trim() || fallbackTitle
@@ -685,18 +691,19 @@ export function CreateJournalNoteDialog({
           ? `${body}${wqlFence ? `\n${wqlFence}` : ''}`
           : wqlFence
         input = {
-          journalDate: parsed.dateKey,
+          journalDate: parsed?.dateKey,
           title: resolvedTitle,
           rawContent: heading + bodyAndWql,
           tags: [],
           slug: slugForNote,
           type: effectiveType,
+          notebookIds: explicitNotebookIds,
         }
       }
 
       const entry = await journalNotes.create(input)
       if (targetNotebookId) {
-        await notebookService.moveNote(entry.id, targetNotebookId)
+        notebookService.notify()
       }
       if (onCreated) {
         onCreated(entry)
@@ -1209,7 +1216,7 @@ export function CreateJournalNoteDialog({
                     className={fieldClass}
                     data-testid="journal-create-target-notebook"
                   >
-                    <option value="">Journal (no notebook)</option>
+                    <option value="">Unfiled (Journal only)</option>
                     {targetNotebooks?.map(nb => (
                       <option key={nb.notebookId} value={nb.notebookId}>
                         {nb.icon ? `${nb.icon} ` : ''}
@@ -1221,15 +1228,28 @@ export function CreateJournalNoteDialog({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="journal-create-date" className="text-xs font-medium text-muted-foreground">
-                  Date
-                </label>
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor="journal-create-date" className="text-xs font-medium text-muted-foreground">
+                    Date
+                  </label>
+                  {isNotebookTarget && (
+                    <label className="inline-flex items-center gap-1 text-[11px] text-muted-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={scheduleOnDate}
+                        onChange={(e) => setScheduleOnDate(e.target.checked)}
+                        disabled={creating}
+                      />
+                      <span>Schedule on day</span>
+                    </label>
+                  )}
+                </div>
                 <input
                   id="journal-create-date"
                   type="date"
                   value={date}
                   onChange={e => setDate(e.target.value)}
-                  disabled={creating}
+                  disabled={creating || !effectiveScheduleOnDate}
                   aria-invalid={dateInvalid || undefined}
                   data-testid={TEST_IDS.ENTRY_CREATE_DATE_INPUT}
                   className={fieldClass}

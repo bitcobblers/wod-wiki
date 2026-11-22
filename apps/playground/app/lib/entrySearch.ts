@@ -201,7 +201,9 @@ export class StreamQueryEngine {
     for (const entry of entries) {
       if (entry.kind === 'feed' || entry.kind === 'notebook' || entry.isRemotePreview) continue;
       const alreadyHydrated = Boolean(preResolvedPlacements && Object.prototype.hasOwnProperty.call(preResolvedPlacements, entry.id));
-      if (entry.sourceNotebook === 'journal' && !alreadyHydrated) bundleIds.add(entry.id);
+      if (!alreadyHydrated && (entry.kind === 'note' || entry.sourceNotebook === 'journal')) {
+        bundleIds.add(entry.id);
+      }
       if (withNoteFields && !alreadyHydrated && (!entry.title || !entry.tags || entry.tags.length === 0)) {
         bundleIds.add(entry.id);
       }
@@ -209,9 +211,10 @@ export class StreamQueryEngine {
     if (bundleIds.size === 0) return;
     const bundles = await storageService.getDetailBatches([...bundleIds]);
     for (const entry of entries) {
-      if (entry.sourceNotebook !== 'journal') continue;
+      if (entry.kind === 'feed' || entry.kind === 'notebook' || entry.isRemotePreview) continue;
       const bundle = bundles.get(entry.id);
       const preResolved = preResolvedPlacements?.[entry.id];
+      if (!bundle && !preResolved) continue;
       // Every page the note sits on; the single-page fields below are the
       // deterministic primary projections of that list.
       const placements = preResolved ?? resolvePlacements(bundle?.links ?? [], bundle?.pages ?? []);

@@ -121,6 +121,22 @@ export interface Entry {
   noteType?: string
   /** Canonical `notebook/{slug}` identifier ('notebook/journal', 'notebook/playground', 'notebook/guides', etc.). */
   notebookId?: string
+  /** M:N user Notebook memberships (`[]` for unfiled/orphaned Notes). */
+  notebookIds?: string[]
+  /** Scheduled civil dates from V35 schedule_items (`YYYY-MM-DD[]`) for multi-date Calendar/Planner projection. */
+  scheduledDates?: string[]
+  /** Day-overlay presentation status on Planner / Agenda / Day views. */
+  overlayKind?: 'planned' | 'logged' | 'skipped'
+  scheduleItemId?: string
+  scheduleSlot?: string
+  scheduleNotes?: string
+  scheduleStatus?: 'planned' | 'completed' | 'moved' | 'skipped'
+  pairedSessions?: Array<{ sessionId: string; duration?: number; completed?: boolean; startTime: number }>
+  adHocSessionId?: string
+  adHocSessionDate?: string
+  noteSourceRevision?: number
+  scheduleCount?: number
+  sessionCount?: number
   /** Application-level editability flag — follows notebook ownership:
    *  feed-delivered notebooks are read-only; user-owned notebooks
    *  (including `notebook/defaults`) are editable. */
@@ -265,6 +281,7 @@ export function toEntry(note: Note): Entry {
     ...base,
     noteType: note.type,
     notebookId: resolvedNb,
+    ...(note.notebookIds !== undefined ? { notebookIds: note.notebookIds } : {}),
     feedId: base.feedId ?? note.feedSourceId ?? remoteFeedId ?? (nbOrigin === 'user' ? 'local' : 'core'),
     editable,
     ownership,

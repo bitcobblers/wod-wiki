@@ -4,6 +4,10 @@ import type { ScriptBlock } from '@/components/Editor/types';
 import type { HistoryRecord } from '@/types/history';
 import type { Session } from '@/types/storage';
 import { journalNotes } from '../services/journalNotes';
+import { journalSchedule, subscribeSchedule } from '../services/journalSchedule';
+import { TEST_IDS } from '@/lib/testIds';
+import type { JournalDayOverlay } from '@bitcobblers/wod-wiki-engine';
+import { formatDurationMMSS } from '@bitcobblers/wod-wiki-core';
 import { playgroundRecorder, onResultSaved } from '@/services/resultRecorder';
 import { storageService } from '@/services/storage';
 import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer';
@@ -47,6 +51,10 @@ interface JournalDatePageProps {
 
 export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDatePageProps) {
   const [notes, setNotes] = useState<HistoryRecord[] | null>(null);
+  const [dayOverlay, setDayOverlay] = useState<JournalDayOverlay | null>(null);
+  const [overlayTick, setOverlayTick] = useState(0);
+  useEffect(() => subscribeSchedule(() => setOverlayTick((t) => t + 1)), []);
+  useEffect(() => onResultSaved(() => setOverlayTick((t) => t + 1)), []);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
@@ -84,8 +92,16 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (!pending || !activeRuntimeId) throw new Error('The pending workout is unavailable.');
     if (pending.captured) { capturedRunRef.current = pending.captured; return pending.captured.block; }
     if (!capturedRunRef.current) capturedRunRef.current = pending.snapshot
-      ? await captureRun(pending.snapshot, pending.block, activeRuntimeId, pending.origin, undefined, { deferPersist: true })
-      : await captureStoredRun(pending.noteId, pending.block, activeRuntimeId, pending.origin, { deferPersist: true });
+      ? await captureRun(pending.snapshot, pending.block, activeRuntimeId, pending.origin, undefined, {
+          deferPersist: true,
+          ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+          ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
+        })
+      : await captureStoredRun(pending.noteId, pending.block, activeRuntimeId, pending.origin, {
+          deferPersist: true,
+          ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+          ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
+        });
     return capturedRunRef.current.block;
   }, [activeRuntimeId]);
 
@@ -188,14 +204,21 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   useEffect(() => {
     let cancelled = false;
     setNotes(null);
-    journalNotes.listByDate(journalDate).then((entries) => {
+    Promise.all([
+      journalNotes.listByDate(journalDate),
+      journalSchedule.getDayOverlay(journalDate).catch(() => null),
+    ]).then(([entries, overlay]) => {
       if (cancelled) return;
       setNotes(entries);
+      setDayOverlay(overlay);
     }).catch(() => {
-      if (!cancelled) setNotes([]);
+      if (!cancelled) {
+        setNotes([]);
+        setDayOverlay(null);
+      }
     });
     return () => { cancelled = true; };
-  }, [journalDate]);
+  }, [journalDate, overlayTick]);
 
   useEffect(() => setSurfaceBusy(notes === null), [notes]);
 
@@ -298,16 +321,26 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     ],
   );
 
-  const startOutlineRun = useCallback(async (noteId: string, block: ScriptBlock) => {
+  const startOutlineRun = useCallback(async (noteId: string, block: ScriptBlock, explicitScheduleItemId?: string) => {
     try {
       const start = noteRunStarts.current.get(noteId);
       if (!start) throw new Error('The saved note editor is unavailable.');
       const runtimeId = uuidv7();
+      const matchedScheduleId =
+        explicitScheduleItemId ??
+        dayOverlay?.planned.find((p) => p.item.noteId === noteId && p.item.status === 'planned')?.item.id;
       const captured = await start(block, runtimeId);
-      pendingRuntimes.set(runtimeId, { noteId, block: captured.block, captured, returnTo: dayPath(journalDate) });
+      pendingRuntimes.set(runtimeId, {
+        noteId,
+        block: captured.block,
+        captured,
+        returnTo: dayPath(journalDate),
+        ...(matchedScheduleId ? { scheduleItemId: matchedScheduleId } : {}),
+        sessionDate: journalDate,
+      });
       void navigate(runPath(runtimeId));
     } catch (error) { setRunError(error instanceof Error ? error.message : String(error)); }
-  }, [journalDate, navigate]);
+  }, [journalDate, navigate, dayOverlay]);
   const handleOutlineRun = useCallback((block: ScriptBlock) => {
     if (singleNote) void startOutlineRun(singleNote.id, block);
   }, [singleNote, startOutlineRun]);
@@ -518,6 +551,173 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
               </span>
             )}
           </nav>
+          {dayOverlay && (dayOverlay.planned.length > 0 || dayOverlay.adhocSessions.length > 0) && (
+            <div className="grid gap-4 md:grid-cols-2">
+              {dayOverlay.planned.length > 0 && (
+                <section
+                  data-testid={TEST_IDS.DAY_SCHEDULED_SECTION}
+                  aria-label="Scheduled workouts"
+                  className="rounded-lg border border-border/60 bg-muted/20 p-3.5 space-y-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Scheduled Plans ({dayOverlay.planned.length})
+                    </h2>
+                  </div>
+                  <ul className="space-y-2">
+                    {dayOverlay.planned.map(({ item, note: planNote, pairedSessions }) => {
+                      const done = item.status === 'completed' || pairedSessions.length > 0;
+                      const skipped = item.status === 'skipped';
+                      return (
+                        <li
+                          key={item.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/50 bg-background px-3 py-2 text-xs"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Link to={notePath(item.noteId)} className="font-semibold text-foreground hover:underline truncate">
+                                {planNote?.title || 'Untitled workout'}
+                              </Link>
+                              {item.slot && (
+                                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">
+                                  {item.slot}
+                                </span>
+                              )}
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  done
+                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                    : skipped
+                                      ? 'bg-muted text-muted-foreground line-through'
+                                      : 'bg-primary/10 text-primary'
+                                }`}
+                              >
+                                {done ? 'Completed' : skipped ? 'Skipped' : 'Planned'}
+                              </span>
+                            </div>
+                            {item.notes && <p className="mt-0.5 text-[11px] text-muted-foreground">{item.notes}</p>}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {!skipped && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void journalSchedule.updateItem(item.id, { status: 'skipped' })}
+                                className="h-7 px-2 text-[11px]"
+                              >
+                                Skip
+                              </Button>
+                            )}
+                            {skipped && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void journalSchedule.updateItem(item.id, { status: 'planned' })}
+                                className="h-7 px-2 text-[11px]"
+                              >
+                                Restore
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => void journalSchedule.removeItem(item.id)}
+                              className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+                            >
+                              Unschedule
+                            </Button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
+
+              {(dayOverlay.planned.some((p) => p.pairedSessions.length > 0) || dayOverlay.adhocSessions.length > 0) && (
+                <section
+                  data-testid={TEST_IDS.DAY_LOGGED_SECTION}
+                  aria-label="Logged sessions"
+                  className="rounded-lg border border-border/60 bg-muted/20 p-3.5 space-y-2.5"
+                >
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Logged Sessions
+                  </h2>
+                  <ul className="space-y-2">
+                    {dayOverlay.planned.flatMap(({ item, note: planNote, pairedSessions }) =>
+                      pairedSessions.map((sess) => (
+                        <li
+                          key={sess.id}
+                          className="flex items-center justify-between gap-2 rounded-md border border-emerald-500/30 bg-background px-3 py-2 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <Link to={`/results/${encodeURIComponent(sess.id)}`} className="font-semibold text-foreground hover:underline">
+                              {planNote?.title || 'Session'}
+                            </Link>
+                            <div className="text-[11px] text-muted-foreground">
+                              Paired with {item.slot ? `${item.slot} plan` : 'scheduled plan'}
+                              {sess.noteSourceRevision ? ` · v${sess.noteSourceRevision}` : ''}
+                            </div>
+                          </div>
+                          {typeof sess.duration === 'number' && sess.duration > 0 && (
+                            <span className="font-mono text-[11px] text-emerald-700 dark:text-emerald-300">
+                              {formatDurationMMSS(sess.duration)}
+                            </span>
+                          )}
+                        </li>
+                      )),
+                    )}
+                    {dayOverlay.adhocSessions.map(({ session: sess, note: sessNote }) => (
+                      <li
+                        key={sess.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-500/30 bg-background px-3 py-2 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <Link to={`/results/${encodeURIComponent(sess.id)}`} className="font-semibold text-foreground hover:underline">
+                            {sessNote?.title || 'Ad-hoc workout'}
+                          </Link>
+                          <div className="text-[11px] text-muted-foreground">
+                            Ad-hoc log{sess.noteSourceRevision ? ` · v${sess.noteSourceRevision}` : ''}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {dayOverlay.planned
+                            .filter((p) => p.item.noteId === sess.noteId && p.pairedSessions.length === 0)
+                            .slice(0, 1)
+                            .map((match) => (
+                              <Button
+                                key={match.item.id}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  void journalSchedule.attributeSession({
+                                    sessionId: sess.id,
+                                    sessionDate: journalDate,
+                                    scheduleItemId: match.item.id,
+                                  })
+                                }
+                                className="h-7 px-2 text-[11px]"
+                              >
+                                Pair with plan
+                              </Button>
+                            ))}
+                          {typeof sess.duration === 'number' && sess.duration > 0 && (
+                            <span className="font-mono text-[11px] text-sky-700 dark:text-sky-300">
+                              {formatDurationMMSS(sess.duration)}
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </div>
+          )}
           {notes.length > 1 && (
             <nav aria-label="Notes on this date" className="flex flex-wrap gap-2">
               {notes.map((note) => (

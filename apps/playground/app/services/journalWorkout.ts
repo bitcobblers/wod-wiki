@@ -1,5 +1,4 @@
 import {
-  buildNoteProvenance,
   ensurePinnedExternalWorkout,
   parseRemoteNoteId,
   resolveNoteOwnership,
@@ -14,6 +13,7 @@ import { loadRemoteRecordDetail, lookupRemoteRecord } from '@/services/feed/feed
 import { storageService } from '@/services/storage';
 import { formatDateKey } from './dateUtils';
 import { journalNotes } from './journalNotes';
+import { journalSchedule } from './journalSchedule';
 
 export interface CreateJournalNoteFromWorkoutOptions {
   workoutName: string;
@@ -24,6 +24,11 @@ export interface CreateJournalNoteFromWorkoutOptions {
   wodContent: string;
   date?: Date;
   wrapInWod?: boolean;
+  /** Optional AM/PM slot or schedule note when scheduling onto a day. */
+  slot?: string;
+  scheduleNotes?: string;
+  /** Set false when pinning an external workout strictly for direct execution without creating a ScheduleItem. */
+  createScheduleItem?: boolean;
   resolveRemoteWorkout?: (noteId: string) => Promise<RemoteWorkoutResolution | undefined>;
 }
 
@@ -108,6 +113,9 @@ export async function createJournalNoteFromWorkout({
   wodContent,
   date,
   wrapInWod = true,
+  slot,
+  scheduleNotes,
+  createScheduleItem = true,
   resolveRemoteWorkout,
 }: CreateJournalNoteFromWorkoutOptions): Promise<HistoryRecord> {
   const now = date ? date.getTime() : Date.now();
@@ -140,40 +148,39 @@ export async function createJournalNoteFromWorkout({
       notebookOriginOfItem(upstream),
       notebookOfItem(upstream),
     );
+    const sourceNb = notebookOfItem(upstream) ?? (category ? `notebook/${category}` : undefined);
     if (ownership.kind !== 'user') {
       const pinned = await ensurePinnedExternalWorkout(storageService.storage, {
         noteId: upstream.id,
+        retention: createScheduleItem ? 'schedule-pinned' : 'session-pinned',
         now,
       });
+      if (createScheduleItem) {
+        await journalSchedule.scheduleNote({
+          noteId: pinned.note.id,
+          date: journalDate,
+          sourceNotebookId: sourceNb,
+          slot,
+          notes: scheduleNotes,
+          now,
+        });
+      }
       return noteToHistoryRecord(pinned.note, journalDate, now);
     }
 
-    const sourceNb = notebookOfItem(upstream) ?? (category ? `notebook/${category}` : undefined);
-    const created = await journalNotes.create({
-      journalDate,
-      title: normalizeNoteTitle(workoutName || upstream.title),
-      rawContent: upstream.rawContent,
-      tags: upstream.tags,
-      sourceId: upstream.id,
-      type: 'journal',
-    });
-    const stored = await storageService.getNote(created.id);
-    if (stored) {
-      const provenance = buildNoteProvenance(upstream, sourceNb, now);
-      await storageService.saveNote({
-        ...stored,
-        notebookIds: ['notebook/journal'],
-        provenance,
+    // ADR 0009 link-first scheduling: schedule the canonical user Note cleanly
+    // onto the day without cloning or dumping notebook/journal onto notebookIds.
+    if (createScheduleItem) {
+      await journalSchedule.scheduleNote({
+        noteId: upstream.id,
+        date: journalDate,
+        sourceNotebookId: sourceNb,
+        slot,
+        notes: scheduleNotes,
+        now,
       });
-      return {
-        ...created,
-        rawContent: upstream.rawContent,
-        sourceId: upstream.id,
-        notebookIds: ['notebook/journal'],
-        provenance,
-      };
     }
-    return created;
+    return noteToHistoryRecord(upstream, journalDate, now);
   }
 
   if (parsedRemote.isRemote && sourceNoteId) {
@@ -215,8 +222,20 @@ export async function createJournalNoteFromWorkout({
     const pinned = await ensurePinnedExternalWorkout(storageService.storage, {
       noteId: sourceNoteId,
       remotePayload,
+      retention: createScheduleItem ? 'schedule-pinned' : 'session-pinned',
       now,
     });
+    if (createScheduleItem) {
+      const sourceNb = meta?.notebookSlug ? `notebook/${meta.notebookSlug}` : (category ? `notebook/${category}` : undefined);
+      await journalSchedule.scheduleNote({
+        noteId: pinned.note.id,
+        date: journalDate,
+        sourceNotebookId: sourceNb,
+        slot,
+        notes: scheduleNotes,
+        now,
+      });
+    }
     return noteToHistoryRecord(pinned.note, journalDate, now);
   }
 
@@ -225,5 +244,6 @@ export async function createJournalNoteFromWorkout({
     title: normalizeNoteTitle(workoutName),
     rawContent: buildWrappedMarkdown(workoutName, wodContent, wrapInWod),
     sourceId: resolvedSourcePath,
+    notebookIds: [],
   });
 }

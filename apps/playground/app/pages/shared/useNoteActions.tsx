@@ -20,6 +20,8 @@ import { waitForPendingNoteSave } from '../../hooks/useNoteDraft'
 import { clearStagedNoteSave, markNoteDeleting, unmarkNoteDeleting } from '@/services/persistence/pendingNoteSaves'
 import { notePath, ROUTE_PATTERNS } from '../../lib/routes'
 import { journalNotes } from '../../services/journalNotes'
+import { journalSchedule } from '../../services/journalSchedule'
+import { storageService } from '@/services/storage'
 import { appendTimerBlock } from './pageUtils'
 import type { NoteHelpfulAction } from './useNotePageNav'
 
@@ -193,6 +195,30 @@ export function useNoteActions(options: UseNoteActionsOptions) {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deletingNote, setDeletingNote] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [blastRadius, setBlastRadius] = useState<{ schedules: number; sessions: number; notebooks: number } | null>(null)
+
+  useEffect(() => {
+    if (!confirmDeleteOpen || !entry) {
+      setBlastRadius(null)
+      return
+    }
+    let cancelled = false
+    void Promise.all([
+      journalSchedule.listForNote(entry.id).catch(() => []),
+      storageService.getSessionsForNote(entry.id).catch(() => []),
+    ]).then(([schedules, sessions]) => {
+      if (!cancelled) {
+        setBlastRadius({
+          schedules: schedules.length,
+          sessions: sessions.length,
+          notebooks: entry.notebookIds?.length ?? (entry.notebookId ? 1 : 0),
+        })
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [confirmDeleteOpen, entry])
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -301,6 +327,13 @@ export function useNoteActions(options: UseNoteActionsOptions) {
             <AlertDialogTitle>Delete note?</AlertDialogTitle>
             <AlertDialogDescription>
               Permanently delete &ldquo;{entry.title || 'Untitled note'}&rdquo;? This cannot be undone.
+              {blastRadius && (blastRadius.schedules > 0 || blastRadius.sessions > 0 || blastRadius.notebooks > 0) && (
+                <span className="mt-2 block text-xs text-muted-foreground">
+                  Removes {blastRadius.schedules} scheduled date{blastRadius.schedules === 1 ? '' : 's'} and detaches from{' '}
+                  {blastRadius.notebooks} notebook{blastRadius.notebooks === 1 ? '' : 's'}. Existing{' '}
+                  {blastRadius.sessions} logged session{blastRadius.sessions === 1 ? '' : 's'} and archived snapshots remain preserved.
+                </span>
+              )}
             </AlertDialogDescription>
           </DialogHeader>
           {deleteError && (

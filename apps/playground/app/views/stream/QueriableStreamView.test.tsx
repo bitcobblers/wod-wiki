@@ -304,8 +304,10 @@ describe('QueriableStreamView component', () => {
     expect(screen.getByText('Heavy pulls')).toBeDefined()
     expect(screen.getByText('Fran')).toBeDefined()
 
-    // The undated note is named, not dropped.
-    expect(screen.getByText('Undated · 1')).toBeDefined()
+    // The undated shelf defaults collapsed; expanding reveals the undated note.
+    const undatedBtn = screen.getByText('Undated · 1')
+    expect(undatedBtn).toBeDefined()
+    fireEvent.click(undatedBtn)
     expect(screen.getByText('No date yet')).toBeDefined()
   })
 
@@ -577,6 +579,11 @@ describe('QueriableStreamView component', () => {
   })
 
   it('publishes dynamic section links to NavContext and updates them when WQL grouping changes', async () => {
+    writeViewSettings('/journal', {
+      level: 'note',
+      layout: 'cards',
+      visibleFields: ['title'],
+    })
     const datedEntries: Entry[] = [
       {
         id: 'note-1',
@@ -1513,7 +1520,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     })
   })
 
-  it('renders NOTES_STREAM_PROFILE default :note{notebook:*} with zero advisories (WW-003)', async () => {
+  it('renders NOTES_STREAM_PROFILE default :note{} with zero advisories (WW-003)', async () => {
     const { engine } = stubEngine((_q, onStages) => {
       onStages?.({ selected: 2, matched: 2 })
       return DATED_NOTE_ENTRIES
@@ -1530,7 +1537,6 @@ describe('QueriableStreamView — query truth and retained state', () => {
     })
     const status = screen.getByTestId('stream-query-status').textContent ?? ''
     expect(status).toContain(':note')
-    expect(status).toContain('1 applied')
     expect(status).not.toContain('wildcard')
     expect(status).not.toContain('ignored')
   })

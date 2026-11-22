@@ -580,7 +580,7 @@ export async function cloneRemoteRecord(
 }
 
 type RetentionNote = Note & {
-  retention?: 'indexed' | 'cached' | 'session-pinned';
+  retention?: 'indexed' | 'cached' | 'schedule-pinned' | 'session-pinned';
   upstreamStatus?: 'live' | 'unsubscribed' | 'removed';
 };
 
@@ -616,7 +616,7 @@ export async function materializeCachedRemoteRecord(
     notebookSlug?: string;
     record?: SeedRecordRef;
     seedRow: SeedRow;
-    retention?: 'cached' | 'session-pinned';
+    retention?: 'cached' | 'schedule-pinned' | 'session-pinned';
     upstreamStatus?: 'live' | 'unsubscribed' | 'removed';
   },
 ): Promise<RetentionNote> {
@@ -649,7 +649,11 @@ export async function materializeCachedRemoteRecord(
       if (existing) {
         const isUserOwned =
           existing.seedOrigin !== 'seed' && existing.feedOrigin !== 'feed' && !existing.retention;
-        if (isUserOwned || existing.retention === 'session-pinned') {
+        if (
+          isUserOwned ||
+          existing.retention === 'session-pinned' ||
+          existing.retention === 'schedule-pinned'
+        ) {
           return existing;
         }
         if (

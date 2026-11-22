@@ -57,7 +57,7 @@ import { notebookService } from '@/hooks/useBrowserServices'
 import { subscribeNotebooks } from '@/services/NotebookService'
 import { removeRecentVisit } from '../../nav/panels/ConditionsNavPanel'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
-import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, serialize, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
+import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, serialize, type NoteUsageCounts, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { suggestWqlSyntaxHint, wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
 import type { WqlExecutor } from '@bitcobblers/wod-wiki-ui'
 import { toggleGroupDimension } from '../../nav/panels/conditionsFacets'
@@ -107,10 +107,18 @@ import { CreateJournalNoteDialog } from '../../components/organisms/journal/Crea
 import { CalendarAgendaView } from './CalendarAgendaView'
 import { CalendarPlannerView } from './CalendarPlannerView'
 import { journalNotes } from '../../services/journalNotes'
+import { journalSchedule, subscribeSchedule } from '../../services/journalSchedule'
+import { createJournalNoteFromWorkout } from '../../services/journalWorkout'
 import { ensurePlaygroundEntry } from '../../services/createPlaygroundPage'
 import { addEntryToTodayInput } from '../../lib/addToToday'
 import { startEntryRun } from '../../lib/entryRun'
 import { playgroundPath } from '../../lib/routes'
+import { StreamViewPopover } from './StreamViewPopover'
+import { SchedulePeekDrawer } from './SchedulePeekDrawer'
+import { type OverlayFilterMode } from './CalendarChrome'
+import type { Note as StoredNote, Session as StoredSession, ScheduleItem } from '@/types/storage'
+import { storageService } from '@/services/storage'
+import { toEntry } from '../../lib/entryMapper'
 import type { StreamProfile } from './streamProfile'
 import { splitReadmeQueries, hasReadmeQuery } from './readmeWql'
 import { ReadmeQueryBlock } from './ReadmeQueryBlock'
@@ -400,6 +408,27 @@ export function QueriableStreamView({
   // The calendar layouts start a new entry on a given day; the dialog lives
   // here so the calendar never owns a creation flow of its own.
   const [createOnDate, setCreateOnDate] = useState<string | null>(null)
+  const [overlayMode, setOverlayMode] = useState<OverlayFilterMode>('all')
+  const [inspectedEntry, setInspectedEntry] = useState<Entry | null>(null)
+  const [selectedBatchNoteIds, setSelectedBatchNoteIds] = useState<Set<string>>(() => new Set())
+  const [batchScheduleDate, setBatchScheduleDate] = useState(() => todayKey())
+  const [batchScheduling, setBatchScheduling] = useState(false)
+  const urlMonthParam = useMemo(() => {
+    const raw = new URLSearchParams(location.search).get('month')
+    return raw && /^\d{4}-\d{2}$/.test(raw) ? raw : undefined
+  }, [location.search])
+  const handleMonthChange = useCallback(
+    (nextMonth: string) => {
+      const params = new URLSearchParams(location.search)
+      params.set('month', nextMonth)
+      const nextSearch = params.toString()
+      void navigate(
+        { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
+        { replace: true },
+      )
+    },
+    [location.pathname, location.search, navigate],
+  )
   // The run's own stage counts (scope population vs matches) — captured from
   // the engine's stage callback, never a second scan.
   const [stages, setStages] = useState<{ selected: number; matched: number } | undefined>(undefined)
@@ -605,8 +634,27 @@ export function QueriableStreamView({
       entry.kind === 'result' || entry.kind === 'segment'
         ? entry.execution?.noteId
         : entry.kind === 'note'
-          ? entry.sourceNote
+          ? (entry.id || entry.sourceNote)
           : entry.id
+
+    // Link-first scheduling for real stored Notes & remote feed previews
+    if (targetNoteId && (entry.kind === 'note' || entry.kind === 'result' || entry.kind === 'segment')) {
+      const existingNote = await storageService.getNote(targetNoteId).catch(() => undefined)
+      if (existingNote || entry.isRemotePreview) {
+        await createJournalNoteFromWorkout({
+          workoutName: existingNote?.title || entry.title,
+          category: entry.sourceNotebook || 'journal',
+          sourceNoteId: existingNote?.id ?? targetNoteId,
+          sourceNotePath: entry.sourcePath,
+          wodContent: rawContent,
+        })
+        toast({
+          title: `Scheduled "${existingNote?.title || entry.title || 'Workout'}"`,
+          description: `Linked onto ${today}.`,
+        })
+        return
+      }
+    }
 
     if (targetNoteId) {
       // 1. If segment has a specific blockContentId, resolve that block first
@@ -699,6 +747,7 @@ export function QueriableStreamView({
   // A committed result or notebook mutation bumps savedTick so the mounted listing re-queries.
   const [savedTick, setSavedTick] = useState(0)
   useEffect(() => subscribeNotebooks(() => setSavedTick(t => t + 1)), [])
+  useEffect(() => subscribeSchedule(() => setSavedTick(t => t + 1)), [])
 
   // Notebook-plane management (ticket 05): the /notebooks list plus the move
   // targets the stream rows offer (user-owned notebooks only — feed
@@ -1005,6 +1054,7 @@ export function QueriableStreamView({
             // One full execution per query change — nav facet panels read
             // this snapshot instead of re-running the query.
             publishStreamResults({ pathname: location.pathname, query: effectiveQuery, entries: results })
+            setSavedTick((prev) => prev) // keep reference clean
           }
         })
         .catch(() => {
@@ -1027,6 +1077,155 @@ export function QueriableStreamView({
       setQueryPending(false)
     }
   }, [effectiveQuery, activeEngine, parsed, location.pathname, profile.route, feedReadiness, feedImportPending, savedTick])
+
+  // Usage counts & M:N schedule enrichment for Note rows + Calendar Overlay projection
+  const [usageCounts, setUsageCounts] = useState<ReadonlyMap<string, NoteUsageCounts>>(
+    () => new Map(),
+  )
+  const [allScheduleItems, setAllScheduleItems] = useState<ScheduleItem[]>([])
+  const [overlaySessions, setOverlaySessions] = useState<StoredSession[]>([])
+  const [overlayNotesById, setOverlayNotesById] = useState<ReadonlyMap<string, StoredNote>>(() => new Map())
+
+  useEffect(() => {
+    let cancelled = false
+    const needsCounts =
+      profile.route === '/notes' ||
+      Boolean(profile.notebookSlug) ||
+      location.pathname.startsWith('/notebook/')
+    const needsCalendarOverlay =
+      Boolean(profile.calendarCapable) && (layout === 'planner' || layout === 'agenda')
+
+    if (needsCounts) {
+      journalSchedule
+        .getUsageCountsByNote()
+        .then((map) => {
+          if (!cancelled) setUsageCounts(map)
+        })
+        .catch(() => {})
+    }
+    if (needsCalendarOverlay) {
+      void Promise.all([
+        journalSchedule.listAll().catch(() => [] as ScheduleItem[]),
+        storage.readonly('sessions').getAll().catch(() => [] as StoredSession[]),
+        storageService.getAllNotes().catch(() => [] as StoredNote[]),
+      ]).then(([sched, sess, notes]) => {
+        if (cancelled) return
+        setAllScheduleItems(sched)
+        setOverlaySessions(sess)
+        setOverlayNotesById(new Map(notes.map((n) => [n.id, n])))
+      })
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [profile.route, profile.notebookSlug, profile.calendarCapable, location.pathname, layout, savedTick])
+
+  const enrichedEntries = useMemo(() => {
+    const schedDatesByNote = new Map<string, string[]>()
+    for (const item of allScheduleItems) {
+      const list = schedDatesByNote.get(item.noteId) ?? []
+      if (!list.includes(item.date)) list.push(item.date)
+      schedDatesByNote.set(item.noteId, list)
+    }
+    if (usageCounts.size === 0 && schedDatesByNote.size === 0) return entries
+    return entries.map((entry) => {
+      const counts = usageCounts.get(entry.id)
+      const schedDates = schedDatesByNote.get(entry.id)
+      if (!counts && !schedDates) return entry
+      return {
+        ...entry,
+        ...(counts ? { scheduleCount: counts.scheduleCount, sessionCount: counts.sessionCount } : {}),
+        ...(schedDates ? { scheduledDates: schedDates } : {}),
+      }
+    })
+  }, [entries, usageCounts, allScheduleItems])
+
+  const calendarOverlayEntries = useMemo(() => {
+    if (!profile.calendarCapable || (layout !== 'planner' && layout !== 'agenda')) {
+      return enrichedEntries
+    }
+    if (allScheduleItems.length === 0 && overlaySessions.length === 0) {
+      return overlayMode === 'all' ? enrichedEntries : overlayMode === 'planned' ? enrichedEntries : []
+    }
+    const matchingNoteIds = new Set(enrichedEntries.map((e) => e.id))
+    const pairedByScheduleId = new Map<string, StoredSession[]>()
+    const adhocSessions: StoredSession[] = []
+    for (const sess of overlaySessions) {
+      if (sess.origin === 'playground') continue
+      if (matchingNoteIds.size > 0 && !matchingNoteIds.has(sess.noteId) && profile.route !== '/journal') continue
+      if (sess.scheduleItemId) {
+        const list = pairedByScheduleId.get(sess.scheduleItemId) ?? []
+        list.push(sess)
+        pairedByScheduleId.set(sess.scheduleItemId, list)
+      } else {
+        adhocSessions.push(sess)
+      }
+    }
+
+    const overlay: Entry[] = []
+    const coveredNoteDates = new Set<string>()
+    for (const item of allScheduleItems) {
+      if (matchingNoteIds.size > 0 && !matchingNoteIds.has(item.noteId) && profile.route !== '/journal') continue
+      const note = overlayNotesById.get(item.noteId)
+      const base = note ? toEntry(note) : enrichedEntries.find((e) => e.id === item.noteId)
+      if (!base) continue
+      const paired = pairedByScheduleId.get(item.id) ?? []
+      coveredNoteDates.add(`${item.noteId}:${item.date}`)
+      const itemEntry: Entry = {
+        ...base,
+        date: item.date,
+        scheduledDates: [item.date],
+        overlayKind: paired.length > 0 ? 'logged' : item.status === 'skipped' ? 'skipped' : 'planned',
+        scheduleItemId: item.id,
+        scheduleSlot: item.slot,
+        scheduleNotes: item.notes,
+        scheduleStatus: paired.length > 0 ? 'completed' : item.status,
+        pairedSessions: paired.map((s) => ({
+          sessionId: s.id,
+          duration: s.duration,
+          completed: s.completed,
+          startTime: s.startTime,
+        })),
+      }
+      if (overlayMode === 'all' || (overlayMode === 'planned' && paired.length === 0) || (overlayMode === 'logged' && paired.length > 0)) {
+        overlay.push(itemEntry)
+      }
+    }
+
+    if (overlayMode === 'all' || overlayMode === 'logged') {
+      for (const sess of adhocSessions) {
+        const sessDate = sess.sessionDate ?? journalSchedule.todayKey(sess.startTime || sess.createdAt)
+        const note = overlayNotesById.get(sess.noteId)
+        const base = note ? toEntry(note) : enrichedEntries.find((e) => e.id === sess.noteId)
+        if (!base) continue
+        overlay.push({
+          ...base,
+          id: base.id,
+          date: sessDate,
+          scheduledDates: [sessDate],
+          overlayKind: 'logged',
+          adHocSessionId: sess.id,
+          adHocSessionDate: sessDate,
+          noteSourceRevision: sess.noteSourceRevision,
+          pairedSessions: [{
+            sessionId: sess.id,
+            duration: sess.duration,
+            completed: sess.completed,
+            startTime: sess.startTime,
+          }],
+        })
+      }
+    }
+
+    // Preserve any legacy dated or undated entries that didn't map through ScheduleItems yet
+    if (overlayMode === 'all') {
+      for (const entry of enrichedEntries) {
+        if (entry.date && coveredNoteDates.has(`${entry.id}:${entry.date}`)) continue
+        if (!entry.date) overlay.push(entry)
+      }
+    }
+    return overlay
+  }, [profile.calendarCapable, profile.route, layout, enrichedEntries, allScheduleItems, overlaySessions, overlayNotesById, overlayMode])
 
   // Grouping: the committed run's query `by {}` dimensions win; otherwise
   // the view setting, then the surface's Group-By favorite, then the level
@@ -1126,16 +1325,51 @@ export function QueriableStreamView({
   const appliedFilters = parsed.error || isPipelineQuery(parsed) ? 0 : parsed.filters.filter(f => supportedFilterKeys.has(f.key)).length
   const ignoredFilters = (parsed.error || isPipelineQuery(parsed) ? 0 : parsed.filters.length) - appliedFilters
 
+  const handleToggleBatchSelect = useCallback((entry: Entry) => {
+    setSelectedBatchNoteIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(entry.id)) next.delete(entry.id)
+      else next.add(entry.id)
+      return next
+    })
+  }, [])
+
+  const handleConfirmBatchSchedule = useCallback(async () => {
+    if (selectedBatchNoteIds.size === 0 || !batchScheduleDate || batchScheduling) return
+    setBatchScheduling(true)
+    setActionError(null)
+    try {
+      const sourceNbId = notebookStreamSlug ? `notebook/${notebookStreamSlug}` : undefined
+      await journalSchedule.batchSchedule(
+        [...selectedBatchNoteIds].map((noteId) => ({
+          noteId,
+          date: batchScheduleDate,
+          ...(sourceNbId ? { sourceNotebookId: sourceNbId } : {}),
+        })),
+      )
+      toast({
+        title: `Scheduled ${selectedBatchNoteIds.size} workout${selectedBatchNoteIds.size === 1 ? '' : 's'}`,
+        description: `Linked onto ${batchScheduleDate}.`,
+      })
+      setSelectedBatchNoteIds(new Set())
+      setSavedTick((t) => t + 1)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Batch scheduling failed.')
+    } finally {
+      setBatchScheduling(false)
+    }
+  }, [selectedBatchNoteIds, batchScheduleDate, batchScheduling, notebookStreamSlug])
+
   // Full dataset grouped by dimension
   const shelfVisible = profile.shelfVisible && !isPlaygroundScope
   const allGroups = useMemo(
-    () => groupEntriesByDimension(entries, groupDims, { shelfVisible }),
-    [entries, groupDims, shelfVisible],
+    () => groupEntriesByDimension(enrichedEntries, groupDims, { shelfVisible }),
+    [enrichedEntries, groupDims, shelfVisible],
   )
 
   // Progressive DOM batching — destructure members (growTo is a stable
   // callback) so effects/memos depend on values, not the per-render object.
-  const entriesBatch = useBatchedItems(entries)
+  const entriesBatch = useBatchedItems(enrichedEntries)
   const { visible: batchedVisible, growTo: growBatchTo } = entriesBatch
   const visibleGroups = useMemo(
     () => groupEntriesByDimension(batchedVisible, groupDims, { shelfVisible }),
@@ -1146,7 +1380,8 @@ export function QueriableStreamView({
   // Publish dynamic section links and L3 stream controls to NavContext
   const { setL3Items, setL3Actions, scrollToSection, navState, setStreamControls } = useNav()
   useEffect(() => {
-    if (allGroups.length === 0) {
+    // Doc A/B parity: desktop Calendar/Planner views clear the L3 section rail to maximize grid width.
+    if (layout === 'planner' || layout === 'agenda' || allGroups.length === 0) {
       setL3Items([])
       return
     }
@@ -1158,7 +1393,7 @@ export function QueriableStreamView({
     }))
     setL3Items(sectionLinks)
     return () => setL3Items([])
-  }, [allGroups, setL3Items])
+  }, [allGroups, layout, setL3Items])
 
   const availableGroupDims = useMemo(() => {
     const target = parsed.error || !isFindQuery(parsed) ? (profile.level === 'effort' ? 'effort' : 'note') : parsed.target
@@ -1460,6 +1695,17 @@ export function QueriableStreamView({
                 Add to dashboard
               </Button>
             )}
+            <StreamViewPopover
+              level={profile.level}
+              settings={settings}
+              availableLayouts={availableLayouts}
+              availableGroupDims={availableGroupDims.map((opt) => opt.id)}
+              groupDims={groupDims}
+              onLayoutChange={setLayout}
+              onToggleGroupDim={handleToggleGroupDim}
+              onToggleField={toggleField}
+              onOpenQuerySettings={querySettingsSurface ? () => setQuerySettingsOpen(true) : undefined}
+            />
             {actions}
           </ResponsiveActions>
         }
@@ -1722,7 +1968,7 @@ export function QueriableStreamView({
       ) : layout === 'agenda' ? (
         <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
           <CalendarAgendaView
-            entries={entries}
+            entries={calendarOverlayEntries}
             stickyOffset={stickyOffset}
             visibleFieldIds={settings.visibleFields}
             onAddToToday={handleAddToToday}
@@ -1730,18 +1976,28 @@ export function QueriableStreamView({
             moveNotebookTargets={moveNotebookTargets}
             onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.id, notebookId)}
             onCreateOnDay={setCreateOnDate}
+            monthParam={urlMonthParam}
+            onMonthChange={handleMonthChange}
+            overlayMode={overlayMode}
+            onOverlayModeChange={setOverlayMode}
+            onInspectEntry={setInspectedEntry}
           />
         </div>
       ) : layout === 'planner' ? (
         <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
           <CalendarPlannerView
-            entries={entries}
+            entries={calendarOverlayEntries}
             visibleFieldIds={settings.visibleFields}
             onAddToToday={handleAddToToday}
             onRunStart={handleRunEntry}
             moveNotebookTargets={moveNotebookTargets}
             onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.id, notebookId)}
             onCreateOnDay={setCreateOnDate}
+            monthParam={urlMonthParam}
+            onMonthChange={handleMonthChange}
+            overlayMode={overlayMode}
+            onOverlayModeChange={setOverlayMode}
+            onInspectEntry={setInspectedEntry}
           />
         </div>
       ) : layout === 'feed' ? (
@@ -1842,6 +2098,8 @@ export function QueriableStreamView({
                           entry={entry}
                           visibleFieldIds={settings.visibleFields}
                           tone={group.isToday ? 'primary' : 'secondary'}
+                          selected={Boolean(notebookStreamSlug) && selectedBatchNoteIds.has(entry.id)}
+                          onToggleSelect={notebookStreamSlug ? handleToggleBatchSelect : undefined}
                           onAddToToday={handleAddToToday}
                           onRunStart={handleRunEntry}
                           moveNotebookTargets={moveNotebookTargets}
@@ -1872,6 +2130,50 @@ export function QueriableStreamView({
         </div>
       )}
 
+      {notebookStreamSlug && selectedBatchNoteIds.size > 0 && (
+        <div
+          data-testid={TEST_IDS.NOTEBOOK_BATCH_SCHEDULE_BAR}
+          className="sticky bottom-4 z-30 mx-auto my-2 flex flex-wrap items-center gap-2.5 rounded-full border border-border bg-background/95 px-4 py-2 text-xs shadow-lg backdrop-blur-md"
+        >
+          <span className="font-semibold text-foreground">
+            {selectedBatchNoteIds.size} selected
+          </span>
+          <input
+            type="date"
+            aria-label="Schedule selected workouts onto date"
+            value={batchScheduleDate}
+            onChange={(e) => setBatchScheduleDate(e.target.value)}
+            disabled={batchScheduling}
+            className="h-8 rounded border border-input bg-background px-2 text-xs"
+          />
+          <Button
+            type="button"
+            size="sm"
+            disabled={batchScheduling || !batchScheduleDate}
+            onClick={() => void handleConfirmBatchSchedule()}
+            data-testid={TEST_IDS.NOTEBOOK_BATCH_SCHEDULE_SUBMIT}
+          >
+            {batchScheduling ? 'Scheduling…' : 'Schedule Selected'}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={batchScheduling}
+            onClick={() => setSelectedBatchNoteIds(new Set())}
+          >
+            Clear
+          </Button>
+        </div>
+      )}
+
+      <SchedulePeekDrawer
+        entry={inspectedEntry}
+        onClose={() => setInspectedEntry(null)}
+        onRunEntry={(entry) => void handleRunEntry(entry)}
+        onMutated={() => setSavedTick((t) => t + 1)}
+      />
+
       {/* The calendar layouts start a new entry on a day — the dialog opens
           with that date, and the user picks the notebook it lands in. */}
       <CreateJournalNoteDialog
@@ -1901,7 +2203,7 @@ export function QueriableStreamView({
               Delete &ldquo;{pendingDeleteNotebook?.title || pendingDeleteNotebook?.sourceNotebook}&rdquo;?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              All notes inside this notebook stay safe in your Journal. Any links pointing to this deleted notebook are detached.
+              Any links pointing to this deleted notebook are detached; member notes remain intact (and become unfiled if no other notebook links remain).
             </AlertDialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

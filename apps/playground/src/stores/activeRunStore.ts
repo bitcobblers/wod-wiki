@@ -31,6 +31,8 @@ export interface PendingRuntime {
   noteId: string;
   origin?: ResultOrigin;
   returnTo?: string;
+  scheduleItemId?: string;
+  sessionDate?: string;
 }
 
 export interface ParkedRun {
@@ -42,6 +44,8 @@ export interface ParkedRun {
   journalDate?: string;
   origin?: ResultOrigin;
   returnTo?: string;
+  scheduleItemId?: string;
+  sessionDate?: string;
 }
 
 export const pendingRuntimes = new Map<string, PendingRuntime>();

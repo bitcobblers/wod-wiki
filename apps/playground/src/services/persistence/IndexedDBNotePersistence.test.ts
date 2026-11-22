@@ -221,7 +221,7 @@ describe('Note persistence projections', () => {
         rows: allNotes.sort((a, b) => (b.date ?? b.createdAt) - (a.date ?? a.createdAt)).slice(q.offset ?? 0, (q.offset ?? 0) + (q.limit ?? allNotes.length)),
         selectedCount: allNotes.length,
         matchedCount: allNotes.length,
-        projectionVersion: 4,
+        projectionVersion: 5,
       };
     };
 

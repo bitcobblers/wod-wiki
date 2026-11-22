@@ -136,17 +136,19 @@ async function populatePageSources(ctx: ExecutionContext, gen: number): Promise<
   const start = zonedStartOfDay(today, ctx.timeZone);
   const end = zonedStartOfDay(civilDateAdd(today, 1), ctx.timeZone);
 
-  const [rangeEvents, allNotes, allLinks, allPages] = await Promise.all([
+  const [rangeEvents, allNotes, allLinks, allPages, allScheduleItems] = await Promise.all([
     storageService.getEventsByTimeRange(start, end),
     storageService.getAllNotes(),
     storageService.getAllPageNotes(),
     storageService.getAllPages(),
+    storage.readonly('schedule_items').getAllFromIndex('by-date', today).catch(() => []),
   ]);
   // The store's window query treats the end as inclusive — the civil day
   // is the half-open [local midnight, next local midnight).
   const events = rangeEvents.filter((e) => e.timestamp >= start && e.timestamp < end);
 
   const pages = new Map(allPages.map(page => [page.id, page]));
+  const scheduledTodayNoteIds = new Set(allScheduleItems.map(item => item.noteId));
 
   const linksByNote = new Map<string, Array<{ pageId: string; position?: number; createdAt: number }>>();
   for (const link of allLinks) {
@@ -157,7 +159,9 @@ async function populatePageSources(ctx: ExecutionContext, gen: number): Promise<
 
   const todays: typeof allNotes = [];
   for (const note of allNotes) {
-    if (noteCivilDay(note, linksByNote.get(note.id) ?? [], pages, ctx.timeZone) === today) todays.push(note);
+    if (scheduledTodayNoteIds.has(note.id) || noteCivilDay(note, linksByNote.get(note.id) ?? [], pages, ctx.timeZone) === today) {
+      todays.push(note);
+    }
   }
 
   // A newer page context superseded this population — never let an older

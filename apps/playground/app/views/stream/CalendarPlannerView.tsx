@@ -11,7 +11,11 @@
  * The planner never shows LESS of the month than the agenda does.
  */
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { CalendarIcon, Plus } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@bitcobblers/wod-wiki-ui/primitives'
+import { TEST_IDS } from '@/lib/testIds'
+import { dayPath } from '../../lib/routes'
 import type { Entry } from '../../lib/entryMapper'
 import {
   buildDayBuckets,
@@ -30,6 +34,7 @@ import {
   CalendarMonthBar,
   CalendarUndatedShelf,
   useCalendarMonth,
+  type OverlayFilterMode,
 } from './CalendarChrome'
 
 export interface CalendarPlannerViewProps {
@@ -49,6 +54,11 @@ export interface CalendarPlannerViewProps {
    * button both call this. The host opens the new-note dialog for that date.
    */
   onCreateOnDay?: (dateKey: string) => void
+  monthParam?: string
+  onMonthChange?: (monthKey: string) => void
+  overlayMode?: OverlayFilterMode
+  onOverlayModeChange?: (mode: OverlayFilterMode) => void
+  onInspectEntry?: (entry: Entry) => void
 }
 
 /** How many entries one board cell shows before it counts the rest. */
@@ -62,7 +72,15 @@ const CELL_ENTRY_LIMIT = 3
  * Thursday is free, put something there"). The explicit "+" button says so
  * without a hover; the cell-wide target does it with one tap.
  */
-function PlannerCell({ day, onCreateOnDay }: { day: CalendarDay; onCreateOnDay: (dateKey: string) => void }) {
+function PlannerCell({
+  day,
+  onCreateOnDay,
+  onInspectEntry,
+}: {
+  day: CalendarDay
+  onCreateOnDay: (dateKey: string) => void
+  onInspectEntry?: (entry: Entry) => void
+}) {
   const shown = day.entries.slice(0, CELL_ENTRY_LIMIT)
   const hidden = day.entries.length - shown.length
   const label = `${shortMonthLabel(day.date)} ${day.dayOfMonth}`
@@ -83,13 +101,16 @@ function PlannerCell({ day, onCreateOnDay }: { day: CalendarDay; onCreateOnDay: 
         data-testid="calendar-planner-cell-add"
       />
       <div className="pointer-events-none relative flex items-baseline gap-1">
-        <span
-          className={`font-mono text-[11px] font-bold ${
+        <Link
+          to={dayPath(day.key)}
+          onClick={(e) => e.stopPropagation()}
+          className={`pointer-events-auto font-mono text-[11px] font-bold hover:underline ${
             day.isToday ? 'text-primary' : day.inMonth ? 'text-foreground' : 'text-muted-foreground/50'
           }`}
+          title={`Open ${label}`}
         >
           {day.dayOfMonth}
-        </span>
+        </Link>
         {day.isToday && (
           <span className="rounded-full bg-primary/10 px-1 text-[8px] font-bold uppercase tracking-wider text-primary">
             Today
@@ -110,13 +131,49 @@ function PlannerCell({ day, onCreateOnDay }: { day: CalendarDay; onCreateOnDay: 
         )}
       </div>
       <div className="pointer-events-none relative flex flex-col gap-1">
-        {shown.map(entry => (
-          <span key={entry.id} className="pointer-events-auto">
-            <CalendarEntryChip entry={entry} />
+        {shown.map((entry, index) => (
+          <span key={entry.scheduleItemId ?? `${entry.id}-${index}`} className="pointer-events-auto">
+            <CalendarEntryChip entry={entry} onInspect={onInspectEntry} />
           </span>
         ))}
         {hidden > 0 && (
-          <span className="px-1 text-[10px] font-medium text-muted-foreground">+{hidden} more</span>
+          <span className="pointer-events-auto">
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full rounded px-1 py-0.5 text-left text-[10px] font-semibold text-primary hover:bg-muted"
+                  />
+                }
+              >
+                +{hidden} more
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                sideOffset={4}
+                data-testid={TEST_IDS.CALENDAR_MORE_POPOVER}
+                className="w-64 space-y-2 p-2.5"
+              >
+                <div className="flex items-center justify-between border-b border-border/60 pb-1.5 text-xs font-bold">
+                  <span>{label}</span>
+                  <Link to={dayPath(day.key)} className="text-[11px] font-medium text-primary hover:underline">
+                    Open day
+                  </Link>
+                </div>
+                <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
+                  {day.entries.map((entry, idx) => (
+                    <CalendarEntryChip
+                      key={entry.scheduleItemId ?? `${entry.id}-more-${idx}`}
+                      entry={entry}
+                      onInspect={onInspectEntry}
+                    />
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </span>
         )}
       </div>
     </div>
@@ -127,9 +184,11 @@ function PlannerCell({ day, onCreateOnDay }: { day: CalendarDay; onCreateOnDay: 
 function PlannerWeek({
   week,
   onCreateOnDay,
+  onInspectEntry,
 }: {
   week: CalendarWeek
   onCreateOnDay: (dateKey: string) => void
+  onInspectEntry?: (entry: Entry) => void
 }) {
   return (
     <div
@@ -143,7 +202,7 @@ function PlannerWeek({
         </span>
       </div>
       {week.days.map(day => (
-        <PlannerCell key={day.key} day={day} onCreateOnDay={onCreateOnDay} />
+        <PlannerCell key={day.key} day={day} onCreateOnDay={onCreateOnDay} onInspectEntry={onInspectEntry} />
       ))}
     </div>
   )
@@ -261,19 +320,32 @@ export function CalendarPlannerView({
   moveNotebookTargets,
   onMoveNotebook,
   onCreateOnDay,
+  monthParam,
+  onMonthChange,
+  overlayMode,
+  onOverlayModeChange,
+  onInspectEntry,
 }: CalendarPlannerViewProps) {
   const isMobile = useIsMobile()
-  const nav = useCalendarMonth()
+  const nav = useCalendarMonth(monthParam, onMonthChange)
   const buckets = useMemo(() => buildDayBuckets(entries), [entries])
   const weeks = useMemo(() => buildMonthWeeks(nav.anchor, buckets), [nav.anchor, buckets])
 
   const monthPrefix = `${nav.anchor.getFullYear()}-${String(nav.anchor.getMonth() + 1).padStart(2, '0')}`
-  const inMonth = entries.filter(entry => entry.date?.startsWith(monthPrefix)).length
+  const inMonth = entries.filter(
+    (entry) =>
+      entry.scheduledDates?.some((d) => d.startsWith(monthPrefix)) ||
+      entry.date?.startsWith(monthPrefix),
+  ).length
 
   if (entries.length === 0) {
     return (
       <div className="flex flex-1 flex-col bg-background" data-testid="calendar-planner-view">
-        <CalendarMonthBar nav={nav} />
+        <CalendarMonthBar
+          nav={nav}
+          overlayMode={overlayMode}
+          onOverlayModeChange={onOverlayModeChange}
+        />
         <p className="px-4 py-16 text-center text-xs text-muted-foreground">No entries match your search.</p>
       </div>
     )
@@ -284,6 +356,8 @@ export function CalendarPlannerView({
       <CalendarMonthBar
         nav={nav}
         meta={`${inMonth} dated ${inMonth === 1 ? 'entry' : 'entries'} in ${nav.label}`}
+        overlayMode={overlayMode}
+        onOverlayModeChange={onOverlayModeChange}
       />
 
       {isMobile ? (
@@ -311,7 +385,12 @@ export function CalendarPlannerView({
               ))}
             </div>
             {weeks.map(week => (
-              <PlannerWeek key={week.label} week={week} onCreateOnDay={onCreateOnDay ?? (() => {})} />
+              <PlannerWeek
+                key={week.label}
+                week={week}
+                onCreateOnDay={onCreateOnDay ?? (() => {})}
+                onInspectEntry={onInspectEntry}
+              />
             ))}
           </div>
         </div>

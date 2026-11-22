@@ -193,14 +193,23 @@ for (const backend of ['memory', 'indexeddb'] as const) {
       } finally { await storage.close(); }
     });
 
-    it('WW-020: stamps seedOrigin=user, journal notebook membership, and notebook_links atomically on create/saveRecord', async () => {
-      const { storage, service, entry } = await setup();
+    it('WW-020 / ADR-0009: stamps seedOrigin=user without forcing notebook/journal and syncs explicit notebook_links atomically', async () => {
+      const { storage, service, provider, entry } = await setup();
       try {
         const note = await service.getNote(entry.id);
         expect(note?.seedOrigin).toBe('user');
-        expect(note?.notebookIds).toContain('notebook/journal');
-        const links = await storage.readonly('notebook_links').getAllFromIndex('by-note', entry.id);
-        expect(links.some((l) => l.notebookId === 'notebook/journal' && l.targetKind === 'note')).toBe(true);
+        expect(note?.notebookIds).toEqual([]);
+        const explicitlyFiled = await provider.saveRecord({
+          id: 'n-filed',
+          title: 'Filed Workout',
+          rawContent: SOURCE,
+          tags: ['manual'],
+          targetDate: 1,
+          notebookIds: ['notebook/benchmarks'],
+        });
+        expect(explicitlyFiled.notebookIds).toEqual(['notebook/benchmarks']);
+        const links = await storage.readonly('notebook_links').getAllFromIndex('by-note', 'n-filed');
+        expect(links.some((l) => l.notebookId === 'notebook/benchmarks' && l.targetKind === 'note')).toBe(true);
       } finally { await storage.close(); }
     });
   });

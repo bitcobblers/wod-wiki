@@ -100,7 +100,7 @@ export async function captureRun(
   resultId: string,
   origin?: ResultOrigin,
   persistence: INotePersistence = notePersistence,
-  options?: { deferPersist?: boolean },
+  options?: { deferPersist?: boolean; scheduleItemId?: string; sessionDate?: string },
 ): Promise<CapturedRun> {
   const startedAt = Date.now();
   useActiveRunStore.getState().setActiveSessionMeta(resultId, input.noteId);
@@ -110,6 +110,8 @@ export async function captureRun(
     blockId: block.id,
     blockContentId: block.contentId,
     origin: origin ?? 'journal',
+    ...(options?.scheduleItemId ? { scheduleItemId: options.scheduleItemId } : {}),
+    ...(options?.sessionDate ? { sessionDate: options.sessionDate } : {}),
     startTime: startedAt,
     endTime: startedAt,
     duration: 0,
@@ -153,7 +155,12 @@ export async function captureStoredRun(
   block: ScriptBlock,
   resultId: string,
   origin?: ResultOrigin,
-  options?: { resolveRemoteWorkout?: (id: string) => Promise<RemoteWorkoutResolution | undefined>; deferPersist?: boolean },
+  options?: {
+    resolveRemoteWorkout?: (id: string) => Promise<RemoteWorkoutResolution | undefined>;
+    deferPersist?: boolean;
+    scheduleItemId?: string;
+    sessionDate?: string;
+  },
 ): Promise<CapturedRun> {
   const parsedRemote = parseRemoteNoteId(noteId);
   const lookupId = parsedRemote.isRemote ? parsedRemote.uuid : noteId;
@@ -194,6 +201,10 @@ export async function captureStoredRun(
     resultId,
     origin,
     notePersistence,
-    options?.deferPersist !== undefined ? { deferPersist: options.deferPersist } : undefined,
+    {
+      ...(options?.deferPersist !== undefined ? { deferPersist: options.deferPersist } : {}),
+      ...(options?.scheduleItemId ? { scheduleItemId: options.scheduleItemId } : {}),
+      ...(options?.sessionDate ? { sessionDate: options.sessionDate } : {}),
+    },
   );
 }

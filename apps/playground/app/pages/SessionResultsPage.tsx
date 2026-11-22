@@ -42,7 +42,10 @@ import {
 import { onResultSaved } from '@/services/resultRecorder';
 import { useComposerQueryState } from '../hooks/useComposerQueryState';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { dashboardsPath, notePath, sessionDetailPath, sessionsPath } from '../lib/routes';
+import type { NoteRevision, ScheduleItem, Session } from '@bitcobblers/wod-wiki-core';
+import { dashboardsPath, dayPath, notePath, sessionDetailPath, sessionsPath } from '../lib/routes';
+import { journalSchedule } from '../services/journalSchedule';
+import { storageService } from '@/services/storage';
 import { AddToDashboardSheet } from '../views/analytics/AddToDashboardSheet';
 import { QueryToDashboardDialog } from '../views/analytics/QueryToDashboardDialog';
 import { plainTextFallbackQuery } from '../views/stream/QueriableStreamView';
@@ -606,6 +609,8 @@ function SessionResultsPageInner({ sessionId }: { sessionId: string }) {
                 />
               </div>
 
+              <SessionAttributionPanel sessionId={sessionId} onAttributed={() => setRefreshTick((t) => t + 1)} />
+
               <ResultsSpreadsheetGrid
                 run={gridRun ?? baseRun}
                 compareRuns={compareRuns}
@@ -687,6 +692,233 @@ function SessionResultsPageInner({ sessionId }: { sessionId: string }) {
         }}
         context={dashboardSheetCtx}
       />
+    </div>
+  );
+}
+
+function SessionAttributionPanel({
+  sessionId,
+  onAttributed,
+}: {
+  sessionId: string;
+  onAttributed: () => void;
+}) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [linkedSchedule, setLinkedSchedule] = useState<ScheduleItem | null>(null);
+  const [nearbyMatches, setNearbyMatches] = useState<ScheduleItem[]>([]);
+  const [archivedRevision, setArchivedRevision] = useState<NoteRevision | null>(null);
+  const [showRevision, setShowRevision] = useState(false);
+  const [dismissedBanner, setDismissedBanner] = useState(false);
+  const [dateInput, setDateInput] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDismissedBanner(false);
+    setShowRevision(false);
+    setArchivedRevision(null);
+    setLinkedSchedule(null);
+    setNearbyMatches([]);
+    storageService
+      .getSessionById(sessionId)
+      .then(async (sess) => {
+        if (cancelled || !sess) return;
+        setSession(sess);
+        setDateInput(
+          sess.sessionDate ??
+            new Date(sess.startTime || sess.createdAt).toISOString().slice(0, 10),
+        );
+        if (sess.scheduleItemId) {
+          const allForNote = await journalSchedule.listForNote(sess.noteId).catch(() => []);
+          if (!cancelled) {
+            setLinkedSchedule(allForNote.find((item) => item.id === sess.scheduleItemId) ?? null);
+          }
+        } else {
+          const matches = await journalSchedule.findNearbyMatches(sess, 2).catch(() => []);
+          if (!cancelled) setNearbyMatches(matches);
+        }
+        if (sess.noteSourceRevision) {
+          const rev = await journalSchedule
+            .getNoteRevision(sess.noteId, sess.noteSourceRevision)
+            .catch(() => undefined);
+          if (!cancelled && rev) setArchivedRevision(rev);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  if (!session) return null;
+
+  const handleAttributeDate = async () => {
+    if (!dateInput) return;
+    setBusy(true);
+    try {
+      const updated = await journalSchedule.attributeSession({
+        sessionId: session.id,
+        sessionDate: dateInput,
+        ...(session.scheduleItemId ? { scheduleItemId: session.scheduleItemId } : {}),
+      });
+      setSession(updated);
+      onAttributed();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleLinkSchedule = async (item: ScheduleItem) => {
+    setBusy(true);
+    try {
+      const updated = await journalSchedule.attributeSession({
+        sessionId: session.id,
+        sessionDate: item.date,
+        scheduleItemId: item.id,
+      });
+      setSession(updated);
+      setLinkedSchedule(item);
+      setNearbyMatches([]);
+      onAttributed();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUnlinkSchedule = async () => {
+    setBusy(true);
+    try {
+      const updated = await journalSchedule.attributeSession({
+        sessionId: session.id,
+        scheduleItemId: null,
+      });
+      setSession(updated);
+      setLinkedSchedule(null);
+      const matches = await journalSchedule.findNearbyMatches(updated, 2).catch(() => []);
+      setNearbyMatches(matches);
+      onAttributed();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {!session.scheduleItemId && nearbyMatches.length > 0 && !dismissedBanner && (
+        <div
+          data-testid={TEST_IDS.SESSION_SMART_MATCH_BANNER}
+          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-4 py-2.5 text-xs"
+        >
+          <span className="font-medium text-sky-900 dark:text-sky-100">
+            Match to planned workout on <strong>{nearbyMatches[0]!.date}</strong>
+            {nearbyMatches[0]!.slot ? ` (${nearbyMatches[0]!.slot})` : ''}?
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy}
+              onClick={() => void handleLinkSchedule(nearbyMatches[0]!)}
+            >
+              Link to plan
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => setDismissedBanner(true)}
+            >
+              Keep ad-hoc
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <section
+        data-testid={TEST_IDS.SESSION_ATTRIBUTION_CARD}
+        aria-label="Session attribution and note version"
+        className="flex flex-col gap-3 rounded-lg border border-border/60 bg-background/80 p-3.5 text-xs"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-muted-foreground">
+              Journal Day
+            </span>
+            <input
+              type="date"
+              aria-label="Attributed journal day"
+              value={dateInput}
+              onChange={(e) => setDateInput(e.target.value)}
+              disabled={busy}
+              className="h-8 rounded border border-input bg-background px-2 text-xs"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy || !dateInput || dateInput === session.sessionDate}
+              onClick={() => void handleAttributeDate()}
+              className="h-8 text-xs"
+            >
+              Save day
+            </Button>
+            {session.sessionDate && (
+              <Link to={dayPath(session.sessionDate)} className="text-primary hover:underline">
+                Open {session.sessionDate}
+              </Link>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {linkedSchedule ? (
+              <>
+                <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 font-semibold text-emerald-700 dark:text-emerald-300">
+                  Linked plan: {linkedSchedule.date}
+                  {linkedSchedule.slot ? ` (${linkedSchedule.slot})` : ''}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void handleUnlinkSchedule()}
+                  className="h-7 px-2 text-[11px]"
+                >
+                  Unlink
+                </Button>
+              </>
+            ) : (
+              <span className="rounded-full border border-dashed border-border px-2.5 py-0.5 text-muted-foreground">
+                Ad-hoc Session
+              </span>
+            )}
+            {session.noteSourceRevision && (
+              <button
+                type="button"
+                onClick={() => setShowRevision((v) => !v)}
+                disabled={!archivedRevision}
+                className="rounded-full border border-border bg-muted/40 px-2.5 py-0.5 font-mono text-[11px] hover:bg-muted disabled:cursor-default"
+                title={archivedRevision ? 'View archived note version snapshot' : 'Pinned note version'}
+              >
+                Note v{session.noteSourceRevision}
+                {archivedRevision ? (showRevision ? ' (Hide)' : ' (Snapshot)') : ''}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {showRevision && archivedRevision && (
+          <div className="rounded border border-border/60 bg-muted/30 p-3 space-y-1.5">
+            <div className="font-semibold text-foreground">
+              Archived Note Version v{archivedRevision.version}: {archivedRevision.title}
+            </div>
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-muted-foreground">
+              {archivedRevision.rawContent}
+            </pre>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
