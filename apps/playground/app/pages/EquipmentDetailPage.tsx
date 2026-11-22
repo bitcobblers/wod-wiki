@@ -90,9 +90,12 @@ export function EquipmentDetailPage() {
     [slug, equipment?.label],
   );
   // ── Create mode ("/equipment/new?mode=create" or "?mode=create" on any slug) ──
-  const [createDocument, setCreateDocument] = useState(() =>
-    blankEquipmentDocument(slug && slug !== 'new' ? slug.trim().toLowerCase().replace(/\s+/g, '-') : ''),
-  );
+  const [createDocument, setCreateDocument] = useState(() => {
+    const doc = blankEquipmentDocument(
+      slug && slug !== 'new' ? slug.trim().toLowerCase().replace(/\s+/g, '-') : '',
+    );
+    return doc.endsWith('\n\n') ? doc : `${doc}\n\n`;
+  });
   const createDocumentRef = useRef(createDocument);
   const handleCreateDocumentChange = useCallback((next: string) => {
     createDocumentRef.current = next;

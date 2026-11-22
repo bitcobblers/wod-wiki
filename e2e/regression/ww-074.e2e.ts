@@ -16,7 +16,7 @@ import { loadSampleData, yAxisTickTexts } from './helpers';
 
 function widgetByTitle(page: PlaygroundTestActor['page'], title: string): Locator {
   return page.locator(
-    `xpath=//h3[normalize-space()="${title}"]/ancestor::div[contains(@class,"bg-card")][1]`,
+    `xpath=//*[self::h2 or self::h3][normalize-space()="${title}"]/ancestor::div[contains(@class,"bg-card")][1]`,
   );
 }
 

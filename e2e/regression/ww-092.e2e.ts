@@ -48,6 +48,15 @@ test.describe('WW-092 — segment table internal-label leak', () => {
 
     // The durable results surface for the recorded session.
     await app.goto(`/results/${session.id}`);
+    const splitsTable = page.locator('table').first();
+    await expect(splitsTable).toBeVisible({ timeout: 15_000 });
+    const splitsText = (await splitsTable.innerText()).replace(/\s+/g, ' ');
+    expect(splitsText).not.toMatch(/\bsegm\b/);
+    expect(splitsText).not.toContain('waiting-to-start');
+    expect(splitsText).not.toContain('user-advance');
+
+    // Switch to Tab 4 (Raw Events) where OutputStatementsTable renders segment outputs & split offsets.
+    await page.getByRole('tab', { name: /Raw Events/i }).click();
     const outputs = page.locator(
       '[data-testid="output-statements-cards"], [data-testid="output-statements-table"]',
     ).first();

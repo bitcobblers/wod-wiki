@@ -95,7 +95,7 @@ export function SingleLineYAxisTick({
   const raw = payload?.value ?? '';
   const text = formatAxisTick(raw, unit);
   return (
-    <g transform={`translate(${x},${y})`}>
+    <g transform={`translate(${x},${y})`} className="recharts-layer recharts-cartesian-axis-tick">
       <text
         x={0}
         y={0}
@@ -103,6 +103,7 @@ export function SingleLineYAxisTick({
         textAnchor="end"
         fill="hsl(var(--muted-foreground))"
         fontSize={10}
+        className="recharts-text recharts-cartesian-axis-tick-value"
         style={{ whiteSpace: 'nowrap' }}
       >
         {text}

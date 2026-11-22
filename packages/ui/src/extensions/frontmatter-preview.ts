@@ -1171,6 +1171,31 @@ export class DefaultFrontmatterWidget extends WidgetType {
     widgetCleanup.set(root, []);
     attachExternalCommitFlush(root);
     root.className = "cm-frontmatter-preview py-2 font-sans select-none";
+    if (!this.readOnly) {
+      root.addEventListener("click", (event) => {
+        const target = event.target as HTMLElement | null;
+        if (
+          target?.closest(
+            'button, input, textarea, select, a, label, [role="button"], [role="combobox"], [role="option"], [contenteditable="true"]',
+          )
+        ) {
+          return;
+        }
+        view.dispatch({ selection: { anchor: view.state.doc.length } });
+        view.focus();
+      });
+      root.addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && (event.key === "End" || event.key === "ArrowDown")) {
+          event.preventDefault();
+          event.stopPropagation();
+          view.dispatch({
+            selection: { anchor: view.state.doc.length },
+            scrollIntoView: true,
+          });
+          view.focus();
+        }
+      });
+    }
 
     const heading = document.createElement("div");
     heading.className = "mb-1.5 flex items-center px-0.5 text-xs font-medium text-muted-foreground";
@@ -1187,6 +1212,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
       summaryButton.addEventListener("click", () => {
         persistedDetailed.set(view.dom, false);
         view.dispatch({ effects: setFrontmatterDetailed.of(false) });
+        view.dom.querySelector<HTMLButtonElement>('[aria-label="Show property details"]')?.focus();
       });
       heading.appendChild(summaryButton);
     }
@@ -1207,6 +1233,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
       box.appendChild(createFrontmatterSummary(entries, () => {
         persistedDetailed.set(view.dom, true);
         view.dispatch({ effects: setFrontmatterDetailed.of(true) });
+        view.dom.querySelector<HTMLButtonElement>('[aria-label="Show property summary"]')?.focus();
       }, docKind, referenceProvider));
     } else {
     // The table always carries its Key/Value labels — a field never has to
@@ -2025,6 +2052,29 @@ class EmptyFrontmatterWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const root = document.createElement("div");
     root.className = "cm-frontmatter-preview py-2 font-sans select-none";
+    root.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest(
+          'button, input, textarea, select, a, label, [role="button"], [role="combobox"], [role="option"], [contenteditable="true"]',
+        )
+      ) {
+        return;
+      }
+      view.dispatch({ selection: { anchor: view.state.doc.length } });
+      view.focus();
+    });
+    root.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && (event.key === "End" || event.key === "ArrowDown")) {
+        event.preventDefault();
+        event.stopPropagation();
+        view.dispatch({
+          selection: { anchor: view.state.doc.length },
+          scrollIntoView: true,
+        });
+        view.focus();
+      }
+    });
 
     const heading = document.createElement("div");
     heading.className = "text-xs font-medium text-muted-foreground mb-1.5 px-0.5";

@@ -348,7 +348,7 @@ export function EffortDetailPage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    return effortToDocument(blank);
+    return `${effortToDocument(blank)}\n\n`;
   });
   const createDocumentRef = useRef(createDocument);
   const handleCreateDocumentChange = useCallback((next: string) => {

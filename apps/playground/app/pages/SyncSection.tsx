@@ -93,9 +93,10 @@ function progressLabel(event: FeedSyncProgress): string {
   }
 }
 
-function SourceCard({ source, running, disabled, onSync, onSubscribe, onDownloadOffline, onSwitchIndexOnly, onUnsubscribe, onDelete, onAutoSync, onToggleNotebook }: {
+function SourceCard({ source, running, subscribing = false, disabled, onSync, onSubscribe, onDownloadOffline, onSwitchIndexOnly, onUnsubscribe, onDelete, onAutoSync, onToggleNotebook }: {
   source: FeedSourceStatus
   running: boolean
+  subscribing?: boolean
   disabled: boolean
   onSync: (id: string) => void
   onSubscribe: (id: string) => void
@@ -165,21 +166,21 @@ function SourceCard({ source, running, disabled, onSync, onSubscribe, onDownload
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-          {!source.subscribed ? (
+          {!source.subscribed || subscribing ? (
             <Button
               size="sm"
               onClick={() => onSubscribe(source.id)}
-              disabled={disabled}
-              aria-busy={running}
+              disabled={disabled || Boolean(subscribing)}
+              aria-busy={running || Boolean(subscribing)}
               data-testid={`feed-subscribe-${source.id}`}
               className="gap-2"
             >
-              {running ? (
+              {running || subscribing ? (
                 <RefreshCw className="size-3.5 animate-spin" aria-hidden="true" />
               ) : (
                 <CloudDownload className="size-3.5" aria-hidden="true" />
               )}
-              <span>{running ? 'Subscribing…' : 'Subscribe'}</span>
+              <span>{running || subscribing ? 'Subscribing…' : 'Subscribe'}</span>
             </Button>
           ) : pending ? (
             <Button
@@ -529,6 +530,7 @@ export function SyncSection({ deps = {} }: { deps?: SyncSectionDeps } = {}) {
   const [probingUpdates, setProbingUpdates] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<null | 'all' | string>(null)
+  const [subscribingId, setSubscribingId] = useState<string | null>(null)
   const [progress, setProgress] = useState<SourceProgress[]>([])
 
   const [newLabel, setNewLabel] = useState('')
@@ -598,6 +600,7 @@ export function SyncSection({ deps = {} }: { deps?: SyncSectionDeps } = {}) {
 
   const handleSubscribe = useCallback(async (id: string) => {
     setBusyId(id)
+    setSubscribingId(id)
     setProgress([])
     const onProgress = makeProgressHandler()
     try {
@@ -614,6 +617,7 @@ export function SyncSection({ deps = {} }: { deps?: SyncSectionDeps } = {}) {
       announceOutcome(outcome, label)
       await refresh(false)
     } finally {
+      setSubscribingId(null)
       setBusyId(null)
     }
   }, [deps.subscribeFeed, makeProgressHandler, refresh, status, subscribeFn, syncSource])
@@ -856,6 +860,7 @@ export function SyncSection({ deps = {} }: { deps?: SyncSectionDeps } = {}) {
                 key={source.id}
                 source={source}
                 running={busyId === source.id || busyId === 'all'}
+                subscribing={subscribingId === source.id}
                 disabled={busyId !== null}
                 onSync={(id) => { void handleSync(id) }}
                 onSubscribe={(id) => { void handleSubscribe(id) }}
