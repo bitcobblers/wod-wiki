@@ -123,7 +123,7 @@ describe('SecondaryNav on home page', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders date window picker, group by options, and on this page when stream controls are active', () => {
+  it('retires stream controls from SecondaryNav while preserving On this page outline', () => {
     const onToggleGroupDim = mock((_dim: string) => {});
     const onQueryChange = mock((_q: string) => {});
     render(
@@ -157,6 +157,8 @@ describe('SecondaryNav on home page', () => {
               scrollToSection: () => {},
               registerScrollFn: () => {},
               setContextNav: () => {},
+              openCreateJournal: () => {},
+              registerCreateJournal: () => {},
             }}
           >
             <SecondaryNav />
@@ -165,22 +167,11 @@ describe('SecondaryNav on home page', () => {
       </MemoryRouter>,
     );
 
-    // First level item: Date window
-    expect(screen.getByTestId('l3-stream-controls')).toBeTruthy();
-    expect(screen.getByText('Date window')).toBeTruthy();
-    expect(screen.getByText('last 4w')).toBeTruthy();
+    // Retired stream controls no longer render in L3
+    expect(screen.queryByText('Date window')).toBeNull();
+    expect(screen.queryByText('Group by')).toBeNull();
 
-    // Group by properties as items to check
-    expect(screen.getByTestId('l3-groupby-options')).toBeTruthy();
-    const dateCheck = screen.getByTestId('l3-groupby-date').querySelector('input') as HTMLInputElement;
-    const tagCheck = screen.getByTestId('l3-groupby-tag').querySelector('input') as HTMLInputElement;
-    expect(dateCheck.checked).toBe(true);
-    expect(tagCheck.checked).toBe(false);
-
-    tagCheck.click();
-    expect(onToggleGroupDim).toHaveBeenCalledWith('tag');
-
-    // On this page TOC preserved under group by
+    // On this page TOC remains intact
     expect(screen.getByText('On this page')).toBeTruthy();
     expect(screen.getByText('Welcome')).toBeTruthy();
   });

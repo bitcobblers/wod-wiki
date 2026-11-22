@@ -365,6 +365,28 @@ export const TEST_IDS = {
   SESSION_SMART_MATCH_BANNER: 'session-smart-match-banner',
   DAY_SCHEDULED_SECTION: 'day-scheduled-section',
   DAY_LOGGED_SECTION: 'day-logged-section',
+
+  // ── Shell Core ─────────────────────────────────────────────────────────────
+  L3_RIGHT_DRAWER: 'l3-right-drawer',
+  L3_INLINE_RAIL: 'l3-inline-rail',
+  L3_CONNECTIONS: 'l3-connections',
+  L3_ACTIONS: 'l3-actions',
+  L3_ACTIONS_PRIMARY: 'l3-actions-primary',
+  L3_ACTIONS_GROUP_AUTHOR: 'l3-actions-group-author',
+  L3_ACTIONS_GROUP_ORGANIZE: 'l3-actions-group-organize',
+  L3_ACTIONS_GROUP_SHARE: 'l3-actions-group-share',
+  L3_ACTIONS_DANGER: 'l3-actions-danger',
+  L3_ANALYTICS_CONTROLS: 'l3-analytics-controls',
+  L3_RANGE_OPTIONS: 'l3-range-options',
+  L3_UNIT_OPTIONS: 'l3-unit-options',
+  L3_DRAWER_DONE_BTN: 'l3-drawer-done-btn',
+  L3_DRAWER_RESET_BTN: 'l3-drawer-reset-btn',
+  PEEK_DRAWER_SLOT: 'peek-drawer-slot',
+  PEEK_DRAWER_BACKDROP: 'peek-drawer-backdrop',
+  ACTIONS_DOCK: 'actions-dock',
+  ACTIONS_OVERFLOW: 'actions-overflow',
+  ACTIONS_SHEET_L3: 'actions-sheet-l3',
+  BOOT_IMPORT_PROGRESS: 'boot-import-progress',
 } as const;
 
 type LeafValues<T> = T extends string ? T : T extends Record<string, unknown> ? LeafValues<T[keyof T]> : never;

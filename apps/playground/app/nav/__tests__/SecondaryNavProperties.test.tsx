@@ -1,193 +1,115 @@
 /**
- * SecondaryNav — the L3 rail on stream routes carries the surface's controls:
- * where-filters (FacetProperties — moved here from the L2 ConditionsNavPanel)
- * plus view controls (date window, group-by, layout, visible fields). The L2
- * panel keeps navigation, labeled shortcuts and recent links only. Also covers
- * the mobile thumb ⋯ sheet's L3 block (MobileStreamControlsNav).
+ * SecondaryNav — canonical L3 outline, connections & grouped actions rail.
+ *
+ * Verifies:
+ *   - Stream controls are retired (resting L3 = 0px on stream routes even if
+ *     legacy `streamControls` is published).
+ *   - AnalyticsControlsNav renders Range, Units, and Query settings in Slot 1.
+ *   - `l3Connections` renders under "Connections" beside "On this page".
+ *   - Grouped `l3Actions` renders pinned `primary` CTA, flat secondary rows
+ *     when < 4 secondary actions exist, collapsible `<details>` disclosures for
+ *     `author` / `organize` / `share` when >= 4 secondary actions exist, and a
+ *     separated red `danger` block.
  */
 
-import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test'
-import { render, screen, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
-import { MemoryRouter, useLocation } from 'react-router-dom'
-import type { Location } from 'react-router-dom'
+import { describe, it, expect, afterEach, mock } from 'bun:test'
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
 
-import { parseQuery, isFindQuery, type AnyParsedQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-wql'
-
-import { storageService } from '@/services/storage'
-import type { Note } from '@/types/storage'
-
-import { publishStreamResults, type StreamResultSnapshot } from '../../views/stream/streamResults'
-import { FEEDS_STREAM_PROFILE } from '../../views/stream/streamProfile'
-import { GROUP_BY_DIMENSION_IDS, resolveGroupByOptions } from '../../lib/groupByOptions'
-import type { Entry } from '../../lib/entryMapper'
-import type { AnalyticsNavControls, L3ActionItem, StreamNavControls } from '../NavContext'
-import { wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
-
+import { TEST_IDS } from '@/lib/testIds'
+import type { AnalyticsNavControls, L3ActionItem, NavContextValue, StreamNavControls } from '../NavContext'
 import { NavContext, initialNavState } from '../NavContext'
 import { NavigationDrawerProvider } from '../NavigationDrawerContext'
 import { SecondaryNav } from '../SecondaryNav'
-import { facetOptions } from '../panels/conditionsFacets'
+import type { MenuSpec } from '../menuModel'
 
-const entry = (over: Partial<Entry> & { id: string; title: string }): Entry => ({
-  kind: 'note',
-  sourceNotebook: 'journal',
-  sourceNote: over.id,
-  date: null,
-  ...over,
-})
-
-const ENTRIES: Entry[] = [
-  entry({ id: 'n1', noteType: 'note', title: 'Alpha', tags: ['strength'] }),
-]
-
-const MEMBERSHIP = new Map<string, Array<{ label: string; type?: string }>>([
-  ['n1', [{ label: 'strength' }]],
-  ['notebook:x/one', [{ label: 'barbell', type: 'equipment' }]],
-])
-
-const EFFORT_MEMBERSHIP = new Map<string, string[]>([
-  ['n1', ['fran']],
-  ['notebook:x/one', ['fran', 'thruster']],
-])
-
-const DEFAULT_Q = FEEDS_STREAM_PROFILE.defaultWql
-
-function controls(over: Partial<StreamNavControls> = {}): StreamNavControls {
-  return {
-    query: DEFAULT_Q,
-    onQueryChange: () => {},
-    groupDims: ['date'],
-    onToggleGroupDim: () => {},
-    availableGroupDims: [
-      { id: 'date', label: 'Date' },
-      { id: 'tag', label: 'Tags' },
-    ],
-    settings: { level: 'note', layout: 'cards', visibleFields: ['title', 'tags'] },
-    onLayoutChange: () => {},
-    onToggleField: () => {},
-    level: 'note',
-    ...over,
+function renderSecondaryNav(
+  overrides: Partial<NavContextValue> = {},
+  {
+    route = '/note/1',
+    closeDrawer = () => {},
+    pageAction,
+    spec,
+  }: {
+    route?: string
+    closeDrawer?: () => void
+    pageAction?: React.ReactNode
+    spec?: MenuSpec
+  } = {},
+) {
+  const ctx: NavContextValue = {
+    tree: [],
+    navState: initialNavState,
+    dispatch: () => {},
+    peekTarget: null,
+    openPeek: () => {},
+    closePeek: () => {},
+    l3Items: [],
+    setL3Items: () => {},
+    l3Connections: undefined,
+    setL3Connections: () => {},
+    l3Actions: [],
+    setL3Actions: () => {},
+    secondarySpec: undefined,
+    setSecondarySpec: () => {},
+    streamControls: null,
+    setStreamControls: () => {},
+    analyticsControls: null,
+    setAnalyticsControls: () => {},
+    scrollToSection: () => {},
+    registerScrollFn: () => {},
+    openCreateJournal: () => {},
+    registerCreateJournal: () => {},
+    setContextNav: () => {},
+    ...overrides,
   }
-}
 
-let lastLocation: Location | null = null
-function PathTracker() {
-  lastLocation = useLocation()
-  return null
-}
-
-function renderRail(at = '/feeds', streamControls?: StreamNavControls | null) {
   return render(
-    <MemoryRouter initialEntries={[at]}>
-      <PathTracker />
+    <MemoryRouter initialEntries={[route]}>
       <NuqsAdapter>
-        <NavContext.Provider
-          value={{
-            tree: [],
-            navState: initialNavState,
-            dispatch: () => {},
-            l3Items: [],
-            setL3Items: () => {},
-            secondarySpec: undefined,
-            setSecondarySpec: () => {},
-            streamControls,
-            setStreamControls: () => {},
-            scrollToSection: () => {},
-            registerScrollFn: () => {},
-            openCreateJournal: () => {},
-            registerCreateJournal: () => () => {},
-            setContextNav: () => {},
-          }}
-        >
-          <SecondaryNav />
-        </NavContext.Provider>
+        <NavigationDrawerProvider close={closeDrawer}>
+          <NavContext.Provider value={ctx}>
+            <SecondaryNav spec={spec} pageAction={pageAction} />
+          </NavContext.Provider>
+        </NavigationDrawerProvider>
       </NuqsAdapter>
     </MemoryRouter>,
   )
 }
 
-const originalGetNoteTagLabelsBatch = storageService.getNoteTagLabelsBatch
-const originalGetEffortSlugsByNoteBatch = storageService.getEffortSlugsByNoteBatch
-const originalGetAllNotes = storageService.getAllNotes
-
-beforeEach(() => {
-  lastLocation = null
-  storageService.getNoteTagLabelsBatch = async () => MEMBERSHIP
-  storageService.getEffortSlugsByNoteBatch = async () => EFFORT_MEMBERSHIP
-  storageService.getAllNotes = async () => []
-})
-
 afterEach(() => {
   cleanup()
-  storageService.getNoteTagLabelsBatch = originalGetNoteTagLabelsBatch
-  storageService.getEffortSlugsByNoteBatch = originalGetEffortSlugsByNoteBatch
-  storageService.getAllNotes = originalGetAllNotes
 })
 
-// ── placement: the L3 rail owns view controls AND where-filters ──────────────
+describe('SecondaryNav stream retirement (0px resting L3)', () => {
+  it('renders nothing on stream routes even when legacy streamControls is published', () => {
+    const legacyControls: StreamNavControls = {
+      query: ':journal{} last 4w',
+      onQueryChange: () => {},
+      groupDims: ['date'],
+      onToggleGroupDim: () => {},
+      availableGroupDims: [{ id: 'date', label: 'Date' }],
+      settings: { level: 'note', layout: 'cards', visibleFields: ['title'] },
+      onLayoutChange: () => {},
+      onToggleField: () => {},
+      level: 'note',
+    }
 
-describe('SecondaryNav L3 controls on stream routes', () => {
-  it('renders view controls plus where-filters over the current query', () => {
-    renderRail('/feeds', controls())
-    publishStreamResults({ pathname: '/feeds', query: DEFAULT_Q, entries: ENTRIES })
-
-    expect(screen.getByTestId('l3-stream-controls')).toBeTruthy()
-    expect(screen.getByText('Date window')).toBeTruthy()
-    expect(screen.getByText('Group by')).toBeTruthy()
-    expect(screen.getByTestId('l3-layout-options')).toBeTruthy()
-    expect(screen.getByTestId('l3-field-options')).toBeTruthy()
-
-    // The moved L2 facet accordion renders here, titled Filters.
-    expect(screen.getByTestId('l3-filters')).toBeTruthy()
-    expect(screen.getByText('Filters')).toBeTruthy()
-    expect(screen.getByTestId('conditions-section-tags')).toBeTruthy()
+    const { container } = renderSecondaryNav({ streamControls: legacyControls }, { route: '/journal' })
+    expect(container.firstChild).toBeNull()
+    expect(screen.queryByText('Date window')).toBeNull()
+    expect(screen.queryByText('Group by')).toBeNull()
   })
 
-  it('drives layout and field visibility through the published controls', () => {
-    const onLayoutChange = mock(() => {})
-    const onToggleField = mock(() => {})
-    renderRail('/feeds', controls({ onLayoutChange, onToggleField }))
-
-    // Layout mirrors the published settings and forwards picks.
-    expect(screen.getByTestId('l3-layout-cards').getAttribute('aria-pressed')).toBe('true')
-    fireEvent.click(screen.getByTestId('l3-layout-rows'))
-    expect(onLayoutChange).toHaveBeenCalledWith('rows')
-
-    // Fields mirror visibleFields and forward toggles.
-    const titleField = screen.getByTestId('l3-field-title').querySelector('input') as HTMLInputElement
-    const excerptField = screen.getByTestId('l3-field-excerpt').querySelector('input') as HTMLInputElement
-    expect(titleField.checked).toBe(true)
-    expect(excerptField.checked).toBe(false)
-    fireEvent.click(excerptField)
-    expect(onToggleField).toHaveBeenCalledWith('excerpt')
-  })
-
-  it('renders nothing when the route publishes no controls and no page index', () => {
-    const { container } = renderRail('/feeds', undefined)
+  it('renders nothing when no modifiers, outline, connections, or actions exist', () => {
+    const { container } = renderSecondaryNav({}, { route: '/feeds' })
     expect(container.firstChild).toBeNull()
   })
-
-  it('group-by parity: the rail offers exactly the shared-vocabulary dimensions the stream picker derives', () => {
-    // The stream view publishes resolveGroupByOptions(wqlGroupingDimensions…);
-    // the rail renders that same list — same dims, same order, same labels.
-    const supported = wqlGroupingDimensions('note', 'find')
-    const dims = resolveGroupByOptions(supported, FEEDS_STREAM_PROFILE.groupByOptions)
-    renderRail('/feeds', controls({ availableGroupDims: dims }))
-
-    const options = screen.getByTestId('l3-groupby-options')
-    expect(options.children.length).toBe(dims.length)
-    for (const d of dims) {
-      expect(GROUP_BY_DIMENSION_IDS).toContain(d.id)
-      expect(screen.getByTestId(`l3-groupby-${d.id}`)).toBeTruthy()
-    }
-  })
 })
 
-// ── 3-slot L3 anatomy: AnalyticsControlsNav + Goto + Actions ─────────────────
-
-describe('SecondaryNav 3-slot anatomy (AnalyticsControlsNav + Actions)', () => {
-  it('renders AnalyticsControlsNav (Range, Units, Query settings) in Slot 1 and Actions in Slot 3', () => {
+describe('SecondaryNav 3-slot anatomy (AnalyticsControlsNav + Outline + Connections + Grouped Actions)', () => {
+  it('renders AnalyticsControlsNav (Range, Units, Query settings) in Slot 1, Outline in Slot 2, and Actions in Slot 3', () => {
     const onWeeksChange = mock(() => {})
     const onOpenQuerySettings = mock(() => {})
     const onRunAction = mock(() => {})
@@ -205,40 +127,16 @@ describe('SecondaryNav 3-slot anatomy (AnalyticsControlsNav + Actions)', () => {
       { id: 'save-dash', label: 'Save to dashboard', onRun: onRunAction },
     ]
 
-    render(
-      <MemoryRouter initialEntries={['/dashboards']}>
-        <NuqsAdapter>
-          <NavigationDrawerProvider close={closeDrawer}>
-            <NavContext.Provider
-              value={{
-                tree: [],
-                navState: initialNavState,
-                dispatch: () => {},
-                l3Items: [{ id: 'sec-1', label: 'Overview', level: 3, action: { type: 'scroll', sectionId: 'sec-1' } }],
-                setL3Items: () => {},
-                l3Actions,
-                setL3Actions: () => {},
-                analyticsControls,
-                setAnalyticsControls: () => {},
-                secondarySpec: undefined,
-                setSecondarySpec: () => {},
-                streamControls: null,
-                setStreamControls: () => {},
-                scrollToSection: () => {},
-                registerScrollFn: () => {},
-                openCreateJournal: () => {},
-                registerCreateJournal: () => () => {},
-                setContextNav: () => {},
-              }}
-            >
-              <SecondaryNav />
-            </NavContext.Provider>
-          </NavigationDrawerProvider>
-        </NuqsAdapter>
-      </MemoryRouter>,
+    renderSecondaryNav(
+      {
+        l3Items: [{ id: 'sec-1', label: 'Overview', level: 3, action: { type: 'scroll', sectionId: 'sec-1' } }],
+        l3Actions,
+        analyticsControls,
+      },
+      { route: '/dashboards', closeDrawer },
     )
 
-    expect(screen.getByTestId('l3-analytics-controls')).toBeTruthy()
+    expect(screen.getByTestId(TEST_IDS.L3_ANALYTICS_CONTROLS)).toBeTruthy()
     expect(screen.getByTestId('l3-range-8w').getAttribute('aria-pressed')).toBe('true')
     fireEvent.click(screen.getByTestId('l3-range-4w'))
     expect(onWeeksChange).toHaveBeenCalledWith(4)
@@ -250,7 +148,7 @@ describe('SecondaryNav 3-slot anatomy (AnalyticsControlsNav + Actions)', () => {
     expect(screen.getByText('On this page')).toBeTruthy()
     expect(screen.getByText('Overview')).toBeTruthy()
 
-    const actionsSection = screen.getByTestId('l3-actions')
+    const actionsSection = screen.getByTestId(TEST_IDS.L3_ACTIONS)
     expect(actionsSection.textContent).toContain('Actions')
     fireEvent.click(screen.getByRole('button', { name: 'Save to dashboard' }))
     expect(onRunAction).toHaveBeenCalledTimes(1)
@@ -258,280 +156,118 @@ describe('SecondaryNav 3-slot anatomy (AnalyticsControlsNav + Actions)', () => {
   })
 
   it('disables unit buttons with pinned hint when unitForced is true', () => {
-    render(
-      <MemoryRouter initialEntries={['/dashboards']}>
-        <NuqsAdapter>
-          <NavContext.Provider
-            value={{
-              tree: [],
-              navState: initialNavState,
-              dispatch: () => {},
-              l3Items: [],
-              setL3Items: () => {},
-              analyticsControls: { showRange: false, showUnits: true, unitForced: true },
-              setAnalyticsControls: () => {},
-              secondarySpec: undefined,
-              setSecondarySpec: () => {},
-              streamControls: null,
-              setStreamControls: () => {},
-              scrollToSection: () => {},
-              registerScrollFn: () => {},
-              openCreateJournal: () => {},
-              registerCreateJournal: () => () => {},
-              setContextNav: () => {},
-            }}
-          >
-            <SecondaryNav />
-          </NavContext.Provider>
-        </NuqsAdapter>
-      </MemoryRouter>,
+    renderSecondaryNav(
+      {
+        analyticsControls: { showRange: false, showUnits: true, unitForced: true },
+      },
+      { route: '/dashboards' },
     )
 
     expect(screen.getByText(/pinned by query/i)).toBeTruthy()
     expect((screen.getByTestId('l3-unit-kg') as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByTestId('l3-unit-lb') as HTMLButtonElement).disabled).toBe(true)
   })
-})
 
-// ── the moved facet accordion: tri-state rows / narrowing / pending / recovery ──
+  it('renders l3Connections under Connections beside On this page and supports peek callbacks', () => {
+    const onPeekEffort = mock(() => {})
+    const l3Connections: MenuSpec = [
+      {
+        kind: 'section',
+        id: 'note-context-efforts',
+        label: 'Efforts',
+        entries: [
+          {
+            kind: 'link',
+            id: 'effort:back-squat',
+            label: 'Back Squat',
+            onSelect: onPeekEffort,
+            filterTo: '/notes?q=%3Anote%7Beffort%3Aback-squat%7D',
+          },
+        ],
+      },
+    ]
 
-function publish(snapshot: StreamResultSnapshot) {
-  act(() => publishStreamResults(snapshot))
-}
-
-/** The row's single cycle button; its current state lives on `data-state`. */
-function stateButton(key: string, value: string): HTMLButtonElement {
-  return screen.getByTestId(`conditions-state-${key}:${value}`) as HTMLButtonElement
-}
-
-function routedQuery(): string {
-  return new URLSearchParams(lastLocation!.search).get('q') ?? ''
-}
-
-function findOf(parsed: AnyParsedQuery): ParsedFindQuery | null {
-  return !parsed.error && isFindQuery(parsed) ? parsed : null
-}
-
-function tagsValues(parsed: ParsedFindQuery): string[] {
-  return parsed.filters
-    .filter(f => f.key === 'tags' && !f.negate)
-    .flatMap(f => f.values.map(v => v.value))
-}
-
-function textValues(parsed: ParsedFindQuery): string[] {
-  return parsed.filters
-    .filter(f => f.key === 'text' && !f.negate)
-    .flatMap(f => f.values.map(v => v.value))
-}
-
-// Canonical corpus rows are UUID-keyed — no path stem to split — so a
-// notebook entry's facet vocabulary must come from the note's notebook-slug
-// family aggregation over the junction batch. Exercised through the rendered
-// rail: the family-only value ('benchmark', carried by the second corpus
-// note) must surface for an entry whose notebook is the family.
-describe('canonical tag membership through the L3 rail', () => {
-  it('lists family-aggregated corpus tags for notebook entries with UUID note ids', async () => {
-    storageService.getAllNotes = async () => [
-      { id: 'uuid-fran', title: 'Fran', createdAt: 1, sourceId: 'notebook:crossfit-girls/fran' },
-      { id: 'uuid-readme', title: 'Crossfit Girls', createdAt: 1, sourceId: 'notebook:crossfit-girls' },
-    ] as Note[];
-    storageService.getNoteTagLabelsBatch = async () =>
-      new Map([
-        ['uuid-fran', [{ label: 'strength' }]],
-        ['uuid-readme', [{ label: 'strength' }, { label: 'benchmark' }]],
-      ]);
-    renderRail('/notebooks?q=%3Anotebooks%7Btags%3Astrength%7D%20by%20%7Btag%7D', controls({ query: ':notebooks{tags:strength} by {tag}' }))
-    publish({
-      pathname: '/notebooks',
-      query: ':notebooks{tags:strength} by {tag}',
-      entries: [entry({ id: 'f1', sourceNotebook: 'crossfit-girls', title: 'Fran' })],
-    })
-    const tagsButton = await waitFor(() => {
-      const button = screen.getByTestId('conditions-section-tags').querySelector('button')
-      if (!button) throw new Error('tags accordion not rendered yet')
-      return button
-    })
-    if (tagsButton.getAttribute('aria-expanded') === 'false') {
-      fireEvent.click(tagsButton)
-    }
-    await waitFor(() => expect(screen.getByTestId('conditions-row-tags:benchmark')).toBeTruthy())
-    expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy()
-  })
-})
-
-describe('FacetProperties in the L3 stream controls', () => {
-  it('toggles include/off on stable rows and narrows counts', async () => {
-    renderRail("/feeds", controls())
-    publish({ pathname: '/feeds', query: DEFAULT_Q, entries: ENTRIES })
-
-    // Open the Tag section and read the option rows over the full results.
-    fireEvent.click(await waitFor(() => screen.getByText('Tag')))
-    await waitFor(() => {
-      expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy()
-      expect(screen.getByTestId('conditions-row-tags:barbell')).toBeTruthy()
+    renderSecondaryNav({
+      l3Items: [{ id: 'sec-wod', label: 'Strength Block', level: 3, action: { type: 'scroll', sectionId: 'sec-wod' } }],
+      l3Connections,
     })
 
-    // Include strength → the routed query gains tags:strength and the row
-    // flips to included WITHOUT re-clicking the accordion header (open state
-    // survives the query change)…
-    fireEvent.click(stateButton('tags', 'strength'))
-    await waitFor(() => expect(tagsValues(findOf(parseQuery(routedQuery()))!)).toEqual(['strength']))
-    expect(stateButton('tags', 'strength').dataset.state).toBe('include')
-    expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy()
+    expect(screen.getByText('On this page')).toBeTruthy()
+    const connectionsBlock = screen.getByTestId(TEST_IDS.L3_CONNECTIONS)
+    expect(within(connectionsBlock).getByText('Connections')).toBeTruthy()
+    expect(within(connectionsBlock).getByText('Efforts')).toBeTruthy()
 
-    // …and the narrowed published result set keeps empty selectors visible with count 0 and faded styling.
-    publish({
-      pathname: '/feeds',
-      query: routedQuery(),
-      entries: ENTRIES.filter(e => e.id === 'n1'),
-    })
-    await waitFor(() => {
-      const barbell = screen.getByTestId('conditions-row-tags:barbell')
-      expect(barbell).toBeTruthy()
-      expect(barbell.className).toContain('opacity-40')
-      expect(barbell.textContent).toContain('0')
-    })
-    // The selected value stays listed (removable), not duplicated as an option.
-    expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy()
-
-    // Off removes the value from both polarities — the cycle passes through
-    // exclude, which must land (matching run published) before the next click.
-    fireEvent.click(stateButton('tags', 'strength'))
-    publish({
-      pathname: '/feeds',
-      query: routedQuery(),
-      entries: ENTRIES.filter(e => e.id === 'notebook:x/one'),
-    })
-    await waitFor(() => expect(stateButton('tags', 'strength').dataset.state).toBe('exclude'))
-    fireEvent.click(stateButton('tags', 'strength'))
-    await waitFor(() => expect(tagsValues(findOf(parseQuery(routedQuery()))!)).toEqual([]))
-    expect(routedQuery()).not.toContain('!tags')
+    fireEvent.click(within(connectionsBlock).getByRole('button', { name: 'Back Squat' }))
+    expect(onPeekEffort).toHaveBeenCalledTimes(1)
   })
 
-  it('excludes values, keeps them listed past their result support, and recovers', async () => {
-    renderRail("/feeds", controls())
-    publish({ pathname: '/feeds', query: DEFAULT_Q, entries: ENTRIES })
-    fireEvent.click(await waitFor(() => screen.getByText('Tag')))
-    await waitFor(() => expect(screen.getByTestId('conditions-row-tags:barbell')).toBeTruthy())
+  it('renders grouped l3Actions with pinned primary CTA, collapsible disclosures at >=4 secondary actions, and separated red danger', () => {
+    const onRun = mock(() => {})
+    const onAddTimer = mock(() => {})
+    const onDelete = mock(() => {})
 
-    // Cycle: off → include → exclude; the matching run must land between
-    // steps (controls disable while a fresh execution is pending).
-    fireEvent.click(stateButton('tags', 'barbell'))
-    publish({ pathname: '/feeds', query: routedQuery(), entries: ENTRIES })
-    await waitFor(() => expect(stateButton('tags', 'barbell').dataset.state).toBe('include'))
-    fireEvent.click(stateButton('tags', 'barbell'))
-    await waitFor(() => expect(routedQuery()).toContain('!tags:barbell'))
-    expect(stateButton('tags', 'barbell').dataset.state).toBe('exclude')
+    const l3Actions: L3ActionItem[] = [
+      { id: 'run', label: 'Run Workout', group: 'primary', onRun },
+      { id: 'add-timer', label: 'Add timer', group: 'author', onRun: onAddTimer },
+      { id: 'token-inspector', label: 'Token Inspector', group: 'author', onRun: () => {} },
+      { id: 'placements', label: 'Notebooks & Pages', group: 'organize', onRun: () => {} },
+      { id: 'clone', label: 'Clone', group: 'organize', onRun: () => {} },
+      { id: 'copy-link', label: 'Copy link', group: 'share', onRun: () => {} },
+      { id: 'delete', label: 'Delete note', group: 'danger', onRun: onDelete },
+    ]
 
-    // Zero results: the exclusion stays listed with its removal control…
-    publish({ pathname: '/feeds', query: routedQuery(), entries: [] })
-    await waitFor(() => {
-      expect(screen.getByTestId('conditions-row-tags:barbell')).toBeTruthy()
-      expect(stateButton('tags', 'barbell').disabled).toBe(false)
-    })
-    // …and Off clears the negation back to a tags-free query.
-    fireEvent.click(stateButton('tags', 'barbell'))
-    await waitFor(() => {
-      expect(tagsValues(findOf(parseQuery(routedQuery()))!)).toEqual([])
-      expect(routedQuery()).not.toContain('!tags')
-    })
+    renderSecondaryNav(
+      { l3Actions },
+      { pageAction: <button type="button">Download Markdown</button> },
+    )
+
+    // Pinned primary CTA
+    const primaryBox = screen.getByTestId(TEST_IDS.L3_ACTIONS_PRIMARY)
+    const primaryBtn = within(primaryBox).getByRole('button', { name: 'Run Workout' })
+    expect(primaryBtn.className).toContain('bg-primary')
+    fireEvent.click(primaryBtn)
+    expect(onRun).toHaveBeenCalledTimes(1)
+
+    // Collapsible native <details> disclosures for Author, Organize, Share & Export
+    const authorDetails = screen.getByTestId(TEST_IDS.L3_ACTIONS_GROUP_AUTHOR) as HTMLDetailsElement
+    const organizeDetails = screen.getByTestId(TEST_IDS.L3_ACTIONS_GROUP_ORGANIZE) as HTMLDetailsElement
+    const shareDetails = screen.getByTestId(TEST_IDS.L3_ACTIONS_GROUP_SHARE) as HTMLDetailsElement
+    expect(authorDetails.tagName).toBe('DETAILS')
+    expect(organizeDetails.tagName).toBe('DETAILS')
+    expect(shareDetails.tagName).toBe('DETAILS')
+    expect(authorDetails.textContent).toContain('Author')
+    expect(authorDetails.textContent).toContain('2')
+    expect(organizeDetails.textContent).toContain('Organize')
+    expect(organizeDetails.textContent).toContain('2')
+    expect(shareDetails.textContent).toContain('Share & Export')
+    expect(shareDetails.textContent).toContain('2') // Copy link + Download Markdown
+
+    fireEvent.click(within(authorDetails).getByRole('button', { name: 'Add timer' }))
+    expect(onAddTimer).toHaveBeenCalledTimes(1)
+
+    // Separated red Danger block at bottom
+    const dangerBox = screen.getByTestId(TEST_IDS.L3_ACTIONS_DANGER)
+    const dangerBtn = within(dangerBox).getByRole('button', { name: 'Delete note' })
+    expect(dangerBtn.className).toContain('text-destructive')
+    fireEvent.click(dangerBtn)
+    expect(onDelete).toHaveBeenCalledTimes(1)
   })
 
-  it('restores selections from the URL alone and keeps them removable at zero results', async () => {
-    // Restoration: the selection renders from the routed q= with NO snapshot.
-    renderRail('/feeds?q=%3Anotebook%7Btags%3Astrength%7D%20by%20%7Btag%7D', controls({ query: ':notebook{tags:strength} by {tag}' }))
-    expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy()
-    expect(stateButton('tags', 'strength').dataset.state).toBe('include')
+  it('keeps secondary actions flat and immediately visible when fewer than 4 secondary actions exist', () => {
+    const l3Actions: L3ActionItem[] = [
+      { id: 'override', label: 'Override Effort', group: 'primary', onRun: () => {} },
+      { id: 'resolved', label: 'Show Resolved', group: 'author', onRun: () => {} },
+      { id: 'copy', label: 'Copy link', group: 'share', onRun: () => {} },
+      { id: 'delete', label: 'Delete', group: 'danger', onRun: () => {} },
+    ]
 
-    // Selected-zero recovery: an empty result set keeps the selection listed…
-    publish({
-      pathname: '/feeds',
-      query: ':notebook{tags:strength} by {tag}',
-      entries: [],
-    })
-    await waitFor(() => expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy())
-    // …removable back to a tags-free query (canonical head scope remains);
-    // the cycle steps through exclude once its matching run lands.
-    fireEvent.click(stateButton('tags', 'strength'))
-    publish({ pathname: '/feeds', query: routedQuery(), entries: [] })
-    await waitFor(() => expect(stateButton('tags', 'strength').dataset.state).toBe('exclude'))
-    fireEvent.click(stateButton('tags', 'strength'))
-    await waitFor(() => expect(tagsValues(findOf(parseQuery(routedQuery()))!)).toEqual([]))
-  })
+    renderSecondaryNav({ l3Actions })
 
-  it('never offers options from a stale snapshot (previous page or superseded draft)', () => {
-    renderRail("/feeds", controls())
-    publish({ pathname: '/journal', query: ':journal{}', entries: ENTRIES })
-    // No option rows anywhere: the published run belongs to another page
-    // (hasEverPublished gates rendering). facetOptions itself degrades to
-    // the corpus vocabulary at count 0 — the empty criteria stay listed.
-    expect(screen.queryByTestId('conditions-row-tags:strength')).toBeNull()
-    expect(screen.queryByTestId('conditions-row-tags:barbell')).toBeNull()
-    expect(facetOptions('note', 'tags', { entries: [], tagMembership: MEMBERSHIP, effortMembership: EFFORT_MEMBERSHIP })).toEqual([
-      { value: 'barbell', count: 0 },
-      { value: 'strength', count: 0 },
-    ])
-  })
-
-  it('retains prior rows visibly disabled while a matching execution is pending', async () => {
-    renderRail("/feeds", controls())
-    publish({ pathname: '/feeds', query: DEFAULT_Q, entries: ENTRIES })
-    fireEvent.click(await waitFor(() => screen.getByText('Tag')))
-    await waitFor(() => expect(stateButton('tags', 'strength').disabled).toBe(false))
-
-    fireEvent.click(stateButton('tags', 'strength'))
-    // Snapshot still matches the OLD query: committed rows stay visible at
-    // their prior counts, every control disabled — no disappearing flash.
-    expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy()
-    expect(screen.getByTestId('conditions-row-tags:barbell')).toBeTruthy()
-    expect(stateButton('tags', 'strength').dataset.state).toBe('include')
-    expect(stateButton('tags', 'strength').disabled).toBe(true)
-    expect(stateButton('tags', 'barbell').disabled).toBe(true)
-
-    // Matching snapshot lands → controls re-enable on the fresh counts (empty selectors stay with count 0).
-    publish({
-      pathname: '/feeds',
-      query: routedQuery(),
-      entries: ENTRIES.filter(e => e.id === 'n1'),
-    })
-    await waitFor(() => expect(stateButton('tags', 'strength').disabled).toBe(false))
-    const barbell = screen.getByTestId('conditions-row-tags:barbell')
-    expect(barbell).toBeTruthy()
-    expect(barbell.textContent).toContain('0')
-  })
-
-  it('renders a jump to WQL link for text search; outside the stream page it is a safe no-op', async () => {
-    renderRail('/feeds', controls())
-    publish({ pathname: '/feeds', query: DEFAULT_Q, entries: ENTRIES })
-    expect(screen.getByTestId('conditions-jump-wql-text')).toBeTruthy()
-    // No stream-query-bar in this host: the click degrades to a no-op and
-    // the routed query is untouched.
-    fireEvent.click(screen.getByTestId('conditions-jump-wql-text'))
-    expect(routedQuery()).toBe('')
-  })
-
-  it('shows no count badge on the live text row while categorical counts remain', async () => {
-    renderRail("/feeds", controls())
-    publish({ pathname: '/feeds', query: DEFAULT_Q, entries: ENTRIES })
-    // Open the tags accordion via its section wrapper — no label wording pin.
-    const tagsButton = await waitFor(() => {
-      const button = screen.getByTestId('conditions-section-tags').querySelector('button')
-      if (!button) throw new Error('tags accordion not rendered yet')
-      return button
-    })
-    if (tagsButton.getAttribute('aria-expanded') === 'false') {
-      fireEvent.click(tagsButton)
-    }
-    await waitFor(() => expect(screen.getByTestId('conditions-row-tags:strength')).toBeTruthy())
-
-    // Typing in the live Contains box rewrites the query's text condition;
-    // the value becomes a row in the Contains section.
-    fireEvent.change(screen.getByTestId('conditions-input-text'), { target: { value: 'PW Workout' } })
-    await waitFor(() => expect(textValues(findOf(parseQuery(routedQuery()))!)).toEqual(['PW Workout']))
-    const textRow = screen.getByTestId('conditions-row-text:PW Workout')
-    expect(textRow.querySelector('span.tabular-nums')).toBeNull()
-
-    // Genuine categorical counts are untouched.
-    expect(screen.getByTestId('conditions-row-tags:strength').querySelector('span.tabular-nums')!.textContent).toBe('1')
+    expect(screen.getByTestId(TEST_IDS.L3_ACTIONS_PRIMARY)).toBeTruthy()
+    expect(screen.queryByTestId(TEST_IDS.L3_ACTIONS_GROUP_AUTHOR)).toBeNull()
+    expect(screen.queryByTestId(TEST_IDS.L3_ACTIONS_GROUP_SHARE)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show Resolved' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Copy link' })).toBeTruthy()
+    expect(screen.getByTestId(TEST_IDS.L3_ACTIONS_DANGER)).toBeTruthy()
   })
 })

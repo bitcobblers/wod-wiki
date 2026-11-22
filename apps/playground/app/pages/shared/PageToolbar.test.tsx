@@ -1,10 +1,12 @@
+import { useEffect } from 'react';
 import { afterEach, describe, expect, it, mock } from 'bun:test';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import { PageDownloadAction } from './PageToolbar';
 import { SidebarLayout } from '@/templates/SidebarLayout';
 import { StickyPageHeader } from '@/panels/page-shells';
+import { TEST_IDS } from '@/lib/testIds';
 import { NavContext, NavProvider, initialNavState, useNav } from '../../nav/NavContext';
 import { NavigationDrawerProvider } from '../../nav/NavigationDrawerContext';
 import type { NavItemL3 } from '../../nav/navTypes';
@@ -41,7 +43,7 @@ describe('Unified L3 slide-over drawer (L3DrawerTrigger + RightL3Drawer)', () =>
     cleanup();
   });
 
-  it('omits the Page options trigger when L3 has no content across all 3 slots', () => {
+  it('omits the Page options trigger when L3 has no content across all slots', () => {
     render(
       <MemoryRouter>
         <NuqsAdapter>
@@ -58,38 +60,36 @@ describe('Unified L3 slide-over drawer (L3DrawerTrigger + RightL3Drawer)', () =>
     expect(screen.queryByRole('button', { name: 'Open page options' })).toBeNull();
   });
 
-  it('opens the RightL3Drawer from StickyPageHeader Page options trigger and renders all 3 L3 slots', () => {
+  it('opens RightL3Drawer from StickyPageHeader Page options trigger and renders analytics, outline, connections, and actions once', () => {
     const scrollToSection = mock(() => {});
     const runClone = mock(() => {});
-    const onToggleGroupDim = mock(() => {});
-
-    const streamControls = {
-      query: ':journal{tags:pr} last 4w',
-      onQueryChange: mock(() => {}),
-      groupDims: ['date'],
-      onToggleGroupDim,
-      availableGroupDims: [
-        { id: 'date', label: 'Date' },
-        { id: 'discipline', label: 'Discipline' },
-      ],
-      settings: { level: 'note' as const, layout: 'cards' as const, visibleFields: ['title'] },
-      onLayoutChange: mock(() => {}),
-      onToggleField: mock(() => {}),
-      level: 'note' as const,
-    };
+    const onWeeksChange = mock(() => {});
+    const onReset = mock(() => {});
 
     function PagePublisher() {
-      const { setL3Items, setL3Actions, setStreamControls } = useNav();
-      act(() => {
-        setStreamControls(streamControls);
+      const { setL3Items, setL3Connections, setL3Actions, setAnalyticsControls } = useNav();
+      useEffect(() => {
+        setAnalyticsControls?.({
+          weeks: 8,
+          onWeeksChange,
+          onReset,
+        });
         setL3Items([
           { id: 'intro', label: 'Intro', level: 3, action: { type: 'scroll', sectionId: 'intro' } },
         ] satisfies NavItemL3[]);
-        setL3Actions?.([
-          { id: 'helpful-clone', label: 'Clone', onRun: runClone },
+        setL3Connections?.([
+          {
+            kind: 'section',
+            id: 'efforts',
+            label: 'Efforts',
+            entries: [{ kind: 'link', id: 'fran', label: 'Fran', to: '/effort/fran' }],
+          },
         ]);
-      });
-      return <StickyPageHeader title="Journal" />;
+        setL3Actions?.([
+          { id: 'helpful-clone', label: 'Clone', group: 'organize', onRun: runClone },
+        ]);
+      }, [setAnalyticsControls, setL3Items, setL3Connections, setL3Actions]);
+      return <StickyPageHeader title="Strength Board" />;
     }
 
     render(
@@ -111,28 +111,31 @@ describe('Unified L3 slide-over drawer (L3DrawerTrigger + RightL3Drawer)', () =>
     const trigger = screen.getByRole('button', { name: 'Page options' });
     expect(trigger.className).toContain('lg:inline-flex');
     expect(trigger.className).toContain('2xl:hidden');
-    // Active filter dot lights up because `:journal{tags:pr}` has a filter.
-    expect(screen.getByTestId('header-filters-active')).toBeDefined();
 
     fireEvent.click(trigger);
 
-    const drawer = screen.getByTestId('l3-right-drawer');
-    expect(within(drawer).getByText('Date window')).toBeDefined();
+    const drawer = screen.getByTestId(TEST_IDS.L3_RIGHT_DRAWER);
+    expect(within(drawer).getByTestId(TEST_IDS.L3_ANALYTICS_CONTROLS)).toBeDefined();
     expect(within(drawer).getByText('On this page')).toBeDefined();
+    expect(within(drawer).getByTestId(TEST_IDS.L3_CONNECTIONS)).toBeDefined();
     expect(within(drawer).getByText('Actions')).toBeDefined();
+    // Single mount: no duplicate L3 testids in DOM
+    expect(screen.getAllByTestId(TEST_IDS.L3_ACTIONS)).toHaveLength(1);
 
-    const groupBlock = within(drawer).getByTestId('l3-groupby-options');
-    fireEvent.click(within(groupBlock).getByLabelText('Discipline'));
-    expect(onToggleGroupDim).toHaveBeenCalledWith('discipline');
-    // Modifier toggles keep the drawer open for multi-picking.
-    expect(screen.queryByTestId('l3-right-drawer')).not.toBeNull();
+    // Modifier clicks keep drawer open for multi-picking
+    fireEvent.click(within(drawer).getByTestId('l3-range-4w'));
+    expect(onWeeksChange).toHaveBeenCalledWith(4);
+    expect(screen.queryByTestId(TEST_IDS.L3_RIGHT_DRAWER)).not.toBeNull();
 
-    // Context action runs and closes the drawer cleanly.
+    // Honest Reset button invokes onReset
+    fireEvent.click(within(drawer).getByTestId(TEST_IDS.L3_DRAWER_RESET_BTN));
+    expect(onReset).toHaveBeenCalledTimes(1);
+
+    // Context action runs and closes the drawer cleanly
     fireEvent.click(within(drawer).getByRole('button', { name: 'Clone' }));
     expect(runClone).toHaveBeenCalledTimes(1);
-    expect(screen.queryByTestId('l3-right-drawer')).toBeNull();
+    expect(screen.queryByTestId(TEST_IDS.L3_RIGHT_DRAWER)).toBeNull();
 
-    // Unused scroll mock check
     expect(scrollToSection).not.toHaveBeenCalled();
   });
 
@@ -171,7 +174,7 @@ describe('Unified L3 slide-over drawer (L3DrawerTrigger + RightL3Drawer)', () =>
       </MemoryRouter>,
     );
 
-    const drawer = screen.getByTestId('l3-right-drawer');
+    const drawer = screen.getByTestId(TEST_IDS.L3_RIGHT_DRAWER);
     fireEvent.click(within(drawer).getByRole('button', { name: 'Intro' }));
     expect(scrollToSection).toHaveBeenCalledWith('intro');
   });

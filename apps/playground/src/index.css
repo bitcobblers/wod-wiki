@@ -622,12 +622,20 @@
 .l2-sidebar-body > .pt-1 > .flex.flex-col:not(:has([data-slot="calendar"])) > div + div {
   margin-top: 14px;
 }
-.l2-sidebar-body > .pt-1 > .flex.flex-col > div:not(:has([data-slot="calendar"])) > div:first-child:not(:has(button)) {
-  padding: 0 8px 6px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: hsl(var(--muted-foreground) / 0.72);
+/* Lift L2 sidebar accordion triggers and micro-labels to >=12px and WCAG AA (>=4.5:1) contrast. */
+.l2-sidebar-body [data-collapsible-trigger],
+.l2-sidebar-body button.text-\[10px\],
+.l2-sidebar-body div.text-\[10px\] {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.12em;
+  color: hsl(var(--muted-foreground));
+}
+.l2-sidebar-body span.text-\[9px\],
+.l2-sidebar-body span.text-\[10px\] {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: hsl(var(--muted-foreground));
 }
 .l2-sidebar-body > .pt-1 > .flex.flex-col > div:not(:has([data-slot="calendar"])) button.text-left {
   background-color: hsl(var(--muted) / 0.42);
@@ -692,6 +700,6 @@
   border-radius: 6px;
   background: hsl(var(--muted) / 0.6);
   color: hsl(var(--muted-foreground));
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
