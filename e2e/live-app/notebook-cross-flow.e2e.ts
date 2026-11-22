@@ -1,6 +1,7 @@
 // spec: e2e/specs/notebooks/notebook-cross-flow.md
 import { expect, test, TEST_IDS } from '../fixtures/playgroundActor';
 import { deleteNoteByRouteId } from '../helpers/wodwikiDb';
+import { clearSessions, getSessions } from '../utils/sessionsDb';
 
 const TEST_PAGE_NAME = 'nbk04-cross-flow';
 const WIDGET_RICH_NOTE = `# Wod.Wiki Playground
@@ -104,11 +105,13 @@ test.describe('NBK-04 — Cross-Route Notebook, Playground Widgets, Theme & Date
     }
   });
 
-  test('Scenario 2: dated notebook item /notebook/:slug/:date/:item renders and Play mints today journal entry (notebook-dated-item)', async ({
+  test('Scenario 2: dated notebook item /notebook/:slug/:date/:item renders and runs on /run/:id against its canonical note (notebook-dated-item)', async ({
     app,
   }) => {
     const { page } = app;
     await page.setViewportSize({ width: 1280, height: 900 });
+    await app.goto('/');
+    await clearSessions(page);
 
     const datedNoteId = 'nbk04-dated-session-1';
     const datedPath = 'markdown/notebooks/nbk04-dated/2099-02-01/session-1.md';
@@ -138,13 +141,27 @@ test.describe('NBK-04 — Cross-Route Notebook, Playground Widgets, Theme & Date
       await expect(play).toBeVisible({ timeout: 10_000 });
       await play.click();
 
-      await page.waitForURL(/\/day\/\d{4}-\d{2}-\d{2}/, { timeout: 30_000 });
-      await expect(page.locator('.cm-content')).toContainText('5 Burpees', { timeout: 30_000 });
-      await app.journal.expectNotePersisted(`journal/${todayKey}`, '5 Burpees');
+      await page.waitForURL(/\/run\/[^/]+/, { timeout: 30_000 });
+      await expect(page.getByTestId(TEST_IDS.TIMER_STOP_SESSION).first()).toBeVisible({ timeout: 15_000 });
+
+      await app.runtime.advance(1);
+      await expect(page.getByText(/5 Burpees/i).first()).toBeVisible({ timeout: 10_000 });
+
+      await page.getByTestId(TEST_IDS.TIMER_STOP_SESSION).first().click();
+      await page.getByTestId(TEST_IDS.CLOCK_STOP_CONFIRM_ACCEPT).click();
+      await expect(page.getByRole('dialog', { name: 'Workout Complete' })).toBeVisible({ timeout: 15_000 });
+      await page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first().click();
+      await expect(page.getByTestId(TEST_IDS.FOCUSED_DIALOG_CLOSE).first()).toBeHidden({ timeout: 8_000 });
+
+      await page.waitForURL(/\/notebook\/nbk04-dated\/2099-02-01\/session-1/, { timeout: 15_000 });
+      await expect
+        .poll(async () => (await getSessions(page)).some((s) => s.noteId === datedNoteId), { timeout: 10_000 })
+        .toBe(true);
 
       app.assertCleanConsole();
     } finally {
       await deleteNoteByRouteId(page, datedNoteId);
+      await clearSessions(page);
       await app.journal.clearDate(todayKey);
     }
   });

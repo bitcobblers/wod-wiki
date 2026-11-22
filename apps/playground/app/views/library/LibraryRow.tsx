@@ -7,7 +7,7 @@
  * in the Library page, not the row.
  */
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowUpRight, FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Loader2, Copy, Share2, Pencil, Trash2, MoreHorizontal, ShieldCheck } from 'lucide-react'
+import { ArrowUpRight, FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Flame, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Loader2, Copy, Share2, Pencil, Trash2, MoreHorizontal, ShieldCheck } from 'lucide-react'
 import { getNotebookCapabilities, isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
 import { resolveFeedDisplayLabel } from '@/components/molecules/PublicationPill'
 import { feedSourceById } from '@/services/feed/feedSources'
@@ -70,12 +70,12 @@ export interface LibraryRowProps {
 
 const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
   note: FileTextIcon,
-  effort: Dumbbell,
+  effort: Flame,
   result: Trophy,
   segment: Layers,
   event: Activity,
   dashboard: LayoutDashboard,
-  equipment: Wrench,
+  equipment: Dumbbell,
   tag: TagIcon,
   feed: Rss,
   notebook: BookOpen,

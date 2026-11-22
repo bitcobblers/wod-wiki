@@ -29,13 +29,13 @@ Given the 20× `fastClock` installed on the browser context:
 - expect: Step 1 records a completed Session (`completed: true`) with persisted duration >= 5,000ms in single-digit wall seconds.
 - expect: Step 2 completes both sets without trapping the Athlete on 'Timer can't be skipped' and renders 2 'Kettlebell Swings' rows in 'Workout Complete' review.
 
-### Scenario 3: Notebook-launched session survives route changes, saves partial inline result across reload on early Stop, and renders defensive empty-block / unknown-runtime states
+### Scenario 3: Notebook-launched session survives route changes, saves partial result across reload on early Stop, and renders defensive empty-block / unknown-runtime states
 
-Given an Athlete running a workout from `/notebook/:slug/:item` onto `/day/:date` and opening edge runtime states:
+Given an Athlete running a workout from `/notebook/:slug/:item` onto `/run/:runtimeId` and opening edge runtime states:
 
-1. Athlete starts a workout from `/notebook/:slug/:item` onto `/day/:date`, navigates Back to `/notebook/:slug/:item` and Forward to `/day/:date`, advances past Ready-to-Start, stops early via confirmed `Stop Session`, closes 'Workout Complete' review, and reloads `/day/:date`.
+1. Athlete starts a workout from `/notebook/:slug/:item` onto `/run/:runtimeId`, advances past Ready-to-Start, stops early via confirmed `Stop Session`, closes 'Workout Complete' review, opens `/results/:sessionId` and reloads the page; then starts another run from `/notebook/:slug/:item`, navigates Back to `/notebook/:slug/:item` and Forward to `/run/:runtimeId`.
 2. Athlete clicks Run on an empty `time` fence on `/day/2099-12-30`, and opens an unregistered `/run/:runtimeId` URL directly.
-- expect: Step 1 keeps the active workout alive (`Stop Session` still mounted) across Back/Forward transitions, records an incomplete (`completed: false`) Session on the created Journal Note, and renders the inline result widget across a full page reload.
+- expect: Step 1 records an incomplete (`completed: false`) Session pinned to the canonical Note id, renders its partial results at `/results/:sessionId` across a full page reload, and keeps the live `/run/:runtimeId` workout timer alive (`Stop Session` still mounted) across Back/Forward transitions.
 - expect: Step 2 renders 'Nothing to run' for an empty block instead of hanging, renders 'Runtime not found. Please start the workout from the editor.' on cold `/run/:runtimeId` load, and keeps the browser console clean.
 
 ### Scenario 4: Fenced wod/time block parity, Ready-to-Start zero-clock gate, MET Minutes label, and mid-run reload partial persistence

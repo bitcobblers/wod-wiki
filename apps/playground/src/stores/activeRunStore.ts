@@ -40,6 +40,8 @@ export interface ParkedRun {
   runtime: IScriptRuntime;
   captured?: CapturedRun;
   journalDate?: string;
+  origin?: ResultOrigin;
+  returnTo?: string;
 }
 
 export const pendingRuntimes = new Map<string, PendingRuntime>();

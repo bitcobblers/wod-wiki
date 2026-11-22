@@ -1036,10 +1036,11 @@ export async function readFeedStatus(deps: FeedSyncDeps = {}): Promise<FeedStatu
 
       const notebooks = feedNotebookStatuses(spec.id, manifest, stored);
       const indexBytes = manifest?.indexBytes ?? notebooks.reduce((n, nb) => n + (nb.indexBytes ?? 0), 0);
+      const manifestChunks = manifest?.chunks;
       const chunkBytes =
         manifest?.chunkBytes ??
-        (manifest?.chunks?.length
-          ? manifest.chunks.reduce((n, c) => n + (c.bytes ?? 0), 0)
+        (manifestChunks?.length
+          ? manifestChunks.reduce((n, c) => n + (c.bytes ?? 0), 0)
           : notebooks.reduce((n, nb) => n + (nb.chunkBytes ?? 0), 0));
       return {
         id: spec.id,

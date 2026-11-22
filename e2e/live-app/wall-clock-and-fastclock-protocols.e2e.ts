@@ -124,7 +124,7 @@ test.describe('RUN-01 — Wall Clock & FastClock Execution Protocols', () => {
     await clearSessions(page);
     await app.seed.note(SURVIVAL_NOTE_ID, SURVIVAL_MD, { title: 'Session Routes Probe' });
 
-    // 1a. Start workout from /notebook/:slug/:item via real pointer click -> early Stop saves partial Session & inline result across reload
+    // 1a. Start workout from /notebook/:slug/:item into /run/:runtimeId via real pointer click -> early Stop saves partial Session & persists across reload
     await app.goto(`/notebook/${SURVIVAL_NOTE_ID}`);
     await expect(page.locator('.cm-content')).toContainText('5:00', { timeout: 15_000 });
     await page.locator('.cm-content').getByText('5:00').first().click();
@@ -134,7 +134,7 @@ test.describe('RUN-01 — Wall Clock & FastClock Execution Protocols', () => {
 
     const today = new Date();
     const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    await page.waitForURL(new RegExp(`/day/${todayKey}`), { timeout: 15_000 });
+    await page.waitForURL(/\/run\/[^/]+/, { timeout: 15_000 });
     await expect(page.getByTestId(TEST_IDS.TIMER_STOP_SESSION).first()).toBeVisible({ timeout: 15_000 });
 
     await app.runtime.advance(1);
@@ -148,17 +148,18 @@ test.describe('RUN-01 — Wall Clock & FastClock Execution Protocols', () => {
     await expect.poll(async () => (await getSessions(page)).length, { timeout: 10_000 }).toBeGreaterThan(0);
     const savedSession = (await getSessions(page))[0]!;
     expect(savedSession.completed).toBe(false);
-    expect(savedSession.noteId).toBeTruthy();
+    expect(savedSession.noteId).toBe(SURVIVAL_NOTE_ID);
 
-    await expect(page.locator('.cm-query-block-preview, [data-testid="rows-table"]').first()).toBeVisible({
+    await app.goto(`/results/${savedSession.id}`);
+    await expect(page.getByText(/Push Ups|Session Routes Probe/i).first()).toBeVisible({
       timeout: 15_000,
     });
     await page.reload({ waitUntil: 'domcontentloaded' });
     await app.feeds.waitForReady();
-    await expect(page.locator('.cm-query-block-preview, [data-testid="rows-table"]').first()).toBeVisible({
+    await expect(page.getByText(/Push Ups|Session Routes Probe/i).first()).toBeVisible({
       timeout: 15_000,
     });
-    if (savedSession.noteId) {
+    if (savedSession.noteId && savedSession.noteId !== SURVIVAL_NOTE_ID) {
       await deleteNoteByRouteId(page, savedSession.noteId);
     }
     await app.journal.clearDate(todayKey);
@@ -171,13 +172,14 @@ test.describe('RUN-01 — Wall Clock & FastClock Execution Protocols', () => {
     await expect(playSurvival).toBeVisible({ timeout: 10_000 });
     await playSurvival.click();
 
-    await page.waitForURL(new RegExp(`/day/${todayKey}`), { timeout: 15_000 });
+    await page.waitForURL(/\/run\/[^/]+/, { timeout: 15_000 });
+    const runUrl = page.url();
     await expect(page.getByTestId(TEST_IDS.TIMER_STOP_SESSION).first()).toBeVisible({ timeout: 15_000 });
 
     await page.goBack();
     await expect(page).toHaveURL(new RegExp(`/notebook/${SURVIVAL_NOTE_ID}`), { timeout: 15_000 });
     await page.goForward();
-    await expect(page).toHaveURL(new RegExp(`/day/${todayKey}`), { timeout: 15_000 });
+    await expect(page).toHaveURL(runUrl, { timeout: 15_000 });
     await expect(page.getByTestId(TEST_IDS.TIMER_STOP_SESSION).first()).toBeVisible({ timeout: 15_000 });
 
     // 2. Empty block shows 'Nothing to run' via real pointer click (hard goto resets prior runtime cleanly)

@@ -34,7 +34,7 @@ import {
   Dumbbell,
   Rss,
   LayoutDashboard,
-  Wrench,
+  Flame,
   FlaskConical,
   BookOpen,
   Tag as TagIcon,
@@ -52,12 +52,12 @@ import type { BatchedItems } from '../../hooks/useBatchedItems'
 
 const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
   note: FileTextIcon,
-  effort: Dumbbell,
+  effort: Flame,
   result: Trophy,
   segment: Layers,
   event: Activity,
   dashboard: LayoutDashboard,
-  equipment: Wrench,
+  equipment: Dumbbell,
   tag: TagIcon,
   feed: Rss,
   notebook: BookOpen,

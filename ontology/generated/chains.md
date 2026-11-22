@@ -9,11 +9,11 @@
 | `T1a-compute` | Tier 1 | `qa:FixtureTableSuite` | 25 |
 | `T1b-storage` | Tier 1 | `qa:StorageConformanceSuite` | 1 |
 | `T1c-domain` | Tier 1 | `qa:DomainScenarioSuite` | 17 |
-| `T2a-host` | Tier 2 | `qa:HostSuite` | 31 |
-| `T2b-story` | Tier 2 | `qa:StoryTest` | 133 |
+| `T2a-host` | Tier 2 | `qa:HostSuite` | 34 |
+| `T2b-story` | Tier 2 | `qa:StoryTest` | 134 |
 | `T3-journey` | Tier 3 | `qa:Journey` | 73 |
 
-- **Total Active Suites**: 290
+- **Total Active Suites**: 294
 - **Top-Heavy Nodes**: 0
 - **Mismatched Issue Coverage**: 16
 
@@ -25,28 +25,28 @@ Total Journeys: **28**
 | **ANL-04** | analytics | P1-core | wod:Dashboard, wod:Effort, wod:EventRecord, wod:FieldValue, wod:Metric, wod:Note, wod:Query, wod:Session | /results/:sessionId, /dashboards, /playground/:id, /run/:runtimeId, /notes | property-table, save-stream-query, widget-composer-subset, widget-composer-wql | `e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts` | 20 |
 | **ANL-05** | analytics | P1-core | wod:Dashboard, wod:Note, wod:Query | /dashboards, /dashboard/:slug, /notes | delete-dashboard-button, confirm-delete-dashboard | `e2e/live-app/recovery-sample-and-dashboard-lifecycle.e2e.ts` | 3 |
 | **ANL-06** | analytics | P1-core | wod:Dashboard, wod:Effort, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Query, wod:Session, wod:Tag | /journal, /notes, /efforts, /dashboards | stream-query-bar, wql-scope-toggle, wql-scope-map, wql-field-picker | `e2e/live-app/wql-composer-and-palette.e2e.ts` | 16 |
-| **FED-01** | feeds | P0-gate | wod:Attachment, wod:Feed, wod:Note, wod:Notebook, wod:Page | /subscribe, /feeds, /feed/:slug, /load, /load/journal, /notebooks, /settings/sync, /page/:slug | unknown-feed-intake-banner, feed-intake-subscribe, feed-intake-once, feed-subscription-intake | `e2e/live-app/feed-subscription-and-autosync.e2e.ts` | 10 |
+| **FED-01** | feeds | P0-gate | wod:Attachment, wod:Feed, wod:Note, wod:Notebook, wod:Page, wod:Session | /subscribe, /feeds, /feed/:slug, /load, /load/journal, /notebooks, /settings/sync, /page/:slug | unknown-feed-intake-banner, feed-intake-subscribe, feed-intake-once, feed-subscription-intake | `e2e/live-app/feed-subscription-and-autosync.e2e.ts` | 10 |
 | **FED-02** | feeds | P2 | — | — | — | `—` | 0 |
-| **FED-03** | feeds | P0-gate | wod:Attachment, wod:Feed, wod:Note, wod:Notebook, wod:Session | /note/:noteId, /feeds, /notebooks | publication-pill | `e2e/live-app/publication-visibility-and-feed-export.e2e.ts` | 3 |
+| **FED-03** | feeds | P0-gate | wod:Attachment, wod:Feed, wod:Note, wod:Notebook, wod:Session | /note/:noteId, /feeds, /notebooks | publication-pill | `e2e/live-app/publication-visibility-and-feed-export.e2e.ts` | 5 |
 | **FED-04** | feeds | P1 | wod:Attachment, wod:EventRecord, wod:Note, wod:Page, wod:Session | /load, /settings/storage, /note/:noteId, /results/:sessionId | load-zip-intake, bundle-file-input, property-table, bundle-import-error | `e2e/live-app/portable-codecs-and-backup-restore.e2e.ts` | 13 |
 | **JRN-00** | journal | P0-gate | wod:Feed, wod:Page, wod:Session | /, /page/guide-start, /definitely-not-a-page-xyz | tour-hero, tour-why-video | `e2e/live-app/cold-boot-profile.e2e.ts` | 4 |
 | **JRN-01** | journal | P0-gate | wod:Dashboard, wod:Feed, wod:Metric, wod:Page, wod:Session | /, /page/guide-start, /legacy | focused-dialog-close, timer-next-block, timer-stop-session, timer-play-pause | `e2e/live-app/cold-boot-and-home-tour.e2e.ts` | 26 |
-| **JRN-02** | journal | P0-gate | wod:Note, wod:Page, wod:Session | /journal, /day/:date, /plan, /note/:noteId, /page/:slug | editor-start-workout, placement-slug-input, placement-add-btn, placement-date-input | `e2e/live-app/daily-note-authoring-and-persistence.e2e.ts` | 15 |
+| **JRN-02** | journal | P0-gate | wod:Note, wod:Page, wod:Session | /journal, /day/:date, /plan, /note/:noteId, /page/:slug | editor-start-workout, placement-slug-input, placement-add-btn, placement-date-input | `e2e/live-app/daily-note-authoring-and-persistence.e2e.ts` | 14 |
 | **JRN-03** | journal | P1 | wod:Dashboard, wod:Effort, wod:Equipment, wod:FieldValue, wod:Note, wod:Notebook, wod:Page, wod:Query, wod:Session, wod:Tag | /journal, /playgrounds, /notebooks, /pages, /notebook/:slug, /note/:noteId, /playground/:id, /t/:type/:tag, /page/guide-wql, /dashboard/:slug | new-entry-primary, notebooks-create-button | `e2e/live-app/contextual-new-entry.e2e.ts` | 7 |
 | **JRN-05** | journal | P1 | wod:Attachment, wod:Note, wod:Notebook, wod:Query, wod:Session | /load/journal, /load/journal/:date, /load, /day/:date, /journal | timer-fullscreen-overlay | `e2e/live-app/markdown-and-zip-journal-intake.e2e.ts` | 5 |
 | **JRN-06** | journal | P0-gate | wod:Note, wod:Session | /journal, /note/:noteId | agent-confirm-dialog, agent-confirm-cancel, agent-confirm-approve | `e2e/live-app/agent-readiness.e2e.ts` | 4 |
 | **NBK-01** | notebooks | P0-gate | wod:Dashboard, wod:Effort, wod:Equipment, wod:Note, wod:Notebook, wod:Query, wod:Session | /notebooks, /notebook/:slug | conditions-nav-recent | `e2e/live-app/notebook-hierarchy-and-crud.e2e.ts` | 3 |
-| **NBK-02** | notebooks | P0-gate | wod:Effort, wod:Feed, wod:FieldValue, wod:Note, wod:Notebook, wod:Query, wod:Session | /note/:noteId, /notebooks, /notebook/:slug, /subscribe, /effort/:slug | promotion-new-notebook-input, promotion-new-notebook-submit, property-override-sheet, unknown-feed-intake-banner | `e2e/live-app/nm-promotion-and-note-provenance.e2e.ts` | 19 |
+| **NBK-02** | notebooks | P0-gate | wod:Effort, wod:Feed, wod:FieldValue, wod:Note, wod:Notebook, wod:Session | /note/:noteId, /notebooks, /notebook/:slug, /subscribe, /effort/:slug | promotion-new-notebook-input, promotion-new-notebook-submit, property-override-sheet, unknown-feed-intake-banner | `e2e/live-app/nm-promotion-and-note-provenance.e2e.ts` | 20 |
 | **NBK-03** | notebooks | P1 | wod:Dashboard, wod:Effort, wod:Metric, wod:Note, wod:Page, wod:Query, wod:Session | /journal, /note/:noteId, /day/:date, /page/:slug, /notes, /dashboards, /dashboard/:slug, /effort/:slug, /settings/profile | nav-l1-search, mobile-nav-open, mobile-nav-drawer, palette-composer | `e2e/live-app/page-placements-and-shell-navigation.e2e.ts` | 9 |
-| **NBK-04** | notebooks | P2 | wod:Dashboard, wod:Note, wod:Notebook, wod:Session | /playground/:id, /run/:runtimeId, /settings/appearance, /notebook/:slug/:itemDate/:item, /day/:date | timer-next-block, timer-play-pause | `e2e/live-app/notebook-cross-flow.e2e.ts` | 14 |
+| **NBK-04** | notebooks | P2 | wod:Dashboard, wod:Note, wod:Notebook, wod:Session | /playground/:id, /run/:runtimeId, /settings/appearance, /notebook/:slug/:itemDate/:item, /day/:date | timer-next-block, timer-play-pause, timer-stop-session, clock-stop-confirm-accept | `e2e/live-app/notebook-cross-flow.e2e.ts` | 22 |
 | **NBK-05** | notebooks | P2 | — | — | — | `—` | 0 |
 | **PRP-01** | properties | P1 | wod:Effort, wod:FieldValue, wod:Metric, wod:Note, wod:Page, wod:Query | /efforts, /effort/:slug, /effort/new | stream-query-bar, effort-not-found-create-btn, effort-detail-label, effort-detail-source | `e2e/live-app/efforts-catalog-and-alias-lifecycle.e2e.ts` | 11 |
 | **PRP-02** | properties | P1-core | wod:Effort, wod:Equipment, wod:FieldValue, wod:Note, wod:Notebook, wod:Page, wod:Session | /equipment, /equipment/:slug, /equipment/new, /effort/:slug, /notebook/:slug/:item, /note/:noteId | new-entry-primary, equipment-create-btn, equipment-detail-label, equipment-detail-source | `e2e/live-app/equipment-catalog-and-backlinks.e2e.ts` | 9 |
 | **PRP-03** | properties | P1-core | wod:Dashboard, wod:Effort, wod:FieldValue, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Query, wod:Tag | /efforts, /effort/:slug, /t/:type/:tag, /notebook/:slug | stream-query-syntax-hint, efforts-create-btn, entry-create-title-input, entry-create-submit-btn | `e2e/live-app/effort-creation-and-tag-mobile-layout.e2e.ts` | 8 |
 | **PRP-04** | properties | P1 | wod:Effort, wod:FieldValue, wod:Metric, wod:Note, wod:Notebook, wod:Page, wod:Session | /effort/:slug, /note/:noteId, /run/:runtimeId, /results/:sessionId, /notebooks | editor-start-workout, focused-dialog-close, timer-next-block, property-override-sheet | `e2e/live-app/scoped-property-override-sheets.e2e.ts` | 27 |
 | **PRP-05** | properties | P1 | wod:FieldValue, wod:Metric, wod:Query, wod:Tag | /tags, /t/:type/:tag | — | `e2e/live-app/tags-management.e2e.ts` | 2 |
-| **RUN-01** | runtime | P0-gate | wod:Dashboard, wod:Note, wod:Notebook, wod:Page, wod:Session | /playground/:noteId, /run/:runtimeId, /day/:date, /note/:noteId, /results/:sessionId, /notebook/:slug/:item | timer-stop-session, clock-stop-confirm-accept, focused-dialog-close, timer-next-block | `e2e/live-app/wall-clock-and-fastclock-protocols.e2e.ts` | 29 |
-| **RUN-02** | runtime | P0-gate | wod:Dashboard, wod:Feed, wod:Note, wod:Notebook, wod:Query, wod:Session | /subscribe, /notebooks, /notebook/:slug, /note/:noteId, /day/:date, /results/:sessionId | unknown-feed-intake-banner, feed-intake-subscribe, timer-stop-session, focused-dialog-close | `e2e/live-app/readonly-intake-and-provenance-run.e2e.ts` | 21 |
+| **RUN-01** | runtime | P0-gate | wod:Note, wod:Notebook, wod:Page, wod:Session | /playground/:noteId, /run/:runtimeId, /day/:date, /note/:noteId, /results/:sessionId, /notebook/:slug/:item | timer-stop-session, clock-stop-confirm-accept, focused-dialog-close, timer-next-block | `e2e/live-app/wall-clock-and-fastclock-protocols.e2e.ts` | 29 |
+| **RUN-02** | runtime | P0-gate | wod:Feed, wod:Note, wod:Notebook, wod:Page, wod:Query, wod:Session | /subscribe, /notebooks, /notebook/:slug, /notebook/:slug/:item, /note/:noteId, /journal, /day/:date, /run/:runtimeId, /sessions, /results/:sessionId, /settings/sync | unknown-feed-intake-banner, feed-intake-subscribe, library-row-overflow, action-run | `e2e/live-app/readonly-intake-and-provenance-run.e2e.ts` | 30 |
 | **RUN-03** | runtime | P1 | wod:EventRecord, wod:Session | /playground/:id, /run/:runtimeId | clock-command-board, clock-rep-value, timer-surface-general, timer-surface-minimal | `e2e/live-app/timer-surfaces-and-keypad.e2e.ts` | 25 |
 | **RUN-04** | runtime | P2 | — | — | — | `—` | 0 |
 
@@ -113,9 +113,9 @@ Total Journeys: **28**
 - **Spec**: `e2e/specs/feeds/feed-subscription-and-autosync.md`
 - **Playwright**: `e2e/live-app/feed-subscription-and-autosync.e2e.ts`
 - **5-Beat Causal Chain**:
-  1. **Seed**: Seed: wod:Attachment, wod:Feed, wod:Note, wod:Notebook, wod:Page
+  1. **Seed**: Seed: wod:Attachment, wod:Feed, wod:Note, wod:Notebook, wod:Page, wod:Session
   2. **Enter**: Enter: /subscribe, /feeds, /feed/:slug, /load, /load/journal, /notebooks, /settings/sync, /page/:slug
-  3. **Sense**: Sense: feed-intake-once, feed-intake-subscribe
+  3. **Sense**: Sense: feed-intake-subscribe
   4. **Drive**: Drive: Subscription intake requires consent, reaches /settings/sync via L2 navigation, and remembers auto-sync across desktop and 375×812 mobile
   5. **Prove**: Prove: e2e/live-app/feed-subscription-and-autosync.e2e.ts
 - **Touched Files**: `apps/playground/app/pages/FeedDetailPage.tsx`, `apps/playground/app/pages/SubscribePage.tsx`, `apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/feed-subscription-and-autosync.e2e.ts`, `e2e/live-app/nm-promotion-and-note-provenance.e2e.ts`, `e2e/live-app/readonly-intake-and-provenance-run.e2e.ts`, `e2e/regression/ww-072.e2e.ts`, `packages/tools/src/seedbuild/compiler.ts`
@@ -138,7 +138,7 @@ Total Journeys: **28**
   3. **Sense**: Sense: DOM readiness
   4. **Drive**: Drive: Derived Publication Visibility walks Private -> Published Note -> Published Note + Data
   5. **Prove**: Prove: e2e/live-app/publication-visibility-and-feed-export.e2e.ts
-- **Touched Files**: `apps/playground/src/components/molecules/PublicationPill.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/live-app/publication-visibility-and-feed-export.e2e.ts`
+- **Touched Files**: `apps/playground/src/components/molecules/PublicationPill.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/live-app/nm-promotion-and-note-provenance.e2e.ts`, `e2e/live-app/publication-visibility-and-feed-export.e2e.ts`, `e2e/live-app/readonly-intake-and-provenance-run.e2e.ts`
 - **Issues**: WW-043 ('Export Feed Repository (.zip)' on a zero-public profile now shows the documented no-public-notebooks error — overshare symptom fixed; happy-path export still silent (WW-055)); WW-055 (Settings→Storage 'Export Feed Repository (.zip)' is a silent no-op on the happy path (public notebook present) — no blob, no toast, no error, no console after 36s)
 
 ### FED-04 — Portable Codecs & Backup Restore
@@ -193,7 +193,7 @@ Total Journeys: **28**
   3. **Sense**: Sense: DOM readiness
   4. **Drive**: Drive: An unseeded date renders an empty state while a seeded date loads its Note into the day editor
   5. **Prove**: Prove: e2e/live-app/daily-note-authoring-and-persistence.e2e.ts
-- **Touched Files**: `apps/playground/app/components/organisms/journal/NotePlacementDialog.tsx`, `apps/playground/app/tour/screens/TourEditorScreen.tsx`, `apps/playground/src/components/organisms/editor/InlineCommandBar.tsx`, `apps/playground/src/components/organisms/editor/WhiteboardCompanion.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/daily-note-authoring-and-persistence.e2e.ts`, `e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts`, `e2e/live-app/nm-promotion-and-note-provenance.e2e.ts`
+- **Touched Files**: `apps/playground/app/components/organisms/journal/NotePlacementDialog.tsx`, `apps/playground/app/tour/screens/TourEditorScreen.tsx`, `apps/playground/src/components/organisms/editor/InlineCommandBar.tsx`, `apps/playground/src/components/organisms/editor/WhiteboardCompanion.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/daily-note-authoring-and-persistence.e2e.ts`, `e2e/live-app/entity-scope-and-dashboard-promotion.e2e.ts`, `e2e/live-app/scoped-property-override-sheets.e2e.ts`
 - **Issues**: WW-004 (Stream status strip renders internal grouping token '(level)' — transient '0 of 0' flicker); WW-011 (Day-cell accessible name reads '1 entries' (pluralization defect)); WW-020 (User-authored content silently dropped — create-dialog body-drop variant FIXED at 761983774; boot/feed sync cycle variant STILL CRITICAL (notes/efforts deleted, notes emptied, sessions+events wiped)); WW-022 (Final typed line silently dropped when navigating away within ~0.5s — debounced autosave flush-on-navigation guarantee); WW-023 (Stream reports data-agent-status=ready while 'Loading more — N remaining…' pagination is still visible (/notes)); WW-024 (/plan SPA-rewrites to /journal?q=:journal last 2w and renders '0 of 0 · 1 applied' despite an existing dated journal entry); WW-059 (/day/:date EMPTY-day view has no Page options panel — Delete/Clone/Export/Notebooks unavailable (present once ≥1 note exists))
 
 ### JRN-03 — Contextual New Entry Creation & Title Persistence
@@ -257,12 +257,12 @@ Total Journeys: **28**
 - **Spec**: `e2e/specs/notebooks/nm-promotion-and-note-provenance.md`
 - **Playwright**: `e2e/live-app/nm-promotion-and-note-provenance.e2e.ts`
 - **5-Beat Causal Chain**:
-  1. **Seed**: Seed: wod:Effort, wod:Feed, wod:FieldValue, wod:Note, wod:Notebook, wod:Query, wod:Session
+  1. **Seed**: Seed: wod:Effort, wod:Feed, wod:FieldValue, wod:Note, wod:Notebook, wod:Session
   2. **Enter**: Enter: /note/:noteId, /notebooks, /notebook/:slug, /subscribe, /effort/:slug
-  3. **Sense**: Sense: promotion-clone-readonly-btn, promotion-provenance-row, remote-notebook-preview-banner
+  3. **Sense**: Sense: promotion-provenance-row, remote-notebook-preview-banner
   4. **Drive**: Drive: Athlete promotes one Note across multiple user Notebooks and opens Scoped Property Override on 375×812 mobile
   5. **Prove**: Prove: e2e/live-app/nm-promotion-and-note-provenance.e2e.ts
-- **Touched Files**: `apps/playground/app/components/organisms/journal/NotePlacementDialog.tsx`, `apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx`, `apps/playground/app/views/stream/QueriableStreamView.tsx`, `apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx`, `apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/daily-note-authoring-and-persistence.e2e.ts`, `e2e/live-app/feed-subscription-and-autosync.e2e.ts`
+- **Touched Files**: `apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx`, `apps/playground/app/views/stream/QueriableStreamView.tsx`, `apps/playground/src/components/molecules/PublicationPill.tsx`, `apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx`, `apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/feed-subscription-and-autosync.e2e.ts`, `e2e/live-app/nm-promotion-and-note-provenance.e2e.ts`
 - **Issues**: WW-048 (note header chips render 1 of N notebooks after reload and 0 of N until hard reload after promotion-sheet toggle — N:M membership never joined into header chips)
 
 ### NBK-03 — Page Placements & Shell Navigation
@@ -289,7 +289,7 @@ Total Journeys: **28**
   3. **Sense**: Sense: timer-next-block, timer-play-pause
   4. **Drive**: Drive: Playground widgets render, launch `/run/:runtimeId`, switch dark/light mode, and preserve 375×812 mobile bounds
   5. **Prove**: Prove: e2e/live-app/notebook-cross-flow.e2e.ts
-- **Touched Files**: `apps/playground/src/components/organisms/workout/TimerCore.tsx`, `apps/playground/src/components/organisms/workout/TimerStackView.tsx`, `apps/storybook/src/FullscreenTimer.stories.tsx`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/cold-boot-and-home-tour.e2e.ts`, `e2e/live-app/notebook-cross-flow.e2e.ts`, `e2e/live-app/scoped-property-override-sheets.e2e.ts`, `e2e/live-app/timer-surfaces-and-keypad.e2e.ts`, `e2e/live-app/wall-clock-and-fastclock-protocols.e2e.ts`
+- **Touched Files**: `apps/playground/src/clock/ClockCommandBoard.tsx`, `apps/playground/src/components/molecules/FocusedDialog.tsx`, `apps/playground/src/components/organisms/workout/TimerCore.tsx`, `apps/playground/src/components/organisms/workout/TimerStackView.tsx`, `apps/storybook/src/FullscreenTimer.stories.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/cold-boot-and-home-tour.e2e.ts`, `e2e/live-app/notebook-cross-flow.e2e.ts`
 
 ### NBK-05 — NBK-05
 
@@ -372,7 +372,7 @@ Total Journeys: **28**
 - **Spec**: `e2e/specs/runtime/wall-clock-and-fastclock-protocols.md`
 - **Playwright**: `e2e/live-app/wall-clock-and-fastclock-protocols.e2e.ts`
 - **5-Beat Causal Chain**:
-  1. **Seed**: Seed: wod:Dashboard, wod:Note, wod:Notebook, wod:Page, wod:Session
+  1. **Seed**: Seed: wod:Note, wod:Notebook, wod:Page, wod:Session
   2. **Enter**: Enter: /playground/:noteId, /run/:runtimeId, /day/:date, /note/:noteId, /results/:sessionId, /notebook/:slug/:item
   3. **Sense**: Sense: halted-run-notice
   4. **Drive**: Drive: Wall Clock pause/resume, Next Block segment advance, and guarded Stop Session partial persistence
@@ -380,18 +380,18 @@ Total Journeys: **28**
 - **Touched Files**: `apps/playground/app/tour/screens/TourEditorScreen.tsx`, `apps/playground/src/clock/ClockCommandBoard.tsx`, `apps/playground/src/components/molecules/FocusedDialog.tsx`, `apps/playground/src/components/organisms/editor/InlineCommandBar.tsx`, `apps/playground/src/components/organisms/editor/RuntimeTimerPanel.tsx`, `apps/playground/src/components/organisms/editor/WhiteboardCompanion.tsx`, `apps/playground/src/components/organisms/workout/TimerCore.tsx`, `apps/playground/src/components/organisms/workout/TimerStackView.tsx`, `apps/storybook/src/FullscreenTimer.stories.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`
 - **Issues**: WW-007 (Trailing load '(24kg)' parses as phantom '24 Rounds' scheme and splits the movement in the timer outline); WW-008 (Session card shows 'Volume: N lbs' — N is sessionLoad in AU, not pound tonnage); WW-009 (Structural zero-duration segments mislabeled 'Round N' in results splits; 'N completed' counter inflated); WW-012 (Mid-run browser reload silently deletes the in-progress session row entirely — worse than the prior partial-results banner (no resume, no notice, data loss)); WW-051 (Recorded session timing wrong across lifecycle paths — duration inconsistent with IDB record; splits never persisted (+00:00/Start rows only)); WW-052 (Ready-to-Start gate materializes a 0s phantom in-progress session row at gate OPEN (earlier onset), Exit leaves it — no UI feedback); WW-053 (Cold load of an unregistered /run/:runtimeId renders a completely blank main — the existing 'Runtime not found' guard never appears, no data-agent-status); WW-069 (Per-block Run buttons ignore their block — clicking a non-first block's Run opens a gate for Block 1; no block picker); WW-076 (For Time '21-15-9' live run shows rep target '9' on the 21-rep first movement (ladder target resolves to last rung)); WW-077 (Live AMRAP run cannot advance past the first movement — Next/Enter never activate movement 2 (AMRAP-path specific; For Time ladder advances)); WW-085 (Ready-to-Start gate: mouse clicks on Start do nothing (keyboard '/' works), and after keyboard start the overlay stays frozen on 'Ready to Start' 00:00 while the engine reports live/running; raw CSS keyframes text present in overlay DOM); WW-092 (Workout Complete segment table: all rows labeled 'Segment', all split offsets '+00:00', accessible names leak internals ('Type: spans', quoted JSON timestamps, full Type/Block/Time strings)); WW-093 (Session card mislabels load as 'Volume: 42.5 kg' (kg = bar load, not volume); /sessions strip count vs sessions store (phantom rows uncounted))
 
-### RUN-02 — Read-only Intake & Provenance Run
+### RUN-02 — Read-only Intake & Single Archival Provenance Run
 
 - **Domain**: `runtime` | **Priority**: `P0-gate`
 - **Spec**: `e2e/specs/runtime/readonly-intake-and-provenance-run.md`
 - **Playwright**: `e2e/live-app/readonly-intake-and-provenance-run.e2e.ts`
 - **5-Beat Causal Chain**:
-  1. **Seed**: Seed: wod:Dashboard, wod:Feed, wod:Note, wod:Notebook, wod:Query, wod:Session
-  2. **Enter**: Enter: /subscribe, /notebooks, /notebook/:slug, /note/:noteId, /day/:date, /results/:sessionId
-  3. **Sense**: Sense: DOM readiness
-  4. **Drive**: Drive: Athlete runs a subscribed read-only Feed Note and it snapshots into the Journal with Note Provenance
+  1. **Seed**: Seed: wod:Feed, wod:Note, wod:Notebook, wod:Page, wod:Query, wod:Session
+  2. **Enter**: Enter: /subscribe, /notebooks, /notebook/:slug, /notebook/:slug/:item, /note/:noteId, /journal, /day/:date, /run/:runtimeId, /sessions, /results/:sessionId, /settings/sync
+  3. **Sense**: Sense: action-run
+  4. **Drive**: Drive: Athlete runs a read-only Feed Note, pinning one archival copy under upstreamId that survives Feed unsubscribe
   5. **Prove**: Prove: e2e/live-app/readonly-intake-and-provenance-run.e2e.ts
-- **Touched Files**: `apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx`, `apps/playground/src/components/molecules/FocusedDialog.tsx`, `apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx`, `apps/playground/src/components/organisms/workout/TimerCore.tsx`, `apps/playground/src/components/organisms/workout/TimerStackView.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`, `e2e/helpers/wodwikiDb.ts`, `e2e/live-app/cold-boot-and-home-tour.e2e.ts`, `e2e/live-app/feed-subscription-and-autosync.e2e.ts`
+- **Touched Files**: `apps/playground/app/views/library/LibraryRow.tsx`, `apps/playground/app/views/notebook-gallery/FeedIntakeBanner.tsx`, `apps/playground/app/views/stream/QueriableStreamView.tsx`, `apps/playground/src/components/molecules/FocusedDialog.tsx`, `apps/playground/src/components/molecules/PublicationPill.tsx`, `apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx`, `apps/playground/src/components/organisms/workout/TimerCore.tsx`, `apps/playground/src/components/organisms/workout/TimerStackView.tsx`, `e2e/api-hosted/api-storage-lifecycle.e2e.ts`, `e2e/fixtures/playgroundActor.ts`
 
 ### RUN-03 — Responsive Timer Surface Tiers & Clock Command Board Keypad
 

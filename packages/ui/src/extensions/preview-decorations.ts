@@ -262,7 +262,7 @@ const scriptBlockBaseTheme = EditorView.baseTheme({
   ".cm-wod-fence": {
     fontFamily: 'var(--font-mono, "JetBrains Mono", ui-monospace, SFMono-Regular, monospace)',
     fontSize: "11.5px",
-    color: "hsl(var(--muted-foreground) / 0.72)",
+    color: "hsl(var(--muted-foreground))",
     paddingLeft: "14px",
     paddingRight: "14px",
     backgroundColor: "color-mix(in srgb, hsl(var(--muted)) 48%, hsl(var(--card)) 52%)",

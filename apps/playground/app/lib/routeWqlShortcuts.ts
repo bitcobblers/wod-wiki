@@ -119,8 +119,8 @@ const LANDING_ICONS: Record<string, string> = {
   '/feeds': 'rss',
   '/pages': 'clipboard-list',
   '/playgrounds': 'flask-conical',
-  '/efforts': 'dumbbell',
-  '/equipment': 'wrench',
+  '/efforts': 'flame',
+  '/equipment': 'dumbbell',
   '/sessions': 'clipboard-list',
   '/tags': 'tag',
 }

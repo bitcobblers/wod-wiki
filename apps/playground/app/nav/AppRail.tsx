@@ -7,7 +7,7 @@
  * only constant chrome across sections.
  */
 
-import { Dumbbell, Settings, UserRound } from 'lucide-react'
+import { Settings, UserRound } from 'lucide-react'
 import { MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 import { useNavigate, useLocation } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { TEST_IDS } from '@/lib/testIds'
 import type { ComponentType } from 'react'
 import { BUY_ME_A_COFFEE_URL, BuyMeACoffeeIcon } from '../components/atoms/BuyMeACoffee'
+import { WodWikiMark } from '@/components/atoms/WodWikiBrand'
 
 import { useNav } from './NavContext'
 import { executeNavAction } from './navTypes'
@@ -106,14 +107,13 @@ export function AppRail({
         {!isMobileList && isHomeActive && (
           <span className="absolute -left-[14px] top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
         )}
-        <span
+        <WodWikiMark
+          size={isMobileList ? 24 : 32}
           className={cn(
-            'grid shrink-0 place-items-center bg-primary text-primary-foreground shadow-md shadow-primary/20',
-            isMobileList ? 'size-6 rounded-md' : 'size-8 rounded-xl rotate-3',
+            'shrink-0 shadow-sm shadow-black/15',
+            isMobileList ? 'size-6 rounded-[6px]' : 'size-8 rounded-[8px]',
           )}
-        >
-          <Dumbbell size={isMobileList ? 14 : 17} aria-hidden="true" />
-        </span>
+        />
         {isMobileList ? (
           <span className="min-w-0 flex-1 truncate">Home</span>
         ) : (

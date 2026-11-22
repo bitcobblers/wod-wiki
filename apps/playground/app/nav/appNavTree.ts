@@ -31,7 +31,7 @@
  */
 
 import { HomeIcon, CodeBracketIcon } from '@heroicons/react/20/solid'
-import { ChartBarIcon, Flame, Rss, Settings, Paintbrush, Sliders, File, Tag, Library, UserRound, Database, CloudDownload, Wrench, Volume2, Calendar, ClipboardList } from 'lucide-react'
+import { ChartBarIcon, Flame, Rss, Settings, Paintbrush, Sliders, File, Tag, Library, UserRound, Database, CloudDownload, Dumbbell, Volume2, Calendar, ClipboardList } from 'lucide-react'
 import type { NavItem } from './navTypes'
 import type { Location } from 'react-router-dom'
 import { EFFORTS_STREAM_PROFILE, EQUIPMENT_STREAM_PROFILE, SESSIONS_STREAM_PROFILE, TAGS_STREAM_PROFILE, type StreamProfile } from '../views/stream/streamProfile'
@@ -240,7 +240,7 @@ export function buildAppNavTree(_openSearch: () => void, canvasRoutes: CanvasRou
     }),
     listingZone({
       landingLabel: 'All Equipment',
-      icon: Wrench,
+      icon: Dumbbell,
       route: ROUTE_PATTERNS.equipment,
       profile: EQUIPMENT_STREAM_PROFILE,
       familyActive: (loc: Location) => isEquipmentPath(loc.pathname),

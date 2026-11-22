@@ -12,9 +12,9 @@
  *  6. Actionable `:block` Hit (`entry.block` → block dataType badge + 3-line code preview)
  *  7. Executed Session Result (`kind: 'result'` → Trophy icon + effort history pill)
  *  8. Telemetry Segment (`kind: 'segment'` → Layers icon + split metrics)
- *  9. Movement Effort (`kind: 'effort'` → Dumbbell icon + discipline/MET)
+ *  9. Movement Effort (`kind: 'effort'` → Flame icon + discipline/MET)
  * 10. Analytics Dashboard (`kind: 'dashboard'` → LayoutDashboard icon)
- * 11. Equipment Reference (`kind: 'equipment'` → Wrench icon)
+ * 11. Equipment Reference (`kind: 'equipment'` → Dumbbell icon)
  * 12. Typed Tag (`kind: 'tag'` → Tag icon)
  */
 import type { Meta, StoryObj } from '@storybook/react-vite';

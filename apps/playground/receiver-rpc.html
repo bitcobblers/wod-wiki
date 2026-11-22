@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wod.Wiki TV (RPC Receiver)</title>
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
 
     <!-- Google tag (gtag.js) -->
     <!-- Dev placeholder G-PROD-ID is replaced during production build -->
@@ -45,11 +46,15 @@
         .spinner {
             width: 48px;
             height: 48px;
-            border: 4px solid rgba(59, 130, 246, 0.1);
-            border-left-color: #3b82f6;
+            border: 4px solid rgba(131, 163, 195, 0.2);
+            border-left-color: #83a3c3;
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .loader-mark {
+            margin-bottom: 1.5rem;
         }
 
         .booting-text {
@@ -73,6 +78,15 @@
 </head>
 <body class="bg-black text-white overflow-hidden h-screen w-screen">
     <div id="initial-loader">
+        <svg class="loader-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="56" height="56" aria-hidden="true">
+            <rect x="0" y="0" width="32" height="32" rx="8" fill="#49698d" />
+            <rect x="0.5" y="0.5" width="31" height="31" rx="7.5" fill="none" stroke="#fcfbf8" stroke-opacity="0.16" stroke-width="1" />
+            <g transform="translate(3.2 3.2) scale(0.8)">
+                <path d="M10.5 6.5H7a1.5 1.5 0 0 0-1.5 1.5v16A1.5 1.5 0 0 0 7 25.5h3.5" fill="none" stroke="#fcfbf8" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M21.5 6.5H25a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5h-3.5" fill="none" stroke="#fcfbf8" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M12.5 10.6a1.1 1.1 0 0 1 1.66-.95l7.9 4.86a1.15 1.15 0 0 1 0 1.98l-7.9 4.86a1.1 1.1 0 0 1-1.66-.95V10.6Z" fill="#d6e4f0" />
+            </g>
+        </svg>
         <div class="spinner"></div>
         <div id="booting-msg" class="booting-text">Wod.Wiki is booting up...</div>
     </div>

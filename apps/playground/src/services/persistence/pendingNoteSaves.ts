@@ -99,69 +99,71 @@ export function registerActiveDraft(noteId: string, flushIfDirty: ActiveDraftFlu
 
 let replayStagedPromise: Promise<void> | null = null;
 
+async function executeStagedNoteReplays(): Promise<void> {
+  const staged = readStagedNoteSaves();
+  for (const entry of Object.values(staged)) {
+    if (isNoteDeleting(entry.noteId)) {
+      clearStagedNoteSave(entry.noteId);
+      continue;
+    }
+    const inFlight = pendingNoteSaves.get(entry.noteId);
+    if (inFlight) {
+      await inFlight.then(() => undefined, () => undefined);
+    }
+    if (isNoteDeleting(entry.noteId)) {
+      clearStagedNoteSave(entry.noteId);
+      continue;
+    }
+    const currentStaged = readStagedNoteSaves()[entry.noteId];
+    if (!currentStaged) continue;
+
+    const flushers = activeDraftFlushers.get(currentStaged.noteId);
+    if (flushers && flushers.size > 0) {
+      let handledByLiveDraft = false;
+      for (const flushIfDirty of [...flushers]) {
+        try {
+          if (await flushIfDirty()) {
+            handledByLiveDraft = true;
+          }
+        } catch {
+          // The live draft owns the edit and surfaced the error; do not save
+          // behind its back or drop its staged draft.
+          handledByLiveDraft = true;
+        }
+      }
+      if (handledByLiveDraft) continue;
+    }
+
+    const savePromise = notePersistence.saveNote({
+      noteId: currentStaged.noteId,
+      rawContent: currentStaged.rawContent,
+      blocks: currentStaged.blocks,
+      expectedSourceRevision: currentStaged.expectedSourceRevision,
+      ...(currentStaged.metadata ? { metadata: currentStaged.metadata } : {}),
+      ...(currentStaged.noteType ? { noteType: currentStaged.noteType } : {}),
+    });
+    pendingNoteSaves.set(currentStaged.noteId, savePromise);
+    try {
+      await savePromise;
+    } catch {
+      // A newer revision already landed in IndexedDB (or the note is gone):
+      // the durable draft served its purpose — drop it.
+    } finally {
+      if (pendingNoteSaves.get(currentStaged.noteId) === savePromise) {
+        pendingNoteSaves.delete(currentStaged.noteId);
+      }
+    }
+    clearStagedNoteSave(currentStaged.noteId);
+  }
+}
+
 /**
  * Commit every staged pagehide draft into IndexedDB. Deduped single-flight;
  * flushes any live dirty draft first so background reads never save behind its
  * back, and drops orphaned staged copies whose revision already lost a race.
  */
 export function replayStagedNoteSaves(): Promise<void> {
-  replayStagedPromise ??= (async () => {
-    const staged = readStagedNoteSaves();
-    for (const entry of Object.values(staged)) {
-      if (isNoteDeleting(entry.noteId)) {
-        clearStagedNoteSave(entry.noteId);
-        continue;
-      }
-      const inFlight = pendingNoteSaves.get(entry.noteId);
-      if (inFlight) {
-        await inFlight.then(() => undefined, () => undefined);
-      }
-      if (isNoteDeleting(entry.noteId)) {
-        clearStagedNoteSave(entry.noteId);
-        continue;
-      }
-      const currentStaged = readStagedNoteSaves()[entry.noteId];
-      if (!currentStaged) continue;
-
-      const flushers = activeDraftFlushers.get(currentStaged.noteId);
-      if (flushers && flushers.size > 0) {
-        let handledByLiveDraft = false;
-        for (const flushIfDirty of [...flushers]) {
-          try {
-            if (await flushIfDirty()) {
-              handledByLiveDraft = true;
-            }
-          } catch {
-            // The live draft owns the edit and surfaced the error; do not save
-            // behind its back or drop its staged draft.
-            handledByLiveDraft = true;
-          }
-        }
-        if (handledByLiveDraft) continue;
-      }
-
-      const savePromise = notePersistence.saveNote({
-        noteId: currentStaged.noteId,
-        rawContent: currentStaged.rawContent,
-        blocks: currentStaged.blocks,
-        expectedSourceRevision: currentStaged.expectedSourceRevision,
-        ...(currentStaged.metadata ? { metadata: currentStaged.metadata } : {}),
-        ...(currentStaged.noteType ? { noteType: currentStaged.noteType } : {}),
-      });
-      pendingNoteSaves.set(currentStaged.noteId, savePromise);
-      try {
-        await savePromise;
-      } catch {
-        // A newer revision already landed in IndexedDB (or the note is gone):
-        // the durable draft served its purpose — drop it.
-      } finally {
-        if (pendingNoteSaves.get(currentStaged.noteId) === savePromise) {
-          pendingNoteSaves.delete(currentStaged.noteId);
-        }
-      }
-      clearStagedNoteSave(currentStaged.noteId);
-    }
-  })().finally(() => {
+  replayStagedPromise ??= executeStagedNoteReplays().finally(() => {
     replayStagedPromise = null;
   });
   return replayStagedPromise;

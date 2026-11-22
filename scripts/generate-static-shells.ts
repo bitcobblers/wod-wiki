@@ -28,7 +28,7 @@ const ROOT = join(import.meta.dir, '..')
 const SEED_CHUNKS = join(ROOT, 'apps', 'playground', 'public', 'seed')
 const DIST = join(ROOT, 'apps', 'playground', 'dist')
 const SITE_URL = (process.env.SITE_URL ?? 'https://wod.wiki').replace(/\/+$/, '')
-const OG_IMAGE = `${SITE_URL}/images/wod-wiki-logo-light.png`
+const OG_IMAGE = `${SITE_URL}/images/wod-wiki-og.png`
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')

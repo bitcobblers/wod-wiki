@@ -53,6 +53,7 @@ arch:pkg_core arch:containsFile <https://wod.wiki/code/file/packages/core/src/mo
 arch:pkg_core arch:containsFile <https://wod.wiki/code/file/packages/core/src/models/TimeSpan.ts> .
 arch:pkg_core arch:containsFile <https://wod.wiki/code/file/packages/core/src/models/blockContentId.ts> .
 arch:pkg_core arch:containsFile <https://wod.wiki/code/file/packages/core/src/models/index.ts> .
+arch:pkg_core arch:containsFile <https://wod.wiki/code/file/packages/core/src/models/timeFormatting.ts> .
 arch:pkg_core arch:containsFile <https://wod.wiki/code/file/packages/core/src/ownership/OwnershipResolver.ts> .
 arch:pkg_core arch:containsFile <https://wod.wiki/code/file/packages/core/src/ownership/index.ts> .
 arch:pkg_core arch:containsFile <https://wod.wiki/code/file/packages/core/src/ownership/ledger.ts> .
@@ -119,6 +120,7 @@ arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/sr
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/feed/tree.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/index.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/ir.ts> .
+arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/notebook/lifecycle.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/notebook/membership.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/notebook/propertyInheritance.ts> .
 arch:pkg_engine arch:containsFile <https://wod.wiki/code/file/packages/engine/src/notebook/sessionIntake.ts> .
@@ -232,6 +234,7 @@ arch:pkg_lang arch:containsFile <https://wod.wiki/code/file/packages/lang/src/pa
 arch:pkg_lang arch:containsFile <https://wod.wiki/code/file/packages/lang/src/parser/WhiteboardScript.ts> .
 arch:pkg_lang arch:containsFile <https://wod.wiki/code/file/packages/lang/src/parser/completion-snippets.ts> .
 arch:pkg_lang arch:containsFile <https://wod.wiki/code/file/packages/lang/src/parser/completion.ts> .
+arch:pkg_lang arch:containsFile <https://wod.wiki/code/file/packages/lang/src/parser/indentation.ts> .
 arch:pkg_lang arch:containsFile <https://wod.wiki/code/file/packages/lang/src/parser/index.ts> .
 arch:pkg_lang arch:containsFile <https://wod.wiki/code/file/packages/lang/src/parser/lezer-mapper.ts> .
 arch:pkg_lang arch:containsFile <https://wod.wiki/code/file/packages/lang/src/parser/md-timer.ts> .
@@ -639,6 +642,8 @@ arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/extens
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/extensions/theme.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-autocomplete.test.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-autocomplete.ts> .
+arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-indent.test.ts> .
+arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-indent.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-linter.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/extensions/whiteboard-overlay.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/extensions/widget-block-preview.tsx> .
@@ -673,6 +678,7 @@ arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widget
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/WqlTimeseries.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/ZoneDistribution.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/chartData.ts> .
+arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/chartFormat.tsx> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/chartPalette.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/index.ts> .
 arch:pkg_ui arch:containsFile <https://wod.wiki/code/file/packages/ui/src/widgets/unitIntegrity.ts> .

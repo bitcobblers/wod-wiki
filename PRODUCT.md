@@ -61,12 +61,15 @@ Everything in WOD Wiki is a layered, immutable `Metric`:
 - **Binding taglines:**
   - `Write it. Time it. Track it. Own it.`
   - `Write workouts as Markdown. Run them on a clock. Analyze what actually happened.`
-- **Existing brand assets:** Light and dark logos at `apps/playground/public/images/wod-wiki-logo-light.png` and `apps/playground/public/images/wod-wiki-logo-dark.png`.
+- **Existing brand assets:**
+  - **Mark:** Executable Fence in Mineral Slate squircle tile (`#49698d` tile, `#fcfbf8` chalk brackets, `#d6e4f0` frost wedge).
+  - **Wordmark:** Hybrid Sans + Mono (`WOD` bold sans + monospace `.wiki`).
+  - **Files:** Favicons (`apps/playground/public/favicon.svg`, `apps/playground/public/favicon-32x32.png`), app icons (`apps/playground/public/images/wod-wiki-icon-{180,512}.png`), light/dark wordmarks (`apps/playground/public/images/wod-wiki-logo-{light,dark}.{svg,png}`), and Open Graph card (`apps/playground/public/images/wod-wiki-og.png`).
 
 ## Evidence on Hand
 
 - **Live product & interactive demo:** Hosted web app (`https://wod.wiki/`), interactive home demo (`wods/examples/home/welcome-1.md`), seeded workout `Notebook`s and `Effort` catalog (`markdown/`), and two demo community `Feed`s.
-- **Visual & brand assets:** Light/dark logos (`apps/playground/public/images/wod-wiki-logo-light.png`, `apps/playground/public/images/wod-wiki-logo-dark.png`) and product screenshots (`apps/playground/public/images/hero/{editing,journal,results,timer}.png`).
+- **Visual & brand assets:** Favicons (`apps/playground/public/favicon.svg`, `apps/playground/public/favicon-32x32.png`), app icons (`apps/playground/public/images/wod-wiki-icon-{180,512}.png`), light/dark logos (`apps/playground/public/images/wod-wiki-logo-{light,dark}.{svg,png}`), Open Graph card (`apps/playground/public/images/wod-wiki-og.png`), and product screenshots (`apps/playground/public/images/hero/{editing,journal,results,timer}.png`).
 - **Public links & discovery docs:** Open-source repository (`https://github.com/bitcobblers/wod-wiki`), hosted-feature interest survey (`https://forms.gle/6YHpxwAJh6PAsyAQ6`), and agent discovery manifests (`apps/playground/public/llms.txt`, `apps/playground/public/llms-full.txt`, `apps/playground/public/.well-known/agent-capabilities.json`).
 - **Absences — must not be fabricated:**
   - No final "Why Wod Wiki?" explainer video yet (`apps/playground/app/tour/TourWhyVideo.tsx` currently uses a `dQw4w9WgXcQ` placeholder).

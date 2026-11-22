@@ -8,10 +8,9 @@ import {
   DocumentTextIcon,
   PlusIcon,
   RectangleStackIcon,
-  SparklesIcon,
   TagIcon,
-  WrenchScrewdriverIcon,
 } from '@heroicons/react/20/solid'
+import { Dumbbell, Flame } from 'lucide-react'
 
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { notebookService } from '@/hooks/useBrowserServices'
@@ -43,8 +42,8 @@ const ENTRY_TYPES: Record<NewEntryKind, EntryType> = {
   playground: { kind: 'playground', label: 'Playground', icon: BeakerIcon },
   notebook: { kind: 'notebook', label: 'Notebook', icon: BookOpenIcon },
   note: { kind: 'note', label: 'Note', icon: DocumentTextIcon },
-  effort: { kind: 'effort', label: 'Effort', icon: SparklesIcon },
-  equipment: { kind: 'equipment', label: 'Equipment', icon: WrenchScrewdriverIcon },
+  effort: { kind: 'effort', label: 'Effort', icon: Flame },
+  equipment: { kind: 'equipment', label: 'Equipment', icon: Dumbbell },
   tag: { kind: 'tag', label: 'Tag', icon: TagIcon },
   page: { kind: 'page', label: 'Page', icon: RectangleStackIcon },
 }

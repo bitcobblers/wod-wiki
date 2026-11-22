@@ -4,11 +4,9 @@ import {
   BeakerIcon,
   BookOpenIcon,
   DocumentTextIcon,
-  SparklesIcon,
   TagIcon,
-  WrenchScrewdriverIcon,
 } from '@heroicons/react/20/solid'
-import { CalendarPlus, ChevronDown, Loader2, Play, Search } from 'lucide-react'
+import { CalendarPlus, ChevronDown, Dumbbell, Flame, Loader2, Play, Search } from 'lucide-react'
 import { EditorDialog, WqlComposer } from '@bitcobblers/wod-wiki-ui'
 import { effortToDocument, tagRecordToDocument } from '@bitcobblers/wod-wiki-lang'
 import {
@@ -212,8 +210,8 @@ const KIND_OPTIONS: KindOption[] = [
   { kind: 'note', label: 'Note', subtitle: 'Journal, notebook, or page', group: 'workspace', icon: DocumentTextIcon },
   { kind: 'playground', label: 'Playground', subtitle: 'Scratchpad timer session', group: 'workspace', icon: BeakerIcon },
   { kind: 'notebook', label: 'Notebook', subtitle: 'Collection of notes', group: 'workspace', icon: BookOpenIcon },
-  { kind: 'effort', label: 'Effort', subtitle: 'Movement definition', group: 'catalog', icon: SparklesIcon },
-  { kind: 'equipment', label: 'Equipment', subtitle: 'Gear definition', group: 'catalog', icon: WrenchScrewdriverIcon },
+  { kind: 'effort', label: 'Effort', subtitle: 'Movement definition', group: 'catalog', icon: Flame },
+  { kind: 'equipment', label: 'Equipment', subtitle: 'Gear definition', group: 'catalog', icon: Dumbbell },
   { kind: 'tag', label: 'Tag', subtitle: 'Reusable script contribution', group: 'catalog', icon: TagIcon },
 ]
 
