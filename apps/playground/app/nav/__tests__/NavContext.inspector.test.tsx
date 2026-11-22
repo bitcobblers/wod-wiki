@@ -52,6 +52,17 @@ describe('NavContext inspector/peek coordination & steady L2 contract', () => {
     expect(withRightAgain.inspectorDrawerOpen).toBe(false);
     expect(withRightAgain.peekTarget).toBeNull();
 
+    // Re-open peek, then opening an external inspector drawer (e.g. WhiteboardInspectorDrawer
+    // or SchedulePeekDrawer) clears peekTarget so the two right-edge drawers never stack.
+    const peekBeforeInspector = navReducer(withRightAgain, { type: 'OPEN_PEEK', target });
+    expect(peekBeforeInspector.peekTarget).toEqual(target);
+    const afterExternalInspector = navReducer(peekBeforeInspector, { type: 'SET_INSPECTOR_DRAWER', open: true });
+    expect(afterExternalInspector.inspectorDrawerOpen).toBe(true);
+    expect(afterExternalInspector.rightDrawerOpen).toBe(false);
+    expect(afterExternalInspector.peekTarget).toBeNull();
+    // Equality guard holds once peekTarget is already null
+    expect(navReducer(afterExternalInspector, { type: 'SET_INSPECTOR_DRAWER', open: true })).toBe(afterExternalInspector);
+
     // Re-open peek, then SET_INSPECTOR_DRAWER false clears peekTarget
     const peekAgain = navReducer(withRightAgain, { type: 'OPEN_PEEK', target: { kind: 'day', date: '2026-11-26' } });
     expect(peekAgain.peekTarget).toEqual({ kind: 'day', date: '2026-11-26' });

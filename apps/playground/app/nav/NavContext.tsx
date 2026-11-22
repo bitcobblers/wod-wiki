@@ -83,9 +83,9 @@ export function navReducer(state: NavState, action: NavStateAction): NavState {
       return !state.rightDrawerOpen ? state : { ...state, rightDrawerOpen: false }
     case 'SET_INSPECTOR_DRAWER':
       if (action.open) {
-        return state.inspectorDrawerOpen && !state.rightDrawerOpen
+        return state.inspectorDrawerOpen && !state.rightDrawerOpen && (state.peekTarget ?? null) === null
           ? state
-          : { ...state, inspectorDrawerOpen: true, rightDrawerOpen: false }
+          : { ...state, inspectorDrawerOpen: true, rightDrawerOpen: false, peekTarget: null }
       }
       return !state.inspectorDrawerOpen && (state.peekTarget ?? null) === null
         ? state
