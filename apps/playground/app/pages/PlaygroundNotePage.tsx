@@ -29,6 +29,7 @@ import { pageId } from '../services/playgroundContent'
 import { storageService } from '@/services/storage'
 import { pendingRuntimes } from '../runtimeStore'
 import { dayPath, notePath, playgroundPath, playgroundsPath, runPath } from '../lib/routes'
+import { useNav } from '../nav/NavContext'
 import { PageActions } from './shared/PageActions'
 import { useNotePageNav } from './shared/useNotePageNav'
 import { appendTimerBlock } from './shared/pageUtils'
@@ -72,6 +73,7 @@ export function PlaygroundNotePage({
   // (V8 notes), with the composite as the legacy fallback.
   const noteId = pageId('playground', pageName)
   const navigate = useNavigate()
+  const { openPeek, closePeek } = useNav()
   // ponytail: only seed template on bare /playground route; detail routes stay read-only on load.
   const isDefaultPlayground = !id || id === 'playground'
   const { content, loading, entryId, entryTitle, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange: persistOnChange, onLineChange, onBlur, flush, committedSourceRevision, resetToOriginal } = usePlaygroundContent({
@@ -446,7 +448,13 @@ export function PlaygroundNotePage({
         actions={headerActions}
         editor={
           <div className="flex flex-col gap-3 px-4 py-6 sm:px-6">
-            <NoteContextNav data={contextData} up={parentLink} source={spawnLink?.noteId === runtimeNoteId ? spawnLink.link : null} peekMode />
+            <NoteContextNav
+              data={contextData}
+              up={parentLink}
+              source={spawnLink?.noteId === runtimeNoteId ? spawnLink.link : null}
+              peekMode
+              onPeekEntity={openPeek}
+            />
             <NoteEditor
               value={content}
               onChange={onChange}
@@ -467,6 +475,8 @@ export function PlaygroundNotePage({
               showLineNumbers={false}
               onBlocksChange={setScriptBlocks}
               onButtonAction={handleButtonAction}
+              onPeekEntity={openPeek}
+              onClosePeek={closePeek}
               widgetComponents={widgetComponents}
             />
             {error ? <p role="alert">Save failed. {error instanceof Error ? error.message : String(error)} Your draft is kept.</p> : null}

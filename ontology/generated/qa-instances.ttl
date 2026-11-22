@@ -3664,43 +3664,43 @@
     qa:stepIndex 5 ;
     qa:beatOrder 5 .
 
-<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail> a qa:StoryTest ;
-    rdfs:label "Playground/Navigation/Navigation & Menus / L3StreamControlsRail" ;
+<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail> a qa:StoryTest ;
+    rdfs:label "Playground/Navigation/Navigation & Menus / L3SecondaryRail" ;
     qa:tier "T2" ;
     qa:seam "T2b-story" ;
     qa:hasPlayTest true ;
-    qa:hasStep <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Seed>, <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Enter>, <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Sense>, <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Drive>, <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Prove> .
+    qa:hasStep <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Seed>, <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Enter>, <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Sense>, <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Drive>, <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Prove> .
 
-<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Seed> a qa:Step ;
+<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Seed> a qa:Step ;
     rdfs:label "Seed: props/args" ;
     qa:hasBeat qa:Seed ;
     qa:stepIndex 1 ;
     qa:beatOrder 1 ;
-    qa:nextStep <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Enter> .
+    qa:nextStep <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Enter> .
 
-<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Enter> a qa:Step ;
+<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Enter> a qa:Step ;
     rdfs:label "Enter: Playground/Navigation/Navigation & Menus" ;
     qa:hasBeat qa:Enter ;
     qa:stepIndex 2 ;
     qa:beatOrder 2 ;
-    qa:nextStep <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Sense> .
+    qa:nextStep <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Sense> .
 
-<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Sense> a qa:Step ;
-    rdfs:label "Sense: rendered DOM" ;
+<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Sense> a qa:Step ;
+    rdfs:label "Sense: l3-analytics-controls, l3-connections, l3-actions" ;
     qa:hasBeat qa:Sense ;
     qa:stepIndex 3 ;
     qa:beatOrder 3 ;
-    qa:nextStep <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Drive> .
+    qa:nextStep <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Drive> .
 
-<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Drive> a qa:Step ;
+<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Drive> a qa:Step ;
     rdfs:label "Drive: click" ;
     qa:hasBeat qa:Drive ;
     qa:stepIndex 4 ;
     qa:beatOrder 4 ;
-    qa:nextStep <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Prove> .
+    qa:nextStep <https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Prove> .
 
-<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-stream-controls-rail/beat/Prove> a qa:Step ;
-    rdfs:label "Prove: 2 expect() assertion(s)" ;
+<https://wod.wiki/qa/story/playground-navigation-navigation-menus--l3-secondary-rail/beat/Prove> a qa:Step ;
+    rdfs:label "Prove: 4 expect() assertion(s)" ;
     qa:hasBeat qa:Prove ;
     qa:stepIndex 5 ;
     qa:beatOrder 5 .
@@ -5977,7 +5977,7 @@
     qa:nextStep <https://wod.wiki/qa/journey/JRN-03/beat/Sense> .
 
 <https://wod.wiki/qa/journey/JRN-03/beat/Sense> a qa:Step ;
-    rdfs:label "Sense: new-entry-primary" ;
+    rdfs:label "Sense: actions-overflow, new-entry-primary" ;
     qa:hasBeat qa:Sense ;
     qa:beatOrder 3 ;
     qa:nextStep <https://wod.wiki/qa/journey/JRN-03/beat/Drive> .
@@ -6270,7 +6270,7 @@
     qa:nextStep <https://wod.wiki/qa/journey/PRP-03/beat/Sense> .
 
 <https://wod.wiki/qa/journey/PRP-03/beat/Sense> a qa:Step ;
-    rdfs:label "Sense: notebook-not-found" ;
+    rdfs:label "Sense: actions-dock, notebook-not-found" ;
     qa:hasBeat qa:Sense ;
     qa:beatOrder 3 ;
     qa:nextStep <https://wod.wiki/qa/journey/PRP-03/beat/Drive> .
@@ -6836,6 +6836,13 @@
     qa:seam "T2a-host" ;
     qa:inDomain <https://wod.wiki/qa/domain/journal> .
 
+<https://wod.wiki/qa/suite/apps/playground/app/components/organisms/EntityPeekDrawer.test.tsx> a qa:HostSuite ;
+    rdfs:label "EntityPeekDrawer" ;
+    qa:suitePath "apps/playground/app/components/organisms/EntityPeekDrawer.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
 <https://wod.wiki/qa/suite/apps/playground/app/hooks/useJournalZipProcessor.test.ts> a qa:HostSuite ;
     rdfs:label "useJournalZipProcessor" ;
     qa:suitePath "apps/playground/app/hooks/useJournalZipProcessor.test.ts" ;
@@ -6867,6 +6874,13 @@
 <https://wod.wiki/qa/suite/apps/playground/app/pages/__tests__/EquipmentDetailPage.create.test.tsx> a qa:HostSuite ;
     rdfs:label "EquipmentDetailPage.create" ;
     qa:suitePath "apps/playground/app/pages/__tests__/EquipmentDetailPage.create.test.tsx" ;
+    qa:tier "T2" ;
+    qa:seam "T2a-host" ;
+    qa:inDomain <https://wod.wiki/qa/domain/journal> .
+
+<https://wod.wiki/qa/suite/apps/playground/app/pages/__tests__/ShellPeekIntegration.host.test.tsx> a qa:HostSuite ;
+    rdfs:label "ShellPeekIntegration.host" ;
+    qa:suitePath "apps/playground/app/pages/__tests__/ShellPeekIntegration.host.test.tsx" ;
     qa:tier "T2" ;
     qa:seam "T2a-host" ;
     qa:inDomain <https://wod.wiki/qa/domain/journal> .

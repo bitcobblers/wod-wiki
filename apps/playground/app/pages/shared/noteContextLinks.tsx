@@ -36,6 +36,7 @@ import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity'
 import { useOptionalEffortRegistry } from '../../contexts/EffortRegistryContext'
 import { useOptionalEquipmentRegistry } from '../../contexts/EquipmentRegistryContext'
 import { useNav } from '../../nav/NavContext'
+import type { EntityPeekTarget } from '../../nav/navTypes'
 import type { MenuSpec } from '../../nav/menuModel'
 import {
   notebookPath,
@@ -86,16 +87,9 @@ export function notesFacetFilterPath(key: string, value: string): string {
   return `${ROUTE_PATTERNS.notes}?q=${encodeURIComponent(wql)}`
 }
 
-/** Shared EntityPeekTarget contract matching shell-core & entity-peek verbatim. */
-export type NotePeekTarget =
-  | { kind: 'effort'; slug: string; label?: string }
-  | { kind: 'equipment'; slug: string; label?: string }
-  | { kind: 'tag'; tagType?: string; label: string }
-  | { kind: 'unrecognized'; term: string }
-  | { kind: 'note'; noteId: string; title?: string }
-  | { kind: 'notebook'; slug: string; title?: string }
-  | { kind: 'schedule'; entry: unknown }
-  | { kind: 'day'; date: string }
+/** Canonical EntityPeekTarget re-exported from navTypes (NotePeekTarget kept as alias). */
+export type { EntityPeekTarget } from '../../nav/navTypes'
+export type NotePeekTarget = EntityPeekTarget
 
 export interface ContextNoteLink {
   id: string
@@ -972,26 +966,16 @@ export function buildNoteContextSpec({
 
 export interface NoteContextNavProps extends NoteContextSpecOptions {}
 
-interface NavContextWithL3Connections {
-  setL3Connections?: (spec?: MenuSpec) => void
-  openPeek?: (target: NotePeekTarget) => void
-}
-
-/** Publishes the note's relationships into L3 Connections (via `setL3Connections`
- *  when present on NavContext, falling back to `setContextNav` until merged
- *  with `shell-core`) so L2 stays steady as Zone Places + Saved Views. */
+/** Publishes the note's relationships directly into L3 Connections via
+ *  `setL3Connections` so L2 stays steady as Zone Places + Saved Views. */
 export function NoteContextNav(props: NoteContextNavProps) {
-  const nav = useNav()
-  const { setContextNav } = nav
-  const navExt = nav as typeof nav & NavContextWithL3Connections
-  const setL3Connections = navExt.setL3Connections
-  const navOpenPeek = navExt.openPeek
+  const { setL3Connections, openPeek } = useNav()
   const location = useLocation()
   const calendarRef = useRef(props.calendar)
   calendarRef.current = props.calendar
   const hasCalendar = Boolean(props.calendar)
 
-  const resolvedPeekHandler = props.onPeekEntity ?? (props.peekMode ? navOpenPeek : undefined)
+  const resolvedPeekHandler = props.onPeekEntity ?? (props.peekMode ? openPeek : undefined)
   const peekRef = useRef(resolvedPeekHandler)
   peekRef.current = resolvedPeekHandler
   const hasPeek = Boolean(resolvedPeekHandler)
@@ -1057,23 +1041,15 @@ export function NoteContextNav(props: NoteContextNavProps) {
   useEffect(() => {
     return () => {
       lastPublishedSigRef.current = null
-      if (setL3Connections) {
-        setL3Connections(undefined)
-      } else {
-        setContextNav(prev => (prev?.pathname === location.pathname ? undefined : prev))
-      }
+      setL3Connections?.(undefined)
     }
-  }, [location.pathname, setContextNav, setL3Connections])
+  }, [location.pathname, setL3Connections])
 
   useEffect(() => {
     if (lastPublishedSigRef.current === specSig) return
     lastPublishedSigRef.current = specSig
-    if (setL3Connections) {
-      setL3Connections(spec)
-    } else {
-      setContextNav({ pathname: location.pathname, spec })
-    }
-  }, [spec, specSig, location.pathname, setContextNav, setL3Connections])
+    setL3Connections?.(spec)
+  }, [spec, specSig, setL3Connections])
 
   return null
 }

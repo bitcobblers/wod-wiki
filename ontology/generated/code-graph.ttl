@@ -26112,13 +26112,29 @@
     code:packageName "apps/playground" ;
     code:isTestFile false .
 
+<https://wod.wiki/code/symbol/apps/playground/app/agent/EditorAgentTools.tsx#usePeekEntityWebMcp> a code:Symbol ;
+    rdfs:label "usePeekEntityWebMcp" ;
+    code:symbolName "usePeekEntityWebMcp" ;
+    code:scipId "apps/playground/app/agent/EditorAgentTools.tsx#usePeekEntityWebMcp" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/EditorAgentTools.tsx> ;
+    code:lineHint 77 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/agent/EditorAgentTools.tsx#PeekAgentTools> a code:Symbol ;
+    rdfs:label "PeekAgentTools" ;
+    code:symbolName "PeekAgentTools" ;
+    code:scipId "apps/playground/app/agent/EditorAgentTools.tsx#PeekAgentTools" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/EditorAgentTools.tsx> ;
+    code:lineHint 182 .
+
 <https://wod.wiki/code/symbol/apps/playground/app/agent/EditorAgentTools.tsx#EditorAgentTools> a code:Symbol ;
     rdfs:label "EditorAgentTools" ;
     code:symbolName "EditorAgentTools" ;
     code:scipId "apps/playground/app/agent/EditorAgentTools.tsx#EditorAgentTools" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/EditorAgentTools.tsx> ;
-    code:lineHint 14 .
+    code:lineHint 187 .
 
 <https://wod.wiki/code/file/apps/playground/app/agent/ExplorerAgentTools.tsx> a code:File ;
     rdfs:label "ExplorerAgentTools.tsx" ;
@@ -26166,7 +26182,7 @@
     code:scipId "apps/playground/app/agent/PlaygroundAgentProvider.tsx#uiSdkAgent" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/PlaygroundAgentProvider.tsx> ;
-    code:lineHint 57 .
+    code:lineHint 58 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/agent/PlaygroundAgentProvider.tsx#installModelContextExecuteToolAdapter> a code:Symbol ;
     rdfs:label "installModelContextExecuteToolAdapter" ;
@@ -26174,7 +26190,7 @@
     code:scipId "apps/playground/app/agent/PlaygroundAgentProvider.tsx#installModelContextExecuteToolAdapter" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/PlaygroundAgentProvider.tsx> ;
-    code:lineHint 168 .
+    code:lineHint 169 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/agent/PlaygroundAgentProvider.tsx#PlaygroundAgentProvider> a code:Symbol ;
     rdfs:label "PlaygroundAgentProvider" ;
@@ -26182,7 +26198,7 @@
     code:scipId "apps/playground/app/agent/PlaygroundAgentProvider.tsx#PlaygroundAgentProvider" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/PlaygroundAgentProvider.tsx> ;
-    code:lineHint 311 .
+    code:lineHint 312 .
 
 <https://wod.wiki/code/file/apps/playground/app/agent/ResultsAgentTools.tsx> a code:File ;
     rdfs:label "ResultsAgentTools.tsx" ;
@@ -26382,13 +26398,21 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> ;
     code:lineHint 188 .
 
+<https://wod.wiki/code/symbol/apps/playground/app/agent/uiToolSpecs.ts#uiPeekEntitySchema> a code:Symbol ;
+    rdfs:label "uiPeekEntitySchema" ;
+    code:symbolName "uiPeekEntitySchema" ;
+    code:scipId "apps/playground/app/agent/uiToolSpecs.ts#uiPeekEntitySchema" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> ;
+    code:lineHint 211 .
+
 <https://wod.wiki/code/symbol/apps/playground/app/agent/uiToolSpecs.ts#exportPlaygroundUiToolsManifest> a code:Symbol ;
     rdfs:label "exportPlaygroundUiToolsManifest" ;
     code:symbolName "exportPlaygroundUiToolsManifest" ;
     code:scipId "apps/playground/app/agent/uiToolSpecs.ts#exportPlaygroundUiToolsManifest" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> ;
-    code:lineHint 211 .
+    code:lineHint 250 .
 
 <https://wod.wiki/code/file/apps/playground/app/App.tsx> a code:File ;
     rdfs:label "App.tsx" ;
@@ -26416,7 +26440,7 @@
     code:scipId "apps/playground/app/AppContent.tsx#AppContent" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/AppContent.tsx> ;
-    code:lineHint 77 .
+    code:lineHint 79 .
 
 <https://wod.wiki/code/file/apps/playground/app/AppRoutes.tsx> a code:File ;
     rdfs:label "AppRoutes.tsx" ;
@@ -28142,6 +28166,46 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/components/organisms/editor/EditorWindow.tsx> ;
     code:lineHint 87 .
 
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.test.tsx> a code:File ;
+    rdfs:label "EntityPeekDrawer.test.tsx" ;
+    code:filePath "apps/playground/app/components/organisms/EntityPeekDrawer.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> a code:File ;
+    rdfs:label "EntityPeekDrawer.tsx" ;
+    code:filePath "apps/playground/app/components/organisms/EntityPeekDrawer.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile false .
+
+<https://wod.wiki/code/symbol/apps/playground/app/components/organisms/EntityPeekDrawer.tsx#EntityPeekDrawerProps> a code:Symbol ;
+    rdfs:label "EntityPeekDrawerProps" ;
+    code:symbolName "EntityPeekDrawerProps" ;
+    code:scipId "apps/playground/app/components/organisms/EntityPeekDrawer.tsx#EntityPeekDrawerProps" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> ;
+    code:lineHint 85 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/components/organisms/EntityPeekDrawer.tsx#EntityPeekDrawer> a code:Symbol ;
+    rdfs:label "EntityPeekDrawer" ;
+    code:symbolName "EntityPeekDrawer" ;
+    code:scipId "apps/playground/app/components/organisms/EntityPeekDrawer.tsx#EntityPeekDrawer" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> ;
+    code:lineHint 647 .
+
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-create-form> .
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-create-kind> .
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-create-label> .
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-create-slug> .
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-create-category> .
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-create-submit> .
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-backdrop> .
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-drawer> .
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-close> .
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-open-full> .
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-filter-notes> .
+<https://wod.wiki/code/file/apps/playground/app/components/organisms/EntityPeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/entity-peek-view-all-notes> .
 <https://wod.wiki/code/file/apps/playground/app/components/organisms/journal/BackdateConfirmModal.tsx> a code:File ;
     rdfs:label "BackdateConfirmModal.tsx" ;
     code:filePath "apps/playground/app/components/organisms/journal/BackdateConfirmModal.tsx" ;
@@ -31924,7 +31988,7 @@
     code:scipId "apps/playground/app/nav/MenuList.tsx#MenuList" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/MenuList.tsx> ;
-    code:lineHint 195 .
+    code:lineHint 194 .
 
 <https://wod.wiki/code/file/apps/playground/app/nav/menuModel.ts> a code:File ;
     rdfs:label "menuModel.ts" ;
@@ -32000,7 +32064,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#initialNavState" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 40 .
+    code:lineHint 54 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#navReducer> a code:Symbol ;
     rdfs:label "navReducer" ;
@@ -32008,7 +32072,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#navReducer" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 54 .
+    code:lineHint 69 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#StreamNavControls> a code:Symbol ;
     rdfs:label "StreamNavControls" ;
@@ -32016,7 +32080,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#StreamNavControls" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 99 .
+    code:lineHint 129 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#AnalyticsNavControls> a code:Symbol ;
     rdfs:label "AnalyticsNavControls" ;
@@ -32024,7 +32088,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#AnalyticsNavControls" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 130 .
+    code:lineHint 147 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#L3ActionItem> a code:Symbol ;
     rdfs:label "L3ActionItem" ;
@@ -32032,7 +32096,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#L3ActionItem" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 150 .
+    code:lineHint 169 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#ContextNav> a code:Symbol ;
     rdfs:label "ContextNav" ;
@@ -32040,7 +32104,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#ContextNav" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 162 .
+    code:lineHint 185 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#NavContextValue> a code:Symbol ;
     rdfs:label "NavContextValue" ;
@@ -32048,7 +32112,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#NavContextValue" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 167 .
+    code:lineHint 190 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#CreateWizardOptions> a code:Symbol ;
     rdfs:label "CreateWizardOptions" ;
@@ -32056,7 +32120,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#CreateWizardOptions" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 194 .
+    code:lineHint 226 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#NavContext> a code:Symbol ;
     rdfs:label "NavContext" ;
@@ -32064,7 +32128,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#NavContext" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 231 .
+    code:lineHint 268 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#useNav> a code:Symbol ;
     rdfs:label "useNav" ;
@@ -32072,7 +32136,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#useNav" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 233 .
+    code:lineHint 270 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#useOptionalNav> a code:Symbol ;
     rdfs:label "useOptionalNav" ;
@@ -32080,7 +32144,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#useOptionalNav" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 241 .
+    code:lineHint 278 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#useNoteL1Zone> a code:Symbol ;
     rdfs:label "useNoteL1Zone" ;
@@ -32088,7 +32152,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#useNoteL1Zone" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 252 .
+    code:lineHint 289 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#NavProviderProps> a code:Symbol ;
     rdfs:label "NavProviderProps" ;
@@ -32096,7 +32160,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#NavProviderProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 263 .
+    code:lineHint 300 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavContext.tsx#NavProvider> a code:Symbol ;
     rdfs:label "NavProvider" ;
@@ -32104,7 +32168,7 @@
     code:scipId "apps/playground/app/nav/NavContext.tsx#NavProvider" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavContext.tsx> ;
-    code:lineHint 268 .
+    code:lineHint 347 .
 
 <https://wod.wiki/code/file/apps/playground/app/nav/NavigationDrawerContext.tsx> a code:File ;
     rdfs:label "NavigationDrawerContext.tsx" ;
@@ -32140,7 +32204,7 @@
     code:scipId "apps/playground/app/nav/NavSidebar.tsx#isItemActive" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavSidebar.tsx> ;
-    code:lineHint 56 .
+    code:lineHint 58 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/NavSidebar.tsx#NavSidebar> a code:Symbol ;
     rdfs:label "NavSidebar" ;
@@ -32148,7 +32212,7 @@
     code:scipId "apps/playground/app/nav/NavSidebar.tsx#NavSidebar" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/NavSidebar.tsx> ;
-    code:lineHint 143 .
+    code:lineHint 146 .
 
 <https://wod.wiki/code/file/apps/playground/app/nav/navTypes.ts> a code:File ;
     rdfs:label "navTypes.ts" ;
@@ -32156,13 +32220,29 @@
     code:packageName "apps/playground" ;
     code:isTestFile false .
 
+<https://wod.wiki/code/symbol/apps/playground/app/nav/navTypes.ts#EntityPeekTarget> a code:Symbol ;
+    rdfs:label "EntityPeekTarget" ;
+    code:symbolName "EntityPeekTarget" ;
+    code:scipId "apps/playground/app/nav/navTypes.ts#EntityPeekTarget" ;
+    code:symbolKind "type" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/navTypes.ts> ;
+    code:lineHint 9 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/nav/navTypes.ts#L3ActionGroup> a code:Symbol ;
+    rdfs:label "L3ActionGroup" ;
+    code:symbolName "L3ActionGroup" ;
+    code:scipId "apps/playground/app/nav/navTypes.ts#L3ActionGroup" ;
+    code:symbolKind "type" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/navTypes.ts> ;
+    code:lineHint 20 .
+
 <https://wod.wiki/code/symbol/apps/playground/app/nav/navTypes.ts#NavState> a code:Symbol ;
     rdfs:label "NavState" ;
     code:symbolName "NavState" ;
     code:scipId "apps/playground/app/nav/navTypes.ts#NavState" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/navTypes.ts> ;
-    code:lineHint 9 .
+    code:lineHint 22 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/navTypes.ts#NavStateAction> a code:Symbol ;
     rdfs:label "NavStateAction" ;
@@ -32170,7 +32250,7 @@
     code:scipId "apps/playground/app/nav/navTypes.ts#NavStateAction" ;
     code:symbolKind "type" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/navTypes.ts> ;
-    code:lineHint 13 .
+    code:lineHint 27 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/navTypes.ts#NavDispatch> a code:Symbol ;
     rdfs:label "NavDispatch" ;
@@ -32178,7 +32258,7 @@
     code:scipId "apps/playground/app/nav/navTypes.ts#NavDispatch" ;
     code:symbolKind "type" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/navTypes.ts> ;
-    code:lineHint 17 .
+    code:lineHint 33 .
 
 <https://wod.wiki/code/file/apps/playground/app/nav/panels/__tests__/conditionsIdentity.test.ts> a code:File ;
     rdfs:label "conditionsIdentity.test.ts" ;
@@ -32481,7 +32561,7 @@
     code:scipId "apps/playground/app/nav/panels/DashboardsNavPanel.tsx#DashboardsNavPanel" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/panels/DashboardsNavPanel.tsx> ;
-    code:lineHint 33 .
+    code:lineHint 26 .
 
 <https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> a code:File ;
     rdfs:label "FacetProperties.tsx" ;
@@ -32495,6 +32575,14 @@
     code:scipId "apps/playground/app/nav/panels/FacetProperties.tsx#navigateToQuery" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> ;
+    code:lineHint 89 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/nav/panels/FacetProperties.tsx#FacetPropertiesProps> a code:Symbol ;
+    rdfs:label "FacetPropertiesProps" ;
+    code:symbolName "FacetPropertiesProps" ;
+    code:scipId "apps/playground/app/nav/panels/FacetProperties.tsx#FacetPropertiesProps" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> ;
     code:lineHint 99 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/panels/FacetProperties.tsx#FacetProperties> a code:Symbol ;
@@ -32505,7 +32593,9 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> ;
     code:lineHint 115 .
 
-<https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-bar> .
+<https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> code:usesTestId <https://wod.wiki/code/testid/facet-pill-include> .
+<https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> code:usesTestId <https://wod.wiki/code/testid/facet-pill-exclude> .
+<https://wod.wiki/code/file/apps/playground/app/nav/panels/FacetProperties.tsx> code:usesTestId <https://wod.wiki/code/testid/facet-pill-off> .
 <https://wod.wiki/code/file/apps/playground/app/nav/panels/NotebookZonePanel.tsx> a code:File ;
     rdfs:label "NotebookZonePanel.tsx" ;
     code:filePath "apps/playground/app/nav/panels/NotebookZonePanel.tsx" ;
@@ -32578,7 +32668,7 @@
     code:scipId "apps/playground/app/nav/ResponsiveActions.tsx#useInResponsiveActionsProvider" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> ;
-    code:lineHint 75 .
+    code:lineHint 85 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/ResponsiveActions.tsx#ResponsiveActionsProps> a code:Symbol ;
     rdfs:label "ResponsiveActionsProps" ;
@@ -32586,7 +32676,7 @@
     code:scipId "apps/playground/app/nav/ResponsiveActions.tsx#ResponsiveActionsProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> ;
-    code:lineHint 79 .
+    code:lineHint 89 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/ResponsiveActions.tsx#ResponsiveActions> a code:Symbol ;
     rdfs:label "ResponsiveActions" ;
@@ -32594,7 +32684,7 @@
     code:scipId "apps/playground/app/nav/ResponsiveActions.tsx#ResponsiveActions" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> ;
-    code:lineHint 97 .
+    code:lineHint 108 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/ResponsiveActions.tsx#ResponsiveActionsProviderProps> a code:Symbol ;
     rdfs:label "ResponsiveActionsProviderProps" ;
@@ -32602,7 +32692,7 @@
     code:scipId "apps/playground/app/nav/ResponsiveActions.tsx#ResponsiveActionsProviderProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> ;
-    code:lineHint 154 .
+    code:lineHint 165 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/ResponsiveActions.tsx#ResponsiveActionsProvider> a code:Symbol ;
     rdfs:label "ResponsiveActionsProvider" ;
@@ -32610,7 +32700,7 @@
     code:scipId "apps/playground/app/nav/ResponsiveActions.tsx#ResponsiveActionsProvider" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> ;
-    code:lineHint 163 .
+    code:lineHint 178 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/ResponsiveActions.tsx#ResponsiveActionsDockPort> a code:Symbol ;
     rdfs:label "ResponsiveActionsDockPort" ;
@@ -32618,7 +32708,7 @@
     code:scipId "apps/playground/app/nav/ResponsiveActions.tsx#ResponsiveActionsDockPort" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> ;
-    code:lineHint 222 .
+    code:lineHint 249 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/ResponsiveActions.tsx#NavbarActions> a code:Symbol ;
     rdfs:label "NavbarActions" ;
@@ -32626,11 +32716,16 @@
     code:scipId "apps/playground/app/nav/ResponsiveActions.tsx#NavbarActions" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> ;
-    code:lineHint 233 .
+    code:lineHint 267 .
 
 <https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> code:usesTestId <https://wod.wiki/code/testid/mobile-wheel-composer> .
 <https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> code:usesTestId <https://wod.wiki/code/testid/mobile-typing-bar> .
 <https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> code:usesTestId <https://wod.wiki/code/testid/results-mobile-bar> .
+<https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> code:usesTestId <https://wod.wiki/code/testid/actions-dock> .
+<https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-drawer-reset-btn> .
+<https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-drawer-done-btn> .
+<https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> code:usesTestId <https://wod.wiki/code/testid/actions-sheet-l3> .
+<https://wod.wiki/code/file/apps/playground/app/nav/ResponsiveActions.tsx> code:usesTestId <https://wod.wiki/code/testid/actions-overflow> .
 <https://wod.wiki/code/file/apps/playground/app/nav/SearchFab.tsx> a code:File ;
     rdfs:label "SearchFab.tsx" ;
     code:filePath "apps/playground/app/nav/SearchFab.tsx" ;
@@ -32659,13 +32754,21 @@
     code:packageName "apps/playground" ;
     code:isTestFile false .
 
-<https://wod.wiki/code/symbol/apps/playground/app/nav/SecondaryNav.tsx#StreamControlsNav> a code:Symbol ;
-    rdfs:label "StreamControlsNav" ;
-    code:symbolName "StreamControlsNav" ;
-    code:scipId "apps/playground/app/nav/SecondaryNav.tsx#StreamControlsNav" ;
+<https://wod.wiki/code/symbol/apps/playground/app/nav/SecondaryNav.tsx#hasVisibleMenuEntries> a code:Symbol ;
+    rdfs:label "hasVisibleMenuEntries" ;
+    code:symbolName "hasVisibleMenuEntries" ;
+    code:scipId "apps/playground/app/nav/SecondaryNav.tsx#hasVisibleMenuEntries" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> ;
-    code:lineHint 49 .
+    code:lineHint 40 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/nav/SecondaryNav.tsx#useL3HasContent> a code:Symbol ;
+    rdfs:label "useL3HasContent" ;
+    code:symbolName "useL3HasContent" ;
+    code:scipId "apps/playground/app/nav/SecondaryNav.tsx#useL3HasContent" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> ;
+    code:lineHint 54 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/SecondaryNav.tsx#AnalyticsControlsNav> a code:Symbol ;
     rdfs:label "AnalyticsControlsNav" ;
@@ -32673,7 +32776,7 @@
     code:scipId "apps/playground/app/nav/SecondaryNav.tsx#AnalyticsControlsNav" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> ;
-    code:lineHint 173 .
+    code:lineHint 70 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/nav/SecondaryNav.tsx#SecondaryNav> a code:Symbol ;
     rdfs:label "SecondaryNav" ;
@@ -32681,8 +32784,18 @@
     code:scipId "apps/playground/app/nav/SecondaryNav.tsx#SecondaryNav" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> ;
-    code:lineHint 291 .
+    code:lineHint 333 .
 
+<https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-analytics-controls> .
+<https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-range-options> .
+<https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-unit-options> .
+<https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-actions-group-author> .
+<https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-actions-group-organize> .
+<https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-actions-group-share> .
+<https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-actions-primary> .
+<https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-actions-danger> .
+<https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-connections> .
+<https://wod.wiki/code/file/apps/playground/app/nav/SecondaryNav.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-actions> .
 <https://wod.wiki/code/file/apps/playground/app/nav/SyncActivityUi.tsx> a code:File ;
     rdfs:label "SyncActivityUi.tsx" ;
     code:filePath "apps/playground/app/nav/SyncActivityUi.tsx" ;
@@ -32714,6 +32827,12 @@
 <https://wod.wiki/code/file/apps/playground/app/pages/__tests__/EquipmentDetailPage.create.test.tsx> a code:File ;
     rdfs:label "EquipmentDetailPage.create.test.tsx" ;
     code:filePath "apps/playground/app/pages/__tests__/EquipmentDetailPage.create.test.tsx" ;
+    code:packageName "apps/playground" ;
+    code:isTestFile true .
+
+<https://wod.wiki/code/file/apps/playground/app/pages/__tests__/ShellPeekIntegration.host.test.tsx> a code:File ;
+    rdfs:label "ShellPeekIntegration.host.test.tsx" ;
+    code:filePath "apps/playground/app/pages/__tests__/ShellPeekIntegration.host.test.tsx" ;
     code:packageName "apps/playground" ;
     code:isTestFile true .
 
@@ -32773,19 +32892,21 @@
     code:scipId "apps/playground/app/pages/EffortDetailPage.tsx#EffortDetailPage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> ;
-    code:lineHint 126 .
+    code:lineHint 128 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-effort-override> .
+<https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-effort-show-resolved> .
+<https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-clone-btn> .
+<https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-delete-btn> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-root> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-not-found> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-not-found-create-btn> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-not-found-alias-btn> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-not-found-alias-select> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-not-found-alias-confirm> .
-<https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-clone-btn> .
-<https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-delete-btn> .
-<https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-source> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-label> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-notebook-editor> .
+<https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-source> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> a code:File ;
     rdfs:label "EquipmentDetailPage.tsx" ;
     code:filePath "apps/playground/app/pages/EquipmentDetailPage.tsx" ;
@@ -32798,17 +32919,18 @@
     code:scipId "apps/playground/app/pages/EquipmentDetailPage.tsx#EquipmentDetailPage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> ;
-    code:lineHint 42 .
+    code:lineHint 49 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-equipment-override> .
+<https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-detail-clone-btn> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-create-btn> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-detail-root> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-load-error> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-not-found> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-not-found-create-btn> .
-<https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-detail-clone-btn> .
-<https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-detail-source> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-detail-label> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-detail-notebook-editor> .
+<https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-detail-source> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EquipmentDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/equipment-inline-backlinks> .
 <https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.test.tsx> a code:File ;
     rdfs:label "FeedDetailPage.test.tsx" ;
@@ -32828,7 +32950,7 @@
     code:scipId "apps/playground/app/pages/FeedDetailPage.tsx#FeedDetailPageDeps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> ;
-    code:lineHint 49 .
+    code:lineHint 51 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/FeedDetailPage.tsx#FeedDetailPageProps> a code:Symbol ;
     rdfs:label "FeedDetailPageProps" ;
@@ -32836,7 +32958,7 @@
     code:scipId "apps/playground/app/pages/FeedDetailPage.tsx#FeedDetailPageProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> ;
-    code:lineHint 57 .
+    code:lineHint 59 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/FeedDetailPage.tsx#FeedDetailPage> a code:Symbol ;
     rdfs:label "FeedDetailPage" ;
@@ -32844,9 +32966,11 @@
     code:scipId "apps/playground/app/pages/FeedDetailPage.tsx#FeedDetailPage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> ;
-    code:lineHint 96 .
+    code:lineHint 98 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/feed-detail-subscribe-button> .
+<https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-feed-download-offline> .
+<https://wod.wiki/code/file/apps/playground/app/pages/FeedDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/feed-detail-unsubscribe-button> .
 <https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> a code:File ;
     rdfs:label "JournalDatePage.tsx" ;
     code:filePath "apps/playground/app/pages/JournalDatePage.tsx" ;
@@ -32859,8 +32983,11 @@
     code:scipId "apps/playground/app/pages/JournalDatePage.tsx#JournalDatePage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> ;
-    code:lineHint 52 .
+    code:lineHint 232 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> code:usesTestId <https://wod.wiki/code/testid/day-plan-fork-btn> .
+<https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> code:usesTestId <https://wod.wiki/code/testid/day-plan-cue-input> .
+<https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> code:usesTestId <https://wod.wiki/code/testid/day-plan-cue-save> .
 <https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> code:usesTestId <https://wod.wiki/code/testid/day-scheduled-section> .
 <https://wod.wiki/code/file/apps/playground/app/pages/JournalDatePage.tsx> code:usesTestId <https://wod.wiki/code/testid/day-logged-section> .
 <https://wod.wiki/code/file/apps/playground/app/pages/JournalZipLoadPage.tsx> a code:File ;
@@ -32970,7 +33097,7 @@
     code:scipId "apps/playground/app/pages/NotebookItemPage.tsx#NotebookItemPageProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/NotebookItemPage.tsx> ;
-    code:lineHint 63 .
+    code:lineHint 64 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/NotebookItemPage.tsx#NotebookItemPage> a code:Symbol ;
     rdfs:label "NotebookItemPage" ;
@@ -32978,7 +33105,7 @@
     code:scipId "apps/playground/app/pages/NotebookItemPage.tsx#NotebookItemPage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/NotebookItemPage.tsx> ;
-    code:lineHint 72 .
+    code:lineHint 73 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.host.test.tsx> a code:File ;
     rdfs:label "NoteByIdPage.host.test.tsx" ;
@@ -33004,7 +33131,7 @@
     code:scipId "apps/playground/app/pages/NoteByIdPage.tsx#NoteByIdPageProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> ;
-    code:lineHint 58 .
+    code:lineHint 60 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/NoteByIdPage.tsx#NoteByIdPage> a code:Symbol ;
     rdfs:label "NoteByIdPage" ;
@@ -33012,7 +33139,7 @@
     code:scipId "apps/playground/app/pages/NoteByIdPage.tsx#NoteByIdPage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> ;
-    code:lineHint 71 .
+    code:lineHint 73 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> code:usesTestId <https://wod.wiki/code/testid/note-loading-settling> .
 <https://wod.wiki/code/file/apps/playground/app/pages/NoteByIdPage.tsx> code:usesTestId <https://wod.wiki/code/testid/note-shared-banner> .
@@ -33073,6 +33200,7 @@
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/PlaygroundNotePage.tsx> ;
     code:lineHint 63 .
 
+<https://wod.wiki/code/file/apps/playground/app/pages/PlaygroundNotePage.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-playground-move-journal> .
 <https://wod.wiki/code/file/apps/playground/app/pages/PlaygroundRedirect.test.tsx> a code:File ;
     rdfs:label "PlaygroundRedirect.test.tsx" ;
     code:filePath "apps/playground/app/pages/PlaygroundRedirect.test.tsx" ;
@@ -33147,12 +33275,12 @@
     code:scipId "apps/playground/app/pages/SessionResultsPage.tsx#SessionResultsPage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/SessionResultsPage.tsx> ;
-    code:lineHint 92 .
+    code:lineHint 96 .
 
-<https://wod.wiki/code/file/apps/playground/app/pages/SessionResultsPage.tsx> code:usesTestId <https://wod.wiki/code/testid/session-results-page> .
 <https://wod.wiki/code/file/apps/playground/app/pages/SessionResultsPage.tsx> code:usesTestId <https://wod.wiki/code/testid/results-add-dashboard-btn> .
 <https://wod.wiki/code/file/apps/playground/app/pages/SessionResultsPage.tsx> code:usesTestId <https://wod.wiki/code/testid/save-stream-query> .
 <https://wod.wiki/code/file/apps/playground/app/pages/SessionResultsPage.tsx> code:usesTestId <https://wod.wiki/code/testid/results-source-drawer-btn> .
+<https://wod.wiki/code/file/apps/playground/app/pages/SessionResultsPage.tsx> code:usesTestId <https://wod.wiki/code/testid/session-results-page> .
 <https://wod.wiki/code/file/apps/playground/app/pages/SessionResultsPage.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-error> .
 <https://wod.wiki/code/file/apps/playground/app/pages/SessionResultsPage.tsx> code:usesTestId <https://wod.wiki/code/testid/results-empty-recovery> .
 <https://wod.wiki/code/file/apps/playground/app/pages/SessionResultsPage.tsx> code:usesTestId <https://wod.wiki/code/testid/results-session-kpi-strip> .
@@ -33324,7 +33452,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#noteLinkPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 68 .
+    code:lineHint 71 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#notesFacetFilterPath> a code:Symbol ;
     rdfs:label "notesFacetFilterPath" ;
@@ -33332,7 +33460,15 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#notesFacetFilterPath" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 82 .
+    code:lineHint 85 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#NotePeekTarget> a code:Symbol ;
+    rdfs:label "NotePeekTarget" ;
+    code:symbolName "NotePeekTarget" ;
+    code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#NotePeekTarget" ;
+    code:symbolKind "type" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
+    code:lineHint 92 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#ContextNoteLink> a code:Symbol ;
     rdfs:label "ContextNoteLink" ;
@@ -33340,7 +33476,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#ContextNoteLink" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 87 .
+    code:lineHint 94 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#NoteContextData> a code:Symbol ;
     rdfs:label "NoteContextData" ;
@@ -33348,7 +33484,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#NoteContextData" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 97 .
+    code:lineHint 104 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#EMPTY_NOTE_CONTEXT> a code:Symbol ;
     rdfs:label "EMPTY_NOTE_CONTEXT" ;
@@ -33356,7 +33492,15 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#EMPTY_NOTE_CONTEXT" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 117 .
+    code:lineHint 130 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#MAX_RELATED> a code:Symbol ;
+    rdfs:label "MAX_RELATED" ;
+    code:symbolName "MAX_RELATED" ;
+    code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#MAX_RELATED" ;
+    code:symbolKind "const" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
+    code:lineHint 143 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#NoteZone> a code:Symbol ;
     rdfs:label "NoteZone" ;
@@ -33364,7 +33508,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#NoteZone" ;
     code:symbolKind "type" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 135 .
+    code:lineHint 148 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#NoteOwnership> a code:Symbol ;
     rdfs:label "NoteOwnership" ;
@@ -33372,7 +33516,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#NoteOwnership" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 137 .
+    code:lineHint 150 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#noteOwnership> a code:Symbol ;
     rdfs:label "noteOwnership" ;
@@ -33380,7 +33524,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#noteOwnership" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 151 .
+    code:lineHint 164 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#provenanceLink> a code:Symbol ;
     rdfs:label "provenanceLink" ;
@@ -33388,7 +33532,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#provenanceLink" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 225 .
+    code:lineHint 244 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#collectionLinks> a code:Symbol ;
     rdfs:label "collectionLinks" ;
@@ -33396,7 +33540,15 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#collectionLinks" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 244 .
+    code:lineHint 263 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#scheduleLinks> a code:Symbol ;
+    rdfs:label "scheduleLinks" ;
+    code:symbolName "scheduleLinks" ;
+    code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#scheduleLinks" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
+    code:lineHint 333 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#pagePlacementLinks> a code:Symbol ;
     rdfs:label "pagePlacementLinks" ;
@@ -33404,7 +33556,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#pagePlacementLinks" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 314 .
+    code:lineHint 354 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#tagLinks> a code:Symbol ;
     rdfs:label "tagLinks" ;
@@ -33412,7 +33564,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#tagLinks" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 351 .
+    code:lineHint 398 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#effortLinks> a code:Symbol ;
     rdfs:label "effortLinks" ;
@@ -33420,7 +33572,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#effortLinks" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 381 .
+    code:lineHint 428 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#equipmentLinks> a code:Symbol ;
     rdfs:label "equipmentLinks" ;
@@ -33428,7 +33580,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#equipmentLinks" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 405 .
+    code:lineHint 452 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#relatedBlockLinks> a code:Symbol ;
     rdfs:label "relatedBlockLinks" ;
@@ -33436,7 +33588,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#relatedBlockLinks" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 434 .
+    code:lineHint 481 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#backlinkNotes> a code:Symbol ;
     rdfs:label "backlinkNotes" ;
@@ -33444,7 +33596,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#backlinkNotes" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 459 .
+    code:lineHint 506 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#effortUsageLinks> a code:Symbol ;
     rdfs:label "effortUsageLinks" ;
@@ -33452,7 +33604,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#effortUsageLinks" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 474 .
+    code:lineHint 521 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#UseNoteContextLinksOptions> a code:Symbol ;
     rdfs:label "UseNoteContextLinksOptions" ;
@@ -33460,7 +33612,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#UseNoteContextLinksOptions" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 510 .
+    code:lineHint 557 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#useNoteContextLinks> a code:Symbol ;
     rdfs:label "useNoteContextLinks" ;
@@ -33468,7 +33620,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#useNoteContextLinks" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 523 .
+    code:lineHint 570 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#PartialNoteContextData> a code:Symbol ;
     rdfs:label "PartialNoteContextData" ;
@@ -33476,7 +33628,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#PartialNoteContextData" ;
     code:symbolKind "type" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 680 .
+    code:lineHint 750 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#NoteContextSpecOptions> a code:Symbol ;
     rdfs:label "NoteContextSpecOptions" ;
@@ -33484,7 +33636,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#NoteContextSpecOptions" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 683 .
+    code:lineHint 758 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#buildNoteContextSpec> a code:Symbol ;
     rdfs:label "buildNoteContextSpec" ;
@@ -33492,7 +33644,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#buildNoteContextSpec" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 711 .
+    code:lineHint 822 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#NoteContextNavProps> a code:Symbol ;
     rdfs:label "NoteContextNavProps" ;
@@ -33500,7 +33652,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#NoteContextNavProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 763 .
+    code:lineHint 967 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#NoteContextNav> a code:Symbol ;
     rdfs:label "NoteContextNav" ;
@@ -33508,7 +33660,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#NoteContextNav" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 769 .
+    code:lineHint 971 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#useJournalEntryDates> a code:Symbol ;
     rdfs:label "useJournalEntryDates" ;
@@ -33516,7 +33668,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#useJournalEntryDates" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 850 .
+    code:lineHint 1074 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/noteContextLinks.tsx#useNotebookEntryDates> a code:Symbol ;
     rdfs:label "useNotebookEntryDates" ;
@@ -33524,7 +33676,7 @@
     code:scipId "apps/playground/app/pages/shared/noteContextLinks.tsx#useNotebookEntryDates" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/noteContextLinks.tsx> ;
-    code:lineHint 865 .
+    code:lineHint 1089 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/shared/PageActions.tsx> a code:File ;
     rdfs:label "PageActions.tsx" ;
@@ -33538,7 +33690,7 @@
     code:scipId "apps/playground/app/pages/shared/PageActions.tsx#PageActionsProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/PageActions.tsx> ;
-    code:lineHint 17 .
+    code:lineHint 19 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/PageActions.tsx#PageActions> a code:Symbol ;
     rdfs:label "PageActions" ;
@@ -33546,7 +33698,7 @@
     code:scipId "apps/playground/app/pages/shared/PageActions.tsx#PageActions" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/PageActions.tsx> ;
-    code:lineHint 28 .
+    code:lineHint 30 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/shared/PageToolbar.test.tsx> a code:File ;
     rdfs:label "PageToolbar.test.tsx" ;
@@ -33794,7 +33946,7 @@
     code:scipId "apps/playground/app/pages/shared/useNoteActions.tsx#useNoteActions" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNoteActions.tsx> ;
-    code:lineHint 176 .
+    code:lineHint 187 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNoteActions.tsx> code:usesTestId <https://wod.wiki/code/testid/note-delete-dialog> .
 <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNoteActions.tsx> code:usesTestId <https://wod.wiki/code/testid/note-delete-cancel> .
@@ -33817,7 +33969,15 @@
     code:scipId "apps/playground/app/pages/shared/useNotePageNav.ts#UseNotePageNavOptions" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNotePageNav.ts> ;
-    code:lineHint 29 .
+    code:lineHint 30 .
+
+<https://wod.wiki/code/symbol/apps/playground/app/pages/shared/useNotePageNav.ts#GroupedL3ActionItem> a code:Symbol ;
+    rdfs:label "GroupedL3ActionItem" ;
+    code:symbolName "GroupedL3ActionItem" ;
+    code:scipId "apps/playground/app/pages/shared/useNotePageNav.ts#GroupedL3ActionItem" ;
+    code:symbolKind "type" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNotePageNav.ts> ;
+    code:lineHint 64 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/useNotePageNav.ts#NoteHelpfulAction> a code:Symbol ;
     rdfs:label "NoteHelpfulAction" ;
@@ -33825,7 +33985,7 @@
     code:scipId "apps/playground/app/pages/shared/useNotePageNav.ts#NoteHelpfulAction" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNotePageNav.ts> ;
-    code:lineHint 60 .
+    code:lineHint 67 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/useNotePageNav.ts#helpfulActionsToL3Actions> a code:Symbol ;
     rdfs:label "helpfulActionsToL3Actions" ;
@@ -33833,7 +33993,7 @@
     code:scipId "apps/playground/app/pages/shared/useNotePageNav.ts#helpfulActionsToL3Actions" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNotePageNav.ts> ;
-    code:lineHint 75 .
+    code:lineHint 83 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/useNotePageNav.ts#wirePageIndexLinks> a code:Symbol ;
     rdfs:label "wirePageIndexLinks" ;
@@ -33841,7 +34001,7 @@
     code:scipId "apps/playground/app/pages/shared/useNotePageNav.ts#wirePageIndexLinks" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNotePageNav.ts> ;
-    code:lineHint 103 .
+    code:lineHint 112 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/shared/useNotePageNav.ts#useNotePageNav> a code:Symbol ;
     rdfs:label "useNotePageNav" ;
@@ -33849,7 +34009,7 @@
     code:scipId "apps/playground/app/pages/shared/useNotePageNav.ts#useNotePageNav" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/shared/useNotePageNav.ts> ;
-    code:lineHint 159 .
+    code:lineHint 168 .
 
 <https://wod.wiki/code/file/apps/playground/app/pages/SoundProfiles.test.tsx> a code:File ;
     rdfs:label "SoundProfiles.test.tsx" ;
@@ -33995,7 +34155,7 @@
     code:scipId "apps/playground/app/pages/WorkoutEditorPage.tsx#WorkoutEditorPageProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/WorkoutEditorPage.tsx> ;
-    code:lineHint 62 .
+    code:lineHint 63 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/pages/WorkoutEditorPage.tsx#WorkoutEditorPage> a code:Symbol ;
     rdfs:label "WorkoutEditorPage" ;
@@ -34003,7 +34163,7 @@
     code:scipId "apps/playground/app/pages/WorkoutEditorPage.tsx#WorkoutEditorPage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/pages/WorkoutEditorPage.tsx> ;
-    code:lineHint 84 .
+    code:lineHint 85 .
 
 <https://wod.wiki/code/file/apps/playground/app/plans/journal-zip-load-plan.md> a code:File ;
     rdfs:label "journal-zip-load-plan.md" ;
@@ -36277,7 +36437,7 @@
     code:scipId "apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx#AnalyticsExplorerPageProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> ;
-    code:lineHint 151 .
+    code:lineHint 152 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx#AnalyticsExplorerPage> a code:Symbol ;
     rdfs:label "AnalyticsExplorerPage" ;
@@ -36285,8 +36445,15 @@
     code:scipId "apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx#AnalyticsExplorerPage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> ;
-    code:lineHint 160 .
+    code:lineHint 161 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> code:usesTestId <https://wod.wiki/code/testid/explorer-inline-bar> .
+<https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> code:usesTestId <https://wod.wiki/code/testid/explorer-examples-trigger> .
+<https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> code:usesTestId <https://wod.wiki/code/testid/explorer-examples-popover> .
+<https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> code:usesTestId <https://wod.wiki/code/testid/explorer-unit-kg> .
+<https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> code:usesTestId <https://wod.wiki/code/testid/explorer-unit-lb> .
+<https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> code:usesTestId <https://wod.wiki/code/testid/explorer-query-settings-btn> .
+<https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> code:usesTestId <https://wod.wiki/code/testid/explorer-run-btn> .
 <https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> code:usesTestId <https://wod.wiki/code/testid/explorer-invalid-url-alert> .
 <https://wod.wiki/code/file/apps/playground/app/views/analytics/AnalyticsExplorerPage.tsx> code:usesTestId <https://wod.wiki/code/testid/explorer-find-advisories> .
 <https://wod.wiki/code/file/apps/playground/app/views/analytics/AvailableFieldsPanel.tsx> a code:File ;
@@ -36393,8 +36560,11 @@
     code:scipId "apps/playground/app/views/dashboards/DashboardViewPage.tsx#DashboardViewPage" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> ;
-    code:lineHint 99 .
+    code:lineHint 100 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> code:usesTestId <https://wod.wiki/code/testid/dashboard-edit-toggle> .
+<https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-dashboard-delete> .
+<https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-dashboard-clone> .
 <https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> code:usesTestId <https://wod.wiki/code/testid/confirm-delete-dashboard> .
 <https://wod.wiki/code/file/apps/playground/app/views/dashboards/DashboardViewPage.tsx> code:usesTestId <https://wod.wiki/code/testid/delete-dashboard-button> .
 <https://wod.wiki/code/file/apps/playground/app/views/dashboards/WidgetComposerDialog.tsx> a code:File ;
@@ -36871,7 +37041,7 @@
     code:scipId "apps/playground/app/views/stream/CalendarAgendaView.tsx#CalendarAgendaViewProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarAgendaView.tsx> ;
-    code:lineHint 37 .
+    code:lineHint 38 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/CalendarAgendaView.tsx#formatEntryCount> a code:Symbol ;
     rdfs:label "formatEntryCount" ;
@@ -36879,7 +37049,7 @@
     code:scipId "apps/playground/app/views/stream/CalendarAgendaView.tsx#formatEntryCount" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarAgendaView.tsx> ;
-    code:lineHint 64 .
+    code:lineHint 66 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/CalendarAgendaView.tsx#CalendarAgendaView> a code:Symbol ;
     rdfs:label "CalendarAgendaView" ;
@@ -36887,8 +37057,9 @@
     code:scipId "apps/playground/app/views/stream/CalendarAgendaView.tsx#CalendarAgendaView" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarAgendaView.tsx> ;
-    code:lineHint 162 .
+    code:lineHint 187 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarAgendaView.tsx> code:usesTestId <https://wod.wiki/code/testid/calendar-day-header> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarChrome.tsx> a code:File ;
     rdfs:label "CalendarChrome.tsx" ;
     code:filePath "apps/playground/app/views/stream/CalendarChrome.tsx" ;
@@ -36925,7 +37096,7 @@
     code:scipId "apps/playground/app/views/stream/CalendarChrome.tsx#CalendarMonthBar" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarChrome.tsx> ;
-    code:lineHint 99 .
+    code:lineHint 101 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/CalendarChrome.tsx#calendarDayLabel> a code:Symbol ;
     rdfs:label "calendarDayLabel" ;
@@ -36933,7 +37104,7 @@
     code:scipId "apps/playground/app/views/stream/CalendarChrome.tsx#calendarDayLabel" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarChrome.tsx> ;
-    code:lineHint 165 .
+    code:lineHint 167 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/CalendarChrome.tsx#CalendarEntryChip> a code:Symbol ;
     rdfs:label "CalendarEntryChip" ;
@@ -36941,7 +37112,7 @@
     code:scipId "apps/playground/app/views/stream/CalendarChrome.tsx#CalendarEntryChip" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarChrome.tsx> ;
-    code:lineHint 176 .
+    code:lineHint 178 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/CalendarChrome.tsx#CalendarUndatedShelf> a code:Symbol ;
     rdfs:label "CalendarUndatedShelf" ;
@@ -36949,7 +37120,7 @@
     code:scipId "apps/playground/app/views/stream/CalendarChrome.tsx#CalendarUndatedShelf" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarChrome.tsx> ;
-    code:lineHint 260 .
+    code:lineHint 262 .
 
 <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarChrome.tsx> code:usesTestId <https://wod.wiki/code/testid/calendar-overlay-filter> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarChrome.tsx> code:usesTestId <https://wod.wiki/code/testid/calendar-undated-toggle> .
@@ -36973,8 +37144,9 @@
     code:scipId "apps/playground/app/views/stream/CalendarPlannerView.tsx#CalendarPlannerView" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarPlannerView.tsx> ;
-    code:lineHint 315 .
+    code:lineHint 360 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarPlannerView.tsx> code:usesTestId <https://wod.wiki/code/testid/calendar-day-header> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/CalendarPlannerView.tsx> code:usesTestId <https://wod.wiki/code/testid/calendar-more-popover> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/PropertyTable.test.tsx> a code:File ;
     rdfs:label "PropertyTable.test.tsx" ;
@@ -37023,7 +37195,7 @@
     code:scipId "apps/playground/app/views/stream/QueriableStreamView.tsx#plainTextFallbackQuery" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> ;
-    code:lineHint 166 .
+    code:lineHint 165 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#QueriableStreamViewProps> a code:Symbol ;
     rdfs:label "QueriableStreamViewProps" ;
@@ -37031,7 +37203,7 @@
     code:scipId "apps/playground/app/views/stream/QueriableStreamView.tsx#QueriableStreamViewProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> ;
-    code:lineHint 291 .
+    code:lineHint 344 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/QueriableStreamView.tsx#QueriableStreamView> a code:Symbol ;
     rdfs:label "QueriableStreamView" ;
@@ -37039,8 +37211,9 @@
     code:scipId "apps/playground/app/views/stream/QueriableStreamView.tsx#QueriableStreamView" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> ;
-    code:lineHint 310 .
+    code:lineHint 363 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-page-heading> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/notebook-batch-schedule-bar> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/notebook-batch-schedule-submit> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/notebook-delete-dialog> .
@@ -37048,7 +37221,6 @@
 <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-syntax-hint> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/notebook-not-found> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/queriable-stream-view> .
-<https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/save-stream-query> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-error> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/QueriableStreamView.tsx> code:usesTestId <https://wod.wiki/code/testid/remote-notebook-preview-banner> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/ReadmeQueryBlock.test.tsx> a code:File ;
@@ -37119,13 +37291,21 @@
     code:packageName "apps/playground" ;
     code:isTestFile false .
 
+<https://wod.wiki/code/symbol/apps/playground/app/views/stream/SchedulePeekDrawer.tsx#forkScheduleItemForDay> a code:Symbol ;
+    rdfs:label "forkScheduleItemForDay" ;
+    code:symbolName "forkScheduleItemForDay" ;
+    code:scipId "apps/playground/app/views/stream/SchedulePeekDrawer.tsx#forkScheduleItemForDay" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> ;
+    code:lineHint 98 .
+
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/SchedulePeekDrawer.tsx#SchedulePeekDrawerProps> a code:Symbol ;
     rdfs:label "SchedulePeekDrawerProps" ;
     code:symbolName "SchedulePeekDrawerProps" ;
     code:scipId "apps/playground/app/views/stream/SchedulePeekDrawer.tsx#SchedulePeekDrawerProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> ;
-    code:lineHint 24 .
+    code:lineHint 133 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/SchedulePeekDrawer.tsx#SchedulePeekDrawer> a code:Symbol ;
     rdfs:label "SchedulePeekDrawer" ;
@@ -37133,10 +37313,17 @@
     code:scipId "apps/playground/app/views/stream/SchedulePeekDrawer.tsx#SchedulePeekDrawer" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> ;
-    code:lineHint 31 .
+    code:lineHint 148 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/calendar-peek-backdrop> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/calendar-peek-drawer> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/calendar-peek-close> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/schedule-peek-plan-for-date> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/schedule-peek-open-day> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/schedule-peek-day-cue-input> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/schedule-peek-day-cue-save> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/schedule-peek-block-select> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/SchedulePeekDrawer.tsx> code:usesTestId <https://wod.wiki/code/testid/schedule-peek-fork-btn> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamFeed.tsx> a code:File ;
     rdfs:label "StreamFeed.tsx" ;
     code:filePath "apps/playground/app/views/stream/StreamFeed.tsx" ;
@@ -37358,7 +37545,7 @@
     code:scipId "apps/playground/app/views/stream/StreamQueryBar.tsx#StreamQueryBarProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> ;
-    code:lineHint 22 .
+    code:lineHint 71 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/StreamQueryBar.tsx#openStreamQueryEditor> a code:Symbol ;
     rdfs:label "openStreamQueryEditor" ;
@@ -37366,7 +37553,7 @@
     code:scipId "apps/playground/app/views/stream/StreamQueryBar.tsx#openStreamQueryEditor" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> ;
-    code:lineHint 43 .
+    code:lineHint 96 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/StreamQueryBar.tsx#StreamQueryBar> a code:Symbol ;
     rdfs:label "StreamQueryBar" ;
@@ -37374,11 +37561,15 @@
     code:scipId "apps/playground/app/views/stream/StreamQueryBar.tsx#StreamQueryBar" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> ;
-    code:lineHint 62 .
+    code:lineHint 116 .
 
+<https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-mobile-facets> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-bar-dock> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-bar> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-query-summary> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-facet-filter-badge> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-facet-filter-trigger> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/StreamQueryBar.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-facet-filter-popover> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/streamResults.ts> a code:File ;
     rdfs:label "streamResults.ts" ;
     code:filePath "apps/playground/app/views/stream/streamResults.ts" ;
@@ -37421,7 +37612,7 @@
     code:scipId "apps/playground/app/views/stream/StreamViewPopover.tsx#StreamViewPopoverProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamViewPopover.tsx> ;
-    code:lineHint 31 .
+    code:lineHint 34 .
 
 <https://wod.wiki/code/symbol/apps/playground/app/views/stream/StreamViewPopover.tsx#StreamViewPopover> a code:Symbol ;
     rdfs:label "StreamViewPopover" ;
@@ -37429,10 +37620,12 @@
     code:scipId "apps/playground/app/views/stream/StreamViewPopover.tsx#StreamViewPopover" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamViewPopover.tsx> ;
-    code:lineHint 43 .
+    code:lineHint 57 .
 
 <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamViewPopover.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-view-popover-trigger> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/StreamViewPopover.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-view-popover-content> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/StreamViewPopover.tsx> code:usesTestId <https://wod.wiki/code/testid/stream-view-add-action> .
+<https://wod.wiki/code/file/apps/playground/app/views/stream/StreamViewPopover.tsx> code:usesTestId <https://wod.wiki/code/testid/save-stream-query> .
 <https://wod.wiki/code/file/apps/playground/app/views/stream/WqlWindowPicker.tsx> a code:File ;
     rdfs:label "WqlWindowPicker.tsx" ;
     code:filePath "apps/playground/app/views/stream/WqlWindowPicker.tsx" ;
@@ -37493,7 +37686,23 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#EditorInspectorSnapshot" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 5 .
+    code:lineHint 6 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#PeekBridgeTarget> a code:Symbol ;
+    rdfs:label "PeekBridgeTarget" ;
+    code:symbolName "PeekBridgeTarget" ;
+    code:scipId "apps/playground/src/agent/surfaceBridges.ts#PeekBridgeTarget" ;
+    code:symbolKind "type" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
+    code:lineHint 17 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#ActivePeekBridge> a code:Symbol ;
+    rdfs:label "ActivePeekBridge" ;
+    code:symbolName "ActivePeekBridge" ;
+    code:scipId "apps/playground/src/agent/surfaceBridges.ts#ActivePeekBridge" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
+    code:lineHint 19 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#ActiveEditorBridge> a code:Symbol ;
     rdfs:label "ActiveEditorBridge" ;
@@ -37501,7 +37710,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#ActiveEditorBridge" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 16 .
+    code:lineHint 25 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#ActiveStreamBridge> a code:Symbol ;
     rdfs:label "ActiveStreamBridge" ;
@@ -37509,7 +37718,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#ActiveStreamBridge" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 36 .
+    code:lineHint 47 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#ActiveExplorerBridge> a code:Symbol ;
     rdfs:label "ActiveExplorerBridge" ;
@@ -37517,7 +37726,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#ActiveExplorerBridge" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 53 .
+    code:lineHint 64 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#ActiveResultsBridge> a code:Symbol ;
     rdfs:label "ActiveResultsBridge" ;
@@ -37525,7 +37734,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#ActiveResultsBridge" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 66 .
+    code:lineHint 77 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#registerActiveEditorBridge> a code:Symbol ;
     rdfs:label "registerActiveEditorBridge" ;
@@ -37533,7 +37742,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#registerActiveEditorBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 82 .
+    code:lineHint 93 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#getActiveEditorBridge> a code:Symbol ;
     rdfs:label "getActiveEditorBridge" ;
@@ -37541,7 +37750,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#getActiveEditorBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 93 .
+    code:lineHint 104 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#subscribeActiveEditorBridge> a code:Symbol ;
     rdfs:label "subscribeActiveEditorBridge" ;
@@ -37549,7 +37758,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#subscribeActiveEditorBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 97 .
+    code:lineHint 108 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#useActiveEditorBridge> a code:Symbol ;
     rdfs:label "useActiveEditorBridge" ;
@@ -37557,7 +37766,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#useActiveEditorBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 104 .
+    code:lineHint 115 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#registerActiveStreamBridge> a code:Symbol ;
     rdfs:label "registerActiveStreamBridge" ;
@@ -37565,7 +37774,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#registerActiveStreamBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 111 .
+    code:lineHint 122 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#getActiveStreamBridge> a code:Symbol ;
     rdfs:label "getActiveStreamBridge" ;
@@ -37573,7 +37782,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#getActiveStreamBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 122 .
+    code:lineHint 133 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#subscribeActiveStreamBridge> a code:Symbol ;
     rdfs:label "subscribeActiveStreamBridge" ;
@@ -37581,7 +37790,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#subscribeActiveStreamBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 126 .
+    code:lineHint 137 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#useActiveStreamBridge> a code:Symbol ;
     rdfs:label "useActiveStreamBridge" ;
@@ -37589,7 +37798,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#useActiveStreamBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 133 .
+    code:lineHint 144 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#registerActiveExplorerBridge> a code:Symbol ;
     rdfs:label "registerActiveExplorerBridge" ;
@@ -37597,7 +37806,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#registerActiveExplorerBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 140 .
+    code:lineHint 151 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#getActiveExplorerBridge> a code:Symbol ;
     rdfs:label "getActiveExplorerBridge" ;
@@ -37605,7 +37814,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#getActiveExplorerBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 151 .
+    code:lineHint 162 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#subscribeActiveExplorerBridge> a code:Symbol ;
     rdfs:label "subscribeActiveExplorerBridge" ;
@@ -37613,7 +37822,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#subscribeActiveExplorerBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 155 .
+    code:lineHint 166 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#useActiveExplorerBridge> a code:Symbol ;
     rdfs:label "useActiveExplorerBridge" ;
@@ -37621,7 +37830,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#useActiveExplorerBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 162 .
+    code:lineHint 173 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#registerActiveResultsBridge> a code:Symbol ;
     rdfs:label "registerActiveResultsBridge" ;
@@ -37629,7 +37838,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#registerActiveResultsBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 169 .
+    code:lineHint 180 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#getActiveResultsBridge> a code:Symbol ;
     rdfs:label "getActiveResultsBridge" ;
@@ -37637,7 +37846,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#getActiveResultsBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 180 .
+    code:lineHint 191 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#subscribeActiveResultsBridge> a code:Symbol ;
     rdfs:label "subscribeActiveResultsBridge" ;
@@ -37645,7 +37854,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#subscribeActiveResultsBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 184 .
+    code:lineHint 195 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#useActiveResultsBridge> a code:Symbol ;
     rdfs:label "useActiveResultsBridge" ;
@@ -37653,7 +37862,47 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#useActiveResultsBridge" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 191 .
+    code:lineHint 202 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#registerActivePeekBridge> a code:Symbol ;
+    rdfs:label "registerActivePeekBridge" ;
+    code:symbolName "registerActivePeekBridge" ;
+    code:scipId "apps/playground/src/agent/surfaceBridges.ts#registerActivePeekBridge" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
+    code:lineHint 237 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#registerRenderedPeekState> a code:Symbol ;
+    rdfs:label "registerRenderedPeekState" ;
+    code:symbolName "registerRenderedPeekState" ;
+    code:scipId "apps/playground/src/agent/surfaceBridges.ts#registerRenderedPeekState" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
+    code:lineHint 249 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#getActivePeekBridge> a code:Symbol ;
+    rdfs:label "getActivePeekBridge" ;
+    code:symbolName "getActivePeekBridge" ;
+    code:scipId "apps/playground/src/agent/surfaceBridges.ts#getActivePeekBridge" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
+    code:lineHint 265 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#subscribeActivePeekBridge> a code:Symbol ;
+    rdfs:label "subscribeActivePeekBridge" ;
+    code:symbolName "subscribeActivePeekBridge" ;
+    code:scipId "apps/playground/src/agent/surfaceBridges.ts#subscribeActivePeekBridge" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
+    code:lineHint 269 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#useActivePeekBridge> a code:Symbol ;
+    rdfs:label "useActivePeekBridge" ;
+    code:symbolName "useActivePeekBridge" ;
+    code:scipId "apps/playground/src/agent/surfaceBridges.ts#useActivePeekBridge" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
+    code:lineHint 276 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#setSurfaceBusy> a code:Symbol ;
     rdfs:label "setSurfaceBusy" ;
@@ -37661,7 +37910,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#setSurfaceBusy" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 198 .
+    code:lineHint 283 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#getSurfaceBusy> a code:Symbol ;
     rdfs:label "getSurfaceBusy" ;
@@ -37669,7 +37918,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#getSurfaceBusy" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 212 .
+    code:lineHint 297 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#subscribeSurfaceBusy> a code:Symbol ;
     rdfs:label "subscribeSurfaceBusy" ;
@@ -37677,7 +37926,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#subscribeSurfaceBusy" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 216 .
+    code:lineHint 301 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/agent/surfaceBridges.ts#useSurfaceBusy> a code:Symbol ;
     rdfs:label "useSurfaceBusy" ;
@@ -37685,7 +37934,7 @@
     code:scipId "apps/playground/src/agent/surfaceBridges.ts#useSurfaceBusy" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/agent/surfaceBridges.ts> ;
-    code:lineHint 223 .
+    code:lineHint 308 .
 
 <https://wod.wiki/code/file/apps/playground/src/app/cast/workbenchModeResolver.test.ts> a code:File ;
     rdfs:label "workbenchModeResolver.test.ts" ;
@@ -41085,7 +41334,7 @@
     code:scipId "apps/playground/src/components/organisms/editor/MetricInlinePanel.tsx#OpenInspectorRequest" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/MetricInlinePanel.tsx> ;
-    code:lineHint 333 .
+    code:lineHint 335 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/MetricInlinePanel.tsx#MetricInlinePanelProps> a code:Symbol ;
     rdfs:label "MetricInlinePanelProps" ;
@@ -41093,7 +41342,7 @@
     code:scipId "apps/playground/src/components/organisms/editor/MetricInlinePanel.tsx#MetricInlinePanelProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/MetricInlinePanel.tsx> ;
-    code:lineHint 339 .
+    code:lineHint 341 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/MetricInlinePanel.tsx#MetricInlinePanel> a code:Symbol ;
     rdfs:label "MetricInlinePanel" ;
@@ -41101,7 +41350,7 @@
     code:scipId "apps/playground/src/components/organisms/editor/MetricInlinePanel.tsx#MetricInlinePanel" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/MetricInlinePanel.tsx> ;
-    code:lineHint 352 .
+    code:lineHint 356 .
 
 <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/MetricInlinePanel.tsx> code:usesTestId <https://wod.wiki/code/testid/editor-token-strip> .
 <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/MetricInlinePanel.tsx> code:usesTestId <https://wod.wiki/code/testid/editor-lint-quick-fix> .
@@ -41200,7 +41449,7 @@
     code:scipId "apps/playground/src/components/organisms/editor/NoteEditor.tsx#NoteEditorProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/NoteEditor.tsx> ;
-    code:lineHint 156 .
+    code:lineHint 172 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/NoteEditor.tsx#EditorIdentitySnapshot> a code:Symbol ;
     rdfs:label "EditorIdentitySnapshot" ;
@@ -41208,7 +41457,7 @@
     code:scipId "apps/playground/src/components/organisms/editor/NoteEditor.tsx#EditorIdentitySnapshot" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/NoteEditor.tsx> ;
-    code:lineHint 265 .
+    code:lineHint 285 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/NoteEditor.tsx#NoteEditor> a code:Symbol ;
     rdfs:label "NoteEditor" ;
@@ -41216,7 +41465,23 @@
     code:scipId "apps/playground/src/components/organisms/editor/NoteEditor.tsx#NoteEditor" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/NoteEditor.tsx> ;
-    code:lineHint 289 .
+    code:lineHint 312 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/NoteEditor.tsx#parseEntityPeekUrl> a code:Symbol ;
+    rdfs:label "parseEntityPeekUrl" ;
+    code:symbolName "parseEntityPeekUrl" ;
+    code:scipId "apps/playground/src/components/organisms/editor/NoteEditor.tsx#parseEntityPeekUrl" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/NoteEditor.tsx> ;
+    code:lineHint 2250 .
+
+<https://wod.wiki/code/symbol/apps/playground/src/components/organisms/editor/NoteEditor.tsx#resolveEntityTargetAtEditorPos> a code:Symbol ;
+    rdfs:label "resolveEntityTargetAtEditorPos" ;
+    code:symbolName "resolveEntityTargetAtEditorPos" ;
+    code:scipId "apps/playground/src/components/organisms/editor/NoteEditor.tsx#resolveEntityTargetAtEditorPos" ;
+    code:symbolKind "function" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/NoteEditor.tsx> ;
+    code:lineHint 2283 .
 
 <https://wod.wiki/code/file/apps/playground/src/components/organisms/editor/OverlayTrack.tsx> a code:File ;
     rdfs:label "OverlayTrack.tsx" ;
@@ -44596,7 +44861,7 @@
     code:scipId "apps/playground/src/lib/testIds.ts#TestId" ;
     code:symbolKind "type" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> ;
-    code:lineHint 371 .
+    code:lineHint 448 .
 
 <https://wod.wiki/code/file/apps/playground/src/lib/timeUtils.test.ts> a code:File ;
     rdfs:label "timeUtils.test.ts" ;
@@ -45030,7 +45295,7 @@
     code:scipId "apps/playground/src/panels/page-shells/JournalPageShell.tsx#JournalPageShell" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/panels/page-shells/JournalPageShell.tsx> ;
-    code:lineHint 58 .
+    code:lineHint 62 .
 
 <https://wod.wiki/code/file/apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx> a code:File ;
     rdfs:label "L3DrawerTrigger.tsx" ;
@@ -45044,7 +45309,7 @@
     code:scipId "apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx#L3DrawerState" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx> ;
-    code:lineHint 29 .
+    code:lineHint 30 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx#L3DrawerStateProvider> a code:Symbol ;
     rdfs:label "L3DrawerStateProvider" ;
@@ -45052,7 +45317,7 @@
     code:scipId "apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx#L3DrawerStateProvider" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx> ;
-    code:lineHint 37 .
+    code:lineHint 38 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx#useL3DrawerState> a code:Symbol ;
     rdfs:label "useL3DrawerState" ;
@@ -45060,7 +45325,7 @@
     code:scipId "apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx#useL3DrawerState" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx> ;
-    code:lineHint 51 .
+    code:lineHint 52 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx#L3DrawerTrigger> a code:Symbol ;
     rdfs:label "L3DrawerTrigger" ;
@@ -45068,7 +45333,7 @@
     code:scipId "apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx#L3DrawerTrigger" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/panels/page-shells/L3DrawerTrigger.tsx> ;
-    code:lineHint 83 .
+    code:lineHint 80 .
 
 <https://wod.wiki/code/file/apps/playground/src/panels/page-shells/MobileQuerySlot.tsx> a code:File ;
     rdfs:label "MobileQuerySlot.tsx" ;
@@ -45290,13 +45555,21 @@
     code:packageName "apps/playground" ;
     code:isTestFile false .
 
+<https://wod.wiki/code/symbol/apps/playground/src/panels/page-shells/StickyPageHeader.tsx#StickyPageHeaderParent> a code:Symbol ;
+    rdfs:label "StickyPageHeaderParent" ;
+    code:symbolName "StickyPageHeaderParent" ;
+    code:scipId "apps/playground/src/panels/page-shells/StickyPageHeader.tsx#StickyPageHeaderParent" ;
+    code:symbolKind "interface" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/panels/page-shells/StickyPageHeader.tsx> ;
+    code:lineHint 31 .
+
 <https://wod.wiki/code/symbol/apps/playground/src/panels/page-shells/StickyPageHeader.tsx#StickyPageHeaderProps> a code:Symbol ;
     rdfs:label "StickyPageHeaderProps" ;
     code:symbolName "StickyPageHeaderProps" ;
     code:scipId "apps/playground/src/panels/page-shells/StickyPageHeader.tsx#StickyPageHeaderProps" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/panels/page-shells/StickyPageHeader.tsx> ;
-    code:lineHint 28 .
+    code:lineHint 36 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/panels/page-shells/StickyPageHeader.tsx#StickyPageHeader> a code:Symbol ;
     rdfs:label "StickyPageHeader" ;
@@ -45304,8 +45577,9 @@
     code:scipId "apps/playground/src/panels/page-shells/StickyPageHeader.tsx#StickyPageHeader" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/panels/page-shells/StickyPageHeader.tsx> ;
-    code:lineHint 55 .
+    code:lineHint 65 .
 
+<https://wod.wiki/code/file/apps/playground/src/panels/page-shells/StickyPageHeader.tsx> code:usesTestId <https://wod.wiki/code/testid/page-header-parent-breadcrumb> .
 <https://wod.wiki/code/file/apps/playground/src/panels/page-shells/types.ts> a code:File ;
     rdfs:label "types.ts" ;
     code:filePath "apps/playground/src/panels/page-shells/types.ts" ;
@@ -52500,7 +52774,7 @@
     code:scipId "apps/playground/src/templates/SidebarLayout.tsx#SidebarLayout" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> ;
-    code:lineHint 182 .
+    code:lineHint 198 .
 
 <https://wod.wiki/code/symbol/apps/playground/src/templates/SidebarLayout.tsx#MainLandmark> a code:Symbol ;
     rdfs:label "MainLandmark" ;
@@ -52508,13 +52782,19 @@
     code:scipId "apps/playground/src/templates/SidebarLayout.tsx#MainLandmark" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> ;
-    code:lineHint 375 .
+    code:lineHint 426 .
 
-<https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/drawer-apply-btn> .
 <https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/mobile-nav-drawer> .
 <https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/mobile-nav-close> .
+<https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-right-drawer> .
+<https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-drawer-reset-btn> .
+<https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-drawer-done-btn> .
 <https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/mobile-nav-open> .
+<https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-inline-rail> .
 <https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/inspector-drawer-rail-spacer> .
+<https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/peek-drawer-backdrop> .
+<https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/peek-drawer-slot> .
+<https://wod.wiki/code/file/apps/playground/src/templates/SidebarLayout.tsx> code:usesTestId <https://wod.wiki/code/testid/boot-import-progress> .
 <https://wod.wiki/code/file/apps/playground/src/testing/bun-test-shim.ts> a code:File ;
     rdfs:label "bun-test-shim.ts" ;
     code:filePath "apps/playground/src/testing/bun-test-shim.ts" ;
@@ -55556,7 +55836,7 @@
     code:scipId "apps/storybook/src/views/NavigationMenus.stories.tsx#FullPlaygroundShellLayout" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/storybook/src/views/NavigationMenus.stories.tsx> ;
-    code:lineHint 378 .
+    code:lineHint 406 .
 
 <https://wod.wiki/code/symbol/apps/storybook/src/views/NavigationMenus.stories.tsx#ShellMenuList> a code:Symbol ;
     rdfs:label "ShellMenuList" ;
@@ -55564,15 +55844,15 @@
     code:scipId "apps/storybook/src/views/NavigationMenus.stories.tsx#ShellMenuList" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/storybook/src/views/NavigationMenus.stories.tsx> ;
-    code:lineHint 466 .
+    code:lineHint 490 .
 
-<https://wod.wiki/code/symbol/apps/storybook/src/views/NavigationMenus.stories.tsx#L3StreamControlsRail> a code:Symbol ;
-    rdfs:label "L3StreamControlsRail" ;
-    code:symbolName "L3StreamControlsRail" ;
-    code:scipId "apps/storybook/src/views/NavigationMenus.stories.tsx#L3StreamControlsRail" ;
+<https://wod.wiki/code/symbol/apps/storybook/src/views/NavigationMenus.stories.tsx#L3SecondaryRail> a code:Symbol ;
+    rdfs:label "L3SecondaryRail" ;
+    code:symbolName "L3SecondaryRail" ;
+    code:scipId "apps/storybook/src/views/NavigationMenus.stories.tsx#L3SecondaryRail" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/storybook/src/views/NavigationMenus.stories.tsx> ;
-    code:lineHint 542 .
+    code:lineHint 559 .
 
 <https://wod.wiki/code/symbol/apps/storybook/src/views/NavigationMenus.stories.tsx#AppRailAndHeaderActions> a code:Symbol ;
     rdfs:label "AppRailAndHeaderActions" ;
@@ -55580,8 +55860,11 @@
     code:scipId "apps/storybook/src/views/NavigationMenus.stories.tsx#AppRailAndHeaderActions" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/apps/storybook/src/views/NavigationMenus.stories.tsx> ;
-    code:lineHint 559 .
+    code:lineHint 578 .
 
+<https://wod.wiki/code/file/apps/storybook/src/views/NavigationMenus.stories.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-analytics-controls> .
+<https://wod.wiki/code/file/apps/storybook/src/views/NavigationMenus.stories.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-connections> .
+<https://wod.wiki/code/file/apps/storybook/src/views/NavigationMenus.stories.tsx> code:usesTestId <https://wod.wiki/code/testid/l3-actions> .
 <https://wod.wiki/code/file/apps/storybook/src/views/StreamViews.stories.tsx> a code:File ;
     rdfs:label "StreamViews.stories.tsx" ;
     code:filePath "apps/storybook/src/views/StreamViews.stories.tsx" ;
@@ -56757,6 +57040,7 @@
 <https://wod.wiki/code/file/e2e/gates/a11y-and-touch.mobile.smoke.e2e.ts> code:usesTestId <https://wod.wiki/code/testid/nav-l1-dashboards> .
 <https://wod.wiki/code/file/e2e/gates/a11y-and-touch.mobile.smoke.e2e.ts> code:usesTestId <https://wod.wiki/code/testid/nav-l1-search> .
 <https://wod.wiki/code/file/e2e/gates/a11y-and-touch.mobile.smoke.e2e.ts> code:usesTestId <https://wod.wiki/code/testid/drawer-apply-btn> .
+<https://wod.wiki/code/file/e2e/gates/a11y-and-touch.mobile.smoke.e2e.ts> code:usesTestId <https://wod.wiki/code/testid/l3-right-drawer> .
 <https://wod.wiki/code/file/e2e/gates/calendar-layouts.mobile.smoke.e2e.ts> a code:File ;
     rdfs:label "calendar-layouts.mobile.smoke.e2e.ts" ;
     code:filePath "e2e/gates/calendar-layouts.mobile.smoke.e2e.ts" ;
@@ -57056,6 +57340,7 @@
 <https://wod.wiki/code/file/e2e/live-app/effort-creation-and-tag-mobile-layout.e2e.ts> code:usesTestId <https://wod.wiki/code/testid/entry-create-submit-btn> .
 <https://wod.wiki/code/file/e2e/live-app/effort-creation-and-tag-mobile-layout.e2e.ts> code:usesTestId <https://wod.wiki/code/testid/effort-not-found> .
 <https://wod.wiki/code/file/e2e/live-app/effort-creation-and-tag-mobile-layout.e2e.ts> code:usesTestId <https://wod.wiki/code/testid/notebook-not-found> .
+<https://wod.wiki/code/file/e2e/live-app/effort-creation-and-tag-mobile-layout.e2e.ts> code:usesTestId <https://wod.wiki/code/testid/actions-dock> .
 <https://wod.wiki/code/file/e2e/live-app/efforts-catalog-and-alias-lifecycle.e2e.ts> a code:File ;
     rdfs:label "efforts-catalog-and-alias-lifecycle.e2e.ts" ;
     code:filePath "e2e/live-app/efforts-catalog-and-alias-lifecycle.e2e.ts" ;
@@ -59924,6 +60209,420 @@
     code:testIdValue "day-logged-section" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
 
+<https://wod.wiki/code/testid/l3-right-drawer> a code:TestId ;
+    rdfs:label "l3-right-drawer" ;
+    code:testIdKey "L3_RIGHT_DRAWER" ;
+    code:testIdValue "l3-right-drawer" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-inline-rail> a code:TestId ;
+    rdfs:label "l3-inline-rail" ;
+    code:testIdKey "L3_INLINE_RAIL" ;
+    code:testIdValue "l3-inline-rail" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-connections> a code:TestId ;
+    rdfs:label "l3-connections" ;
+    code:testIdKey "L3_CONNECTIONS" ;
+    code:testIdValue "l3-connections" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-actions> a code:TestId ;
+    rdfs:label "l3-actions" ;
+    code:testIdKey "L3_ACTIONS" ;
+    code:testIdValue "l3-actions" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-actions-primary> a code:TestId ;
+    rdfs:label "l3-actions-primary" ;
+    code:testIdKey "L3_ACTIONS_PRIMARY" ;
+    code:testIdValue "l3-actions-primary" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-actions-group-author> a code:TestId ;
+    rdfs:label "l3-actions-group-author" ;
+    code:testIdKey "L3_ACTIONS_GROUP_AUTHOR" ;
+    code:testIdValue "l3-actions-group-author" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-actions-group-organize> a code:TestId ;
+    rdfs:label "l3-actions-group-organize" ;
+    code:testIdKey "L3_ACTIONS_GROUP_ORGANIZE" ;
+    code:testIdValue "l3-actions-group-organize" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-actions-group-share> a code:TestId ;
+    rdfs:label "l3-actions-group-share" ;
+    code:testIdKey "L3_ACTIONS_GROUP_SHARE" ;
+    code:testIdValue "l3-actions-group-share" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-actions-danger> a code:TestId ;
+    rdfs:label "l3-actions-danger" ;
+    code:testIdKey "L3_ACTIONS_DANGER" ;
+    code:testIdValue "l3-actions-danger" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-analytics-controls> a code:TestId ;
+    rdfs:label "l3-analytics-controls" ;
+    code:testIdKey "L3_ANALYTICS_CONTROLS" ;
+    code:testIdValue "l3-analytics-controls" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-range-options> a code:TestId ;
+    rdfs:label "l3-range-options" ;
+    code:testIdKey "L3_RANGE_OPTIONS" ;
+    code:testIdValue "l3-range-options" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-unit-options> a code:TestId ;
+    rdfs:label "l3-unit-options" ;
+    code:testIdKey "L3_UNIT_OPTIONS" ;
+    code:testIdValue "l3-unit-options" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-drawer-done-btn> a code:TestId ;
+    rdfs:label "l3-drawer-done-btn" ;
+    code:testIdKey "L3_DRAWER_DONE_BTN" ;
+    code:testIdValue "l3-drawer-done-btn" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-drawer-reset-btn> a code:TestId ;
+    rdfs:label "l3-drawer-reset-btn" ;
+    code:testIdKey "L3_DRAWER_RESET_BTN" ;
+    code:testIdValue "l3-drawer-reset-btn" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/peek-drawer-slot> a code:TestId ;
+    rdfs:label "peek-drawer-slot" ;
+    code:testIdKey "PEEK_DRAWER_SLOT" ;
+    code:testIdValue "peek-drawer-slot" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/peek-drawer-backdrop> a code:TestId ;
+    rdfs:label "peek-drawer-backdrop" ;
+    code:testIdKey "PEEK_DRAWER_BACKDROP" ;
+    code:testIdValue "peek-drawer-backdrop" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/actions-dock> a code:TestId ;
+    rdfs:label "actions-dock" ;
+    code:testIdKey "ACTIONS_DOCK" ;
+    code:testIdValue "actions-dock" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/actions-overflow> a code:TestId ;
+    rdfs:label "actions-overflow" ;
+    code:testIdKey "ACTIONS_OVERFLOW" ;
+    code:testIdValue "actions-overflow" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/actions-sheet-l3> a code:TestId ;
+    rdfs:label "actions-sheet-l3" ;
+    code:testIdKey "ACTIONS_SHEET_L3" ;
+    code:testIdValue "actions-sheet-l3" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/boot-import-progress> a code:TestId ;
+    rdfs:label "boot-import-progress" ;
+    code:testIdKey "BOOT_IMPORT_PROGRESS" ;
+    code:testIdValue "boot-import-progress" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-drawer> a code:TestId ;
+    rdfs:label "entity-peek-drawer" ;
+    code:testIdKey "ENTITY_PEEK_DRAWER" ;
+    code:testIdValue "entity-peek-drawer" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-backdrop> a code:TestId ;
+    rdfs:label "entity-peek-backdrop" ;
+    code:testIdKey "ENTITY_PEEK_BACKDROP" ;
+    code:testIdValue "entity-peek-backdrop" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-close> a code:TestId ;
+    rdfs:label "entity-peek-close" ;
+    code:testIdKey "ENTITY_PEEK_CLOSE" ;
+    code:testIdValue "entity-peek-close" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-open-full> a code:TestId ;
+    rdfs:label "entity-peek-open-full" ;
+    code:testIdKey "ENTITY_PEEK_OPEN_FULL" ;
+    code:testIdValue "entity-peek-open-full" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-filter-notes> a code:TestId ;
+    rdfs:label "entity-peek-filter-notes" ;
+    code:testIdKey "ENTITY_PEEK_FILTER_NOTES" ;
+    code:testIdValue "entity-peek-filter-notes" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-view-all-notes> a code:TestId ;
+    rdfs:label "entity-peek-view-all-notes" ;
+    code:testIdKey "ENTITY_PEEK_VIEW_ALL_NOTES" ;
+    code:testIdValue "entity-peek-view-all-notes" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-create-form> a code:TestId ;
+    rdfs:label "entity-peek-create-form" ;
+    code:testIdKey "ENTITY_PEEK_CREATE_FORM" ;
+    code:testIdValue "entity-peek-create-form" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-create-kind> a code:TestId ;
+    rdfs:label "entity-peek-create-kind" ;
+    code:testIdKey "ENTITY_PEEK_CREATE_KIND" ;
+    code:testIdValue "entity-peek-create-kind" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-create-label> a code:TestId ;
+    rdfs:label "entity-peek-create-label" ;
+    code:testIdKey "ENTITY_PEEK_CREATE_LABEL" ;
+    code:testIdValue "entity-peek-create-label" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-create-slug> a code:TestId ;
+    rdfs:label "entity-peek-create-slug" ;
+    code:testIdKey "ENTITY_PEEK_CREATE_SLUG" ;
+    code:testIdValue "entity-peek-create-slug" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-create-category> a code:TestId ;
+    rdfs:label "entity-peek-create-category" ;
+    code:testIdKey "ENTITY_PEEK_CREATE_CATEGORY" ;
+    code:testIdValue "entity-peek-create-category" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/entity-peek-create-submit> a code:TestId ;
+    rdfs:label "entity-peek-create-submit" ;
+    code:testIdKey "ENTITY_PEEK_CREATE_SUBMIT" ;
+    code:testIdValue "entity-peek-create-submit" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/calendar-peek-backdrop> a code:TestId ;
+    rdfs:label "calendar-peek-backdrop" ;
+    code:testIdKey "CALENDAR_PEEK_BACKDROP" ;
+    code:testIdValue "calendar-peek-backdrop" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/calendar-day-header> a code:TestId ;
+    rdfs:label "calendar-day-header" ;
+    code:testIdKey "CALENDAR_DAY_HEADER" ;
+    code:testIdValue "calendar-day-header" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/schedule-peek-day-cue-input> a code:TestId ;
+    rdfs:label "schedule-peek-day-cue-input" ;
+    code:testIdKey "SCHEDULE_PEEK_DAY_CUE_INPUT" ;
+    code:testIdValue "schedule-peek-day-cue-input" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/schedule-peek-day-cue-save> a code:TestId ;
+    rdfs:label "schedule-peek-day-cue-save" ;
+    code:testIdKey "SCHEDULE_PEEK_DAY_CUE_SAVE" ;
+    code:testIdValue "schedule-peek-day-cue-save" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/schedule-peek-fork-btn> a code:TestId ;
+    rdfs:label "schedule-peek-fork-btn" ;
+    code:testIdKey "SCHEDULE_PEEK_FORK_BTN" ;
+    code:testIdValue "schedule-peek-fork-btn" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/schedule-peek-block-select> a code:TestId ;
+    rdfs:label "schedule-peek-block-select" ;
+    code:testIdKey "SCHEDULE_PEEK_BLOCK_SELECT" ;
+    code:testIdValue "schedule-peek-block-select" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/schedule-peek-plan-for-date> a code:TestId ;
+    rdfs:label "schedule-peek-plan-for-date" ;
+    code:testIdKey "SCHEDULE_PEEK_PLAN_FOR_DATE" ;
+    code:testIdValue "schedule-peek-plan-for-date" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/schedule-peek-open-day> a code:TestId ;
+    rdfs:label "schedule-peek-open-day" ;
+    code:testIdKey "SCHEDULE_PEEK_OPEN_DAY" ;
+    code:testIdValue "schedule-peek-open-day" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/day-plan-cue-input> a code:TestId ;
+    rdfs:label "day-plan-cue-input" ;
+    code:testIdKey "DAY_PLAN_CUE_INPUT" ;
+    code:testIdValue "day-plan-cue-input" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/day-plan-cue-save> a code:TestId ;
+    rdfs:label "day-plan-cue-save" ;
+    code:testIdKey "DAY_PLAN_CUE_SAVE" ;
+    code:testIdValue "day-plan-cue-save" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/day-plan-fork-btn> a code:TestId ;
+    rdfs:label "day-plan-fork-btn" ;
+    code:testIdKey "DAY_PLAN_FORK_BTN" ;
+    code:testIdValue "day-plan-fork-btn" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/stream-facet-filter-trigger> a code:TestId ;
+    rdfs:label "stream-facet-filter-trigger" ;
+    code:testIdKey "STREAM_FACET_FILTER_TRIGGER" ;
+    code:testIdValue "stream-facet-filter-trigger" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/stream-facet-filter-badge> a code:TestId ;
+    rdfs:label "stream-facet-filter-badge" ;
+    code:testIdKey "STREAM_FACET_FILTER_BADGE" ;
+    code:testIdValue "stream-facet-filter-badge" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/stream-facet-filter-popover> a code:TestId ;
+    rdfs:label "stream-facet-filter-popover" ;
+    code:testIdKey "STREAM_FACET_FILTER_POPOVER" ;
+    code:testIdValue "stream-facet-filter-popover" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/stream-mobile-facets> a code:TestId ;
+    rdfs:label "stream-mobile-facets" ;
+    code:testIdKey "STREAM_MOBILE_FACETS" ;
+    code:testIdValue "stream-mobile-facets" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/stream-view-add-action> a code:TestId ;
+    rdfs:label "stream-view-add-action" ;
+    code:testIdKey "STREAM_VIEW_ADD_ACTION" ;
+    code:testIdValue "stream-view-add-action" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/stream-page-heading> a code:TestId ;
+    rdfs:label "stream-page-heading" ;
+    code:testIdKey "STREAM_PAGE_HEADING" ;
+    code:testIdValue "stream-page-heading" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/facet-pill-include> a code:TestId ;
+    rdfs:label "facet-pill-include" ;
+    code:testIdKey "FACET_PILL_INCLUDE" ;
+    code:testIdValue "facet-pill-include" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/facet-pill-exclude> a code:TestId ;
+    rdfs:label "facet-pill-exclude" ;
+    code:testIdKey "FACET_PILL_EXCLUDE" ;
+    code:testIdValue "facet-pill-exclude" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/facet-pill-off> a code:TestId ;
+    rdfs:label "facet-pill-off" ;
+    code:testIdKey "FACET_PILL_OFF" ;
+    code:testIdValue "facet-pill-off" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/page-header-parent-breadcrumb> a code:TestId ;
+    rdfs:label "page-header-parent-breadcrumb" ;
+    code:testIdKey "PAGE_HEADER_PARENT_BREADCRUMB" ;
+    code:testIdValue "page-header-parent-breadcrumb" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/dashboard-edit-toggle> a code:TestId ;
+    rdfs:label "dashboard-edit-toggle" ;
+    code:testIdKey "DASHBOARD_EDIT_TOGGLE" ;
+    code:testIdValue "dashboard-edit-toggle" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/explorer-inline-bar> a code:TestId ;
+    rdfs:label "explorer-inline-bar" ;
+    code:testIdKey "EXPLORER_INLINE_BAR" ;
+    code:testIdValue "explorer-inline-bar" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/explorer-examples-trigger> a code:TestId ;
+    rdfs:label "explorer-examples-trigger" ;
+    code:testIdKey "EXPLORER_EXAMPLES_TRIGGER" ;
+    code:testIdValue "explorer-examples-trigger" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/explorer-examples-popover> a code:TestId ;
+    rdfs:label "explorer-examples-popover" ;
+    code:testIdKey "EXPLORER_EXAMPLES_POPOVER" ;
+    code:testIdValue "explorer-examples-popover" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/explorer-unit-kg> a code:TestId ;
+    rdfs:label "explorer-unit-kg" ;
+    code:testIdKey "EXPLORER_UNIT_KG" ;
+    code:testIdValue "explorer-unit-kg" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/explorer-unit-lb> a code:TestId ;
+    rdfs:label "explorer-unit-lb" ;
+    code:testIdKey "EXPLORER_UNIT_LB" ;
+    code:testIdValue "explorer-unit-lb" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/explorer-run-btn> a code:TestId ;
+    rdfs:label "explorer-run-btn" ;
+    code:testIdKey "EXPLORER_RUN_BTN" ;
+    code:testIdValue "explorer-run-btn" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/explorer-query-settings-btn> a code:TestId ;
+    rdfs:label "explorer-query-settings-btn" ;
+    code:testIdKey "EXPLORER_QUERY_SETTINGS_BTN" ;
+    code:testIdValue "explorer-query-settings-btn" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-effort-override> a code:TestId ;
+    rdfs:label "l3-effort-override" ;
+    code:testIdKey "L3_EFFORT_OVERRIDE" ;
+    code:testIdValue "l3-effort-override" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-effort-show-resolved> a code:TestId ;
+    rdfs:label "l3-effort-show-resolved" ;
+    code:testIdKey "L3_EFFORT_SHOW_RESOLVED" ;
+    code:testIdValue "l3-effort-show-resolved" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-equipment-override> a code:TestId ;
+    rdfs:label "l3-equipment-override" ;
+    code:testIdKey "L3_EQUIPMENT_OVERRIDE" ;
+    code:testIdValue "l3-equipment-override" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-feed-download-offline> a code:TestId ;
+    rdfs:label "l3-feed-download-offline" ;
+    code:testIdKey "L3_FEED_DOWNLOAD_OFFLINE" ;
+    code:testIdValue "l3-feed-download-offline" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/feed-detail-unsubscribe-button> a code:TestId ;
+    rdfs:label "feed-detail-unsubscribe-button" ;
+    code:testIdKey "L3_FEED_UNSUBSCRIBE" ;
+    code:testIdValue "feed-detail-unsubscribe-button" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-dashboard-clone> a code:TestId ;
+    rdfs:label "l3-dashboard-clone" ;
+    code:testIdKey "L3_DASHBOARD_CLONE" ;
+    code:testIdValue "l3-dashboard-clone" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-dashboard-delete> a code:TestId ;
+    rdfs:label "l3-dashboard-delete" ;
+    code:testIdKey "L3_DASHBOARD_DELETE" ;
+    code:testIdValue "l3-dashboard-delete" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
+<https://wod.wiki/code/testid/l3-playground-move-journal> a code:TestId ;
+    rdfs:label "l3-playground-move-journal" ;
+    code:testIdKey "L3_PLAYGROUND_MOVE_JOURNAL" ;
+    code:testIdValue "l3-playground-move-journal" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/src/lib/testIds.ts> .
+
 <https://wod.wiki/code/route/root> a code:Route ;
     rdfs:label "/" ;
     code:routeName "home" ;
@@ -60565,6 +61264,17 @@
     code:isUiTool true ;
     code:mountScope "always (Playground shell)" ;
     code:cliEquivalent "playwright:ui_navigate" ;
+    code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> .
+
+<https://wod.wiki/code/tool/ui_peek_entity> a code:WebMcpTool ;
+    rdfs:label "ui_peek_entity" ;
+    code:toolName "ui_peek_entity" ;
+    code:toolTitle "Inspect, Open, or Close Entity Peek Drawer" ;
+    code:toolDomain "ui" ;
+    code:toolTier 1 ;
+    code:isUiTool true ;
+    code:mountScope "mounted Playground shell / Note editor / Entity Peek surfaces (AppContent / NoteEditor / EntityPeekDrawer)" ;
+    code:cliEquivalent "playwright:ui_peek_entity" ;
     code:definedIn <https://wod.wiki/code/file/apps/playground/app/agent/uiToolSpecs.ts> .
 
 <https://wod.wiki/code/tool/ui_preferences> a code:WebMcpTool ;
@@ -61330,11 +62040,11 @@
     code:storyName "ShellMenuList" ;
     code:definedIn <https://wod.wiki/code/file/apps/storybook/src/views/NavigationMenus.stories.tsx> .
 
-<https://wod.wiki/code/story/playground-navigation-navigation-menus--l3-stream-controls-rail> a code:Story ;
-    rdfs:label "Playground/Navigation/Navigation & Menus / L3StreamControlsRail" ;
-    code:storyId "playground-navigation-navigation-menus--l3-stream-controls-rail" ;
+<https://wod.wiki/code/story/playground-navigation-navigation-menus--l3-secondary-rail> a code:Story ;
+    rdfs:label "Playground/Navigation/Navigation & Menus / L3SecondaryRail" ;
+    code:storyId "playground-navigation-navigation-menus--l3-secondary-rail" ;
     code:storyTitle "Playground/Navigation/Navigation & Menus" ;
-    code:storyName "L3StreamControlsRail" ;
+    code:storyName "L3SecondaryRail" ;
     code:definedIn <https://wod.wiki/code/file/apps/storybook/src/views/NavigationMenus.stories.tsx> .
 
 <https://wod.wiki/code/story/playground-navigation-navigation-menus--app-rail-and-header-actions> a code:Story ;

@@ -582,7 +582,13 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
           actions={pageActions}
           editor={
             <div className="flex flex-col gap-4 px-4 py-6 sm:px-6 min-w-0 max-w-full">
-              <NoteContextNav data={contextLinks} up={parentLink} calendar={calendar} peekMode />
+              <NoteContextNav
+                data={contextLinks}
+                up={parentLink}
+                calendar={calendar}
+                peekMode
+                onPeekEntity={nav.openPeek}
+              />
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border/50 pb-3 text-xs text-muted-foreground" data-testid="note-header-meta-row">
                 <PublicationPill
                   noteId={entry.id}
@@ -844,6 +850,8 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                       showLineNumbers={false}
                       onCompleteWorkout={handleCompleteWorkout}
                       onBlocksChange={setScriptBlocks}
+                      onPeekEntity={nav.openPeek}
+                      onClosePeek={nav.closePeek}
                       placeholder="Write workout or notes here…"
                     />
                   </div>

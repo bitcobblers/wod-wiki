@@ -76,21 +76,11 @@ import {
   ROUTE_PATTERNS,
   tagPath,
 } from '../../lib/routes';
+import type { EntityPeekTarget } from '../../nav/navTypes';
 import { notifyReferenceCatalogChanged } from '../../pages/shared/useLiveNoteFacets';
 import { journalSchedule } from '../../services/journalSchedule';
 
-/**
- * Shared Entity Peek target union — matches shell-core & detail-boards verbatim.
- */
-export type EntityPeekTarget =
-  | { kind: 'effort'; slug: string; label?: string }
-  | { kind: 'equipment'; slug: string; label?: string }
-  | { kind: 'tag'; tagType?: string; label: string }
-  | { kind: 'unrecognized'; term: string }
-  | { kind: 'note'; noteId: string; title?: string }
-  | { kind: 'notebook'; slug: string; title?: string }
-  | { kind: 'schedule'; entry: unknown }
-  | { kind: 'day'; date: string };
+export type { EntityPeekTarget } from '../../nav/navTypes';
 
 export interface EntityPeekDrawerProps {
   target: EntityPeekTarget | null;

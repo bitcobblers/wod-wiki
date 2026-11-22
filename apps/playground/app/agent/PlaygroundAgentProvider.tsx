@@ -11,6 +11,7 @@ import { useAnalyticsUnitPreference } from '@bitcobblers/wod-wiki-ui';
 import {
   useActiveEditorBridge,
   useActiveExplorerBridge,
+  useActivePeekBridge,
   useActiveResultsBridge,
   useActiveStreamBridge,
   useSurfaceBusy,
@@ -38,7 +39,7 @@ import { storageService } from '@/services/storage';
 import { useNav } from '../nav/NavContext';
 import { useStreamResults } from '../views/stream/streamResults';
 import { requestAgentConfirmation } from './AgentConfirmHost';
-import { EditorAgentTools } from './EditorAgentTools';
+import { EditorAgentTools, PeekAgentTools } from './EditorAgentTools';
 import { ExplorerAgentTools } from './ExplorerAgentTools';
 import { LiveClockAgentTools } from './LiveClockAgentTools';
 import { ResultsAgentTools } from './ResultsAgentTools';
@@ -318,6 +319,7 @@ export const PlaygroundAgentProvider: React.FC = () => {
   const activeExplorer = useActiveExplorerBridge();
   const streamResults = useStreamResults();
   const activeEditor = useActiveEditorBridge();
+  const activePeek = useActivePeekBridge();
   const activeResults = useActiveResultsBridge();
   const activeClock = useSyncExternalStore(subscribeClock, getClockSnapshot, () => null);
   const { theme, setTheme } = useTheme();
@@ -680,6 +682,7 @@ export const PlaygroundAgentProvider: React.FC = () => {
       {activeStream && <StreamAgentTools stream={activeStream} />}
       {activeExplorer && <ExplorerAgentTools explorer={activeExplorer} />}
       {activeEditor && <EditorAgentTools editor={activeEditor} />}
+      {(activePeek || activeEditor) && <PeekAgentTools />}
       {activeResults && <ResultsAgentTools results={activeResults} />}
       {activeClock && <LiveClockAgentTools clock={activeClock} />}
     </>

@@ -16,6 +16,9 @@ export type EntityPeekTarget =
   | { kind: 'schedule'; entry: unknown }
   | { kind: 'day'; date: string };
 
+/** Grouping bucket for L3 Slot 3 ("Actions") rendered by SecondaryNav. */
+export type L3ActionGroup = 'primary' | 'author' | 'organize' | 'share' | 'danger';
+
 export interface NavState extends BaseNavState {
   inspectorDrawerOpen: boolean;
   peekTarget?: EntityPeekTarget | null;

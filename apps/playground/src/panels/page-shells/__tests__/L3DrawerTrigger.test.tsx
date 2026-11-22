@@ -15,37 +15,42 @@ describe('L3DrawerTrigger & JournalPageShell landmark parity', () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  it('returns null at 2xl+ (>= 1520px) and renders below 2xl', () => {
-    window.matchMedia = ((query: string) => ({
-      matches: query === '(min-width: 1520px)',
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    })) as typeof window.matchMedia;
+  it('returns null at 2xl+ (>= 1520px) and on <lg mobile (<= 1023px), and renders at lg–2xl', () => {
+    const setMockMedia = (matches: (query: string) => boolean) => {
+      window.matchMedia = ((query: string) => ({
+        matches: matches(query),
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      })) as typeof window.matchMedia;
+    };
 
-    const { unmount } = render(
+    // 2xl+ desktop: inline rail is mounted, no trigger
+    setMockMedia((query) => query === '(min-width: 1520px)');
+    const { unmount: unmount2xl } = render(
       <L3DrawerStateProvider value={{ railHasContent: true, hasAppliedFilters: false, openRightDrawer: () => {} }}>
         <L3DrawerTrigger />
       </L3DrawerStateProvider>,
     );
     expect(screen.queryByRole('button', { name: 'Page options' })).toBeNull();
-    unmount();
+    unmount2xl();
 
-    window.matchMedia = ((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    })) as typeof window.matchMedia;
+    // <lg mobile: thumb-zone ResponsiveActionsDock owns L3, no top-right trigger
+    setMockMedia((query) => query.includes('max-width: 1023px'));
+    const { unmount: unmountMobile } = render(
+      <L3DrawerStateProvider value={{ railHasContent: true, hasAppliedFilters: false, openRightDrawer: () => {} }}>
+        <L3DrawerTrigger />
+      </L3DrawerStateProvider>,
+    );
+    expect(screen.queryByRole('button', { name: 'Page options' })).toBeNull();
+    unmountMobile();
 
+    // lg–2xl tablet/medium desktop: trigger renders cleanly
+    setMockMedia(() => false);
     render(
       <L3DrawerStateProvider value={{ railHasContent: true, hasAppliedFilters: false, openRightDrawer: () => {} }}>
         <L3DrawerTrigger />

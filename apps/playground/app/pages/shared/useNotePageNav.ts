@@ -20,6 +20,7 @@ import type { ScriptBlock } from '@/components/Editor/types'
 import type { Session } from '@/types/storage'
 import { openCreateReferenceDialog } from '../../components/organisms/references/CreateReferenceFromLabelDialog'
 import { useNav, type L3ActionItem } from '../../nav/NavContext'
+import type { L3ActionGroup } from '../../nav/navTypes'
 import { extractPageIndex, mapIndexToL3 } from './pageUtils'
 import { useLiveNoteFacets } from './useLiveNoteFacets'
 import { groupResultsByVersion } from '@/utils/groupResultsByVersion';
@@ -56,11 +57,11 @@ export interface UseNotePageNavOptions {
   enabled?: boolean
 }
 
-/** Grouping bucket for L3 Slot 3 ("Actions") rendered by SecondaryNav. */
-export type L3ActionGroup = 'primary' | 'author' | 'organize' | 'share' | 'danger'
+/** Canonical L3 Action grouping bucket re-exported from navTypes. */
+export type { L3ActionGroup } from '../../nav/navTypes'
 
-/** L3ActionItem extended with the optional `group` bucket (natively consumed by shell-core). */
-export type GroupedL3ActionItem = L3ActionItem & { group?: L3ActionGroup }
+/** Canonical L3ActionItem (carries optional `group?: L3ActionGroup` natively). */
+export type GroupedL3ActionItem = L3ActionItem
 
 /** A per-page L3 context action rendered under the "Actions" section. */
 export interface NoteHelpfulAction {
@@ -100,7 +101,7 @@ export function helpfulActionsToL3Actions(
       }
       a.onRun()
     },
-  }) as L3ActionItem)
+  }))
 }
 
 /**

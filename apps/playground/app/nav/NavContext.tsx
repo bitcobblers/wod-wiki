@@ -35,6 +35,7 @@ import { useLocation } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 import type {
   EntityPeekTarget,
+  L3ActionGroup,
   NavItem,
   NavItemL3,
   NavState,
@@ -46,7 +47,7 @@ import type { EntityLevel } from '../lib/fieldProjection'
 import type { LayoutMode, ViewSettings } from '../lib/viewSettingsStorage'
 import type { ExplorerRangeWeeks } from '../hooks/useExplorerQueryState'
 
-export type { EntityPeekTarget } from './navTypes'
+export type { EntityPeekTarget, L3ActionGroup } from './navTypes'
 
 // ─── Initial State ────────────────────────────────────────────────────────────
 
@@ -158,8 +159,6 @@ export interface AnalyticsNavControls {
   /** Reset live-applied L3 modifiers back to route defaults. */
   onReset?: () => void
 }
-
-export type L3ActionGroup = 'primary' | 'author' | 'organize' | 'share' | 'danger'
 
 /**
  * L3 Slot 3 context action row — shortcuts acting on the current entity or

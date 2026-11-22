@@ -138,7 +138,15 @@ export function usePeekEntityWebMcp(): void {
 
         const nextTarget = buildPeekTargetFromArgs(args);
         if (peekBridge) {
-          peekBridge.openPeek(nextTarget);
+          try {
+            peekBridge.openPeek(nextTarget);
+          } catch (err) {
+            if (editorBridge?.peekEntity) {
+              editorBridge.peekEntity(nextTarget);
+            } else {
+              throw err;
+            }
+          }
         } else if (editorBridge?.peekEntity) {
           editorBridge.peekEntity(nextTarget);
         } else {
@@ -171,8 +179,12 @@ export function usePeekEntityWebMcp(): void {
   });
 }
 
-export const EditorAgentTools: React.FC<{ editor: ActiveEditorBridge }> = () => {
+export const PeekAgentTools: React.FC = () => {
   usePeekEntityWebMcp();
+  return null;
+};
+
+export const EditorAgentTools: React.FC<{ editor: ActiveEditorBridge }> = () => {
   useEffect(() => {
     const cleanDraft = trackMountedWebMcpTool({
       name: 'ui_editor_draft',

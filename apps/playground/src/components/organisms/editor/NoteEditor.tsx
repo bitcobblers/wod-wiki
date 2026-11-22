@@ -716,11 +716,13 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     }
     setDrawerOpen(false);
     setPopoverOpen(false);
+    navPeekTargetRef.current = target;
     lastPeekTargetRef.current = target;
     peekCallbacksRef.current.onPeekEntity?.(target);
   }, []);
 
   const handleClosePeek = useCallback(() => {
+    navPeekTargetRef.current = null;
     lastPeekTargetRef.current = null;
     peekCallbacksRef.current.onClosePeek?.();
   }, []);

@@ -13,6 +13,7 @@ import {
   type PlaygroundRenderResult,
 } from './host';
 import { ROUTE_PATTERNS } from '../lib/routes';
+import { TEST_IDS } from '../lib/testIds';
 import { AppRoutes } from '../../app/AppRoutes';
 import { useCanvasRoutes } from '../../app/canvas/canvasRoutes';
 import { useNoteDraft } from '../../app/hooks/useNoteDraft';
@@ -946,7 +947,8 @@ describe('PlaygroundTestHost', () => {
           expect(screen.getByRole('heading', { name: 'Metric Explorer' })).toBeTruthy();
         });
 
-        const exampleBtn = screen.getAllByRole('button', { name: /Weekly strength volume/i })[0]!;
+        fireEvent.click(screen.getByTestId(TEST_IDS.EXPLORER_EXAMPLES_TRIGGER));
+        const exampleBtn = screen.getAllByRole('menuitem', { name: /Weekly strength volume/i })[0]!;
         fireEvent.click(exampleBtn);
 
         await waitFor(() => {

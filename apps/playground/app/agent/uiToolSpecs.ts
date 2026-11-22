@@ -377,7 +377,7 @@ export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
         'Read the active Entity Peek Drawer state (`status`), open a non-destructive 340px right-edge preview for an effort, equipment, tag, unrecognized term, note, notebook, or day (`open`), or dismiss the drawer (`close`). Mutually exclusive with the Whiteboard Token Inspector drawer.',
       tier: 1,
       surfaces: ['webmcp'],
-      mountScope: 'mounted Note editor / Entity Peek surfaces (NoteEditor / EntityPeekDrawer)',
+      mountScope: 'mounted Playground shell / Note editor / Entity Peek surfaces (AppContent / NoteEditor / EntityPeekDrawer)',
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: zodSchemaToJsonSchema(uiPeekEntitySchema),
     },

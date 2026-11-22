@@ -52,6 +52,7 @@ import {
 } from './shared/noteContextLinks'
 import { useScriptBlockCommands } from '../hooks/useScriptBlockCommands'
 import { shareBlock, openBlockInPlayground } from '../services/openInPlayground'
+import { useNav } from '../nav/NavContext'
 import { ResponsiveActions } from '../nav/ResponsiveActions'
 import {
   INLINE_RUNTIME_CATEGORIES,
@@ -94,6 +95,7 @@ export function WorkoutEditorPage({
   const isNotebookItem = !NOTEBOOK_EXCLUDED_CATEGORIES[category]
   const noteId = pageId(category, name)
   const navigate = useNavigate()
+  const { openPeek, closePeek } = useNav()
   const [searchParams] = useSearchParams()
   const feedParam = searchParams.get('feed') ?? undefined
   const remoteParam = searchParams.get('remote') ?? undefined
@@ -482,7 +484,7 @@ export function WorkoutEditorPage({
         editor={
           /* Reconfigure read-only state without discarding cursor or undo history. */
           <div className="flex flex-col gap-3 px-4 py-6 sm:px-6">
-            <NoteContextNav data={contextData} up={ownership?.up} />
+            <NoteContextNav data={contextData} up={ownership?.up} peekMode onPeekEntity={openPeek} />
             {resolvedOwnershipBar}
             <NoteEditor
               key={canonicalNoteId}
@@ -517,6 +519,8 @@ export function WorkoutEditorPage({
               theme={theme}
               showLineNumbers={false}
               onBlocksChange={setScriptBlocks}
+              onPeekEntity={openPeek}
+              onClosePeek={closePeek}
             />
             {error ? <p role="alert">Save failed. {error instanceof Error ? error.message : String(error)} Your draft is kept.</p> : null}
             <WorkoutSessionsList sessions={sessions} />

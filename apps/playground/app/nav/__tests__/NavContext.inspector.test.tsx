@@ -160,17 +160,24 @@ describe('NavContext inspector/peek coordination & steady L2 contract', () => {
     expect(inside?.peekTarget).toBeNull();
   });
 
-  it('keeps note context spec outbound-only by omitting note-context-unrecognized', () => {
+  it('routes note-context-unrecognized into L3 Connections with onPeekEntity instead of mutating L2', () => {
+    const peeked: unknown[] = [];
     const spec = buildNoteContextSpec({
       data: {
         efforts: [{ id: 'fran', title: 'Fran', to: '/effort/fran' }],
-        unrecognized: [{ id: 'tag:custom', title: '#custom', badge: 'define', onSelect: () => {} }],
+        unrecognized: [{ id: 'tag:custom', title: '#custom', badge: 'define' }],
         related: [],
         backlinks: [],
       },
+      onPeekEntity: (target) => peeked.push(target),
     });
-    expect(spec.find(s => s.id === 'note-context-unrecognized')).toBeUndefined();
-    expect(spec.map(s => s.id)).toEqual(['note-context-efforts']);
+    expect(spec.map(s => s.id)).toEqual(['note-context-efforts', 'note-context-unrecognized']);
+    const unrec = spec.find(s => s.id === 'note-context-unrecognized');
+    expect(unrec?.kind).toBe('section');
+    if (unrec?.kind === 'section' && unrec.entries[0]?.kind === 'link') {
+      unrec.entries[0].onSelect?.();
+    }
+    expect(peeked).toEqual([{ kind: 'unrecognized', term: '#custom' }]);
   });
 
   it('does not throw when rendering consumer outside NavProvider', () => {

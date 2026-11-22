@@ -43,10 +43,6 @@ import { forkScheduleItemForDay } from '../views/stream/SchedulePeekDrawer';
 
 import { JournalPageShell } from '@/panels/page-shells';
 
-type GroupedL3ActionItem = L3ActionItem & {
-  group?: 'primary' | 'author' | 'organize' | 'share' | 'danger';
-};
-
 function ScheduledPlanCard({
   plannedEntry,
   journalDate,
@@ -542,12 +538,14 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
         id: 'day-add-note',
         label: 'Add note',
         icon: Plus,
+        group: 'primary' as const,
         onRun: () => openCreateDialog('write'),
       },
       {
         id: 'day-pick-workout',
         label: 'Pick / Log workout',
         icon: Dumbbell,
+        group: 'author' as const,
         onRun: () => openCreateDialog('pick'),
       },
       ...noteActions.helpfulActions,
@@ -597,7 +595,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (!multiNoteFirst) return;
     publishedGroupedRef.current = true;
     setL3Items(groupedL3);
-    const multiActions: GroupedL3ActionItem[] = [
+    const multiActions: L3ActionItem[] = [
       {
         id: 'day-add-note',
         label: 'Add note',
@@ -652,7 +650,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (!isEmptyDay) return;
     publishedEmptyDayRef.current = true;
     setL3Items([]);
-    const emptyDayActions: GroupedL3ActionItem[] = [
+    const emptyDayActions: L3ActionItem[] = [
       {
         id: 'day-add-note',
         label: 'Add note',

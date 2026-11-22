@@ -1361,7 +1361,7 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
 
 ---
 
-## Live Browser UI Tools (14 tools — Playground WebMCP only)
+## Live Browser UI Tools (15 tools — Playground WebMCP only)
 
 ### `ui_get_view_context` (Tier 0 — WebMCP UI)
 - **Title**: Get Active UI View Context
@@ -1817,6 +1817,75 @@ Fence tags: ```time (alias ```wod or ```whiteboard; optional sport suffix e.g. `
       "type": "boolean"
     }
   },
+  "additionalProperties": false
+}
+```
+
+### `ui_peek_entity` (Tier 1 — WebMCP UI)
+- **Title**: Inspect, Open, or Close Entity Peek Drawer
+- **Mount Scope**: mounted Playground shell / Note editor / Entity Peek surfaces (AppContent / NoteEditor / EntityPeekDrawer)
+- **Description**: Read the active Entity Peek Drawer state (`status`), open a non-destructive 340px right-edge preview for an effort, equipment, tag, unrecognized term, note, notebook, or day (`open`), or dismiss the drawer (`close`). Mutually exclusive with the Whiteboard Token Inspector drawer.
+- **Input Schema**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "status",
+        "open",
+        "close"
+      ],
+      "description": "Read active Entity Peek Drawer state (\"status\"), open a preview for a target entity (\"open\"), or dismiss it (\"close\")."
+    },
+    "kind": {
+      "description": "Target entity kind when action=\"open\".",
+      "type": "string",
+      "enum": [
+        "effort",
+        "equipment",
+        "tag",
+        "unrecognized",
+        "note",
+        "notebook",
+        "day"
+      ]
+    },
+    "slug": {
+      "description": "Canonical slug when kind is \"effort\", \"equipment\", or \"notebook\".",
+      "type": "string"
+    },
+    "label": {
+      "description": "Tag label (required when kind=\"tag\") or optional display label for effort/equipment.",
+      "type": "string"
+    },
+    "tagType": {
+      "description": "Optional tag category/type when kind=\"tag\" (e.g. \"domain\", \"format\", \"general\").",
+      "type": "string"
+    },
+    "term": {
+      "description": "Unrecognized term to quick-define when kind=\"unrecognized\".",
+      "type": "string"
+    },
+    "noteId": {
+      "description": "Target Note ID when kind=\"note\".",
+      "type": "string"
+    },
+    "title": {
+      "description": "Optional display title hint when kind is \"note\" or \"notebook\".",
+      "type": "string"
+    },
+    "date": {
+      "description": "Civil date (YYYY-MM-DD) when kind=\"day\".",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    }
+  },
+  "required": [
+    "action"
+  ],
   "additionalProperties": false
 }
 ```

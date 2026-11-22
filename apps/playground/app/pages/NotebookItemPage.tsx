@@ -56,6 +56,7 @@ import {
 import { useScriptBlockCommands } from '../hooks/useScriptBlockCommands';
 import { shareBlock, openBlockInPlayground } from '../services/openInPlayground';
 import { PageActions } from './shared/PageActions';
+import { useNav } from '../nav/NavContext';
 import { ResponsiveActions } from '../nav/ResponsiveActions';
 import { toast } from '@/hooks/use-toast';
 import { localDateKey } from '@/lib/dateFormat';
@@ -77,6 +78,7 @@ export function NotebookItemPage({
   onViewCreated,
 }: NotebookItemPageProps) {
   const navigate = useNavigate();
+  const { openPeek, closePeek } = useNav();
   const [searchParams] = useSearchParams();
   const feedParam = searchParams.get('feed') ?? undefined;
   const remoteParam = searchParams.get('remote') ?? undefined;
@@ -468,7 +470,7 @@ export function NotebookItemPage({
         }
         editor={
           <div className="flex flex-col gap-3 px-4 py-6 sm:px-6">
-            <NoteContextNav data={contextData} up={ownership.up} />
+            <NoteContextNav data={contextData} up={ownership.up} peekMode onPeekEntity={openPeek} />
             {ownershipHeaderBar}
             <NoteEditor
               key={canonicalNoteId}
@@ -484,6 +486,8 @@ export function NotebookItemPage({
               theme={theme}
               showLineNumbers={false}
               onBlocksChange={setScriptBlocks}
+              onPeekEntity={openPeek}
+              onClosePeek={closePeek}
             />
             <WorkoutSessionsList sessions={sessions} />
           </div>

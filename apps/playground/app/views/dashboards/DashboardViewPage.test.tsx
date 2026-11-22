@@ -397,11 +397,13 @@ describe('DashboardViewPage L3 3-slot contract', () => {
     );
 
     await waitFor(() => expect(screen.getByText('Volume')).toBeDefined());
-    expect(capturedActions.some((a) => a.id === 'helpful-edit' || a.label === 'Edit')).toBe(false);
-    expect(capturedActions.map((a) => [a.id, a.group])).toEqual([
-      ['helpful-clone', 'primary'],
-      ['helpful-copy-link', 'share'],
-    ]);
+    await waitFor(() => {
+      expect(capturedActions.some((a) => a.id === 'helpful-edit' || a.label === 'Edit')).toBe(false);
+      expect(capturedActions.map((a) => [a.id, a.group])).toEqual([
+        ['helpful-clone', 'primary'],
+        ['helpful-copy-link', 'share'],
+      ]);
+    });
   });
 });
 

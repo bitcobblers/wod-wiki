@@ -34,6 +34,8 @@ import {
 import { usePageScrollSync } from './hooks/usePageScrollSync'
 import { useIsMobile } from './hooks/useIsMobile'
 import { useNav } from './nav/NavContext'
+import { registerActivePeekBridge } from '@/agent/surfaceBridges'
+import { EntityPeekDrawer } from './components/organisms/EntityPeekDrawer'
 import { useTheme } from '@/contexts/ThemeProvider'
 import { useCanvasRoutes } from './canvas/canvasRoutes'
 import { MarkdownCanvasPage } from './canvas/MarkdownCanvasPage'
@@ -122,7 +124,37 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
   // General layout shell state: breadcrumb (active L1 › page identity) and
   // the L3 index channel (canvas pages publish here; note pages publish via
   // useNotePageNav — bare shells, so the writers never overlap).
-  const { tree: l1Items, navState, setL3Items, setL3Actions, setSecondarySpec, registerCreateJournal } = useNav()
+  const {
+    tree: l1Items,
+    navState,
+    peekTarget,
+    openPeek,
+    closePeek,
+    setL3Items,
+    setL3Actions,
+    setSecondarySpec,
+    registerCreateJournal,
+  } = useNav()
+  const peekTargetRef = useRef(peekTarget ?? null)
+  peekTargetRef.current = peekTarget ?? null
+  const handleClosePeek = useCallback(() => {
+    closePeek?.()
+  }, [closePeek])
+
+  useEffect(() => {
+    if (!openPeek || !closePeek) return
+    return registerActivePeekBridge({
+      getTarget: () => peekTargetRef.current,
+      openPeek: (target) => {
+        peekTargetRef.current = target
+        openPeek(target)
+      },
+      closePeek: () => {
+        peekTargetRef.current = null
+        closePeek()
+      },
+    })
+  }, [openPeek, closePeek])
   const activeL1Id = (navState as { activeL1Id?: string | null })?.activeL1Id ?? null
   const activeL1 = (l1Items ?? []).find(item => item?.id === activeL1Id) ?? null
   // Shell title first; bare pages fall back to the route-derived workout name
@@ -475,6 +507,13 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
       hideDesktopSidebar={hideDesktopSidebar}
       secondary={secondarySpec}
       pageAction={currentWorkout.content !== '' ? <PageDownloadAction currentWorkout={currentWorkout} /> : undefined}
+      peekSlot={
+        <EntityPeekDrawer
+          target={peekTarget ?? null}
+          onClose={handleClosePeek}
+          layout="slot"
+        />
+      }
       onSearch={openSearchPalette}
     >
       <CreateJournalNoteDialog
