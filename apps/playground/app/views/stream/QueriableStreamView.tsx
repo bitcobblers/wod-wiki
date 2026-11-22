@@ -1231,7 +1231,7 @@ export function QueriableStreamView({
       }
     }
     return overlay
-  }, [profile.calendarCapable, profile.route, layout, enrichedEntries, allScheduleItems, overlaySessions, overlayNotesById, overlayMode])
+  }, [profile.calendarCapable, profile.route, profile.defaultWql, effectiveQuery, layout, enrichedEntries, allScheduleItems, overlaySessions, overlayNotesById, overlayMode])
 
   // Grouping: the committed run's query `by {}` dimensions win; otherwise
   // the view setting, then the surface's Group-By favorite, then the level

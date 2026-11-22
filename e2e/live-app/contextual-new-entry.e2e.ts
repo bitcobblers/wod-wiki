@@ -148,7 +148,7 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await expect(page.getByRole('button', { name: 'New journal note', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Cast to TV/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open page options' })).toBeVisible();
-    await expect(page.getByTestId('actions-overflow')).toHaveCount(0);
+    await expect(page.getByTestId('actions-overflow')).toBeVisible();
 
     const searchY = (await page.getByTestId('search-fab').boundingBox())!.y;
     const newY = (await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).boundingBox())!.y;

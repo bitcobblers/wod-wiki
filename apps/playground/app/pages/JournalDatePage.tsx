@@ -201,9 +201,13 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   const feedProgress = useFeedSyncProgress();
   const [slowLoad, setSlowLoad] = useState(false);
 
+  const loadedDateRef = useRef<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    setNotes(null);
+    if (loadedDateRef.current !== journalDate) {
+      loadedDateRef.current = journalDate;
+      setNotes(null);
+    }
     Promise.all([
       journalNotes.listByDate(journalDate),
       journalSchedule.getDayOverlay(journalDate).catch(() => null),

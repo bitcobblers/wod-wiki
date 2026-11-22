@@ -85,7 +85,7 @@ test('a planner cell starts a new entry on its own day, with a notebook target',
   // the default target.
   const target = page.locator('[data-testid="journal-create-target-notebook"]');
   await expect(target).toBeVisible();
-  await expect(target.locator('option').first()).toHaveText('Journal (no notebook)');
+  await expect(target.locator('option').first()).toHaveText('Unfiled (Journal only)');
 });
 
 test('the layout picker offers the calendar layouts only where entries have dates', async ({ page }) => {

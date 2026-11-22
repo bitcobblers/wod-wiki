@@ -900,7 +900,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
                 ? ['Workout execution error']
                 : undefined
           }
-          canNext={clockSnapshot?.canNext}
+          canNext={clockSnapshot?.canNext ?? false}
           workoutTitle={workoutIdentity.workoutTitle}
           workoutFormat={workoutIdentity.workoutFormat}
         />

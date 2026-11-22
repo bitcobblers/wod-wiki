@@ -26,5 +26,5 @@ Given an Athlete switching between `1280×900` and `375×812`:
 
 1. Athlete checks mobile thumb-dock control ordering (`search-fab` above `new-entry-primary`) on `/journal` and `New Note` availability on `/notebook/custom` at `375×812`.
 2. Athlete checks `query-add-dashboard` visibility on `/page/guide-wql` vs absence on `/dashboard/benchmark-pr-board`, then edits an H1 title in a new Journal Note and reloads the browser.
-- expect: Step 1 places `search-fab` above `new-entry-primary` and keeps `actions-overflow` absent on `/journal` at `375×812`.
+- expect: Step 1 places `search-fab` above `new-entry-primary` and keeps `actions-overflow` (`Stream actions`) available on `/journal` at `375×812`.
 - expect: Step 2 exposes `query-add-dashboard` on `/page/guide-wql` (omits it on `/dashboard/benchmark-pr-board`), persists the edited `H1` title across reload, and keeps the browser console clean.
