@@ -387,6 +387,20 @@ export const TEST_IDS = {
   ACTIONS_OVERFLOW: 'actions-overflow',
   ACTIONS_SHEET_L3: 'actions-sheet-l3',
   BOOT_IMPORT_PROGRESS: 'boot-import-progress',
+
+  // ── EntityPeekDrawer ───────────────────────────────────────────────────────
+  ENTITY_PEEK_DRAWER: 'entity-peek-drawer',
+  ENTITY_PEEK_BACKDROP: 'entity-peek-backdrop',
+  ENTITY_PEEK_CLOSE: 'entity-peek-close',
+  ENTITY_PEEK_OPEN_FULL: 'entity-peek-open-full',
+  ENTITY_PEEK_FILTER_NOTES: 'entity-peek-filter-notes',
+  ENTITY_PEEK_VIEW_ALL_NOTES: 'entity-peek-view-all-notes',
+  ENTITY_PEEK_CREATE_FORM: 'entity-peek-create-form',
+  ENTITY_PEEK_CREATE_KIND: 'entity-peek-create-kind',
+  ENTITY_PEEK_CREATE_LABEL: 'entity-peek-create-label',
+  ENTITY_PEEK_CREATE_SLUG: 'entity-peek-create-slug',
+  ENTITY_PEEK_CREATE_CATEGORY: 'entity-peek-create-category',
+  ENTITY_PEEK_CREATE_SUBMIT: 'entity-peek-create-submit',
 } as const;
 
 type LeafValues<T> = T extends string ? T : T extends Record<string, unknown> ? LeafValues<T[keyof T]> : never;

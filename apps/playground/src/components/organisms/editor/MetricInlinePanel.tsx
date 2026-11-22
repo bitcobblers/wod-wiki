@@ -28,11 +28,13 @@ import {
 } from "@phosphor-icons/react";
 import { MetricType } from "@bitcobblers/wod-wiki-engine";
 import type { IMetric } from "@bitcobblers/wod-wiki-engine";
+import { slugifyRefLabel } from "@bitcobblers/wod-wiki-lang";
 import {
   getReferenceMetadata,
   getTagReference,
   type TagReferenceMetadata,
 } from "@bitcobblers/wod-wiki-core";
+import type { EntityPeekTarget } from "../../../../app/components/organisms/EntityPeekDrawer";
 import {
   frontmatterReferenceIndex,
 } from "@bitcobblers/wod-wiki-ui/extensions";
@@ -347,6 +349,8 @@ export interface MetricInlinePanelProps {
   drawerOpen?: boolean;
   onOpenInspector?: (request: OpenInspectorRequest) => void;
   onToggleDrawer?: () => void;
+  onPeekEntity?: (target: EntityPeekTarget) => void;
+  onClosePeek?: () => void;
 }
 
 export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
@@ -359,6 +363,8 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
   drawerOpen = false,
   onOpenInspector,
   onToggleDrawer,
+  onPeekEntity,
+  onClosePeek,
 }) => {
   const [pos, setPos] = useState<PanelPosition | null>(null);
   const [focus, setFocus] = useState<CursorFocusState | null>(null);
@@ -881,6 +887,14 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
         : metric.type === MetricType.Equipment
           ? "equipment"
           : null;
+    if (kind && onPeekEntity) {
+      const rawLabel = String(metric.name ?? metric.image ?? metric.value ?? "").trim();
+      const slug = slugifyRefLabel(rawLabel) || rawLabel;
+      if (slug) {
+        onPeekEntity({ kind, slug, label: rawLabel || slug });
+        return;
+      }
+    }
     if (kind && lineRefs?.jsonFrom !== undefined && lineRefs.jsonFrom >= 0) {
       void changeRefSource(kind);
       return;
@@ -894,6 +908,10 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     ref: ReferenceRefShape,
     event: React.MouseEvent<HTMLButtonElement>,
   ) => {
+    if (onPeekEntity) {
+      onPeekEntity({ kind: ref.kind, slug: ref.slug, label: ref.label });
+      return;
+    }
     if (lineRefs?.jsonFrom !== undefined && lineRefs.jsonFrom >= 0) {
       void changeRefSource(ref.kind);
       return;
@@ -1061,7 +1079,11 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                       ? `Tag ${ref.label} · names the ${ref.soundProfileId} sound profile`
                       : `Tag ${ref.label}`
                   }
-                  onClick={(e) =>
+                  onClick={(e) => {
+                    if (onPeekEntity) {
+                      onPeekEntity({ kind: "tag", label: ref.slug || ref.label });
+                      return;
+                    }
                     openUnifiedInspector(
                       "token",
                       inspection.tokens.find((t) => t.isTag && t.raw.includes(ref.slug)) ?? {
@@ -1076,8 +1098,8 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                         isTag: true,
                       },
                       e.currentTarget,
-                    )
-                  }
+                    );
+                  }}
                   className="inline-flex items-center gap-0.5 cursor-pointer hover:opacity-80"
                 >
                   <span>#</span>
@@ -1137,15 +1159,32 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
               <span
                 key={`unresolved-tag:${slug}`}
                 data-testid="editor-tag-unknown"
-                title={`Unknown tag #${slug} — click to create`}
+                title={`Unknown tag #${slug} — click to define`}
                 className="pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 min-h-[22px] rounded-full border border-dashed text-[11px] leading-tight font-medium bg-warning/10 text-warning border-warning/40 whitespace-nowrap"
               >
-                <span className="font-mono font-semibold">#{slug}</span>
+                {onPeekEntity ? (
+                  <button
+                    type="button"
+                    onClick={() => onPeekEntity({ kind: "unrecognized", term: `#${slug}` })}
+                    className="font-mono font-semibold cursor-pointer hover:text-foreground"
+                  >
+                    #{slug}
+                  </button>
+                ) : (
+                  <span className="font-mono font-semibold">#{slug}</span>
+                )}
                 <button
                   type="button"
                   data-testid="editor-create-tag-inline"
                   className="underline cursor-pointer hover:text-foreground font-semibold ml-0.5"
-                  onClick={() => void handleCreateTag(slug)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onPeekEntity) {
+                      onPeekEntity({ kind: "unrecognized", term: `#${slug}` });
+                    } else {
+                      void handleCreateTag(slug);
+                    }
+                  }}
                 >
                   + Tag
                 </button>
@@ -1157,13 +1196,17 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
               const tokenText = diag.token?.trim() ?? "";
               const isUnknownEffort = diag.reason === "unknown-effort";
               const diagKey = `${diag.reason}-${tokenText || i}`;
-              const isExpanded = openDiagKey === diagKey || openDiagKey === "all";
+              const isExpanded = !onPeekEntity && (openDiagKey === diagKey || openDiagKey === "all");
               return (
                 <span
                   key={diagKey}
                   data-testid="editor-ref-unknown"
                   title={diag.message}
                   onClick={() => {
+                    if (onPeekEntity && tokenText) {
+                      onPeekEntity({ kind: "unrecognized", term: tokenText });
+                      return;
+                    }
                     if (!isExpanded) setOpenDiagKey(diagKey);
                   }}
                   className={cn(
@@ -1180,6 +1223,10 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                       className="underline cursor-pointer hover:text-foreground font-semibold"
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (onPeekEntity && tokenText) {
+                          onPeekEntity({ kind: "unrecognized", term: tokenText });
+                          return;
+                        }
                         setOpenDiagKey(diagKey);
                       }}
                     >
@@ -1284,7 +1331,10 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                 data-testid={TEST_IDS.EDITOR_INSPECTOR_DRAWER_TOGGLE}
                 aria-pressed={drawerOpen}
                 title="Toggle Right Inspector Drawer (Ctrl+Alt+I / Cmd+Alt+I)"
-                onClick={onToggleDrawer}
+                onClick={() => {
+                  if (!drawerOpen) onClosePeek?.();
+                  onToggleDrawer();
+                }}
                 className={cn(
                   "pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 min-h-[22px] rounded-full border text-[11px] leading-tight font-medium cursor-pointer whitespace-nowrap transition-colors",
                   drawerOpen

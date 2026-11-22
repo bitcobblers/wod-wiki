@@ -1,17 +1,178 @@
 import React, { useEffect } from 'react';
 import { useWebMCP } from '@mcp-b/react-webmcp';
 import { normalizeMarkdownOrBareScript } from '@bitcobblers/wod-wiki-engine/agent';
-import { getActiveEditorBridge, type ActiveEditorBridge } from '@/agent/surfaceBridges';
+import {
+  getActiveEditorBridge,
+  getActivePeekBridge,
+  type ActiveEditorBridge,
+  type PeekBridgeTarget,
+} from '@/agent/surfaceBridges';
 import { getClockSnapshot } from '@/clock/clockCommands';
 import { recordWebMcpToolInvocation, trackMountedWebMcpTool } from './toolLogStore';
 import { waitForUiCommit } from './uiCommit';
 import {
   uiEditorDraftSchema,
   uiEditorInspectorSchema,
+  uiPeekEntitySchema,
   uiStartLiveWorkoutSchema,
 } from './uiToolSpecs';
 
+function buildPeekTargetFromArgs(args: {
+  kind?: 'effort' | 'equipment' | 'tag' | 'unrecognized' | 'note' | 'notebook' | 'day';
+  slug?: string;
+  label?: string;
+  tagType?: string;
+  term?: string;
+  noteId?: string;
+  title?: string;
+  date?: string;
+}): PeekBridgeTarget {
+  switch (args.kind) {
+    case 'effort':
+      if (!args.slug?.trim()) throw new Error("'slug' is required when kind=\"effort\".");
+      return {
+        kind: 'effort',
+        slug: args.slug.trim(),
+        ...(args.label?.trim() ? { label: args.label.trim() } : {}),
+      };
+    case 'equipment':
+      if (!args.slug?.trim()) throw new Error("'slug' is required when kind=\"equipment\".");
+      return {
+        kind: 'equipment',
+        slug: args.slug.trim(),
+        ...(args.label?.trim() ? { label: args.label.trim() } : {}),
+      };
+    case 'tag':
+      if (!args.label?.trim()) throw new Error("'label' is required when kind=\"tag\".");
+      return {
+        kind: 'tag',
+        label: args.label.trim().replace(/^#/, ''),
+        ...(args.tagType?.trim() ? { tagType: args.tagType.trim() } : {}),
+      };
+    case 'unrecognized':
+      if (!args.term?.trim()) throw new Error("'term' is required when kind=\"unrecognized\".");
+      return { kind: 'unrecognized', term: args.term.trim() };
+    case 'note':
+      if (!args.noteId?.trim()) throw new Error("'noteId' is required when kind=\"note\".");
+      return {
+        kind: 'note',
+        noteId: args.noteId.trim(),
+        ...(args.title?.trim() ? { title: args.title.trim() } : {}),
+      };
+    case 'notebook':
+      if (!args.slug?.trim()) throw new Error("'slug' is required when kind=\"notebook\".");
+      return {
+        kind: 'notebook',
+        slug: args.slug.trim(),
+        ...(args.title?.trim() ? { title: args.title.trim() } : {}),
+      };
+    case 'day':
+      if (!args.date?.trim()) throw new Error("'date' is required when kind=\"day\".");
+      return { kind: 'day', date: args.date.trim() };
+    default:
+      throw new Error("'kind' is required when action=\"open\".");
+  }
+}
+
+export function usePeekEntityWebMcp(): void {
+  useEffect(() => {
+    return trackMountedWebMcpTool({
+      name: 'ui_peek_entity',
+      title: 'Inspect, Open, or Close Entity Peek Drawer',
+      description: 'Inspect, open, or close the 340px right-edge Entity Peek Drawer on the live UI.',
+      tier: 1,
+      scope: 'editor-ui',
+    });
+  }, []);
+
+  useWebMCP({
+    name: 'ui_peek_entity',
+    title: 'Inspect, Open, or Close Entity Peek Drawer',
+    description:
+      'Read active Entity Peek Drawer state (`status`), open a non-destructive 340px right-edge preview for an effort, equipment, tag, unrecognized term, note, notebook, or day (`open`), or dismiss the drawer (`close`). Mutually exclusive with the Whiteboard Token Inspector drawer.',
+    inputSchema: uiPeekEntitySchema,
+    annotations: {
+      title: 'Inspect or Control Entity Peek Drawer',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    async execute(args) {
+      const started = performance.now();
+      try {
+        const peekBridge = getActivePeekBridge();
+        const editorBridge = getActiveEditorBridge();
+
+        if (args.action === 'status') {
+          const target = peekBridge?.getTarget() ?? null;
+          const res = { ok: true, open: target !== null, target };
+          recordWebMcpToolInvocation({
+            toolName: 'ui_peek_entity',
+            timestamp: Date.now(),
+            durationMs: Math.round(performance.now() - started),
+            ok: true,
+            argsPreview: JSON.stringify(args).slice(0, 120),
+          });
+          return res;
+        }
+
+        if (args.action === 'close') {
+          if (peekBridge) {
+            peekBridge.closePeek();
+          } else if (editorBridge?.closePeek) {
+            editorBridge.closePeek();
+          }
+          await waitForUiCommit();
+          const target = getActivePeekBridge()?.getTarget() ?? null;
+          const res = { ok: true, open: target !== null, target };
+          recordWebMcpToolInvocation({
+            toolName: 'ui_peek_entity',
+            timestamp: Date.now(),
+            durationMs: Math.round(performance.now() - started),
+            ok: true,
+            argsPreview: JSON.stringify(args).slice(0, 120),
+          });
+          return res;
+        }
+
+        const nextTarget = buildPeekTargetFromArgs(args);
+        if (peekBridge) {
+          peekBridge.openPeek(nextTarget);
+        } else if (editorBridge?.peekEntity) {
+          editorBridge.peekEntity(nextTarget);
+        } else {
+          throw new Error('No Entity Peek surface is currently mounted.');
+        }
+
+        await waitForUiCommit();
+        const resolvedTarget = getActivePeekBridge()?.getTarget() ?? nextTarget;
+        const res = { ok: true, open: resolvedTarget !== null, target: resolvedTarget };
+        recordWebMcpToolInvocation({
+          toolName: 'ui_peek_entity',
+          timestamp: Date.now(),
+          durationMs: Math.round(performance.now() - started),
+          ok: true,
+          argsPreview: JSON.stringify(args).slice(0, 120),
+        });
+        return res;
+      } catch (err) {
+        recordWebMcpToolInvocation({
+          toolName: 'ui_peek_entity',
+          timestamp: Date.now(),
+          durationMs: Math.round(performance.now() - started),
+          ok: false,
+          argsPreview: JSON.stringify(args).slice(0, 120),
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    },
+  });
+}
+
 export const EditorAgentTools: React.FC<{ editor: ActiveEditorBridge }> = () => {
+  usePeekEntityWebMcp();
   useEffect(() => {
     const cleanDraft = trackMountedWebMcpTool({
       name: 'ui_editor_draft',

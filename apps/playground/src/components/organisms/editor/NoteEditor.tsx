@@ -43,7 +43,7 @@ import {
 import { indentOnInput } from "@codemirror/language";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import { completionKeymap, completionStatus, closeCompletion, closeBrackets, closeBracketsKeymap, selectedCompletionIndex, startCompletion } from "@codemirror/autocomplete";
-import { EFFORT_DISCIPLINES } from "@bitcobblers/wod-wiki-lang";
+import { EFFORT_DISCIPLINES, slugifyRefLabel } from "@bitcobblers/wod-wiki-lang";
 import { lintKeymap } from "@codemirror/lint";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 
@@ -58,7 +58,15 @@ import { smartIncrement } from '@bitcobblers/wod-wiki-ui/extensions';
 import { sectionField, SectionState, activeCursorSection, type EditorSection } from '@bitcobblers/wod-wiki-ui/extensions';
 import { sectionIdentity, sectionIdentityHistory, registeredSectionWidgets, sectionSaved, sectionRestore } from '@bitcobblers/wod-wiki-ui/extensions';
 import type { NoteBlock } from '@/types/storage';
-import { reconcileNoteBlocks, validateNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
+import { MetricType } from '@bitcobblers/wod-wiki-engine';
+import {
+  getReferenceMetadata,
+  getTagReference,
+  reconcileNoteBlocks,
+  validateNoteBlocks,
+  KNOWN_SECTION_WIDGETS,
+} from '@bitcobblers/wod-wiki-core';
+import { referenceIndexReload } from '@bitcobblers/wod-wiki-ui/extensions';
 import { captureRun, type CapturedRun, createResultRecorder, captureMetricCorrection, captureSessionRpe } from '@/hooks/useBrowserServices';
 import { sessionQueryInsert } from '@bitcobblers/wod-wiki-ui/extensions';
 import { previewDecorations } from '@bitcobblers/wod-wiki-ui/extensions';
@@ -106,7 +114,9 @@ import {
   createInlineEffortFromToken,
   createInlineTagFromSlug,
   createMarkdownProseCompletionSource,
+  getSharedReferenceIndex,
   loadReferenceCatalog,
+  readNoteReferenceDefaults,
   resolveNotePersistence,
   buildNestedCompletionOptions,
 } from "@/app/editor/noteEditorServices";
@@ -114,6 +124,8 @@ import {
 import { entryOpenHref } from '../../../../app/lib/entryActions';
 import { toEntry, blockToEntry } from '../../../../app/lib/entryMapper';
 import * as NavContextModule from '../../../../app/nav/NavContext';
+import type { EntityPeekTarget } from '../../../../app/components/organisms/EntityPeekDrawer';
+import { subscribeReferenceCatalogChanged } from '../../../../app/pages/shared/useLiveNoteFacets';
 import { OverlayTrack } from "@/components/organisms/editor/OverlayTrack";
 import { useOverlayWidthState } from "@/components/Editor/overlays/useOverlayWidthState";
 import type { OverlaySlotProps } from "@/components/organisms/editor/OverlayTrack";
@@ -151,7 +163,11 @@ import { themeCompartment, languageCompartment, modeCompartment, inputModeCompar
 import type { ScriptBlock } from "@/components/Editor/types";
 import { Play, Plus, ExternalLink, Copy, Check } from "lucide-react";
 import { buildHomeShareUrl, buildPlaygroundUrl } from "@/components/atoms/WhiteboardPlaygroundButton";
-import { registerActiveEditorBridge, type EditorInspectorSnapshot } from "@/agent/surfaceBridges";
+import {
+  registerActiveEditorBridge,
+  registerActivePeekBridge,
+  type EditorInspectorSnapshot,
+} from "@/agent/surfaceBridges";
 
 export interface NoteEditorProps {
   /** Note ID for result lookup */
@@ -261,6 +277,10 @@ export interface NoteEditorProps {
   inspectorDrawerLayout?: "docked-right" | "inline";
   /** Automatically focus the editor on desktop mount/editable transitions (default: true). */
   autoFocus?: boolean;
+  /** Called when the athlete triggers an inline Entity Peek (MetricInlinePanel, read-mode chip, or Ctrl/Cmd+Click reference). */
+  onPeekEntity?: (target: EntityPeekTarget) => void;
+  /** Called when the Token Inspector Drawer opens so Entity Peek closes cleanly (3-state right edge mutual exclusion). */
+  onClosePeek?: () => void;
 }
 export interface EditorIdentitySnapshot {
   rawContent: string;
@@ -273,6 +293,9 @@ type InspectorNavDispatch = (action: { type: "SET_INSPECTOR_DRAWER"; open: boole
 interface OptionalNavHandle {
   navState?: { rightDrawerOpen?: boolean; inspectorDrawerOpen?: boolean };
   dispatch?: InspectorNavDispatch;
+  peekTarget?: EntityPeekTarget | null;
+  openPeek?: (target: EntityPeekTarget) => void;
+  closePeek?: () => void;
 }
 
 function useOptionalNavCompat(): OptionalNavHandle | null {
@@ -331,6 +354,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   defaultInspectorDrawerOpen = false,
   inspectorDrawerLayout = "docked-right",
   autoFocus = true,
+  onPeekEntity,
+  onClosePeek,
 }) => {
   const editorWrapperRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -654,14 +679,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       if (isModAltI) {
         event.preventDefault();
         event.stopPropagation();
-        setDrawerOpen((prev) => {
-          const next = !prev;
-          if (next) {
-            if (viewRef.current) closeCompletion(viewRef.current);
-            setPopoverOpen(false);
-          }
-          return next;
-        });
+        toggleInspectorDrawerRef.current();
       } else if (isAltDot) {
         event.preventDefault();
         event.stopPropagation();
@@ -675,6 +693,62 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const nav = useOptionalNavCompat();
   const navDispatch = nav?.dispatch;
   const rightDrawerOpen = Boolean(nav?.navState?.rightDrawerOpen);
+  const navPeekTarget = nav?.peekTarget ?? null;
+  const effectiveOnPeekEntity = onPeekEntity ?? nav?.openPeek;
+  const effectiveOnClosePeek = onClosePeek ?? nav?.closePeek;
+  const closingDrawerForPeekRef = useRef(false);
+  const lastPeekTargetRef = useRef<EntityPeekTarget | null>(null);
+  const navPeekTargetRef = useRef<EntityPeekTarget | null>(navPeekTarget);
+  navPeekTargetRef.current = navPeekTarget;
+
+  const peekCallbacksRef = useRef({
+    onPeekEntity: effectiveOnPeekEntity,
+    onClosePeek: effectiveOnClosePeek,
+  });
+  peekCallbacksRef.current = {
+    onPeekEntity: effectiveOnPeekEntity,
+    onClosePeek: effectiveOnClosePeek,
+  };
+
+  const handlePeekEntity = useCallback((target: EntityPeekTarget) => {
+    if (drawerOpenRef.current) {
+      closingDrawerForPeekRef.current = true;
+    }
+    setDrawerOpen(false);
+    setPopoverOpen(false);
+    lastPeekTargetRef.current = target;
+    peekCallbacksRef.current.onPeekEntity?.(target);
+  }, []);
+
+  const handleClosePeek = useCallback(() => {
+    lastPeekTargetRef.current = null;
+    peekCallbacksRef.current.onClosePeek?.();
+  }, []);
+
+  const openInspectorDrawer = useCallback(() => {
+    if (viewRef.current) closeCompletion(viewRef.current);
+    setPopoverOpen(false);
+    handleClosePeek();
+    setDrawerOpen(true);
+  }, [handleClosePeek]);
+
+  const toggleInspectorDrawer = useCallback(() => {
+    const next = !drawerOpenRef.current;
+    if (next) {
+      if (viewRef.current) closeCompletion(viewRef.current);
+      setPopoverOpen(false);
+      handleClosePeek();
+    }
+    setDrawerOpen(next);
+  }, [handleClosePeek]);
+
+  const handlePeekEntityRef = useRef(handlePeekEntity);
+  handlePeekEntityRef.current = handlePeekEntity;
+  const handleClosePeekRef = useRef(handleClosePeek);
+  handleClosePeekRef.current = handleClosePeek;
+  const toggleInspectorDrawerRef = useRef(toggleInspectorDrawer);
+  toggleInspectorDrawerRef.current = toggleInspectorDrawer;
+
   const effectiveDrawerOpen = !readonly && !isMobileViewport && drawerOpen;
   const prevSyncedInspectorRef = useRef(false);
 
@@ -682,15 +756,33 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     if (!navDispatch) return;
     if (effectiveDrawerOpen !== prevSyncedInspectorRef.current) {
       prevSyncedInspectorRef.current = effectiveDrawerOpen;
+      if (!effectiveDrawerOpen && (closingDrawerForPeekRef.current || navPeekTargetRef.current !== null)) {
+        // Yielding the 340px right-edge slot to EntityPeekDrawer — keep inspectorDrawerOpen active.
+        closingDrawerForPeekRef.current = false;
+        return;
+      }
+      closingDrawerForPeekRef.current = false;
       navDispatch({ type: "SET_INSPECTOR_DRAWER", open: effectiveDrawerOpen });
     }
   }, [navDispatch, effectiveDrawerOpen]);
 
   useEffect(() => {
+    if (navPeekTarget) {
+      if (drawerOpenRef.current) {
+        closingDrawerForPeekRef.current = true;
+      }
+      setDrawerOpen(false);
+      setPopoverOpen(false);
+    }
+  }, [navPeekTarget]);
+
+  useEffect(() => {
     return () => {
       if (prevSyncedInspectorRef.current) {
         prevSyncedInspectorRef.current = false;
-        navDispatch?.({ type: "SET_INSPECTOR_DRAWER", open: false });
+        if (!closingDrawerForPeekRef.current && navPeekTargetRef.current === null) {
+          navDispatch?.({ type: "SET_INSPECTOR_DRAWER", open: false });
+        }
       }
     };
   }, [navDispatch]);
@@ -700,6 +792,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       setDrawerOpen(false);
     }
   }, [rightDrawerOpen]);
+
+  // Reload CodeMirror marks and reference index when inline catalog creation commits from EntityPeekDrawer.
+  useEffect(() => {
+    return subscribeReferenceCatalogChanged(() => {
+      const v = viewRef.current;
+      if (v) {
+        v.dispatch({ effects: [catalogueReload.of(null), referenceIndexReload.of(null)] });
+      }
+      setCursorVersion((ver) => ver + 1);
+    });
+  }, []);
 
   // Re-measure CodeMirror geometry and inline panel bounds when the drawer opens or closes
   useEffect(() => {
@@ -855,8 +958,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       },
       getInspectorState: () => getInspectorSnapshotRef.current(),
       setInspectorDrawer: (open: boolean) => {
+        if (open) {
+          setPopoverOpen(false);
+          handleClosePeekRef.current();
+        }
         setDrawerOpen(open);
-        if (open) setPopoverOpen(false);
       },
       openTokenInspector: (options?: { mode?: string; tokenIndex?: number }) => {
         openUnifiedInspectorRef.current({
@@ -867,8 +973,23 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       closeTokenInspector: () => {
         setPopoverOpen(false);
       },
+      ...(effectiveOnPeekEntity
+        ? {
+            peekEntity: (target) => handlePeekEntityRef.current(target),
+            closePeek: () => handleClosePeekRef.current(),
+          }
+        : {}),
     });
-  }, [noteId, readonly, sourceRevision, value, onChange, onSaveRequest, onCommitChange, handleRun]);
+  }, [noteId, readonly, sourceRevision, value, onChange, onSaveRequest, onCommitChange, handleRun, effectiveOnPeekEntity]);
+
+  useEffect(() => {
+    if (!effectiveOnPeekEntity) return;
+    return registerActivePeekBridge({
+      getTarget: () => navPeekTargetRef.current ?? lastPeekTargetRef.current,
+      openPeek: (target) => handlePeekEntityRef.current(target),
+      closePeek: () => handleClosePeekRef.current(),
+    });
+  }, [effectiveOnPeekEntity]);
 
   // Keep the report until both the pinned completion and host save succeed.
   const lastReportRef = useRef<{
@@ -1054,14 +1175,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           key: "Mod-Alt-i",
           run: () => {
             if (readonlyRef.current) return false;
-            setDrawerOpen((prev) => {
-              const next = !prev;
-              if (next) {
-                if (viewRef.current) closeCompletion(viewRef.current);
-                setPopoverOpen(false);
-              }
-              return next;
-            });
+            toggleInspectorDrawerRef.current();
             return true;
           },
         },
@@ -1116,12 +1230,19 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       // Section geometry measurement (for overlay track)
       sectionGeometry,
 
-      // Ctrl+Click & Link Pill navigation (SPA-friendly for internal paths)
+      // Ctrl+Click & Link Pill navigation (entity routes open Entity Peek when wired; external links open normally)
       affiliateTagFacet.of(ASSOCIATE_TAG),
       navigationFacet.of((url) => {
         if (/^(https?:|mailto:|tel:)/i.test(url)) {
           window.open(url, "_blank", "noopener,noreferrer");
           return;
+        }
+        if (peekCallbacksRef.current.onPeekEntity) {
+          const peekTarget = parseEntityPeekUrl(url);
+          if (peekTarget) {
+            handlePeekEntityRef.current(peekTarget);
+            return;
+          }
         }
         if (url.startsWith("/") && typeof window !== "undefined") {
           window.history.pushState({}, "", url);
@@ -1204,8 +1325,52 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       // File drop handler
       createFileDropHandler(noteId, notePersistence),
 
-      // Focus / blur handlers — sync mobile wheel deck, close stale completions, and host blur callback
+      // Focus / blur / entity-peek click handlers — sync mobile wheel deck, close stale completions, and trigger non-destructive Entity Peek on read-mode chips or Ctrl/Cmd+Click without hijacking normal cursor placement.
       EditorView.domEventHandlers({
+        click: (event, view) => {
+          if (event.button !== 0 || !peekCallbacksRef.current.onPeekEntity) return false;
+          const targetEl = event.target instanceof Element ? event.target : null;
+          if (!targetEl) return false;
+
+          // Frontmatter chip/reference links inside `.cm-frontmatter-preview`
+          const fmLink = targetEl.closest<HTMLAnchorElement>(".cm-frontmatter-preview a[href]");
+          if (fmLink) {
+            const href = fmLink.getAttribute("href");
+            if (href) {
+              const peekTarget = parseEntityPeekUrl(href);
+              if (peekTarget) {
+                event.preventDefault();
+                event.stopPropagation();
+                handlePeekEntityRef.current(peekTarget);
+                return true;
+              }
+            }
+          }
+
+          // Inline editor references: plain click in read-only mode, or Ctrl/Cmd+Click in edit mode
+          // so normal cursor placement during text editing is never hijacked.
+          const isModClick = event.ctrlKey || event.metaKey;
+          if (!readonlyRef.current && !isModClick) return false;
+
+          let pos: number | null = view.posAtCoords({ x: event.clientX, y: event.clientY });
+          if (pos === null) {
+            try {
+              const domPos = view.posAtDOM(targetEl);
+              if (Number.isFinite(domPos)) pos = domPos;
+            } catch {
+              pos = null;
+            }
+          }
+          if (pos === null) return false;
+
+          const entityTarget = resolveEntityTargetAtEditorPos(view.state, pos);
+          if (!entityTarget) return false;
+
+          event.preventDefault();
+          event.stopPropagation();
+          handlePeekEntityRef.current(entityTarget);
+          return true;
+        },
         focus: (_event, view) => {
           if (
             typeof window !== "undefined" &&
@@ -1773,6 +1938,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             hidden={isMobileViewport && isWheelOpen}
             activeTokenId={activeInspectorToken?.id ?? null}
             drawerOpen={drawerOpen}
+            onPeekEntity={effectiveOnPeekEntity ? handlePeekEntity : undefined}
+            onClosePeek={effectiveOnClosePeek ? handleClosePeek : undefined}
             onOpenInspector={(req) => {
               if (activeView) closeCompletion(activeView);
               setInspectorMode(req.mode);
@@ -1780,16 +1947,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               setPopoverAnchorRect(req.anchorRect);
               setPopoverOpen(!drawerOpen);
             }}
-            onToggleDrawer={() => {
-              setDrawerOpen((prev) => {
-                const next = !prev;
-                if (next) {
-                  if (activeView) closeCompletion(activeView);
-                  setPopoverOpen(false);
-                }
-                return next;
-              });
-            }}
+            onToggleDrawer={toggleInspectorDrawer}
           />
           {showDesktopInspector && popoverOpen && !drawerOpen && (
             <WhiteboardInspectorPopover
@@ -1806,10 +1964,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               onMutate={(diff) => handleInspectorMutate(diff)}
               onModeChange={setInspectorMode}
               onStepToken={handleStepInspectorToken}
-              onDockDrawer={() => {
-                setPopoverOpen(false);
-                setDrawerOpen(true);
-              }}
+              onDockDrawer={openInspectorDrawer}
             />
           )}
           {isMobileViewport && !readonly && (
@@ -2079,4 +2234,179 @@ function notifyBlockChanges(
     lastBlocksJsonRef.current = blocksJson;
     onBlocksChange(blocks);
   }
+}
+
+function decodeSegmentSafe(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+/** Map canonical internal entity URLs to an EntityPeekTarget for non-destructive editor lookup. */
+export function parseEntityPeekUrl(url: string): EntityPeekTarget | null {
+  if (!url.startsWith("/")) return null;
+  const pathname = url.split(/[?#]/, 1)[0] ?? "";
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return null;
+
+  const [head, second, third] = segments;
+  if (head === "effort" && second && second !== "new" && segments.length === 2) {
+    return { kind: "effort", slug: decodeSegmentSafe(second) };
+  }
+  if (head === "equipment" && second && second !== "new" && segments.length === 2) {
+    return { kind: "equipment", slug: decodeSegmentSafe(second) };
+  }
+  if (head === "t" && second && third && segments.length === 3) {
+    return {
+      kind: "tag",
+      tagType: decodeSegmentSafe(second),
+      label: decodeSegmentSafe(third),
+    };
+  }
+  if ((head === "note" || head === "notes") && second && segments.length === 2) {
+    return { kind: "note", noteId: decodeSegmentSafe(second) };
+  }
+  if (head === "notebook" && second && segments.length === 2) {
+    return { kind: "notebook", slug: decodeSegmentSafe(second) };
+  }
+  if (head === "day" && second && /^\d{4}-\d{2}-\d{2}$/.test(second) && segments.length === 2) {
+    return { kind: "day", date: second };
+  }
+  return null;
+}
+
+/** Resolve an Effort, Equipment, Tag, Note, or Unrecognized entity at a document offset inside NoteEditor. */
+export function resolveEntityTargetAtEditorPos(
+  state: EditorState,
+  pos: number,
+): EntityPeekTarget | null {
+  const safePos = Math.max(0, Math.min(pos, state.doc.length));
+  const line = state.doc.lineAt(safePos);
+  const { sections } = state.field(sectionField);
+  const workoutSection = sections.find(
+    (sec) =>
+      (sec.type === "time" || sec.type === "log") &&
+      line.number > sec.startLine &&
+      line.number < sec.endLine &&
+      sec.contentFrom !== undefined &&
+      sec.contentTo !== undefined,
+  );
+
+  if (workoutSection && workoutSection.contentFrom !== undefined && workoutSection.contentTo !== undefined) {
+    const raw = state.doc.sliceString(workoutSection.contentFrom, workoutSection.contentTo);
+    if (raw.trim()) {
+      try {
+        const references = getSharedReferenceIndex();
+        const tags = getTagIndex();
+        const parser = references
+          ? createParser({
+              references,
+              defaults: readNoteReferenceDefaults(state.doc.toString()),
+              tags,
+            })
+          : createParser({ tags });
+        const statements = parser.read(raw, workoutSection.sport).statements ?? [];
+        const lineInContent = line.number - workoutSection.startLine;
+
+        for (const stmt of statements) {
+          if (stmt.meta?.line !== lineInContent) continue;
+          const metrics = Array.from(stmt.metrics);
+          for (const metric of metrics) {
+            const meta = stmt.metricMeta?.get(metric);
+            if (!meta) continue;
+            const from = workoutSection.contentFrom + meta.startOffset;
+            const to = workoutSection.contentFrom + meta.endOffset;
+            if (safePos < from || safePos > to) continue;
+
+            const tagRef = getTagReference(metric.metadata);
+            if (tagRef?.slug) {
+              return { kind: "tag", label: tagRef.slug };
+            }
+
+            if (
+              metric.type === MetricType.Custom &&
+              typeof metric.value === "string" &&
+              /^#[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(metric.value.trim())
+            ) {
+              return { kind: "unrecognized", term: metric.value.trim() };
+            }
+
+            const refMeta = getReferenceMetadata(metric.metadata);
+            if (refMeta) {
+              if (refMeta.diagnostics && refMeta.diagnostics.length > 0) {
+                const token =
+                  refMeta.diagnostics[0]?.token?.trim() || state.doc.sliceString(from, to).trim();
+                if (token) return { kind: "unrecognized", term: token };
+              }
+              if (refMeta.refs && refMeta.refs.length > 0) {
+                const preferredKind = metric.type === MetricType.Equipment ? "equipment" : "effort";
+                const chosen =
+                  refMeta.refs.find((r) => r.kind === preferredKind) ?? refMeta.refs[0];
+                if (chosen) {
+                  return { kind: chosen.kind, slug: chosen.slug, label: chosen.label };
+                }
+              }
+            }
+
+            if (metric.type === MetricType.Effort || metric.type === MetricType.Equipment) {
+              const rawText = state.doc.sliceString(from, to).trim();
+              if (rawText) {
+                const kind = metric.type === MetricType.Equipment ? "equipment" : "effort";
+                if (references) {
+                  const resolved =
+                    kind === "equipment"
+                      ? references.resolveEquipment(rawText)
+                      : references.resolveEffort(rawText);
+                  if (resolved) {
+                    return { kind, slug: resolved.slug, label: resolved.label };
+                  }
+                  return { kind: "unrecognized", term: rawText };
+                }
+                const slug = slugifyRefLabel(rawText) || rawText;
+                return { kind, slug, label: rawText };
+              }
+            }
+          }
+        }
+      } catch {
+        // Fall through to prose check
+      }
+    }
+  }
+
+  // Inline #tag in prose or unparsed lines (ignoring leading Markdown `# Heading`)
+  const offset = safePos - line.from;
+  if (!/^\s*#{1,6}\s/.test(line.text)) {
+    const hashRe = /(?:^|[\s(])(#[a-zA-Z][a-zA-Z0-9_-]*)\b/g;
+    let match: RegExpExecArray | null;
+    while ((match = hashRe.exec(line.text)) !== null) {
+      const token = match[1]!;
+      const start = match.index + match[0].length - token.length;
+      const end = start + token.length;
+      if (offset >= start && offset <= end) {
+        const slug = token.slice(1);
+        const resolved = getTagIndex().resolve(slug);
+        return resolved ? { kind: "tag", label: slug } : { kind: "unrecognized", term: token };
+      }
+    }
+  }
+
+  // Prose [[Wiki Link]]
+  const wikiRe = /\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g;
+  let wikiMatch: RegExpExecArray | null;
+  while ((wikiMatch = wikiRe.exec(line.text)) !== null) {
+    const start = wikiMatch.index;
+    const end = start + wikiMatch[0].length;
+    if (offset >= start && offset <= end) {
+      const target = wikiMatch[1]!.trim();
+      const label = wikiMatch[2]?.trim() || target;
+      const parsed = parseEntityPeekUrl(target);
+      if (parsed) return parsed;
+      return { kind: "note", noteId: target, title: label };
+    }
+  }
+
+  return null;
 }

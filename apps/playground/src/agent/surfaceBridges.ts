@@ -13,6 +13,22 @@ export interface EditorInspectorSnapshot {
   lintFixes: Array<{ id: string; raw: string; fixes: string[] }>;
 }
 
+export type PeekBridgeTarget =
+  | { kind: 'effort'; slug: string; label?: string }
+  | { kind: 'equipment'; slug: string; label?: string }
+  | { kind: 'tag'; tagType?: string; label: string }
+  | { kind: 'unrecognized'; term: string }
+  | { kind: 'note'; noteId: string; title?: string }
+  | { kind: 'notebook'; slug: string; title?: string }
+  | { kind: 'schedule'; entry: unknown }
+  | { kind: 'day'; date: string };
+
+export interface ActivePeekBridge {
+  getTarget: () => PeekBridgeTarget | null;
+  openPeek: (target: PeekBridgeTarget) => void;
+  closePeek: () => void;
+}
+
 export interface ActiveEditorBridge {
   noteId?: string;
   readonly: boolean;
@@ -31,6 +47,8 @@ export interface ActiveEditorBridge {
   setInspectorDrawer?: (open: boolean) => void;
   openTokenInspector?: (options?: { mode?: string; tokenIndex?: number }) => void;
   closeTokenInspector?: () => void;
+  peekEntity?: (target: PeekBridgeTarget) => void;
+  closePeek?: () => void;
 }
 
 export interface ActiveStreamBridge {
@@ -190,6 +208,79 @@ export function subscribeActiveResultsBridge(listener: () => void): () => void {
 
 export function useActiveResultsBridge(): ActiveResultsBridge | null {
   return useSyncExternalStore(subscribeActiveResultsBridge, getActiveResultsBridge, () => null);
+}
+
+let currentPeekHost: ActivePeekBridge | null = null;
+let renderedPeekTarget: PeekBridgeTarget | null = null;
+let renderedPeekClose: (() => void) | null = null;
+let cachedPeekBridge: ActivePeekBridge | null = null;
+const peekListeners = new Set<() => void>();
+
+function recomputePeekBridge(): void {
+  if (!currentPeekHost && !renderedPeekTarget && !renderedPeekClose) {
+    cachedPeekBridge = null;
+  } else {
+    const host = currentPeekHost;
+    const liveTarget = renderedPeekTarget;
+    const liveClose = renderedPeekClose;
+    cachedPeekBridge = {
+      getTarget: () => liveTarget ?? host?.getTarget() ?? null,
+      openPeek: (target: PeekBridgeTarget) => {
+        if (host) {
+          host.openPeek(target);
+        } else {
+          throw new Error('No Entity Peek host is registered to open new targets.');
+        }
+      },
+      closePeek: () => {
+        liveClose?.();
+        host?.closePeek();
+      },
+    };
+  }
+  for (const l of peekListeners) l();
+}
+
+export function registerActivePeekBridge(bridge: ActivePeekBridge): () => void {
+  currentPeekHost = bridge;
+  recomputePeekBridge();
+  return () => {
+    if (currentPeekHost === bridge) {
+      currentPeekHost = null;
+      recomputePeekBridge();
+    }
+  };
+}
+
+export function registerRenderedPeekState(
+  target: PeekBridgeTarget | null,
+  onClose: () => void,
+): () => void {
+  renderedPeekTarget = target;
+  renderedPeekClose = target ? onClose : null;
+  recomputePeekBridge();
+  return () => {
+    if (renderedPeekTarget === target) {
+      renderedPeekTarget = null;
+      renderedPeekClose = null;
+      recomputePeekBridge();
+    }
+  };
+}
+
+export function getActivePeekBridge(): ActivePeekBridge | null {
+  return cachedPeekBridge;
+}
+
+export function subscribeActivePeekBridge(listener: () => void): () => void {
+  peekListeners.add(listener);
+  return () => {
+    peekListeners.delete(listener);
+  };
+}
+
+export function useActivePeekBridge(): ActivePeekBridge | null {
+  return useSyncExternalStore(subscribeActivePeekBridge, getActivePeekBridge, () => null);
 }
 
 let busyCounter = 0;
