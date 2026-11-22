@@ -410,13 +410,25 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
       notebookId: 'notebook/open-prep',
       seedOrigin: 'user',
     });
+    const otherNote = makeNote({
+      id: 'custom-other',
+      title: 'Other Workout',
+      notebookId: 'notebook/custom',
+      seedOrigin: 'user',
+    });
     const landingService = new QueryService({
       eventStore: { getEventsByTimeRange: async () => [], getEventsByResult: async () => [] },
-      noteStore: { getAllNotes: async () => [landingNote, memberNote], getNoteIdsForTag: async () => new Set() },
+      noteStore: { getAllNotes: async () => [landingNote, memberNote, otherNote], getNoteIdsForTag: async () => new Set() },
       blockStore: { getAllBlocks: async () => [] },
     } as never);
     const openPrepMembers = await landingService.runFind(parseQuery(':note{notebook:open-prep}') as Parameters<typeof service.runFind>[0]);
     expect(openPrepMembers.notes.map((n) => n.id)).toEqual(['custom-1']);
+
+    const openPrepNotebookPlane = await landingService.runFind(parseQuery(':notebook{notebook:open-prep}') as Parameters<typeof service.runFind>[0]);
+    expect(openPrepNotebookPlane.notes.map((n) => n.id).sort()).toEqual(['custom-1', 'notebook/open-prep']);
+
+    const negatedNotebookPlane = await landingService.runFind(parseQuery(':notebook{!notebook:open-prep}') as Parameters<typeof service.runFind>[0]);
+    expect(negatedNotebookPlane.notes.map((n) => n.id)).toEqual(['custom-other']);
   });
 });
 

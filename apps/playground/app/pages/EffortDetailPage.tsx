@@ -14,7 +14,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
-import { Eye, Trash2 } from 'lucide-react';
+import { Copy, Eye, Trash2 } from 'lucide-react';
 import {
   listScopedPropertyOverrides,
   makeScopedOverrideId,
@@ -745,8 +745,8 @@ export function EffortDetailPage() {
       : 'Custom';
 
   // ── Actions bar (rendered by JournalPageShell actions prop) ──────────────
-  // Clone, Show Resolved, Override (desktop), and Copy link live in L3
-  // helpfulActions; mobile keeps Override pinned in navbar for 375px flows.
+  // Show Resolved, Override (desktop), and Copy link live in L3 helpfulActions;
+  // primary keeps Clone (bundled) / Delete (custom) inline; mobile pins Override in navbar.
   const pageActions = (
     <div className="flex items-center gap-2">
       <ResponsiveActions
@@ -762,7 +762,17 @@ export function EffortDetailPage() {
           </Button>
         }
         primary={
-          activeIsEditable ? (
+          !activeIsEditable ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleClone()}
+              data-testid={TEST_IDS.EFFORT_DETAIL_CLONE_BTN}
+            >
+              <Copy className="size-4" />
+              Clone
+            </Button>
+          ) : (
             <Button
               type="button"
               variant="destructive"
@@ -775,7 +785,7 @@ export function EffortDetailPage() {
               <Trash2 className="size-4" />
               Delete
             </Button>
-          ) : undefined
+          )
         }
       >
         <Badge

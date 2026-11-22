@@ -123,7 +123,7 @@ test.describe('ANL-04 — Entity Scope & Dashboard Promotion', () => {
     await app.runtime.advance(1);
     await expect(completeBanner).toBeVisible({ timeout: 10_000 });
 
-    const totalWorkRow = page.getByRole('row').filter({ hasText: 'totalWork' });
+    const totalWorkRow = page.getByRole('row').filter({ hasText: /total\s*work/i });
     await expect(totalWorkRow).toContainText('240');
 
     await app.wql.queryStream('/notes', 'sum:totalWork{} by {session}');

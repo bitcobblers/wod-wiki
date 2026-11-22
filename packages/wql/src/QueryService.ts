@@ -464,11 +464,15 @@ function matchesFeedFilterValue(fid: string, v: TagFilter['values'][number]): bo
 }
 
 /** Apply the `notebook:` filter key to a list of Note or BlockIndexRow items. */
-function applyNotebookFilter<T extends NotebookResolvableItem>(items: T[], filters: TagFilter[]): T[] {
+function applyNotebookFilter<T extends NotebookResolvableItem>(
+  items: T[],
+  filters: TagFilter[],
+  excludeLandings = true,
+): T[] {
   for (const filter of filters) {
     if (filter.key !== 'notebook') continue;
     items = items.filter(item => {
-      if ('id' in item && 'notebookId' in item && isNotebookLanding(item as { id: string; notebookId?: string })) {
+      if (excludeLandings && 'id' in item && 'notebookId' in item && isNotebookLanding(item as { id: string; notebookId?: string })) {
         return false;
       }
       const memberships = notebooksOfItem(item);
@@ -2398,7 +2402,7 @@ export class QueryService {
       }
     }
 
-    notes = applyNotebookFilter(notes, parsed.filters);
+    notes = applyNotebookFilter(notes, parsed.filters, !parsed.raw.startsWith(':notebook'));
     // Zero-import remote preview fallback: after `applyNotebookFilter` narrows local notes,
     // if the requested `notebook:<slug>` has zero local rows, fetch its lightweight index records.
     if (notes.length === 0 && this.feedCatalogStore?.getRemoteNotebookNotes) {

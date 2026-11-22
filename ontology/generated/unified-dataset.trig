@@ -42796,7 +42796,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#FindQueryResult" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 715 .
+    code:lineHint 719 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#NoteContainer> a code:Symbol ;
     rdfs:label "NoteContainer" ;
@@ -42804,7 +42804,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#NoteContainer" ;
     code:symbolKind "type" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 745 .
+    code:lineHint 749 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#PipelineOptions> a code:Symbol ;
     rdfs:label "PipelineOptions" ;
@@ -42812,7 +42812,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#PipelineOptions" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 752 .
+    code:lineHint 756 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#PipelineResult> a code:Symbol ;
     rdfs:label "PipelineResult" ;
@@ -42820,7 +42820,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#PipelineResult" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 759 .
+    code:lineHint 763 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#QueryOptions> a code:Symbol ;
     rdfs:label "QueryOptions" ;
@@ -42828,7 +42828,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#QueryOptions" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 776 .
+    code:lineHint 780 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#FindOptions> a code:Symbol ;
     rdfs:label "FindOptions" ;
@@ -42836,7 +42836,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#FindOptions" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 789 .
+    code:lineHint 793 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#QueryResult> a code:Symbol ;
     rdfs:label "QueryResult" ;
@@ -42844,7 +42844,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#QueryResult" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 807 .
+    code:lineHint 811 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#MovementRollupItem> a code:Symbol ;
     rdfs:label "MovementRollupItem" ;
@@ -42852,7 +42852,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#MovementRollupItem" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 826 .
+    code:lineHint 830 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#RowsRunSummary> a code:Symbol ;
     rdfs:label "RowsRunSummary" ;
@@ -42860,7 +42860,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#RowsRunSummary" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 840 .
+    code:lineHint 844 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#computeRowsRunSummary> a code:Symbol ;
     rdfs:label "computeRowsRunSummary" ;
@@ -42868,7 +42868,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#computeRowsRunSummary" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 908 .
+    code:lineHint 912 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#RowsRun> a code:Symbol ;
     rdfs:label "RowsRun" ;
@@ -42876,7 +42876,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#RowsRun" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 1153 .
+    code:lineHint 1157 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#RowsQueryResult> a code:Symbol ;
     rdfs:label "RowsQueryResult" ;
@@ -42884,7 +42884,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#RowsQueryResult" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 1165 .
+    code:lineHint 1169 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#TabularColumn> a code:Symbol ;
     rdfs:label "TabularColumn" ;
@@ -42892,7 +42892,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#TabularColumn" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 1175 .
+    code:lineHint 1179 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#civilDatesCoveredByRange> a code:Symbol ;
     rdfs:label "civilDatesCoveredByRange" ;
@@ -42900,7 +42900,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#civilDatesCoveredByRange" ;
     code:symbolKind "function" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 1186 .
+    code:lineHint 1190 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#TabularGroup> a code:Symbol ;
     rdfs:label "TabularGroup" ;
@@ -42908,7 +42908,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#TabularGroup" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 1211 .
+    code:lineHint 1215 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#TabularResult> a code:Symbol ;
     rdfs:label "TabularResult" ;
@@ -42916,7 +42916,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#TabularResult" ;
     code:symbolKind "interface" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 1217 .
+    code:lineHint 1221 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#UNASSIGNED> a code:Symbol ;
     rdfs:label "UNASSIGNED" ;
@@ -42924,7 +42924,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#UNASSIGNED" ;
     code:symbolKind "const" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 1372 .
+    code:lineHint 1376 .
 
 <https://wod.wiki/code/symbol/packages/wql/src/QueryService.ts#QueryService> a code:Symbol ;
     rdfs:label "QueryService" ;
@@ -42932,7 +42932,7 @@ code:linksToStory a owl:ObjectProperty ;
     code:scipId "packages/wql/src/QueryService.ts#QueryService" ;
     code:symbolKind "class" ;
     code:definedIn <https://wod.wiki/code/file/packages/wql/src/QueryService.ts> ;
-    code:lineHint 1541 .
+    code:lineHint 1545 .
 
 <https://wod.wiki/code/file/packages/wql/src/selection.ts> a code:File ;
     rdfs:label "selection.ts" ;
@@ -51253,6 +51253,7 @@ code:linksToStory a owl:ObjectProperty ;
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-not-found-alias-btn> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-not-found-alias-select> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-not-found-alias-confirm> .
+<https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-clone-btn> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-delete-btn> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-source> .
 <https://wod.wiki/code/file/apps/playground/app/pages/EffortDetailPage.tsx> code:usesTestId <https://wod.wiki/code/testid/effort-detail-label> .

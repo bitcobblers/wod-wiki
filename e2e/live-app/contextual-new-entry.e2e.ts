@@ -33,7 +33,7 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await expect(pickTab).toHaveAttribute('aria-selected', 'true');
     const searchBox = dialog.getByRole('searchbox', { name: 'Search workouts' });
     await expect(searchBox).toBeVisible();
-    await searchBox.fill('1500m');
+    await searchBox.fill('My Workout');
     await expect(dialog.getByRole('button', { name: 'Open / Run' }).first()).toBeVisible();
     const scheduleBtn = dialog.getByRole('button', { name: 'Schedule' }).first();
     await expect(scheduleBtn).toBeVisible();
