@@ -184,18 +184,26 @@ export class StreamQueryEngine {
     entries: Entry[],
     withNoteFields: boolean,
     preResolvedPlacements?: FindQueryResult['placements'],
+    preResolvedTypedTags?: FindQueryResult['typedTags'],
   ): Promise<void> {
+    if (withNoteFields && preResolvedTypedTags) {
+      for (const entry of entries) {
+        const resolvedTags = preResolvedTypedTags[entry.id];
+        if (resolvedTags && resolvedTags.length > 0) {
+          if (!entry.tags || entry.tags.length === 0) {
+            entry.tags = resolvedTags.map((t) => t.label);
+          }
+          entry.typedTags = resolvedTags.map((t) => ({ label: t.label, type: t.type }));
+        }
+      }
+    }
     const bundleIds = new Set<string>();
     for (const entry of entries) {
       if (entry.kind === 'feed' || entry.kind === 'notebook' || entry.isRemotePreview) continue;
       const alreadyHydrated = Boolean(preResolvedPlacements && Object.prototype.hasOwnProperty.call(preResolvedPlacements, entry.id));
       if (entry.sourceNotebook === 'journal' && !alreadyHydrated) bundleIds.add(entry.id);
-      if (withNoteFields) {
-        if (!alreadyHydrated && (!entry.title || !entry.tags || entry.tags.length === 0)) {
-          bundleIds.add(entry.id);
-        } else if (alreadyHydrated && entry.tags && entry.tags.length > 0 && !entry.typedTags) {
-          bundleIds.add(entry.id);
-        }
+      if (withNoteFields && !alreadyHydrated && (!entry.title || !entry.tags || entry.tags.length === 0)) {
+        bundleIds.add(entry.id);
       }
     }
     if (bundleIds.size === 0) return;
@@ -292,7 +300,7 @@ export class StreamQueryEngine {
       const entries = primaryResult.notes.map(toEntry);
       if (this.noteTagsResolver) {
         // Session tag resolver keeps precedence; only page links batch here.
-        await this.hydrateEntries(entries, false, primaryResult.placements);
+        await this.hydrateEntries(entries, false, primaryResult.placements, primaryResult.typedTags);
         await Promise.all(
           entries.map(async (entry) => {
             if (!entry.tags || entry.tags.length === 0) {
@@ -302,7 +310,7 @@ export class StreamQueryEngine {
           }),
         );
       } else {
-        await this.hydrateEntries(entries, true, primaryResult.placements);
+        await this.hydrateEntries(entries, true, primaryResult.placements, primaryResult.typedTags);
       }
       emitStages(onStages, primaryResult.stages, entries);
 

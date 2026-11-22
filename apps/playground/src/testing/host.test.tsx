@@ -815,7 +815,9 @@ describe('PlaygroundTestHost', () => {
         expect(screen.queryByRole('heading', { name: 'Edit missing-tag-qa' })).toBeNull();
         await waitFor(
           () => {
-            expect(screen.getByText(/No tag is selected/)).toBeTruthy();
+            const notFound = screen.getByTestId('tag-not-found');
+            expect(notFound).toBeTruthy();
+            expect(notFound.textContent).toMatch(/#missing-tag-qa.*not found/i);
           },
           { timeout: 3000 },
         );

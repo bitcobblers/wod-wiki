@@ -212,13 +212,24 @@ export function PropertyTable({
                       </Link>
                     ) : field.id === 'title' || field.id === 'label' || (fieldIndex === 0 && !activeFields.some(f => f.id === 'title' || f.id === 'label')) ? (
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleRowClick(entry)}
-                          className="text-left font-medium text-foreground group-hover:text-primary transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                        >
-                          {formatted}
-                        </button>
+                        {openHref ? (
+                          <Link
+                            to={openHref}
+                            onClick={e => e.stopPropagation()}
+                            onKeyDown={e => e.stopPropagation()}
+                            className="text-left font-medium text-foreground group-hover:text-primary transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                          >
+                            {formatted}
+                          </Link>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleRowClick(entry)}
+                            className="text-left font-medium text-foreground group-hover:text-primary transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                          >
+                            {formatted}
+                          </button>
+                        )}
                         {notebookHref && (
                           <div className="flex items-center gap-1.5 ml-auto" onClick={e => e.stopPropagation()}>
                             <Link

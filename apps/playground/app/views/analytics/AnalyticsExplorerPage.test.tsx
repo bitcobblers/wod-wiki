@@ -558,4 +558,50 @@ describe('AnalyticsExplorerPage', () => {
     );
     expect(screen.getAllByRole('button', { name: /Purge sample data/i })).toHaveLength(1);
   });
+
+  it('WW-038: keeps previous submitted results mounted and offers Restore when live draft is invalid, and flags invalid ?q= URLs', async () => {
+    runQueryImpl = async (raw: string) => scalarResult(raw);
+    renderPage('sum:totalVolume{}');
+    await waitFor(() => expect(screen.queryByText('42')).not.toBeNull());
+
+    const editorEl = await waitFor(() => screen.getByTestId('wql-text-input'));
+    const cm = EditorView.findFromDOM(editorEl)!;
+    act(() => {
+      cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: 'sum:' } });
+    });
+
+    const stale = await waitFor(() => screen.getByTestId('explorer-results-stale'));
+    expect(stale.textContent).toContain('Stale');
+    // Previous result remains visible underneath the stale banner.
+    expect(screen.getByText('42')).toBeDefined();
+
+    fireEvent.click(within(stale).getByRole('button', { name: /Restore last valid query/i }));
+    await waitFor(() => expect(screen.queryByTestId('explorer-results-stale')).toBeNull());
+
+    cleanup();
+    renderPage('sum:tis{} )))garbage((((');
+    const alert = await waitFor(() => screen.getByTestId('explorer-invalid-url-alert'));
+    expect(alert.textContent).toContain('invalid');
+  });
+
+  it('WW-094: groups Find results by the authored by {month} dimension instead of hardcoding date', async () => {
+    runFindImpl = async (raw: string) => ({
+      ...findResultOf(raw),
+      notes: [
+        {
+          id: 'journal/2026-07-01',
+          title: 'StrongLifts 5×5',
+          createdAt: Date.parse('2026-07-01T10:00:00Z'),
+          targetDate: Date.parse('2026-07-01T10:00:00Z'),
+          type: 'note',
+          sourceId: 'journal',
+        } as unknown as FindQueryResult['notes'][number],
+      ],
+      stages: { selected: 1, matched: 1 },
+    });
+    renderPage(':note{source:journal} by {month}');
+
+    await waitFor(() => expect(screen.getByText('July 2026')).toBeDefined());
+    expect(screen.getByTestId('library-row-note').textContent).toContain('StrongLifts 5×5');
+  });
 });

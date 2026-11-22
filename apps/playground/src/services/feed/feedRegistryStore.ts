@@ -50,6 +50,18 @@ let autoSyncCache: Record<string, boolean> | null = null;
 let offlinePolicyCache: Record<string, FeedOfflinePolicy> | null = null;
 let checksCache: Record<string, number> | null = null;
 
+// Track mutations written before hydrateFeedStateFromStorage completes so early
+// user interactions (e.g. /subscribe or pre-boot toggles) merge onto IDB
+// instead of being overwritten by the asynchronous initial hydration read.
+let pendingSubOverrides = new Map<string, boolean>();
+let pendingSubRemovals = new Set<string>();
+let pendingAutoSyncOverrides = new Map<string, boolean>();
+let pendingPolicyOverrides = new Map<string, FeedOfflinePolicy>();
+let pendingCustomAdds = new Map<string, RegisteredCustomFeedEntry>();
+let pendingCustomRemovals = new Set<string>();
+let pendingHiddenAdds = new Set<string>();
+let pendingHiddenRemovals = new Set<string>();
+
 function notify(): void {
   for (const listener of listeners) listener();
 }
@@ -435,6 +447,61 @@ export async function hydrateFeedStateFromStorage(storage: IStorage): Promise<vo
       needsWriteSubs = true;
     }
 
+    // Apply any pre-hydration in-memory mutations on top of IDB state so early
+    // subscribe / toggle / custom-feed actions survive cold boot hydration.
+    if (pendingCustomAdds.size > 0 || pendingCustomRemovals.size > 0) {
+      customFeeds = customFeeds.filter((c) => !pendingCustomRemovals.has(c.id));
+      for (const added of pendingCustomAdds.values()) {
+        if (!customFeeds.some((c) => c.id === added.id || c.url === added.url)) {
+          customFeeds.push(added);
+        }
+      }
+      pendingCustomAdds.clear();
+      pendingCustomRemovals.clear();
+      needsWriteRegistry = true;
+    }
+    if (pendingHiddenAdds.size > 0 || pendingHiddenRemovals.size > 0) {
+      const hiddenSet = new Set(hiddenFeedIds);
+      for (const id of pendingHiddenAdds) hiddenSet.add(id);
+      for (const id of pendingHiddenRemovals) hiddenSet.delete(id);
+      hiddenFeedIds = [...hiddenSet];
+      pendingHiddenAdds.clear();
+      pendingHiddenRemovals.clear();
+      needsWriteRegistry = true;
+    }
+
+    const hadPendingSubChanges =
+      pendingSubOverrides.size > 0 ||
+      pendingSubRemovals.size > 0 ||
+      pendingAutoSyncOverrides.size > 0 ||
+      pendingPolicyOverrides.size > 0;
+    if (hadPendingSubChanges) {
+      const mergedLegacy = entriesToLegacyBooleanMap(entries);
+      for (const removed of pendingSubRemovals) delete mergedLegacy[removed];
+      for (const [k, v] of pendingSubOverrides) mergedLegacy[k] = v;
+      const mergedAuto: Record<string, boolean> = {};
+      const mergedPolicies: Record<string, FeedOfflinePolicy> = {};
+      for (const [feedId, entry] of Object.entries(entries)) {
+        if (typeof entry.autoSync === 'boolean') mergedAuto[feedId] = entry.autoSync;
+        if (entry.offlinePolicy) mergedPolicies[feedId] = entry.offlinePolicy;
+      }
+      for (const [k, v] of pendingAutoSyncOverrides) mergedAuto[k] = v;
+      for (const [k, v] of pendingPolicyOverrides) mergedPolicies[k] = v;
+
+      subsEntriesCache = entries;
+      legacySubMapCache = mergedLegacy;
+      autoSyncCache = mergedAuto;
+      offlinePolicyCache = mergedPolicies;
+      checksCache = { ...checks };
+      entries = buildEntriesFromCaches(now);
+
+      pendingSubOverrides.clear();
+      pendingSubRemovals.clear();
+      pendingAutoSyncOverrides.clear();
+      pendingPolicyOverrides.clear();
+      needsWriteSubs = true;
+    }
+
     if (needsWriteRegistry || needsWriteSubs) {
       await storage.transaction(['meta'], 'readwrite', async (tx) => {
         const metaStore = tx.readwrite('meta');
@@ -479,6 +546,12 @@ export async function hydrateFeedStateFromStorage(storage: IStorage): Promise<vo
     offlinePolicyCache = nextPolicies;
     checksCache = nextChecks;
 
+    // Mirror canonical IndexedDB state back to localStorage so legacy sync
+    // readers and fresh tabs see the authoritative persisted verdicts.
+    writeLocalStorageJson(LEGACY_SUBSCRIPTIONS_KEY, legacySubMapCache);
+    writeLocalStorageJson(LEGACY_AUTO_SYNC_KEY, nextAuto);
+    writeLocalStorageJson(LEGACY_CHECKS_KEY, nextChecks);
+
     boundStorage = storage;
     hydratedForStorage = storage;
     notify();
@@ -497,6 +570,21 @@ export function getCustomFeedsCache(): RegisteredCustomFeedEntry[] | null {
 }
 
 export function setCustomFeedsCache(next: RegisteredCustomFeedEntry[] | null): void {
+  if (!isFeedStateHydrated() && next) {
+    const prev = customFeedsCache ?? [];
+    for (const entry of next) {
+      if (!prev.some((p) => p.id === entry.id && p.url === entry.url && p.label === entry.label)) {
+        pendingCustomAdds.set(entry.id, entry);
+        pendingCustomRemovals.delete(entry.id);
+      }
+    }
+    for (const prevEntry of prev) {
+      if (!next.some((n) => n.id === prevEntry.id)) {
+        pendingCustomAdds.delete(prevEntry.id);
+        pendingCustomRemovals.add(prevEntry.id);
+      }
+    }
+  }
   customFeedsCache = next;
   notify();
 }
@@ -506,6 +594,22 @@ export function getHiddenFeedIdsCache(): string[] | null {
 }
 
 export function setHiddenFeedIdsCache(next: string[] | null): void {
+  if (!isFeedStateHydrated() && next) {
+    const prev = new Set(hiddenFeedIdsCache ?? []);
+    const nextSet = new Set(next);
+    for (const id of nextSet) {
+      if (!prev.has(id)) {
+        pendingHiddenAdds.add(id);
+        pendingHiddenRemovals.delete(id);
+      }
+    }
+    for (const id of prev) {
+      if (!nextSet.has(id)) {
+        pendingHiddenAdds.delete(id);
+        pendingHiddenRemovals.add(id);
+      }
+    }
+  }
   hiddenFeedIdsCache = next;
   notify();
 }
@@ -523,6 +627,21 @@ export function getLegacySubMapCache(): Record<string, boolean> | null {
 }
 
 export function setLegacySubMapCache(next: Record<string, boolean> | null, silent = false): void {
+  if (!silent && !isFeedStateHydrated() && next) {
+    const prev = legacySubMapCache ?? {};
+    for (const [k, v] of Object.entries(next)) {
+      if (prev[k] !== v) {
+        pendingSubOverrides.set(k, v);
+        pendingSubRemovals.delete(k);
+      }
+    }
+    for (const k of Object.keys(prev)) {
+      if (!(k in next)) {
+        pendingSubOverrides.delete(k);
+        pendingSubRemovals.add(k);
+      }
+    }
+  }
   legacySubMapCache = next;
   if (!silent) notify();
 }
@@ -532,6 +651,12 @@ export function getAutoSyncCache(): Record<string, boolean> | null {
 }
 
 export function setAutoSyncCache(next: Record<string, boolean> | null, silent = false): void {
+  if (!silent && !isFeedStateHydrated() && next) {
+    const prev = autoSyncCache ?? {};
+    for (const [k, v] of Object.entries(next)) {
+      if (prev[k] !== v) pendingAutoSyncOverrides.set(k, v);
+    }
+  }
   autoSyncCache = next;
   if (!silent) notify();
 }
@@ -541,6 +666,12 @@ export function getOfflinePolicyCache(): Record<string, FeedOfflinePolicy> | nul
 }
 
 export function setOfflinePolicyCache(next: Record<string, FeedOfflinePolicy> | null): void {
+  if (!isFeedStateHydrated() && next) {
+    const prev = offlinePolicyCache ?? {};
+    for (const [k, v] of Object.entries(next)) {
+      if (prev[k] !== v) pendingPolicyOverrides.set(k, v);
+    }
+  }
   offlinePolicyCache = next;
   notify();
 }
@@ -591,4 +722,12 @@ export function resetFeedRegistryStoreForTest(): void {
   autoSyncCache = null;
   offlinePolicyCache = null;
   checksCache = null;
+  pendingSubOverrides = new Map();
+  pendingSubRemovals = new Set();
+  pendingAutoSyncOverrides = new Map();
+  pendingPolicyOverrides = new Map();
+  pendingCustomAdds = new Map();
+  pendingCustomRemovals = new Set();
+  pendingHiddenAdds = new Set();
+  pendingHiddenRemovals = new Set();
 }

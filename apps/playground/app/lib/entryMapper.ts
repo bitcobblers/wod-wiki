@@ -12,6 +12,8 @@ import type { BlockIndexRow, Note } from '@/types/storage'
 import type { IEffort, RowsRun, RowsQueryResult } from '@bitcobblers/wod-wiki-wql'
 import { isNoteEditable, notebookOfItem, notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
 import {
+  formatDurationMMSS,
+  getNotebookCapabilities,
   resolveNoteOwnership,
   type EventRecord,
   type NotePlacement,
@@ -307,6 +309,11 @@ function toEntryBase(note: Note): Entry {
     const countTag = tagList.find((t) => t.startsWith('count:'))
     const count = countTag ? Number(countTag.slice('count:'.length)) : 0
     const feedSlug = note.feedSourceId ?? 'local'
+    const caps = getNotebookCapabilities({
+      slug,
+      notebookId: note.notebookId ?? `notebook/${slug}`,
+      feedId: feedSlug,
+    })
     return {
       id,
       kind: 'notebook',
@@ -324,7 +331,7 @@ function toEntryBase(note: Note): Entry {
       subscribed: tagList.includes('subscribed:true'),
       isPublic: note.public === true || tagList.includes('visibility:public'),
       seedChunkId: note.seedChunkId ?? `notebook.${slug}`,
-      editable: feedSlug === 'local',
+      editable: caps.canEdit,
       ...(tags ? { tags } : {}),
     }
   }
@@ -569,16 +576,7 @@ export function formatEffortName(slug: string): string {
 }
 
 export function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) return '00:00'
-  const totalSeconds = Math.floor(ms / 1000)
-  const mins = Math.floor(totalSeconds / 60)
-  const secs = totalSeconds % 60
-  if (mins >= 60) {
-    const hours = Math.floor(mins / 60)
-    const remMins = mins % 60
-    return `${hours}:${String(remMins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-  }
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  return formatDurationMMSS(ms)
 }
 
 

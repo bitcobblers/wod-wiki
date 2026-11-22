@@ -1,21 +1,25 @@
 import { v7 as uuidv7 } from 'uuid';
 import {
   isNoteEditable,
+  isSystemReadOnlyNotebook,
   parseDocumentSections,
   reconcileNoteBlocks,
   resolveNoteOwnership,
+  toNotebookId,
   KNOWN_SECTION_WIDGETS,
   projectPlacements,
   resolvePlacements,
+  type NotebookId,
   type PageTarget,
 } from '@bitcobblers/wod-wiki-core';
 import {
   createParser,
+  makeNotebookLinkId,
   parseRemoteNoteId,
   prepareJournalSessionRun,
 } from '@bitcobblers/wod-wiki-engine';
 import { notebookOfItem, notebookOriginOfItem, toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import type { DomainDetail, DomainPredicate, DomainQuery } from '@bitcobblers/wod-wiki-storage';
+import { rowsEqual, type DomainDetail, type DomainPredicate, type DomainQuery } from '@bitcobblers/wod-wiki-storage';
 
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
 import { localDateKey } from '@/lib/dateFormat';
@@ -37,6 +41,7 @@ import type { HistoryQuery, HistoryRecord, ProviderCapabilities } from '@/types/
 import type { Attachment, BlockRevision, EventRecord, Note, NoteBlock, Page, Session } from '@/types/storage';
 
 import { resolveAttachmentInput } from './attachmentInput';
+import { unmarkNoteDeleting } from './noteDeletionGuard';
 import type { INotePersistence } from './INotePersistence';
 import { sessionToPayload } from './sessionPayload';
 import {
@@ -68,6 +73,7 @@ const MUTATION_STORES = [
   'block_equipment',
   'efforts',
   'equipment',
+  'notebook_links',
 ] as const;
 
 function sortNewest(results: Session[]): Session[] {
@@ -185,6 +191,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
 
   async createNote(input: CreateNoteInput): Promise<HistoryRecord> {
     await this.provider.persistenceReady;
+    unmarkNoteDeleting(input.id);
     const existing = await this.storage.getNote(input.id);
     if (existing) {
       throw new Error(`Note already exists: ${input.id}`);
@@ -284,7 +291,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
     const resolvedAttachments = mutation.attachments?.add
       ? await Promise.all(mutation.attachments.add.map(input => resolveAttachmentInput(input))) : [];
     await this.storage.withTransaction(
-      ['notes', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'block_revisions', 'sessions', 'events', 'attachments', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'],
+      [...MUTATION_STORES, 'attachments'],
       async scoped => {
         const scopedProvider = new IndexedDBNotePersistence(scoped);
         await scopedProvider.updateRecord(note.id, {
@@ -348,7 +355,11 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
     });
   }
 
-  async startSession(input: SaveNoteInput, session: Omit<Session, 'blockVersion'>): Promise<StartedSession> {
+  async startSession(
+    input: SaveNoteInput,
+    session: Omit<Session, 'blockVersion'>,
+    options?: { deferPersist?: boolean },
+  ): Promise<StartedSession> {
     await this.provider.persistenceReady;
     if (session.noteId !== input.noteId) {
       throw new NotePersistenceError('RESULT_NOTE_MISMATCH', 'Session belongs to another Note');
@@ -430,7 +441,9 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Selected workout revision is missing');
         }
         const existing = await scoped.getSessionById(session.id);
-        if (existing) throw new Error(`Session already exists: ${session.id}`);
+        if (existing || preparedJournalSessions.has(session.id)) {
+          throw new Error(`Session already exists: ${session.id}`);
+        }
         const section = parseDocumentSections(revision.rawContent, BLOCK_OPTIONS).find(sec => sec.scriptBlock);
         const pinned: Session = {
           ...session,
@@ -440,7 +453,11 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           status: 'in-progress',
           notebookIds: session.notebookIds?.length ? session.notebookIds : ['notebook/journal'],
         };
-        await scoped.saveSession(pinned);
+        if (options?.deferPersist) {
+          preparedJournalSessions.set(pinned.id, pinned);
+        } else {
+          await scoped.saveSession(pinned);
+        }
         return { note, revision, session: pinned };
       },
     );
@@ -748,8 +765,13 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           })
           .slice(0, boundedLimit);
       }
-      const bundles = await this.storage.getDetailBatches(candidateIds);
-      entries = [...bundles.values()].map(entryFromDomainRow);
+      if (useSummaryPlan) {
+        const notes = await this.storage.getNotesByIds(candidateIds);
+        entries = notes.map(entryFromNoteSummary);
+      } else {
+        const bundles = await this.storage.getDetailBatches(candidateIds);
+        entries = [...bundles.values()].map(entryFromDomainRow);
+      }
     }
     entries = entries.filter(entry =>
       (!window || (entry.targetDate >= window.start && entry.targetDate <= window.end))
@@ -835,6 +857,72 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       });
       await scopedPersistence.updateRelationships(noteId, { journalDate: entry.journalDate, slug: entry.slug });
       await scopedPersistence.updateTags(noteId, entry.rawContent, tags);
+      const written = await scoped.getNote(noteId);
+      if (written) {
+        const seedOrigin = entry.seedOrigin ?? previous?.seedOrigin ?? 'user';
+        const isLandingOrProperty =
+          written.id.startsWith('notebook/') ||
+          written.id.startsWith('effort/') ||
+          written.id.startsWith('equipment/') ||
+          written.id.startsWith('t/');
+        if (seedOrigin === 'seed' || written.feedOrigin === 'feed' || isLandingOrProperty) {
+          if (written.seedOrigin !== seedOrigin) {
+            await scoped.saveNote({ ...written, seedOrigin });
+          }
+        } else {
+          const requestedTargets = [...(entry.notebookIds ?? []), ...(entry.notebookId ? [entry.notebookId] : [])]
+            .map((raw) => raw.trim())
+            .filter(Boolean)
+            .map((raw) => toNotebookId(raw))
+            .filter((nb) => !isSystemReadOnlyNotebook(nb));
+          const merged = Array.from(
+            new Set<NotebookId>([
+              'notebook/journal',
+              ...(written.type === 'playground' || written.sourceId === 'playground'
+                ? (['notebook/playground'] as const)
+                : []),
+              ...(previous?.notebookIds ?? [])
+                .filter(Boolean)
+                .map((raw) => toNotebookId(raw))
+                .filter((nb) => !isSystemReadOnlyNotebook(nb)),
+              ...requestedTargets,
+            ]),
+          );
+          const primaryUserNb = merged.find((nb) => nb !== 'notebook/journal' && nb !== 'notebook/playground');
+          const nextNote = {
+            ...written,
+            seedOrigin,
+            notebookIds: merged,
+            ...(primaryUserNb ? { notebookId: primaryUserNb } : {}),
+          };
+          if (!rowsEqual(written, nextNote)) {
+            await scoped.saveNote(nextNote);
+          }
+          try {
+            const linkStore = scoped.storage.readwrite('notebook_links');
+            const existingLinks = await linkStore.getAllFromIndex('by-note', noteId);
+            const existingByNb = new Set(
+              existingLinks
+                .filter((l) => l.targetKind === 'note' && l.targetId === noteId)
+                .map((l) => toNotebookId(l.notebookId)),
+            );
+            const linkNow = Date.now();
+            const toPut = merged
+              .filter((nbId) => !existingByNb.has(nbId))
+              .map((nbId) => ({
+                id: makeNotebookLinkId(nbId, 'note' as const, noteId),
+                notebookId: nbId,
+                targetKind: 'note' as const,
+                targetId: noteId,
+                noteId,
+                createdAt: linkNow,
+              }));
+            if (toPut.length > 0) await linkStore.putMany(toPut);
+          } catch {
+            // Optional store/index on minimal storage mocks
+          }
+        }
+      }
     });
     const saved = await this.getRecord(noteId);
     if (!saved) throw new Error(`Saved note disappeared: ${noteId}`);

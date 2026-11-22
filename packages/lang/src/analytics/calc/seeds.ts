@@ -529,7 +529,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
         value: expr('value', 'daily * (daily / daily)'),
       },
     }],
-    output: { nodeId: 'value', key: 'calc.sleep', unit: 'pts', label: 'Sleep (h)' },
+    output: { nodeId: 'value', key: 'calc.sleep', unit: 'h', label: 'Sleep (h)' },
   },
   {
     id: 'hrv',
@@ -543,7 +543,7 @@ export const STORE_CALCS: CalculationDefinition[] = [
         value: expr('value', 'daily * (daily / daily)'),
       },
     }],
-    output: { nodeId: 'value', key: 'calc.hrv', unit: 'pts', label: 'HRV (ms)' },
+    output: { nodeId: 'value', key: 'calc.hrv', unit: 'ms', label: 'HRV (ms)' },
   },
   {
     // Readiness composite: soreness (inverted) 40%, sleep 30%, HRV 30%,

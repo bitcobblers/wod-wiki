@@ -428,3 +428,84 @@ export const fromNotebookTag = (tag: string): string | null =>
 
 export const isNotebookTag = (tag: string): boolean =>
   tag.startsWith(NOTEBOOK_TAG_PREFIX);
+
+/** True when a note row is a Notebook landing page (`notebook/{slug}`). */
+export function isNotebookLanding(note: { id: string; notebookId?: string | null }): boolean {
+  return note.id.startsWith('notebook/') && note.notebookId === note.id;
+}
+
+export interface NotebookCapabilities {
+  slug: string;
+  isBuiltIn: boolean;
+  isSystem: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canTogglePublic: boolean;
+}
+
+/** Unified capability policy for Notebook edit, delete, and public-publish controls. */
+export function getNotebookCapabilities(input: {
+  slug?: string | null;
+  notebookId?: string | null;
+  id?: string | null;
+  origin?: NotebookOrigin | string | null;
+  feedId?: string | null;
+}): NotebookCapabilities {
+  const raw = input.slug ?? input.notebookId ?? input.id ?? '';
+  const slug = notebookSlugFromId(raw);
+  const isBuiltIn = BUILTIN_NOTEBOOKS.some((b) => b.slug === slug);
+  const isSystem = isSystemReadOnlyNotebook(slug);
+  const isUserOrigin = input.origin === 'user' || (!input.origin && input.feedId === 'local');
+  return {
+    slug,
+    isBuiltIn,
+    isSystem,
+    canEdit: isUserOrigin && !isBuiltIn && !isSystem,
+    canDelete: isUserOrigin && !isBuiltIn && !isSystem,
+    canTogglePublic: isUserOrigin && !isNonPublishableNotebook(slug),
+  };
+}
+
+/** Count distinct non-landing member notes per `notebook/{slug}` across note fields and `notebook_links`. */
+export function countNotesByNotebook<
+  T extends { id: string; notebookId?: string | null; notebookIds?: readonly string[] | null },
+>(
+  notes: readonly T[],
+  links: readonly { notebookId: string; targetKind?: string; targetId?: string; noteId?: string }[] = [],
+  resolveIds?: (note: T) => readonly string[],
+): Map<NotebookId, number> {
+  const membership = new Map<NotebookId, Set<string>>();
+  const landingIds = new Set<string>();
+  for (const n of notes) {
+    if (isNotebookLanding(n)) landingIds.add(n.id);
+  }
+  const addMember = (rawNbId: string | null | undefined, noteId: string) => {
+    if (!rawNbId || !noteId || landingIds.has(noteId)) return;
+    const nbId = toNotebookId(rawNbId);
+    let set = membership.get(nbId);
+    if (!set) {
+      set = new Set<string>();
+      membership.set(nbId, set);
+    }
+    set.add(noteId);
+  };
+  for (const link of links) {
+    if (link.targetKind && link.targetKind !== 'note') continue;
+    const targetId = link.targetId ?? link.noteId;
+    if (targetId) addMember(link.notebookId, targetId);
+  }
+  for (const note of notes) {
+    if (isNotebookLanding(note)) continue;
+    const ids = resolveIds
+      ? resolveIds(note)
+      : [note.notebookId, ...(note.notebookIds ?? [])].filter((v): v is string => Boolean(v));
+    for (const nbId of ids) {
+      addMember(nbId, note.id);
+    }
+  }
+  const counts = new Map<NotebookId, number>();
+  for (const [nbId, set] of membership) {
+    counts.set(nbId, set.size);
+  }
+  return counts;
+}

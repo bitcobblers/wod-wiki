@@ -366,7 +366,7 @@ export class StorageService implements NotePersistenceStorage {
   async deleteNote(id: string): Promise<void> {
     let catalogChanged = false;
     await this.storage.transaction(
-      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'meta', ...CATALOG_MUTATION_STORES],
+      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'notebook_links', 'meta', ...CATALOG_MUTATION_STORES],
       'readwrite',
       async (tx) => {
         const note = await tx.readonly('notes').get(id);
@@ -402,6 +402,15 @@ export class StorageService implements NotePersistenceStorage {
         const pageNotes = tx.readwrite('page_notes');
         for (const link of await pageNotes.getAllFromIndex('by-note', id)) {
           await pageNotes.delete(link.id);
+        }
+
+        try {
+          const notebookLinks = tx.readwrite('notebook_links');
+          for (const link of await notebookLinks.getAllFromIndex('by-note', id)) {
+            await notebookLinks.delete(link.id);
+          }
+        } catch {
+          // Optional store/index on minimal storage mocks
         }
 
         // Durable seed-deletion suppression, atomic with the delete and its

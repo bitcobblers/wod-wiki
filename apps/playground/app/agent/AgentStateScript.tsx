@@ -9,6 +9,7 @@ import {
 } from '@/agent/surfaceBridges';
 import { getClockSnapshot, subscribeClock } from '@/clock/clockCommands';
 import { useFeedImportPending, useFeedReadiness } from '@/services/feed/feedReadiness';
+import { APP_BUILD_INFO } from '../lib/appVersion';
 import { useStreamResults } from '../views/stream/streamResults';
 
 function safeJsonForScriptTag(value: unknown): string {
@@ -17,6 +18,11 @@ function safeJsonForScriptTag(value: unknown): string {
 
 export interface AgentViewState {
   schemaVersion: string;
+  build: {
+    version: string;
+    gitSha: string;
+    builtAt: string;
+  };
   hydrated: boolean;
   status: 'loading' | 'ready';
   feedReadiness: string;
@@ -93,6 +99,7 @@ export const AgentStateScript: React.FC = () => {
 
     const payload = {
       schemaVersion: '1.0',
+      build: APP_BUILD_INFO,
       hydrated: true,
       status: isBusy ? 'loading' : 'ready',
       feedReadiness,

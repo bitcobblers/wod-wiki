@@ -47,6 +47,10 @@ export interface ExplorerQueryState {
   setDraft: (wql: string) => void
   /** The last submitted query (gates the run effect and post-run telemetry). */
   submitted: string
+  /** Raw `?q=` value when the URL carried an unparseable query on load/navigation. */
+  invalidUrlQuery: string | null
+  /** Restore `draft` and `?q=` back to the last valid submitted query (or landing default). */
+  revertDraft: () => void
   /** Mark a query as run (defaults to the current draft) and convert the
    *  current history entry into the deliberate checkpoint. Invalid queries
    *  are refused. */
@@ -83,11 +87,17 @@ export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): 
   const q = searchParams.get('q') ?? ''
   const weeks = parseWeeks(searchParams.get('weeks'))
 
-  const [draft, setDraftState] = useState<string>(() => (q && !parseQuery(q).error ? q : defaultQuery))
-  const [submitted, setSubmitted] = useState(q || (runOnLanding ? defaultQuery : ''))
+  const initialError = q ? Boolean(parseQuery(q).error) : false
+  const [draft, setDraftState] = useState<string>(() => (q ? q : defaultQuery))
+  const [invalidUrlQuery, setInvalidUrlQuery] = useState<string | null>(() => (initialError ? q : null))
+  const [submitted, setSubmitted] = useState<string>(() =>
+    q && !initialError ? q : runOnLanding ? defaultQuery : '',
+  )
 
   const draftRef = useRef(draft)
   draftRef.current = draft
+  const submittedRef = useRef(submitted)
+  submittedRef.current = submitted
   const searchParamsRef = useRef(searchParams)
   searchParamsRef.current = searchParams
   // True while the current history entry holds a committed (run) state.
@@ -104,15 +114,23 @@ export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): 
   // — they are edits, not submissions, and must neither clobber a transient
   // edit nor re-run the query. Any other q change is an external restore:
   // it re-runs what it restored (legacy behavior) and the restored entry
-  // counts as committed.
+  // counts as committed. Unparseable URL queries stay in `draft` +
+  // `invalidUrlQuery` without corrupting `submitted`.
   const prevQRef = useRef(q)
   useEffect(() => {
     if (q === prevQRef.current) return
     prevQRef.current = q
     if (draftRef.current === q) return
     urlIsCheckpoint.current = true
-    setDraftState(q && !parseQuery(q).error ? q : defaultQuery)
-    setSubmitted(q || (runOnLanding ? defaultQuery : ''))
+    const nextError = q ? Boolean(parseQuery(q).error) : false
+    setDraftState(q || defaultQuery)
+    if (nextError) {
+      setInvalidUrlQuery(q)
+      setSubmitted((prev) => prev || (runOnLanding ? defaultQuery : ''))
+    } else {
+      setInvalidUrlQuery(null)
+      setSubmitted(q || (runOnLanding ? defaultQuery : ''))
+    }
   }, [q, defaultQuery, runOnLanding])
 
   // A changed landing default (the surface's own query settings saved one)
@@ -124,6 +142,7 @@ export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): 
     if (defaultQuery === prevDefaultRef.current) return
     prevDefaultRef.current = defaultQuery
     if (q) return
+    setInvalidUrlQuery(null)
     setDraftState(defaultQuery)
     setSubmitted(runOnLanding ? defaultQuery : '')
   }, [defaultQuery, q, runOnLanding])
@@ -135,6 +154,7 @@ export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): 
     (next: string) => {
       if (next === draftRef.current) return
       if (!parseQuery(next).error) {
+        setInvalidUrlQuery(null)
         const params = new URLSearchParams(searchParamsRef.current)
         params.set('q', next)
         setSearchParams(params, { replace: !urlIsCheckpoint.current })
@@ -145,6 +165,20 @@ export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): 
     [setSearchParams],
   )
 
+  const revertDraft = useCallback(() => {
+    const fallback = submittedRef.current || defaultQuery
+    setInvalidUrlQuery(null)
+    setDraftState(fallback)
+    const params = new URLSearchParams(searchParamsRef.current)
+    if (submittedRef.current) {
+      params.set('q', submittedRef.current)
+    } else {
+      params.delete('q')
+    }
+    setSearchParams(params, { replace: true })
+    urlIsCheckpoint.current = true
+  }, [defaultQuery, setSearchParams])
+
   // Run/Apply checkpoint: commit the snapshot and mark the current entry as
   // the new checkpoint (replace — the scratch spell collapses into it).
   // Invalid queries never execute.
@@ -152,6 +186,7 @@ export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): 
     (wql?: string) => {
       const next = wql ?? draftRef.current
       if (parseQuery(next).error) return
+      setInvalidUrlQuery(null)
       if (urlIsCheckpoint.current && qRef.current === next) {
         setSubmitted(next)
         return
@@ -174,5 +209,5 @@ export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): 
     [setSearchParams],
   )
 
-  return { draft, setDraft, submitted, submit, weeks, setWeeks }
+  return { draft, setDraft, submitted, invalidUrlQuery, revertDraft, submit, weeks, setWeeks }
 }

@@ -30,6 +30,8 @@ import {
   civilDateAdd,
   zonedStartOfDay,
   toEventRows,
+  type AnyParsedQuery,
+  type ParsedRowsQuery,
   type PageSourceEntry,
   type ExecutionContext,
 } from '@bitcobblers/wod-wiki-wql';
@@ -244,25 +246,61 @@ async function flushPendingDurabilityQueues(): Promise<void> {
   await Promise.all([waitForAllPendingNoteSaves(), flushPendingUnloadResults()]);
 }
 
+function queryUsesStandardPageSources(
+  rawOrParsed: string | AnyParsedQuery | ParsedRowsQuery,
+): boolean {
+  if (typeof rawOrParsed === 'string') {
+    return /@(?:today|session)\b/i.test(rawOrParsed);
+  }
+  if ('source' in rawOrParsed && rawOrParsed.source?.kind === 'dataset') {
+    const name = rawOrParsed.source.name.toLowerCase();
+    return name === '@today' || name === '@session';
+  }
+  if ('raw' in rawOrParsed && typeof rawOrParsed.raw === 'string') {
+    return /@(?:today|session)\b/i.test(rawOrParsed.raw);
+  }
+  return false;
+}
+
 class PlaygroundQueryService extends QueryService {
   override async runQuery(raw: string, options?: Parameters<QueryService['runQuery']>[1]) {
-    await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
+    if (queryUsesStandardPageSources(raw)) {
+      await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
+    } else {
+      await flushPendingDurabilityQueues();
+    }
     return super.runQuery(raw, options);
   }
   override async runPipeline(queryText: string, options?: Parameters<QueryService['runPipeline']>[1]) {
-    await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
+    if (queryUsesStandardPageSources(queryText)) {
+      await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
+    } else {
+      await flushPendingDurabilityQueues();
+    }
     return super.runPipeline(queryText, options);
   }
   override async runFind(parsed: Parameters<QueryService['runFind']>[0], options?: Parameters<QueryService['runFind']>[1]) {
-    await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
+    if (queryUsesStandardPageSources(parsed)) {
+      await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
+    } else {
+      await flushPendingDurabilityQueues();
+    }
     return super.runFind(parsed, options);
   }
   override async runRows(parsed: Parameters<QueryService['runRows']>[0], options?: Parameters<QueryService['runRows']>[1]) {
-    await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
+    if (queryUsesStandardPageSources(parsed)) {
+      await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
+    } else {
+      await flushPendingDurabilityQueues();
+    }
     return super.runRows(parsed, options);
   }
   override async run(parsed: Parameters<QueryService['run']>[0], options?: Parameters<QueryService['run']>[1]) {
-    await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
+    if (queryUsesStandardPageSources(parsed)) {
+      await Promise.all([flushPendingDurabilityQueues(), ensurePageSources()]);
+    } else {
+      await flushPendingDurabilityQueues();
+    }
     return super.run(parsed, options);
   }
 }

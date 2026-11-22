@@ -247,18 +247,41 @@ export function buildQueryServiceStoresFromStorage(
           string,
           { tags: ReadonlyArray<{ label: string; type?: string }>; links: PageNote[]; pages: Page[] }
         >();
-        for (const noteId of noteIds) {
-          const links = await storage.readonly('page_notes').getAllFromIndex('by-note', noteId);
-          const tagLinks = await storage.readonly('note_tags').getAllFromIndex('by-note', noteId);
-          const tags = await storage.readonly('tags').getMany(tagLinks.map((l) => l.tagId));
-          const pages = await storage.readonly('page').getMany([...new Set(links.map((l) => l.pageId))]);
-          bundles.set(noteId, {
-            tags: tags.flatMap((t) => (t ? [{ label: t.label, ...(t.type ? { type: t.type } : {}) }] : [])),
-            links,
-            pages: pages.filter((p): p is Page => p !== undefined),
-          });
-        }
-        return bundles;
+        const uniqueIds = [...new Set(noteIds)];
+        if (uniqueIds.length === 0) return bundles;
+        return storage.transaction(['page_notes', 'note_tags', 'tags', 'page'], 'readonly', async (tx) => {
+          const [pageLinkGroups, tagLinkGroups] = await Promise.all([
+            tx.readonly('page_notes').getAllFromIndexMany('by-note', uniqueIds),
+            tx.readonly('note_tags').getAllFromIndexMany('by-note', uniqueIds),
+          ]);
+          const tagIds = new Set<string>();
+          const pageIds = new Set<string>();
+          for (const group of tagLinkGroups) for (const link of group) tagIds.add(link.tagId);
+          for (const group of pageLinkGroups) for (const link of group) pageIds.add(link.pageId);
+          const [tagRows, pageRows] = await Promise.all([
+            tx.readonly('tags').getMany([...tagIds]),
+            tx.readonly('page').getMany([...pageIds]),
+          ]);
+          const tagById = new Map([...tagIds].map((id, i) => [id, tagRows[i]]));
+          const pageById = new Map([...pageIds].map((id, i) => [id, pageRows[i]]));
+          for (let i = 0; i < uniqueIds.length; i++) {
+            const noteId = uniqueIds[i]!;
+            const links = pageLinkGroups[i] ?? [];
+            const tagLinks = tagLinkGroups[i] ?? [];
+            bundles.set(noteId, {
+              tags: tagLinks.flatMap((l) => {
+                const t = tagById.get(l.tagId);
+                return t ? [{ label: t.label, ...(t.type ? { type: t.type } : {}) }] : [];
+              }),
+              links,
+              pages: links.flatMap((l) => {
+                const p = pageById.get(l.pageId);
+                return p ? [p] : [];
+              }),
+            });
+          }
+          return bundles;
+        });
       },
     },
     feedCatalogStore,

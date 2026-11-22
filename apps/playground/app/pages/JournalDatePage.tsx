@@ -8,11 +8,14 @@ import { playgroundRecorder, onResultSaved } from '@/services/resultRecorder';
 import { storageService } from '@/services/storage';
 import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer';
 import { useSearchParams, Link, Navigate, useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, Copy, CalendarDays, BookOpen, Dumbbell } from 'lucide-react';
 import { v7 as uuidv7 } from 'uuid';
 import { dayPath, notePath, runPath } from '../lib/routes';
 import { formatDateKey } from '../services/dateUtils';
 import { CreateJournalNoteDialog } from '../components/organisms/journal/CreateJournalNoteDialog';
+import { CalendarCard } from '@/components/atoms/CalendarCard';
+import { NoteContextNav, useJournalEntryDates } from './shared/noteContextLinks';
+import { useNoteL1Zone } from '../nav/NavContext';
 import { clearParkedRun, findParkedRunByDate, parkRun, pendingRuntimes, takeParkedRun } from '../runtimeStore';
 import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
@@ -47,6 +50,11 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
+  const [createNoteMode, setCreateNoteMode] = useState<'write' | 'pick'>('write');
+  const openCreateDialog = useCallback((mode: 'write' | 'pick' = 'write') => {
+    setCreateNoteMode(mode);
+    setCreateOpen(true);
+  }, []);
   const [isTimerOpen, setIsTimerOpen] = useState(false);
   const [timerBlock, setTimerBlock] = useState<ScriptBlock | null>(null);
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
@@ -76,8 +84,8 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (!pending || !activeRuntimeId) throw new Error('The pending workout is unavailable.');
     if (pending.captured) { capturedRunRef.current = pending.captured; return pending.captured.block; }
     if (!capturedRunRef.current) capturedRunRef.current = pending.snapshot
-      ? await captureRun(pending.snapshot, pending.block, activeRuntimeId, pending.origin)
-      : await captureStoredRun(pending.noteId, pending.block, activeRuntimeId, pending.origin);
+      ? await captureRun(pending.snapshot, pending.block, activeRuntimeId, pending.origin, undefined, { deferPersist: true })
+      : await captureStoredRun(pending.noteId, pending.block, activeRuntimeId, pending.origin, { deferPersist: true });
     return capturedRunRef.current.block;
   }, [activeRuntimeId]);
 
@@ -363,6 +371,75 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     };
   }, [groupedL3, multiNoteFirst, handleNoteContentChange, setL3Items, setL3Actions]);
 
+  // Always publish L1 journal zone and L2 calendar context on /day/:date (even when empty).
+  useNoteL1Zone('notebooks');
+  const journalDates = useJournalEntryDates();
+  const dayCalendar = useMemo(
+    () =>
+      isDateKey ? (
+        <CalendarCard
+          selectedDate={new Date(`${journalDate}T12:00:00`)}
+          onDateSelect={(d) => navigate(dayPath(formatDateKey(d)))}
+          entryDates={journalDates}
+        />
+      ) : undefined,
+    [isDateKey, journalDate, journalDates, navigate],
+  );
+
+  // Day-level L3 Page Options when the date has 0 notes (note-level Delete/Clone/Export/Notebooks
+  // stay on note cards and /note/:id).
+  const isEmptyDay = notes !== null && notes.length === 0;
+  const publishedEmptyDayRef = useRef(false);
+  useEffect(() => {
+    if (!isEmptyDay) return;
+    publishedEmptyDayRef.current = true;
+    setL3Items([]);
+    setL3Actions?.([
+      {
+        id: 'day-add-note',
+        label: 'Add note',
+        icon: Plus,
+        onRun: () => openCreateDialog('write'),
+      },
+      {
+        id: 'day-pick-workout',
+        label: 'Pick / Log workout',
+        icon: Dumbbell,
+        onRun: () => openCreateDialog('pick'),
+      },
+      {
+        id: 'day-copy-link',
+        label: 'Copy day link',
+        icon: Copy,
+        onRun: () => {
+          const href = typeof window !== 'undefined'
+            ? `${window.location.origin}${dayPath(journalDate)}`
+            : dayPath(journalDate);
+          void navigator.clipboard?.writeText(href).catch(() => undefined);
+        },
+      },
+      {
+        id: 'day-jump-today',
+        label: 'Jump to today',
+        icon: CalendarDays,
+        onRun: () => navigate(dayPath(formatDateKey(new Date()))),
+      },
+      {
+        id: 'day-open-journal',
+        label: 'Open Journal',
+        icon: BookOpen,
+        onRun: () => navigate('/journal'),
+      },
+    ]);
+    return () => {
+      if (publishedEmptyDayRef.current) {
+        publishedEmptyDayRef.current = false;
+        setL3Items([]);
+        setL3Actions?.([]);
+      }
+    };
+  }, [isEmptyDay, journalDate, navigate, openCreateDialog, setL3Actions, setL3Items]);
+
   if (!notes) {
     return (
       <div
@@ -395,6 +472,11 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
 
   return (
     <>
+      <NoteContextNav
+        data={{ efforts: [], related: [], backlinks: [] }}
+        up={{ id: 'journal', title: 'Journal', to: '/journal' }}
+        calendar={dayCalendar}
+      />
       <JournalPageShell
           title={journalDate}
           subtitle={`${notes.length} ${notes.length === 1 ? 'note' : 'notes'}`}
@@ -403,7 +485,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
               primary={
                 <Button
                   type="button"
-                  onClick={() => setCreateOpen(true)}
+                  onClick={() => openCreateDialog('write')}
                   aria-label="+ Add note"
                   title="New note"
                 >
@@ -452,10 +534,16 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
           {notes.length === 0 ? (
             <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border p-6">
               <p className="text-sm text-muted-foreground">No Notes on this date yet.</p>
-              <Button type="button" size="lg" onClick={() => setCreateOpen(true)}>
-                <Plus className="size-4 mr-1.5" aria-hidden="true" />
-                Create a note
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="lg" onClick={() => openCreateDialog('write')}>
+                  <Plus className="size-4 mr-1.5" aria-hidden="true" />
+                  Create a note
+                </Button>
+                <Button type="button" variant="outline" size="lg" onClick={() => openCreateDialog('pick')}>
+                  <Dumbbell className="size-4 mr-1.5" aria-hidden="true" />
+                  Pick / Log workout
+                </Button>
+              </div>
             </div>
           ) : notes.length === 1 ? (
             <div className="space-y-2">
@@ -481,6 +569,9 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
                     onCloneRequest={() => {
                       setActionTargetNote(notes[0]);
                       noteActions.setPlacement('clone');
+                    }}
+                    onChanged={() => {
+                      journalNotes.listByDate(journalDate).then(setNotes).catch(() => {});
                     }}
                   />
                   <NoteCardActions
@@ -529,6 +620,9 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
                           setActionTargetNote(note);
                           noteActions.setPlacement('clone');
                         }}
+                        onChanged={() => {
+                          journalNotes.listByDate(journalDate).then(setNotes).catch(() => {});
+                        }}
                       />
                       <NoteCardActions
                         noteId={note.id}
@@ -560,6 +654,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
         open={createOpen}
         onOpenChange={setCreateOpen}
         defaultDate={journalDate}
+        defaultNoteMode={createNoteMode}
         onCreated={handleCreated}
       />
       {isTimerOpen && timerBlock && (

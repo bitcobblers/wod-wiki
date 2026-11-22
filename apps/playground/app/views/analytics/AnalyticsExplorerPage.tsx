@@ -26,7 +26,7 @@ import { TEST_IDS } from '@/lib/testIds';
 import { parseQuery, serialize, isAggregateQuery, isFindQuery, type QueryResult, type TagFilter } from '@bitcobblers/wod-wiki-engine';
 import { StickyPageHeader, StickyGroupHeader, useStickyBoundaryOffset } from '@/panels/page-shells';
 import { searchEntries } from '../../lib/entrySearch';
-import { groupEntriesByDimension } from '../../lib/entryGrouping';
+import { groupEntriesByDimension, parseGroupingDimensions } from '../../lib/entryGrouping';
 import { formatDateHeader } from '@/lib/dateFormat';
 import { LibraryRow } from '../library/LibraryRow';
 import { QueryToDashboardDialog } from './QueryToDashboardDialog';
@@ -101,10 +101,20 @@ function sourceFilterLabel(filters: TagFilter[]): string | null {
  * calculation's records section. Group wrappers carry the shared stream-group
  * DOM ids (`date-group-<key>`) so the L3 rail can scroll to them; `idPrefix`
  * keeps the records disclosure's ids distinct while both lists are mounted. */
-function GroupedEntryList({ entries, stickyOffset, idPrefix = '' }: { entries: Entry[]; stickyOffset: number; idPrefix?: string }) {
+function GroupedEntryList({
+  entries,
+  stickyOffset,
+  idPrefix = '',
+  groupBy = 'date',
+}: {
+  entries: Entry[];
+  stickyOffset: number;
+  idPrefix?: string;
+  groupBy?: string | readonly string[];
+}) {
   return (
     <div className="-mx-4">
-      {groupEntriesByDimension(entries, 'date').map(group => (
+      {groupEntriesByDimension(entries, groupBy).map(group => (
         <div key={group.id} id={`${idPrefix}${group.id}`} className="flex flex-col">
           <StickyGroupHeader
             top={stickyOffset}
@@ -158,10 +168,22 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   // /dashboard key aliased) overrides it; deep links (?q=) still win.
   const routeConfig = useRouteWqlConfig('/dashboards')
   const landingDefault = routeConfig.defaultWql ?? DASHBOARDS_LANDING_QUERY;
-  const { draft, setDraft, submitted, submit, weeks: activeWeeks, setWeeks } =
+  const { draft, setDraft, submitted, invalidUrlQuery, revertDraft, submit, weeks: activeWeeks, setWeeks } =
     useExplorerQueryState({ defaultQuery: landingDefault, runOnLanding: true });
   const submittedParsed = useMemo(() => (submitted ? parseQuery(submitted) : null), [submitted]);
   const submittedInvalid = Boolean(submittedParsed?.error);
+  const activeFindParsed = submittedParsed && isFindQuery(submittedParsed) ? submittedParsed : null;
+  const findGroupBy = useMemo(
+    () => (activeFindParsed ? parseGroupingDimensions(submitted, activeFindParsed) ?? ['date'] : ['date']),
+    [submitted, activeFindParsed],
+  );
+  const findAdvisories = useMemo(() => activeFindParsed?.advisories ?? [], [activeFindParsed]);
+  const invalidBannerQuery = submittedInvalid ? submitted : invalidUrlQuery;
+  const invalidBannerError = submittedInvalid
+    ? submittedParsed?.error
+    : invalidUrlQuery
+      ? parseQuery(invalidUrlQuery).error
+      : undefined;
   const { unit: preferredUnit } = useAnalyticsUnitPreference();
   const { forced: unitForced } = useMemo(
     () => getEffectiveAnalyticsUnit(submitted, preferredUnit),
@@ -187,8 +209,9 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   // composer's picker rows without excluding anything.
   const preferredChoices = routeConfig.typeOptions;
   const liveParsed = useMemo(() => parseQuery(draft), [draft]);
-  const scopeLabel = sourceFilterLabel(isFindQuery(liveParsed) ? liveParsed.filters : []);
-  const findWindowLabel = isFindQuery(liveParsed) && liveParsed.window ? windowLabel(liveParsed.window) : null;
+  const displayedFindParsed = activeFindParsed ?? (isFindQuery(liveParsed) ? liveParsed : null);
+  const scopeLabel = sourceFilterLabel(displayedFindParsed ? displayedFindParsed.filters : []);
+  const findWindowLabel = displayedFindParsed?.window ? windowLabel(displayedFindParsed.window) : null;
   const stickyOffset = useStickyBoundaryOffset(104);
 
   // The subset for the Query→Dashboard flow: a find draft IS the subset; an
@@ -366,8 +389,8 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   }, [draft, submitted, activeWeeks, loading, saveReady, setDraft, submit, setWeeks]);
 
   const findGroups = useMemo(
-    () => (entries !== undefined && entries.length > 0 ? groupEntriesByDimension(entries, 'date') : []),
-    [entries],
+    () => (entries !== undefined && entries.length > 0 ? groupEntriesByDimension(entries, findGroupBy) : []),
+    [entries, findGroupBy],
   );
   useEffect(() => {
     if (findGroups.length === 0) {
@@ -534,14 +557,14 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
         </div>
 
         <section className="min-w-0">
-          {submittedInvalid && (
+          {invalidBannerQuery && (
             <div
               role="alert"
               data-testid={TEST_IDS.EXPLORER_INVALID_URL_ALERT}
               className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
             >
               <span>
-                The URL query <code className="font-mono">{submitted}</code> is invalid ({submittedParsed?.error}).
+                The URL query <code className="font-mono">{invalidBannerQuery}</code> is invalid ({invalidBannerError}).
               </span>
               <button
                 type="button"
@@ -555,18 +578,42 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
               </button>
             </div>
           )}
-          {isFindQuery(liveParsed) ? (
-            /* ── Find query result: the Library's date-grouped stream ── */
+          {activeFindParsed ? (
+            /* ── Find query result: Library stream grouped by active WQL dimension ── */
             <div className="mt-3">
+              {liveParsed.error && submitted && (
+                <div
+                  data-testid="explorer-results-stale"
+                  className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700"
+                >
+                  <span>Stale — showing the last run's results; the current draft is invalid and not applied.</span>
+                  <button
+                    type="button"
+                    onClick={revertDraft}
+                    className="rounded border border-amber-500/40 bg-background px-2 py-0.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                  >
+                    Restore last valid query
+                  </button>
+                </div>
+              )}
+              {findAdvisories.length > 0 && (
+                <div
+                  data-testid={TEST_IDS.EXPLORER_FIND_ADVISORIES}
+                  className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+                >
+                  {findAdvisories.join(' · ')}
+                </div>
+              )}
               <div className="bg-card border border-border rounded-lg p-4">
                 <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
-                  Find {liveParsed.target}
+                  Find {activeFindParsed.target}
                   {scopeLabel && <span className="ml-1">in {scopeLabel}</span>}
                   {findWindowLabel && <span className="ml-1">{findWindowLabel}</span>}
+                  {findGroupBy.some((d) => d !== 'date') && (
+                    <span className="ml-1">by {findGroupBy.join(', ')}</span>
+                  )}
                 </div>
-                {liveParsed.error ? (
-                  <div className="text-sm text-destructive font-mono">{liveParsed.error}</div>
-                ) : loading ? (
+                {loading ? (
                   <div className="text-sm text-muted-foreground">Searching…</div>
                 ) : efforts && efforts.length > 0 ? (
                   <div className="flex flex-col divide-y divide-border/50">
@@ -583,9 +630,9 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
                     ))}
                   </div>
                 ) : entries && entries.length > 0 ? (
-                  <GroupedEntryList entries={entries} stickyOffset={stickyOffset} />
+                  <GroupedEntryList entries={entries} stickyOffset={stickyOffset} groupBy={findGroupBy} />
                 ) : (
-                  <div className="text-sm text-muted-foreground">No {liveParsed.target}s found.</div>
+                  <div className="text-sm text-muted-foreground">No {activeFindParsed.target}s found.</div>
                 )}
               </div>
             </div>
@@ -600,9 +647,16 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
               {liveParsed.error && submitted && (
                 <div
                   data-testid="explorer-results-stale"
-                  className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700"
+                  className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700"
                 >
-                  Stale — showing the last run's results; the current draft is invalid and not applied.
+                  <span>Stale — showing the last run's results; the current draft is invalid and not applied.</span>
+                  <button
+                    type="button"
+                    onClick={revertDraft}
+                    className="rounded border border-amber-500/40 bg-background px-2 py-0.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                  >
+                    Restore last valid query
+                  </button>
                 </div>
               )}
 

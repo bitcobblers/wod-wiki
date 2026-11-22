@@ -86,7 +86,7 @@ describe('toEventRows — logs → event rows, 1:1 per statement (ticket 002)', 
     expect(rows[0].metrics).toEqual(statement().metrics);
   });
 
-  it('filters runtime debug plumbing output types (load, compiler, system, event) out of persisted event rows', () => {
+  it('filters runtime debug plumbing output types (load, compiler, system, event, analytics) out of persisted event rows (WW-116)', () => {
     const rows = toEventRows(
       [
         statement({ outputType: 'load' }),
@@ -94,6 +94,7 @@ describe('toEventRows — logs → event rows, 1:1 per statement (ticket 002)', 
         statement({ outputType: 'segment' }),
         statement({ outputType: 'system' }),
         statement({ outputType: 'event' }),
+        statement({ outputType: 'analytics' }),
         statement({ outputType: 'completion' }),
       ],
       IDENTITY,

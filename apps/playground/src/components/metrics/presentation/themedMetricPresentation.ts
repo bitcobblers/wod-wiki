@@ -1,5 +1,5 @@
 import type { IMetric } from '@bitcobblers/wod-wiki-engine';
-import { metricPresentation } from '@bitcobblers/wod-wiki-engine';
+import { computeColumnLabel, metricPresentation } from '@bitcobblers/wod-wiki-engine';
 import type { MetricPresentationToken, MetricPresentationSurface } from '@bitcobblers/wod-wiki-engine';
 import { getMetricColorClasses, getMetricIcon } from '@/views/runtime/metricColorMap';
 
@@ -37,9 +37,12 @@ function formatTooltipMetricValue(token: MetricPresentationToken): string {
 function formatSafeTooltip(token: MetricPresentationToken): string {
   const formattedValue = formatTooltipMetricValue(token);
   if (!token.tooltip) {
-    return `Type: ${token.metric.type}\nValue: ${formattedValue}`;
+    return `${computeColumnLabel(token.metric.type)}: ${formattedValue}`;
   }
-  return token.tooltip.replace(/^Value: .*$/m, `Value: ${formattedValue}`);
+  if (/^Value: /m.test(token.tooltip)) {
+    return token.tooltip.replace(/^Value: .*$/m, `Value: ${formattedValue}`);
+  }
+  return token.tooltip;
 }
 
 /**

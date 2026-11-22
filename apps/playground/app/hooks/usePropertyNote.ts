@@ -18,6 +18,7 @@ import { commitReferenceNote, deleteReferenceNote, type ReferenceKind } from '@/
 import { storageService } from '@/services/storage';
 import { refreshTagIndex } from '@/services/tags/tagCatalogue';
 import { toast } from '@/hooks/use-toast';
+import { useColdRouteResolution } from './useColdRouteResolution';
 import { useEditorSave } from './useEditorSave';
 
 export function patchPropertyCloneSource(
@@ -118,6 +119,17 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
   // refresh per slug miss, never a refresh loop.
   const refreshedForSlug = useRef<string | null>(null);
 
+  const { isSettling, settlementTick } = useColdRouteResolution();
+  const isSettlingRef = useRef(isSettling);
+  isSettlingRef.current = isSettling;
+
+  // When cold-boot seed/feed import settles or updates arrive, re-hydrate the
+  // registry once for a missing slug so deep links auto-recover without reload.
+  useEffect(() => {
+    if (!settlementTick || !isReady || !slug || item) return;
+    void refresh().catch(() => {});
+  }, [settlementTick, isReady, slug, item, refresh]);
+
   useEffect(() => {
     if (!isReady) {
       setIsLoading(false);
@@ -170,9 +182,14 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
           resolved = direct ?? resolveByAlias(slug!);
         }
         if (!resolved) {
-          if (slugChanged && !cancelled) {
-            setNotFound(true);
-            setIsLoading(false);
+          if (!cancelled) {
+            if (isSettlingRef.current) {
+              setNotFound(false);
+              setIsLoading(true);
+            } else if (slugChanged || settlementTick > 0) {
+              setNotFound(true);
+              setIsLoading(false);
+            }
           }
           return;
         }
@@ -181,6 +198,8 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
           if (!cancelled) {
             setItem(resolved);
             setIsAliasMatch(!direct);
+            setNotFound(false);
+            setIsLoading(false);
           }
           return;
         }
@@ -204,7 +223,7 @@ export function useRegistryPropertyNote<T extends RegistryEntityBase>(
     return () => {
       cancelled = true;
     };
-  }, [kind, slug, isReady, revision, resolveDirect, resolveByAlias, toDocument, refresh]);
+  }, [kind, slug, isReady, revision, settlementTick, isSettling, resolveDirect, resolveByAlias, toDocument, refresh]);
 
   const handleSave = useCallback(
     async (value: string): Promise<T | null> => {

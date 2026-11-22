@@ -397,6 +397,26 @@ describe('notebook/{slug} consolidation & WQL notebook filtering', () => {
       notebookPlane: 'containers',
     });
     expect(prefixContainers.notes.map((n) => n.id)).toEqual(['feed-notebook/sport-crossfit/crossfit-girls']);
+
+    const landingNote = makeNote({
+      id: 'notebook/open-prep',
+      title: 'Open Prep',
+      notebookId: 'notebook/open-prep',
+      seedOrigin: 'user',
+    });
+    const memberNote = makeNote({
+      id: 'custom-1',
+      title: 'Open Prep Member',
+      notebookId: 'notebook/open-prep',
+      seedOrigin: 'user',
+    });
+    const landingService = new QueryService({
+      eventStore: { getEventsByTimeRange: async () => [], getEventsByResult: async () => [] },
+      noteStore: { getAllNotes: async () => [landingNote, memberNote], getNoteIdsForTag: async () => new Set() },
+      blockStore: { getAllBlocks: async () => [] },
+    } as never);
+    const openPrepMembers = await landingService.runFind(parseQuery(':note{notebook:open-prep}') as Parameters<typeof service.runFind>[0]);
+    expect(openPrepMembers.notes.map((n) => n.id)).toEqual(['custom-1']);
   });
 });
 

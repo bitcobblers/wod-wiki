@@ -92,6 +92,24 @@ function buildSampleResult(session: SampleSession, contentId: string, createdAt:
   };
 }
 
+function attachSummaryStats(rows: ReturnType<typeof toSummaryEventRows>) {
+  return rows.map((row) => {
+    const metric = row.metrics[0];
+    if (metric && typeof metric.value === 'number') {
+      return {
+        ...row,
+        reducerStats: {
+          observedCount: 1,
+          sum: metric.value,
+          min: metric.value,
+          max: metric.value,
+        },
+      };
+    }
+    return row;
+  });
+}
+
 function buildSampleBundle(session: SampleSession, now: number) {
   const body = session.movements.map(movement => `${movement.distanceMeters ? `${movement.distanceMeters}m` : movement.reps} ${movement.effortSlug.replaceAll('-', ' ')}${movement.loadLbs ? ` ${movement.loadLbs}lb` : ''}`).join('\n');
   const rawContent = `# ${session.title}\n\n\`\`\`log\n${body}\n\`\`\`\n`;
@@ -109,7 +127,7 @@ function buildSampleBundle(session: SampleSession, now: number) {
     workoutTimestamp: session.timestamp,
   };
   const rawEvents = toEventRows(logs, identity);
-  const summaries = toSummaryEventRows(logs, identity);
+  const summaries = attachSummaryStats(toSummaryEventRows(logs, identity));
   const tags = Array.from(new Set([SAMPLE_TAG, ...session.tags]));
   const bundle: NoteTelemetryBundle = {
     note: {
@@ -225,7 +243,7 @@ export async function importSampleDataFromJsonl(jsonlText: string): Promise<{ no
           const rows = bundle.events.filter((event) => event.resultId === session.id);
           const raw = rows.filter((event) => event.grain === 'event');
           const suppliedSummaries = rows.filter((event) => event.grain === 'summary');
-          const summaries = suppliedSummaries.length > 0 ? suppliedSummaries : toSummaryEventRows(eventsToStoredLogs(raw), {
+          const summaries = suppliedSummaries.length > 0 ? suppliedSummaries : attachSummaryStats(toSummaryEventRows(eventsToStoredLogs(raw), {
             noteId: session.noteId,
             resultId: session.id,
             blockId: session.blockId,
@@ -234,7 +252,7 @@ export async function importSampleDataFromJsonl(jsonlText: string): Promise<{ no
             origin: session.origin,
             pageId: session.pageId,
             workoutTimestamp: session.startTime,
-          });
+          }));
           await scoped.saveSession(session);
           await scoped.appendEvents(raw);
           await scoped.finalizeSummaries(session.id, summaries);

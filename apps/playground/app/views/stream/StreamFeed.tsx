@@ -41,6 +41,7 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react'
+import { getNotebookCapabilities } from '@bitcobblers/wod-wiki-core'
 import type { Entry } from '../../lib/entryMapper'
 import { formatDuration } from '../../lib/entryMapper'
 import type { StreamGroup } from '../../lib/entryGrouping'
@@ -168,7 +169,6 @@ export interface StreamFeedProps {
 }
 
 export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAddToToday, moveNotebookTargets, onMoveNotebook, onEditNotebook, onDeleteNotebook, stickyOffset }: StreamFeedProps) {
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
   return (
     <div className="flex-1 divide-y divide-border/40" data-testid="stream-feed">
       {groups.map(group => (
@@ -211,6 +211,14 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAd
                 && entry.kind === 'note'
                 && (entry.editable ?? true)
                 && moveTargets.length > 0
+              const nbCaps =
+                entry.kind === 'notebook'
+                  ? getNotebookCapabilities({
+                      slug: entry.sourceNotebook,
+                      notebookId: entry.notebookId,
+                      feedId: entry.feedId,
+                    })
+                  : null
               return (
                 <article key={entry.id} data-testid="stream-feed-item" className="px-6 py-4">
                   <div className="flex items-start gap-3">
@@ -296,7 +304,7 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAd
                             onMove={(notebookId) => onMoveNotebook?.(entry, notebookId)}
                           />
                         )}
-                        {entry.kind === 'notebook' && entry.feedId === 'local' && onEditNotebook && (
+                        {nbCaps?.canEdit && onEditNotebook && (
                           <button
                             type="button"
                             aria-label={`Edit ${entry.title}`}
@@ -308,32 +316,17 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAd
                             Edit
                           </button>
                         )}
-                        {entry.kind === 'notebook' && entry.feedId === 'local' && onDeleteNotebook && (
-                          confirmingDeleteId === entry.id ? (
-                            <button
-                              type="button"
-                              title="Notes in this notebook return to the journal"
-                              onClick={() => {
-                                setConfirmingDeleteId(null)
-                                onDeleteNotebook(entry)
-                              }}
-                              data-testid={`notebook-delete-confirm-${entry.sourceNotebook}`}
-                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-destructive text-destructive-foreground px-3 text-[10px] font-black uppercase tracking-widest hover:bg-destructive/90 transition-colors"
-                            >
-                              Confirm delete
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              aria-label={`Delete ${entry.title}`}
-                              onClick={() => setConfirmingDeleteId(entry.id)}
-                              data-testid={`notebook-delete-${entry.sourceNotebook}`}
-                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors"
-                            >
-                              <Trash2 className="size-3" />
-                              Delete
-                            </button>
-                          )
+                        {nbCaps?.canDelete && onDeleteNotebook && (
+                          <button
+                            type="button"
+                            aria-label={`Delete ${entry.title}`}
+                            onClick={() => onDeleteNotebook(entry)}
+                            data-testid={`notebook-delete-${entry.sourceNotebook}`}
+                            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-border px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors"
+                          >
+                            <Trash2 className="size-3" />
+                            Delete
+                          </button>
                         )}
                       </div>
                     </div>

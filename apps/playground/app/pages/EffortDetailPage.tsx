@@ -14,9 +14,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
-import {
-  DocumentDuplicateIcon,
-} from '@heroicons/react/20/solid';
 import { Eye, Trash2 } from 'lucide-react';
 import {
   listScopedPropertyOverrides,
@@ -50,6 +47,7 @@ import { JournalPageShell } from '@/panels/page-shells';
 import type { ScriptBlock } from '@/components/Editor/types';
 import type { Session } from '@/types/storage';
 import { storageService } from '@/services/storage';
+import { useColdRouteResolution } from '../hooks/useColdRouteResolution';
 import { useEffortContent } from '../hooks/useEffortContent';
 import { useEditorSave } from '../hooks/useEditorSave';
 import { useNotePageNav } from './shared/useNotePageNav';
@@ -132,7 +130,7 @@ export function EffortDetailPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const actualTheme = theme === 'dark' ? 'dark' : 'vs';
-  const { registry, isReady, refresh } = useEffortRegistry();
+  const { registry, isReady, revision, refresh } = useEffortRegistry();
 
   const {
     document,
@@ -359,10 +357,15 @@ export function EffortDetailPage() {
   }, []);
   const [showAliasLinking, setShowAliasLinking] = useState(false);
   const [selectedTargetSlug, setSelectedTargetSlug] = useState<string>('');
+  const { isSettling } = useColdRouteResolution({
+    loading: isLoading || isScopedPending,
+    missing: !effort && !error && notFound,
+  });
+
   const existingEfforts = useMemo(() => {
     if (!registry) return [];
     return [...registry.list()].sort((a, b) => a.label.localeCompare(b.label));
-  }, [registry]);
+  }, [registry, revision]);
 
   const handleLinkAlias = useCallback(async () => {
     if (!slug || !selectedTargetSlug || !registry) return;
@@ -502,6 +505,7 @@ export function EffortDetailPage() {
     results,
     enableUnrecognizedActions: false,
     helpfulActions: [
+      ...(effort ? [{ id: 'override', label: !activeIsEditable ? 'Override' : 'Override Scope', onRun: () => setOverrideSheetOpen(true) }] : []),
       ...(effort && !activeIsEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: effort.slug }] : []),
       ...(effort ? [{ id: 'add-widget', label: 'Add widget', onRun: () => setWidgetComposerOpen(true) }] : []),
       ...(resolved ? [{ id: 'show-resolved', label: showResolved ? 'Hide Resolved' : 'Show Resolved', onRun: () => setShowResolved(v => !v) }] : []),
@@ -627,9 +631,9 @@ export function EffortDetailPage() {
     );
   }
 
-  if (isLoading || isScopedPending) {
+  if (isLoading || isScopedPending || ((notFound || !effort) && isSettling && !error)) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div role="status" className="flex items-center justify-center py-20">
         <div className="animate-pulse h-4 w-32 bg-muted rounded" />
       </div>
     );
@@ -734,9 +738,15 @@ export function EffortDetailPage() {
     );
   }
 
+  const sourceLabel = scopedNotebookId
+    ? `Scoped · ${notebookSlugFromId(scopedNotebookId)}`
+    : effort.registrySource === 'bundled'
+      ? 'Bundled'
+      : 'Custom';
+
   // ── Actions bar (rendered by JournalPageShell actions prop) ──────────────
-  // Whiteboard effort sticky: Clone, Show Resolved, Cast — Back became the
-  // L2 Up link (NoteContextNav "Up" section).
+  // Clone, Show Resolved, Override (desktop), and Copy link live in L3
+  // helpfulActions; mobile keeps Override pinned in navbar for 375px flows.
   const pageActions = (
     <div className="flex items-center gap-2">
       <ResponsiveActions
@@ -746,40 +756,33 @@ export function EffortDetailPage() {
             variant={!activeIsEditable ? 'default' : 'outline'}
             onClick={() => setOverrideSheetOpen(true)}
             data-testid="effort-detail-override-btn"
-            className="max-lg:min-h-11 max-lg:px-3 whitespace-nowrap"
+            className="lg:hidden max-lg:min-h-11 max-lg:px-3 whitespace-nowrap"
           >
             {!activeIsEditable ? 'Override' : 'Override Scope'}
           </Button>
         }
-        primary={!activeIsEditable ? (
-          <Button type="button" variant="outline" onClick={handleClone} data-testid={TEST_IDS.EFFORT_DETAIL_CLONE_BTN}>
-            <DocumentDuplicateIcon className="size-4 mr-1.5" />
-            Clone
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => {
-              setDeleteError(null);
-              setConfirmDeleteOpen(true);
-            }}
-            data-testid={TEST_IDS.EFFORT_DETAIL_DELETE_BTN}
-          >
-            <Trash2 className="size-4 mr-1.5" />
-            Delete
-          </Button>
-        )}
+        primary={
+          activeIsEditable ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                setDeleteError(null);
+                setConfirmDeleteOpen(true);
+              }}
+              data-testid={TEST_IDS.EFFORT_DETAIL_DELETE_BTN}
+            >
+              <Trash2 className="size-4" />
+              Delete
+            </Button>
+          ) : undefined
+        }
       >
         <Badge
           data-testid={TEST_IDS.EFFORT_DETAIL_SOURCE}
           variant={!activeIsEditable ? 'secondary' : 'default'}
         >
-          {scopedNotebookId
-            ? `Scoped · ${notebookSlugFromId(scopedNotebookId)}`
-            : effort.registrySource === 'bundled'
-              ? 'Bundled'
-              : 'Custom'}
+          {sourceLabel}
         </Badge>
         {scopedNotebookId && (
           <Button
@@ -789,16 +792,6 @@ export function EffortDetailPage() {
             data-testid="effort-detail-global-link"
           >
             Global Definition
-          </Button>
-        )}
-        {resolved && (
-          <Button
-            type="button"
-            variant={showResolved ? 'default' : 'outline'}
-            onClick={() => setShowResolved(v => !v)}
-          >
-            <Eye className="size-4 mr-1.5" />
-            {showResolved ? 'Hide Resolved' : 'Show Resolved'}
           </Button>
         )}
       </ResponsiveActions>

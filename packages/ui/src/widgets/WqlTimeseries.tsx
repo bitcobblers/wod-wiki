@@ -21,15 +21,16 @@ import {
 } from './chartData';
 import { SERIES_COLORS } from './chartPalette';
 import { resolveWidgetDisplayUnit } from './unitIntegrity';
+import {
+  formatAxisTick,
+  formatMetricValue,
+  computeYAxisWidth,
+  SingleLineYAxisTick,
+} from './chartFormat';
 
 export interface WqlTimeseriesProps {
   result: QueryResult;
   unit?: string;
-}
-
-function formatWithUnit(formattedNumber: string, unit?: string): string {
-  const cleanUnit = unit?.trim();
-  return cleanUnit ? `${formattedNumber} ${cleanUnit}` : formattedNumber;
 }
 
 /**
@@ -37,32 +38,19 @@ function formatWithUnit(formattedNumber: string, unit?: string): string {
  * large magnitudes, up to `1` decimal for small fractional ticks) + space before
  * `unit` when present (e.g. `5,000 kg`).
  */
-export function formatTimeseriesTick(value: number | string, unit?: string): string {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return formatWithUnit(String(value), unit);
-  }
-  const maximumFractionDigits = Math.abs(numeric) >= 100 ? 0 : 1;
-  const formatted = new Intl.NumberFormat(undefined, { maximumFractionDigits }).format(numeric);
-  return formatWithUnit(formatted, unit);
-}
+export const formatTimeseriesTick = formatAxisTick;
 
 /**
  * Shared Tooltip value display formatter: locale-grouped number rounded to at
  * most 1 fraction digit (drops trailing `.0` automatically, e.g. `12,179 kg`).
  */
-export function formatTimeseriesTooltipValue(value: number | string, unit?: string): string {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return formatWithUnit(String(value), unit);
-  }
-  const formatted = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(numeric);
-  return formatWithUnit(formatted, unit);
-}
+export const formatTimeseriesTooltipValue = formatMetricValue;
 
 const INTRINSIC_METRIC_UNITS: Record<string, string> = {
   'calc.hrv': 'ms',
   hrv: 'ms',
+  'calc.sleep': 'h',
+  sleep: 'h',
 };
 
 function resolveTimeseriesUnit(result: QueryResult, unitProp?: string): string | undefined {
@@ -96,6 +84,14 @@ export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
     [isOrdinal, result],
   );
   const unit = resolveTimeseriesUnit(result, unitProp);
+  const yAxisWidth = useMemo(
+    () =>
+      computeYAxisWidth(
+        result.series.flatMap((s) => s.points.map((p) => p.value)),
+        unit,
+      ),
+    [result.series, unit],
+  );
 
   if (shape.kind !== 'timeseries' && shape.kind !== 'scalar') {
     return <WqlEmptyState result={result} />;
@@ -103,7 +99,7 @@ export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data as Array<Record<string, number | string | undefined>>} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
+      <LineChart data={data as Array<Record<string, number | string | undefined>>} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
         <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
         <XAxis
           dataKey={isOrdinal ? 'label' : 'ts'}
@@ -116,10 +112,9 @@ export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
         <YAxis
           tickLine={false}
           axisLine={false}
-          width={64}
+          width={yAxisWidth}
           stroke="hsl(var(--muted-foreground))"
-          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-          tickFormatter={(v) => formatTimeseriesTick(v as number | string, unit)}
+          tick={<SingleLineYAxisTick unit={unit} />}
         />
         <Tooltip
           contentStyle={{

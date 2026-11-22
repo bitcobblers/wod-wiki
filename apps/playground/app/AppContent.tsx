@@ -289,8 +289,16 @@ export function AppContent({ searchHandlerRef }: { searchHandlerRef: RefObject<(
         onScrollToSection={scrollToSection}
       />
     ),
-    effortDetail: () => <EffortDetailPage />,
-    equipmentDetail: () => <EquipmentDetailPage />,
+    effortDetail: () => (
+      <EffortDetailPage
+        key={`${routeParams.slug ?? routeParams.tag ?? 'new'}:${new URLSearchParams(location.search).get('mode') ?? ''}`}
+      />
+    ),
+    equipmentDetail: () => (
+      <EquipmentDetailPage
+        key={`${routeParams.slug ?? routeParams.tag ?? 'new'}:${new URLSearchParams(location.search).get('mode') ?? ''}`}
+      />
+    ),
     tagDetail: () => (
       <TagsPage
         key={`${routeParams.type ?? ''}/${routeParams.tag ?? ''}`}

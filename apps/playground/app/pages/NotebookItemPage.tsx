@@ -269,6 +269,8 @@ export function NotebookItemPage({
           block,
           runtimeId,
           'journal',
+          undefined,
+          { deferPersist: true },
         );
         pendingRuntimes.set(runtimeId, { block: captured.block, noteId: captured.note.id, captured, returnTo: itemPath });
         void navigate(runPath(captured.session.id));

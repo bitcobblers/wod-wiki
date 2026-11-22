@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { TEST_IDS } from '@/lib/testIds';
 import { renderWithPlaygroundHost, type PlaygroundRenderResult } from '@/testing/host';
@@ -11,6 +11,7 @@ describe('EffortDetailPage — custom effort deletion (#719)', () => {
   afterEach(async () => {
     if (host) {
       await host.cleanup();
+    cleanup();
       host = null;
     }
   });
@@ -62,6 +63,7 @@ describe('EffortDetailPage — custom effort deletion (#719)', () => {
       ].join('\n'),
     });
     await host.cleanup();
+    cleanup();
 
     host = await renderWithPlaygroundHost(<EffortDetailPage />, {
       storage: host.storage,

@@ -11,7 +11,11 @@
  * A `q` that already parses as WQL is used as-is; one that doesn't and isn't
  * plain text surfaces the shared rejection banner.
  */
-import { useComposerQueryState, type ComposerQueryState } from './useComposerQueryState'
+import {
+  salvagePlainTextQuery,
+  useComposerQueryState,
+  type ComposerQueryState,
+} from './useComposerQueryState'
 
 export type EffortsComposerState = ComposerQueryState
 
@@ -21,10 +25,6 @@ export const DEFAULT_EFFORTS_QUERY = ':effort'
 
 const LEGACY_KEYS = ['origin', 'discipline'] as const
 
-function textFilter(value: string): string {
-  return /\s/.test(value) ? `text:"${value}"` : `text:${value}`
-}
-
 /** Compose the efforts query from filter parts. */
 function effortsQuery(filters: string[]): string {
   const body = filters.filter(Boolean)
@@ -33,17 +33,11 @@ function effortsQuery(filters: string[]): string {
 
 /** The old plain-text `?q=` becomes a text filter (plus any legacy filters). */
 function salvageLegacyQ(q: string, search: URLSearchParams): string | null {
-  const text = q.trim()
-  if (!text) return null
-  // Anything that looks like an attempt at WQL is a genuine rejection, not a
-  // legacy text search — let the banner report it.
-  if (text.startsWith(':') || text.includes('{') || text.includes('}')) return null
   const origin = search.get('origin')
   const discipline = search.get('discipline')?.trim()
-  return effortsQuery([
-    textFilter(text),
-    ...(origin && origin !== 'all' ? [`origin:${origin}`] : []),
-    ...(discipline ? [`discipline:${discipline}`] : []),
+  return salvagePlainTextQuery(q, 'effort', [
+    origin && origin !== 'all' ? `origin:${origin}` : '',
+    discipline ? `discipline:${discipline}` : '',
   ])
 }
 

@@ -116,7 +116,8 @@ export class LabelComposer {
     const identityFragments = metrics.filter(f => {
       if (f.type === MetricType.Duration || f.type === MetricType.Rounds || 
           f.type === MetricType.Resistance || f.type === MetricType.Distance ||
-          f.type === MetricType.Lap || f.type === MetricType.Group) {
+          f.type === MetricType.Lap || f.type === MetricType.Group ||
+          f.type === MetricType.Equipment) {
           return false;
       }
       const val = (f.image || f.value?.toString() || "").toUpperCase();

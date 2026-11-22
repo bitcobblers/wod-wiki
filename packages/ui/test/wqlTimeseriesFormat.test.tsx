@@ -12,6 +12,14 @@ import {
   formatTimeseriesTick,
   formatTimeseriesTooltipValue,
 } from '../src/widgets/WqlTimeseries';
+import {
+  formatAxisTick,
+  formatMetricValue,
+  formatCompactMetricValue,
+} from '../src/widgets/chartFormat';
+import { StackedBar } from '../src/widgets/StackedBar';
+import { WqlBars } from '../src/widgets/WqlBars';
+import { WqlEmptyState } from '../src/widgets/WqlEmptyState';
 
 afterEach(cleanup);
 
@@ -70,5 +78,43 @@ describe('WqlTable cell formatting', () => {
     render(<WqlTable result={timeseriesResult('sum:totalVolume{} every day', 'kg')} />);
     expect(screen.getByText('11,362.5 kg')).toBeDefined();
     expect(screen.getByText('12,000 kg')).toBeDefined();
+  });
+});
+
+describe('WW-106 unified chartFormat, WqlEmptyState fallback, and WqlBars', () => {
+  it('formats shared axis, tooltip, and compact values consistently', () => {
+    expect(formatAxisTick(62, 'ms')).toBe('62 ms');
+    expect(formatAxisTick(7.5, 'h')).toBe('7.5 h');
+    expect(formatMetricValue(11362.489, 'kg')).toBe('11,362.5 kg');
+    expect(formatCompactMetricValue(12500, 'kg')).toBe('12.5k kg');
+  });
+
+  it('renders WqlEmptyState fallbackMessage for unrenderable non-empty series', () => {
+    render(
+      <WqlEmptyState
+        result={timeseriesResult('sum:totalVolume{}', 'kg')}
+        fallbackMessage="No bar data available for this query."
+      />,
+    );
+    expect(screen.getByText('No bar data available for this query.')).toBeDefined();
+  });
+
+  it('renders timeseries and ordinal series inside WqlBars instead of an empty state', () => {
+    const { container } = render(
+      <div style={{ width: 640, height: 320 }}>
+        <WqlBars result={timeseriesResult('sum:totalVolume{} every day', 'kg')} />
+      </div>,
+    );
+    expect(screen.queryByText('No data for this range.')).toBeNull();
+    expect(container.querySelector('.recharts-responsive-container')).not.toBeNull();
+  });
+
+  it('renders StackedBar with shared chart container cleanly', () => {
+    const { container } = render(
+      <div style={{ width: 640, height: 320 }}>
+        <StackedBar result={timeseriesResult('sum:totalVolume{} by {intensity}', 'kg')} />
+      </div>,
+    );
+    expect(container.querySelector('.recharts-responsive-container')).not.toBeNull();
   });
 });

@@ -15,7 +15,7 @@ import { DimVector, DIM_ZERO } from './dimensions';
 import { LookupRegistry } from './lookup';
 import { parseExpression } from './parser';
 import { AGGREGATE_BUILTINS, CONTEXT_ATOMS, STREAM_ATOMS } from './atoms';
-import { AUTHORITATIVE_CASTS } from './units';
+import { AUTHORITATIVE_CASTS, getUnit } from './units';
 import { CalculationDefinition, CalcScope, CalcVariant } from './types';
 
 export class CalculationRegistry {
@@ -67,8 +67,15 @@ export class CalculationRegistry {
     if (def.kind === 'output' && def.output?.unit && def.output.unit !== 'auto') {
       for (const variant of def.variants) {
         for (const nodeId of outputNodeIds(def)) {
+          const outNode = variant.nodes[nodeId];
           const dim = variant.nodeDims?.[nodeId];
-          if (dim) validateOutputUnit(dim, def.output.unit);
+          if (outNode && (outNode.kind === 'wql' || astHasWql(outNode.ast, variant))) {
+            if (!getUnit(def.output.unit)) {
+              throw new CalcRegistrationError(`Calc ${def.id}: Unknown output unit: ${def.output.unit}`);
+            }
+          } else if (dim) {
+            validateOutputUnit(dim, def.output.unit);
+          }
         }
       }
     }
@@ -105,8 +112,14 @@ export class CalculationRegistry {
         const env = this.staticEnv(siblingRefDim);
         let dim = inferDim(ast, env);
         if (node.unit) {
-          validateOutputUnit(dim, node.unit);
-          if (AUTHORITATIVE_CASTS[node.unit]) dim = DIM_ZERO;
+          if (astHasWql(ast, variant)) {
+            const unitDef = getUnit(node.unit);
+            if (!unitDef) throw new CalcRegistrationError(`Unknown output unit: ${node.unit}`);
+            dim = AUTHORITATIVE_CASTS[node.unit] ? DIM_ZERO : unitDef.dim;
+          } else {
+            validateOutputUnit(dim, node.unit);
+            if (AUTHORITATIVE_CASTS[node.unit]) dim = DIM_ZERO;
+          }
         }
         nodeDims[nodeId] = dim;
         return dim;
@@ -175,4 +188,29 @@ export function outputNodeIds(def: CalculationDefinition): string[] {
   const nodeId = def.output?.nodeId;
   if (!nodeId) return [];
   return Array.isArray(nodeId) ? nodeId : [nodeId];
+}
+
+function astHasWql(node: ExprNode | undefined, variant: CalcVariant, seen = new Set<string>()): boolean {
+  if (!node) return false;
+  switch (node.kind) {
+    case 'wql':
+      return true;
+    case 'ref': {
+      if (seen.has(node.name)) return false;
+      const target = variant.nodes[node.name];
+      if (!target) return false;
+      if (target.kind === 'wql') return true;
+      const next = new Set(seen);
+      next.add(node.name);
+      return astHasWql(target.ast, variant, next);
+    }
+    case 'unary':
+      return astHasWql(node.arg, variant, seen);
+    case 'binary':
+      return astHasWql(node.left, variant, seen) || astHasWql(node.right, variant, seen);
+    case 'call':
+      return node.args.some((arg) => astHasWql(arg, variant, seen));
+    default:
+      return false;
+  }
 }

@@ -94,7 +94,14 @@ export function blockFromRevision(
   };
 }
 
-export async function captureRun(input: SaveNoteInput, block: ScriptBlock, resultId: string, origin?: ResultOrigin, persistence: INotePersistence = notePersistence): Promise<CapturedRun> {
+export async function captureRun(
+  input: SaveNoteInput,
+  block: ScriptBlock,
+  resultId: string,
+  origin?: ResultOrigin,
+  persistence: INotePersistence = notePersistence,
+  options?: { deferPersist?: boolean },
+): Promise<CapturedRun> {
   const startedAt = Date.now();
   useActiveRunStore.getState().setActiveSessionMeta(resultId, input.noteId);
   const captured = await persistence.startSession(input, {
@@ -109,7 +116,7 @@ export async function captureRun(input: SaveNoteInput, block: ScriptBlock, resul
     completed: false,
     status: 'in-progress',
     createdAt: startedAt,
-  });
+  }, options);
   if (captured.note.id !== input.noteId) {
     useActiveRunStore.getState().setActiveSessionMeta(resultId, captured.note.id);
   }
@@ -146,7 +153,7 @@ export async function captureStoredRun(
   block: ScriptBlock,
   resultId: string,
   origin?: ResultOrigin,
-  options?: { resolveRemoteWorkout?: (id: string) => Promise<RemoteWorkoutResolution | undefined> },
+  options?: { resolveRemoteWorkout?: (id: string) => Promise<RemoteWorkoutResolution | undefined>; deferPersist?: boolean },
 ): Promise<CapturedRun> {
   const parsedRemote = parseRemoteNoteId(noteId);
   const lookupId = parsedRemote.isRemote ? parsedRemote.uuid : noteId;
@@ -181,5 +188,12 @@ export async function captureStoredRun(
   }
 
   if (!note) throw new Error('The note is unavailable. Save the note before starting a workout.');
-  return captureRun({ noteId: note.id, rawContent: note.rawContent, blocks: note.blocks, expectedSourceRevision: note.sourceRevision }, block, resultId, origin);
+  return captureRun(
+    { noteId: note.id, rawContent: note.rawContent, blocks: note.blocks, expectedSourceRevision: note.sourceRevision },
+    block,
+    resultId,
+    origin,
+    notePersistence,
+    options?.deferPersist !== undefined ? { deferPersist: options.deferPersist } : undefined,
+  );
 }

@@ -105,8 +105,8 @@ export function WallClockPage() {
     if (!pending || !runtimeId) throw new Error('The pending workout is unavailable.');
     if (pending.captured) { captureRef.current = pending.captured; return pending.captured.block; }
     if (!captureRef.current) captureRef.current = pending.snapshot
-      ? await captureRun(pending.snapshot, pending.block, runtimeId, pending.origin)
-      : await captureStoredRun(pending.noteId, pending.block, runtimeId, pending.origin);
+      ? await captureRun(pending.snapshot, pending.block, runtimeId, pending.origin, undefined, { deferPersist: true })
+      : await captureStoredRun(pending.noteId, pending.block, runtimeId, pending.origin, { deferPersist: true });
     return captureRef.current.block;
   }, [runtimeId]);
 

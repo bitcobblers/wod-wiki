@@ -19,8 +19,8 @@ Given a hydrated Playground workspace with core Seed data:
 2. Browser AI Agent inspects `navigator.modelContext` on `/journal`, toggles dark theme via `ui_preferences`, invokes `wod_note_upsert` to author a workout `Note`, and navigates to `/note/:noteId` via `ui_navigate`.
 3. Browser AI Agent invokes `ui_start_live_workout` to launch the live workout clock, then invokes `ui_clock_control` (`status`).
 - expect: `/llms.txt` returns HTTP 200 advertising 22 portable domain tools + 14 live React UI/Clock tools, and `/.well-known/agent-capabilities.json` lists 22 `domainTools` and 14 `uiTools`.
-- expect: `document.body.dataset.appHydrated` is `"true"`, `<main>` carries `data-agent-status="ready"` and `aria-busy="false"`, and `<script id="agent-view-state">` parses as valid JSON reflecting `/journal`.
-- expect: On `/journal`, `ui_preferences` and `ui_set_stream_query` are registered while `ui_set_explorer_query`, `ui_editor_draft`, and `ui_clock_control` are unmounted; `ui_preferences` switches `<html>` to `dark`.
+- expect: `document.body.dataset.appHydrated` is `"true"`, `<main>` carries `data-agent-status="ready"` and `aria-busy="false"`, and `<script id="agent-view-state">` parses as valid JSON reflecting `/journal` and `build` provenance metadata.
+- expect: On `/journal`, `ui_preferences` and `ui_set_stream_query` are registered on `navigator.modelContext` and `navigator.modelContextTesting` while `ui_set_explorer_query`, `ui_editor_draft`, and `ui_clock_control` are unmounted; `ui_preferences` (`executeTool` and `callTool`) switches `<html>` to `dark`.
 - expect: After `ui_navigate` to `/note/:noteId`, `ui_editor_draft` and `ui_start_live_workout` dynamically register on `navigator.modelContext`.
 - expect: While the live timer is active, `ui_clock_control` dynamically registers on `navigator.modelContext` and returns a live `ClockSnapshot` with `runId`.
 - expect: the browser console stays clean.

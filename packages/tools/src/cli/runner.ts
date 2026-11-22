@@ -140,6 +140,8 @@ export interface CliParsedArgs {
   markdown?: string;
   search?: string;
   tag?: string;
+  origin?: string;
+  includeSeed?: boolean;
   tags: string[];
   aliases: string[];
   setPairs: string[];
@@ -233,6 +235,7 @@ type CliValueFlagArgs = Pick<
   | 'markdown'
   | 'search'
   | 'tag'
+  | 'origin'
   | 'slug'
   | 'category'
   | 'tagType'
@@ -270,6 +273,7 @@ const VALUE_FLAGS: ReadonlyArray<readonly [flag: string, key: keyof CliValueFlag
   ['--markdown', 'markdown'],
   ['--search', 'search'],
   ['--tag', 'tag'],
+  ['--origin', 'origin'],
   ['--slug', 'slug'],
   ['--category', 'category'],
   ['--type', 'tagType'],
@@ -420,6 +424,12 @@ export function parseCliArgs(args: string[]): CliParsedArgs {
       i++;
     } else if (arg === '--validate-only') {
       result.validateOnly = true;
+      i++;
+    } else if (arg === '--include-seed') {
+      result.includeSeed = true;
+      i++;
+    } else if (arg === '--no-seed') {
+      result.includeSeed = false;
       i++;
     } else if (arg === '--limit') {
       const v = Number(args[++i]);

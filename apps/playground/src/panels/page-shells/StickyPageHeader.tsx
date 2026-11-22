@@ -78,7 +78,12 @@ export function StickyPageHeader({
       {/* Title row — items-start: a multi-line queryBar (stream composer +
           example line) keeps right-side actions on the composer's line
           instead of floating mid-block. */}
-      <div className="flex items-start justify-between gap-3 px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5">
+      <div
+        className={cn(
+          'sph-row flex min-h-[54px] justify-between gap-3 px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5',
+          queryBar ? 'items-start' : 'items-center',
+        )}
+      >
         {title && (
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="h-5 w-1.5 shrink-0 rounded-full bg-primary" />
@@ -100,7 +105,7 @@ export function StickyPageHeader({
         )}
         {queryBar && <div className="min-w-0 flex-1">{queryBar}</div>}
         {showRightCluster && (
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
+          <div className="sph-actions flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
             {actions}
             <L3DrawerTrigger />
           </div>

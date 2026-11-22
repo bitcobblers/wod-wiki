@@ -8,6 +8,12 @@ import {
   type PlaygroundRenderResult,
 } from '@/testing/host';
 import * as feedCatalogModule from '@/services/feed/feedCatalog';
+import {
+  markFeedSyncSettled,
+  markFeedSyncStarted,
+  resetFeedReadinessForTest,
+} from '@/services/feed/feedReadiness';
+import { storageService } from '@/services/storage';
 import { pendingRuntimes } from '../runtimeStore';
 import { journalNotes } from '../services/journalNotes';
 import { useNav, type L3ActionItem } from '../nav/NavContext';
@@ -464,5 +470,41 @@ describe('NoteByIdPage workout start & L3 outline parity', () => {
       expect(screen.queryByRole('alert')?.textContent ?? null).toBeNull();
       expect(screen.getByTestId('timer-stop-session')).toBeDefined();
     });
+  });
+
+  it('WW-019: holds non-definitive pending state and busy status during boot import, then auto-recovers once settled', async () => {
+    markFeedSyncStarted();
+    try {
+      const host = await renderWithPlaygroundHost(
+        <NoteByIdPage noteId="cold-delayed-note-1" theme="light" />,
+        { route: '/note/cold-delayed-note-1' },
+      );
+      activeHosts.push(host);
+
+      const pending = await waitFor(() => screen.getByTestId('note-loading-settling'));
+      expect(pending).toBeDefined();
+      expect(screen.queryByText(/Note not found/i)).toBeNull();
+      expect(host.readAgentViewState().status).toBe('loading');
+
+      await act(async () => {
+        const raw = '# Cold Settled Note\n\n```wod\n15 Air Squats\n```\n';
+        await storageService.saveNoteSource({
+          noteId: 'cold-delayed-note-1',
+          rawContent: raw,
+          blocks: reconcileNoteBlocks(raw, { sourceRevision: 1 }),
+          expectedSourceRevision: 0,
+          metadata: { title: 'Cold Settled Note', type: 'note' },
+        });
+        markFeedSyncSettled('imported');
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Cold Settled Note')).toBeDefined();
+      });
+      expect(host.readAgentViewState().status).toBe('ready');
+      expect(screen.queryByTestId('note-loading-settling')).toBeNull();
+    } finally {
+      resetFeedReadinessForTest();
+    }
   });
 });

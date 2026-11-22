@@ -247,7 +247,7 @@ describe('LibraryRow — field projection adaptation', () => {
     expect(screen.queryByTestId('notebook-delete-guides')).toBeNull()
   })
 
-  it('gates Make Public on non-publishable default notebooks while keeping user custom notebook controls', () => {
+  it('gates Make Public, Edit, and Delete on non-publishable built-in notebooks while keeping user custom notebook controls', () => {
     const journalNotebook: Entry = {
       id: 'notebook:journal',
       kind: 'notebook',
@@ -281,20 +281,21 @@ describe('LibraryRow — field projection adaptation', () => {
     )
 
     expect(screen.getByTestId('library-row-visibility-journal').textContent).toContain('Private')
-    fireEvent.click(screen.getByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW))
+    expect(screen.queryByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW)).toBeNull()
     expect(screen.queryByTestId('row-toggle-public-journal')).toBeNull()
-    expect(screen.getByTestId('notebook-edit-journal')).toBeDefined()
-    expect(screen.getByTestId('notebook-delete-journal')).toBeDefined()
+    expect(screen.queryByTestId('notebook-edit-journal')).toBeNull()
+    expect(screen.queryByTestId('notebook-delete-journal')).toBeNull()
 
     cleanup()
 
+    const deleted: Entry[] = []
     render(
       <MemoryRouter>
         <LibraryRow
           entry={customNotebook}
           onTogglePublicNotebook={() => {}}
           onEditNotebook={() => {}}
-          onDeleteNotebook={() => {}}
+          onDeleteNotebook={(e) => deleted.push(e)}
         />
       </MemoryRouter>,
     )
@@ -303,6 +304,19 @@ describe('LibraryRow — field projection adaptation', () => {
     fireEvent.click(screen.getByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW))
     expect(screen.getByTestId('row-toggle-public-strength-block')).toBeDefined()
     expect(screen.getByTestId('notebook-edit-strength-block')).toBeDefined()
-    expect(screen.getByTestId('notebook-delete-strength-block')).toBeDefined()
+    fireEvent.click(screen.getByTestId('notebook-delete-strength-block'))
+    expect(deleted).toHaveLength(1)
+    expect(deleted[0]!.id).toBe('notebook:strength-block')
+  })
+
+  it('WW-118: renders row title as a native Link anchor pointing to entryOpenHref', () => {
+    render(
+      <MemoryRouter>
+        <LibraryRow entry={testEntry} />
+      </MemoryRouter>,
+    )
+
+    const link = screen.getByRole('link', { name: 'Journal Entry Title' })
+    expect(link.getAttribute('href')).toBe('/note/test-1')
   })
 })

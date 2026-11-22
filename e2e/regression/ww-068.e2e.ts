@@ -15,12 +15,16 @@
 import type { Page } from '@playwright/test';
 import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
 
-/** All chip tooltips currently in the DOM (buildTooltip strings start 'Type: …'). */
+/** All metric chip tooltips currently in the DOM (athlete format `Heading: value`, or legacy debug `Type: …` if leaked). */
 async function chipTitles(page: Page): Promise<string[]> {
   return page.evaluate(() =>
     Array.from(document.querySelectorAll('[title]'))
       .map((el) => el.getAttribute('title') ?? '')
-      .filter((t) => t.includes('Type:')),
+      .filter((t) =>
+        /^(Duration|Reps|Effort|Distance|Rounds|Resistance|Action|Increment|Metric|Label|Work|Rest|Type):/.test(
+          t,
+        ),
+      ),
   );
 }
 
@@ -30,6 +34,12 @@ function expectNoRawLeaks(titles: string[], surface: string): void {
     expect(title, `${surface}: no chip leaks an object value`).not.toContain('[object Object]');
     expect(title, `${surface}: no chip leaks a raw millisecond value`).not.toMatch(
       /Value: \d{5,}/,
+    );
+    expect(title, `${surface}: athlete chip does not leak debug Type: prefix`).not.toContain(
+      'Type:',
+    );
+    expect(title, `${surface}: athlete chip does not leak debug Origin: prefix`).not.toContain(
+      'Origin:',
     );
   }
 }
@@ -65,14 +75,14 @@ test.describe('WW-068 — timer chip labels format metric values', () => {
       .poll(
         () =>
           chipTitles(app.page).then((titles) =>
-            titles.some((t) => t.startsWith('Type: resistance')),
+            titles.some((t) => t.startsWith('Resistance:')),
           ),
         { timeout: 15_000 },
       )
       .toBe(true);
     const liveTitles = await chipTitles(app.page);
     expectNoRawLeaks(liveTitles, 'live');
-    const resistance = liveTitles.find((t) => t.startsWith('Type: resistance'));
+    const resistance = liveTitles.find((t) => t.startsWith('Resistance:'));
     expect(resistance, 'resistance chip formats the load as a weight').toContain('95');
     expect(resistance, 'resistance chip formats the load as a weight').toContain('lb');
 

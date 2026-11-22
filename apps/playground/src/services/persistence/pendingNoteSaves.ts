@@ -1,5 +1,12 @@
 import type { NoteBlock } from '@/types/storage';
 import { notePersistence } from './index';
+import {
+  isNoteDeleting,
+  markNoteDeleting,
+  unmarkNoteDeleting,
+} from './noteDeletionGuard';
+
+export { isNoteDeleting, markNoteDeleting, unmarkNoteDeleting };
 
 export const pendingNoteSaves = new Map<string, Promise<unknown>>();
 
@@ -55,6 +62,7 @@ function writeStagedNoteSaves(map: Record<string, StagedNoteSave>): void {
 }
 
 export function stageNoteSave(entry: StagedNoteSave): void {
+  if (isNoteDeleting(entry.noteId)) return;
   const map = readStagedNoteSaves();
   map[entry.noteId] = entry;
   writeStagedNoteSaves(map);
@@ -100,9 +108,17 @@ export function replayStagedNoteSaves(): Promise<void> {
   replayStagedPromise ??= (async () => {
     const staged = readStagedNoteSaves();
     for (const entry of Object.values(staged)) {
+      if (isNoteDeleting(entry.noteId)) {
+        clearStagedNoteSave(entry.noteId);
+        continue;
+      }
       const inFlight = pendingNoteSaves.get(entry.noteId);
       if (inFlight) {
         await inFlight.then(() => undefined, () => undefined);
+      }
+      if (isNoteDeleting(entry.noteId)) {
+        clearStagedNoteSave(entry.noteId);
+        continue;
       }
       const currentStaged = readStagedNoteSaves()[entry.noteId];
       if (!currentStaged) continue;

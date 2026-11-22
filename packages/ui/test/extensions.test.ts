@@ -36,6 +36,7 @@ import {
   wodAutoWrap,
   handleFenceAutoWrap,
   wodEditorKeymap,
+  findWorkoutErrors,
 } from '../src/extensions';
 import { EditorView, runScopeHandlers } from '@codemirror/view';
 
@@ -742,5 +743,23 @@ describe('editor occurrence lineage', () => {
 
     view.destroy();
     container.remove();
+  });
+
+  it('WW-077: emits unindented-body warning with Indent workout body quick-fix action', () => {
+    const doc = '20:00 AMRAP\n10 Burpees\n15 Squats';
+    const diagnostics = findWorkoutErrors(doc, 0);
+    const warning = diagnostics.find((d) => d.severity === 'warning');
+    expect(warning).toBeDefined();
+    expect(warning?.message).toContain('Indent lines below header');
+    const action = warning?.actions?.find((a) => a.name === 'Indent workout body');
+    expect(action).toBeDefined();
+
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const view = new EditorView({ state: EditorState.create({ doc }), parent: host });
+    action!.apply(view, warning!.from, warning!.to);
+    expect(view.state.doc.toString()).toBe('20:00 AMRAP\n  10 Burpees\n  15 Squats');
+    view.destroy();
+    host.remove();
   });
 });

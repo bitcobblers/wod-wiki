@@ -133,7 +133,7 @@ export function PlaygroundNotePage({
         const runtimeId = uuidv7();
         const existing = await storageService.getNote(runtimeNoteId).catch(() => undefined);
         const captured = existing
-          ? await captureStoredRun(runtimeNoteId, block, runtimeId, 'playground')
+          ? await captureStoredRun(runtimeNoteId, block, runtimeId, 'playground', { deferPersist: true })
           : await captureRun(
               {
                 noteId: runtimeNoteId,
@@ -146,6 +146,8 @@ export function PlaygroundNotePage({
               block,
               runtimeId,
               'playground',
+              undefined,
+              { deferPersist: true },
             );
         onSaved({ rawContent: captured.note.rawContent, blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision });
         pendingRuntimes.set(runtimeId, { block: captured.block, noteId: captured.session.noteId, captured, origin: 'playground', returnTo: `/playground/${encodeURIComponent(pageName)}` });

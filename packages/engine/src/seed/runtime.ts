@@ -218,29 +218,34 @@ async function prepareSeedChunkWrite(write: SeedChunkWrite): Promise<PreparedSee
 }
 
 /**
- * Apply multiple seed chunk writes inside ONE atomic storage transaction so
- * partial non-canvas chunk counts are never exposed mid-import.
+ * Apply seed chunk writes, committing each chunk in its own transaction with a
+ * macrotask yield between chunks so concurrent user writes can interleave
+ * without waiting behind a multi-second bulk import lock.
  */
 export async function applySeedChunks(storage: IStorage, writes: SeedChunkWrite[]): Promise<SeedChunkResult> {
   const empty: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, preservedPinned: 0, addedNotes: 0, updatedNotes: 0 };
   if (!writes.length) return empty;
   const prepared = await Promise.all(writes.map(prepareSeedChunkWrite));
-  return storage.transaction(SEED_TX_STORES, 'readwrite', async (tx) => {
-    const total: SeedChunkResult = { ...empty };
-    for (const item of prepared) {
-      const part = await applyPreparedSeedChunkInTx(tx, item);
-      total.totalNotes += part.totalNotes;
-      total.totalEfforts += part.totalEfforts;
-      total.totalEquipment += part.totalEquipment;
-      total.totalBlocks += part.totalBlocks;
-      total.skippedUserOwned += part.skippedUserOwned;
-      total.deleted += part.deleted;
-      total.preservedPinned = (total.preservedPinned ?? 0) + (part.preservedPinned ?? 0);
-      total.addedNotes += part.addedNotes;
-      total.updatedNotes += part.updatedNotes;
+  const total: SeedChunkResult = { ...empty };
+  for (let i = 0; i < prepared.length; i++) {
+    const item = prepared[i]!;
+    const part = await storage.transaction(SEED_TX_STORES, 'readwrite', (tx) =>
+      applyPreparedSeedChunkInTx(tx, item),
+    );
+    total.totalNotes += part.totalNotes;
+    total.totalEfforts += part.totalEfforts;
+    total.totalEquipment += part.totalEquipment;
+    total.totalBlocks += part.totalBlocks;
+    total.skippedUserOwned += part.skippedUserOwned;
+    total.deleted += part.deleted;
+    total.preservedPinned = (total.preservedPinned ?? 0) + (part.preservedPinned ?? 0);
+    total.addedNotes += part.addedNotes;
+    total.updatedNotes += part.updatedNotes;
+    if (i + 1 < prepared.length) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
-    return total;
-  });
+  }
+  return total;
 }
 
 export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): Promise<SeedChunkResult> {

@@ -33,6 +33,7 @@ import { sessionDetailPath } from "@/lib/routes";
 import { getActiveCastTransport } from "@/hooks/useCastSignaling";
 import { useSessionCastBridge } from "@/hooks/useSessionCastBridge";
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
+import { formatDurationMMSS } from '@bitcobblers/wod-wiki-core';
 import type { IOutputStatement } from '@bitcobblers/wod-wiki-engine';
 import { dispatchGutterHighlights } from '@bitcobblers/wod-wiki-ui/extensions';
 import { buildCompletedRuntimeProjection } from "@/app/cast/workbenchProjection";
@@ -49,6 +50,7 @@ import { useCollectionMetrics, resolveValueSelection } from "@/hooks/useCollecti
 import { CollectionWizard } from "@/components/organisms/review/CollectionWizard";
 import { useLiveClockAuthority } from "@/clock/useLiveClockAuthority";
 import { ClockCommandBoard } from "@/clock/ClockCommandBoard";
+import { TEST_IDS } from "@/lib/testIds";
 
 
 // ── Types ───────────────────────────────────────────────────────────────
@@ -140,6 +142,12 @@ export const HaltedRunNotice: React.FC<HaltedRunNoticeProps> = ({ noteId }) => {
     >
       <div className="flex flex-wrap items-center gap-2">
         <span>Previous workout run was saved as partial results on reload.</span>
+        {(marker.workoutTitle || marker.elapsedMs > 0) && (
+          <span className="font-medium text-muted-foreground">
+            {marker.workoutTitle}
+            {marker.elapsedMs > 0 ? `${marker.workoutTitle ? ' · ' : ''}${formatDurationMMSS(marker.elapsedMs)}` : ''}
+          </span>
+        )}
         {inRouter ? (
           <Link
             to={resultsHref}
@@ -162,7 +170,7 @@ export const HaltedRunNotice: React.FC<HaltedRunNoticeProps> = ({ noteId }) => {
         type="button"
         onClick={() => clearHaltedRun(marker.sessionId)}
         aria-label="Dismiss partial results notice"
-        className="rounded border border-border/70 px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="min-h-11 min-w-11 rounded border border-border/70 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         Dismiss
       </button>
@@ -184,6 +192,8 @@ interface RuntimeTimerBodyProps {
   commandBoard?: React.ReactNode;
   /** Reload halted-run notice banner shown while idle. */
   notice?: React.ReactNode;
+  /** Runtime execution or step dispatch errors surfaced visibly (WW-077). */
+  runtimeErrors?: readonly string[];
   /** Authoritative Next availability from the clock snapshot. */
   canNext?: boolean;
   workoutTitle?: string;
@@ -199,11 +209,21 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
   handleNext,
   commandBoard,
   notice,
+  runtimeErrors,
   canNext,
   workoutTitle,
   workoutFormat,
 }) => {
   const { isCompact: isMobile, isFull } = usePanelSize();
+  const errorAlert = runtimeErrors && runtimeErrors.length > 0 ? (
+    <div
+      role="alert"
+      data-testid={TEST_IDS.RUNTIME_ERROR_BANNER}
+      className="mx-3 mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+    >
+      {runtimeErrors.join(' · ')}
+    </div>
+  ) : null;
 
   // ── Minimal / General tiers (ADR 0003): the surface owns the body and the
   // VisualStatePanel (Detail-tier chrome) does not render. The results footer
@@ -212,6 +232,7 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
     return (
       <div className="flex h-full flex-col overflow-hidden bg-background" data-clock-panel>
         {notice}
+        {errorAlert}
         <div className="min-h-0 flex-1 overflow-hidden">
           <TimerSurface
             elapsedMs={execution.elapsedTime}
@@ -252,6 +273,7 @@ const RuntimeTimerBody: React.FC<RuntimeTimerBodyProps> = ({
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background" data-clock-panel>
       {notice}
+      {errorAlert}
       {/* ── Detail tier (full): side-by-side audit + timer. Both columns
           get a proportional share (3:2 favoring the clock) with min-h-0 so
           neither can squeeze the other out of a bounded host: the visual
@@ -871,6 +893,13 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
           handleNext={handleNext}
           commandBoard={clockSnapshot ? <ClockCommandBoard snapshot={clockSnapshot} dispatch={dispatchClock} /> : null}
           notice={!isLiveRun ? <HaltedRunNotice noteId={noteId} /> : null}
+          runtimeErrors={
+            (runtime.errors?.length ?? 0) > 0
+              ? runtime.errors.map((e) => e.error?.message || String(e.error ?? '')).filter(Boolean)
+              : execution.status === 'error'
+                ? ['Workout execution error']
+                : undefined
+          }
           canNext={clockSnapshot?.canNext}
           workoutTitle={workoutIdentity.workoutTitle}
           workoutFormat={workoutIdentity.workoutFormat}

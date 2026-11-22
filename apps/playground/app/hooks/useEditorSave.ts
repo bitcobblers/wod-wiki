@@ -13,6 +13,7 @@ export interface UseEditorSaveResult<T = string> {
   onLineChange: (line: number, column: number) => void;
   onBlur: () => void;
   flush: () => Promise<void>;
+  cancel: () => void;
   hasDirtyDraft: () => boolean;
   error: unknown;
 }
@@ -136,10 +137,15 @@ export function useEditorSave<T = string>({
     };
   }, [flush, clearIdle]);
 
+  const cancel = useCallback(() => {
+    clearIdle();
+    draft.current = null;
+  }, [clearIdle]);
+
   const hasDirtyDraft = useCallback((): boolean => {
     if (runningRef.current !== null || queuedRef.current !== null) return true;
     return draft.current !== null && draft.current.key !== savedKey.current;
   }, []);
 
-  return { onChange, onLineChange, onBlur, flush, hasDirtyDraft, error };
+  return { onChange, onLineChange, onBlur, flush, cancel, hasDirtyDraft, error };
 }

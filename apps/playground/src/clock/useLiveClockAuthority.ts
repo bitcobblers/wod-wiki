@@ -334,7 +334,7 @@ export function useLiveClockAuthority({
           return false;
       }
     },
-    [reps, selectedId, entryState, stopRequested],
+    [reps, selectedId, effectiveSelectedId, phase, entryState, stopRequested],
   );
 
   useClockController(snapshot, handler, 0, { keyboard: true });

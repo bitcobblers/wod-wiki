@@ -13,6 +13,11 @@
  */
 
 import {
+  countNotesByNotebook,
+  toNotebookId,
+  type NotebookLink,
+} from '@bitcobblers/wod-wiki-core';
+import {
   FEED_INDEX_META_PREFIX,
   HttpFeedTree,
   assertSeedManifest,
@@ -814,21 +819,15 @@ async function readAllMetaMaps(): Promise<{
 async function listCatalogNotebooks(): Promise<FeedNotebookCatalogRow[]> {
   await whenStorageReady().catch(() => undefined);
   await ensureRegistryHydratedOnce();
-  const [localNotebooks, allNotes, { catalogs, checkpoints, indexes }] = await Promise.all([
+  const [localNotebooks, allNotes, allLinks, { catalogs, checkpoints, indexes }] = await Promise.all([
     notebookService.getAllNotebooks().catch(() => []),
     storage.readonly('notes').getAll().catch(() => [] as Note[]),
+    storage.readonly('notebook_links').getAll().catch(() => [] as NotebookLink[]),
     readAllMetaMaps(),
   ]);
 
   const notesById = new Map(allNotes.map((n) => [n.id, n]));
-  const noteCountBySlug = new Map<string, number>();
-  for (const n of allNotes) {
-    if (n.id.startsWith('notebook/') && n.notebookId === n.id) continue;
-    if (n.notebookId) {
-      const slug = n.notebookId.replace(/^notebook\//, '');
-      noteCountBySlug.set(slug, (noteCountBySlug.get(slug) ?? 0) + 1);
-    }
-  }
+  const noteCounts = countNotesByNotebook(allNotes, allLinks);
 
   const out: FeedNotebookCatalogRow[] = [];
   const seenKeys = new Set<string>();
@@ -847,7 +846,7 @@ async function listCatalogNotebooks(): Promise<FeedNotebookCatalogRow[]> {
       label: nb.name,
       description: nb.description,
       category: nb.origin,
-      count: noteCountBySlug.get(nb.slug) ?? 0,
+      count: noteCounts.get(toNotebookId(nb.slug)) ?? 0,
       subscribed: true,
       installed: true,
       origin: nb.origin,

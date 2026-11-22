@@ -1,26 +1,24 @@
 import { z } from 'zod';
 import {
   BUILTIN_NOTEBOOKS,
+  countNotesByNotebook,
   isNonPublishableNotebook,
+  isNotebookLanding,
   isSystemReadOnlyNotebook,
   notebookSlugFromId,
   toNotebookId,
-  type Note,
 } from '@bitcobblers/wod-wiki-core';
 import { notebooksOfItem } from '@bitcobblers/wod-wiki-wql';
 import { readFrontmatterMeta } from '../../exchange';
 import { setNotebookPublic } from '../../feed/ingestor';
+import { deleteUserNotebook } from '../../notebook/lifecycle';
 import {
   createUserNotebookLanding,
   promoteNoteToNotebooks,
   removeNoteFromNotebook,
 } from '../../notebook/membership';
-import { deleteNoteFromStorage, upsertNoteInStorage } from '../helpers';
+import { upsertNoteInStorage } from '../helpers';
 import { defineAgentTool, requireDestructiveConfirmation } from '../types';
-
-function isLandingNote(note: Note): boolean {
-  return note.id.startsWith('notebook/') && note.notebookId === note.id;
-}
 
 const RESERVED_SLUGS = new Set(BUILTIN_NOTEBOOKS.map((b) => b.slug));
 
@@ -53,23 +51,7 @@ export const wodNotebookListTool = defineAgentTool({
       ctx.storage.readonly('notebook_links').getAll().catch(() => []),
     ]);
 
-    const counts = new Map<string, number>();
-    const countedPairs = new Set<string>();
-    const bump = (nbId: string, noteId: string) => {
-      const key = `${nbId}\u0000${noteId}`;
-      if (countedPairs.has(key)) return;
-      countedPairs.add(key);
-      counts.set(nbId, (counts.get(nbId) ?? 0) + 1);
-    };
-
-    for (const link of allLinks) {
-      if (link.targetKind === 'note') bump(toNotebookId(link.notebookId), link.noteId);
-    }
-    for (const n of allNotes) {
-      for (const nbId of notebooksOfItem(n)) {
-        bump(toNotebookId(nbId), n.id);
-      }
-    }
+    const counts = countNotesByNotebook(allNotes, allLinks, notebooksOfItem);
 
     const byId = new Map<
       string,
@@ -101,7 +83,7 @@ export const wodNotebookListTool = defineAgentTool({
     }
 
     for (const n of allNotes) {
-      if (!isLandingNote(n)) continue;
+      if (!isNotebookLanding(n)) continue;
       const slug = notebookSlugFromId(n.id);
       const fm = readFrontmatterMeta(n.rawContent);
       const description =
@@ -118,7 +100,7 @@ export const wodNotebookListTool = defineAgentTool({
         origin: existing?.origin ?? (isFeed ? 'feed' : 'user'),
         writable: !isSystemReadOnlyNotebook(n.id) && !isFeed,
         public: n.public === true,
-        noteCount: counts.get(n.id) ?? 0,
+        noteCount: counts.get(toNotebookId(n.id)) ?? 0,
       });
     }
 
@@ -319,37 +301,9 @@ export const wodNotebookDeleteTool = defineAgentTool({
       matchedConfirm,
     );
 
-    const allNotes = await ctx.storage.readonly('notes').getAll();
-    for (const note of allNotes) {
-      if (isLandingNote(note)) continue;
-      if (note.notebookId === nbId || (note.notebookIds ?? []).includes(nbId)) {
-        const remaining = (note.notebookIds ?? ['notebook/journal'])
-          .map((id) => toNotebookId(id))
-          .filter((id) => id !== nbId);
-        const primaryUser = remaining.find(
-          (id) => id !== 'notebook/journal' && id !== 'notebook/playground',
-        );
-        const { notebookId: _oldSingle, ...rest } = note;
-        await ctx.storage.readwrite('notes').put({
-          ...rest,
-          notebookIds: remaining.length > 0 ? remaining : ['notebook/journal'],
-          ...(primaryUser ? { notebookId: primaryUser } : {}),
-        });
-      }
-    }
-
-    try {
-      const links = await ctx.storage.readonly('notebook_links').getAllFromIndex('by-notebook', nbId);
-      for (const link of links) {
-        await ctx.storage.readwrite('notebook_links').delete(link.id);
-      }
-    } catch {
-      // Optional store
-    }
-
-    const deleted = await deleteNoteFromStorage(ctx.storage, nbId);
+    const result = await deleteUserNotebook(ctx.storage, nbId);
     await ctx.onMutated?.(['notes', 'notebook_links']);
-    return { deleted, notebookId: nbId, slug };
+    return result;
   },
 });
 

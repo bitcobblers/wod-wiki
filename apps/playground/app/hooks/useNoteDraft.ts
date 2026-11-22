@@ -9,6 +9,7 @@ import { useEditorSave } from './useEditorSave';
 
 import {
   clearStagedNoteSave,
+  isNoteDeleting,
   pendingNoteSaves,
   readStagedNoteSaves,
   registerActiveDraft,
@@ -109,6 +110,9 @@ export function useNoteDraft({
   }, []);
 
   const save = useCallback(async (snapshot: EditorIdentitySnapshot) => {
+    if (isNoteDeleting(noteId)) {
+      return draftRef.current;
+    }
     const currentMetadata = metadataRef.current;
     const effectiveMetadata = { ...currentMetadata, ...derivedTitle(snapshot.rawContent, currentMetadata) };
     const savePromise = notePersistence.saveNote({
@@ -155,6 +159,7 @@ export function useNoteDraft({
   }, [noteId, flushIfDirty]);
 
   const stageDirtyDraft = useCallback((draft: EditorIdentitySnapshot) => {
+    if (isNoteDeleting(noteId)) return;
     const title = derivedTitle(draft.rawContent, metadataRef.current);
     stageNoteSave({
       noteId,
@@ -225,6 +230,9 @@ export function useNoteDraft({
         { noteId, rawContent: draft.rawContent, blocks: draft.blocks, expectedSourceRevision: committedRevisionRef.current, metadata: metadataRef.current, noteType },
         block,
         runtimeId,
+        undefined,
+        undefined,
+        { deferPersist: true },
       );
       accept({ rawContent: captured.note.rawContent, blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision });
       return captured;
@@ -239,6 +247,12 @@ export function useNoteDraft({
     await saves.flush();
   }, [saves.flush]);
 
+  const cancel = useCallback((): void => {
+    saves.cancel();
+    draftRef.current = savedSnapshotRef.current ?? draftRef.current;
+    clearStagedNoteSave(noteId);
+  }, [saves.cancel, noteId]);
+
   return {
     content: restoredContent ?? draftRef.current.rawContent,
     committedBlocks: committed.blocks,
@@ -247,6 +261,7 @@ export function useNoteDraft({
     draftSnapshot: draftRef.current,
     saveError: actionError ?? (saves.error ? `Save failed. ${saves.error instanceof Error ? saves.error.message : String(saves.error)} Your draft is kept. Retry saving.` : null),
     flush,
+    cancel,
     onLineChange: saves.onLineChange,
     onBlur: saves.onBlur,
     onIdentityChange,

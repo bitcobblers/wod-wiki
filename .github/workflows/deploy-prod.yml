@@ -95,11 +95,12 @@ jobs:
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.force) }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_SHA: ${{ steps.find-run.outputs.target-sha }}
         run: |
-          echo "Requiring commit status e2e/main-staging=success on ${GITHUB_SHA}"
+          echo "Requiring commit status e2e/main-staging=success on ${TARGET_SHA}"
           echo "Set by the external E2E promotion agent (docs/e2e-promotion-agent.md)."
           for i in $(seq 1 20); do
-            STATE=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/status" \
+            STATE=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TARGET_SHA}/status" \
               --jq '[.statuses[]? | select(.context=="e2e/main-staging")][0].state' 2>/dev/null || true)
             case "$STATE" in
               success)

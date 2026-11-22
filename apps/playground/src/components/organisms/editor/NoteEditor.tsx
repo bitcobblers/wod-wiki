@@ -759,7 +759,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         blocks: identity.noteBlocks,
         expectedSourceRevision: savedRevisionRef.current,
         ...(!noteId ? { metadata: { title: 'Playground workout' }, noteType: 'playground' as const } : {}),
-      }, block, uuidv7(), noteId ? undefined : 'playground', notePersistence);
+      }, block, uuidv7(), noteId ? undefined : 'playground', notePersistence, { deferPersist: true });
       capturedRunRef.current = captured;
       finishedRunRef.current = null;
       savedRevisionRef.current = captured.note.sourceRevision;

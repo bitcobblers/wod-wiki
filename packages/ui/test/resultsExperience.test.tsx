@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { parseQueryBlock, type QueryResult, type RowsRun } from '@bitcobblers/wod-wiki-wql';
 import {
+  OutputStatementsTable,
   PRBadge,
   QueryBlockView,
   ResultsSpreadsheetGrid,
   SessionSummaryCard,
   WidgetChart,
+  formatAnalyticsFloat,
   promoteFindToChartObject,
   type QueryExecutor,
 } from '../src';
@@ -122,7 +124,7 @@ describe('Results Experience Phase 2 UI components', () => {
     expect(screen.getByText('Fran Benchmark')).toBeDefined();
     expect(screen.getByText('3:05')).toBeDefined();
     expect(screen.getByText('2,850 kg')).toBeDefined();
-    expect(screen.getByText('82 pts')).toBeDefined();
+    expect(screen.getByText('82.0 pts')).toBeDefined();
     expect(screen.getAllByTestId('pr-badge').length).toBeGreaterThan(0);
 
     // Collapsible movement rollup starts with 3 items then expands to 4
@@ -177,7 +179,8 @@ describe('Results Experience Phase 2 UI components', () => {
       />,
     );
 
-    expect(screen.getByTestId('custom-summaries-strip').textContent).toContain('totalWork');
+    expect(screen.getByTestId('custom-summaries-strip').textContent).toContain('Total Work');
+    expect(screen.getByTestId('custom-summaries-strip').textContent).toContain('82.0 pts');
     expect(screen.getByTestId('custom-grid-table')).toBeDefined();
 
     // Sort reps ascending
@@ -284,5 +287,31 @@ describe('Results Experience Phase 2 UI components', () => {
     const promoted = promoteFindToChartObject(obj, 'totalVolume');
     expect(promoted.query).toBe('sum:totalVolume{block:blk-fran} by {week}');
     expect(promoted.view).toBe('timeseries');
+  });
+
+  it('WW-078 & WW-092: formatAnalyticsFloat enforces 1dp consistency and OutputStatementsTable avoids uppercase badges', () => {
+    expect(formatAnalyticsFloat(82)).toBe('82.0');
+    expect(formatAnalyticsFloat(64.852)).toBe('64.9');
+
+    const { container } = render(
+      <OutputStatementsTable
+        outputs={[
+          {
+            id: 'row-1',
+            outputType: 'segment',
+            timeSpan: { started: 1000, ended: 15000 },
+            sourceBlockKey: 'blk-1',
+            metrics: [
+              { type: 'effort', value: 'thruster', image: 'Thrusters', origin: 'parser' },
+              { type: 'rep', value: 21, image: '21', origin: 'runtime' },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    expect(container.textContent).toContain('Segment');
+    expect(container.querySelector('.uppercase')?.textContent).not.toBe('Segment');
+    expect(container.querySelector('[aria-label="Effort: Thrusters"]')).not.toBeNull();
   });
 });

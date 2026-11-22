@@ -249,4 +249,27 @@ describe('NotebookService (notes-store backed)', () => {
         const all = await service.getAll();
         expect(all.map((n) => n.id)).toEqual(['notebook/user-custom-log']);
     });
+
+    it('WW-020 / WW-107 / WW-115: stamps user landing seedOrigin, mints starter deterministically once, and never resurrects after delete or move', async () => {
+        const nb = await service.create('Published Shelf', 'User notebook', '📚');
+        const landing = await store.getNote(nb.id);
+        expect(landing?.seedOrigin).toBe('user');
+        expect(landing?.notebookId).toBe(nb.id);
+
+        await service.ensureNotebooks();
+        const firstStarters = await service.listNotes(CUSTOM_NOTEBOOK_ID);
+        expect(firstStarters).toHaveLength(1);
+        const starterId = firstStarters[0]!.id;
+
+        // Moving starter out of Custom + running ensureNotebooks() again must not re-mint.
+        await service.moveNote(starterId, nb.id);
+        await service.ensureNotebooks();
+        expect(await service.listNotes(CUSTOM_NOTEBOOK_ID)).toEqual([]);
+
+        // Deleting starter completely + running ensureNotebooks() again must not resurrect it.
+        await store.deleteNote(starterId);
+        await service.ensureNotebooks();
+        expect(await service.listNotes(CUSTOM_NOTEBOOK_ID)).toEqual([]);
+        expect(await store.getNote(starterId)).toBeUndefined();
+    });
 });

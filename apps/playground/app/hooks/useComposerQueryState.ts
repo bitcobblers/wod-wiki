@@ -67,6 +67,41 @@ function urlQueryErrorFor(q: string): string | null {
   return `Couldn't parse "${q}" — ${parsed.error}`
 }
 
+/**
+ * Convert a plain-text search term (containing no WQL delimiters `:`, `{`, `}`, `|`)
+ * into a canonical `:${target}{text:...}` query so legacy `?q=foo` links salvage cleanly.
+ */
+export function salvagePlainTextQuery(
+  rawInput: string,
+  target: string,
+  extraFilters: readonly string[] = [],
+): string | null {
+  const trimmed = rawInput.trim()
+  if (!trimmed || /[:{}|]/.test(trimmed)) return null
+  if (!parseQuery(trimmed).error) return null
+  const escaped = /\s/.test(trimmed)
+    ? `"${trimmed.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+    : trimmed
+  const body = [`text:${escaped}`, ...extraFilters.filter(Boolean)].join(',')
+  const candidate = `:${target}{${body}}`
+  return parseQuery(candidate).error ? null : candidate
+}
+
+function resolveUrlQueryState(
+  rawQ: string,
+  search: URLSearchParams,
+  defaultQuery: string,
+  legacy?: ComposerLegacyConfig,
+): { query: string; error: string | null } {
+  if (!rawQ) return { query: defaultQuery, error: null }
+  if (!parseQuery(rawQ).error) return { query: rawQ, error: null }
+  const salvaged = legacy?.salvageQ?.(rawQ, search) ?? null
+  if (salvaged && !parseQuery(salvaged).error) {
+    return { query: salvaged, error: null }
+  }
+  return { query: defaultQuery, error: urlQueryErrorFor(rawQ) }
+}
+
 /** Idle period after which the current history entry settles into the
  *  checkpoint and the next edit starts a fresh spell. */
 const URL_SPELL_SETTLE_MS = 1000
@@ -81,17 +116,12 @@ export function useComposerQueryState(config: ComposerQueryStateConfig): Compose
 
   const [query, setQueryState] = useState<string>(() => {
     const { defaultQuery: makeDefault, legacy } = configRef.current
-    if (q) {
-      const parsed = parseQuery(q)
-      if (!parsed.error) return q
-      return legacy?.salvageQ?.(q, searchParams) ?? makeDefault
-    }
+    if (q) return resolveUrlQueryState(q, searchParams, makeDefault, legacy).query
     return legacy?.toQuery(searchParams) ?? makeDefault
   })
   const [urlQueryError, setUrlQueryError] = useState<string | null>(() => {
     if (!q) return null
-    if (!parseQuery(q).error) return null
-    return configRef.current.legacy?.salvageQ?.(q, searchParams) ? null : urlQueryErrorFor(q)
+    return resolveUrlQueryState(q, searchParams, configRef.current.defaultQuery, configRef.current.legacy).error
   })
   const queryRef = useRef(query)
   queryRef.current = query
@@ -137,9 +167,11 @@ export function useComposerQueryState(config: ComposerQueryStateConfig): Compose
     urlIsCheckpoint.current = true
     clearTimeout(settleRef.current)
     settleRef.current = null
-    setUrlQueryError(urlQueryErrorFor(q))
-    const restored = q && !parseQuery(q).error ? q : configRef.current.defaultQuery
-    setQueryState(current => (current === restored ? current : restored))
+    setUrlQueryError(resolveUrlQueryState(q, searchParamsRef.current, configRef.current.defaultQuery, configRef.current.legacy).error)
+    const resolved = q
+      ? resolveUrlQueryState(q, searchParamsRef.current, configRef.current.defaultQuery, configRef.current.legacy)
+      : { query: configRef.current.legacy?.toQuery(searchParamsRef.current) ?? configRef.current.defaultQuery, error: null }
+    setQueryState(current => (current === resolved.query ? current : resolved.query))
   }, [q])
 
   // A changed landing default (the surface's own settings dialog saved one)
@@ -166,8 +198,12 @@ export function useComposerQueryState(config: ComposerQueryStateConfig): Compose
       urlIsCheckpoint.current = true
       clearTimeout(settleRef.current)
       settleRef.current = null
-      setUrlQueryError(urlQueryErrorFor(restoredQ))
-      setQueryState(restoredQ && !parseQuery(restoredQ).error ? restoredQ : configRef.current.defaultQuery)
+      const search = new URLSearchParams(window.location.search)
+      const resolved = restoredQ
+        ? resolveUrlQueryState(restoredQ, search, configRef.current.defaultQuery, configRef.current.legacy)
+        : { query: configRef.current.legacy?.toQuery(search) ?? configRef.current.defaultQuery, error: null }
+      setUrlQueryError(resolved.error)
+      setQueryState(resolved.query)
     }
     window.addEventListener('popstate', restore)
     return () => {

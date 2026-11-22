@@ -15,9 +15,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
-import { orderPlacements, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core'
+import {
+  BUILTIN_NOTEBOOKS,
+  isNotebookLanding,
+  notebookSlugFromId,
+  orderPlacements,
+  type NotebookLink,
+  type Page,
+  type PageNote,
+  type Tag,
+} from '@bitcobblers/wod-wiki-core'
 import { WQL_TYPED_TAG_KEYS } from '@bitcobblers/wod-wiki-wql'
-import { storageService } from '@/services/storage'
+import { storage, storageService } from '@/services/storage'
+import { subscribeNotebooks } from '@/services/NotebookService'
 import type { BlockEffort, BlockEquipment, BlockIndexRow, Note } from '@/types/storage'
 import type { HistoryRecord } from '@/types/history'
 import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity'
@@ -232,8 +242,10 @@ export function provenanceLink(sourceId: string): ContextNoteLink | null {
 
 /** 1-part collection links (`/notebook/:slug`) for any notebook/collection a note belongs to. */
 export function collectionLinks(
-  note: Pick<Note, 'id' | 'notebookId' | 'sourceId' | 'tags'> | undefined,
+  note: Pick<Note, 'id' | 'notebookId' | 'notebookIds' | 'sourceId' | 'tags'> | undefined,
   fallbackNoteId?: string,
+  extraLinks?: readonly Pick<NotebookLink, 'notebookId' | 'targetKind'>[],
+  titlesBySlug?: ReadonlyMap<string, string>,
 ): ContextNoteLink[] {
   const slugs: string[] = []
   const pushSlug = (raw: string | undefined) => {
@@ -244,6 +256,19 @@ export function collectionLinks(
 
   if (note?.notebookId?.startsWith('notebook/')) {
     pushSlug(note.notebookId.slice('notebook/'.length))
+  }
+  if (note?.notebookIds) {
+    for (const nbId of note.notebookIds) {
+      if (nbId.startsWith('notebook/')) {
+        pushSlug(nbId.slice('notebook/'.length))
+      }
+    }
+  }
+  if (extraLinks) {
+    for (const link of extraLinks) {
+      if (link.targetKind && link.targetKind !== 'note') continue
+      pushSlug(notebookSlugFromId(link.notebookId))
+    }
   }
   if (note?.tags) {
     for (const tag of note.tags) {
@@ -280,7 +305,7 @@ export function collectionLinks(
 
   return slugs.map(slug => ({
     id: slug,
-    title: slug,
+    title: titlesBySlug?.get(slug) || slug,
     to: notebookPath(slug),
   }))
 }
@@ -514,6 +539,7 @@ export function useNoteContextLinks({
   })
   const [catalogVersion, setCatalogVersion] = useState(0)
   useEffect(() => subscribeReferenceCatalogChanged(() => setCatalogVersion(v => v + 1)), [])
+  useEffect(() => subscribeNotebooks(() => setCatalogVersion(v => v + 1)), [])
 
   // Key results by route identity (not revision) so incremental edits update smoothly without flashing empty.
   const [result, setResult] = useState<{ key: string; data: NoteContextData }>({ key: '', data: EMPTY_NOTE_CONTEXT })
@@ -528,6 +554,7 @@ export function useNoteContextLinks({
       storageService.getNote(noteId).catch(() => undefined),
       storageService.getNotePages(noteId).catch(() => [] as PageNote[]),
       storageService.getTagsForNote(noteId).catch(() => [] as Tag[]),
+      storage.readonly('notebook_links').getAllFromIndex('by-note', noteId).catch(() => [] as NotebookLink[]),
       storageService.getAllFromIndex('block_efforts', 'by-note', noteId) as Promise<BlockEffort[]>,
       (storageService.getAllFromIndex('block_equipment', 'by-note', noteId) as Promise<BlockEquipment[]>).catch(
         () => [] as BlockEquipment[],
@@ -544,6 +571,7 @@ export function useNoteContextLinks({
         noteRecord,
         notePageLinks,
         noteTags,
+        noteNotebookLinks,
         effortRows,
         equipmentRows,
         blockRows,
@@ -603,8 +631,17 @@ export function useNoteContextLinks({
             }
           }
         }
+        const notebookTitles = new Map<string, string>(
+          BUILTIN_NOTEBOOKS.map(b => [b.slug, b.name]),
+        )
+        for (const n of notes) {
+          if (isNotebookLanding(n)) {
+            const slug = notebookSlugFromId(n.id)
+            if (n.title) notebookTitles.set(slug, n.title)
+          }
+        }
         return {
-          collections: collectionLinks(noteRecord, noteId),
+          collections: collectionLinks(noteRecord, noteId, noteNotebookLinks, notebookTitles),
           pages: pagePlacementLinks(notePageLinks, pagesById),
           tags: tagLinks(noteTags),
           efforts: effortLinks(mergedEffortRows, knownEffortSlugs, effortLabels),

@@ -608,3 +608,90 @@
     animation: none;
   }
 }
+
+/* L2 context sidebar hierarchy: pin calendar first when present and distinguish sections/links. */
+.l2-sidebar-body > .pt-1 > .flex.flex-col {
+  gap: 0;
+}
+.l2-sidebar-body > .pt-1 > .flex.flex-col > div:has([data-slot="calendar"]) {
+  order: -1;
+  padding: 0 0 8px;
+  margin: 0;
+}
+.l2-sidebar-body > .pt-1 > .flex.flex-col:has([data-slot="calendar"]) > div:not(:has([data-slot="calendar"])),
+.l2-sidebar-body > .pt-1 > .flex.flex-col:not(:has([data-slot="calendar"])) > div + div {
+  margin-top: 14px;
+}
+.l2-sidebar-body > .pt-1 > .flex.flex-col > div:not(:has([data-slot="calendar"])) > div:first-child:not(:has(button)) {
+  padding: 0 8px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: hsl(var(--muted-foreground) / 0.72);
+}
+.l2-sidebar-body > .pt-1 > .flex.flex-col > div:not(:has([data-slot="calendar"])) button.text-left {
+  background-color: hsl(var(--muted) / 0.42);
+  color: hsl(var(--foreground));
+  font-weight: 500;
+  padding: 7px 10px;
+  border-radius: 8px;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.l2-sidebar-body > .pt-1 > .flex.flex-col > div:not(:has([data-slot="calendar"])) button.text-left.text-primary {
+  background-color: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+  font-weight: 600;
+}
+.l2-sidebar-body > .pt-1 > .flex.flex-col > div:not(:has([data-slot="calendar"])) button.text-left:hover {
+  background-color: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}
+
+/* StickyPageHeader desktop action toolbar: compact 34px controls, quiet ghost secondaries, leading metadata badge. */
+.sph-actions .flex {
+  gap: 4px;
+}
+.sph-actions [data-slot="button"] {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 11px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  gap: 6px;
+}
+.sph-actions [data-slot="button"][data-size="icon"] {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  color: hsl(var(--muted-foreground));
+}
+.sph-actions [data-slot="button"][data-size="icon"]:hover {
+  color: hsl(var(--foreground));
+}
+.sph-actions [data-slot="button"] > svg {
+  width: 15px;
+  height: 15px;
+  margin-right: 0;
+}
+.sph-actions [data-slot="button"]:not([data-variant="solid"]):not([data-variant="destructive"]):not([aria-pressed="true"]):not([data-active="true"]) {
+  border-color: transparent;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+}
+.sph-actions [data-slot="button"]:not([data-variant="solid"]):not([data-variant="destructive"]):not([aria-pressed="true"]):not([data-active="true"]):hover {
+  background: hsl(var(--muted) / 0.75);
+  color: hsl(var(--foreground));
+}
+.sph-actions [data-slot="badge"] {
+  order: -1;
+  margin-right: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: hsl(var(--muted) / 0.6);
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  font-weight: 600;
+}

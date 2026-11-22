@@ -86,8 +86,116 @@ export interface CreateJournalNoteDialogProps {
   defaultNotebookSlug?: string
   /** Preselected mode; defaults to 'blank'. */
   defaultMode?: StartMode
+  /** Preselected dialog tab inside Note creation ('write' vs 'pick'); defaults to 'write'. */
+  defaultNoteMode?: 'write' | 'pick'
   /** Called with the created entry after a successful note create. */
   onCreated?: (entry: HistoryRecord) => void
+}
+
+const WORKOUT_FENCE_RE = /```(?:wod|time|log|whiteboard)/i
+
+export interface TemplateOption {
+  key: string
+  label: string
+  group: string
+  groupKey?: string
+  categories?: readonly string[]
+  isTemplateTagged?: boolean
+}
+
+function isResultsCategory(categories?: readonly string[], slug?: string, path?: string): boolean {
+  if (categories?.some((c) => c.toLowerCase() === 'results')) return true
+  if (slug && (slug === 'results' || slug === 'athletics-results')) return true
+  if (path && (path.startsWith('markdown/results/') || path.includes('/athletics-results/'))) return true
+  return false
+}
+
+/** Curate template dropdown options: exclude results notebooks, cap unsearched items per group, and keep full search intact. */
+export function curateTemplateOptions(
+  allOptions: readonly TemplateOption[],
+  rawQuery: string,
+  maxPerGroup = 3,
+  maxUnsearched = 30,
+): { visibleTemplateOptions: TemplateOption[]; truncatedMatches: number } {
+  const curated = allOptions.filter(
+    (opt) => !isResultsCategory(opt.categories, opt.groupKey, opt.key),
+  )
+  const q = rawQuery.trim().toLowerCase()
+  if (!q) {
+    const blank = curated.find((o) => o.key === '') ?? curated[0]
+    const rest = curated.filter((o) => o !== blank)
+    const userAndTagged = rest
+      .filter((o) => o.group === 'Your Notebook Notes' || o.isTemplateTagged)
+      .slice(0, 12)
+    const seen = new Set<string>([...(blank ? [blank.key] : []), ...userAndTagged.map((o) => o.key)])
+    const perGroupCount = new Map<string, number>()
+    const featured: TemplateOption[] = []
+    for (const opt of rest) {
+      if (seen.has(opt.key)) continue
+      const gKey = opt.groupKey ?? opt.group
+      const count = perGroupCount.get(gKey) ?? 0
+      if (count >= maxPerGroup) continue
+      perGroupCount.set(gKey, count + 1)
+      seen.add(opt.key)
+      featured.push(opt)
+      if ((blank ? 1 : 0) + userAndTagged.length + featured.length >= maxUnsearched) break
+    }
+    const visible = [...(blank ? [blank] : []), ...userAndTagged, ...featured]
+    return {
+      visibleTemplateOptions: visible,
+      truncatedMatches: Math.max(0, curated.length - visible.length),
+    }
+  }
+  const matches = curated.filter(
+    (opt) => opt.label.toLowerCase().includes(q) || opt.group.toLowerCase().includes(q),
+  )
+  const MAX_RESULTS = 50
+  return {
+    visibleTemplateOptions: matches.slice(0, MAX_RESULTS),
+    truncatedMatches: Math.max(0, matches.length - MAX_RESULTS),
+  }
+}
+
+export interface CuratablePickerItem {
+  id: string
+  isMine: boolean
+  notebookSlug: string
+  categories?: readonly string[]
+  rawContent?: string
+  isRemotePreview?: boolean
+  searchText: string
+}
+
+/** Curate Pick / Log workout items: require a workout fence when content is available, exclude results, cap per-notebook when unsearched. */
+export function curatePickerWorkouts<T extends CuratablePickerItem>(
+  items: readonly T[],
+  rawQuery: string,
+  maxPerGroup = 4,
+  maxUnsearched = 24,
+): T[] {
+  const eligible = items.filter((it) => {
+    if (isResultsCategory(it.categories, it.notebookSlug)) return false
+    if (it.rawContent !== undefined) return WORKOUT_FENCE_RE.test(it.rawContent)
+    return Boolean(it.isRemotePreview)
+  })
+  const q = rawQuery.trim().toLowerCase()
+  if (q) {
+    return eligible.filter((it) => it.searchText.includes(q))
+  }
+  const picked: T[] = []
+  const perGroup = new Map<string, number>()
+  for (const it of eligible) {
+    if (it.isMine) {
+      picked.push(it)
+      continue
+    }
+    const count = perGroup.get(it.notebookSlug) ?? 0
+    if (count >= maxPerGroup) continue
+    perGroup.set(it.notebookSlug, count + 1)
+    picked.push(it)
+    if (picked.length >= maxUnsearched) break
+  }
+  return picked
 }
 
 const NOTEBOOK_ICONS = ['📓', '🏋️', '🔥', '💪', '⭐', '🎯', '🏃', '🧘', '🥊', '🚴']
@@ -144,7 +252,8 @@ export function CreateJournalNoteDialog({
   defaultKind = 'journal',
   defaultDate,
   defaultNotebookSlug,
-  defaultMode = 'blank',
+  defaultMode: _defaultMode = 'blank',
+  defaultNoteMode = 'write',
   onCreated,
 }: CreateJournalNoteDialogProps) {
   const navigate = useNavigate()
@@ -171,12 +280,12 @@ export function CreateJournalNoteDialog({
   const [creating, setCreating] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const [noteMode, setNoteMode] = useState<'write' | 'pick'>('write')
+  const [noteMode, setNoteMode] = useState<'write' | 'pick'>(defaultNoteMode)
   const [advancedOpen, setAdvancedOpen] = useState(defaultKind === 'page')
   const [workoutSearchQuery, setWorkoutSearchQuery] = useState('')
   const [myWorkoutNotes, setMyWorkoutNotes] = useState<Note[] | null>(null)
   const [remoteFeedWorkouts, setRemoteFeedWorkouts] = useState<
-    Array<{ nbName: string; nbSlug: string; feedId: string; note: Note }>
+    Array<{ nbName: string; nbSlug: string; feedId: string; categories?: string[]; note: Note }>
   >([])
   const [pickerBusyId, setPickerBusyId] = useState<string | null>(null)
   const [pickerError, setPickerError] = useState<string | null>(null)
@@ -207,7 +316,7 @@ export function CreateJournalNoteDialog({
     templatesReq.current++
     targetsReq.current++
     setKind(toComposerKind(defaultKind))
-    setNoteMode('write')
+    setNoteMode(defaultNoteMode)
     setAdvancedOpen(defaultKind === 'page')
     setWorkoutSearchQuery('')
     setPickerBusyId(null)
@@ -231,7 +340,7 @@ export function CreateJournalNoteDialog({
     setMyWorkoutNotes(null)
     setRemoteFeedWorkouts([])
     setSources(null)
-  }, [open, defaultKind, defaultDate, defaultNotebookSlug, defaultMode])
+  }, [open, defaultKind, defaultDate, defaultNotebookSlug, _defaultMode, defaultNoteMode])
 
   // Load writable user notebooks for the Location ("Place in") dropdown.
   useEffect(() => {
@@ -313,6 +422,7 @@ export function CreateJournalNoteDialog({
                 nbName: nb.name || nb.slug,
                 nbSlug: nb.slug,
                 feedId: nb.feedId,
+                categories: nb.category ? [nb.category] : undefined,
                 note,
               }))
             }),
@@ -350,13 +460,6 @@ export function CreateJournalNoteDialog({
     return null
   }, [templateKey, notebookNotes, sources])
 
-  interface TemplateOption {
-    key: string
-    label: string
-    group: string
-    isTemplateTagged?: boolean
-  }
-
   const allTemplateOptions = useMemo<TemplateOption[]>(() => {
     const blank: TemplateOption = { key: '', label: 'Blank note', group: 'Default' }
     const userOptions: TemplateOption[] = [...(notebookNotes ?? [])]
@@ -365,6 +468,7 @@ export function CreateJournalNoteDialog({
         key: `nb:${n.id}`,
         label: n.title || n.id,
         group: 'Your Notebook Notes',
+        groupKey: 'user',
         isTemplateTagged: n.tags.some(t => t.toLowerCase() === 'template'),
       }))
 
@@ -376,40 +480,18 @@ export function CreateJournalNoteDialog({
           key: `src:${group.id}::${item.path}`,
           label: item.date ? `${item.name} — ${item.date}` : item.name,
           group: group.name,
+          groupKey: group.id,
+          categories: group.categories,
         })
       }
     }
     return [blank, ...userOptions, ...sourceOptions]
   }, [notebookNotes, sources])
 
-  const { visibleTemplateOptions, truncatedMatches } = useMemo(() => {
-    const q = templateQuery.trim().toLowerCase()
-    if (!q) {
-      // Curated shortlist when unsearched: Blank + user/template-tagged notes + up to 12 corpus items (capped at 30).
-      const blank = allTemplateOptions[0]!
-      const userAndTagged = allTemplateOptions
-        .slice(1)
-        .filter(o => o.group === 'Your Notebook Notes' || o.isTemplateTagged)
-        .slice(0, 17)
-      const seen = new Set([blank.key, ...userAndTagged.map(o => o.key)])
-      const featured = allTemplateOptions
-        .slice(1)
-        .filter(o => !seen.has(o.key))
-        .slice(0, Math.max(0, 30 - 1 - userAndTagged.length))
-      return {
-        visibleTemplateOptions: [blank, ...userAndTagged, ...featured],
-        truncatedMatches: Math.max(0, allTemplateOptions.length - (1 + userAndTagged.length + featured.length)),
-      }
-    }
-    const matches = allTemplateOptions.filter(
-      opt => opt.label.toLowerCase().includes(q) || opt.group.toLowerCase().includes(q),
-    )
-    const MAX_RESULTS = 50
-    return {
-      visibleTemplateOptions: matches.slice(0, MAX_RESULTS),
-      truncatedMatches: Math.max(0, matches.length - MAX_RESULTS),
-    }
-  }, [allTemplateOptions, templateQuery])
+  const { visibleTemplateOptions, truncatedMatches } = useMemo(
+    () => curateTemplateOptions(allTemplateOptions, templateQuery),
+    [allTemplateOptions, templateQuery],
+  )
 
   const dateParsed = parseJournalDate(date)
   const dateInvalid = supportsDateAndTarget && date !== '' && !dateParsed
@@ -660,7 +742,8 @@ export function CreateJournalNoteDialog({
   }
 
   const pickerWorkouts = useMemo<PickerWorkoutItem[]>(() => {
-    const items: PickerWorkoutItem[] = []
+    type RawPickerItem = PickerWorkoutItem & CuratablePickerItem
+    const items: RawPickerItem[] = []
     const seenIds = new Set<string>()
     for (const note of myWorkoutNotes ?? []) {
       if (note.id.startsWith('notebook/')) continue
@@ -669,8 +752,7 @@ export function CreateJournalNoteDialog({
       if (isSystemReadOnlyNotebook(nbSlug)) continue
       const ownership = resolveNoteOwnership(note, notebookOriginOfItem(note), nbId)
       if (ownership.kind !== 'user') continue
-      const hasWorkoutFence = /```(?:wod|time|log|whiteboard)/i.test(note.rawContent ?? '')
-      if (!hasWorkoutFence) continue
+      if (!WORKOUT_FENCE_RE.test(note.rawContent ?? '')) continue
       seenIds.add(note.id)
       const title = note.title || 'Untitled workout'
       const noteDate = note.date ? localDateKey(new Date(note.date)) : undefined
@@ -699,7 +781,7 @@ export function CreateJournalNoteDialog({
     }
 
     for (const remoteItem of remoteFeedWorkouts) {
-      const { note, nbName, nbSlug, feedId } = remoteItem
+      const { note, nbName, nbSlug, feedId, categories } = remoteItem
       const parsed = parseRemoteNoteId(note.id)
       const uuid = parsed.isRemote ? parsed.uuid : note.id
       const remoteId = parsed.isRemote ? note.id : `remote:${feedId}:${uuid}`
@@ -712,7 +794,9 @@ export function CreateJournalNoteDialog({
         title,
         sourceBadge: feedLabel,
         isMine: false,
+        isRemotePreview: true,
         subtitle: nbName,
+        categories,
         searchText: `${title} ${feedLabel} ${nbName}`.toLowerCase(),
         entry: {
           id: remoteId,
@@ -745,6 +829,7 @@ export function CreateJournalNoteDialog({
             sourceBadge: feedLabel,
             isMine: false,
             subtitle: nb.name,
+            categories: nb.categories,
             searchText: `${nbItem.name} ${feedLabel} ${nb.name}`.toLowerCase(),
             entry: {
               id: itemId,
@@ -765,8 +850,7 @@ export function CreateJournalNoteDialog({
       }
     }
 
-    const q = workoutSearchQuery.trim().toLowerCase()
-    return q ? items.filter(it => it.searchText.includes(q)) : items
+    return curatePickerWorkouts(items, workoutSearchQuery)
   }, [myWorkoutNotes, remoteFeedWorkouts, sources, workoutSearchQuery])
 
   const handleOpenOrRunPickedWorkout = async (item: PickerWorkoutItem) => {

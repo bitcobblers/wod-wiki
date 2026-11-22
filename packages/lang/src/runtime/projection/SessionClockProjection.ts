@@ -13,7 +13,7 @@ import {
   MetricType,
   type IMetric,
 } from '@bitcobblers/wod-wiki-core';
-import { metricPresentation } from '../../metrics';
+import { dedupePresentedLabels, metricPresentation } from '../../metrics';
 import { calculateDuration } from '../../utils/timeUtils';
 import type { IRuntimeBlock } from '../contracts/IRuntimeBlock';
 import type { IScriptRuntime } from '../contracts/IScriptRuntime';
@@ -288,11 +288,12 @@ function readNextPreviewText(blocks: readonly IRuntimeBlock[]): string | null {
     for (const loc of nextLocs) merged.merge(loc.metrics);
     if (merged.length > 0) {
       return (
-        metricPresentation
-          .presentGroup([...merged], 'timer-subtitle')
-          .filter((t) => t.visible)
-          .map((t) => t.label)
-          .filter(Boolean)
+        dedupePresentedLabels(
+          metricPresentation
+            .presentGroup([...merged], 'timer-subtitle')
+            .filter((t) => t.visible)
+            .map((t) => t.label),
+        )
           .join(' ')
           .trim() || null
       );
@@ -488,11 +489,12 @@ export function projectSessionClock(
   if (!isRestHero && leafEntry && leafEntry.displayRows.length > 1) {
     const lines = leafEntry.displayRows
       .map((row) =>
-        metricPresentation
-          .presentGroup([...row], 'timer-subtitle')
-          .filter((t) => t.visible)
-          .map((t) => t.label)
-          .filter(Boolean)
+        dedupePresentedLabels(
+          metricPresentation
+            .presentGroup([...row], 'timer-subtitle')
+            .filter((t) => t.visible)
+            .map((t) => t.label),
+        )
           .join(' ')
           .trim(),
       )

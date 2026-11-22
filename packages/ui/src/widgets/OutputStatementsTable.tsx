@@ -43,9 +43,14 @@ export const TONE_CLASS: Record<string, string> = {
 
 export function MetricBadge({ token }: { token: MetricPresentationToken }) {
   if (!token.visible || !token.label) return null;
+  const accessibleLabel = token.columnLabel ? `${token.columnLabel}: ${token.label}` : token.label;
   if (token.renderKind === 'comment') {
     return (
-      <span className="text-[10px] italic text-muted-foreground" title={token.tooltip}>
+      <span
+        className="text-[10px] italic text-muted-foreground"
+        title={token.tooltip}
+        aria-label={accessibleLabel}
+      >
         {token.label}
       </span>
     );
@@ -56,6 +61,7 @@ export function MetricBadge({ token }: { token: MetricPresentationToken }) {
         TONE_CLASS[token.tone] ?? TONE_CLASS.unknown
       }`}
       title={token.tooltip}
+      aria-label={accessibleLabel}
     >
       {token.label}
     </span>
@@ -725,7 +731,7 @@ function StatementCards({
               <header className="flex items-start justify-between gap-2 border-b border-border/40 pb-1.5">
                 <div className="flex min-w-0 flex-wrap items-center gap-1">
                   <span
-                    className={`inline-block shrink-0 rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider ${
+                    className={`inline-block shrink-0 rounded px-1.5 py-0.2 text-[9px] font-bold tracking-wider ${
                       OUTPUT_TYPE_CLASS[typeKey] ?? OUTPUT_TYPE_CLASS.system
                     }`}
                   >
@@ -1066,7 +1072,7 @@ export function OutputStatementsTable({
                         return (
                           <td key={col.id} className="p-2 text-center whitespace-nowrap">
                             <span
-                              className={`inline-block rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider ${
+                              className={`inline-block rounded px-1.5 py-0.2 text-[9px] font-bold tracking-wider ${
                                 OUTPUT_TYPE_CLASS[String(out.outputType)] ?? OUTPUT_TYPE_CLASS.system
                               }`}
                               title={rowTitle}

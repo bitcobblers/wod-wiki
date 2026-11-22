@@ -23,6 +23,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TvMinimal, Cast } from 'lucide-react';
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
+import { toast } from '@/hooks/use-toast';
 import { useActiveRunStore } from '@/stores/activeRunStore';
 import {
     sharedCastSessionManager,
@@ -297,6 +298,11 @@ export const CastButtonRpc: React.FC = () => {
                     console.log('[CastButtonRpc] Cast request canceled or gesture expired');
                 } else {
                     console.error('[CastButtonRpc] Cast failed:', message);
+                    toast({
+                        title: 'Cast failed',
+                        description: `Unable to start Cast session: ${message}`,
+                        variant: 'destructive',
+                    });
                 }
                 cleanupCast(false);
             }
@@ -330,12 +336,18 @@ export const CastButtonRpc: React.FC = () => {
             <Button
                 variant="ghost"
                 size="icon"
-                disabled
-                className="opacity-20 cursor-not-allowed"
+                aria-disabled="true"
+                className="min-h-11 min-w-11 opacity-40 cursor-not-allowed"
                 aria-label="Cast to TV (unavailable)"
                 title="Cast to TV (unavailable)"
+                onClick={() => {
+                    toast({
+                        title: 'Cast unavailable',
+                        description: 'No Cast receiver or device is available in this browser.',
+                    });
+                }}
             >
-                <Cast className="h-5 w-5" />
+                <Cast className="h-5 w-5" aria-hidden="true" />
                 <span className="sr-only">Cast to TV (unavailable)</span>
             </Button>
         );

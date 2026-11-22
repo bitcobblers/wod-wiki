@@ -16,7 +16,7 @@ import type { CommitReferenceNoteInput } from '@/repositories/referenceNotes'
 import * as referenceNotesModule from '@/repositories/referenceNotes'
 import { TEST_IDS } from '@/lib/testIds'
 
-import { CreateJournalNoteDialog } from './CreateJournalNoteDialog'
+import { CreateJournalNoteDialog, curatePickerWorkouts, curateTemplateOptions } from './CreateJournalNoteDialog'
 
 // The wizard writes through four service seams. Real modules load; the
 // methods under assertion are spied and restored per test.
@@ -295,5 +295,62 @@ describe('CreateJournalNoteDialog unified wizard', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Search workouts')).toBeDefined()
     })
+  })
+
+  it('WW-109: curates template and Pick workouts by excluding results, requiring fences, capping unsearched groups, and preserving search', () => {
+    const templates = curateTemplateOptions(
+      [
+        { key: '', label: 'Blank note', group: 'Default' },
+        { key: 'src:athletics-results::a', label: '2026 Result', group: 'Results', groupKey: 'athletics-results', categories: ['results'] },
+        ...Array.from({ length: 6 }, (_, i) => ({
+          key: `src:girls::g-${i}`,
+          label: `Girl ${i}`,
+          group: 'CrossFit Girls',
+          groupKey: 'girls',
+          categories: ['benchmarks'],
+        })),
+        { key: 'src:kb::kb-1', label: 'KB Ladder', group: 'Kettlebell', groupKey: 'kb', categories: ['kettlebell'] },
+      ],
+      '',
+    )
+    expect(templates.visibleTemplateOptions.some((o) => o.groupKey === 'athletics-results')).toBe(false)
+    expect(templates.visibleTemplateOptions.filter((o) => o.groupKey === 'girls')).toHaveLength(3)
+    expect(templates.visibleTemplateOptions.some((o) => o.key === 'src:kb::kb-1')).toBe(true)
+
+    const searched = curateTemplateOptions(
+      [
+        { key: '', label: 'Blank note', group: 'Default' },
+        { key: 'src:athletics-results::a', label: '2026 Result', group: 'Results', groupKey: 'athletics-results', categories: ['results'] },
+        ...Array.from({ length: 6 }, (_, i) => ({
+          key: `src:girls::g-${i}`,
+          label: `Girl ${i}`,
+          group: 'CrossFit Girls',
+          groupKey: 'girls',
+          categories: ['benchmarks'],
+        })),
+      ],
+      'Girl',
+    )
+    expect(searched.visibleTemplateOptions).toHaveLength(6)
+
+    const curatedPick = curatePickerWorkouts(
+      [
+        { id: 'prose-only', isMine: false, notebookSlug: 'guides', rawContent: '# Guide without fence', searchText: 'guide' },
+        { id: 'res-1', isMine: false, notebookSlug: 'results', categories: ['results'], rawContent: '```time\n10 Burpees\n```', searchText: 'result' },
+        ...Array.from({ length: 6 }, (_, i) => ({
+          id: `hero-${i}`,
+          isMine: false,
+          notebookSlug: 'heroes',
+          rawContent: '```wod\n10 Pullups\n```',
+          searchText: `hero ${i}`,
+        })),
+        { id: 'mine-1', isMine: true, notebookSlug: 'journal', rawContent: '```time\n5k Run\n```', searchText: 'mine 5k' },
+      ],
+      '',
+    )
+    expect(curatedPick.some((i) => i.id === 'prose-only')).toBe(false)
+    expect(curatedPick.some((i) => i.id === 'res-1')).toBe(false)
+    expect(curatedPick.filter((i) => i.notebookSlug === 'heroes')).toHaveLength(4)
+    expect(curatedPick.some((i) => i.id === 'mine-1')).toBe(true)
   })
 })

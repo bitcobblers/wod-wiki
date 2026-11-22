@@ -83,6 +83,7 @@ export class DurationMetric implements IMetric {
   readonly seconds: number;
   readonly original: number | undefined;
   readonly type = MetricType.Duration;
+  readonly unit = 'ms';
 
   /**
    * Determines the intended timer direction based on value and modifiers.

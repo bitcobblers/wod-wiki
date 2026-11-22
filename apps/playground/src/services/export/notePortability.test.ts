@@ -19,6 +19,7 @@ import {
 } from '@bitcobblers/wod-wiki-engine';
 import { createNoteFromMarkdown, ZipFeedTree } from '../ExportImportService';
 import { InMemoryStorage } from '../storage/InMemoryStorage';
+import { StorageService } from '../storage/StorageService';
 
 describe('Canonical Markdown + JSONL/CSV Portability & Feed Repository Export', () => {
   it('round-trips canonical YAML-frontmatter Markdown without synthetic wrappers', () => {
@@ -237,5 +238,60 @@ describe('Canonical Markdown + JSONL/CSV Portability & Feed Repository Export', 
     await emptyTree.writeText('some/stray-note.txt', 'hello');
     const emptyZip = new File([await emptyTree.toBlob()], 'stray.zip', { type: 'application/zip' });
     await expect(importFromZip(emptyZip, {} as never)).rejects.toBeInstanceOf(EmptyBundleError);
+  });
+
+  it('round-trips a layout:"repository" export through importFromZip and falls back to dist/-only zips (WW-044)', async () => {
+    const { importFromZip } = await import('../ExportImportService');
+    const { IndexedDBNotePersistence } = await import('../persistence/IndexedDBNotePersistence');
+    const src = new InMemoryStorage();
+    const raw = '# Roundtrip WOD\n\n```time\n(3)\n  12 KB Swings\n```\n';
+    const note: Note = {
+      id: '01950000-0000-7000-8000-000000000945',
+      title: 'Roundtrip WOD',
+      rawContent: raw,
+      sourceRevision: 1,
+      blocks: reconcileNoteBlocks(raw, { sourceRevision: 1 }),
+      createdAt: 1000,
+      notebookId: 'notebook/ww044-unit',
+      notebookIds: ['notebook/journal', 'notebook/ww044-unit'],
+      seedOrigin: 'user',
+    };
+    const landing: Note = {
+      id: 'notebook/ww044-unit',
+      title: 'WW044 Unit',
+      rawContent: '# WW044 Unit\n',
+      sourceRevision: 1,
+      blocks: {},
+      createdAt: 900,
+      notebookId: 'notebook/ww044-unit',
+      seedOrigin: 'user',
+      public: true,
+    };
+    await src.transaction(['notes'], 'readwrite', async (tx) => {
+      await tx.readwrite('notes').putMany([landing, note]);
+    });
+
+    const repoTree = new ZipFeedTree();
+    await publishFeedFromStorage(src, repoTree, { layout: 'repository', name: 'WW044 Unit Repo' });
+    const repoZip = new File([await repoTree.toBlob()], 'repo.zip', { type: 'application/zip' });
+
+    const dst = new InMemoryStorage();
+    const dstProvider = new IndexedDBNotePersistence(new StorageService(dst));
+    const res = await importFromZip(repoZip, dstProvider);
+    expect(res.errors).toEqual([]);
+    expect(res.imported).toBeGreaterThanOrEqual(1);
+    const importedNote = await dst.readonly('notes').get(note.id);
+    expect(importedNote?.rawContent).toContain('12 KB Swings');
+    expect(importedNote?.seedOrigin).toBe('user');
+
+    // Also verify dist/-only archive fallback restores safely.
+    const distTree = new ZipFeedTree();
+    await distTree.writeText('dist/markdown/notes/dist-only.md', composeNoteMarkdown(note));
+    const distZip = new File([await distTree.toBlob()], 'dist-only.zip', { type: 'application/zip' });
+    const dst2 = new InMemoryStorage();
+    const res2 = await importFromZip(distZip, new IndexedDBNotePersistence(new StorageService(dst2)));
+    expect(res2.errors).toEqual([]);
+    expect(res2.imported).toBe(1);
+    expect((await dst2.readonly('notes').get(note.id))?.title).toBe('Roundtrip WOD');
   });
 });

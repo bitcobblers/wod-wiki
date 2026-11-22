@@ -68,6 +68,7 @@ jobs:
         env:
           VITE_BASE_PATH: ${{ inputs.base-path }}
           VITE_APP_VERSION: ${{ inputs.version }}
+          VITE_GIT_SHA: ${{ github.sha }}
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://wod.wiki/api' }}
           VITE_CAST_APP_ID: ${{ vars.VITE_CAST_APP_ID }}
           ASSOCIATE_TAG: ${{ vars.ASSOCIATE_TAG }}

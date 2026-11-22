@@ -16,7 +16,8 @@ import type { FeedNotebookCatalogRow, SeedManifest } from '@bitcobblers/wod-wiki
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import { toast } from '@/hooks/use-toast';
 import { L3DrawerTrigger } from '@/panels/page-shells';
-import { feedSourceById, notebooksOfFeed } from '@/services/feed/feedSources';
+import { feedSourceById, listFeedSources, notebooksOfFeed, subscribeFeedSources } from '@/services/feed/feedSources';
+import { useColdRouteResolution } from '../hooks/useColdRouteResolution';
 import {
   getFeedOfflinePolicy,
   isFeedSubscribed,
@@ -97,7 +98,17 @@ export function FeedDetailPage({ feedSlug, deps }: FeedDetailPageProps) {
   const depsRef = useRef(deps);
   depsRef.current = deps;
 
-  const feed = useMemo(() => feedSourceById(feedSlug), [feedSlug]);
+  const sourcesKey = useSyncExternalStore(
+    subscribeFeedSources,
+    () => listFeedSources().map((s) => `${s.id}:${s.label}:${s.url}`).join('|'),
+  );
+  const feed = useMemo(() => {
+    void sourcesKey;
+    return feedSourceById(feedSlug);
+  }, [feedSlug, sourcesKey]);
+  const { isSettling } = useColdRouteResolution({
+    missing: !feed,
+  });
   const isCoreFeed = feed?.id === 'core';
   const feedScope = useMemo(
     () => (feed ? resolveEntityScope({ kind: 'feed', slug: feed.id, label: feed.label }) : null),
@@ -405,6 +416,14 @@ export function FeedDetailPage({ feedSlug, deps }: FeedDetailPageProps) {
       entries: [{ kind: 'link' as const, id: 'feed-sync-settings', label: 'Settings to Sync', to: ROUTE_PATTERNS.settingsSync }],
     },
   ], [notebooks, feedScope, isCoreFeed, feed?.id]);
+
+  if (!feed && isSettling) {
+    return (
+      <div role="status" className="flex flex-1 items-center justify-center p-20 text-sm text-muted-foreground">
+        Loading feed…
+      </div>
+    );
+  }
 
   if (!feed) {
     return (

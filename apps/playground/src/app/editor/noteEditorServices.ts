@@ -89,8 +89,11 @@ let tagTypesByLabel: Map<string, string> | undefined;
 /** Route href for a tag — its own direct route, `/t/:type/:tag`. The type
  *  segment comes from the hydrated tag record; until the first load the
  *  link names 'general' (the editor resolves the tag by label either way). */
-function tagOpenHref(slug: string): string {
-  const type = tagTypesByLabel?.get(slug) ?? 'general';
+function tagOpenHref(slug: string, explicitType?: string): string {
+  const normalized = explicitType?.trim().toLowerCase();
+  const isWrapperKey =
+    !normalized || normalized === 'tag' || normalized === 'tags' || normalized === 'category';
+  const type = (!isWrapperKey ? normalized : undefined) ?? tagTypesByLabel?.get(slug) ?? 'general';
   return `/t/${encodeURIComponent(type)}/${encodeURIComponent(slug)}`;
 }
 
@@ -99,7 +102,8 @@ function buildProvider(index: ReferenceIndex): FrontmatterReferenceProvider {
     resolve: (label, defaults) => index.resolve(label, defaults),
     resolveEffort: (slugOrAlias) => index.resolveEffort(slugOrAlias),
     resolveEquipment: (slugOrAlias) => index.resolveEquipment(slugOrAlias),
-    openHref: (kind, slug) => (kind === 'tag' ? tagOpenHref(slug) : referenceOpenHref(kind, slug, slug)),
+    openHref: (kind, slug, tagType) =>
+      kind === 'tag' ? tagOpenHref(slug, tagType) : referenceOpenHref(kind, slug, slug),
     createHref: (kind) => (kind === 'effort'
       ? '/effort/new?mode=create'
       : kind === 'equipment'

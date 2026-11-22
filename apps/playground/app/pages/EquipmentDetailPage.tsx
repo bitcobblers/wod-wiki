@@ -20,6 +20,7 @@ import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { useTheme } from '@/contexts/ThemeProvider';
 import { JournalPageShell } from '@/panels/page-shells';
 import type { ScriptBlock } from '@/components/Editor/types';
+import { useColdRouteResolution } from '../hooks/useColdRouteResolution';
 import { useEquipmentContent, useEquipmentLinks, blankEquipmentDocument } from '../hooks/useEquipmentContent';
 import { useNotePageNav } from './shared/useNotePageNav';
 import { NoteContextNav, noteOwnership, useNoteContextLinks, noteLinkPath } from './shared/noteContextLinks';
@@ -53,6 +54,7 @@ export function EquipmentDetailPage() {
   const actualTheme = theme === 'dark' ? 'dark' : 'vs';
   const { isReady, refresh } = useEquipmentRegistry();
 
+  const isCreateMode = searchParams.get('mode') === 'create';
   const {
     document,
     setDocument,
@@ -66,6 +68,10 @@ export function EquipmentDetailPage() {
     onBlur,
     flush,
   } = useEquipmentContent(slug);
+  const { isSettling } = useColdRouteResolution({
+    loading: !isReady || isLoading,
+    missing: !isCreateMode && !equipment && !error && notFound,
+  });
 
   const previousSlugRef = useRef(equipment?.slug);
   useEffect(() => {
@@ -84,13 +90,18 @@ export function EquipmentDetailPage() {
     [slug, equipment?.label],
   );
   // ── Create mode ("/equipment/new?mode=create" or "?mode=create" on any slug) ──
-  const isCreateMode = searchParams.get('mode') === 'create';
   const [createDocument, setCreateDocument] = useState(() =>
     blankEquipmentDocument(slug && slug !== 'new' ? slug.trim().toLowerCase().replace(/\s+/g, '-') : ''),
   );
+  const createDocumentRef = useRef(createDocument);
+  const handleCreateDocumentChange = useCallback((next: string) => {
+    createDocumentRef.current = next;
+    setCreateDocument(next);
+  }, []);
 
   const handleCreateSubmit = useCallback(async () => {
-    const { equipment: parsed, errors } = documentToEquipment(createDocument);
+    const activeCreateDoc = createDocumentRef.current;
+    const { equipment: parsed, errors } = documentToEquipment(activeCreateDoc);
     if (errors.length > 0) {
       toast({ title: 'Invalid YAML', description: errors.join('\n'), variant: 'destructive' });
       return;
@@ -114,7 +125,7 @@ export function EquipmentDetailPage() {
       await commitReferenceNote({
         kind: 'equipment',
         slug: slugValue,
-        rawContent: createDocument,
+        rawContent: activeCreateDoc,
         title: parsed.label.trim() || fileToDisplayName(slugValue),
         expectedSourceRevision: 0,
       });
@@ -128,7 +139,7 @@ export function EquipmentDetailPage() {
         variant: 'destructive',
       });
     }
-  }, [createDocument, refresh, navigate]);
+  }, [refresh, navigate]);
 
   // ── L3 nav from document content (display-only links — equipment bodies
   // are reference material, not runnable workouts) ──────────────────────────
@@ -211,17 +222,9 @@ export function EquipmentDetailPage() {
   }, [cloneForEdit, equipment, navigate]);
 
   // ── Loading / error states ───────────────────────────────────────────────
-  if (!isReady) {
+  if (!isReady || isLoading || (!isCreateMode && (notFound || !equipment) && isSettling && !error)) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-pulse h-4 w-32 bg-muted rounded" />
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
+      <div role="status" className="flex items-center justify-center py-20">
         <div className="animate-pulse h-4 w-32 bg-muted rounded" />
       </div>
     );
@@ -254,7 +257,7 @@ export function EquipmentDetailPage() {
             <div className="relative" data-testid="equipment-create-editor">
               <NoteEditor
                 value={createDocument}
-                onChange={setCreateDocument}
+                onChange={handleCreateDocumentChange}
                 theme={actualTheme}
                 readonly={false}
                 showLineNumbers={true}

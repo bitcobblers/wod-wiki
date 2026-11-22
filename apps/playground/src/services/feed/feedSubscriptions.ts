@@ -263,7 +263,10 @@ export async function migrateFeedSubscriptions(
   sources: ReadonlyArray<{ id: string }>,
   storage: FeedImportStorage = mainThreadFeedImportStorage(),
 ): Promise<string[]> {
-  const all = { ...mergedWithFreshStorage() };
+  if (storage.storageInstance && !isFeedStateHydrated()) {
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+  }
+  const initialAll = { ...mergedWithFreshStorage() };
   const migrated: string[] = [];
   let renamedLegacyKeys = false;
   // Pre-rename builds keyed per-notebook verdicts by the old chunk-id
@@ -272,12 +275,12 @@ export async function migrateFeedSubscriptions(
   // value; an explicit current-key verdict always wins, and the rewrite
   // is idempotent (the legacy key is deleted once read).
   for (const [oldId, newId] of Object.entries(LEGACY_FEED_ID_MAP)) {
-    if (oldId in all) {
-      if (!(newId in all)) {
-        all[newId] = all[oldId]!;
-        if (all[oldId]) migrated.push(newId);
+    if (oldId in initialAll) {
+      if (!(newId in initialAll)) {
+        initialAll[newId] = initialAll[oldId]!;
+        if (initialAll[oldId]) migrated.push(newId);
       }
-      delete all[oldId];
+      delete initialAll[oldId];
       renamedLegacyKeys = true;
     }
   }
@@ -291,9 +294,9 @@ export async function migrateFeedSubscriptions(
     for (const fid of feedIds) {
       for (const legacyId of [`collection.${slug}`, `feed.${slug}`, notebook.chunkId]) {
         const legacyKey = `${fid}#${legacyId}`;
-        if (legacyKey === currentKey || !(legacyKey in all)) continue;
-        if (!(currentKey in all)) all[currentKey] = all[legacyKey]!;
-        delete all[legacyKey];
+        if (legacyKey === currentKey || !(legacyKey in initialAll)) continue;
+        if (!(currentKey in initialAll)) initialAll[currentKey] = initialAll[legacyKey]!;
+        delete initialAll[legacyKey];
         renamedLegacyKeys = true;
       }
     }
@@ -301,37 +304,45 @@ export async function migrateFeedSubscriptions(
   // Pre-feed-unit builds subscribed per notebook and never wrote a feed
   // record; the notebook verdicts they left behind become the feed's.
   for (const notebook of NOTEBOOKS) {
-    if (!(notebook.id in all)) continue;
-    if (!(notebook.feedId in all)) {
-      all[notebook.feedId] = all[notebook.id];
-      if (all[notebook.id]) migrated.push(notebook.feedId);
+    if (!(notebook.id in initialAll)) continue;
+    if (!(notebook.feedId in initialAll)) {
+      initialAll[notebook.feedId] = initialAll[notebook.id];
+      if (initialAll[notebook.id]) migrated.push(notebook.feedId);
     }
-    delete all[notebook.id];
+    delete initialAll[notebook.id];
     renamedLegacyKeys = true;
   }
   if (renamedLegacyKeys) {
-    writeAll(all);
+    writeAll(initialAll);
   }
-  if (storage.storageInstance) {
-    await hydrateFeedStateFromStorage(storage.storageInstance);
-    Object.assign(all, getLegacySubMapCache() ?? {});
-  }
-  let addedFromCheckpoints = false;
+  const checkpointIds: string[] = [];
   for (const { id } of sources) {
-    if (id === 'core' || id in all) continue;
+    if (id === 'core' || id in initialAll) continue;
     try {
       const meta = await storage.getSeedMeta(seedMetaKey(id));
       if (meta && meta.seedVersion > 0) {
-        all[id] = true;
-        migrated.push(id);
-        addedFromCheckpoints = true;
+        checkpointIds.push(id);
       }
     } catch {
       // Unreadable provider: nothing to migrate for this source.
     }
   }
+  // Re-read the latest hydrated subscription state after async checkpoint
+  // probes so concurrent subscribe toggles made during awaits are never clobbered.
+  let addedFromCheckpoints = false;
+  if (checkpointIds.length > 0) {
+    const latest = { ...mergedWithFreshStorage() };
+    for (const id of checkpointIds) {
+      if (id in latest) continue;
+      latest[id] = true;
+      migrated.push(id);
+      addedFromCheckpoints = true;
+    }
+    if (addedFromCheckpoints) {
+      writeAll(latest);
+    }
+  }
   if (addedFromCheckpoints || renamedLegacyKeys) {
-    writeAll(all);
     await flushFeedStatePersistence();
   }
   return migrated;

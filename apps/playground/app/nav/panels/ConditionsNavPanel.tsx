@@ -90,6 +90,18 @@ export function recordRecentVisit(pathname: string): void {
   }
 }
 
+export function removeRecentVisit(pathname: string): void {
+  try {
+    const previous = readRecentVisits()
+    const next = previous.filter((href) => href !== pathname)
+    if (next.length !== previous.length) {
+      localStorage.setItem(RECENT_VISITS_KEY, JSON.stringify(next))
+    }
+  } catch {
+    // Storage unavailable/corrupt — visit tracking stays best-effort.
+  }
+}
+
 function readRecentVisits(): string[] {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(RECENT_VISITS_KEY) ?? '[]')

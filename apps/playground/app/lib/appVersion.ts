@@ -5,8 +5,18 @@
  * VITE_APP_VERSION, local dev falls back to package.json (vite.config.ts).
  */
 declare const __APP_VERSION__: string | undefined;
+declare const __GIT_SHA__: string | undefined;
+declare const __BUILT_AT__: string | undefined;
 
 export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.dev';
+export const APP_GIT_SHA = typeof __GIT_SHA__ !== 'undefined' ? __GIT_SHA__ : 'dev';
+export const APP_BUILT_AT = typeof __BUILT_AT__ !== 'undefined' ? __BUILT_AT__ : '';
+
+export const APP_BUILD_INFO = {
+  version: APP_VERSION,
+  gitSha: APP_GIT_SHA,
+  builtAt: APP_BUILT_AT,
+} as const;
 
 const REPO_URL = 'https://github.com/bitcobblers/wod-wiki';
 export const RELEASES_URL = `${REPO_URL}/releases`;

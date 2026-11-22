@@ -41,7 +41,7 @@ export const FocusedDialog: React.FC<FocusedDialogProps> = ({
       className={
         closeButtonClassName ??
         `rounded-pill border-0 transition-colors shadow-[rgba(0,0,0,0.06)_0px_1px_2px] ${isMinimal ? 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground'} ${
-          closeLabel ? 'flex h-11 min-w-[44px] items-center justify-center px-4 text-sm font-medium hover:text-foreground' : 'p-2 h-auto w-auto'
+          closeLabel ? 'flex h-11 min-w-[44px] items-center justify-center px-4 text-sm font-medium hover:text-foreground' : 'flex h-11 min-w-[44px] items-center justify-center p-2'
         }`
       }
     >

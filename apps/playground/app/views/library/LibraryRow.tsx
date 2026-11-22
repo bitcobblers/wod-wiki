@@ -6,10 +6,9 @@
  * The Add-to-today action is a creation flow (not navigation); it is wired
  * in the Library page, not the row.
  */
-import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { ArrowUpRight, FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Loader2, Copy, Share2, Pencil, Trash2, MoreHorizontal, ShieldCheck } from 'lucide-react'
-import { isNonPublishableNotebook, isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
+import { getNotebookCapabilities, isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
 import { resolveFeedDisplayLabel } from '@/components/molecules/PublicationPill'
 import { feedSourceById } from '@/services/feed/feedSources'
 import {
@@ -219,7 +218,16 @@ export function LibraryRow({
         {/* Title first: on narrow screens the secondary badges wrap under the
             title instead of squeezing the truncated title out. */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h3 className="text-sm font-bold text-foreground min-w-0 basis-full sm:basis-auto sm:truncate">{entry.title}</h3>
+          <h3 className="text-sm font-bold text-foreground min-w-0 basis-full sm:basis-auto sm:truncate">
+            <Link
+              to={entryOpenHref(entry)}
+              onClick={e => e.stopPropagation()}
+              onKeyDown={e => e.stopPropagation()}
+              className="hover:underline focus-visible:outline-none focus-visible:underline"
+            >
+              {entry.title}
+            </Link>
+          </h3>
           {entry.block && (
             <span
               className="text-[11px] font-bold uppercase tracking-wider text-sky-800 dark:text-sky-200 border border-sky-700/30 dark:border-sky-400/30 bg-sky-500/15 rounded-full px-2 py-0.5"
@@ -262,8 +270,13 @@ export function LibraryRow({
               {entry.subscribed ? 'Subscribed' : 'Unsubscribed'}
             </span>
           )}
-          {entry.kind === 'notebook' && entry.feedId === 'local' && (
-            isSystemReadOnlyNotebook(entry.sourceNotebook) ? (
+          {entry.kind === 'notebook' && entry.feedId === 'local' && (() => {
+            const caps = getNotebookCapabilities({
+              slug: entry.sourceNotebook,
+              notebookId: entry.notebookId,
+              feedId: entry.feedId,
+            })
+            return caps.isSystem ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border border-border bg-muted text-foreground">
                 <BookOpen className="size-3" aria-hidden="true" />
                 System
@@ -281,7 +294,7 @@ export function LibraryRow({
                 {entry.isPublic ? 'Public' : 'Private'}
               </span>
             )
-          )}
+          })()}
           {entry.kind === 'feed' && entry.unpublishedChanges && (
             <span className="text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border border-amber-700/30 dark:border-amber-400/30 bg-amber-500/15 text-amber-900 dark:text-amber-200">
               Unpublished changes
@@ -390,7 +403,6 @@ interface RowActionsProps {
 
 function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook, onToggleSubscribe, subscribing, onCloneRemote, onPublishFeed, onTogglePublicNotebook, onEditNotebook, onDeleteNotebook }: RowActionsProps) {
   const navigate = useNavigate()
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const compareHref = entryCompareHref(entry)
   const notebookHref = entryNotebookHref(entry)
   const canAdd = entryCanAddToToday(entry) && !!onAddToToday
@@ -403,22 +415,17 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
     && (entry.editable ?? true)
     && targets.length > 0
 
-  const isSystemNotebook = entry.kind === 'notebook' && isSystemReadOnlyNotebook(entry.sourceNotebook)
-  const canTogglePublicNotebook =
+  const nbCaps =
     entry.kind === 'notebook'
-    && entry.feedId === 'local'
-    && !isNonPublishableNotebook(entry.sourceNotebook)
-    && !!onTogglePublicNotebook
-  const canEditNotebook =
-    entry.kind === 'notebook'
-    && entry.feedId === 'local'
-    && !isSystemNotebook
-    && !!onEditNotebook
-  const canDeleteNotebook =
-    entry.kind === 'notebook'
-    && entry.feedId === 'local'
-    && !isSystemNotebook
-    && !!onDeleteNotebook
+      ? getNotebookCapabilities({
+          slug: entry.sourceNotebook,
+          notebookId: entry.notebookId,
+          feedId: entry.feedId,
+        })
+      : null
+  const canTogglePublicNotebook = Boolean(nbCaps?.canTogglePublic && onTogglePublicNotebook)
+  const canEditNotebook = Boolean(nbCaps?.canEdit && onEditNotebook)
+  const canDeleteNotebook = Boolean(nbCaps?.canDelete && onDeleteNotebook)
 
   const hasSubscribe = (entry.kind === 'feed' || entry.kind === 'notebook') && entry.feedId !== 'local' && entry.feedId !== 'core' && !!onToggleSubscribe
   const hasPublish = entry.kind === 'feed' && entry.sourceNote === 'local' && !!onPublishFeed
@@ -433,7 +440,7 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
     || !!compareHref
     || canTogglePublicNotebook
     || canEditNotebook
-    || (canDeleteNotebook && !confirmingDelete)
+    || canDeleteNotebook
     || (moveable && targets.length > 0)
 
   return (
@@ -486,20 +493,6 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
         <ActionButton title={notebookHref ? 'Details' : 'Open'} testId={TEST_IDS.LIBRARY_ACTION_OPEN} onClick={() => navigate(entryOpenHref(entry))}>
           <ArrowUpRight className="size-3.5" aria-hidden="true" />
         </ActionButton>
-      )}
-      {canDeleteNotebook && confirmingDelete && (
-        <button
-          type="button"
-          title="Notes in this notebook return to the journal"
-          onClick={() => {
-            setConfirmingDelete(false)
-            onDeleteNotebook(entry)
-          }}
-          data-testid={`notebook-delete-confirm-${entry.sourceNotebook}`}
-          className="h-8 max-sm:min-h-11 px-3 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-semibold flex items-center gap-1 transition-colors"
-        >
-          Confirm delete
-        </button>
       )}
       {hasOverflowActions && (
         <Menu>
@@ -583,11 +576,11 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
                   <span>Edit notebook</span>
                 </MenuItem>
               )}
-              {canDeleteNotebook && !confirmingDelete && (
+              {canDeleteNotebook && (
                 <MenuItem
                   value="delete-notebook"
                   data-testid={`notebook-delete-${entry.sourceNotebook}`}
-                  onClick={() => setConfirmingDelete(true)}
+                  onClick={() => onDeleteNotebook!(entry)}
                 >
                   <Trash2 className="size-4 shrink-0" aria-hidden="true" />
                   <span>Delete notebook</span>

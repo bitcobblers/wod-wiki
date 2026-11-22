@@ -66,7 +66,7 @@ export const EXAMPLE_QUERIES: ExampleQuery[] = [
     question: 'What workouts did I do recently?',
   },
   {
-    query: ':note{source:feeds}',
+    query: ':note{source:notebooks}',
     label: 'Notebook workouts',
     question: 'What workouts are in the library?',
   },

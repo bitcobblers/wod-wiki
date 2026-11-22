@@ -10,7 +10,7 @@ export interface INotePersistence {
   mutateNote(locator: NoteLocator, mutation: NoteMutation): Promise<HistoryRecord>;
   deleteNote(locator: NoteLocator): Promise<void>;
   saveNote(input: SaveNoteInput): Promise<HistoryRecord>;
-  startSession(input: SaveNoteInput, session: Omit<Session, 'blockVersion'>): Promise<StartedSession>;
+  startSession(input: SaveNoteInput, session: Omit<Session, 'blockVersion'>, options?: { deferPersist?: boolean }): Promise<StartedSession>;
   finishSession(sessionId: string, data: Sessions, createdAt?: number): Promise<Session>;
   getBlockRevision(noteId: string, blockId: string, version: number): Promise<BlockRevision | undefined>;
   getBlockHistory(noteId: string, blockId: string): Promise<BlockRevision[]>;

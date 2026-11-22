@@ -285,11 +285,23 @@ export async function runAgentNounVerbCommand(env: AgentCliExecutionEnv): Promis
     try {
       if (noun === 'note') {
         if (verb === 'list' || !verb) {
+          const origin =
+            parsed.origin === 'all' ||
+            parsed.origin === 'user' ||
+            parsed.origin === 'feed' ||
+            parsed.origin === 'seed'
+              ? parsed.origin
+              : undefined;
+          if (parsed.origin && !origin) {
+            throw new Error(`Invalid --origin "${parsed.origin}" (expected all, user, feed, or seed)`);
+          }
           const out = await wodNoteListTool.execute(
             {
               notebookId: toNotebookId(parsed.notebook),
               tag: parsed.tag,
               search: parsed.search,
+              ...(origin ? { origin } : {}),
+              ...(parsed.includeSeed !== undefined ? { includeSeed: parsed.includeSeed } : {}),
               limit: parsed.limit,
             },
             ctx,

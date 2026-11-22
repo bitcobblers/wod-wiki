@@ -6,6 +6,14 @@ export {
   formatTimeseriesTooltipValue,
   type WqlTimeseriesProps,
 } from './WqlTimeseries';
+export {
+  formatAxisTick,
+  formatMetricValue,
+  formatCompactMetricValue,
+  computeYAxisWidth,
+  SingleLineYAxisTick,
+  type SingleLineYAxisTickProps,
+} from './chartFormat';
 export { WqlBars, type WqlBarsProps } from './WqlBars';
 export { WqlTable, type WqlTableProps } from './WqlTable';
 export { WidgetChart, WidgetProblemBadge, ProposedMetricBadge, type WidgetChartProps } from './WidgetChart';

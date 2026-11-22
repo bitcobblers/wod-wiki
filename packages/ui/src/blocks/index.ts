@@ -10,6 +10,7 @@ export { WqlQueryInspectorModal, type WqlQueryInspectorModalProps } from './WqlQ
 export {
   SessionSummaryCard,
   RpePopoverControl,
+  formatAnalyticsFloat,
   formatSummaryDurationMMSS,
   type SessionSummaryCardProps,
   type RpePopoverControlProps,

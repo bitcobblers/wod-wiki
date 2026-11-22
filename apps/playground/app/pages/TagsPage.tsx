@@ -30,12 +30,14 @@ import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import { L3DrawerTrigger } from '@/panels/page-shells';
+import { useColdRouteResolution } from '../hooks/useColdRouteResolution';
 import { buildTagNoteDocument, usePropertyNote } from '../hooks/usePropertyNote';
 import { tagPath, tagCategoryPath, effortPath, equipmentPath, ROUTE_PATTERNS } from '../lib/routes';
 import { useNav } from '../nav/NavContext';
 import type { NavItemL3 } from '../nav/navTypes';
 import type { MenuSpec } from '../nav/menuModel';
 import { NoteContextNav, EMPTY_NOTE_CONTEXT, noteLinkPath } from './shared/noteContextLinks';
+import { TEST_IDS } from '@/lib/testIds';
 /** A function a tag can carry, with the grain it runs at. */
 interface FunctionOption {
   name: string;
@@ -78,48 +80,54 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
   const [newKind, setNewKind] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const newLabelInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
-    const [storedTags, storedTypes, storedEfforts, storedEquipment] = await Promise.all([
-      storageService.getAllTags(),
-      storageService.getAllTagTypes(),
-      storageService.getAllEfforts().catch(() => []),
-      storageService.getAllEquipment().catch(() => []),
-    ]);
-    // A calc that does not compile must not keep the page from listing tags.
-    const hydration = await hydrateUserCalcs().catch(() => ({ defs: [], errors: [] }));
-    const index = await loadTagIndex();
-    const resolvedBySlug = new Map(index.list().map((definition) => [definition.slug, definition]));
-    const resolvedStoredTags = storedTags.map((tag): Tag => {
-      const resolved = resolvedBySlug.get(tag.label);
-      return resolved && (tag.contributions?.length ?? 0) === 0 && resolved.contributions.length > 0
-        ? { ...tag, contributions: [...resolved.contributions] }
-        : tag;
-    });
-    const storedSlugs = new Set(resolvedStoredTags.map(tag => tag.label));
-    const bundledTags: Tag[] = index.list()
-      .filter(definition => !definition.isCategory && !storedSlugs.has(definition.slug))
-      .map(definition => ({
-        id: `builtin-${definition.slug}`,
-        label: definition.slug,
-        contributions: [...definition.contributions],
-        createdAt: 0,
+    try {
+      const [storedTags, storedTypes, storedEfforts, storedEquipment] = await Promise.all([
+        storageService.getAllTags(),
+        storageService.getAllTagTypes(),
+        storageService.getAllEfforts().catch(() => []),
+        storageService.getAllEquipment().catch(() => []),
+      ]);
+      // A calc that does not compile must not keep the page from listing tags.
+      const hydration = await hydrateUserCalcs().catch(() => ({ defs: [], errors: [] }));
+      const index = await loadTagIndex();
+      const resolvedBySlug = new Map(index.list().map((definition) => [definition.slug, definition]));
+      const resolvedStoredTags = storedTags.map((tag): Tag => {
+        const resolved = resolvedBySlug.get(tag.label);
+        return resolved && (tag.contributions?.length ?? 0) === 0 && resolved.contributions.length > 0
+          ? { ...tag, contributions: [...resolved.contributions] }
+          : tag;
+      });
+      const storedSlugs = new Set(resolvedStoredTags.map(tag => tag.label));
+      const bundledTags: Tag[] = index.list()
+        .filter(definition => !definition.isCategory && !storedSlugs.has(definition.slug))
+        .map(definition => ({
+          id: `builtin-${definition.slug}`,
+          label: definition.slug,
+          contributions: [...definition.contributions],
+          createdAt: 0,
+        }));
+      setTags([...resolvedStoredTags, ...bundledTags]);
+      setTagTypes(storedTypes);
+      setEffortSlugs(storedEfforts.map(e => ({ id: e.id || `effort-${e.slug}`, label: e.slug, type: 'effort' })));
+      setEquipmentSlugs(storedEquipment.map(eq => ({ id: eq.id || `equipment-${eq.slug}`, label: eq.slug, type: 'equipment' })));
+      const options: FunctionOption[] = BUILTIN_CALCS.filter(calc =>
+        RUNNABLE_SCOPES.has(calc.scope),
+      ).map(calc => ({
+        name: calc.id,
+        grain: GRAIN_BY_SCOPE[calc.scope] ?? calc.scope,
       }));
-    setTags([...resolvedStoredTags, ...bundledTags]);
-    setTagTypes(storedTypes);
-    setEffortSlugs(storedEfforts.map(e => ({ id: e.id || `effort-${e.slug}`, label: e.slug, type: 'effort' })));
-    setEquipmentSlugs(storedEquipment.map(eq => ({ id: eq.id || `equipment-${eq.slug}`, label: eq.slug, type: 'equipment' })));
-    const options: FunctionOption[] = BUILTIN_CALCS.filter(calc =>
-      RUNNABLE_SCOPES.has(calc.scope),
-    ).map(calc => ({
-      name: calc.id,
-      grain: GRAIN_BY_SCOPE[calc.scope] ?? calc.scope,
-    }));
-    for (const calc of hydration.defs) {
-      if (!RUNNABLE_SCOPES.has(calc.scope)) continue;
-      options.push({ name: calc.id, grain: GRAIN_BY_SCOPE[calc.scope] ?? calc.scope });
+      for (const calc of hydration.defs) {
+        if (!RUNNABLE_SCOPES.has(calc.scope)) continue;
+        options.push({ name: calc.id, grain: GRAIN_BY_SCOPE[calc.scope] ?? calc.scope });
+      }
+      setFunctions(options);
+    } finally {
+      setHasLoaded(true);
     }
-    setFunctions(options);
   }, []);
 
   useEffect(() => {
@@ -130,10 +138,19 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
   useEffect(() => {
     if (!requestedTag || tags.length === 0) return;
     const match = tags.find(tag => tag.label === requestedTag);
-    if (match) setSelectedId(match.id);
+    setSelectedId(match ? match.id : null);
   }, [requestedTag, tags]);
 
   const selected = tags.find(tag => tag.id === selectedId) ?? null;
+  const { isSettling, settlementTick } = useColdRouteResolution({
+    loading: !hasLoaded,
+    missing: Boolean(requestedTag && !selected),
+  });
+
+  useEffect(() => {
+    if (!settlementTick || !requestedTag || selected) return;
+    void load();
+  }, [settlementTick, requestedTag, selected, load]);
 
   useEffect(() => {
     if (!selected) return;
@@ -419,6 +436,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
             <div className="w-full sm:flex-1 min-w-0">
               <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
               <input
+                ref={newLabelInputRef}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs outline-none focus:border-primary"
                 placeholder="heavy"
                 value={newLabel}
@@ -448,12 +466,49 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
         </div>
       </section>
 
-      {!selected && tags.length > 0 && (
+      {!hasLoaded || (requestedTag && !selected && isSettling) ? (
+        <p role="status" data-testid={TEST_IDS.TAG_LOADING_SETTLING} className="text-xs text-muted-foreground">
+          Loading tag details…
+        </p>
+      ) : null}
+      {hasLoaded && requestedTag && !selected && !isSettling && (
+        <section
+          data-testid={TEST_IDS.TAG_NOT_FOUND}
+          className="rounded-xl border border-border bg-card p-5 space-y-3"
+        >
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold text-foreground">Tag &ldquo;#{requestedTag}&rdquo; not found</h2>
+            <p className="text-xs text-muted-foreground">
+              This tag is not defined in the catalogue yet. Create it to define its contributions and property note.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              data-testid={TEST_IDS.TAG_NOT_FOUND_CREATE_BTN}
+              onClick={() => {
+                setNewLabel(requestedTag);
+                if (activeCategory && activeCategory !== 'general' && activeCategory !== 'tag') {
+                  setNewKind(activeCategory);
+                }
+                newLabelInputRef.current?.focus();
+              }}
+            >
+              <Plus className="size-3.5 mr-1" /> Create #{requestedTag}
+            </Button>
+            <a className="text-xs text-primary hover:underline px-2 py-1" href={ROUTE_PATTERNS.tags}>
+              Back to tag catalogue
+            </a>
+          </div>
+        </section>
+      )}
+      {hasLoaded && !requestedTag && !selected && !activeCategory && tags.length > 0 && (
         <p className="text-xs text-muted-foreground italic">
           No tag is selected — open one from the <a className="text-primary hover:underline" href="/tags">tag catalogue</a>.
         </p>
       )}
-      {!selected && activeCategory && (
+      {!selected && !requestedTag && activeCategory && (
         <section id="tags-category" className="space-y-4" data-testid="tag-category-property-note">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-foreground">

@@ -33,10 +33,14 @@ const noteListInputSchema = z.strictObject({
     .describe('Filter by notebook ID or slug (e.g. "journal", "custom", "guides", "notebook/strength").'),
   search: z.string().optional().describe('Case-insensitive substring filter over title and Markdown content.'),
   tag: z.string().optional().describe('Filter to Notes carrying this tag label.'),
+  origin: z
+    .enum(['all', 'user', 'feed', 'seed'])
+    .optional()
+    .describe('Filter by Note origin ("user", "feed", "seed", or "all"; defaults to "all").'),
   includeSeed: z
     .boolean()
     .optional()
-    .describe('Include read-only Seed/Feed notes (default true when notebookId is specified, false otherwise).'),
+    .describe('Include read-only Seed/Feed notes (default true; pass false for user-authored notes only).'),
   limit: z.number().int().min(1).max(200).optional().describe('Max notes to return (default 50).'),
 });
 
@@ -58,7 +62,8 @@ export const wodNoteListTool = defineAgentTool({
   cliEquivalent: 'wod note list --json',
   async execute(args, ctx) {
     const targetNb = args.notebookId ? toNotebookId(args.notebookId) : undefined;
-    const includeSeed = args.includeSeed ?? Boolean(targetNb);
+    const includeSeed = args.includeSeed ?? true;
+    const origin = args.origin ?? 'all';
     const searchLower = args.search?.trim().toLowerCase();
     const tagLower = args.tag?.trim().toLowerCase();
     const limit = args.limit ?? 50;
@@ -88,7 +93,11 @@ export const wodNoteListTool = defineAgentTool({
     const filtered = allNotes
       .filter((n) => {
         if (isLandingNote(n)) return false;
-        if (!includeSeed && (n.seedOrigin === 'seed' || n.feedOrigin === 'feed')) return false;
+        const isSeedOrFeed = n.seedOrigin === 'seed' || n.feedOrigin === 'feed';
+        if (origin === 'user' && isSeedOrFeed) return false;
+        if (origin === 'feed' && n.feedOrigin !== 'feed') return false;
+        if (origin === 'seed' && n.seedOrigin !== 'seed') return false;
+        if (!includeSeed && isSeedOrFeed) return false;
         if (targetNb) {
           const inNb =
             linkedNoteIdsForNb?.has(n.id) ||

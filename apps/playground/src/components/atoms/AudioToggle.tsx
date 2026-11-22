@@ -10,7 +10,7 @@ export function AudioToggle() {
             variant="ghost"
             size="icon"
             onClick={toggleAudio}
-            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+            className="h-11 w-11 min-h-11 min-w-11 text-muted-foreground hover:text-foreground"
             title={isEnabled ? "Mute audio" : "Enable audio"}
         >
             {isEnabled ? (

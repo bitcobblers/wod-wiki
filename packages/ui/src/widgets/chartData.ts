@@ -215,6 +215,7 @@ export function mergeSeries(series: Series[]): MergedPoint[] {
   const map = new Map<number, MergedPoint>();
   for (const s of series) {
     for (const p of s.points) {
+      if ((p as { missing?: boolean }).missing) continue;
       if (!map.has(p.ts)) map.set(p.ts, { ts: p.ts });
       map.get(p.ts)![s.label] = p.value;
     }
@@ -236,6 +237,7 @@ export function buildOrdinalChartData(series: readonly Series[]): OrdinalMergedP
   const map = new Map<string, OrdinalMergedPoint>();
   for (const s of series) {
     s.points.forEach((p, idx) => {
+      if ((p as { missing?: boolean }).missing) return;
       const xVal = p.x ?? idx;
       const key = String(xVal);
       if (!map.has(key)) {

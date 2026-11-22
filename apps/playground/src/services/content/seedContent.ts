@@ -63,10 +63,12 @@ export function invalidateSeedContent(): void {
   void ensureSeedContent().catch(() => {});
 }
 
-function subscribe(listener: () => void): () => void {
+export function subscribeSeedContent(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
+
+const subscribe = subscribeSeedContent;
 
 function getSnapshot(): SeedContentFiles | null {
   return cache;

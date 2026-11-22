@@ -25,9 +25,10 @@ import {
   sharedCastSessionManager,
 } from '@/hooks/useCastSignaling';
 import { invalidateSeedContent } from '@/services/content/seedContent';
-import { setFeedSubscribed, setNotebookSubscribed } from '@/services/feed/feedSubscriptions';
+import { flushFeedStatePersistence, setFeedSubscribed, setNotebookSubscribed } from '@/services/feed/feedSubscriptions';
 import {
   deleteFeedSource,
+  subscribeFeed,
   syncFeedSource,
   unsubscribeFeedSource,
 } from '@/services/feed/feedSync';
@@ -74,6 +75,7 @@ interface ExecuteToolHost {
   getTools?: () => Promise<unknown[]>;
   listTools?: () => Promise<unknown[]>;
   executeTool(...args: unknown[]): Promise<string>;
+  callTool?: (...args: unknown[]) => Promise<string>;
 }
 
 type ExecuteToolFn = ExecuteToolHost['executeTool'];
@@ -167,35 +169,50 @@ export function installModelContextExecuteToolAdapter(mc: unknown): void {
   if (typeof mc !== 'object' || mc === null) return;
   const host = mc as ExecuteToolHost;
   const original = host.executeTool;
-  if (typeof original !== 'function' || (original as WrappedExecuteTool)[WRAPPED_EXECUTE_TOOL]) return;
-  const getTools = async (): Promise<unknown[]> => {
-    if (typeof host.getTools === 'function') return host.getTools();
-    if (typeof host.listTools === 'function') return host.listTools();
-    return [];
-  };
-  const wrapped: ExecuteToolFn = async (...args: unknown[]): Promise<string> => {
-    const [firstArg, secondArg] = args;
-    if (args.length >= 2 && isRegisteredToolLike(firstArg)) {
-      return original.call(
-        host,
-        firstArg,
-        normalizeToolInput(firstArg.name, secondArg as object | undefined),
-        args[2],
-      );
-    }
-    if (typeof firstArg === 'string') {
-      const descriptor = await resolveDescriptor(getTools, firstArg, undefined);
-      return original.call(host, descriptor, normalizeToolInput(firstArg, (secondArg ?? {}) as object), args[2]);
-    }
-    if (isToolCallEnvelope(firstArg)) {
-      const input = normalizeToolInput(firstArg.name, unwrapEnvelopeInput(firstArg));
-      const descriptor = await resolveDescriptor(getTools, firstArg.name, firstArg);
-      return original.call(host, descriptor, input);
-    }
-    return original.apply(host, args);
-  };
-  (wrapped as WrappedExecuteTool)[WRAPPED_EXECUTE_TOOL] = true;
-  Object.defineProperty(host, 'executeTool', { configurable: true, writable: true, value: wrapped });
+  if (typeof original !== 'function') return;
+
+  let dispatchExecute: ExecuteToolFn;
+  if ((original as WrappedExecuteTool)[WRAPPED_EXECUTE_TOOL]) {
+    dispatchExecute = original;
+  } else {
+    const getTools = async (): Promise<unknown[]> => {
+      if (typeof host.getTools === 'function') return host.getTools();
+      if (typeof host.listTools === 'function') return host.listTools();
+      return [];
+    };
+    const wrapped: ExecuteToolFn = async (...args: unknown[]): Promise<string> => {
+      const [firstArg, secondArg] = args;
+      if (args.length >= 2 && isRegisteredToolLike(firstArg)) {
+        return original.call(
+          host,
+          firstArg,
+          normalizeToolInput(firstArg.name, secondArg as object | undefined),
+          args[2],
+        );
+      }
+      if (typeof firstArg === 'string') {
+        const descriptor = await resolveDescriptor(getTools, firstArg, undefined);
+        return original.call(host, descriptor, normalizeToolInput(firstArg, (secondArg ?? {}) as object), args[2]);
+      }
+      if (isToolCallEnvelope(firstArg)) {
+        const input = normalizeToolInput(firstArg.name, unwrapEnvelopeInput(firstArg));
+        const descriptor = await resolveDescriptor(getTools, firstArg.name, firstArg);
+        return original.call(host, descriptor, input);
+      }
+      return original.apply(host, args);
+    };
+    (wrapped as WrappedExecuteTool)[WRAPPED_EXECUTE_TOOL] = true;
+    Object.defineProperty(host, 'executeTool', { configurable: true, writable: true, value: wrapped });
+    dispatchExecute = wrapped;
+  }
+
+  // WW-112: expose MCP `callTool` alias alongside `executeTool` so clients using either verb interoperate.
+  if (typeof host.callTool !== 'function' || !(host.callTool as WrappedExecuteTool)[WRAPPED_EXECUTE_TOOL]) {
+    const wrappedCallTool: WrappedExecuteTool = async (...args: unknown[]): Promise<string> =>
+      dispatchExecute.apply(host, args);
+    wrappedCallTool[WRAPPED_EXECUTE_TOOL] = true;
+    Object.defineProperty(host, 'callTool', { configurable: true, writable: true, value: wrappedCallTool });
+  }
 }
 
 const DomainWebMcpToolRegistration: React.FC<{ spec: AnyAgentToolSpec }> = ({ spec }) => {
@@ -222,15 +239,16 @@ const DomainWebMcpToolRegistration: React.FC<{ spec: AnyAgentToolSpec }> = ({ sp
         baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
         feedLifecycle: {
           subscribe: async (sourceId, opts) => {
-            setFeedSubscribed(sourceId, true);
             if (opts?.notebookIds?.length) {
+              setFeedSubscribed(sourceId, true);
               for (const nbId of opts.notebookIds) {
                 setNotebookSubscribed(sourceId, nbId, true);
               }
+              await flushFeedStatePersistence();
             }
-            const outcome = await syncFeedSource(sourceId, {
-              notebookIds: opts?.notebookIds,
-            });
+            const outcome = opts?.notebookIds?.length
+              ? await syncFeedSource(sourceId, { notebookIds: opts.notebookIds, preserveSubscriptionState: true })
+              : await subscribeFeed(sourceId, { offlinePolicy: sourceId === 'core' ? 'offline-full' : 'index-only' });
             return {
               sourceId,
               subscribed: true,
@@ -332,6 +350,43 @@ export const PlaygroundAgentProvider: React.FC = () => {
       const navMc = navWithMc.modelContext;
       installModelContextExecuteToolAdapter(docMc);
       if (navMc !== docMc) installModelContextExecuteToolAdapter(navMc);
+
+      // WW-112: expose navigator.modelContextTesting bridge delegating to live navigator.modelContext.
+      const navTestingHolder = navigator as Navigator & {
+        modelContext?: ExecuteToolHost;
+        modelContextTesting?: unknown;
+      };
+      if ((navMc || docMc) && !navTestingHolder.modelContextTesting) {
+        try {
+          Object.defineProperty(navigator, 'modelContextTesting', {
+            configurable: true,
+            enumerable: true,
+            value: {
+              listTools: async () => {
+                const mc = navTestingHolder.modelContext;
+                if (mc && typeof mc.listTools === 'function') return mc.listTools();
+                if (mc && typeof mc.getTools === 'function') return mc.getTools();
+                return [];
+              },
+              executeTool: async (...args: unknown[]) => {
+                const mc = navTestingHolder.modelContext;
+                if (!mc || typeof mc.executeTool !== 'function') {
+                  throw new Error('navigator.modelContext.executeTool is unavailable');
+                }
+                return mc.executeTool(...args);
+              },
+              callTool: async (...args: unknown[]) => {
+                const mc = navTestingHolder.modelContext;
+                if (mc && typeof mc.callTool === 'function') return mc.callTool(...args);
+                if (mc && typeof mc.executeTool === 'function') return mc.executeTool(...args);
+                throw new Error('navigator.modelContext.callTool is unavailable');
+              },
+            },
+          });
+        } catch {
+          // Ignore non-configurable navigator realms
+        }
+      }
       const unregisterUiSdk = registerTools(uiSdkAgent, { allow: () => true });
       return () => {
         unregisterUiSdk();

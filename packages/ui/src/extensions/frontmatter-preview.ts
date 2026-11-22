@@ -63,7 +63,7 @@ export interface FrontmatterReferenceProvider {
   resolveEffort(slugOrAlias: string): { slug: string; label: string } | null;
   resolveEquipment(slugOrAlias: string): { slug: string; label: string } | null;
   /** Route href for an existing effort/equipment/tag page (app-owned). */
-  openHref(kind: FrontmatterReferenceRef['kind'], slug: string): string;
+  openHref(kind: FrontmatterReferenceRef['kind'], slug: string, tagType?: string): string;
   /** Route href for the create page of a kind (app-owned). */
   createHref(kind: FrontmatterReferenceRef['kind']): string;
 }
@@ -179,7 +179,25 @@ function triggerAddOrEditProperty(view: EditorView, root?: HTMLElement, _section
   patchPropertyInView(view, fm.id, ["property"], "", true);
 }
 const widgetCleanup = new WeakMap<HTMLElement, (() => void)[]>();
+const pendingFrontmatterCommit = new WeakMap<HTMLInputElement, () => void>();
 let helperId = 0;
+
+function registerFrontmatterCommit(input: HTMLInputElement, commit: () => void): void {
+  pendingFrontmatterCommit.set(input, commit);
+}
+
+function attachExternalCommitFlush(root: HTMLElement): void {
+  const onPointerDown = (e: PointerEvent) => {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement) || !root.contains(active)) return;
+    const target = e.target as Element | null;
+    if (target && (root.contains(target) || target.closest('[role="listbox"]'))) return;
+    const commit = pendingFrontmatterCommit.get(active);
+    if (commit) commit();
+  };
+  document.addEventListener("pointerdown", onPointerDown, true);
+  widgetCleanup.get(root)?.push(() => document.removeEventListener("pointerdown", onPointerDown, true));
+}
 
 const TAG_CATEGORY_SUMMARY_KEYS: Record<string, true> = {
   tag: true,
@@ -187,8 +205,6 @@ const TAG_CATEGORY_SUMMARY_KEYS: Record<string, true> = {
   category: true,
   domain: true,
   format: true,
-  equipment: true,
-  effort: true,
   quality: true,
   intent: true,
   discipline: true,
@@ -501,6 +517,9 @@ function createTagDraftRow(
   const discard = () => settle(false);
 
   attachSuggestions(input, view, root, "value", key, [], commit);
+  registerFrontmatterCommit(input, () => {
+    if (input.isConnected && input.value.trim()) commit();
+  });
   input.addEventListener("keydown", (e) => {
 // noinspection JSDeprecatedSymbols
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari/WebKit IME composition still emits keyCode 229 after compositionend
@@ -977,43 +996,105 @@ function createFrontmatterSummary(
   summary.dataset.frontmatterSummary = "true";
   summary.className = "divide-y divide-border/60";
 
-  const groups = [
-    { label: "Tags", entries: entries.filter(([key]) => TAG_CATEGORY_SUMMARY_KEYS[key.trim().toLowerCase()]), hash: true },
-    { label: "Aliases", entries: entries.filter(([key]) => isAliasProperty(key)), hash: false },
-  ];
-  for (const group of groups) {
-    const seen = new Set<string>();
-    const values = group.entries
-      .flatMap(([, value]) => parseTagList(value))
-      .filter((val) => {
-        const lower = val.toLowerCase();
-        if (seen.has(lower)) return false;
-        seen.add(lower);
-        return true;
-      });
-    if (values.length === 0) continue;
+  const appendSummaryGroupRow = (
+    labelText: string,
+    items: Array<{ text: string; hash: boolean; href?: string }>,
+  ) => {
+    if (items.length === 0) return;
     const row = document.createElement("div");
     row.className = "flex flex-wrap items-center gap-1.5 px-3 py-2";
     const label = document.createElement("span");
-    label.className = "mr-1 w-14 shrink-0 text-[11px] font-medium text-muted-foreground";
-    label.textContent = group.label;
+    label.className = "mr-1 w-16 shrink-0 text-[11px] font-medium text-muted-foreground";
+    label.textContent = labelText;
     row.appendChild(label);
-    for (const value of values) {
-      let href: string | undefined;
-      if (group.label === "Aliases" && referenceProvider && (docKind === "effort" || docKind === "equipment")) {
-        const match = docKind === "effort"
-          ? referenceProvider.resolveEffort(value)
-          : referenceProvider.resolveEquipment(value);
-        if (match) {
-          href = referenceProvider.openHref(docKind, match.slug);
-        }
-      }
-      row.appendChild(createSummaryPill(value, group.hash, href));
+    for (const item of items) {
+      row.appendChild(createSummaryPill(item.text, item.hash, item.href));
     }
     summary.appendChild(row);
-  }
+  };
 
-  const hidden = entries.filter(([key]) => !TAG_CATEGORY_SUMMARY_KEYS[key.trim().toLowerCase()] && !isAliasProperty(key));
+  // 1. Tags (preserving source key category so /t/<type>/<tag> routes accurately)
+  const seenTags = new Set<string>();
+  const tagItems: Array<{ text: string; hash: boolean; href?: string }> = [];
+  for (const [key, value] of entries) {
+    const normKey = key.trim().toLowerCase();
+    if (!TAG_CATEGORY_SUMMARY_KEYS[normKey]) continue;
+    for (const val of parseTagList(value)) {
+      const lower = val.toLowerCase();
+      if (seenTags.has(lower)) continue;
+      seenTags.add(lower);
+      tagItems.push({
+        text: val,
+        hash: true,
+        href: referenceProvider?.openHref("tag", val, normKey),
+      });
+    }
+  }
+  appendSummaryGroupRow("Tags", tagItems);
+
+  // 2. Equipment (dedicated row linked to /equipment/:slug)
+  const seenEquip = new Set<string>();
+  const equipItems: Array<{ text: string; hash: boolean; href?: string }> = [];
+  for (const [key, value] of entries) {
+    if (key.trim().toLowerCase() !== "equipment") continue;
+    for (const val of parseTagList(value)) {
+      const lower = val.toLowerCase();
+      if (seenEquip.has(lower)) continue;
+      seenEquip.add(lower);
+      const match = referenceProvider?.resolveEquipment(val) ?? null;
+      equipItems.push({
+        text: match ? match.label : val,
+        hash: false,
+        href: match && referenceProvider ? referenceProvider.openHref("equipment", match.slug) : undefined,
+      });
+    }
+  }
+  appendSummaryGroupRow("Equipment", equipItems);
+
+  // 3. Effort (dedicated row linked to /effort/:slug)
+  const seenEffort = new Set<string>();
+  const effortItems: Array<{ text: string; hash: boolean; href?: string }> = [];
+  for (const [key, value] of entries) {
+    if (key.trim().toLowerCase() !== "effort") continue;
+    for (const val of parseTagList(value)) {
+      const lower = val.toLowerCase();
+      if (seenEffort.has(lower)) continue;
+      seenEffort.add(lower);
+      const match = referenceProvider?.resolveEffort(val) ?? null;
+      effortItems.push({
+        text: match ? match.label : val,
+        hash: false,
+        href: match && referenceProvider ? referenceProvider.openHref("effort", match.slug) : undefined,
+      });
+    }
+  }
+  appendSummaryGroupRow("Effort", effortItems);
+
+  // 4. Aliases (WW-071 — preserve definition alias anchor links)
+  const seenAliases = new Set<string>();
+  const aliasItems: Array<{ text: string; hash: boolean; href?: string }> = [];
+  for (const [key, value] of entries) {
+    if (!isAliasProperty(key)) continue;
+    for (const val of parseTagList(value)) {
+      const lower = val.toLowerCase();
+      if (seenAliases.has(lower)) continue;
+      seenAliases.add(lower);
+      let href: string | undefined;
+      if (referenceProvider && (docKind === "effort" || docKind === "equipment")) {
+        const match = docKind === "effort"
+          ? referenceProvider.resolveEffort(val)
+          : referenceProvider.resolveEquipment(val);
+        if (match) href = referenceProvider.openHref(docKind, match.slug);
+      }
+      aliasItems.push({ text: val, hash: false, href });
+    }
+  }
+  appendSummaryGroupRow("Aliases", aliasItems);
+
+  const hidden = entries.filter(([key]) => {
+    const k = key.trim().toLowerCase();
+    return !TAG_CATEGORY_SUMMARY_KEYS[k] && k !== "equipment" && k !== "effort" && !isAliasProperty(key);
+  });
   const metricCount = hidden.filter(([key]) => {
     const k = key.trim().toLowerCase();
     return k.startsWith("metrics.") || k === "metrics";
@@ -1088,6 +1169,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const root = document.createElement("div");
     widgetCleanup.set(root, []);
+    attachExternalCommitFlush(root);
     root.className = "cm-frontmatter-preview py-2 font-sans select-none";
 
     const heading = document.createElement("div");
@@ -1212,6 +1294,9 @@ export class DefaultFrontmatterWidget extends WidgetType {
         keyInput.addEventListener("change", commitKeyIfAttached);
         keyCol.appendChild(keyInput);
         attachSuggestions(keyInput, view, root, "key", key, entries.map(([name]) => name), commitKey);
+        registerFrontmatterCommit(keyInput, () => {
+          if (keyInput.isConnected) commitKey();
+        });
         keyInput.addEventListener("blur", commitKeyIfAttached);
         keyInput.addEventListener("keydown", (e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === ";") {
@@ -1386,6 +1471,9 @@ export class DefaultFrontmatterWidget extends WidgetType {
           };
           valCol.appendChild(chipInput);
           attachSuggestions(chipInput, view, root, "value", key, chips, commitNewChip, valueKind);
+          registerFrontmatterCommit(chipInput, () => {
+            if (chipInput.isConnected && chipInput.value.trim()) commitNewChip();
+          });
 
           chipInput.addEventListener("keydown", (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === ";") {
@@ -1555,6 +1643,9 @@ export class DefaultFrontmatterWidget extends WidgetType {
             valInput, view, root, "value", key, [strVal], commitVal,
             key.trim().toLowerCase() === "metrics.effort" ? "effort" : "tags",
           );
+          registerFrontmatterCommit(valInput, () => {
+            if (valInput.isConnected) commitVal();
+          });
           valInput.addEventListener("blur", commitValIfAttached);
           valInput.addEventListener("keydown", (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === ";") {

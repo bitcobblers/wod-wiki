@@ -136,4 +136,39 @@ describe('SessionClockProjection at runtime seam', () => {
     expect(frame.roundLabel).toBe('Round 1 of 5');
     expect(frame.mainLabel).toBe('Round 1 of 5');
   });
+
+  it('WW-079: collapses adjacent repeated effort labels in upNext and subLabels', () => {
+    const { runtime, clock } = boot('(2)\n  10 Thrusters 42.5kg\n  12 Pullups');
+    const currentBlock = runtime.stack.current;
+    expect(currentBlock).toBeDefined();
+
+    // Simulate display/next memory containing repeated adjacent labels
+    currentBlock!.pushMemory(
+      new MemoryLocation('metric:display', [
+        { type: MetricType.Effort, value: 'thrusters', image: 'Thrusters', origin: 'parser' },
+        { type: MetricType.Effort, value: 'thrusters', image: 'Thrusters', origin: 'compiler' },
+        { type: MetricType.Resistance, value: 42.5, unit: 'kg', image: '42.5 kg', origin: 'parser' },
+      ]),
+    );
+    currentBlock!.pushMemory(
+      new MemoryLocation('metric:display', [
+        { type: MetricType.Rep, value: 5, image: '5', origin: 'parser' },
+        { type: MetricType.Effort, value: 'pullups', image: 'Pullups', origin: 'parser' },
+      ]),
+    );
+    currentBlock!.pushMemory(
+      new MemoryLocation('metric:next', [
+        { type: MetricType.Effort, value: 'thrusters', image: 'Thrusters', origin: 'parser' },
+        { type: MetricType.Effort, value: 'thrusters', image: 'Thrusters', origin: 'compiler' },
+        { type: MetricType.Resistance, value: 42.5, unit: 'kg', image: '42.5 kg', origin: 'parser' },
+      ]),
+    );
+
+    const frame = projectSessionClock(runtime, {
+      nowMs: clock.currentDate.getTime(),
+      executionStatus: 'running',
+    });
+    expect(frame.upNext).toBe('Thrusters 42.5 kg');
+    expect(frame.subLabels?.some((line) => line === 'Thrusters 42.5 kg')).toBe(true);
+  });
 });

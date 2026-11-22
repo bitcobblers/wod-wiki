@@ -2,13 +2,17 @@ import { describe, expect, it, beforeEach } from 'bun:test';
 import {
   getFeedSubscriptionMode,
   getSubscribedNotebooks,
+  hydrateFeedStateFromStorage,
   isNotebookSubscribed,
   migrateFeedSubscriptions,
   resetFeedSubscriptionsForTest,
+  setFeedAutoSync,
+  setFeedOfflinePolicy,
   setFeedSubscribed,
   setNotebookSubscribed,
   subscribeFeedSubscriptions,
 } from './feedSubscriptions';
+import { getFeedOfflinePolicy } from './feedSubscriptions';
 import { syncNotebook, toggleNotebookSubscription } from './feedSync';
 import { InMemoryFeedStorage } from './FeedImportStorage';
 import { InMemoryFeedSource } from './InMemoryFeedSource';
@@ -240,5 +244,40 @@ describe('feedSubscriptions (Slice 2)', () => {
     unsubscribe();
     window.dispatchEvent(new StorageEvent('storage', { key: 'wodwiki.seedSubscriptions' }));
     expect(notified).toEqual([1]);
+  });
+
+  it('WW-119: pre-hydration subscribe and auto-sync writes survive hydrateFeedStateFromStorage and migrateFeedSubscriptions', async () => {
+    const storage = new InMemoryFeedStorage();
+    // Simulate an already-migrated IndexedDB storage where sport-crossfit was not subscribed yet.
+    await storage.storageInstance.transaction(['meta'], 'readwrite', async (tx) => {
+      await tx.readwrite('meta').put({
+        key: 'feed:subscriptions',
+        entries: { core: { subscribed: true, notebookIds: null, updatedAt: 1 } },
+        checks: {},
+        migratedFromLocalStorage: true,
+      } as unknown as Record<string, unknown>);
+      await tx.readwrite('meta').put({
+        ...emptySeedMeta(seedMetaKey('sport-hyrox')),
+        key: seedMetaKey('sport-hyrox'),
+        seedVersion: 1,
+        builtAt: new Date(1).toISOString(),
+        importedAt: 1,
+        tier: 'imported',
+        chunks: { 'notebook.hyrox-races': { sha256: 'b'.repeat(64) } },
+      });
+    });
+
+    // User subscribes via /subscribe before BootGate hydration settles.
+    setFeedSubscribed('sport-crossfit', true);
+    setFeedOfflinePolicy('sport-crossfit', 'index-only');
+    setFeedAutoSync('sport-crossfit', true);
+
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+    await migrateFeedSubscriptions([{ id: 'sport-hyrox' }, { id: 'sport-crossfit' }], storage);
+
+    resetFeedSubscriptionsForTest();
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+    expect(getFeedSubscriptionMode('sport-crossfit')).toBe('full');
+    expect(getFeedOfflinePolicy('sport-crossfit')).toBe('index-only');
   });
 });

@@ -27,6 +27,7 @@ import {
 } from '@/services/feed/feedSync'
 import type { FeedImportProgress } from '@/services/feed/FeedImporter'
 import {
+  flushFeedStatePersistence,
   getFeedSubscriptionMode,
   isFeedAutoSync,
   setFeedAutoSync,
@@ -606,6 +607,7 @@ export function SyncSection({ deps = {} }: { deps?: SyncSectionDeps } = {}) {
       } else {
         setFeedSubscribed(id, true)
         setFeedOfflinePolicy(id, 'index-only')
+        await flushFeedStatePersistence()
         outcome = await syncSource(id, { offlinePolicy: 'index-only', subscribe: true, onProgress })
       }
       const label = status?.sources.find(s => s.id === id)?.label ?? id
@@ -632,6 +634,7 @@ export function SyncSection({ deps = {} }: { deps?: SyncSectionDeps } = {}) {
 
   const handleSwitchIndexOnly = useCallback((id: string) => {
     setFeedOfflinePolicy(id, 'index-only')
+    void flushFeedStatePersistence()
     const label = status?.sources.find(s => s.id === id)?.label ?? id
     toast({ title: `${label} set to index-only`, description: 'Future updates will sync lightweight indexes only.' })
     void refresh(false)
@@ -676,6 +679,8 @@ export function SyncSection({ deps = {} }: { deps?: SyncSectionDeps } = {}) {
         description: 'Browser storage is unavailable. The choice lasts this session only.',
         variant: 'destructive',
       })
+    } else {
+      void flushFeedStatePersistence()
     }
     void refresh(false)
   }, [refresh])

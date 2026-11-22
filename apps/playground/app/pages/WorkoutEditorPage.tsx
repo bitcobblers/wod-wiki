@@ -270,7 +270,7 @@ export function WorkoutEditorPage({
       if (usePopup || !isNotebookItem) {
         try {
           await flush();
-          const captured = await captureRun({ noteId: canonicalNoteId, rawContent: effectiveContent, blocks: effectiveBlocks, expectedSourceRevision: committedSourceRevision(), metadata: { title: effectiveTitle }, noteType: 'playground' }, block, runtimeId);
+          const captured = await captureRun({ noteId: canonicalNoteId, rawContent: effectiveContent, blocks: effectiveBlocks, expectedSourceRevision: committedSourceRevision(), metadata: { title: effectiveTitle }, noteType: 'playground' }, block, runtimeId, undefined, undefined, { deferPersist: true });
           onSaved({ rawContent: captured.note.rawContent, blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision });
           pendingRuntimes.set(runtimeId, { block: captured.block, noteId: captured.session.noteId, captured });
           void navigate(runPath(runtimeId));
@@ -299,7 +299,7 @@ export function WorkoutEditorPage({
           blocks: effectiveBlocks,
           expectedSourceRevision: effectiveRevision,
           metadata: { title: effectiveTitle },
-        }, block, runtimeId, 'journal')
+        }, block, runtimeId, 'journal', undefined, { deferPersist: true })
         pendingRuntimes.set(runtimeId, { block: captured.block, noteId: captured.note.id, captured, returnTo: notebookItemPath(category, name) })
         void navigate(runPath(captured.session.id))
       } catch (error) {

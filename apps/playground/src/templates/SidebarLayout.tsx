@@ -20,7 +20,7 @@ import { SecondaryNav } from '../../app/nav/SecondaryNav'
 import { useNav } from '../../app/nav/NavContext'
 import { cn } from '@/lib/utils'
 import { TEST_IDS } from '@/lib/testIds'
-import { ResponsiveActionsProvider } from '../../app/nav/ResponsiveActions'
+import { ResponsiveActionsDockPort, ResponsiveActionsProvider } from '../../app/nav/ResponsiveActions'
 import { useSurfaceBusy } from '@/agent/surfaceBridges'
 import { feedProgressDetail, feedProgressLabel } from '@/services/feed/feedProgress'
 import { useActiveImportLabel, useFeedImportPending, useFeedReadiness, useFeedSyncProgress } from '@/services/feed/feedReadiness'
@@ -275,7 +275,7 @@ export function SidebarLayout({
   return (
     <L3DrawerStateProvider value={l3DrawerState}>
     <MobileQuerySlotProvider>
-    <ResponsiveActionsProvider onSearch={onSearch}>
+    <ResponsiveActionsProvider onSearch={onSearch} renderDock={false}>
     <div className="relative isolate flex min-h-svh w-full bg-background max-lg:flex-col lg:flex-row">
       <div className="flex flex-1 w-full max-lg:flex-col lg:flex-row">
         {/* Main desktop nav — L1 Icon rail + L2 Context sidebar */}
@@ -328,14 +328,13 @@ export function SidebarLayout({
           </header>
 
         <MainLandmark>
-          <div className="grow w-full max-lg:pb-48 lg:overflow-visible">
+          <div className="grow w-full max-lg:pb-[calc(12rem+var(--thumb-dock-lift,0px)+env(safe-area-inset-bottom,0px))] lg:overflow-visible">
             {children}
           </div>
-          {/* Mobile thumb-area footer — pages portal their query bar (the
-              WQL composer) into the slot at the bottom of the screen; the
-              thumb dock stacks above it via --thumb-dock-lift. Collapses
-              when unoccupied. */}
+          {/* Mobile thumb-area footer + dock live inside <main> so interactive
+              controls never sit outside landmarks or occlude bottom content. */}
           <MobileQueryFooter />
+          <ResponsiveActionsDockPort />
         </MainLandmark>
 
         </div>

@@ -85,5 +85,9 @@ export class AmrapLogicStrategy implements IRuntimeBlockStrategy {
 
         // Sound cues are attached by SoundStrategy from the block's sound
         // profile — no cues are hardcoded here.
+
+        // Allow childless header-only AMRAP blocks to advance cleanly on Next (WW-077);
+        // ChildrenStrategy overrides this with 'deferred' whenever children exist.
+        builder.declareExit('immediate');
     }
 }

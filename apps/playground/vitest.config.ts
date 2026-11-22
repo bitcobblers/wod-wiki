@@ -9,6 +9,8 @@ export default defineConfig({
   plugins: [react()],
   define: {
     __SEED_VERSIONS__: JSON.stringify({ core: 1 }),
+    __GIT_SHA__: JSON.stringify('test-sha'),
+    __BUILT_AT__: JSON.stringify('2026-01-01T00:00:00.000Z'),
   },
   resolve: {
     alias: [

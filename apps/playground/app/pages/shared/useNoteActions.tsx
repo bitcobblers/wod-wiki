@@ -17,6 +17,7 @@ import { exportNote } from '@/services/ExportImportService'
 import type { HistoryRecord } from '@/types/history'
 import { NotePlacementDialog, type NotePlacementMode } from '../../components/organisms/journal/NotePlacementDialog'
 import { waitForPendingNoteSave } from '../../hooks/useNoteDraft'
+import { clearStagedNoteSave, markNoteDeleting, unmarkNoteDeleting } from '@/services/persistence/pendingNoteSaves'
 import { notePath, ROUTE_PATTERNS } from '../../lib/routes'
 import { journalNotes } from '../../services/journalNotes'
 import { appendTimerBlock } from './pageUtils'
@@ -47,6 +48,8 @@ export interface UseNoteActionsOptions {
   onCloned?: (created: HistoryRecord) => void
   /** Called after deleting (defaults to navigating to `deleteRedirectTo`). */
   onDeleted?: (deletedId: string) => void
+  /** Called immediately before deletion starts (cancels uncommitted editor drafts). */
+  onBeforeDelete?: (noteId: string) => void
 }
 
 export function buildNoteHelpfulActionsForEntry(params: {
@@ -181,6 +184,7 @@ export function useNoteActions(options: UseNoteActionsOptions) {
     onUpdated,
     onCloned,
     onDeleted,
+    onBeforeDelete,
   } = options
 
   const navigate = useNavigate()
@@ -210,9 +214,13 @@ export function useNoteActions(options: UseNoteActionsOptions) {
     if (!entry || isReadOnly || deletingNote) return
     setDeletingNote(true)
     setDeleteError(null)
+    markNoteDeleting(entry.id)
+    onBeforeDelete?.(entry.id)
+    clearStagedNoteSave(entry.id)
     try {
       await waitForPendingNoteSave(entry.id)
       await journalNotes.delete(entry.id)
+      clearStagedNoteSave(entry.id)
       setConfirmDeleteOpen(false)
       if (onDeleted) {
         onDeleted(entry.id)
@@ -220,11 +228,12 @@ export function useNoteActions(options: UseNoteActionsOptions) {
         void navigate(deleteRedirectTo, { replace: true })
       }
     } catch (err) {
+      unmarkNoteDeleting(entry.id)
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete note.')
     } finally {
       setDeletingNote(false)
     }
-  }, [deleteRedirectTo, deletingNote, entry, isReadOnly, navigate, onDeleted])
+  }, [deleteRedirectTo, deletingNote, entry, isReadOnly, navigate, onBeforeDelete, onDeleted])
 
   const helpfulActions = useMemo<NoteHelpfulAction[]>(() => {
     if (!entry) return []

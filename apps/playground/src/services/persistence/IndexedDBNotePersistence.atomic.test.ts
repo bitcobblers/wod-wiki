@@ -192,5 +192,16 @@ for (const backend of ['memory', 'indexeddb'] as const) {
         expect((await service.getBlockIndexByNote(entry.id))[0]?.from).toBe(Object.values(blocks)[0]?.from);
       } finally { await storage.close(); }
     });
+
+    it('WW-020: stamps seedOrigin=user, journal notebook membership, and notebook_links atomically on create/saveRecord', async () => {
+      const { storage, service, entry } = await setup();
+      try {
+        const note = await service.getNote(entry.id);
+        expect(note?.seedOrigin).toBe('user');
+        expect(note?.notebookIds).toContain('notebook/journal');
+        const links = await storage.readonly('notebook_links').getAllFromIndex('by-note', entry.id);
+        expect(links.some((l) => l.notebookId === 'notebook/journal' && l.targetKind === 'note')).toBe(true);
+      } finally { await storage.close(); }
+    });
   });
 }

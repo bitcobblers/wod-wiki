@@ -207,4 +207,18 @@ afterEach(() => {
     expect(rows[0].getAttribute('data-testid')).toBe('property-table-row-eff-2')
     expect(rows[1].getAttribute('data-testid')).toBe('property-table-row-eff-1')
   })
+
+  it('WW-118: renders primary catalog titles as native Link anchors with href', () => {
+    const handleRowClick = mock()
+    render(
+      <MemoryRouter>
+        <PropertyTable entries={sampleEntries} level="effort" onRowClick={handleRowClick} />
+      </MemoryRouter>,
+    )
+
+    const link = screen.getByRole('link', { name: 'Back Squat' })
+    expect(link.getAttribute('href')).toBe('/effort/back-squat')
+    fireEvent.click(link)
+    expect(handleRowClick).not.toHaveBeenCalled()
+  })
 })

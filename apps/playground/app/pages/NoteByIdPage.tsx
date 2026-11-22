@@ -7,6 +7,7 @@ import { JournalPageShell } from '@/panels/page-shells'
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
 import { BlockHistory } from '@/components/organisms/editor/BlockHistory'
 import { useNoteDraft, waitForPendingNoteSave } from '../hooks/useNoteDraft'
+import { useColdRouteResolution } from '../hooks/useColdRouteResolution'
 import { useNoteL1Zone } from '../nav/NavContext'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { storageService } from '@/services/storage'
@@ -32,6 +33,7 @@ import { toast } from '@/hooks/use-toast'
 import { GitFork, Play, RefreshCw } from 'lucide-react'
 import { resolveNotePropertyStack } from '@/app/editor/runtimeTimerModel'
 import { WidgetComposerDialog } from '../views/dashboards/WidgetComposerDialog'
+import { HaltedRunNotice } from '@/components/organisms/editor/RuntimeTimerPanel'
 import { slugifyRoute } from '../components/organisms/journal/CreateJournalNoteDialog'
 import { localDateKey } from '@/lib/dateFormat'
 import type { HistoryRecord } from '@/types/history'
@@ -41,6 +43,7 @@ import { pendingRuntimes } from '../runtimeStore'
 import type { ScriptBlock } from '@/components/Editor/types'
 import { useNotePageNav } from './shared/useNotePageNav'
 import { useNoteActions } from './shared/useNoteActions'
+import { TEST_IDS } from '@/lib/testIds'
 import { PageActions } from './shared/PageActions'
 import {
   NoteContextNav,
@@ -106,6 +109,13 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   // query block evaluates; a new page context re-populates (@today may have
   // changed since the previous page loaded).
   const sourcesReady = usePageSourcesReady()
+  const { isSettling, settlementTick } = useColdRouteResolution({
+    loading: (!entry && !missing && !remoteError) || remoteLoading,
+    missing,
+  })
+  const prevLookupKeyRef = useRef<string | null>(null)
+  const loadedEntryRef = useRef<HistoryRecord | null>(null)
+  loadedEntryRef.current = entry
   useEffect(() => {
     void refreshPageSources().catch(() => {
       // Failure stays on the cached promise — child queries surface it.
@@ -114,13 +124,20 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
 
   useEffect(() => {
     let cancelled = false
-    setEntry(null)
-    setMissing(false)
+    const lookupRouteKey = `${noteId}|${remoteUuid ?? ''}|${feedParam ?? ''}|${remoteParam ?? ''}|${remoteRetryTick}`
+    const routeChanged = prevLookupKeyRef.current !== lookupRouteKey
+    prevLookupKeyRef.current = lookupRouteKey
+    if (!routeChanged && loadedEntryRef.current) {
+      return
+    }
+    if (routeChanged) {
+      setEntry(null)
+      setMissing(false)
+      setRemoteError(null)
+      setRemoteLoading(false)
+    }
     // saveError handled in draft
     // Await any in-flight draft flush for this noteId (e.g. Ctrl+S / unmount right before Back).
-    setMissing(false)
-    setRemoteError(null)
-    setRemoteLoading(false)
     const lookupKey = remoteUuid ?? noteId
     waitForPendingNoteSave(lookupKey)
       .then(async () => {
@@ -132,6 +149,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
         if (loaded) {
           setRawNote(fetchedRaw ?? null)
           setEntry(loaded)
+          setMissing(false)
           return
         }
         if (parsedRemote.isRemote || feedParam || remoteParam) {
@@ -177,6 +195,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
               notebookId: resolved.note.notebookIds?.[0],
             })
           }
+          setMissing(false)
           setRemoteLoading(false)
           return
         }
@@ -194,7 +213,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     return () => {
       cancelled = true
     }
-  }, [noteId, searchParams, parsedRemote.isRemote, remoteUuid, feedParam, remoteParam, remoteRetryTick])
+  }, [noteId, searchParams, parsedRemote.isRemote, remoteUuid, feedParam, remoteParam, remoteRetryTick, settlementTick])
 
   // Resolve the source lineage's title so it can link to the original note.
   const sourceId = entry?.provenance?.sourceNoteId ?? entry?.sourceId
@@ -365,6 +384,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     entry,
     liveContent,
     isReadOnly,
+    onBeforeDelete: () => draft.cancel(),
     deleteRedirectTo:
       ownership.up?.to ??
       (entry?.journalDate ? dayPath(entry.journalDate) : ROUTE_PATTERNS.journal),
@@ -408,8 +428,9 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     noteId: entry?.id,
     helpfulActions: noteActions.helpfulActions,
   });
+  const [contextVersion, setContextVersion] = useState(0)
   const placementRevision = entry
-    ? `${entry.sourceRevision ?? 0}:${(entry.placements ?? [])
+    ? `${entry.sourceRevision ?? 0}:${contextVersion}:${(entry.placements ?? [])
         .map(p => `${p.pageId}:${p.slug ?? ''}:${p.date ?? ''}`)
         .join(',')}`
     : undefined;
@@ -455,6 +476,12 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
             Browse feeds
           </Button>
         </div>
+      </div>
+    )
+  } else if (missing && isSettling) {
+    body = (
+      <div role="status" data-testid={TEST_IDS.NOTE_LOADING_SETTLING} className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+        <p>Loading library content…</p>
       </div>
     )
   } else if (missing) {
@@ -514,6 +541,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                   onOpenChange={noteActions.setPromotionOpen}
                   onCloneRequest={() => noteActions.setPlacement('clone')}
                   onForked={(forked) => { void navigate(`${notePath(forked.id)}?edit=1`) }}
+                  onChanged={() => setContextVersion((v) => v + 1)}
                 />
                 {ownershipMeta.isNonOwned && !isPageView && (
                   <div className="flex flex-wrap items-center gap-2">
@@ -684,6 +712,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                   ))}
                 </div>
               )}
+              {!sourcesReady ? <HaltedRunNotice noteId={entry.id} /> : null}
               {sourcesReady ? (
                 <>
                   <div className="min-h-[240px] min-w-0">

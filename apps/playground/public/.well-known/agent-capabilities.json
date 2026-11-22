@@ -194,8 +194,18 @@
             "description": "Filter to Notes carrying this tag label.",
             "type": "string"
           },
+          "origin": {
+            "description": "Filter by Note origin (\"user\", \"feed\", \"seed\", or \"all\"; defaults to \"all\").",
+            "type": "string",
+            "enum": [
+              "all",
+              "user",
+              "feed",
+              "seed"
+            ]
+          },
           "includeSeed": {
-            "description": "Include read-only Seed/Feed notes (default true when notebookId is specified, false otherwise).",
+            "description": "Include read-only Seed/Feed notes (default true; pass false for user-authored notes only).",
             "type": "boolean"
           },
           "limit": {

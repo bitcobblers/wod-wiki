@@ -237,7 +237,7 @@ function applyReferenceResolution(pairs: MetricPair[], fact: SyntaxStatement, re
       const eqMeta = equipmentMeta(resolution, authored, meta);
       const eqSource = resolution.matched === 'split'
         ? eqMeta.raw
-        : resolution.matched === 'explicit'
+        : resolution.matched === 'explicit' || resolution.matched === 'whole'
           ? resolution.equipment.map(ref => ref.label).join(', ')
           : authored;
       result.push({
@@ -248,6 +248,7 @@ function applyReferenceResolution(pairs: MetricPair[], fact: SyntaxStatement, re
             source: eqSource,
             matched: resolution.matched,
             diagnostics: resolution.diagnostics,
+            ...(resolution.matched === 'whole' ? { origin: 'compiler' as const } : {}),
           },
         ),
         meta: eqMeta,
@@ -398,7 +399,9 @@ export function resolveFusedEffortReferences(
         const eqMeta = meta ? equipmentMeta(resolution, authored, meta) : undefined;
         const eqSource = resolution.matched === 'split' && eqMeta
           ? eqMeta.raw
-          : authored;
+          : resolution.matched === 'whole' || resolution.matched === 'explicit'
+            ? resolution.equipment.map(ref => ref.label).join(', ')
+            : authored;
         const eqMetric = new EquipmentMetric(
           resolution.equipment.map(ref => ref.slug),
           {
@@ -406,6 +409,7 @@ export function resolveFusedEffortReferences(
             source: eqSource,
             matched: resolution.matched,
             diagnostics: resolution.diagnostics,
+            ...(resolution.matched === 'whole' ? { origin: 'compiler' as const } : {}),
           },
         );
         nextMetrics.push(eqMetric);

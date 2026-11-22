@@ -20,7 +20,7 @@
  */
 
 import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, IMetric, Page, PageNote, NotePlacement, Tag, TagContribution } from '@bitcobblers/wod-wiki-core';
-import { MetricType, createMetricOwnershipLedger, normalizeFieldComponent, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import { MetricType, createMetricOwnershipLedger, isNotebookLanding, metricToMs, normalizeFieldComponent, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import {
   DEFAULT_NOTEBOOK_SLUGS,
   isNoteEditable,
@@ -468,6 +468,9 @@ function applyNotebookFilter<T extends NotebookResolvableItem>(items: T[], filte
   for (const filter of filters) {
     if (filter.key !== 'notebook') continue;
     items = items.filter(item => {
+      if ('id' in item && 'notebookId' in item && isNotebookLanding(item as { id: string; notebookId?: string })) {
+        return false;
+      }
       const memberships = notebooksOfItem(item);
       if (memberships.length === 0) return filter.negate;
       const hit = memberships.some(nb => filter.values.some(v => matchesNotebookFilterValue(nb, v)));
@@ -628,6 +631,7 @@ function runContext(options: { context?: ExecutionContext; anchorNow?: number })
 interface NoteRelations {
   containers: Record<string, NoteContainer>;
   placements: Record<string, NotePlacement[]>;
+  typedTags: Record<string, Array<{ label: string; type?: string }>>;
 }
 
 /** The note's effective window timestamp: the authored `date` wins; an
@@ -730,6 +734,8 @@ export interface FindQueryResult {
    *  primary projection of this map. Present only when a pageStore or
    *  relationStore is injected and notes were matched. */
   placements?: Record<string, NotePlacement[]>;
+  /** Typed junction tags per note id when loaded via `relationStore`. */
+  typedTags?: Record<string, Array<{ label: string; type?: string }>>;
   stages: { selected: number; matched: number };
 }
 
@@ -974,12 +980,25 @@ export function computeRowsRunSummary(
       } else if (mType === MetricType.Distance || mType === 'distance' || canon === 'totalDistance') {
         rowDist += m.value;
         if (m.unit) rowDistUnit = m.unit;
-      } else if (canon === 'elapsed' || mType === 'duration' || mType === MetricType.Duration) {
+      } else if (canon === 'elapsed' || mType === 'elapsed' || mType === MetricType.Elapsed) {
+        rowElapsedMs = metricToMs(m) ?? rowElapsedMs;
+      } else if (mType === 'duration' || mType === MetricType.Duration) {
         if (rowElapsedMs === 0) {
-          rowElapsedMs = m.unit === 'ms' ? m.value : m.unit === 'min' ? m.value * 60_000 : m.value * 1000;
+          rowElapsedMs = metricToMs(m) ?? 0;
         }
       } else if (canon === 'rounds' || mType === 'rounds' || mType === 'current-round' || canon === 'currentRound') {
-        roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
+        const earlyTermination =
+          row.completionReason === 'user-abort' ||
+          row.completionReason === 'forced-pop' ||
+          row.completionReason === 'timer-expired';
+        const isLeafEffortRow =
+          Boolean(rowEffortSlug) ||
+          vis.some((x) => x.type === MetricType.Effort || x.type === 'effort');
+        const effectiveRound =
+          earlyTermination && isLeafEffortRow
+            ? Math.max(0, Math.round(m.value) - 1)
+            : Math.round(m.value);
+        roundsCompleted = Math.max(roundsCompleted, effectiveRound);
       } else if (canon === 'calc.e1rm' || canon === 'e1rm') {
         rowE1rm = rowE1rm === undefined ? m.value : Math.max(rowE1rm, m.value);
       }
@@ -1039,10 +1058,25 @@ export function computeRowsRunSummary(
   let sessionLoad: number | undefined;
   let summaryElapsedMs: number | undefined;
 
-  for (const row of summaryRows) {
+  // Prefer grain === 'summary' rows when present; otherwise fold legacy analytics rows once per metric key (WW-116).
+  const hasGrainSummary = summaryRows.some((r) => r.grain === 'summary');
+  const dedupedSummaryRows = hasGrainSummary
+    ? summaryRows.filter((r) => r.grain === 'summary')
+    : summaryRows;
+  const seenSummaryKeys = new Set<string>();
+
+  for (const row of dedupedSummaryRows) {
     for (const m of visibleRowMetrics(row.metrics)) {
       if (typeof m.value !== 'number' || !Number.isFinite(m.value)) continue;
       const canon = typeof m.metadata?.canonicalKey === 'string' ? m.metadata.canonicalKey : m.type ?? '';
+      const groupTags = m.metadata?.groupTags ? JSON.stringify(m.metadata.groupTags) : (typeof m.metadata?.effortSlug === 'string' ? m.metadata.effortSlug : '');
+      const dedupeKey = `${canon}:${groupTags}`;
+      if ((canon === 'tis' || canon === 'sessionLoad' || canon === 'totalVolume' || canon === 'totalDistance') && seenSummaryKeys.has(dedupeKey)) {
+        continue;
+      }
+      if (canon === 'tis' || canon === 'sessionLoad' || canon === 'totalVolume' || canon === 'totalDistance') {
+        seenSummaryKeys.add(dedupeKey);
+      }
       if (canon === 'totalVolume' || canon === 'volume') {
         storedVolume = (storedVolume ?? 0) + m.value;
         if (m.unit && !storedVolumeUnit) storedVolumeUnit = m.unit;
@@ -1056,7 +1090,7 @@ export function computeRowsRunSummary(
       } else if (canon === 'sessionLoad') {
         sessionLoad = (sessionLoad ?? 0) + m.value;
       } else if (canon === 'elapsed' || canon === 'duration') {
-        const ms = m.unit === 'ms' ? m.value : m.unit === 'min' ? m.value * 60_000 : m.value * 1000;
+        const ms = metricToMs(m) ?? 0;
         summaryElapsedMs = Math.max(summaryElapsedMs ?? 0, ms);
       } else if (canon === 'rounds' || canon === 'currentRound') {
         roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
@@ -2486,18 +2520,25 @@ export class QueryService {
     }
     if (relations) {
       // Relations were computed over the pre-window candidates when a window
-      // ran — prune both maps to the surviving notes.
+      // ran — prune maps to the surviving notes.
       const surviving = new Set(notes.map((n) => n.id));
       relations = {
         containers: Object.fromEntries(Object.entries(relations.containers).filter(([id]) => surviving.has(id))),
         placements: Object.fromEntries(Object.entries(relations.placements).filter(([id]) => surviving.has(id))),
+        typedTags: Object.fromEntries(Object.entries(relations.typedTags).filter(([id]) => surviving.has(id))),
       };
     }
     return {
       parsed,
       notes,
       blocks: [],
-      ...(relations ? { containers: relations.containers, placements: relations.placements } : {}),
+      ...(relations
+        ? {
+            containers: relations.containers,
+            placements: relations.placements,
+            ...(Object.keys(relations.typedTags).length > 0 ? { typedTags: relations.typedTags } : {}),
+          }
+        : {}),
       stages: { selected: selectedCount, matched: notes.length },
     };
   }
@@ -2515,6 +2556,7 @@ export class QueryService {
   private async containersAndPlacements(notes: Note[]): Promise<NoteRelations> {
     const containers: Record<string, NoteContainer> = {};
     const placements: Record<string, NotePlacement[]> = {};
+    const typedTags: Record<string, Array<{ label: string; type?: string }>> = {};
     const bundles = this.relationStore
       ? await this.relationStore.getBatches([...new Set(notes.map((n) => n.id))])
       : undefined;
@@ -2528,8 +2570,11 @@ export class QueryService {
         // Inline the bundle's junction tags on notes without authored tags —
         // downstream Entry mapping hydrates from this same read (no-tag
         // stays a valid final state; inline tags are never overwritten).
-        if (bundle && bundle.tags.length > 0 && (!note.tags || note.tags.length === 0)) {
-          note.tags = bundle.tags.map((t) => t.label);
+        if (bundle && bundle.tags.length > 0) {
+          typedTags[note.id] = bundle.tags.map((t) => ({ label: t.label, ...(t.type ? { type: t.type } : {}) }));
+          if (!note.tags || note.tags.length === 0) {
+            note.tags = bundle.tags.map((t) => t.label);
+          }
         }
       } else {
         const links = await this.pageStore!.getNotePages(note.id);
@@ -2553,7 +2598,7 @@ export class QueryService {
         ? { kind: 'page', id: primary.pageId, ...(primary.slug ? { slug: primary.slug } : {}), ...(primary.date ? { date: primary.date } : {}) }
         : { kind: 'note', id: note.id };
     }
-    return { containers, placements };
+    return { containers, placements, typedTags };
   }
 
   private async hydrateBlocks(rows: BlockIndexRow[]): Promise<BlockIndexRow[]> {

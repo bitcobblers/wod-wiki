@@ -276,8 +276,7 @@ describe('MetricInlinePanel chip focus, hover, and palette click', () => {
     renderPanel([rep], null);
 
     const repChip = screen.getByText('Reps').parentElement!;
-    expect(repChip.getAttribute('title')).toContain('Type: rep');
-    expect(repChip.getAttribute('title')).toContain('Value: 10');
+    expect(repChip.getAttribute('title')).toBe('Reps: 10');
   });
 
   it('opens the unified syntax token inspector popover on chip click', async () => {

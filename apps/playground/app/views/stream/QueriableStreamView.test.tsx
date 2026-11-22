@@ -1988,4 +1988,91 @@ describe('QueriableStreamView — query truth and retained state', () => {
       resetStorageForTesting()
     }
   })
+
+  it('confirms user notebook deletion through an accessible AlertDialog and resolves /notebook/:slug heading (WW-037/WW-101)', async () => {
+    const mem = new InMemoryStorage()
+    setStorageForTesting(mem)
+    try {
+      const nbEntries: Entry[] = [
+        {
+          id: 'notebook:open-prep',
+          kind: 'notebook',
+          feedId: 'local',
+          sourceNotebook: 'open-prep',
+          sourceNote: 'open-prep',
+          notebookId: 'notebook/open-prep',
+          title: 'Open Prep',
+          date: null,
+          isPublic: false,
+        },
+        {
+          id: 'notebook:journal',
+          kind: 'notebook',
+          feedId: 'local',
+          sourceNotebook: 'journal',
+          sourceNote: 'journal',
+          notebookId: 'notebook/journal',
+          title: 'Journal',
+          date: null,
+          isPublic: false,
+        },
+      ]
+      await storageService.saveNote({
+        id: 'notebook/open-prep',
+        title: 'Open Prep',
+        rawContent: '# Open Prep\n',
+        blocks: {},
+        sourceRevision: 1,
+        createdAt: 1000,
+        notebookId: 'notebook/open-prep',
+        seedOrigin: 'user',
+      })
+      const { engine } = stubEngine(() => nbEntries)
+      const { unmount } = render(
+        <MemoryRouter initialEntries={['/notebooks']}>
+          <QueriableStreamView profile={NOTEBOOKS_STREAM_PROFILE} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+
+      await waitFor(() => expect(screen.getByText('Open Prep')).toBeDefined())
+      // Built-in journal offers no overflow edit/delete actions.
+      const overflowButtons = screen.getAllByTestId('library-row-overflow')
+      expect(overflowButtons).toHaveLength(1)
+      fireEvent.click(overflowButtons[0]!)
+      fireEvent.click(screen.getByTestId('notebook-delete-open-prep'))
+
+      const dialog = await waitFor(() => screen.getByTestId('notebook-delete-dialog'))
+      expect(dialog.textContent).toContain('Open Prep')
+      expect(await storageService.getNote('notebook/open-prep')).toBeDefined()
+
+      fireEvent.click(within(dialog).getByTestId('notebook-delete-confirm-open-prep'))
+      await waitFor(async () => {
+        expect(await storageService.getNote('notebook/open-prep')).toBeUndefined()
+      })
+      unmount()
+
+      // /notebook/:slug resolves registered title into StickyPageHeader heading (fixed slice('/notebook/'.length) bug)
+      await storageService.saveNote({
+        id: 'notebook/kettlebell-prep',
+        title: 'Kettlebell Prep',
+        rawContent: '# Kettlebell Prep\n',
+        blocks: {},
+        sourceRevision: 1,
+        createdAt: 2000,
+        notebookId: 'notebook/kettlebell-prep',
+        seedOrigin: 'user',
+      })
+      const singleEngine = stubEngine(() => []).engine
+      render(
+        <MemoryRouter initialEntries={['/notebook/kettlebell-prep']}>
+          <QueriableStreamView profile={createNotebookProfile('kettlebell-prep')} queryEngine={singleEngine} />
+        </MemoryRouter>,
+      )
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Kettlebell Prep' })).toBeDefined()
+      })
+    } finally {
+      resetStorageForTesting()
+    }
+  })
 })

@@ -68,7 +68,7 @@ export function ensurePlaygroundDefaultSubscriptions(
     if (!persistedSubs.has(id)) {
       setFeedSubscribed(id, true);
       if (!explicitPolicies[id] && !hydratedEntries[id]?.offlinePolicy) {
-        setFeedOfflinePolicy(id, 'offline-full');
+        setFeedOfflinePolicy(id, 'index-only');
       }
       seeded.push(id);
     }

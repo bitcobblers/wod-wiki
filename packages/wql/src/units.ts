@@ -103,11 +103,16 @@ const METRIC_INTRINSIC_DIMENSIONS: Readonly<Record<string, string>> = {
   'calc.ctl': 'ratio',
   'calc.atl': 'ratio',
   'calc.tsb': 'ratio',
-  'calc.hrv': 'ratio',
+  'calc.hrv': 'duration',
   'calc.soreness': 'ratio',
   'calc.pct1rm': 'ratio',
   'calc.mvcbw': 'ratio',
   'calc.sends': 'count',
+};
+
+const NATURAL_DURATION_METRIC_UNITS: Readonly<Record<string, string>> = {
+  'calc.hrv': 'ms',
+  'calc.sleep': 'h',
 };
 
 function intrinsicMetricDimension(metric: string | undefined): string | undefined {
@@ -208,6 +213,15 @@ export function resolveOutputUnit(
         const prefCanon = lookupUnit(preferred)?.canonical ?? preferred;
         return { unit: prefCanon, convert: true };
       }
+    }
+    const naturalDurationUnit = dimension === 'duration' && metric
+      ? NATURAL_DURATION_METRIC_UNITS[metric.trim().toLowerCase()]
+      : undefined;
+    if (naturalDurationUnit) {
+      const allInNaturalUnit = Array.from(spellings).every(
+        (s) => (lookupUnit(s)?.canonical ?? s.toLowerCase()) === naturalDurationUnit,
+      );
+      return { unit: naturalDurationUnit, convert: !allInNaturalUnit };
     }
     const preserved = preserveNamedScale(dimension, spellings);
     if (preserved !== undefined) {

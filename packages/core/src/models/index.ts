@@ -14,3 +14,4 @@ export * from './Tag';
 export * from './TagReference';
 export * from './blockContentId';
 export * from './PagePlacement';
+export * from './timeFormatting';

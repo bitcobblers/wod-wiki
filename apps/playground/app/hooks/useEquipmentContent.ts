@@ -49,7 +49,7 @@ function fromEquipmentDocument(raw: string, base?: IEquipment): { item: IEquipme
 }
 
 export function useEquipmentContent(slug: string | undefined): UseEquipmentContentResult {
-  const { registry, isReady, refresh } = useEquipmentRegistry();
+  const { registry, isReady, revision, refresh } = useEquipmentRegistry();
   const resolveDirect = useCallback((s: string) => registry.resolve(s), [registry]);
   const resolveByAlias = useCallback((s: string) => registry.resolveByAlias(s), [registry]);
 
@@ -57,6 +57,7 @@ export function useEquipmentContent(slug: string | undefined): UseEquipmentConte
     kind: 'equipment',
     slug,
     isReady,
+    revision,
     resolveDirect,
     resolveByAlias,
     toDocument: equipmentToDocument,

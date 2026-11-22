@@ -9,6 +9,7 @@ import { feedFixture as fixture } from './feedFixture';
 import { type FeedSourceSpec } from './feedSync';
 import { resetFeedReadinessForTest, startFeedBootstrap } from './feedReadiness';
 import {
+  getFeedOfflinePolicy,
   isFeedAutoSync,
   isFeedSubscribed,
   resetFeedSubscriptionsForTest,
@@ -82,8 +83,10 @@ describe('Candidate 04 — Read-only defaults primitives & pre-subscribed Playgr
     expect(isFeedSubscribed('core')).toBe(true);
     expect(isFeedSubscribed('samples-movement')).toBe(true);
     expect(isFeedAutoSync('samples-movement')).toBe(true);
+    expect(getFeedOfflinePolicy('samples-movement')).toBe('index-only');
     expect(isFeedSubscribed('samples-results')).toBe(true);
     expect(isFeedAutoSync('samples-results')).toBe(true);
+    expect(getFeedOfflinePolicy('samples-results')).toBe('index-only');
 
     expect((await storage.getSeedMeta(seedMetaKey('core')))?.seedVersion).toBe(1);
     expect((await storage.getSeedMeta(seedMetaKey('samples-movement')))?.seedVersion).toBe(1);

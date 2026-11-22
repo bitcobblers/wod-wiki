@@ -7,6 +7,7 @@ import {
   Code2,
   Gauge,
 } from 'lucide-react';
+import { formatDurationMMSS } from '@bitcobblers/wod-wiki-core';
 import {
   computeRowsRunSummary,
   type MovementRollupItem,
@@ -50,14 +51,20 @@ function rpeChipClass(rpe: number, selected: boolean): string {
 
 export function formatSummaryDurationMMSS(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '—';
-  const totalSec = Math.round(ms / 1000);
-  const hours = Math.floor(totalSec / 3600);
-  const mins = Math.floor((totalSec % 3600) / 60);
-  const secs = totalSec % 60;
-  if (hours > 0) {
-    return `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  }
-  return `${mins}:${String(secs).padStart(2, '0')}`;
+  const formatted = formatDurationMMSS(ms);
+  return formatted.startsWith('0') && formatted.length === 5 && ms < 600_000 ? formatted.slice(1) : formatted;
+}
+
+/**
+ * Uniform 1-decimal-place formatter for analytics floats (TIS pts, AU load,
+ * MET-min, pace rates, etc.) so completion readouts share consistent precision (WW-078).
+ */
+export function formatAnalyticsFloat(value: number): string {
+  if (!Number.isFinite(value)) return '0.0';
+  return (Math.round(value * 10) / 10).toLocaleString('en-US', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 }
 
 function formatCompactNum(value: number): string {
@@ -308,15 +315,15 @@ export function SessionSummaryCard({
         : 'Movements';
   const intensityValue =
     summary.tis !== undefined
-      ? `${formatCompactNum(summary.tis)} pts`
+      ? `${formatAnalyticsFloat(summary.tis)} pts`
       : summary.sessionLoad !== undefined
-        ? `${formatCompactNum(summary.sessionLoad)} AU`
+        ? `${formatAnalyticsFloat(summary.sessionLoad)} AU`
         : effortList.length > 0
           ? String(effortList.length)
           : '—';
   const intensitySub =
     summary.tis !== undefined && summary.sessionLoad !== undefined
-      ? `${formatCompactNum(summary.sessionLoad)} AU load`
+      ? `${formatAnalyticsFloat(summary.sessionLoad)} AU load`
       : summary.rpe !== undefined
         ? `RPE ${summary.rpe}/10 logged`
         : undefined;

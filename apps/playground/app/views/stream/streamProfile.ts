@@ -9,7 +9,7 @@
 import type { EntityLevel } from '../../lib/fieldProjection'
 import type { LayoutMode } from '../../lib/viewSettingsStorage'
 import { EFFORTS_LEGACY_CONFIG } from '../../hooks/useEffortsComposerState'
-import type { ComposerLegacyConfig } from '../../hooks/useComposerQueryState'
+import { salvagePlainTextQuery, type ComposerLegacyConfig } from '../../hooks/useComposerQueryState'
 import type { WqlFindTarget, WqlSourceValue } from '@bitcobblers/wod-wiki-engine'
 import { toDisplayName } from '@/repositories/groupings'
 import { canonicalNotebookSlug } from '@/services/feed/feedSources'
@@ -75,10 +75,23 @@ export interface StreamProfile {
 
 export type StreamProfileLegacyConfig = ComposerLegacyConfig
 
-export function createContentLegacyConfig(defaultSource?: string): StreamProfileLegacyConfig {
+export function createContentLegacyConfig(
+  defaultSource?: string,
+  salvageTarget?: string,
+): StreamProfileLegacyConfig {
   const keys = ['note', 'session', 'post', 'text', 'timePreset', 'rangeStart', 'rangeEnd', 's', 'tags', 'mode'] as const
+  const effectiveTarget =
+    salvageTarget ??
+    (defaultSource === 'journal'
+      ? 'journal'
+      : defaultSource === 'playground'
+        ? 'playground'
+        : 'note')
   return {
     keys,
+    salvageQ(q: string): string | null {
+      return salvagePlainTextQuery(q, effectiveTarget)
+    },
     toQuery(search: URLSearchParams): string | null {
       const hasAnyLegacy = keys.some(k => search.has(k))
       if (!hasAnyLegacy) return null
@@ -174,7 +187,7 @@ export const FEEDS_STREAM_PROFILE: StreamProfile = {
   defaultLayout: 'cards',
   emptyMessage: 'No feeds match your search.',
   feedNotice: true,
-  legacy: createContentLegacyConfig('notebooks'),
+  legacy: createContentLegacyConfig('notebooks', 'feed'),
 }
 
 export const PAGES_STREAM_PROFILE: StreamProfile = {

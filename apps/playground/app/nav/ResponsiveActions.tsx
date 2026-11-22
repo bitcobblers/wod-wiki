@@ -69,6 +69,7 @@ const RegistryContext = createContext<ActionsRegistry | null>(null)
 const InsideActionsContext = createContext(false)
 /** The active page's navbar-pinned action, rendered by `<NavbarActions />`. */
 const NavbarActionsContext = createContext<ReactNode>(null)
+const DockContext = createContext<{ registrations: ActionsRegistration[]; onSearch?: () => void } | null>(null)
 
 /** True when rendered inside a ResponsiveActionsProvider (app shell). */
 export function useInResponsiveActionsProvider(): boolean {
@@ -153,10 +154,17 @@ export function ResponsiveActions({
 export interface ResponsiveActionsProviderProps {
   /** Opens the global search palette — integrated into the dock's search FAB. */
   onSearch?: () => void
+  /** Whether the provider renders the dock directly (default true). Set false
+   *  when the layout shell mounts `<ResponsiveActionsDockPort />` inside `<main>`. */
+  renderDock?: boolean
   children?: ReactNode
 }
 
-export function ResponsiveActionsProvider({ onSearch, children }: ResponsiveActionsProviderProps) {
+export function ResponsiveActionsProvider({
+  onSearch,
+  renderDock = true,
+  children,
+}: ResponsiveActionsProviderProps) {
   const [registrations, setRegistrations] = useState<ActionsRegistration[]>([])
   const register = useCallback(
     (entry: ActionsRegistration) =>
@@ -196,14 +204,25 @@ export function ResponsiveActionsProvider({ onSearch, children }: ResponsiveActi
     return null
   }, [registrations])
 
+  const dockValue = useMemo(() => ({ registrations, onSearch }), [registrations, onSearch])
+
   return (
     <RegistryContext.Provider value={registry}>
       <NavbarActionsContext.Provider value={activeNav}>
-        {children}
-        <ResponsiveActionsDock registrations={registrations} onSearch={onSearch} />
+        <DockContext.Provider value={dockValue}>
+          {children}
+          {renderDock && <ResponsiveActionsDock registrations={registrations} onSearch={onSearch} />}
+        </DockContext.Provider>
       </NavbarActionsContext.Provider>
     </RegistryContext.Provider>
   )
+}
+
+/** Mounts the registered mobile thumb dock inside the shell's `<main>` landmark. */
+export function ResponsiveActionsDockPort() {
+  const ctx = useContext(DockContext)
+  if (!ctx) return null
+  return <ResponsiveActionsDock registrations={ctx.registrations} onSearch={ctx.onSearch} />
 }
 
 /**

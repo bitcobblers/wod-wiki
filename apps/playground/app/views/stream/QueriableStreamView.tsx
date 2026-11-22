@@ -37,7 +37,7 @@ import {
   DialogTitle,
   Input,
 } from "@bitcobblers/wod-wiki-ui/primitives";
-import { isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
+import { BUILTIN_NOTEBOOKS, isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
 import { listWritableNotebooks, type WritableNotebookTarget } from '@/components/molecules/PublicationPill'
 import { createUserNotebookLanding } from '@bitcobblers/wod-wiki-engine'
 import { FolderPlus, Loader2 } from 'lucide-react'
@@ -45,14 +45,17 @@ import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
 import { useFeedImportPending, useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'
 import { subscribeAppEffortRegistry } from '@/services/effortRegistry'
-import { defaultFeedSources, syncFeedSource, type FeedSyncProgress } from '@/services/feed/feedSync'
+import { defaultFeedSources, subscribeFeed, syncFeedSource, type FeedSyncProgress } from '@/services/feed/feedSync'
 import { listFeedSources, feedSourceById } from '@/services/feed/feedSources'
-import { isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
+import { flushFeedStatePersistence, isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
 import { toast } from '@/hooks/use-toast'
+import { TEST_IDS } from '@/lib/testIds'
 import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
 import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog'
 import type { Notebook } from '@/types/notebook'
 import { notebookService } from '@/hooks/useBrowserServices'
+import { subscribeNotebooks } from '@/services/NotebookService'
+import { removeRecentVisit } from '../../nav/panels/ConditionsNavPanel'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
 import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, serialize, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { suggestWqlSyntaxHint, wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
@@ -85,15 +88,14 @@ import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
 import { cloneRemotePreviewNoteToNotebook, playgroundFeedCatalogStore } from '@/services/feed/feedCatalog'
 import { toggleNotebookSubscription, unsubscribeFeedSource } from '@/services/feed/feedSync'
-import { setFeedSubscribed } from '@/services/feed/feedSubscriptions'
 import { setNotebookPublic } from '@bitcobblers/wod-wiki-engine'
 import { storage, storageBackend } from '@/services/storage'
 import { exportFeedRepositoryZip, publishSelfHostedFeed } from '@/services/ExportImportService'
 import { FeedIntakeBanner } from '../notebook-gallery/FeedIntakeBanner'
 import { OUTCOME_LABEL } from '../../pages/SyncSection'
-import { ROUTE_PATTERNS } from '../../lib/routes'
+import { notebookPath, ROUTE_PATTERNS } from '../../lib/routes'
 import { MobileNewEntryCombo, routeSupportsCreation } from '../../pages/shared/NewEntryCombo'
-import { useComposerQueryState } from '../../hooks/useComposerQueryState'
+import { salvagePlainTextQuery, useComposerQueryState } from '../../hooks/useComposerQueryState'
 import { useViewSettings, LAYOUT_MODES, type LayoutMode } from '../../lib/viewSettingsStorage'
 import { LIBRARY_BATCH_SIZE, useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
 import { todayKey } from '@/lib/dateFormat'
@@ -154,14 +156,7 @@ function BatchingSentinel({
  *  `{`) into a `:${target}{text:...}` query so typing e.g. `kettlebell` in
  *  the WQL bar works smoothly instead of failing as invalid syntax. */
 export function plainTextFallbackQuery(rawInput: string, target: string): string | null {
-  const trimmed = rawInput.trim()
-  if (!trimmed || /[:{}|]/.test(trimmed)) return null
-  if (!parseQuery(trimmed).error) return null
-  const escaped = /\s/.test(trimmed)
-    ? `"${trimmed.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
-    : trimmed
-  const candidate = `:${target}{text:${escaped}}`
-  return parseQuery(candidate).error ? null : candidate
+  return salvagePlainTextQuery(rawInput, target)
 }
 
 /** Host-owned execution debounce for stream queries — the composer resolves
@@ -494,16 +489,30 @@ export function QueriableStreamView({
       setCreateNotebookOpen(true)
     }
   }, [])
-  const handleDeleteNotebookEntry = useCallback(async (entry: Entry) => {
-    const targetId = entry.notebookId ?? entry.id
+  const [pendingDeleteNotebook, setPendingDeleteNotebook] = useState<Entry | null>(null)
+  const [deletingNotebook, setDeletingNotebook] = useState(false)
+  const handleDeleteNotebookEntry = useCallback((entry: Entry) => {
     setActionError(null)
+    setPendingDeleteNotebook(entry)
+  }, [])
+  const handleConfirmDeleteNotebook = useCallback(async () => {
+    if (!pendingDeleteNotebook || deletingNotebook) return
+    const targetId = pendingDeleteNotebook.notebookId ?? pendingDeleteNotebook.id
+    const slug = pendingDeleteNotebook.sourceNotebook
+    setActionError(null)
+    setDeletingNotebook(true)
     try {
       await notebookService.delete(targetId)
+      if (slug) removeRecentVisit(notebookPath(slug))
+      setPendingDeleteNotebook(null)
       setSavedTick(t => t + 1)
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err))
+      setPendingDeleteNotebook(null)
+    } finally {
+      setDeletingNotebook(false)
     }
-  }, [])
+  }, [pendingDeleteNotebook, deletingNotebook])
   const createNotebookDialog = isNotebooksRoute ? (
     <CreateNotebookDialog
       open={createNotebookOpen}
@@ -530,7 +539,7 @@ export function QueriableStreamView({
   const notebookStreamSlug = useMemo(() => {
     if (profile.notebookSlug) return profile.notebookSlug
     if (profile.route.startsWith('/notebook/')) {
-      const slug = profile.route.slice(3)
+      const slug = profile.route.slice('/notebook/'.length)
       if (slug && !slug.includes('/')) return slug
     }
     if (!parsed.error && isFindQuery(parsed)) {
@@ -687,8 +696,9 @@ export function QueriableStreamView({
   // is debounced (host-owned 150ms, coalescing per-keystroke composer
   // emissions). Invalid drafts never execute — previous results stay visible
   // (stale, flagged by the query error banner), and loading never wedges.
-  // A committed result bumps savedTick so the mounted listing re-queries.
+  // A committed result or notebook mutation bumps savedTick so the mounted listing re-queries.
   const [savedTick, setSavedTick] = useState(0)
+  useEffect(() => subscribeNotebooks(() => setSavedTick(t => t + 1)), [])
 
   // Notebook-plane management (ticket 05): the /notebooks list plus the move
   // targets the stream rows offer (user-owned notebooks only — feed
@@ -760,10 +770,9 @@ export function QueriableStreamView({
     setSubscribingIds(new Set(subscribingIdsRef.current))
     try {
       if (entry.kind === 'feed' && entry.feedId && nextSub) {
-        const outcome = await syncFeedSource(entry.feedId)
-        if (outcome === 'imported' || outcome === 'current' || outcome === 'server-stale') {
-          setFeedSubscribed(entry.feedId, true)
-        } else {
+        const outcome = await subscribeFeed(entry.feedId, { offlinePolicy: entry.feedId === 'core' ? 'offline-full' : 'index-only' })
+        await flushFeedStatePersistence()
+        if (outcome !== 'imported' && outcome !== 'current' && outcome !== 'server-stale') {
           setActionError(outcome === 'busy' ? 'Another tab is already syncing.' : 'Feed sync failed.')
           return
         }
@@ -1057,8 +1066,39 @@ export function QueriableStreamView({
     }
   }, [location.pathname])
   const [notebookNotFound, setNotebookNotFound] = useState(false)
+  const [resolvedNotebookTitle, setResolvedNotebookTitle] = useState<string | null>(null)
   useEffect(() => {
-    if (!notebookSlugParam || entries.length > 0 || !hasSettledRun) {
+    if (!notebookSlugParam) {
+      setResolvedNotebookTitle(null)
+      return
+    }
+    let cancelled = false
+    const builtinSpec = BUILTIN_NOTEBOOKS.find(b => b.slug === notebookSlugParam)
+    void Promise.all([
+      notebookService.getAllNotebooks().catch(() => [] as Notebook[]),
+      playgroundFeedCatalogStore.getAllNotebooks().catch(() => []),
+      storage.readonly('notes').get(`notebook/${notebookSlugParam}`).catch(() => undefined),
+    ]).then(([registered, catalog, landing]) => {
+      if (cancelled) return
+      const regMatch = registered.find(nb => nb.slug === notebookSlugParam)
+      const catMatch = catalog.find(row => row.slug === notebookSlugParam)
+      const name = regMatch?.name || landing?.title || catMatch?.label || builtinSpec?.name || null
+      setResolvedNotebookTitle(name)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [notebookSlugParam, savedTick])
+  useEffect(() => {
+    if (!notebookSlugParam || !resolvedNotebookTitle) return
+    const prevTitle = document.title
+    document.title = `Wod.Wiki - ${resolvedNotebookTitle}`
+    return () => {
+      document.title = prevTitle
+    }
+  }, [notebookSlugParam, resolvedNotebookTitle])
+  useEffect(() => {
+    if (!notebookSlugParam || entries.length > 0 || !hasSettledRun || feedImportPending || feedReadiness === 'preparing') {
       setNotebookNotFound(false)
       return
     }
@@ -1075,7 +1115,7 @@ export function QueriableStreamView({
     return () => {
       cancelled = true
     }
-  }, [notebookSlugParam, entries.length, hasSettledRun])
+  }, [notebookSlugParam, entries.length, hasSettledRun, feedImportPending, feedReadiness])
   // Filter truth vs the target's own vocabulary: the executor IGNORES
   // unsupported keys (advisory) — the strip says applied vs ignored instead
   // of implying every requested filter ran.
@@ -1401,6 +1441,7 @@ export function QueriableStreamView({
           WQL composer lives in the thumb-control zone. */}
       <StickyPageHeader
         className="max-lg:hidden"
+        title={notebookSlugParam ? (resolvedNotebookTitle ?? undefined) : undefined}
         actions={
           <ResponsiveActions
             primary={routeSupportsCreation(profile.route) && !notebookNotFound ? <MobileNewEntryCombo /> : undefined}
@@ -1847,6 +1888,42 @@ export function QueriableStreamView({
           setSavedTick(t => t + 1)
         }}
       />
+
+      {/* Safe User Notebook Delete Confirmation Dialog */}
+      <AlertDialog
+        open={pendingDeleteNotebook !== null}
+        onOpenChange={(open) => { if (!open && !deletingNotebook) setPendingDeleteNotebook(null) }}
+      >
+        <AlertDialogBackdrop />
+        <AlertDialogContent className="max-w-sm" data-testid={TEST_IDS.NOTEBOOK_DELETE_DIALOG}>
+          <DialogHeader>
+            <AlertDialogTitle>
+              Delete &ldquo;{pendingDeleteNotebook?.title || pendingDeleteNotebook?.sourceNotebook}&rdquo;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              All notes inside this notebook stay safe in your Journal. Any links pointing to this deleted notebook are detached.
+            </AlertDialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <AlertDialogClose disabled={deletingNotebook}>
+              Cancel
+            </AlertDialogClose>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletingNotebook}
+              data-testid={
+                pendingDeleteNotebook?.sourceNotebook
+                  ? `notebook-delete-confirm-${pendingDeleteNotebook.sourceNotebook}`
+                  : 'notebook-delete-confirm'
+              }
+              onClick={() => void handleConfirmDeleteNotebook()}
+            >
+              {deletingNotebook ? 'Deleting…' : 'Delete notebook'}
+            </Button>
+          </DialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Safe Unsubscribe Confirmation Dialog */}
       <AlertDialog

@@ -295,13 +295,13 @@ describe('index-first distributed feeds, lazy workout resolution, unified IStora
     expect(getFeedOfflinePolicy('coach-jane')).toBe('offline-full');
     expect(isFeedSubscribed('samples-movement')).toBe(false);
 
-    // Bootstrap respects IStorage opt-out for samples-movement while defaulting samples-results offline-full
+    // Bootstrap respects IStorage opt-out for samples-movement while defaulting samples-results to index-only
     const seeded = ensurePlaygroundDefaultSubscriptions([
       { id: 'samples-movement' },
       { id: 'samples-results' },
     ]);
     expect(seeded).toEqual(['samples-results']);
-    expect(getFeedOfflinePolicy('samples-results')).toBe('offline-full');
+    expect(getFeedOfflinePolicy('samples-results')).toBe('index-only');
     expect(isFeedSubscribed('samples-movement')).toBe(false);
   });
 

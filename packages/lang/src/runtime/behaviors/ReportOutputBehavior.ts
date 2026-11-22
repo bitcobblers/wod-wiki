@@ -87,16 +87,26 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
         const round = ctx.getMemoryByTag('round')[0]?.metrics[0] as unknown as RoundState | undefined;
         const shouldComputeTimeResults = this.config.computeTimeResults ?? true;
 
+        // Determine completed rounds honestly on early abort/expiry (WW-105)
+        const reason = ctx.block.completionReason;
+        const earlyTermination = reason === 'user-abort' || reason === 'forced-pop' || reason === 'timer-expired';
+        const effectiveRound = round
+            ? earlyTermination
+                ? { current: Math.max(0, round.current - 1), total: round.total }
+                : round
+            : undefined;
+
         // Determine a descriptive completion label
         let completionLabel = this.config.label ?? 'Completed';
         if (!this.config.label) {
             if (ctx.block.blockType === 'SessionRoot') {
                 completionLabel = 'Session Completed';
-            } else if (round && round.total !== undefined && round.total > 1) {
-                completionLabel = `Completed ${round.total} Round(s)`;
-            } else if (round && round.current > 1) {
-                // Fallback for unbounded rounds where at least one round was done
-                completionLabel = `Completed ${round.current} Round(s)`;
+            } else if (effectiveRound && !earlyTermination && effectiveRound.total !== undefined && effectiveRound.total > 1) {
+                completionLabel = `Completed ${effectiveRound.total} Round(s)`;
+            } else if (effectiveRound && effectiveRound.current > 0) {
+                completionLabel = `Completed ${effectiveRound.current} Round(s)`;
+            } else if (earlyTermination && round) {
+                completionLabel = 'Completed 0 Round(s)';
             }
         }
 
@@ -205,6 +215,12 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
         const blockKey = ctx.block.key.toString();
         const round = ctx.getMemoryByTag('round')[0]?.metrics[0] as unknown as RoundState | undefined;
 
+        const reason = ctx.block.completionReason;
+        const earlyTermination = reason === 'user-abort' || reason === 'forced-pop' || reason === 'timer-expired';
+        const reportedRound = round && earlyTermination
+            ? { current: Math.max(0, round.current - 1), total: round.total }
+            : round;
+
         if (timer && timer.spans.length > 0) {
             const elapsed = calculateElapsed(timer, nowMs);
             const closedSpans = timer.spans.map((s) =>
@@ -221,8 +237,8 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
                 new SpansMetric(closedSpans, blockKey, now),
                 new SystemTimeMetric(this._now.now(), blockKey),
             );
-            if (round) {
-                metrics.add(new CurrentRoundMetric(round.current, round.total, blockKey, now, customRoundLabel));
+            if (reportedRound && reportedRound.current > 0) {
+                metrics.add(new CurrentRoundMetric(reportedRound.current, reportedRound.total, blockKey, now, customRoundLabel));
             }
             return metrics;
         }
@@ -236,8 +252,8 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
             new SpansMetric([span], blockKey, now),
             new SystemTimeMetric(this._now.now(), blockKey),
         );
-        if (round) {
-            metrics.add(new CurrentRoundMetric(round.current, round.total, blockKey, now, customRoundLabel));
+        if (reportedRound && reportedRound.current > 0) {
+            metrics.add(new CurrentRoundMetric(reportedRound.current, reportedRound.total, blockKey, now, customRoundLabel));
         }
         return metrics;
     }

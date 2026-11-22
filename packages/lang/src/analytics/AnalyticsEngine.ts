@@ -121,7 +121,12 @@ export class AnalyticsEngine implements IAnalyticsEngine {
         // metadata (effortSlug/discipline/…) through to stored logs.
         {
           type: (p.metricType as MetricType) || MetricType.Metric,
-          image: `${p.value} ${p.unit}`,
+          image: (() => {
+            const displayVal = Number.isInteger(p.value)
+              ? String(p.value)
+              : (Math.round(p.value * 10) / 10).toFixed(1);
+            return p.unit ? `${displayVal} ${p.unit}` : displayVal;
+          })(),
           value: p.value,
           unit: p.unit,
           origin: p.origin ?? 'analyzed',
