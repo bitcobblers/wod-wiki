@@ -15,7 +15,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
     expect(llmsRes.status()).toBe(200);
     const llmsBody = await llmsRes.text();
     expect(llmsBody).toContain('navigator.modelContext');
-    expect(llmsBody).toContain('22 portable domain tools + 14 live React UI/Clock tools');
+    expect(llmsBody).toContain('28 portable domain tools + 14 live React UI/Clock tools');
 
     const capRes = await page.request.get('/.well-known/agent-capabilities.json');
     expect(capRes.status()).toBe(200);
@@ -23,7 +23,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       domainTools: unknown[];
       uiTools: unknown[];
     };
-    expect(capJson.domainTools).toHaveLength(22);
+    expect(capJson.domainTools).toHaveLength(28);
     expect(capJson.uiTools).toHaveLength(14);
 
     // Layer 2 hydration, landmark busy state, and embedded view-state script

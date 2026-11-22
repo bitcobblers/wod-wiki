@@ -1152,11 +1152,13 @@ export function QueriableStreamView({
       return overlayMode === 'all' ? enrichedEntries : overlayMode === 'planned' ? enrichedEntries : []
     }
     const matchingNoteIds = new Set(enrichedEntries.map((e) => e.id))
+    const enforceNoteFilter =
+      profile.route !== '/journal' || effectiveQuery.trim() !== profile.defaultWql.trim()
     const pairedByScheduleId = new Map<string, StoredSession[]>()
     const adhocSessions: StoredSession[] = []
     for (const sess of overlaySessions) {
       if (sess.origin === 'playground') continue
-      if (matchingNoteIds.size > 0 && !matchingNoteIds.has(sess.noteId) && profile.route !== '/journal') continue
+      if (enforceNoteFilter && !matchingNoteIds.has(sess.noteId)) continue
       if (sess.scheduleItemId) {
         const list = pairedByScheduleId.get(sess.scheduleItemId) ?? []
         list.push(sess)
@@ -1169,7 +1171,7 @@ export function QueriableStreamView({
     const overlay: Entry[] = []
     const coveredNoteDates = new Set<string>()
     for (const item of allScheduleItems) {
-      if (matchingNoteIds.size > 0 && !matchingNoteIds.has(item.noteId) && profile.route !== '/journal') continue
+      if (enforceNoteFilter && !matchingNoteIds.has(item.noteId)) continue
       const note = overlayNotesById.get(item.noteId)
       const base = note ? toEntry(note) : enrichedEntries.find((e) => e.id === item.noteId)
       if (!base) continue

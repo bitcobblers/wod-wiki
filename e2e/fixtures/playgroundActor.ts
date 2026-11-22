@@ -644,6 +644,8 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
         async typeLine(text: string): Promise<void> {
           const cm = page.locator('.cm-content[contenteditable="true"]').first();
           await cm.click();
+          await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End');
+          await page.keyboard.press('Enter');
           await page.keyboard.type(text);
           await page.keyboard.press('Enter');
         },
