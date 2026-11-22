@@ -530,7 +530,7 @@ export function SchedulePeekDrawer({
                 className="w-full justify-center gap-1.5 max-lg:min-h-11"
               >
                 <Plus className="size-4" aria-hidden />
-                <span>+ Plan for date</span>
+                <span>Plan for date</span>
               </Button>
             )}
             <Link

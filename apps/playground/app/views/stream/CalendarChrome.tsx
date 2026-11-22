@@ -118,7 +118,7 @@ export function CalendarMonthBar({
         <Button variant="ghost" size="icon" onClick={nav.previous} aria-label="Previous month" className="size-11 shrink-0">
           <ChevronLeft className="size-4" aria-hidden />
         </Button>
-        <div className="min-w-0 flex-1 px-1">
+        <div className="min-w-[9rem] flex-1 px-1">
           <div className="truncate text-sm font-bold text-foreground">{nav.label}</div>
           {meta && <div className="truncate text-xs text-muted-foreground">{meta}</div>}
         </div>
@@ -127,7 +127,7 @@ export function CalendarMonthBar({
             data-testid={TEST_IDS.CALENDAR_OVERLAY_FILTER}
             role="group"
             aria-label="Overlay filter"
-            className="inline-flex items-center rounded-md border border-border bg-muted/40 p-0.5"
+            className="inline-flex items-center rounded-md border border-border bg-muted/40 p-0.5 max-sm:order-last max-sm:w-full max-sm:justify-center"
           >
             {OVERLAY_OPTIONS.map((opt) => {
               const active = (overlayMode ?? 'all') === opt.id
@@ -137,7 +137,7 @@ export function CalendarMonthBar({
                   type="button"
                   onClick={() => onOverlayModeChange(opt.id)}
                   aria-pressed={active}
-                  className={`rounded px-2.5 py-1 text-xs font-semibold max-lg:min-h-11 transition-colors ${
+                  className={`rounded px-2.5 py-1 text-xs font-semibold max-lg:min-h-11 max-sm:flex-1 transition-colors ${
                     active
                       ? 'bg-background text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
