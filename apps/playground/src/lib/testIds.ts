@@ -401,6 +401,28 @@ export const TEST_IDS = {
   ENTITY_PEEK_CREATE_SLUG: 'entity-peek-create-slug',
   ENTITY_PEEK_CREATE_CATEGORY: 'entity-peek-create-category',
   ENTITY_PEEK_CREATE_SUBMIT: 'entity-peek-create-submit',
+
+  // ── Stream & SchedulePeek ──────────────────────────────────────────────────
+  CALENDAR_PEEK_BACKDROP: 'calendar-peek-backdrop',
+  CALENDAR_DAY_HEADER: 'calendar-day-header',
+  SCHEDULE_PEEK_DAY_CUE_INPUT: 'schedule-peek-day-cue-input',
+  SCHEDULE_PEEK_DAY_CUE_SAVE: 'schedule-peek-day-cue-save',
+  SCHEDULE_PEEK_FORK_BTN: 'schedule-peek-fork-btn',
+  SCHEDULE_PEEK_BLOCK_SELECT: 'schedule-peek-block-select',
+  SCHEDULE_PEEK_PLAN_FOR_DATE: 'schedule-peek-plan-for-date',
+  SCHEDULE_PEEK_OPEN_DAY: 'schedule-peek-open-day',
+  DAY_PLAN_CUE_INPUT: 'day-plan-cue-input',
+  DAY_PLAN_CUE_SAVE: 'day-plan-cue-save',
+  DAY_PLAN_FORK_BTN: 'day-plan-fork-btn',
+  STREAM_FACET_FILTER_TRIGGER: 'stream-facet-filter-trigger',
+  STREAM_FACET_FILTER_BADGE: 'stream-facet-filter-badge',
+  STREAM_FACET_FILTER_POPOVER: 'stream-facet-filter-popover',
+  STREAM_MOBILE_FACETS: 'stream-mobile-facets',
+  STREAM_VIEW_ADD_ACTION: 'stream-view-add-action',
+  STREAM_PAGE_HEADING: 'stream-page-heading',
+  FACET_PILL_INCLUDE: 'facet-pill-include',
+  FACET_PILL_EXCLUDE: 'facet-pill-exclude',
+  FACET_PILL_OFF: 'facet-pill-off',
 } as const;
 
 type LeafValues<T> = T extends string ? T : T extends Record<string, unknown> ? LeafValues<T[keyof T]> : never;

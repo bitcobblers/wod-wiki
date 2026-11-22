@@ -15,7 +15,7 @@ import {
   ChevronRightIcon,
   CloudDownload,
   RefreshCw,
-  Save,
+  Rss,
   Settings2,
   TriangleAlertIcon,
 } from 'lucide-react'
@@ -84,7 +84,6 @@ import { QuerySettingsDialog } from '../../components/organisms/wql/QuerySetting
 import { defaultStreamQueryEngine, StreamQueryEngine } from '../../lib/entrySearch'
 import { publishStreamResults } from './streamResults'
 import { useNav } from '../../nav/NavContext'
-import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
 import { cloneRemotePreviewNoteToNotebook, playgroundFeedCatalogStore } from '@/services/feed/feedCatalog'
 import { toggleNotebookSubscription, unsubscribeFeedSource } from '@/services/feed/feedSync'
@@ -94,7 +93,7 @@ import { exportFeedRepositoryZip, publishSelfHostedFeed } from '@/services/Expor
 import { FeedIntakeBanner } from '../notebook-gallery/FeedIntakeBanner'
 import { OUTCOME_LABEL } from '../../pages/SyncSection'
 import { notebookPath, ROUTE_PATTERNS } from '../../lib/routes'
-import { MobileNewEntryCombo, routeSupportsCreation } from '../../pages/shared/NewEntryCombo'
+import { MobileNewEntryCombo, resolveNewEntryRoute, routeSupportsCreation } from '../../pages/shared/NewEntryCombo'
 import { salvagePlainTextQuery, useComposerQueryState } from '../../hooks/useComposerQueryState'
 import { useViewSettings, LAYOUT_MODES, type LayoutMode } from '../../lib/viewSettingsStorage'
 import { LIBRARY_BATCH_SIZE, useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
@@ -218,11 +217,24 @@ function userAuthoredFilters(
   })
 }
 
-/** Compact query truth strip beneath the composer (desktop) / top of the
- *  stream (mobile): validity, target, matched of total, applied vs ignored
- *  filters, ignored advisories, the grouping dimensions and their
- *  precedence source. Fed from the run's own stage callback — no extra
- *  scans. */
+const TARGET_NOUNS: Record<string, { singular: string; plural: string }> = {
+  note: { singular: 'note', plural: 'notes' },
+  block: { singular: 'block', plural: 'blocks' },
+  effort: { singular: 'effort', plural: 'efforts' },
+  session: { singular: 'session', plural: 'sessions' },
+  segment: { singular: 'segment', plural: 'segments' },
+  event: { singular: 'event', plural: 'events' },
+  notebook: { singular: 'notebook', plural: 'notebooks' },
+  page: { singular: 'page', plural: 'pages' },
+  tag: { singular: 'tag', plural: 'tags' },
+  equipment: { singular: 'equipment item', plural: 'equipment items' },
+  feed: { singular: 'feed', plural: 'feeds' },
+}
+
+/** Compact query status strip beneath the composer (desktop) / top of the
+ *  stream (mobile): calm athlete counts at rest, escalating to full query
+ *  diagnostics (`:target`, `matched of total`, `applied/ignored`, advisories,
+ *  and syntax hints) when custom filters, advisories, or errors are active. */
 function StreamQueryStatus({
   error,
   syntaxHint,
@@ -235,6 +247,9 @@ function StreamQueryStatus({
   advisories,
   groupDims,
   groupingSource,
+  hasAppliedFilters,
+  isCustomQuery,
+  itemNoun,
 }: {
   error: string | null
   /** WW-034 — parse-failure guidance rendered under the invalid-query line. */
@@ -248,12 +263,46 @@ function StreamQueryStatus({
   advisories: readonly string[]
   groupDims: string[]
   groupingSource: string
+  hasAppliedFilters: boolean
+  isCustomQuery: boolean
+  itemNoun: { singular: string; plural: string }
 }) {
+  const showDiagnostics =
+    Boolean(error) ||
+    hasAppliedFilters ||
+    isCustomQuery ||
+    ignored > 0 ||
+    advisories.length > 0
+
+  if (!showDiagnostics) {
+    return (
+      <div
+        role="status"
+        data-testid="stream-query-status"
+        className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground"
+      >
+        <span data-testid="stream-query-counts">
+          {countsPending
+            ? 'Searching…'
+            : `${matched.toLocaleString()} ${matched === 1 ? itemNoun.singular : itemNoun.plural}`}
+        </span>
+        {groupDims.length > 0 && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span data-grouping-source={groupingSource}>
+              by {groupDims.join(', ')}
+            </span>
+          </>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div
       role="status"
       data-testid="stream-query-status"
-      className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground"
+      className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground"
     >
       {error ? (
         <span className="font-semibold text-destructive">Invalid query — showing previous results</span>
@@ -268,12 +317,16 @@ function StreamQueryStatus({
       <span data-testid="stream-query-filters">
         {applied} applied{ignored > 0 ? `, ${ignored} ignored` : ''}
       </span>
-      <span aria-hidden="true">·</span>
-      {/* WW-004/#5: the internal precedence enum never renders — it rides the
-          data attribute for tests and diagnostics only. */}
-      <span data-grouping-source={groupingSource}>
-        by {groupDims.join(', ')}
-      </span>
+      {groupDims.length > 0 && (
+        <>
+          <span aria-hidden="true">·</span>
+          {/* WW-004/#5: the internal precedence enum never renders — it rides the
+              data attribute for tests and diagnostics only. */}
+          <span data-grouping-source={groupingSource}>
+            by {groupDims.join(', ')}
+          </span>
+        </>
+      )}
       {advisories.map(advisory => (
         <p key={advisory} className="w-full break-words text-amber-700 dark:text-amber-400">
           {advisory}
@@ -410,6 +463,19 @@ export function QueriableStreamView({
   const [createOnDate, setCreateOnDate] = useState<string | null>(null)
   const [overlayMode, setOverlayMode] = useState<OverlayFilterMode>('all')
   const [inspectedEntry, setInspectedEntry] = useState<Entry | null>(null)
+  const [inspectedDay, setInspectedDay] = useState<string | null>(null)
+  const handleInspectEntry = useCallback((entry: Entry) => {
+    setInspectedDay(null)
+    setInspectedEntry(entry)
+  }, [])
+  const handleInspectDay = useCallback((dateKey: string) => {
+    setInspectedEntry(null)
+    setInspectedDay(dateKey)
+  }, [])
+  const handleClosePeek = useCallback(() => {
+    setInspectedEntry(null)
+    setInspectedDay(null)
+  }, [])
   const [selectedBatchNoteIds, setSelectedBatchNoteIds] = useState<Set<string>>(() => new Set())
   const [batchScheduleDate, setBatchScheduleDate] = useState(() => todayKey())
   const [batchScheduling, setBatchScheduling] = useState(false)
@@ -629,7 +695,7 @@ export function QueriableStreamView({
   const activeEngine = useMemo<StreamQueryEngine>(() => {
     const base = queryEngine ?? defaultStreamQueryEngine
     return layout === 'feed' ? base.withNoteBlockInfo() : base
-  }, [queryEngine, settings.layout])
+  }, [queryEngine, layout])
 
   const defaultAddToToday = useCallback(async (entry: Entry) => {
     const today = todayKey()
@@ -1080,7 +1146,7 @@ export function QueriableStreamView({
       clearTimeout(timer)
       setQueryPending(false)
     }
-  }, [effectiveQuery, activeEngine, parsed, location.pathname, profile.route, feedReadiness, feedImportPending, savedTick])
+  }, [effectiveQuery, activeEngine, parsed, location.pathname, profile.route, isNotebooksRoute, feedReadiness, feedImportPending, savedTick])
 
   // Usage counts & M:N schedule enrichment for Note rows + Calendar Overlay projection
   const [usageCounts, setUsageCounts] = useState<ReadonlyMap<string, NoteUsageCounts>>(
@@ -1383,23 +1449,18 @@ export function QueriableStreamView({
   )
   const groupCountMap = useMemo(() => new Map(allGroups.map(g => [g.id, g.entries.length])), [allGroups])
 
-  // Publish dynamic section links and L3 stream controls to NavContext
-  const { setL3Items, setL3Actions, scrollToSection, navState, setStreamControls } = useNav()
+  // Streams retire resting L3 (0px right rail) — filters live inside
+  // StreamQueryBar's `+ Filter` popover and layout/fields/group-by/actions
+  // live inside StreamViewPopover.
+  const { setL3Items, setL3Actions, scrollToSection, navState, openCreateJournal } = useNav()
   useEffect(() => {
-    // Doc A/B parity: desktop Calendar/Planner views clear the L3 section rail to maximize grid width.
-    if (layout === 'planner' || layout === 'agenda' || allGroups.length === 0) {
+    setL3Items([])
+    setL3Actions?.([])
+    return () => {
       setL3Items([])
-      return
+      setL3Actions?.([])
     }
-    const sectionLinks: NavItemL3[] = allGroups.map(g => ({
-      id: g.id,
-      label: g.label,
-      level: 3,
-      action: { type: 'scroll', sectionId: g.id },
-    }))
-    setL3Items(sectionLinks)
-    return () => setL3Items([])
-  }, [allGroups, layout, setL3Items])
+  }, [setL3Items, setL3Actions])
 
   const availableGroupDims = useMemo(() => {
     const target = parsed.error || !isFindQuery(parsed) ? (profile.level === 'effort' ? 'effort' : 'note') : parsed.target
@@ -1430,39 +1491,6 @@ export function QueriableStreamView({
   )
 
   const saveDisabled = Boolean(parsed.error) || query.trim() === ''
-  useEffect(() => {
-    if (!profile.dashboardEnabled) {
-      setL3Actions?.([])
-      return
-    }
-    setL3Actions?.([
-      {
-        id: 'stream-save-to-dashboard',
-        label: 'Add to dashboard',
-        icon: Save,
-        disabled: saveDisabled,
-        onRun: () => setDashboardOpen(true),
-      },
-    ])
-    return () => setL3Actions?.([])
-  }, [profile.dashboardEnabled, saveDisabled, setL3Actions])
-
-  useEffect(() => {
-    setStreamControls?.({
-      query,
-      onQueryChange: setQuery,
-      groupDims,
-      onToggleGroupDim: handleToggleGroupDim,
-      availableGroupDims,
-      settings,
-      onLayoutChange: setLayout,
-      onToggleField: toggleField,
-      level: profile.level,
-      availableLayouts,
-      ...(querySettingsSurface ? { onOpenQuerySettings: () => setQuerySettingsOpen(true) } : {}),
-    })
-    return () => setStreamControls?.(null)
-  }, [query, setQuery, groupDims, handleToggleGroupDim, availableGroupDims, setStreamControls, settings, setLayout, toggleField, profile.level, availableLayouts, querySettingsSurface])
 
   // Progressive anchor reachability: the L3 index covers ALL groups, but only
   // the rendered prefix has DOM anchors (progressive batching). A click on a
@@ -1520,6 +1548,30 @@ export function QueriableStreamView({
     }
     return out
   }, [profile.defaultWql, profile.scopeOptions, query])
+
+  const authoredFilters = useMemo(() => {
+    if (parsed.error || !isFindQuery(parsed)) return []
+    return userAuthoredFilters(parsed.filters, defaultImpliedFilters)
+  }, [parsed, defaultImpliedFilters])
+  const hasAppliedFilters = authoredFilters.length > 0
+  const isCustomQuery = hasAppliedFilters || effectiveQuery.trim() !== profile.defaultWql.trim()
+  const statusTarget = parsed.error ? null : isFindQuery(parsed) ? parsed.target : parsed.family
+  const statusNoun = TARGET_NOUNS[statusTarget ?? profile.target] ?? { singular: 'item', plural: 'items' }
+
+  const canCreateOnRoute = routeSupportsCreation(profile.route) && !notebookNotFound
+  const handleStreamAddAction = useCallback(() => {
+    if (isNotebooksRoute) {
+      setEditingNotebook(null)
+      setCreateNotebookOpen(true)
+      return
+    }
+    const routeCtx = resolveNewEntryRoute(location.pathname)
+    openCreateJournal({
+      kind: routeCtx.defaultKind,
+      notebookSlug: routeCtx.notebookSlug,
+      date: routeCtx.defaultDate,
+    })
+  }, [isNotebooksRoute, location.pathname, openCreateJournal])
 
   // Nothing imported on a seed-library route: the emptiness is the missing
   // corpus, not the query — the empty state points at the import action and
@@ -1653,8 +1705,16 @@ export function QueriableStreamView({
     )
   }
 
+  const visibleHeaderTitle = notebookSlugParam ? (resolvedNotebookTitle ?? undefined) : undefined
+  const streamHeading = resolvedNotebookTitle ?? profile.title ?? 'Stream'
+
   return (
     <div className="bg-card flex flex-col flex-1" data-testid="queriable-stream-view">
+      {!visibleHeaderTitle && (
+        <h1 className="sr-only" data-testid={TEST_IDS.STREAM_PAGE_HEADING}>
+          {streamHeading}
+        </h1>
+      )}
       {createNotebookDialog}
       {querySettingsSurface && (
         <QuerySettingsDialog
@@ -1682,25 +1742,12 @@ export function QueriableStreamView({
           WQL composer lives in the thumb-control zone. */}
       <StickyPageHeader
         className="max-lg:hidden"
-        title={notebookSlugParam ? (resolvedNotebookTitle ?? undefined) : undefined}
+        title={visibleHeaderTitle}
         actions={
           <ResponsiveActions
-            primary={routeSupportsCreation(profile.route) && !notebookNotFound ? <MobileNewEntryCombo /> : undefined}
+            primary={canCreateOnRoute ? <MobileNewEntryCombo /> : undefined}
             label="Stream actions"
           >
-            {profile.dashboardEnabled && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                data-testid="save-stream-query"
-                disabled={saveDisabled}
-                onClick={() => setDashboardOpen(true)}
-              >
-                <Save className="size-3.5" aria-hidden="true" />
-                Add to dashboard
-              </Button>
-            )}
             <StreamViewPopover
               level={profile.level}
               settings={settings}
@@ -1710,6 +1757,13 @@ export function QueriableStreamView({
               onLayoutChange={setLayout}
               onToggleGroupDim={handleToggleGroupDim}
               onToggleField={toggleField}
+              calendarCapable={Boolean(profile.calendarCapable)}
+              query={query}
+              onQueryChange={setQuery}
+              addActionLabel={isNotebooksRoute ? '+ New notebook' : '+ Add'}
+              onAddAction={canCreateOnRoute ? handleStreamAddAction : undefined}
+              onAddToDashboard={profile.dashboardEnabled ? () => setDashboardOpen(true) : undefined}
+              addToDashboardDisabled={saveDisabled}
               onOpenQuerySettings={querySettingsSurface ? () => setQuerySettingsOpen(true) : undefined}
             />
             {actions}
@@ -1724,19 +1778,20 @@ export function QueriableStreamView({
               execute={execute}
               defaultQuery={profile.defaultWql}
               route={profile.route}
+              hasAppliedFilters={hasAppliedFilters}
+              activeFilterCount={authoredFilters.length}
             />
           ) : undefined
         }
       />
 
-      {/* Query truth strip — one instance under the header: beneath the
-          composer on desktop, top-of-page status on mobile (the header is
-          max-lg:hidden). Never duplicated in the page body. */}
+      {/* Query status strip — one instance under the header: calm athlete
+          counts at rest, full query diagnostics when custom/advisory/error. */}
       <div className="px-4 pt-2 sm:px-6 lg:px-8" data-testid="stream-query-status-row">
         <StreamQueryStatus
           error={queryError}
           syntaxHint={queryError ? suggestWqlSyntaxHint(query, profile.target) : null}
-          target={parsed.error ? null : isFindQuery(parsed) ? parsed.target : parsed.family}
+          target={statusTarget}
           matched={entries.length}
           total={Math.max(stages?.selected ?? 0, entries.length)}
           countsPending={!parsed.error && (!hasSettledRun || (loading && !stages))}
@@ -1745,6 +1800,9 @@ export function QueriableStreamView({
           advisories={parsed.error ? [] : parsed.advisories ?? []}
           groupDims={groupDims}
           groupingSource={groupingSource}
+          hasAppliedFilters={hasAppliedFilters}
+          isCustomQuery={isCustomQuery}
+          itemNoun={statusNoun}
         />
       </div>
 
@@ -1837,6 +1895,8 @@ export function QueriableStreamView({
             execute={execute}
             defaultQuery={profile.defaultWql}
             route={profile.route}
+            hasAppliedFilters={hasAppliedFilters}
+            activeFilterCount={authoredFilters.length}
             compact
           />,
           mobileSlot,
@@ -1986,7 +2046,8 @@ export function QueriableStreamView({
             onMonthChange={handleMonthChange}
             overlayMode={overlayMode}
             onOverlayModeChange={setOverlayMode}
-            onInspectEntry={setInspectedEntry}
+            onInspectEntry={handleInspectEntry}
+            onInspectDay={handleInspectDay}
           />
         </div>
       ) : layout === 'planner' ? (
@@ -2003,7 +2064,8 @@ export function QueriableStreamView({
             onMonthChange={handleMonthChange}
             overlayMode={overlayMode}
             onOverlayModeChange={setOverlayMode}
-            onInspectEntry={setInspectedEntry}
+            onInspectEntry={handleInspectEntry}
+            onInspectDay={handleInspectDay}
           />
         </div>
       ) : layout === 'feed' ? (
@@ -2175,8 +2237,19 @@ export function QueriableStreamView({
 
       <SchedulePeekDrawer
         entry={inspectedEntry}
-        onClose={() => setInspectedEntry(null)}
+        dayDate={inspectedDay}
+        dayEntries={
+          inspectedDay
+            ? calendarOverlayEntries.filter(
+                (item) =>
+                  item.date === inspectedDay || item.scheduledDates?.includes(inspectedDay),
+              )
+            : undefined
+        }
+        onClose={handleClosePeek}
         onRunEntry={(entry) => void handleRunEntry(entry)}
+        onPlanForDate={(dateKey) => setCreateOnDate(dateKey)}
+        onSelectEntry={handleInspectEntry}
         onMutated={() => setSavedTick((t) => t + 1)}
       />
 

@@ -16,6 +16,7 @@
  */
 import { useMemo } from 'react'
 import { Plus } from 'lucide-react'
+import { TEST_IDS } from '@/lib/testIds'
 import type { Entry } from '../../lib/entryMapper'
 import {
   buildDayBuckets,
@@ -58,6 +59,7 @@ export interface CalendarAgendaViewProps {
   overlayMode?: OverlayFilterMode
   onOverlayModeChange?: (mode: OverlayFilterMode) => void
   onInspectEntry?: (entry: Entry) => void
+  onInspectDay?: (dateKey: string) => void
 }
 
 /** Singular/plural entry-count copy shared across agenda headers, day cells, and month meta. */
@@ -71,12 +73,30 @@ function AgendaDayHeader({
   day,
   top,
   onCreateOnDay,
+  onInspectDay,
 }: {
   day: CalendarDay
   top: number
   onCreateOnDay: (dateKey: string) => void
+  onInspectDay?: (dateKey: string) => void
 }) {
   const weekday = WEEKDAY_SHORT[(day.date.getDay() + 6) % 7]
+  const label = `${shortMonthLabel(day.date)} ${day.dayOfMonth}`
+  const headerIdentity = (
+    <>
+      <div className="flex w-10 shrink-0 flex-col items-center leading-none">
+        <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+          {weekday}
+        </span>
+        <span className={`text-xl font-extrabold tracking-tight ${day.isToday ? 'text-primary' : 'text-foreground'}`}>
+          {day.dayOfMonth}
+        </span>
+      </div>
+      <div className="min-w-0 flex-1 text-xs font-medium text-muted-foreground">
+        {shortMonthLabel(day.date)} {day.date.getFullYear()}
+      </div>
+    </>
+  )
   return (
     <div
       id={`calendar-day-${day.key}`}
@@ -84,28 +104,33 @@ function AgendaDayHeader({
       className="sticky z-10 flex items-center gap-3 border-y border-border/60 bg-card/95 px-4 py-1.5 backdrop-blur"
       data-testid="calendar-agenda-day"
     >
-      <div className="flex w-9 shrink-0 flex-col items-center leading-none">
-        <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{weekday}</span>
-        <span className={`text-xl font-extrabold tracking-tight ${day.isToday ? 'text-primary' : 'text-foreground'}`}>
-          {day.dayOfMonth}
-        </span>
-      </div>
-      <div className="min-w-0 flex-1 text-[11px] text-muted-foreground">
-        {shortMonthLabel(day.date)} {day.date.getFullYear()}
-      </div>
+      {onInspectDay ? (
+        <button
+          type="button"
+          onClick={() => onInspectDay(day.key)}
+          data-testid={TEST_IDS.CALENDAR_DAY_HEADER}
+          aria-label={`Inspect ${label}`}
+          title={`Inspect ${label}`}
+          className="flex min-w-0 flex-1 max-lg:min-h-11 items-center gap-3 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {headerIdentity}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3">{headerIdentity}</div>
+      )}
       {day.isToday && (
-        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
+        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
           Today
         </span>
       )}
-      <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
         {formatEntryCount(day.entries.length)}
       </span>
       <button
         type="button"
         onClick={() => onCreateOnDay(day.key)}
-        className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
-        aria-label={`Add an entry on ${shortMonthLabel(day.date)} ${day.dayOfMonth}`}
+        className="grid size-8 max-lg:size-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+        aria-label={`Add an entry on ${label}`}
         title="Add an entry on this day"
         data-testid="calendar-agenda-add-button"
       >
@@ -152,9 +177,9 @@ function DensityRibbon({ days }: { days: CalendarDay[] }) {
   }
   return (
     <div className="hidden items-center gap-3 border-b border-border/60 px-4 py-2 lg:flex">
-      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Load</span>
+      <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Load</span>
       <div className="flex flex-1 gap-0.5">{cells}</div>
-      <span className="font-mono text-[10px] text-muted-foreground">1 → {dayCount}</span>
+      <span className="font-mono text-[11px] text-muted-foreground">1 → {dayCount}</span>
     </div>
   )
 }
@@ -173,6 +198,7 @@ export function CalendarAgendaView({
   overlayMode,
   onOverlayModeChange,
   onInspectEntry,
+  onInspectDay,
 }: CalendarAgendaViewProps) {
   const nav = useCalendarMonth(monthParam, onMonthChange)
   const buckets = useMemo(() => buildDayBuckets(entries), [entries])
@@ -220,7 +246,12 @@ export function CalendarAgendaView({
         <div className="flex-1 pb-6">
           {agenda.map(day => (
             <section key={day.key}>
-              <AgendaDayHeader day={day} top={stickyOffset} onCreateOnDay={onCreateOnDay ?? (() => {})} />
+              <AgendaDayHeader
+                day={day}
+                top={stickyOffset}
+                onCreateOnDay={onCreateOnDay ?? (() => {})}
+                onInspectDay={onInspectDay}
+              />
               <div className="divide-y divide-border/30">
                 {day.entries.map((entry, idx) => (
                   <div

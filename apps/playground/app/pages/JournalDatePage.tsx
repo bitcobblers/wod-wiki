@@ -12,14 +12,14 @@ import { playgroundRecorder, onResultSaved } from '@/services/resultRecorder';
 import { storageService } from '@/services/storage';
 import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer';
 import { useSearchParams, Link, Navigate, useNavigate } from 'react-router-dom';
-import { Plus, Copy, CalendarDays, BookOpen, Dumbbell } from 'lucide-react';
+import { Plus, Copy, CalendarDays, BookOpen, Dumbbell, GitFork, Save } from 'lucide-react';
 import { v7 as uuidv7 } from 'uuid';
 import { dayPath, notePath, runPath } from '../lib/routes';
 import { formatDateKey } from '../services/dateUtils';
 import { CreateJournalNoteDialog } from '../components/organisms/journal/CreateJournalNoteDialog';
 import { CalendarCard } from '@/components/atoms/CalendarCard';
 import { NoteContextNav, useJournalEntryDates } from './shared/noteContextLinks';
-import { useNoteL1Zone } from '../nav/NavContext';
+import { useNoteL1Zone, useNav, type L3ActionItem } from '../nav/NavContext';
 import { clearParkedRun, findParkedRunByDate, parkRun, pendingRuntimes, takeParkedRun } from '../runtimeStore';
 import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
@@ -31,7 +31,6 @@ import { PublicationPill } from '@/components/molecules/PublicationPill';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 import { canGoBack, extractPageIndex, mapIndexToL3, appendTimerBlock } from './shared/pageUtils';
 import type { NavItemL3 } from '../nav/navTypes';
-import { useNav } from '../nav/NavContext';
 import { SavedNoteEditor } from './shared/SavedNoteEditor';
 import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
 import type { ParkedRun, PendingRuntime } from '../runtimeStore';
@@ -39,8 +38,193 @@ import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wik
 import { setSurfaceBusy } from '@/agent/surfaceBridges';
 import { feedProgressLabel } from '@/services/feed/feedProgress';
 import { useFeedSyncProgress } from '@/services/feed/feedReadiness';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { forkScheduleItemForDay } from '../views/stream/SchedulePeekDrawer';
 
 import { JournalPageShell } from '@/panels/page-shells';
+
+type GroupedL3ActionItem = L3ActionItem & {
+  group?: 'primary' | 'author' | 'organize' | 'share' | 'danger';
+};
+
+function ScheduledPlanCard({
+  plannedEntry,
+  journalDate,
+  onForked,
+}: {
+  plannedEntry: JournalDayOverlay['planned'][number];
+  journalDate: string;
+  onForked: (forkedNoteId: string) => void;
+}) {
+  const { item, note: planNote, pairedSessions } = plannedEntry;
+  const done = item.status === 'completed' || pairedSessions.length > 0;
+  const skipped = item.status === 'skipped';
+  const [cueDraft, setCueDraft] = useState(item.notes ?? '');
+  const [savedCue, setSavedCue] = useState(item.notes ?? '');
+  const [cueSaved, setCueSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const next = item.notes ?? '';
+    setCueDraft(next);
+    setSavedCue(next);
+  }, [item.id, item.notes]);
+
+  const cueDirty = cueDraft.trim() !== savedCue.trim();
+
+  const handleSaveCue = async () => {
+    setBusy(true);
+    setCardError(null);
+    setCueSaved(false);
+    try {
+      const trimmed = cueDraft.trim();
+      await journalSchedule.updateItem(item.id, { notes: trimmed });
+      setSavedCue(trimmed);
+      setCueDraft(trimmed);
+      setCueSaved(true);
+    } catch (err) {
+      setCardError(err instanceof Error ? err.message : 'Could not save day cue.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleFork = async () => {
+    setBusy(true);
+    setCardError(null);
+    try {
+      const forked = await forkScheduleItemForDay({
+        scheduleItemId: item.id,
+        sourceNoteId: item.noteId,
+        date: journalDate,
+        fallbackTitle: planNote?.title || item.fallbackTitle,
+      });
+      onForked(forked.id);
+    } catch (err) {
+      setCardError(err instanceof Error ? err.message : 'Could not fork copy for this day.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <li className="space-y-2.5 rounded-md border border-border/60 bg-background px-3 py-2.5 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Link to={notePath(item.noteId)} className="truncate font-semibold text-foreground hover:underline">
+              {planNote?.title || item.fallbackTitle || 'Untitled workout'}
+            </Link>
+            {item.slot && (
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-bold uppercase text-muted-foreground">
+                {item.slot}
+              </span>
+            )}
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                done
+                  ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                  : skipped
+                    ? 'bg-muted text-muted-foreground line-through'
+                    : 'bg-primary/10 text-primary'
+              }`}
+            >
+              {done ? 'Completed' : skipped ? 'Skipped' : 'Planned'}
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => void handleFork()}
+            data-testid={TEST_IDS.DAY_PLAN_FORK_BTN}
+            className="h-7 max-lg:min-h-11 gap-1 px-2 text-[11px]"
+          >
+            <GitFork className="size-3" aria-hidden="true" />
+            <span>Fork for this day</span>
+          </Button>
+          {!skipped && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void journalSchedule.updateItem(item.id, { status: 'skipped' })}
+              className="h-7 max-lg:min-h-11 px-2 text-[11px]"
+            >
+              Skip
+            </Button>
+          )}
+          {skipped && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void journalSchedule.updateItem(item.id, { status: 'planned' })}
+              className="h-7 max-lg:min-h-11 px-2 text-[11px]"
+            >
+              Restore
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => void journalSchedule.removeItem(item.id)}
+            className="h-7 max-lg:min-h-11 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+          >
+            Unschedule
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <input
+          type="text"
+          value={cueDraft}
+          onChange={(e) => {
+            setCueDraft(e.target.value);
+            if (cueSaved) setCueSaved(false);
+          }}
+          disabled={busy}
+          placeholder="Add day cue (keeps canonical Note unchanged)…"
+          aria-label={`Day cue for ${planNote?.title || item.fallbackTitle || 'workout'}`}
+          data-testid={TEST_IDS.DAY_PLAN_CUE_INPUT}
+          className="h-8 max-lg:min-h-11 min-w-0 flex-1 rounded-md border border-input bg-card px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={busy || !cueDirty}
+          onClick={() => void handleSaveCue()}
+          data-testid={TEST_IDS.DAY_PLAN_CUE_SAVE}
+          className="h-8 max-lg:min-h-11 gap-1 px-2.5 text-[11px]"
+        >
+          <Save className="size-3" aria-hidden="true" />
+          <span>Save</span>
+        </Button>
+        {cueSaved && !cueDirty && (
+          <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+            Saved
+          </span>
+        )}
+      </div>
+
+      {cardError && (
+        <p role="alert" className="text-xs text-destructive">
+          {cardError}
+        </p>
+      )}
+    </li>
+  );
+}
 
 interface JournalDatePageProps {
   journalDate: string;
@@ -57,6 +241,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
   useEffect(() => onResultSaved(() => setOverlayTick((t) => t + 1)), []);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [createOpen, setCreateOpen] = useState(false);
   const [createNoteMode, setCreateNoteMode] = useState<'write' | 'pick'>('write');
   const openCreateDialog = useCallback((mode: 'write' | 'pick' = 'write') => {
@@ -200,7 +385,6 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
 
   const feedProgress = useFeedSyncProgress();
   const [slowLoad, setSlowLoad] = useState(false);
-
   const loadedDateRef = useRef<string | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -213,10 +397,12 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
       journalSchedule.getDayOverlay(journalDate).catch(() => null),
     ]).then(([entries, overlay]) => {
       if (cancelled) return;
+      loadedDateRef.current = journalDate;
       setNotes(entries);
       setDayOverlay(overlay);
     }).catch(() => {
       if (!cancelled) {
+        loadedDateRef.current = journalDate;
         setNotes([]);
         setDayOverlay(null);
       }
@@ -349,13 +535,32 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (singleNote) void startOutlineRun(singleNote.id, block);
   }, [singleNote, startOutlineRun]);
 
+  const singleNoteHelpfulActions = useMemo<NoteHelpfulAction[]>(() => {
+    if (!singleNote) return [];
+    return [
+      {
+        id: 'day-add-note',
+        label: 'Add note',
+        icon: Plus,
+        onRun: () => openCreateDialog('write'),
+      },
+      {
+        id: 'day-pick-workout',
+        label: 'Pick / Log workout',
+        icon: Dumbbell,
+        onRun: () => openCreateDialog('pick'),
+      },
+      ...noteActions.helpfulActions,
+    ];
+  }, [singleNote, openCreateDialog, noteActions.helpfulActions]);
+
   useNotePageNav({
     content: singleNote?.rawContent ?? '',
     scriptBlocks: singleNote ? (blocksByNote[singleNote.id] ?? []) : [],
     onStartWorkout: handleOutlineRun,
     results,
     noteId: singleNote?.id,
-    helpfulActions: singleNote ? noteActions.helpfulActions : [],
+    helpfulActions: singleNoteHelpfulActions,
     enabled: Boolean(singleNote),
   });
 
@@ -392,13 +597,29 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (!multiNoteFirst) return;
     publishedGroupedRef.current = true;
     setL3Items(groupedL3);
-    setL3Actions?.([
+    const multiActions: GroupedL3ActionItem[] = [
+      {
+        id: 'day-add-note',
+        label: 'Add note',
+        icon: Plus,
+        group: 'primary',
+        onRun: () => openCreateDialog('write'),
+      },
+      {
+        id: 'day-pick-workout',
+        label: 'Pick / Log workout',
+        icon: Dumbbell,
+        group: 'author',
+        onRun: () => openCreateDialog('pick'),
+      },
       {
         id: 'helpful-add-timer',
         label: 'Add timer',
+        group: 'author',
         onRun: () => handleNoteContentChange(multiNoteFirst.id, appendTimerBlock(multiNoteFirst.rawContent)),
       },
-    ]);
+    ];
+    setL3Actions?.(multiActions);
     return () => {
       if (publishedGroupedRef.current) {
         publishedGroupedRef.current = false;
@@ -406,7 +627,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
         setL3Actions?.([]);
       }
     };
-  }, [groupedL3, multiNoteFirst, handleNoteContentChange, setL3Items, setL3Actions]);
+  }, [groupedL3, multiNoteFirst, handleNoteContentChange, openCreateDialog, setL3Items, setL3Actions]);
 
   // Always publish L1 journal zone and L2 calendar context on /day/:date (even when empty).
   useNoteL1Zone('notebooks');
@@ -431,23 +652,26 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (!isEmptyDay) return;
     publishedEmptyDayRef.current = true;
     setL3Items([]);
-    setL3Actions?.([
+    const emptyDayActions: GroupedL3ActionItem[] = [
       {
         id: 'day-add-note',
         label: 'Add note',
         icon: Plus,
+        group: 'primary',
         onRun: () => openCreateDialog('write'),
       },
       {
         id: 'day-pick-workout',
         label: 'Pick / Log workout',
         icon: Dumbbell,
+        group: 'author',
         onRun: () => openCreateDialog('pick'),
       },
       {
         id: 'day-copy-link',
         label: 'Copy day link',
         icon: Copy,
+        group: 'share',
         onRun: () => {
           const href = typeof window !== 'undefined'
             ? `${window.location.origin}${dayPath(journalDate)}`
@@ -459,15 +683,18 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
         id: 'day-jump-today',
         label: 'Jump to today',
         icon: CalendarDays,
+        group: 'organize',
         onRun: () => navigate(dayPath(formatDateKey(new Date()))),
       },
       {
         id: 'day-open-journal',
         label: 'Open Journal',
         icon: BookOpen,
+        group: 'organize',
         onRun: () => navigate('/journal'),
       },
-    ]);
+    ];
+    setL3Actions?.(emptyDayActions);
     return () => {
       if (publishedEmptyDayRef.current) {
         publishedEmptyDayRef.current = false;
@@ -518,19 +745,21 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
           title={journalDate}
           subtitle={`${notes.length} ${notes.length === 1 ? 'note' : 'notes'}`}
           actions={
-            <ResponsiveActions
-              primary={
-                <Button
-                  type="button"
-                  onClick={() => openCreateDialog('write')}
-                  aria-label="+ Add note"
-                  title="New note"
-                >
-                  <Plus className="size-4 mr-1.5" aria-hidden="true" />
-                  + Add
-                </Button>
-              }
-            />
+            isMobile ? (
+              <ResponsiveActions
+                primary={
+                  <Button
+                    type="button"
+                    onClick={() => openCreateDialog('write')}
+                    aria-label="+ Add note"
+                    title="New note"
+                  >
+                    <Plus className="size-4 mr-1.5" aria-hidden="true" />
+                    + Add
+                  </Button>
+                }
+              />
+            ) : undefined
           }
           editor={
         <div className="flex flex-col gap-8 px-4 py-6 sm:px-6">
@@ -569,74 +798,17 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
                     </h2>
                   </div>
                   <ul className="space-y-2">
-                    {dayOverlay.planned.map(({ item, note: planNote, pairedSessions }) => {
-                      const done = item.status === 'completed' || pairedSessions.length > 0;
-                      const skipped = item.status === 'skipped';
-                      return (
-                        <li
-                          key={item.id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/50 bg-background px-3 py-2 text-xs"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <Link to={notePath(item.noteId)} className="font-semibold text-foreground hover:underline truncate">
-                                {planNote?.title || 'Untitled workout'}
-                              </Link>
-                              {item.slot && (
-                                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">
-                                  {item.slot}
-                                </span>
-                              )}
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                  done
-                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                                    : skipped
-                                      ? 'bg-muted text-muted-foreground line-through'
-                                      : 'bg-primary/10 text-primary'
-                                }`}
-                              >
-                                {done ? 'Completed' : skipped ? 'Skipped' : 'Planned'}
-                              </span>
-                            </div>
-                            {item.notes && <p className="mt-0.5 text-[11px] text-muted-foreground">{item.notes}</p>}
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            {!skipped && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => void journalSchedule.updateItem(item.id, { status: 'skipped' })}
-                                className="h-7 px-2 text-[11px]"
-                              >
-                                Skip
-                              </Button>
-                            )}
-                            {skipped && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => void journalSchedule.updateItem(item.id, { status: 'planned' })}
-                                className="h-7 px-2 text-[11px]"
-                              >
-                                Restore
-                              </Button>
-                            )}
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => void journalSchedule.removeItem(item.id)}
-                              className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive"
-                            >
-                              Unschedule
-                            </Button>
-                          </div>
-                        </li>
-                      );
-                    })}
+                    {dayOverlay.planned.map((plannedEntry) => (
+                      <ScheduledPlanCard
+                        key={plannedEntry.item.id}
+                        plannedEntry={plannedEntry}
+                        journalDate={journalDate}
+                        onForked={(forkedNoteId) => {
+                          setOverlayTick((t) => t + 1);
+                          void navigate(`${notePath(forkedNoteId)}?edit=1`);
+                        }}
+                      />
+                    ))}
                   </ul>
                 </section>
               )}

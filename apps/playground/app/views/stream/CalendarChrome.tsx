@@ -58,13 +58,15 @@ export function useCalendarMonth(
   initial?: Date | string,
   onMonthChange?: (monthKey: string) => void,
 ): CalendarMonthNav {
-  const controlledDate = typeof initial === 'string' ? parseMonthAnchorKey(initial) : undefined
+  const initialKey = typeof initial === 'string' ? initial : ''
+  const controlledDate = initialKey ? parseMonthAnchorKey(initialKey) : undefined
   const [internalAnchor, setInternalAnchor] = useState(() =>
     controlledDate ?? (initial instanceof Date ? initial : new Date()),
   )
   useEffect(() => {
-    if (controlledDate) setInternalAnchor(controlledDate)
-  }, [typeof initial === 'string' ? initial : ''])
+    const parsed = initialKey ? parseMonthAnchorKey(initialKey) : null
+    if (parsed) setInternalAnchor(parsed)
+  }, [initialKey])
   const anchor = controlledDate ?? internalAnchor
   const setAnchorAndNotify = useCallback(
     (compute: (current: Date) => Date) => {
@@ -118,7 +120,7 @@ export function CalendarMonthBar({
         </Button>
         <div className="min-w-0 flex-1 px-1">
           <div className="truncate text-sm font-bold text-foreground">{nav.label}</div>
-          {meta && <div className="truncate text-[11px] text-muted-foreground">{meta}</div>}
+          {meta && <div className="truncate text-xs text-muted-foreground">{meta}</div>}
         </div>
         {onOverlayModeChange && (
           <div
@@ -135,7 +137,7 @@ export function CalendarMonthBar({
                   type="button"
                   onClick={() => onOverlayModeChange(opt.id)}
                   aria-pressed={active}
-                  className={`rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
+                  className={`rounded px-2.5 py-1 text-xs font-semibold max-lg:min-h-11 transition-colors ${
                     active
                       ? 'bg-background text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
@@ -205,12 +207,12 @@ export function CalendarEntryChip({
       {isAdhocLogged && <CircleDot className="size-3 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />}
       <span className="min-w-0 flex-1 truncate">{entry.title || 'Untitled'}</span>
       {entry.scheduleSlot && (
-        <span className="shrink-0 rounded bg-muted px-1 text-[9px] font-bold uppercase text-muted-foreground">
+        <span className="shrink-0 rounded bg-muted px-1 text-[11px] font-bold uppercase text-muted-foreground">
           {entry.scheduleSlot}
         </span>
       )}
       {typeof pairedDuration === 'number' && pairedDuration > 0 && (
-        <span className="shrink-0 font-mono text-[9px] text-emerald-700 dark:text-emerald-300">
+        <span className="shrink-0 font-mono text-[11px] text-emerald-800 dark:text-emerald-300">
           {formatDurationMMSS(pairedDuration)}
         </span>
       )}
@@ -275,16 +277,16 @@ export function CalendarUndatedShelf({ entries }: { entries: readonly Entry[] })
           <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden />
         )}
         <CalendarIcon className="size-3.5 text-muted-foreground" aria-hidden />
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
           Undated · {entries.length}
         </span>
-        <span className="ml-auto text-[11px] text-muted-foreground">
+        <span className="ml-auto text-xs text-muted-foreground">
           {expanded ? 'Hide undated notes' : 'Show undated notes'}
         </span>
       </button>
       {expanded && (
         <>
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
+          <p className="mt-1.5 text-xs text-muted-foreground">
             The calendar has no day for these. Open or schedule one onto a day to place it.
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -292,7 +294,7 @@ export function CalendarUndatedShelf({ entries }: { entries: readonly Entry[] })
               <Link
                 key={entry.id}
                 to={entryOpenHref(entry)}
-                className="inline-flex min-h-6 items-center gap-1.5 rounded border border-border/60 bg-card px-1.5 py-0.5 text-[11px] hover:bg-muted/60"
+                className="inline-flex min-h-7 items-center gap-1.5 rounded border border-border/60 bg-card px-2 py-0.5 text-xs text-foreground hover:bg-muted/60"
               >
                 <span
                   className={`h-3 w-0.5 shrink-0 rounded-full ${notebookAccent(calendarNotebookKey(entry)).bar}`}

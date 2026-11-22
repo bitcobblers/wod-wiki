@@ -1,4 +1,4 @@
-import { SlidersHorizontal } from 'lucide-react'
+import { Plus, Save, SlidersHorizontal } from 'lucide-react'
 import {
   Button,
   Popover,
@@ -11,6 +11,7 @@ import {
   type EntityLevel,
 } from '../../lib/fieldProjection'
 import type { LayoutMode, ViewSettings } from '../../lib/viewSettingsStorage'
+import { WqlWindowPicker } from './WqlWindowPicker'
 
 const LAYOUT_LABEL: Record<LayoutMode, string> = {
   cards: 'Cards',
@@ -28,6 +29,8 @@ const LAYOUT_SHORT: Record<LayoutMode, string> = {
   planner: 'PLN',
 }
 
+const CALENDAR_GROUP_DIMS = new Set(['date', 'day', 'week', 'month', 'year'])
+
 export interface StreamViewPopoverProps {
   level: EntityLevel
   settings: ViewSettings
@@ -38,6 +41,17 @@ export interface StreamViewPopoverProps {
   onToggleGroupDim: (dim: string) => void
   onToggleField: (fieldId: string) => void
   onOpenQuerySettings?: () => void
+  /** When false (undated routes), hides Date window & calendar grouping dimensions. */
+  calendarCapable?: boolean
+  /** Current WQL query (used by Date window picker when `calendarCapable`). */
+  query?: string
+  onQueryChange?: (wql: string) => void
+  /** Optional creation action inside the View menu (avoids duplicating standalone header chrome). */
+  addActionLabel?: string
+  onAddAction?: () => void
+  /** Optional dashboard promotion action inside the View menu. */
+  onAddToDashboard?: () => void
+  addToDashboardDisabled?: boolean
 }
 
 export function StreamViewPopover({
@@ -50,9 +64,21 @@ export function StreamViewPopover({
   onToggleGroupDim,
   onToggleField,
   onOpenQuerySettings,
+  calendarCapable = true,
+  query,
+  onQueryChange,
+  addActionLabel,
+  onAddAction,
+  onAddToDashboard,
+  addToDashboardDisabled = false,
 }: StreamViewPopoverProps) {
   const fields = getFieldsForLevel(level)
   const visibleSet = new Set(settings.visibleFields)
+  const filteredGroupDims = calendarCapable
+    ? availableGroupDims
+    : availableGroupDims.filter((dim) => !CALENDAR_GROUP_DIMS.has(dim.toLowerCase()))
+  const showDateWindow = calendarCapable && query !== undefined && Boolean(onQueryChange)
+  const hasFooterActions = Boolean(onAddAction || onAddToDashboard || onOpenQuerySettings)
 
   return (
     <Popover>
@@ -69,7 +95,7 @@ export function StreamViewPopover({
       >
         <SlidersHorizontal className="size-3.5" aria-hidden="true" />
         <span>View</span>
-        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
           {LAYOUT_SHORT[settings.layout]}
         </span>
       </PopoverTrigger>
@@ -81,7 +107,7 @@ export function StreamViewPopover({
         className="w-72 space-y-3 p-3"
       >
         <div>
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
             Layout
           </p>
           <div className="flex flex-wrap gap-1" role="group" aria-label="Stream layout">
@@ -93,7 +119,7 @@ export function StreamViewPopover({
                   type="button"
                   onClick={() => onLayoutChange(mode)}
                   aria-pressed={active}
-                  className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-md border px-2 py-1 text-xs font-medium max-lg:min-h-11 transition-colors ${
                     active
                       ? 'border-primary bg-primary text-primary-foreground'
                       : 'border-border bg-card text-foreground hover:bg-muted'
@@ -106,13 +132,26 @@ export function StreamViewPopover({
           </div>
         </div>
 
-        {availableGroupDims.length > 0 && (
+        {showDateWindow && (
           <div>
-            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              Date window
+            </p>
+            <WqlWindowPicker
+              query={query!}
+              onQueryChange={onQueryChange!}
+              className="w-full"
+            />
+          </div>
+        )}
+
+        {filteredGroupDims.length > 0 && (
+          <div>
+            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
               Group by
             </p>
             <div className="flex flex-wrap gap-1" role="group" aria-label="Group by dimension">
-              {availableGroupDims.map((dim) => {
+              {filteredGroupDims.map((dim) => {
                 const active = groupDims.some((d) => d.toLowerCase() === dim.toLowerCase())
                 return (
                   <button
@@ -120,7 +159,7 @@ export function StreamViewPopover({
                     type="button"
                     onClick={() => onToggleGroupDim(dim)}
                     aria-pressed={active}
-                    className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                    className={`rounded-md border px-2 py-1 text-xs font-medium max-lg:min-h-11 transition-colors ${
                       active
                         ? 'border-primary bg-primary/15 text-primary'
                         : 'border-border bg-card text-foreground hover:bg-muted'
@@ -135,7 +174,7 @@ export function StreamViewPopover({
         )}
 
         <div>
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
             Visible fields
           </p>
           <div className="max-h-40 space-y-1.5 overflow-y-auto pr-1">
@@ -148,7 +187,7 @@ export function StreamViewPopover({
                     type="button"
                     onClick={() => onToggleField(field.id)}
                     aria-pressed={active}
-                    className={`rounded border px-1.5 py-0.5 text-[11px] transition-colors ${
+                    className={`rounded border px-2 py-0.5 text-xs max-lg:min-h-11 transition-colors ${
                       active
                         ? 'border-primary/40 bg-primary/10 font-medium text-primary'
                         : 'border-border bg-background text-muted-foreground hover:text-foreground'
@@ -162,17 +201,46 @@ export function StreamViewPopover({
           </div>
         </div>
 
-        {onOpenQuerySettings && (
-          <div className="border-t border-border/60 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onOpenQuerySettings}
-              className="h-8 w-full justify-start text-xs"
-            >
-              Configure view defaults…
-            </Button>
+        {hasFooterActions && (
+          <div className="space-y-1 border-t border-border/60 pt-2">
+            {onAddAction && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onAddAction}
+                data-testid={TEST_IDS.STREAM_VIEW_ADD_ACTION}
+                className="h-8 max-lg:min-h-11 w-full justify-start gap-2 text-xs font-medium"
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                <span>{addActionLabel ?? '+ Add'}</span>
+              </Button>
+            )}
+            {onAddToDashboard && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={addToDashboardDisabled}
+                onClick={onAddToDashboard}
+                data-testid={TEST_IDS.SAVE_STREAM_QUERY}
+                className="h-8 max-lg:min-h-11 w-full justify-start gap-2 text-xs font-medium"
+              >
+                <Save className="size-3.5" aria-hidden="true" />
+                <span>Add to dashboard</span>
+              </Button>
+            )}
+            {onOpenQuerySettings && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onOpenQuerySettings}
+                className="h-8 max-lg:min-h-11 w-full justify-start text-xs"
+              >
+                Configure view defaults…
+              </Button>
+            )}
           </div>
         )}
       </PopoverContent>

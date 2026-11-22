@@ -193,7 +193,7 @@ describe('QueriableStreamView component', () => {
     },
   ]
 
-  it('renders the sticky header without a page title — the query bar fills the row', async () => {
+  it('renders a semantic h1 while the query bar fills the sticky header row', async () => {
     const engine = createMockEngine([])
 
     render(
@@ -203,7 +203,8 @@ describe('QueriableStreamView component', () => {
     )
 
     expect(screen.getByTestId('queriable-stream-view')).toBeDefined()
-    expect(screen.queryByRole('heading')).toBeNull()
+    const h1 = screen.getByRole('heading', { level: 1, name: 'Efforts' })
+    expect(h1).toBeDefined()
     expect(screen.getByTestId('stream-query-bar')).toBeDefined()
   })
   it('renders entries in card stream layout by default', async () => {
@@ -481,6 +482,7 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
+    fireEvent.click(screen.getByTestId('stream-view-popover-trigger'))
     fireEvent.click(await screen.findByTestId('save-stream-query'))
 
     expect(screen.getByTestId('widget-composer-subset').textContent).toBe(filteredQuery)
@@ -578,7 +580,7 @@ describe('QueriableStreamView component', () => {
     expect(createCall.rawContent).toContain('Thrusters')
   })
 
-  it('publishes dynamic section links to NavContext and updates them when WQL grouping changes', async () => {
+  it('keeps resting L3 empty (0px) on streams and never publishes streamControls', async () => {
     writeViewSettings('/journal', {
       level: 'note',
       layout: 'cards',
@@ -594,25 +596,17 @@ describe('QueriableStreamView component', () => {
         date: '2026-09-04',
         effort: { slug: 'fran', label: 'Fran', discipline: 'gymnastics' },
       },
-      {
-        id: 'note-2',
-        kind: 'note',
-        sourceNotebook: 'canonical',
-        sourceNote: 'item-2',
-        title: 'Workout 2',
-        date: '2026-08-15',
-        effort: { slug: 'grace', label: 'Grace', discipline: 'strength' },
-      },
     ]
 
-    let capturedLinks: NavItemL3[] = []
+    let capturedLinks: NavItemL3[] = [{ id: 'stale', label: 'Stale', level: 3, action: { type: 'scroll', sectionId: 'stale' } }]
     const setL3Items = mock((items: NavItemL3[]) => {
       capturedLinks = items
     })
+    const setStreamControls = mock((_c: StreamNavControls | null) => {})
 
     const engine = createMockEngine(datedEntries)
 
-    const { unmount } = render(
+    render(
       <MemoryRouter initialEntries={['/journal']}>
         <NavContext.Provider
           value={{
@@ -624,6 +618,10 @@ describe('QueriableStreamView component', () => {
             scrollToSection: () => {},
             registerScrollFn: () => {},
             setContextNav: () => {},
+            setStreamControls,
+            setSecondarySpec: () => {},
+            openCreateJournal: () => {},
+            registerCreateJournal: () => {},
           }}
         >
           <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
@@ -632,47 +630,10 @@ describe('QueriableStreamView component', () => {
     )
 
     await waitFor(() => {
-      expect(capturedLinks.length).toBeGreaterThan(0)
+      expect(screen.getByText('Workout 1')).toBeDefined()
     })
-    // Default date grouping
-    expect(capturedLinks.some(l => l.id.includes('2026-09-04'))).toBe(true)
-    expect(capturedLinks.some(l => l.id.includes('2026-08-15'))).toBe(true)
-
-    unmount()
-    cleanup()
-
-    // When WQL has `by {discipline}`, grouping updates to discipline
-    let disciplineLinks: NavItemL3[] = []
-    const setL3Discipline = mock((items: NavItemL3[]) => {
-      disciplineLinks = items
-    })
-
-    render(
-      <MemoryRouter initialEntries={['/journal']}>
-        <NavContext.Provider
-          value={{
-            tree: [],
-            navState: initialNavState,
-            dispatch: () => {},
-            l3Items: [],
-            setL3Items: setL3Discipline,
-            scrollToSection: () => {},
-            registerScrollFn: () => {},
-            setContextNav: () => {},
-          }}
-        >
-          <QueriableStreamView
-            profile={{ ...JOURNAL_STREAM_PROFILE, defaultWql: ':journal{} by {discipline}' }}
-            queryEngine={engine}
-          />
-        </NavContext.Provider>
-      </MemoryRouter>,
-    )
-
-    await waitFor(() => {
-      expect(disciplineLinks.some(l => l.label === 'Gymnastics')).toBe(true)
-      expect(disciplineLinks.some(l => l.label === 'Strength')).toBe(true)
-    })
+    expect(capturedLinks).toEqual([])
+    expect(setStreamControls).not.toHaveBeenCalled()
   })
 
   it('renders the feed layout with rich previews and working actions for playground entries', async () => {
@@ -853,9 +814,9 @@ describe('QueriableStreamView component', () => {
     }
   })
 
-  it('L3 toggleGroupDim writes through to the WQL line and the grid follows', async () => {
+  it('StreamViewPopover Group by writes through to the WQL line without publishing L3 streamControls', async () => {
     const engine = createMockEngine(sampleEffortEntries)
-    let capturedControls: StreamNavControls | null = null
+    const setStreamControls = mock((_c: StreamNavControls | null) => {})
     render(
       <MemoryRouter initialEntries={['/efforts']}>
         <NavContext.Provider
@@ -868,7 +829,10 @@ describe('QueriableStreamView component', () => {
             scrollToSection: () => {},
             registerScrollFn: () => {},
             setContextNav: () => {},
-            setStreamControls: (c) => { capturedControls = c },
+            setStreamControls,
+            setSecondarySpec: () => {},
+            openCreateJournal: () => {},
+            registerCreateJournal: () => {},
           }}
         >
           <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={engine} />
@@ -876,11 +840,16 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
     await waitFor(() => {
-      expect(capturedControls).not.toBeNull()
+      expect(screen.getByText('Back Squat')).toBeDefined()
     })
-    act(() => {
-      capturedControls?.onToggleGroupDim('tag')
-    })
+    expect(setStreamControls).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTestId('stream-view-popover-trigger'))
+    const popover = await waitFor(() => screen.getByTestId('stream-view-popover-content'))
+    // Undated route hides Date window & date grouping
+    expect(popover.textContent).not.toContain('Date window')
+    fireEvent.click(within(popover).getByRole('button', { name: 'tag' }))
+
     await waitFor(() => {
       expect(screen.getByTestId('stream-query-status').textContent).toContain('by tag')
     })
@@ -1367,7 +1336,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     usePaletteStore.setState({ isOpen: false, request: null, _resolve: null })
   })
 
-  it('shows query truth — target, matched of total, filters, grouping precedence — from the stage callback', async () => {
+  it('shows calm athlete copy at rest and escalates to full query diagnostics when user-authored filters are applied', async () => {
     const { engine } = stubEngine((_q, onStages) => {
       onStages?.({ selected: 7, matched: 2 })
       return DATED_NOTE_ENTRIES
@@ -1379,20 +1348,31 @@ describe('QueriableStreamView — query truth and retained state', () => {
       </MemoryRouter>,
     )
 
+    // At rest on default query: calm athlete counts, zero raw :note / "1 applied" telemetry,
+    // and route-implied notebook:journal does NOT falsely light up the active-filter badge.
+    await waitFor(() => {
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('2 notes')
+    })
+    const restingStatus = screen.getByTestId('stream-query-status').textContent ?? ''
+    expect(restingStatus).not.toContain(':note')
+    expect(restingStatus).not.toContain('applied')
+    expect(restingStatus).toContain('by date')
+    expect(restingStatus).not.toContain('(query)')
+    expect(screen.getByTestId('stream-query-status').querySelector('[data-grouping-source]')?.getAttribute('data-grouping-source')).toBe('query')
+    expect(screen.queryByTestId('stream-facet-filter-badge')).toBeNull()
+    expect(screen.queryByText('Invalid query — showing previous results')).toBeNull()
+
+    // Authoring a real user filter lights up the active-filter badge and shows diagnostics
+    act(() => {
+      getActiveStreamBridge()?.setQuery(':note{notebook:journal,tags:strength} by {date} last 4w')
+    })
     await waitFor(() => {
       expect(screen.getByTestId('stream-query-counts').textContent).toBe('2 of 7')
     })
-    const status = screen.getByTestId('stream-query-status').textContent ?? ''
-    expect(status).toContain(':note')
-    expect(status).toContain('1 applied')
-    // The journal default groups by date in the query itself — a copied URL
-    // reproduces the same list, grouping included (ticket 11). The raw enum
-    // source never leaks into the text (WW-004/#5); it rides the data
-    // attribute for diagnostics instead.
-    expect(status).toContain('by date')
-    expect(status).not.toContain('(query)')
-    expect(screen.getByTestId('stream-query-status').querySelector('[data-grouping-source]')?.getAttribute('data-grouping-source')).toBe('query')
-    expect(screen.queryByText('Invalid query — showing previous results')).toBeNull()
+    const diagnosticStatus = screen.getByTestId('stream-query-status').textContent ?? ''
+    expect(diagnosticStatus).toContain(':note')
+    expect(diagnosticStatus).toContain('2 applied')
+    expect(screen.getByTestId('stream-facet-filter-badge').textContent).toBe('1')
   })
 
   it('keeps previous results, their grouping, and their counts under an invalid draft', async () => {
@@ -1520,7 +1500,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     })
   })
 
-  it('renders NOTES_STREAM_PROFILE default :note{} with zero advisories (WW-003)', async () => {
+  it('renders NOTES_STREAM_PROFILE default :note{} with calm copy and zero advisories (WW-003)', async () => {
     const { engine } = stubEngine((_q, onStages) => {
       onStages?.({ selected: 2, matched: 2 })
       return DATED_NOTE_ENTRIES
@@ -1533,10 +1513,10 @@ describe('QueriableStreamView — query truth and retained state', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId('stream-query-counts').textContent).toBe('2 of 2')
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('2 notes')
     })
     const status = screen.getByTestId('stream-query-status').textContent ?? ''
-    expect(status).toContain(':note')
+    expect(status).not.toContain(':note')
     expect(status).not.toContain('wildcard')
     expect(status).not.toContain('ignored')
   })
@@ -1587,7 +1567,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
       pendingNoStages.resolve([])
     })
     await waitFor(() => {
-      expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 of 0')
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 notes')
     })
     expect(screen.getByTestId('stream-query-status').textContent).toContain('by date')
     expect(getSurfaceBusy()).toBe(false)
@@ -1605,10 +1585,10 @@ describe('QueriableStreamView — query truth and retained state', () => {
   })
 
   it('omits raw enum tokens from the status strip; grouping source rides data-grouping-source (WW-004/#5)', async () => {
-    for (const [route, profile, expectedDim] of [
-      ['/feeds', FEEDS_STREAM_PROFILE, 'by date'],
-      ['/efforts', EFFORTS_STREAM_PROFILE, 'by discipline'],
-      ['/tags', TAGS_STREAM_PROFILE, 'by date'],
+    for (const [route, profile, expectedCount, expectedDim] of [
+      ['/feeds', FEEDS_STREAM_PROFILE, '0 feeds', 'by date'],
+      ['/efforts', EFFORTS_STREAM_PROFILE, '0 efforts', 'by discipline'],
+      ['/tags', TAGS_STREAM_PROFILE, '0 tags', 'by date'],
     ] as const) {
       cleanup()
       const { engine } = stubEngine(() => [])
@@ -1618,7 +1598,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
         </MemoryRouter>,
       )
       await waitFor(() => {
-        expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 of 0')
+        expect(screen.getByTestId('stream-query-counts').textContent).toBe(expectedCount)
       })
       const statusText = screen.getByTestId('stream-query-status').textContent ?? ''
       expect(statusText).toContain(expectedDim)
@@ -1708,7 +1688,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
       </MemoryRouter>,
     )
     await waitFor(() => {
-      expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 of 0')
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 tags')
     })
     expect(screen.getByTestId('route-wql-empty-options')).toBeDefined()
   })

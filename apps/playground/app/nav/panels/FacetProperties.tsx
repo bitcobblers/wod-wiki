@@ -1,46 +1,36 @@
 /**
- * FacetProperties — the properties accordion of a stream surface, hosted by
- * the L3 stream-controls block (StreamControlsNav: the 2xl+ rail, the header
- * ⋯ dropdown and the mobile thumb ⋯ sheet). The L2 ConditionsNavPanel keeps
- * navigation, labeled shortcuts and recent results only.
- *
- * ponytail: hosts remount per route/path mount, so async membership
- * loads re-fire on navigation. Swap for a shared context cache if that
- * shows up in profiling.
+ * FacetProperties — guided facet filter controls for a stream surface, hosted
+ * inside StreamQueryBar's `+ Filter` popover on desktop and the mobile Filter
+ * Sheet.
  *
  * One accordion of every `{}` condition the CURRENT query's target supports
  * (`wqlFilterKeys(target,'find')`), with values and counts derived from the
  * committed full result set published by QueriableStreamView (one execution
  * per query change — the facets never re-run the query). Every value is a
- * stable single row whose control cycles Off → Include → Exclude, backed by
- * the pure model (filterValueState / setFacetValueState): edits go through
- * occurrence-exact clause edits, so source scope, window, grouping, pipes,
- * joins and sibling filters survive; every selection is a history entry, so
- * Back/Forward restore query, options and results. Selected values stay
- * listed with removal controls even at zero results, and nothing
- * engine-ignored is ever offered.
- *
- * While a fresh execution is pending, the last committed run for THIS route
- * stays visible with all controls disabled — no disappearing/reordering
- * flicker; a previous route's run is never shown. Section labels, order and
- * curated value lists come from conditionsConfig; defaults reuse the
- * engine-supported keys and current result-backed options.
+ * stable single row with explicit Include / Exclude / Off pills backed by the
+ * pure model (`filterValueState` / `setFacetValueState`): edits go through
+ * occurrence-exact clause edits so source scope, window, grouping, pipes,
+ * joins and sibling filters survive.
  */
 
 import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 import clsx from 'clsx'
-import { CheckSquare, MinusSquare, Plus, Square, SquarePen } from 'lucide-react'
+import { Plus } from 'lucide-react'
 
-import { isFindQuery, notebookSlugOfSourceId, parseQuery, WQL_TYPED_TAG_KEYS, type ParsedFindQuery } from '@bitcobblers/wod-wiki-wql'
-import { wqlFilterKeys } from '@bitcobblers/wod-wiki-wql'
+import {
+  isFindQuery,
+  notebookSlugOfSourceId,
+  parseQuery,
+  WQL_TYPED_TAG_KEYS,
+  wqlFilterKeys,
+  type ParsedFindQuery,
+} from '@bitcobblers/wod-wiki-wql'
 import { getClauseMeta } from '@bitcobblers/wod-wiki-ui'
 
 import { SidebarAccordion } from '@/components/organisms/layout/SidebarAccordion'
-
-import { useCloseNavigationDrawer } from '../NavigationDrawerContext'
-
+import { TEST_IDS } from '@/lib/testIds'
 import { storageService } from '@/services/storage'
 
 import { useAppliedRouteWqlConfig } from '../../lib/routeWqlConfig'
@@ -106,20 +96,32 @@ export function navigateToQuery(
   void navigate(`${location.pathname}?${params.toString()}`)
 }
 
+export interface FacetPropertiesProps {
+  /** Controlled WQL query (falls back to URL `?q=` or route profile default). */
+  query?: string
+  /** Controlled query writer (falls back to `navigateToQuery`). */
+  onQueryChange?: (wql: string) => void
+  /** Optional container classes. */
+  className?: string
+  /** Optional header text; pass `null` when hosted inside a titled popover. */
+  heading?: string | null
+}
+
 /**
- * Facet properties for the CURRENT stream surface. The profile is derived
- * from the pathname the same way AppContent resolves it (resolveStreamProfile,
- * so dynamic detail/date routes match the mounted stream), keeping the L3
- * host's default-query fallback in exact parity with QueriableStreamView.
+ * Facet properties for the CURRENT stream surface. Supports both controlled
+ * (`query` + `onQueryChange` inside StreamQueryBar's `+ Filter` popover /
+ * mobile filter sheet) and URL-driven standalone usage.
  */
-export function FacetProperties() {
+export function FacetProperties({
+  query: controlledQuery,
+  onQueryChange,
+  className,
+  heading = 'Filters',
+}: FacetPropertiesProps = {}) {
   const location = useLocation()
   const navigate = useNavigate()
   const published = useStreamResults()
-  // Exact host parity: the URL `q` rides verbatim (whitespace included)
-  // when it parses; absent or invalid falls back to the profile default —
-  // the same rule useComposerQueryState applies, so publication matches.
-  const rawQ = urlQuery(location)
+  const rawQ = controlledQuery !== undefined ? controlledQuery : urlQuery(location)
   const defaultProfile = useAppliedRouteWqlConfig(resolveStreamProfile(location.pathname))
   const effectiveQuery = rawQ && !parseQuery(rawQ).error ? rawQ : defaultProfile!.defaultWql
   const parsed = useMemo(() => parseQuery(effectiveQuery), [effectiveQuery])
@@ -128,15 +130,10 @@ export function FacetProperties() {
     [parsed],
   )
 
-  // Snapshot freshness: pathname AND query must match the committed run —
-  // a previous page's results or a superseded draft never feed options.
   const entries = published && published.pathname === location.pathname && published.query === effectiveQuery
     ? published.entries
     : null
 
-  // Last committed run for THIS route. While a fresh execution is pending
-  // (query edited, snapshot not yet replaced) its rows stay visible with
-  // controls disabled; a previous ROUTE's run is never reused.
   const [committed, setCommitted] = useState<StreamResultSnapshot | null>(null)
   useEffect(() => {
     if (published && published.pathname === location.pathname) setCommitted(published)
@@ -144,11 +141,6 @@ export function FacetProperties() {
   const pending = entries === null && committed !== null && committed.pathname === location.pathname
   const facetEntries = entries ?? (pending ? committed!.entries : EMPTY_ENTRIES)
 
-  // Result identity is never offered as a facet catalog: on a target's own
-  // plane (note — journal/notebooks/playground heads parse to target
-  // 'note' + an injected source scope — and effort) the identity key would
-  // list every result row as a filter value. A query that explicitly
-  // authors the identity key keeps its section so rows stay removable.
   const identityKey = parsedFind ? resultIdentityKey(parsedFind.target) : null
   const identityAuthored = !!parsedFind && !!identityKey && occurrencesForKey(parsedFind, identityKey).length > 0
   const sectionKeys = useMemo(
@@ -195,11 +187,9 @@ export function FacetProperties() {
   }
 
   const hasEverPublished = entries !== null || committed !== null
-  const apply = (wql: string) => navigateToQuery(location, navigate, wql)
+  const apply = onQueryChange ?? ((wql: string) => navigateToQuery(location, navigate, wql))
   const headScope = parsedFind ? headSourceScope(parsedFind) : null
 
-  // Config participates in section set + order: disabled keys drop, the
-  // rest sort by configured order (stable — ties keep engine order).
   const orderedKeys = useMemo(
     () => sectionKeys
       .filter(key => conditionSectionConfig(key).enabled !== false)
@@ -209,10 +199,12 @@ export function FacetProperties() {
 
   if (!parsedFind) return null
   return (
-    <div className="flex flex-col" aria-busy={pending || undefined} data-testid="l3-filters">
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-        Filters
-      </div>
+    <div className={clsx('flex flex-col gap-1', className)} aria-busy={pending || undefined} data-testid="l3-filters">
+      {heading !== null && (
+        <div className="px-1 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+          {heading}
+        </div>
+      )}
       {orderedKeys.map(key => (
         <div key={key} data-testid={`conditions-section-${key}`}>
           <ConditionSection
@@ -254,20 +246,20 @@ function identifierLabels(target: string, key: string, entries: Entry[]): Map<st
   return labels
 }
 
-// ── Tri-state condition rows ─────────────────────────────────────────────────
+// ── Tri-state condition rows (explicit Include / Exclude / Off pills) ────────
 
-const TRI_STATES = ['off', 'include', 'exclude'] as const
-
-const STATE_TITLE: Record<FilterValueState, string> = { off: 'Off', include: 'Include', exclude: 'Exclude' }
-
-const STATE_ICON: Record<FilterValueState, typeof Square> = {
-  off: Square,
-  include: CheckSquare,
-  exclude: MinusSquare,
-}
+const PILL_OPTIONS: readonly {
+  state: FilterValueState
+  label: string
+  testIdPrefix: string
+}[] = [
+  { state: 'include', label: 'Include', testIdPrefix: TEST_IDS.FACET_PILL_INCLUDE },
+  { state: 'exclude', label: 'Exclude', testIdPrefix: TEST_IDS.FACET_PILL_EXCLUDE },
+  { state: 'off', label: 'Off', testIdPrefix: TEST_IDS.FACET_PILL_OFF },
+]
 
 /** One stable row: a value present in the current options, currently
- *  selected, or both — rendered once with its tri-state. */
+ *  selected, or both — rendered once with explicit Include / Exclude / Off pills. */
 interface ConditionRowModel {
   value: string
   label: string
@@ -307,8 +299,6 @@ function ConditionSection({
   const freeform = isFreeformKey(entryKey) || IDENTIFIER_FREEFORM[entryKey] !== undefined
 
   const selected = selectedValuesFor(parsed, entryKey, labels)
-  // Raw positive `text:` value the live box controls — OR-joined when the
-  // query carries multiple values.
   const liveText = entryKey === 'text'
     ? occurrencesForKey(parsed, 'text')
         .filter(o => !o.negate)
@@ -357,7 +347,6 @@ function ConditionSection({
   }
   for (const row of selected) addRow(row.display, optionByValue.get(row.display))
   if (entryKey === 'source' && headScope) addRow(headScope, optionByValue.get(headScope))
-  // Configured order first, then label — never count ranking.
   const expectedIndex = new Map((expected ?? []).map((spec, index) => [spec.value, index] as const))
   rows.sort((a, b) =>
     (expectedIndex.get(a.value) ?? Number.MAX_SAFE_INTEGER) - (expectedIndex.get(b.value) ?? Number.MAX_SAFE_INTEGER)
@@ -376,12 +365,10 @@ function ConditionSection({
       count={visibleRows.length}
       defaultOpen={rows.some(row => row.state !== 'off') || freeform}
       sticky
-      buttonClassName="gap-1.5 py-1.5 text-[11px] font-semibold normal-case tracking-normal [&>span:last-child]:h-auto [&>span:last-child]:w-auto [&>span:last-child]:min-w-0 [&>span:last-child]:rounded-sm [&>span:last-child]:px-1 [&>span:last-child]:bg-transparent [&>span:last-child]:text-[10px] [&>span:last-child]:font-semibold [&>span:last-child]:text-muted-foreground"
-      bodyClassName="px-6"
+      buttonClassName="gap-1.5 py-2 max-lg:min-h-11 text-xs font-semibold normal-case tracking-normal text-foreground [&>span:last-child]:h-auto [&>span:last-child]:w-auto [&>span:last-child]:min-w-0 [&>span:last-child]:rounded-sm [&>span:last-child]:px-1.5 [&>span:last-child]:bg-transparent [&>span:last-child]:text-[11px] [&>span:last-child]:font-semibold [&>span:last-child]:text-muted-foreground"
+      bodyClassName="px-2 pb-1"
     >
-      {/* Every current-result value renders — long lists flow through the
-          shared scroller, never a per-section viewport. */}
-      <ul className="flex flex-col">
+      <ul className="flex flex-col gap-0.5">
         {visibleRows.map(row => (
           <ConditionRow
             key={row.value}
@@ -420,38 +407,64 @@ function ConditionRow({
   pending: boolean
   onApply: (wql: string) => void
 }) {
-  // One row, one control: a native <button> cycles off → include → exclude →
-  // off with the plain keyboard contract (Enter/Space) and no checkbox/radio
-  // role mimicry. The accessible name announces the action (next state) and
-  // the current state; the icon shows the current state.
-  const next = TRI_STATES[(TRI_STATES.indexOf(row.state) + 1) % TRI_STATES.length]!
-  const Icon = STATE_ICON[row.state]
-  const cycleLabel = `${STATE_TITLE[next]} “${row.label}” (currently ${STATE_TITLE[row.state]})`
   const isZero = row.count === 0 && row.state === 'off'
   return (
-    <li data-testid={`conditions-row-${entryKey}:${row.value}`} className={clsx('px-1 py-0.5', pending && 'opacity-60', isZero && 'opacity-40')}>
-      <div className="flex h-11 items-center gap-1.5">
-        <span className={clsx('min-w-0 flex-1 truncate text-xs leading-4', isZero ? 'text-muted-foreground' : 'text-foreground')}>{row.label}</span>
-        {row.count !== null && (
-          <span className="text-[10px] leading-4 tabular-nums text-muted-foreground">{row.count}</span>
-        )}
-        <button
-          type="button"
-          data-testid={`conditions-state-${entryKey}:${row.value}`}
-          data-state={row.state}
-          onClick={() => onApply(setFacetValueState(query, entryKey, row.value, next))}
-          disabled={pending}
-          aria-label={cycleLabel}
-          title={cycleLabel}
+    <li
+      data-testid={`conditions-row-${entryKey}:${row.value}`}
+      className={clsx('rounded-md px-1 py-0.5', pending && 'opacity-70')}
+    >
+      <div className="flex min-h-9 max-lg:min-h-11 flex-wrap items-center gap-1.5">
+        <span
           className={clsx(
-            'flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border border-transparent transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-default',
-            row.state === 'include' && 'bg-primary/10 text-primary',
-            row.state === 'exclude' && 'bg-destructive/10 text-destructive',
-            row.state === 'off' && 'text-muted-foreground',
+            'min-w-0 flex-1 truncate text-xs leading-4',
+            isZero ? 'text-muted-foreground' : 'font-medium text-foreground',
           )}
         >
-          <Icon aria-hidden="true" className="size-4" />
-        </button>
+          {row.label}
+        </span>
+        {row.count !== null && (
+          <span className="shrink-0 text-[11px] leading-4 tabular-nums text-muted-foreground">
+            {row.count}
+          </span>
+        )}
+        <div
+          role="group"
+          aria-label={`Filter state for ${row.label}`}
+          className="inline-flex shrink-0 items-center rounded-md border border-border/70 bg-muted/40 p-0.5"
+        >
+          {PILL_OPTIONS.map((pill) => {
+            const active = row.state === pill.state
+            return (
+              <button
+                key={pill.state}
+                type="button"
+                data-testid={`${pill.testIdPrefix}-${entryKey}:${row.value}`}
+                data-state={active ? 'active' : 'inactive'}
+                aria-pressed={active}
+                aria-label={`${pill.label} ${row.label}`}
+                disabled={pending}
+                onClick={() => {
+                  const targetState: FilterValueState =
+                    pill.state === 'off'
+                      ? 'off'
+                      : active
+                        ? 'off'
+                        : pill.state
+                  onApply(setFacetValueState(query, entryKey, row.value, targetState))
+                }}
+                className={clsx(
+                  'inline-flex cursor-pointer items-center justify-center rounded px-2 py-0.5 text-[11px] font-semibold max-lg:min-h-11 max-lg:px-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default',
+                  active && pill.state === 'include' && 'bg-primary text-primary-foreground shadow-xs',
+                  active && pill.state === 'exclude' && 'bg-destructive text-destructive-foreground shadow-xs',
+                  active && pill.state === 'off' && 'bg-background text-foreground shadow-xs',
+                  !active && 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {pill.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </li>
   )
@@ -479,7 +492,6 @@ function FreeformRow({
   onApply: (value: string) => void
 }) {
   const [text, setText] = useState('')
-  const closeNavigationDrawer = useCloseNavigationDrawer()
   const submit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault()
     const value = text.trim()
@@ -489,8 +501,6 @@ function FreeformRow({
   }
 
   if (entryKey === 'text') {
-    // Live contains-box: every keystroke rewrites the query's `text:`
-    // condition (setTextCondition) — the WQL bar stays the same truth.
     return (
       <div className="px-1 py-1.5">
         <input
@@ -499,28 +509,14 @@ function FreeformRow({
           placeholder={placeholder}
           aria-label={placeholder}
           data-testid="conditions-input-text"
-          className="h-8 w-full min-w-0 rounded-md border border-border/60 bg-background px-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/40"
+          className="h-9 max-lg:min-h-11 w-full min-w-0 rounded-md border border-border bg-background px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
-        <button
-          type="button"
-          data-testid="conditions-jump-wql-text"
-          onClick={() => {
-            closeNavigationDrawer()
-            // Jump lands on the header WQL bar when the stream page is
-            // mounted; opening it puts the full query in the composer.
-            document.querySelector<HTMLElement>('[data-testid="stream-query-bar"]')?.click()
-          }}
-          className="mt-1 inline-flex max-lg:min-h-11 max-lg:px-2 items-center gap-1 rounded-md text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <SquarePen aria-hidden="true" className="size-3" />
-          Edit in WQL bar
-        </button>
       </div>
     )
   }
 
   return (
-    <form onSubmit={submit} className="flex items-center gap-1 px-1 py-1.5">
+    <form onSubmit={submit} className="flex items-center gap-1.5 px-1 py-1.5">
       <input
         value={text}
         onChange={event => setText(event.target.value)}
@@ -528,14 +524,14 @@ function FreeformRow({
         aria-label={placeholder}
         data-testid={`conditions-input-${entryKey}`}
         disabled={pending}
-        className="h-8 min-w-0 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/40"
+        className="h-9 max-lg:min-h-11 min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
       />
       <button
         type="submit"
         aria-label={`Add ${placeholder}`}
         data-testid={`conditions-add-${entryKey}`}
         disabled={pending || !text.trim()}
-        className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+        className="flex size-9 max-lg:min-h-11 max-lg:min-w-11 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
       >
         <Plus aria-hidden="true" className="size-3.5" />
       </button>
