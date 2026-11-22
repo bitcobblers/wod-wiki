@@ -9,5 +9,5 @@ Below is a time block, give it a try and click "Run" and see the timer come to l
 
 ```time
 0:03 Count Down
-// click "Next"
+Click "Next"
 ```
