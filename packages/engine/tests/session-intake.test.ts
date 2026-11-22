@@ -288,7 +288,7 @@ describe('External-Workout Session Intake, Single Archival Pinning & User Forkin
     expect(forked.seedOrigin).toBe('user');
     expect(forked.feedOrigin).toBeUndefined();
     expect(forked.notebookId).toBe('notebook/my-benchmarks');
-    expect(forked.notebookIds).toEqual(['notebook/journal', 'notebook/my-benchmarks']);
+    expect(forked.notebookIds).toEqual(['notebook/my-benchmarks']);
     expect(forked.provenance).toMatchObject({
       sourceNoteId: seedNote.id,
       sourceVersion: 3,
@@ -304,7 +304,7 @@ describe('External-Workout Session Intake, Single Archival Pinning & User Forkin
     const revs = await storage.readonly('block_revisions').getAllFromIndex('by-note', forked.id);
     expect(revs).toHaveLength(1);
     const links = await storage.readonly('notebook_links').getAllFromIndex('by-note', forked.id);
-    expect(links.map((l) => l.notebookId).sort()).toEqual(['notebook/journal', 'notebook/my-benchmarks']);
+    expect(links.map((l) => l.notebookId).sort()).toEqual(['notebook/my-benchmarks']);
 
     await storage.close();
   });
@@ -351,8 +351,9 @@ describe('External-Workout Session Intake, Single Archival Pinning & User Forkin
     expect(intake.note.id).toBe(pgNote.id);
     expect(intake.session.noteId).toBe(pgNote.id);
     expect(intake.session.origin).toBe('playground');
-    expect(intake.note.notebookIds).toContain('notebook/journal');
-    expect(intake.note.notebookIds).toContain('notebook/playground');
+    expect(intake.note.notebookIds).toEqual(['notebook/playground']);
+    expect(intake.session.sessionDate).toBeDefined();
+    expect(intake.session.noteSourceRevision).toBe(1);
 
     await storage.close();
   });

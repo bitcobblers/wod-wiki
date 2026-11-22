@@ -11,6 +11,7 @@ import type { IEffort } from '@bitcobblers/wod-wiki-lang';
 export const PERSIST_WORLD_STORES: StoreName[] = [
   'notes',
   'block_revisions',
+  'note_revisions',
   'block_index',
   'block_efforts',
   'block_equipment',
@@ -23,6 +24,7 @@ export const PERSIST_WORLD_STORES: StoreName[] = [
   'equipment',
   'page',
   'page_notes',
+  'schedule_items',
   'sessions',
   'events',
 ];
@@ -60,6 +62,7 @@ export async function persistDomainWorld(
     }
     if (world.notes.length) await tx.readwrite('notes').putMany(world.notes);
     if (world.revisions.length) await tx.readwrite('block_revisions').putMany(world.revisions);
+    if (world.noteRevisions?.length) await tx.readwrite('note_revisions').putMany(world.noteRevisions);
     if (world.blockIndex.length) await tx.readwrite('block_index').putMany(world.blockIndex);
     if (world.blockEfforts.length) await tx.readwrite('block_efforts').putMany(world.blockEfforts);
     if (world.blockEquipment.length) await tx.readwrite('block_equipment').putMany(world.blockEquipment);
@@ -115,6 +118,7 @@ export async function persistDomainWorld(
 
     if (world.pages.length) await tx.readwrite('page').putMany(world.pages);
     if (world.pageNotes.length) await tx.readwrite('page_notes').putMany(world.pageNotes);
+    if (world.scheduleItems?.length) await tx.readwrite('schedule_items').putMany(world.scheduleItems);
     if (world.sessions.length) await tx.readwrite('sessions').putMany(world.sessions);
     if (world.events.length) await tx.readwrite('events').putMany(world.events);
   });

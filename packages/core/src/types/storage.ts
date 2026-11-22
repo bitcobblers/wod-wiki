@@ -47,7 +47,7 @@ export interface NoteProvenance {
   clonedAt: number;
 }
 
-export type NoteRetention = 'indexed' | 'cached' | 'session-pinned';
+export type NoteRetention = 'indexed' | 'cached' | 'schedule-pinned' | 'session-pinned';
 export type NoteUpstreamStatus = 'live' | 'unsubscribed' | 'removed';
 
 export interface Note {
@@ -191,11 +191,17 @@ export type ResultOrigin = 'journal' | 'playground' | 'user';
 export interface Session {
   id: string;
   noteId: string;
+  /** Note `sourceRevision` pinned when this Session ran (matches NoteRevision [noteId, version]). */
+  noteSourceRevision?: number;
   blockId: string;
   blockVersion: number;
   blockContentId?: string;
   origin?: ResultOrigin;
   pageId?: string;
+  /** Mutable civil 'YYYY-MM-DD' training-day attribution on the Journal overlay. */
+  sessionDate?: string;
+  /** Optional pairing to a planned ScheduleItem fulfilled by this Session (1:N). */
+  scheduleItemId?: string;
   /** Born in-progress at run start, completed when finalization commits. */
   status?: 'in-progress' | 'completed';
 
@@ -538,4 +544,51 @@ export interface Membership {
   birthDate?: string;
   createdAt: number;
   updatedAt?: number;
+}
+
+// ---------------------------------------------------------------------------
+// ScheduleItem — M:N scheduling link from calendar dates to Notes (V35)
+// ---------------------------------------------------------------------------
+export type ScheduleStatus = 'planned' | 'completed' | 'skipped' | 'moved';
+
+export interface ScheduleItem {
+  id: string;
+  /** Local civil 'YYYY-MM-DD' training date. */
+  date: string;
+  noteId: string;
+  /** Backing Journal Day Page UUID (`page` store) when present. */
+  pageId?: string;
+  /** Provenance Notebook identifier captured when scheduled. */
+  sourceNotebookId?: string;
+  /** Graceful fallback title when a scheduled remote Note is uncached offline. */
+  fallbackTitle?: string;
+  /** Optional single workout block within a multi-block Note. */
+  blockId?: string;
+  position: number;
+  /** Optional session slot label (e.g. 'AM', 'PM', 'Warm-up'). */
+  slot?: string;
+  status: ScheduleStatus;
+  /** Lightweight Day Cue stored on the instance without mutating the Note. */
+  notes?: string;
+  /** Previous date when rescheduled via status 'moved'. */
+  movedFromDate?: string;
+  createdAt: number;
+  updatedAt: number;
+  userId?: string;
+}
+
+// ---------------------------------------------------------------------------
+// NoteRevision — immutable snapshot written when a Session-bearing Note changes (V35)
+// ---------------------------------------------------------------------------
+export interface NoteRevision {
+  noteId: string;
+  version: number;
+  title: string;
+  rawContent: string;
+  tags?: string[];
+  type?: NoteKind;
+  notebookIds?: string[];
+  blocks: Record<string, NoteBlock>;
+  savedAt: number;
+  userId?: string;
 }

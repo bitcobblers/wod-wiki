@@ -95,13 +95,15 @@ import {
 // ── Public input/result shapes ──────────────────────────────────────────────
 
 export interface SessionRunInput {
-  /** Note to run — read-only Feed/Seed Notes are cloned into `notebook/journal` first. */
+  /** Note to run — external Feed/Seed Notes pin in place (`retention: 'session-pinned'`). */
   noteId: string;
   /** Block occurrence to run; defaults to the Note's first workout block. */
   blockId?: string;
   sessionId?: string;
   /** Civil journal date (`YYYY-MM-DD`) the run lands on. */
   journalDate?: string;
+  /** Optional planned ScheduleItem paired to this execution. */
+  scheduleItemId?: string;
   /** Run start epoch-ms (also seeds the mock runtime clock). */
   startedAt?: number;
   origin?: ResultOrigin;
@@ -351,6 +353,7 @@ export class DomainScenarioHarness {
       ...(input.blockId ? { blockId: input.blockId } : {}),
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       ...(input.journalDate ? { journalDate: input.journalDate } : {}),
+      ...(input.scheduleItemId ? { scheduleItemId: input.scheduleItemId } : {}),
       startedAt,
       ...(input.origin ? { origin: input.origin } : {}),
     });
@@ -402,8 +405,18 @@ export class DomainScenarioHarness {
       origin: session.origin ?? input.origin,
       workoutTimestamp: endTime,
     });
-    await this.storage.transaction(['sessions', 'events', 'notebook_links'], 'readwrite', async (tx) => {
+    await this.storage.transaction(['sessions', 'events', 'notebook_links', 'schedule_items'], 'readwrite', async (tx) => {
       await tx.readwrite('sessions').put(session);
+      if (session.scheduleItemId) {
+        const schedItem = await tx.readonly('schedule_items').get(session.scheduleItemId);
+        if (schedItem && schedItem.status !== 'completed') {
+          await tx.readwrite('schedule_items').put({
+            ...schedItem,
+            status: 'completed',
+            updatedAt: endTime,
+          });
+        }
+      }
       const nbIds = session.notebookIds?.length ? session.notebookIds : ['notebook/journal'];
       const links: NotebookLink[] = nbIds.map((nbId) => ({
         id: makeNotebookLinkId(toNotebookId(nbId), 'session', session.id),

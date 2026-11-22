@@ -154,6 +154,7 @@ export type RemoteWorkoutResolution =
 
 export interface EnsurePinnedExternalWorkoutInput {
   noteId: string;
+  retention?: 'schedule-pinned' | 'session-pinned';
   remotePayload?: RemoteWorkoutResolution;
   resolveRemoteWorkout?: (noteId: string) => Promise<RemoteWorkoutResolution | undefined>;
   now?: number;
@@ -172,6 +173,7 @@ export interface PrepareJournalSessionRunInput {
   blockContentId?: string;
   sessionId?: string;
   journalDate?: string;
+  scheduleItemId?: string;
   startedAt?: number;
   origin?: ResultOrigin;
   remotePayload?: RemoteWorkoutResolution;
@@ -195,6 +197,7 @@ export interface LogSessionAgainstExternalWorkoutInput {
   blockContentId?: string;
   sessionId?: string;
   journalDate?: string;
+  scheduleItemId?: string;
   startedAt?: number;
   endedAt?: number;
   durationMs?: number;
@@ -592,8 +595,12 @@ function promoteExternalNoteInPlace(
   existing: Note,
   ownership: ResolvedNoteOwnership,
   now: number,
+  requestedRetention: 'schedule-pinned' | 'session-pinned' = 'session-pinned',
 ): { updated: Note; changed: boolean } {
-  const nextRetention = 'session-pinned' as const;
+  const nextRetention: 'schedule-pinned' | 'session-pinned' =
+    existing.retention === 'session-pinned' || requestedRetention === 'session-pinned'
+      ? 'session-pinned'
+      : 'schedule-pinned';
   const nextUpstreamStatus = existing.upstreamStatus ?? 'live';
   const nextProvenance =
     existing.provenance ??
@@ -677,7 +684,12 @@ export async function ensurePinnedExternalWorkout(
           };
         }
 
-        const { updated, changed } = promoteExternalNoteInPlace(existing, ownership, now);
+        const { updated, changed } = promoteExternalNoteInPlace(
+          existing,
+          ownership,
+          now,
+          input.retention ?? 'session-pinned',
+        );
         if (changed) {
           await tx.readwrite('notes').put(updated);
         }
@@ -717,7 +729,7 @@ export async function ensurePinnedExternalWorkout(
         ...(materialized.feedSourceId ? { feedSourceId: materialized.feedSourceId } : {}),
         ...(materialized.sourcePath ? { sourcePath: materialized.sourcePath } : {}),
         ...(materialized.seedCommit ? { seedCommit: materialized.seedCommit } : {}),
-        retention: 'session-pinned',
+        retention: input.retention ?? 'session-pinned',
         upstreamStatus: materialized.upstreamStatus,
         provenance: {
           sourceNoteId: materialized.canonicalNoteId,
@@ -828,11 +840,14 @@ export async function prepareJournalSessionRun(
         const session: Session = {
           id: sessionId,
           noteId: sourceNote.id,
+          noteSourceRevision: sourceNote.sourceRevision,
           blockId: selectedSourceBlock.id,
           blockVersion: revision.version,
           ...(cid ? { blockContentId: cid } : {}),
           origin: input.origin ?? 'journal',
           pageId: targetPage.id,
+          sessionDate: journalDate,
+          ...(input.scheduleItemId ? { scheduleItemId: input.scheduleItemId } : {}),
           status: 'in-progress',
           startTime: startedAt,
           endTime: startedAt,
@@ -852,27 +867,25 @@ export async function prepareJournalSessionRun(
         };
       }
 
-      // Editable user Note: record Session in place while anchoring in `notebook/journal`
+      // Editable user Note: keep clean Notebook memberships without forcing `notebook/journal`
       const isPlayground =
         sourceNote.type === 'playground' ||
         sourceNote.sourceId === 'playground' ||
         sourceNote.notebookId === 'notebook/playground';
 
-      const baseNotebooks = isPlayground
-        ? ['notebook/journal', 'notebook/playground']
-        : ['notebook/journal'];
-      const mergedNotebooks = [
+      const currentNotebooks = [
         ...new Set([
-          ...baseNotebooks,
+          ...(isPlayground ? ['notebook/playground'] : []),
           ...(sourceNote.notebookIds ?? []),
           ...(sourceNote.notebookId ? [sourceNote.notebookId] : []),
         ]),
       ];
 
       const updatedNote: Note =
-        JSON.stringify(sourceNote.notebookIds) === JSON.stringify(mergedNotebooks)
+        sourceNote.notebookIds !== undefined &&
+        JSON.stringify(sourceNote.notebookIds) === JSON.stringify(currentNotebooks)
           ? sourceNote
-          : { ...sourceNote, notebookIds: mergedNotebooks };
+          : { ...sourceNote, notebookIds: currentNotebooks };
 
       if (updatedNote !== sourceNote) {
         await tx.readwrite('notes').put(updatedNote);
@@ -881,24 +894,30 @@ export async function prepareJournalSessionRun(
       const effectiveOrigin: ResultOrigin =
         input.origin ?? (isPlayground ? 'playground' : 'journal');
 
+      const sessionNotebooks =
+        currentNotebooks.length > 0 ? [...currentNotebooks] : ['notebook/journal'];
+
       const session: Session = {
         id: sessionId,
         noteId: sourceNote.id,
+        noteSourceRevision: sourceNote.sourceRevision,
         blockId: selectedSourceBlock.id,
         blockVersion: revision.version,
         ...(cid ? { blockContentId: cid } : {}),
         origin: effectiveOrigin,
         pageId: targetPage.id,
+        sessionDate: journalDate,
+        ...(input.scheduleItemId ? { scheduleItemId: input.scheduleItemId } : {}),
         status: 'in-progress',
         startTime: startedAt,
         endTime: startedAt,
         duration: 0,
         completed: false,
         createdAt: startedAt,
-        notebookIds: [...baseNotebooks],
+        notebookIds: sessionNotebooks,
       };
 
-      const links: NotebookLink[] = mergedNotebooks.map((nbId) => ({
+      const links: NotebookLink[] = currentNotebooks.map((nbId) => ({
         id: makeNotebookLinkId(nbId as NotebookId, 'note', sourceNote.id),
         notebookId: nbId,
         targetKind: 'note',
@@ -907,7 +926,9 @@ export async function prepareJournalSessionRun(
         createdAt: startedAt,
       }));
 
-      await tx.readwrite('notebook_links').putMany(links);
+      if (links.length > 0) {
+        await tx.readwrite('notebook_links').putMany(links);
+      }
 
       return {
         note: updatedNote,
@@ -943,7 +964,7 @@ export async function logSessionAgainstExternalWorkout(
   });
 
   return storage.transaction(
-    ['notes', 'block_revisions', 'sessions', 'events', 'page', 'notebook_links'],
+    ['notes', 'block_revisions', 'sessions', 'events', 'page', 'notebook_links', 'schedule_items'],
     'readwrite',
     async (tx) => {
       const note = await tx.readonly('notes').get(pinnedResult.note.id);
@@ -990,11 +1011,14 @@ export async function logSessionAgainstExternalWorkout(
       const session: Session = {
         id: sessionId,
         noteId: note.id,
+        noteSourceRevision: note.sourceRevision,
         blockId: selectedBlock.id,
         blockVersion: revision.version,
         ...(cid ? { blockContentId: cid } : {}),
         origin: input.origin ?? 'journal',
         pageId: page.id,
+        sessionDate: journalDate,
+        ...(input.scheduleItemId ? { scheduleItemId: input.scheduleItemId } : {}),
         status: 'completed',
         startTime: startedAt,
         endTime,
@@ -1030,6 +1054,16 @@ export async function logSessionAgainstExternalWorkout(
       }));
 
       await tx.readwrite('sessions').put(session);
+      if (input.scheduleItemId) {
+        const schedItem = await tx.readonly('schedule_items').get(input.scheduleItemId);
+        if (schedItem && schedItem.status !== 'completed') {
+          await tx.readwrite('schedule_items').put({
+            ...schedItem,
+            status: 'completed',
+            updatedAt: endTime,
+          });
+        }
+      }
       await tx.readwrite('notebook_links').putMany(links);
       if (normalizedEvents.length > 0) {
         await tx.readwrite('events').putMany(normalizedEvents);
@@ -1115,12 +1149,9 @@ export async function forkNoteToUserNotebook(
     createId: () => `blk-${forkedId.slice(0, 8)}-${ordinal++}`,
   });
 
-  const notebookIds: NotebookId[] = ['notebook/journal'];
+  const notebookIds: NotebookId[] = [targetNb];
   if (targetNb === 'notebook/playground' && !notebookIds.includes('notebook/playground')) {
     notebookIds.push('notebook/playground');
-  }
-  if (!notebookIds.includes(targetNb)) {
-    notebookIds.push(targetNb);
   }
 
   const dateMs = options.journalDate
@@ -1152,7 +1183,7 @@ export async function forkNoteToUserNotebook(
   };
 
   return storage.transaction(
-    ['notes', 'block_revisions', 'block_index', 'notebook_links', 'page', 'page_notes'],
+    ['notes', 'block_revisions', 'block_index', 'notebook_links', 'page', 'page_notes', 'schedule_items'],
     'readwrite',
     async (tx) => {
       if (targetNb !== 'notebook/journal' && targetNb !== 'notebook/playground') {
@@ -1203,6 +1234,18 @@ export async function forkNoteToUserNotebook(
           createdAt: now,
         };
         await tx.readwrite('page_notes').put(pageNote);
+        await tx.readwrite('schedule_items').put({
+          id: mintUuid(),
+          date: options.journalDate,
+          noteId: forkedNote.id,
+          pageId: page.id,
+          sourceNotebookId: targetNb,
+          fallbackTitle: forkedNote.title,
+          position: 0,
+          status: 'planned',
+          createdAt: now,
+          updatedAt: now,
+        });
       }
 
       return forkedNote;

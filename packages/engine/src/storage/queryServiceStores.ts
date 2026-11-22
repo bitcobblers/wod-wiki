@@ -287,6 +287,21 @@ export function buildQueryServiceStoresFromStorage(
     feedCatalogStore,
   };
 
+  const scheduleStore = {
+    getAll: async () => storage.readonly('schedule_items').getAll().catch(() => []),
+    getForNote: async (noteId: string) =>
+      storage.readonly('schedule_items').getAllFromIndex('by-note', noteId).catch(() => []),
+    getByDateRange: async (fromDate: string, toDate: string) => {
+      try {
+        return (await storage.readonly('schedule_items').getAll()).filter(
+          (item) => item.date >= fromDate && item.date <= toDate,
+        );
+      } catch {
+        return [];
+      }
+    },
+  };
+
   const sessionStore = {
     getAll: async () => {
       const rows = await storage.readonly('sessions').getAll();
@@ -300,11 +315,13 @@ export function buildQueryServiceStoresFromStorage(
         ...(s.notebookIds ? { notebookIds: s.notebookIds } : {}),
         ...(s.blockContentId ? { blockContentId: s.blockContentId } : {}),
         ...(s.completed !== undefined ? { completed: s.completed } : {}),
+        ...(s.sessionDate ? { sessionDate: s.sessionDate } : {}),
+        ...(s.scheduleItemId ? { scheduleItemId: s.scheduleItemId } : {}),
       }));
     },
   };
 
-  Object.assign(stores, { sessionStore });
+  Object.assign(stores, { scheduleStore, sessionStore });
 
   if (options.datasetStore) {
     stores.datasetStore = options.datasetStore;

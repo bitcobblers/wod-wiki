@@ -13,6 +13,7 @@ import type {
   EventRecord,
   Page,
   PageNote,
+  ScheduleItem,
   FeedSourceCatalogRow,
   FeedNotebookCatalogRow,
   TagContribution,
@@ -260,7 +261,13 @@ export interface QueryServiceStores {
   isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
   /** Distributed feed & notebook catalog seam for `:feed{}`, `:notebook{type:notebook}`, and zero-import remote previews. */
   feedCatalogStore?: FeedCatalogQueryStore;
-  /** Optional session store so `:session{}` reconciles in-progress sessions with 0 events. */
+  /** Optional schedule store backing M:N schedule_items date windows (V35). */
+  scheduleStore?: {
+    getAll(): Promise<ScheduleItem[]>;
+    getForNote?(noteId: string): Promise<ScheduleItem[]>;
+    getByDateRange?(fromDate: string, toDate: string): Promise<ScheduleItem[]>;
+  };
+  /** Optional session store so `:session{}` reconciles in-progress and re-attributed sessions. */
   sessionStore?: {
     getAll(): Promise<Array<{
       id: string;
@@ -272,6 +279,8 @@ export interface QueryServiceStores {
       notebookIds?: readonly string[];
       blockContentId?: string;
       completed?: boolean;
+      sessionDate?: string;
+      scheduleItemId?: string;
     }>>;
   };
 }

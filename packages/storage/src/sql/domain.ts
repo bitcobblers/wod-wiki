@@ -34,12 +34,18 @@ function sourceNote(row: Record<string, unknown>): SourceItem {
     if (typeof value === 'string') item[key] = value;
     else if (value != null) throw new StorageError(400, `${key} must be a string`);
   }
-  // Tags are resolver inputs (the `notebook:` convention outranks the
-  // journal fallback) — the projection must see what the resolver sees.
+  // Tags and notebookIds are resolver inputs (`notebookIds: []` explicitly marks
+  // unfiled/orphaned notes; `notebook:` tags outrank fallback) — the
+  // projection must see what the resolver sees.
   const tags = row['tags'];
   if (tags !== undefined && tags !== null) {
     if (!Array.isArray(tags) || !tags.every((t) => typeof t === 'string')) throw new StorageError(400, 'tags must be a string array');
     item.tags = tags as readonly string[];
+  }
+  const notebookIds = row['notebookIds'];
+  if (notebookIds !== undefined && notebookIds !== null) {
+    if (!Array.isArray(notebookIds) || !notebookIds.every((n) => typeof n === 'string')) throw new StorageError(400, 'notebookIds must be a string array');
+    item.notebookIds = notebookIds as readonly string[];
   }
   return item;
 }

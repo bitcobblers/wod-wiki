@@ -594,6 +594,7 @@ export * from './feed/ingestor';
 export * from './feed/lifecycle';
 export * from './notebook/lifecycle';
 export * from './notebook/membership';
+export * from './notebook/schedule';
 export * from './notebook/sessionIntake';
 export * from './notebook/propertyInheritance';
 export * from './storage';

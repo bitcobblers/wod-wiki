@@ -13,10 +13,12 @@ import type {
   Membership,
   Note,
   BlockRevision,
+  NoteRevision,
   NoteTag,
   NotebookLink,
   Page,
   PageNote,
+  ScheduleItem,
   ScopedPropertyOverride,
   Session,
   Tag,
@@ -39,6 +41,8 @@ export interface StorageSchema {
   tag_types: TagTypeRecord;
   note_tags: NoteTag;
   block_revisions: BlockRevision;
+  note_revisions: NoteRevision;
+  schedule_items: ScheduleItem;
   sessions: Session;
   attachments: Attachment;
   events: EventRecord;

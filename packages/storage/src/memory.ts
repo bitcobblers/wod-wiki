@@ -89,7 +89,9 @@ export class InMemoryStore<T> implements IReadWriteStore<T> {
     validateStorageRow(this.name, stored);
     const key = keyFromValue(this.def, stored), slot = JSON.stringify(key);
     const previous = this.rows.get(slot);
-    if (this.name === 'block_revisions' && previous !== undefined && !rowsEqual(previous, stored)) throw new Error('immutable block revision collision');
+    if ((this.name === 'block_revisions' || this.name === 'note_revisions') && previous !== undefined && !rowsEqual(previous, stored)) {
+      throw new Error(this.name === 'note_revisions' ? 'immutable note revision collision' : 'immutable block revision collision');
+    }
     if (this.name === 'notes') validateNoteWrite(previous, stored);
     if (this.name === 'sessions') validateSessionWrite(previous, stored);
     if (rowsEqual(previous, stored)) return key;
@@ -115,7 +117,7 @@ export class InMemoryStore<T> implements IReadWriteStore<T> {
 
   async delete(key: IDBValidKey | IDBKeyRange): Promise<void> {
     if (!this.mutable) throw new Error('read-only store');
-    if (this.name === 'block_revisions') throw new Error('block history requires explicit wipe');
+    if (this.name === 'block_revisions' || this.name === 'note_revisions') throw new Error('block history requires explicit wipe');
     if (this.commit) { await this.commit(store => store.delete(key)); return; }
     const range = rangeFromIDB(key)!;
     for (const [slot, value] of this.rows) if (keyInRange(keyFromValue(this.def, value), range)) this.rows.delete(slot);
@@ -123,7 +125,7 @@ export class InMemoryStore<T> implements IReadWriteStore<T> {
 
   async clear(): Promise<void> {
     if (!this.mutable) throw new Error('read-only store');
-    if (this.name === 'block_revisions') throw new Error('block history requires explicit wipe');
+    if (this.name === 'block_revisions' || this.name === 'note_revisions') throw new Error('block history requires explicit wipe');
     if (this.commit) { await this.commit(store => store.clear()); return; }
     this.rows.clear();
   }
@@ -147,7 +149,7 @@ export class InMemoryStorage implements IStorage {
     let rows = this.stores.get(name);
     if (!rows) { rows = new Map(); this.stores.set(name, rows); }
     return new InMemoryStore(name, this.options.getUserId, rows, true,
-      operation => this.transaction([name, 'block_revisions'], 'readwrite', tx => operation(tx.readwrite(name))));
+      operation => this.transaction([name, 'block_revisions', 'note_revisions'], 'readwrite', tx => operation(tx.readwrite(name))));
   }
 
   transaction<K extends StoreName, R>(stores: K[], mode: 'readonly' | 'readwrite', fn: (tx: IStorageTransaction) => Promise<R>): Promise<R> {

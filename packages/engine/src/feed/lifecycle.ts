@@ -53,7 +53,7 @@ export interface RemoveSeedSourceResult {
 }
 
 type RetentionNote = Note & {
-  retention?: 'indexed' | 'cached' | 'session-pinned';
+  retention?: 'indexed' | 'cached' | 'schedule-pinned' | 'session-pinned';
   upstreamStatus?: 'live' | 'unsubscribed' | 'removed';
 };
 
@@ -71,12 +71,30 @@ async function noteHasSessions(tx: IStorageTransaction, noteId: string): Promise
   }
 }
 
+async function noteHasScheduleItems(tx: IStorageTransaction, noteId: string): Promise<boolean> {
+  try {
+    const schedStore = tx.readonly('schedule_items');
+    if (typeof schedStore.countFromIndex === 'function') {
+      return (await schedStore.countFromIndex('by-note', noteId)) > 0;
+    }
+    const rows = await schedStore.getAllFromIndex('by-note', noteId);
+    return rows.length > 0;
+  } catch {
+    try {
+      const all = await tx.readonly('schedule_items').getAll();
+      return all.some((s) => s.noteId === noteId);
+    } catch {
+      return false;
+    }
+  }
+}
+
 /**
  * Remove one seed/feed source's imported notes, tags, index rows, bundled
  * definitions (falling back to the next highest-precedence checkpoint),
  * property overrides, and checkpoint record. User-authored notes and
- * session-pinned feed notes (with `retention === 'session-pinned'` or
- * attached `sessions` rows) are never deleted.
+ * pinned feed notes (`retention` `'session-pinned'` or `'schedule-pinned'`,
+ * or attached `sessions` / `schedule_items` rows) are never deleted.
  */
 export async function removeSeedSourceContent(
   storage: IStorage,
@@ -92,6 +110,7 @@ export async function removeSeedSourceContent(
       'block_efforts',
       'block_equipment',
       'page_notes',
+      'schedule_items',
       'efforts',
       'equipment',
       'property_overrides',
@@ -129,7 +148,7 @@ export async function removeSeedSourceContent(
           if (
             note.seedOrigin === 'seed' &&
             note.feedSourceId === removedSourceId &&
-            (chunkKeys.length === 0 || rNote.retention === 'cached' || rNote.retention === 'session-pinned')
+            (chunkKeys.length === 0 || rNote.retention === 'cached' || rNote.retention === 'schedule-pinned' || rNote.retention === 'session-pinned')
           ) {
             targetIds.add(note.id);
           }
@@ -182,7 +201,7 @@ export async function removeSeedSourceContent(
         if (!note || note.seedOrigin !== 'seed') continue;
         const ownedByFeedStamp =
           note.feedSourceId === removedSourceId &&
-          (chunkKeys.length === 0 || note.retention === 'cached' || note.retention === 'session-pinned');
+          (chunkKeys.length === 0 || note.retention === 'cached' || note.retention === 'schedule-pinned' || note.retention === 'session-pinned');
         if (!ownedByFeedStamp && note.seedChunkId && !meta.chunks[note.seedChunkId]) continue;
 
         const outcome = await deleteOrPreserveFeedNote(
@@ -286,11 +305,15 @@ async function deleteOrPreserveFeedNote(
   removedPaths?: Set<string>,
 ): Promise<'deleted' | 'pinned'> {
   const notes = tx.readwrite('notes');
-  const isPinned = note.retention === 'session-pinned' || (await noteHasSessions(tx, note.id));
-  if (isPinned) {
+  const hasSessions = await noteHasSessions(tx, note.id);
+  const isSessionPinned = note.retention === 'session-pinned' || hasSessions;
+  const hasSchedules = !isSessionPinned && (await noteHasScheduleItems(tx, note.id));
+  const isSchedulePinned = note.retention === 'schedule-pinned' || hasSchedules;
+
+  if (isSessionPinned || isSchedulePinned) {
     await notes.put({
       ...note,
-      retention: 'session-pinned',
+      retention: isSessionPinned ? 'session-pinned' : 'schedule-pinned',
       upstreamStatus,
     } as RetentionNote);
     return 'pinned';
@@ -338,7 +361,7 @@ export async function removeFeedNotebookContent(
   chunkId: string,
 ): Promise<RemoveSeedSourceResult> {
   return storage.transaction(
-    ['notes', 'attachments', 'tags', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'sessions', 'meta'],
+    ['notes', 'attachments', 'tags', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'schedule_items', 'sessions', 'meta'],
     'readwrite',
     async (tx) => {
       const notes = tx.readwrite('notes');
@@ -375,7 +398,7 @@ export async function reconcileRemovedFeedRecords(
   liveUuids: ReadonlySet<string>,
 ): Promise<RemoveSeedSourceResult> {
   return storage.transaction(
-    ['notes', 'attachments', 'tags', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'sessions'],
+    ['notes', 'attachments', 'tags', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'schedule_items', 'sessions'],
     'readwrite',
     async (tx) => {
       const notes = tx.readwrite('notes');

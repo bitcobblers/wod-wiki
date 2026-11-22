@@ -17,12 +17,15 @@ import type {
   Note,
   NoteBlock,
   NoteProvenance,
+  NoteRevision,
   NoteTag,
   NotebookLink,
   OverridePropertyKind,
   Page,
   PageNote,
   ResultOrigin,
+  ScheduleItem,
+  ScheduleStatus,
   ScopedPropertyOverride,
   Session,
   Tag,
@@ -401,8 +404,12 @@ export function buildPropertyNote(input: TestPropertyNoteInput): BuiltPropertyNo
 export interface TestSessionInput {
   id?: string;
   noteId: string;
+  noteSourceRevision?: number;
   blockId?: string;
   blockVersion?: number;
+  pageId?: string;
+  sessionDate?: string;
+  scheduleItemId?: string;
   startedAt?: number;
   completedAt?: number;
   durationMs?: number;
@@ -441,8 +448,12 @@ function buildTestSessionAt(input: TestSessionInput, sequence: number): BuiltTes
   const session: Session = {
     id: input.id ?? `session-${noteId}:${sequence}`,
     noteId,
+    ...(input.noteSourceRevision !== undefined ? { noteSourceRevision: input.noteSourceRevision } : {}),
     blockId,
     blockVersion,
+    ...(input.pageId !== undefined ? { pageId: input.pageId } : {}),
+    ...(input.sessionDate !== undefined ? { sessionDate: input.sessionDate } : {}),
+    ...(input.scheduleItemId !== undefined ? { scheduleItemId: input.scheduleItemId } : {}),
     origin: input.origin ?? 'journal',
     status: 'completed',
     startTime: startedAt,
@@ -482,6 +493,43 @@ function buildTestSessionAt(input: TestSessionInput, sequence: number): BuiltTes
   return { session, events, notebookLinks };
 }
 
+export interface TestScheduleItemInput {
+  id?: string;
+  date: string;
+  noteId: string;
+  pageId?: string;
+  sourceNotebookId?: string;
+  fallbackTitle?: string;
+  blockId?: string;
+  position?: number;
+  slot?: string;
+  status?: ScheduleStatus;
+  notes?: string;
+  movedFromDate?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export function buildTestScheduleItem(input: TestScheduleItemInput, sequence = 1): ScheduleItem {
+  const createdAt = input.createdAt ?? TEST_EPOCH;
+  return {
+    id: input.id ?? `sched-${input.date}-${input.noteId}:${sequence}`,
+    date: input.date,
+    noteId: input.noteId,
+    ...(input.pageId !== undefined ? { pageId: input.pageId } : {}),
+    ...(input.sourceNotebookId !== undefined ? { sourceNotebookId: input.sourceNotebookId } : {}),
+    ...(input.fallbackTitle !== undefined ? { fallbackTitle: input.fallbackTitle } : {}),
+    ...(input.blockId !== undefined ? { blockId: input.blockId } : {}),
+    position: input.position ?? (sequence - 1),
+    ...(input.slot !== undefined ? { slot: input.slot } : {}),
+    status: input.status ?? 'planned',
+    ...(input.notes !== undefined ? { notes: input.notes } : {}),
+    ...(input.movedFromDate !== undefined ? { movedFromDate: input.movedFromDate } : {}),
+    createdAt,
+    updatedAt: input.updatedAt ?? createdAt,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // buildDomainWorld
 // ---------------------------------------------------------------------------
@@ -492,11 +540,14 @@ export interface DomainWorldInput {
   sessions?: TestSessionInput[];
   pages?: Page[];
   pageNotes?: PageNote[];
+  scheduleItems?: TestScheduleItemInput[];
+  noteRevisions?: NoteRevision[];
 }
 
 export interface DomainWorld {
   notes: Note[];
   revisions: BlockRevision[];
+  noteRevisions: NoteRevision[];
   blockIndex: BlockIndexRow[];
   blockEfforts: BlockEffort[];
   blockEquipment: BlockEquipment[];
@@ -507,6 +558,7 @@ export interface DomainWorld {
   propertyOverrides: ScopedPropertyOverride[];
   pages: Page[];
   pageNotes: PageNote[];
+  scheduleItems: ScheduleItem[];
   sessions: Session[];
   events: EventRecord[];
 }
@@ -530,6 +582,7 @@ export function buildDomainWorld(input: DomainWorldInput = {}): DomainWorld {
   const world: DomainWorld = {
     notes: [],
     revisions: [],
+    noteRevisions: [...(input.noteRevisions ?? [])],
     blockIndex: [],
     blockEfforts: [],
     blockEquipment: [],
@@ -540,6 +593,7 @@ export function buildDomainWorld(input: DomainWorldInput = {}): DomainWorld {
     propertyOverrides: [],
     pages: input.pages ?? [],
     pageNotes: input.pageNotes ?? [],
+    scheduleItems: (input.scheduleItems ?? []).map((item, idx) => buildTestScheduleItem(item, idx + 1)),
     sessions: [],
     events: [],
   };

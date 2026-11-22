@@ -80,7 +80,7 @@ export async function deleteUserNotebook(
         const { notebookId: _droppedSingle, notebookIds: _droppedMulti, ...rest } = note;
         await noteWriter.put({
           ...rest,
-          ...(remaining.length > 0 ? { notebookIds: remaining } : {}),
+          notebookIds: remaining,
           ...(primaryUser ? { notebookId: primaryUser } : {}),
         });
         touchedMembers++;

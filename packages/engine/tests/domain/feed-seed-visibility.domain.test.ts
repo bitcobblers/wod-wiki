@@ -46,9 +46,11 @@ describe('Domain — Notebook membership, Publication Visibility & Feed → Seed
     // 1. Default notebook is Private.
     expect(await publisher.publicationSummary('note-cindy')).toMatchObject({ visibility: 'Private', publicSessions: 0 });
 
-    // 2. N:M membership: the runs anchored the Note in `notebook/journal` alongside `notebook/benchmarks`.
+    // 2. ADR 0009 Plane Separation: running `note-cindy` keeps its canonical Notebook
+    // membership strictly in `notebook/benchmarks` without polluting `notebook/journal`,
+    // while its recorded Sessions carry civil `sessionDate` + `pageId` for Journal overlays.
     const links = await publisher.storage.readonly('notebook_links').getAllFromIndex('by-note', 'note-cindy');
-    expect(new Set(links.map((l) => l.notebookId))).toEqual(new Set(['notebook/journal', 'notebook/benchmarks']));
+    expect(new Set(links.map((l) => l.notebookId))).toEqual(new Set(['notebook/benchmarks']));
 
     // 3. Making the Notebook public promotes visibility to Published Note.
     await publisher.setNotebookPublic('notebook/benchmarks', true);

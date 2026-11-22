@@ -204,13 +204,14 @@ export function resolveNoteOwnership(
     isRemotePreview;
   const isArchivedExternal =
     (note.upstreamStatus === 'unsubscribed' || note.upstreamStatus === 'removed') &&
-    (hasFeedStamp || note.retention === 'session-pinned' || Boolean(feedSourceId));
+    (hasFeedStamp || note.retention === 'session-pinned' || note.retention === 'schedule-pinned' || Boolean(feedSourceId));
   const isSystemNb = Boolean(targetNb && isSystemReadOnlyNotebook(targetNb));
   const isUserForkInUserNb =
     note.seedOrigin === 'user' &&
     note.feedOrigin !== 'feed' &&
     !isRemotePreview &&
     note.retention !== 'session-pinned' &&
+    note.retention !== 'schedule-pinned' &&
     note.retention !== 'cached';
   const isIntrinsicUserDashboard =
     note.type === 'dashboard' &&

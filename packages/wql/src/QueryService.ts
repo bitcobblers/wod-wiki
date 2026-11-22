@@ -19,7 +19,7 @@
  * Fully inverted dependencies: zero IndexedDB/storage module-level imports.
  */
 
-import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, IMetric, Page, PageNote, NotePlacement, Tag, TagContribution } from '@bitcobblers/wod-wiki-core';
+import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, IMetric, Page, PageNote, NotePlacement, ScheduleItem, Tag, TagContribution } from '@bitcobblers/wod-wiki-core';
 import { MetricType, createMetricOwnershipLedger, isNotebookLanding, metricToMs, normalizeFieldComponent, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import {
   DEFAULT_NOTEBOOK_SLUGS,
@@ -218,7 +218,7 @@ export function notebooksOfItem(item: NotebookResolvableItem): NotebookId[] {
       }
     }
   }
-  if (out.length === 0) {
+  if (out.length === 0 && (!Array.isArray(item.notebookIds) || item.seedOrigin === 'seed' || item.feedOrigin === 'feed')) {
     const intrinsic = resolveIntrinsicNotebook(item);
     if (intrinsic) {
       push(intrinsic);
@@ -253,6 +253,9 @@ export function notebookOfItem(item: NotebookResolvableItem): NotebookId | undef
       }
     }
   }
+  if (Array.isArray(item.notebookIds) && item.seedOrigin !== 'seed' && item.feedOrigin !== 'feed') {
+    return undefined;
+  }
   return resolveIntrinsicNotebook(item);
 }
 
@@ -271,7 +274,20 @@ export function notebookOfItem(item: NotebookResolvableItem): NotebookId | undef
  */
 export function notebookOriginOfItem(item: NotebookResolvableItem): NotebookOrigin | undefined {
   const notebook = notebookOfItem(item);
-  if (!notebook) return undefined;
+  if (!notebook) {
+    if (
+      Array.isArray(item.notebookIds) &&
+      item.notebookIds.length === 0 &&
+      item.seedOrigin !== 'seed' &&
+      item.feedOrigin !== 'feed' &&
+      !item.feedSourceId &&
+      !item.seedChunkId &&
+      !(!!item.sourcePath && item.sourcePath.startsWith('markdown/'))
+    ) {
+      return 'user';
+    }
+    return undefined;
+  }
   if (notebook === 'notebook/defaults') return 'default';
   if (item.notebookId?.trim()) return 'user';
   if (item.notebookIds?.some((id) => {
@@ -403,6 +419,7 @@ export function sourceMatches(
     id?: string; noteId?: string; sourceId?: string; type?: string;
     seedOrigin?: string; seedChunkId?: string; feedOrigin?: string; feedSourceId?: string;
     sourcePath?: string; notebookId?: string;
+    notebookIds?: readonly string[];
     tags?: readonly string[];
   },
   kind: string,
@@ -650,6 +667,35 @@ function noteEffectiveTimestamp(
   if (note.date !== undefined) return note.date;
   const placed = placements?.find((p) => p.date !== undefined)?.date;
   return placed !== undefined ? zonedNoon(placed, timeZone) : note.createdAt;
+}
+
+/**
+ * All effective timestamps for a Note across M:N `schedule_items`, legacy
+ * dated `page_notes` placements, and authored `note.date` / `createdAt`.
+ */
+function noteEffectiveTimestamps(
+  note: Note,
+  placements: readonly NotePlacement[] | undefined,
+  schedules: readonly ScheduleItem[] | undefined,
+  timeZone: string,
+): number[] {
+  const out: number[] = [];
+  const push = (ts: number) => {
+    if (!out.includes(ts)) out.push(ts);
+  };
+  if (schedules && schedules.length > 0) {
+    for (const s of schedules) {
+      if (s.status !== 'skipped') push(zonedNoon(s.date, timeZone));
+    }
+  }
+  if (placements && placements.length > 0) {
+    for (const p of placements) {
+      if (p.date !== undefined) push(zonedNoon(p.date, timeZone));
+    }
+  }
+  if (note.date !== undefined) push(note.date);
+  if (out.length === 0) push(note.createdAt);
+  return out;
 }
 
 /** Time-window predicate for a row (C1 + ticket 12): the query's own window
@@ -1562,6 +1608,7 @@ export class QueryService {
   };
   private readonly isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
   private readonly feedCatalogStore?: FeedCatalogQueryStore;
+  private readonly scheduleStore?: QueryServiceStores['scheduleStore'];
   private readonly sessionStore?: QueryServiceStores['sessionStore'];
 
   // Optional storage seam properties for block_efforts, block_equipment, and typed tag resolution.
@@ -1600,6 +1647,7 @@ export class QueryService {
         'relationStore' in storesOrEventStore ||
         'datasetStore' in storesOrEventStore ||
         'feedCatalogStore' in storesOrEventStore ||
+        'scheduleStore' in storesOrEventStore ||
         'sessionStore' in storesOrEventStore ||
         'isNotebookSubscribed' in storesOrEventStore)
     ) {
@@ -1617,6 +1665,7 @@ export class QueryService {
       if (stores.noteTagsStore) this.noteTagsStore = stores.noteTagsStore;
       if (stores.isNotebookSubscribed) this.isNotebookSubscribed = stores.isNotebookSubscribed;
       if (stores.feedCatalogStore) this.feedCatalogStore = stores.feedCatalogStore;
+      if (stores.scheduleStore) this.scheduleStore = stores.scheduleStore;
       if (stores.sessionStore) this.sessionStore = stores.sessionStore;
     } else {
       this.store = (storesOrEventStore as EventStore | undefined) ?? defaultEventStore;
@@ -1702,6 +1751,29 @@ export class QueryService {
     const blockIds = posScopeValues('block');
     const noteIds = posScopeValues('note');
 
+    const sessionMetaById = new Map<
+      string,
+      {
+        duration?: number;
+        notebookIds?: readonly string[];
+        blockContentId?: string;
+        completed?: boolean;
+        sessionDate?: string;
+        scheduleItemId?: string;
+      }
+    >();
+    const allSessions = this.sessionStore ? await this.sessionStore.getAll() : [];
+    for (const s of allSessions) {
+      sessionMetaById.set(s.id, {
+        duration: s.duration,
+        notebookIds: s.notebookIds,
+        blockContentId: s.blockContentId,
+        completed: s.completed,
+        sessionDate: s.sessionDate,
+        scheduleItemId: s.scheduleItemId,
+      });
+    }
+
     const byResult = new Map<string, EventRecord[]>();
     const collected = new Set<string>();
     const collect = (rows: EventRecord[]) => {
@@ -1720,6 +1792,14 @@ export class QueryService {
         ? await this.store.getEventsByTimeRange(range.start, range.end)
         : await this.store.scanAll();
       collect(eventRows);
+      if (range && allSessions.length > 0) {
+        for (const s of allSessions) {
+          if (byResult.has(s.id) || !s.sessionDate) continue;
+          if (inRange(zonedNoon(s.sessionDate, ctx.timeZone), range)) {
+            collect(await this.store.getEventsByResult(s.id));
+          }
+        }
+      }
     } else {
       for (const id of resultIds) collect(await this.store.getEventsByResult(id));
       for (const blockContentId of blockIds) collect(await this.store.getEventsByContent(blockContentId));
@@ -1747,9 +1827,13 @@ export class QueryService {
     });
 
     if (parsed.window || options.range) {
-      groups = groups.filter(([, rows]) =>
-        effectiveTimeWindow(sessionCompletedAt(rows), parsed.window, options.range, ctx),
-      );
+      groups = groups.filter(([resultId, rows]) => {
+        const meta = sessionMetaById.get(resultId);
+        const effectiveTs = meta?.sessionDate
+          ? zonedNoon(meta.sessionDate, ctx.timeZone)
+          : sessionCompletedAt(rows);
+        return effectiveTimeWindow(effectiveTs, parsed.window, options.range, ctx);
+      });
     }
     groups.sort((a, b) => sessionCompletedAt(b[1]) - sessionCompletedAt(a[1]));
 
@@ -1758,16 +1842,6 @@ export class QueryService {
       (f) => !['result', 'block', 'note', 'plane'].includes(f.key) && supportsWqlFilterKey('session', 'find', f.key),
     );
     const normalizedFactFilters = factFilters.map((f) => (f.key === 'tag' ? { ...f, key: 'tags' } : f));
-    const sessionMetaById = new Map<string, { duration?: number; notebookIds?: readonly string[]; blockContentId?: string; completed?: boolean }>();
-    const allSessions = this.sessionStore ? await this.sessionStore.getAll() : [];
-    for (const s of allSessions) {
-      sessionMetaById.set(s.id, {
-        duration: s.duration,
-        notebookIds: s.notebookIds,
-        blockContentId: s.blockContentId,
-        completed: s.completed,
-      });
-    }
     const dimSeedRows: AnalyticsDataPoint[] = groups.length > 0
       ? groups.map(([resultId, rows]) => ({
           resultId,
@@ -1853,7 +1927,8 @@ export class QueryService {
           if (!matchesFilters(dummyFact, notebookFactFilters, sessionDims)) continue;
         }
         const ts = s.completedAt ?? s.startedAt ?? s.createdAt ?? 0;
-        if ((parsed.window || options.range) && !effectiveTimeWindow(ts, parsed.window, options.range, ctx)) continue;
+        const effectiveTs = s.sessionDate ? zonedNoon(s.sessionDate, ctx.timeZone) : ts;
+        if ((parsed.window || options.range) && !effectiveTimeWindow(effectiveTs, parsed.window, options.range, ctx)) continue;
         const nbs = new Set<string>([
           ...(sessionDims.sessionNotebooks?.get(s.id) ?? []),
           ...(sessionDims.noteNotebooks?.get(s.noteId) ?? []),
@@ -2489,8 +2564,18 @@ export class QueryService {
       relations = await this.containersAndPlacements(notes);
     }
     if (parsed.window || options.range) {
+      const schedulesByNote = new Map<string, ScheduleItem[]>();
+      if (this.scheduleStore) {
+        const allSchedules = await this.scheduleStore.getAll();
+        for (const item of allSchedules) {
+          const bucket = schedulesByNote.get(item.noteId);
+          if (bucket) bucket.push(item);
+          else schedulesByNote.set(item.noteId, [item]);
+        }
+      }
       notes = notes.filter(n =>
-        effectiveTimeWindow(noteEffectiveTimestamp(n, relations?.placements[n.id], ctx.timeZone), parsed.window, options.range, ctx));
+        noteEffectiveTimestamps(n, relations?.placements[n.id], schedulesByNote.get(n.id), ctx.timeZone)
+          .some(ts => effectiveTimeWindow(ts, parsed.window, options.range, ctx)));
     }
 
     // Cross-store join (direction 1): keep notes owning a wod block whose

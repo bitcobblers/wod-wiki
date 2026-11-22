@@ -4,10 +4,10 @@
  * `Note.notebookIds` and `Session.notebookIds` projections).
  *
  * Invariants:
- *   1. `notebook/journal` is the permanent private container tracking every
- *      user-owned Note and Session created in the application. User Notes
- *      promoted to one or more user Notebooks NEVER lose `notebook/journal`
- *      membership.
+ *   1. Notes are cleanly decoupled from `notebook/journal`: user Notes authored
+ *      in custom Notebooks stay in those Notebooks, and Notes detached from all
+ *      Notebooks remain valid unfiled (`notebookIds: []`) records discoverable
+ *      via `:note{!notebook:*}`.
  *   2. Read-only system Notebooks (`notebook/defaults`, `notebook/guides`,
  *      `notebook/efforts`, `notebook/equipment`, `notebook/dashboards`) and
  *      feed-delivered Notebooks (`origin: 'feed'`) reject user Note membership
@@ -54,7 +54,7 @@ function isNotebookLandingNote(note: Pick<Note, 'id' | 'notebookId'>): boolean {
 function baseUserMemberships(note: Note): NotebookId[] {
   if (note.seedOrigin === 'seed' || note.feedOrigin === 'feed') return [];
   if (isNotebookLandingNote(note) || isPropertyDefinitionNoteId(note.id)) return [];
-  const base: NotebookId[] = ['notebook/journal'];
+  const base: NotebookId[] = [];
   if (note.type === 'playground' || note.sourceId === 'playground') {
     base.push('notebook/playground');
   }
@@ -226,7 +226,6 @@ export async function promoteNoteToNotebooks(
         for (const sess of sessions) {
           if (!wantedSessions.has(sess.id)) continue;
           const sessNotebooks = dedupeNotebooks([
-            'notebook/journal',
             ...(sess.notebookIds ?? []),
             ...requestedTargets,
           ]);
@@ -265,9 +264,8 @@ export async function promoteNoteToNotebooks(
 }
 
 /**
- * Replace the exact set of user Notebooks a Note is promoted to while keeping
- * its mandatory `notebook/journal` (and `notebook/playground`, if applicable)
- * anchor intact.
+ * Replace the exact set of user Notebooks a Note is linked to (`[]` is valid
+ * for unfiled / orphaned Notes).
  */
 export async function setNoteNotebooks(
   storage: IStorage,
@@ -283,12 +281,12 @@ export async function setNoteNotebooks(
       throw new Error(`Read-only Feed Note '${input.noteId}' cannot change Notebook membership.`);
     }
 
-    const userTargets = requested.filter(
-      (id) => id !== 'notebook/journal' && id !== 'notebook/playground',
-    );
+    const userTargets = requested.filter((id) => id !== 'notebook/playground');
     for (const target of userTargets) {
-      await assertWritableTargetNotebook(tx, target);
-      await ensureUserNotebookLanding(tx, target, now);
+      if (target !== 'notebook/journal') {
+        await assertWritableTargetNotebook(tx, target);
+        await ensureUserNotebookLanding(tx, target, now);
+      }
     }
 
     const finalMemberships = dedupeNotebooks([
@@ -332,8 +330,8 @@ export async function setNoteNotebooks(
 }
 
 /**
- * Detach a Note from one promoted user Notebook. Refuses detaching a user Note
- * from `notebook/journal`, which permanently tracks all created Notes.
+ * Detach a Note from one user Notebook. When detaching the last Notebook, the
+ * Note becomes unfiled/orphaned (`notebookIds: []`).
  */
 export async function removeNoteFromNotebook(
   storage: IStorage,
@@ -341,9 +339,6 @@ export async function removeNoteFromNotebook(
   notebookIdOrSlug: string,
 ): Promise<NotebookId[]> {
   const target = toNotebookId(notebookIdOrSlug);
-  if (target === 'notebook/journal') {
-    throw new Error('Notes cannot be removed from private notebook/journal.');
-  }
   const current = await getNoteNotebooks(storage, noteId);
   const remaining = current.filter((id) => id !== target);
   return setNoteNotebooks(storage, { noteId, notebookIds: remaining });
@@ -368,10 +363,11 @@ export async function getNoteNotebooks(
   } catch {
     // Fallback for lightweight mock storages without notebook_links index
   }
+  const hasExplicitArray = Array.isArray(note.notebookIds);
   return dedupeNotebooks([
     ...baseUserMemberships(note),
     ...(note.notebookIds ?? []),
     ...linkNotebookIds,
-    ...notebooksOfItem(note),
+    ...(hasExplicitArray ? [] : notebooksOfItem(note)),
   ]);
 }
