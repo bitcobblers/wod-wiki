@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { EditorView } from '@codemirror/view';
@@ -758,5 +759,76 @@ describe('EntityPeekDrawer', () => {
     } finally {
       await renderResult?.cleanup();
     }
+  });
+
+  it('supports layout="slot" without duplicate backdrop or fixed wrapper for SidebarLayout.peekSlot', async () => {
+    const onClose = vi.fn();
+    render(
+      <EntityPeekDrawer
+        target={{ kind: 'effort', slug: 'back-squat' }}
+        onClose={onClose}
+        layout="slot"
+      />,
+    );
+
+    const drawer = screen.getByTestId(TEST_IDS.ENTITY_PEEK_DRAWER);
+    await waitFor(() => {
+      expect(drawer.textContent).toContain('Back Squat');
+    });
+
+    expect(screen.queryByTestId(TEST_IDS.ENTITY_PEEK_BACKDROP)).toBeNull();
+    expect(drawer.className).toContain('h-full');
+    expect(drawer.className).toContain('w-full');
+    expect(drawer.className).not.toContain('fixed');
+  });
+
+  it('pushes a single history entry when clicking Open full page or Filter in Notes inside React Router', async () => {
+    const onClose = vi.fn();
+    const locations: string[] = [];
+
+    function RouterHarness({ initialTarget }: { initialTarget: EntityPeekTarget }) {
+      const location = useLocation();
+      const navigate = useNavigate();
+      const fullPath = `${location.pathname}${location.search}`;
+      if (locations[locations.length - 1] !== fullPath) {
+        locations.push(fullPath);
+      }
+      return (
+        <div>
+          <button type="button" onClick={() => void navigate(-1)}>
+            Go Back
+          </button>
+          <EntityPeekDrawer target={initialTarget} onClose={onClose} />
+        </div>
+      );
+    }
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/note/test-note']}>
+        <RouterHarness initialTarget={{ kind: 'effort', slug: 'back-squat' }} />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId(TEST_IDS.ENTITY_PEEK_DRAWER).textContent).toContain('Back Squat');
+    });
+
+    fireEvent.click(screen.getByTestId(TEST_IDS.ENTITY_PEEK_OPEN_FULL));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(locations[locations.length - 1]).toBe('/effort/back-squat');
+
+    // A single Back step returns straight to /note/test-note (no duplicate history push).
+    fireEvent.click(screen.getByRole('button', { name: 'Go Back' }));
+    expect(locations[locations.length - 1]).toBe('/note/test-note');
+
+    // Same single-push check for Filter in Notes ->
+    fireEvent.click(screen.getByTestId(TEST_IDS.ENTITY_PEEK_FILTER_NOTES));
+    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(locations[locations.length - 1]).toContain('/notes?q=');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go Back' }));
+    expect(locations[locations.length - 1]).toBe('/note/test-note');
+
+    unmount();
   });
 });

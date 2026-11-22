@@ -8,7 +8,7 @@
  * inline quick-creation for unrecognized terms without leaving the Note editor.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useInRouterContext } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -52,7 +52,6 @@ import {
 } from '@bitcobblers/wod-wiki-lang';
 import { WQL_TYPED_TAG_KEYS } from '@bitcobblers/wod-wiki-wql';
 import { registerRenderedPeekState } from '@/agent/surfaceBridges';
-import { useOptionalNavigate } from '@/hooks/useOptionalNavigate';
 import { useStickyBoundaryOffset } from '@/panels/page-shells';
 import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
@@ -96,7 +95,7 @@ export type EntityPeekTarget =
 export interface EntityPeekDrawerProps {
   target: EntityPeekTarget | null;
   onClose: () => void;
-  layout?: 'docked-right' | 'overlay';
+  layout?: 'docked-right' | 'overlay' | 'slot';
   onCreatedReference?: () => void;
 }
 
@@ -662,7 +661,6 @@ export const EntityPeekDrawer: React.FC<EntityPeekDrawerProps> = ({
   onCreatedReference,
 }) => {
   const stickyTop = useStickyBoundaryOffset(65);
-  const navigate = useOptionalNavigate();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<LoadedPeekData | null>(null);
   const [createdResult, setCreatedResult] = useState<QuickCreateResult | null>(null);
@@ -988,16 +986,6 @@ export const EntityPeekDrawer: React.FC<EntityPeekDrawerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- targetKey captures full target identity
   }, [targetKey]);
 
-  const handleOpenHref = useCallback(
-    (href: string) => {
-      onClose();
-      if (navigate) {
-        void navigate(href);
-      }
-    },
-    [navigate, onClose],
-  );
-
   if (!target) return null;
 
   // Derive header + footer metadata immediately so the drawer renders cleanly even while async reads settle.
@@ -1099,19 +1087,23 @@ export const EntityPeekDrawer: React.FC<EntityPeekDrawerProps> = ({
     }
   }
 
+  const isSlotLayout = layout === 'slot';
+
   return (
     <>
-      <button
-        type="button"
-        tabIndex={-1}
-        aria-label="Close entity peek drawer"
-        data-testid={TEST_IDS.ENTITY_PEEK_BACKDROP}
-        onClick={onClose}
-        className={cn(
-          'fixed inset-0 z-[29] bg-black/25 cursor-default',
-          layout === 'docked-right' && 'xl:hidden',
-        )}
-      />
+      {!isSlotLayout && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Close entity peek drawer"
+          data-testid={TEST_IDS.ENTITY_PEEK_BACKDROP}
+          onClick={onClose}
+          className={cn(
+            'fixed inset-0 z-[29] bg-black/25 cursor-default',
+            layout === 'docked-right' && 'xl:hidden',
+          )}
+        />
+      )}
       <aside
         role="complementary"
         aria-label="Entity Peek Drawer"
@@ -1122,10 +1114,12 @@ export const EntityPeekDrawer: React.FC<EntityPeekDrawerProps> = ({
             : undefined
         }
         className={cn(
-          'fixed right-0 bottom-0 z-30 flex w-[340px] max-w-[92vw] flex-col overflow-hidden border-l border-border bg-card text-card-foreground',
-          layout === 'docked-right'
-            ? 'max-xl:top-[var(--peek-sticky-top)] max-xl:shadow-xl xl:top-0 xl:shadow-none'
-            : 'top-0 shadow-2xl',
+          'flex flex-col overflow-hidden border-l border-border bg-card text-card-foreground',
+          isSlotLayout
+            ? 'h-full w-full'
+            : layout === 'docked-right'
+              ? 'fixed right-0 bottom-0 z-30 w-[340px] max-w-[92vw] max-xl:top-[var(--peek-sticky-top)] max-xl:shadow-xl xl:top-0 xl:shadow-none'
+              : 'fixed right-0 top-0 bottom-0 z-30 w-[340px] max-w-[92vw] shadow-2xl',
         )}
       >
         {/* Header */}
@@ -1532,7 +1526,7 @@ export const EntityPeekDrawer: React.FC<EntityPeekDrawerProps> = ({
           {fullPageHref && (
             <SafeLink
               to={fullPageHref}
-              onClick={() => handleOpenHref(fullPageHref!)}
+              onClick={onClose}
               testId={TEST_IDS.ENTITY_PEEK_OPEN_FULL}
               className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-3 py-1.5 max-lg:min-h-11 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 whitespace-nowrap"
             >
@@ -1542,7 +1536,7 @@ export const EntityPeekDrawer: React.FC<EntityPeekDrawerProps> = ({
           {filterNotesHref && (
             <SafeLink
               to={filterNotesHref}
-              onClick={() => handleOpenHref(filterNotesHref!)}
+              onClick={onClose}
               testId={TEST_IDS.ENTITY_PEEK_FILTER_NOTES}
               className="inline-flex items-center justify-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 max-lg:min-h-11 text-xs font-medium text-foreground transition-colors hover:bg-muted whitespace-nowrap"
             >
