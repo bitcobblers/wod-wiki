@@ -318,10 +318,19 @@ export async function setNoteNotebooks(
     const primaryUserNb = finalMemberships.find(
       (id) => id !== 'notebook/journal' && id !== 'notebook/playground',
     );
+    const cleanedTags = note.tags
+      ? note.tags.filter((tag) => {
+          if (!tag.startsWith('notebook:') && !tag.startsWith('notebook/')) return true;
+          const slug = notebookSlugFromId(tag);
+          if (!slug) return true;
+          return finalMemberships.includes(toNotebookId(slug));
+        })
+      : undefined;
     const { notebookId: _priorSingle, ...rest } = note;
     const updatedNote: Note = {
       ...rest,
       notebookIds: finalMemberships,
+      ...(cleanedTags !== undefined ? { tags: cleanedTags } : {}),
       ...(primaryUserNb ? { notebookId: primaryUserNb } : {}),
     };
     await tx.readwrite('notes').put(updatedNote);

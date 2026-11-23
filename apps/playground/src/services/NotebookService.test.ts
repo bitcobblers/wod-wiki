@@ -271,4 +271,34 @@ describe('NotebookService (notes-store backed)', () => {
         expect(await service.listNotes(CUSTOM_NOTEBOOK_ID)).toEqual([]);
         expect(await store.getNote(starterId)).toBeUndefined();
     });
+
+    it('WW-111: moveNote removes note cleanly from source notebook (including notebook: tags) with 0 duplicates after ensureNotebooks', async () => {
+        const nbA = await service.create('Source Alpha');
+        const nbB = await service.create('Target Beta');
+        await saved({
+            id: 'move-target-1',
+            title: 'Threshold Run',
+            rawContent: '# Threshold Run\n\n```time\n20:00 Run\n```\n',
+            notebookId: nbA.id,
+            notebookIds: [nbA.notebookId],
+            tags: [`notebook:${nbA.slug}`, 'running'],
+            seedOrigin: 'user',
+        });
+
+        await service.moveNote('move-target-1', nbB.id);
+        await service.ensureNotebooks();
+
+        expect(await service.listNotes(nbA.id)).toEqual([]);
+        const targetNotes = await service.listNotes(nbB.id);
+        expect(targetNotes.map((n) => n.id)).toEqual(['move-target-1']);
+
+        const moved = await store.getNote('move-target-1');
+        expect(moved?.notebookId).toBe(nbB.id);
+        expect(moved?.notebookIds).toEqual([nbB.notebookId]);
+        expect(moved?.tags).toEqual(['running']);
+
+        // Total copies of the moved note across the entire store must remain 1.
+        const allNotes = await store.getAllNotes();
+        expect(allNotes.filter((n) => n.title === 'Threshold Run')).toHaveLength(1);
+    });
 });
