@@ -107,6 +107,8 @@ test.describe('PRP-04 — Scoped Property Override Sheets & Runtime Precedence',
     const metInput = kbDetail.frontmatterProperties().getByLabel('Value for metrics.met');
     await expect(metInput).toHaveValue('9.8');
 
+    // Scroll clear of the frontmatter preview table so the mobile thumb dock does not auto-yield.
+    await app.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     const overrideBtn = app.page.getByTestId(TEST_IDS.L3_EFFORT_OVERRIDE);
     await openL3Action(app.page, overrideBtn);
     await overrideBtn.click();

@@ -348,7 +348,6 @@ describe('ResponsiveActions mobile fixed thumb dock', () => {
       const input = document.querySelector<HTMLInputElement>('.cm-frontmatter-preview input')!;
       dock.getBoundingClientRect = () => dockRect;
       input.getBoundingClientRect = () => inputRect;
-      input.focus();
 
       act(() => {
         window.dispatchEvent(new Event('scroll'));

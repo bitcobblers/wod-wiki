@@ -382,7 +382,6 @@ function ResponsiveActionsDock({
       if (dr.width > 0 && dr.height > 0) {
         const inputs = document.querySelectorAll<HTMLInputElement>('.cm-frontmatter-preview input')
         for (const input of inputs) {
-          if (document.activeElement !== input) continue
           const ir = input.getBoundingClientRect()
           if (ir.width <= 4 || ir.height <= 4) continue
           if (
