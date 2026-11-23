@@ -28,7 +28,7 @@ Given bundled Effort fixtures with frontmatter Metrics, aliases, and Markdown pr
 
 1. Athlete opens '/effort/rowing' and expands frontmatter property details.
 2. Athlete opens '/effort/burpee' and inspects the Note editor body.
-- expect: Step 1 displays 'Rowing' with source badge 'Bundled', 'Clone' visible and legacy 'Edit' absent, frontmatter 'slug' = 'rowing', 'metrics.met' = 7, 'intensityTier' = 'high', and resolved alias chips ('row', 'rower', 'concept2 row') linking to the Rowing page.
+- expect: Step 1 displays 'Rowing' with source badge 'Bundled', 'Clone' visible and legacy 'Edit' absent, frontmatter 'slug' = 'rowing', 'metrics.met' = 7, 'intensityTier' = 'high', and resolved alias chips ('row', 'rower', 'concept2 row') rendered as non-self-linking pills.
 - expect: Step 2 renders the seeded Markdown prose ('Burpees are a full-body conditioning effort that combine a squat, plank, and jump.') inside the Note editor with a clean browser console.
 
 ### Scenario 3: Explicit Clone and inline edit on bundled Efforts persist isolated Custom copies across reload without mutating bundled definitions

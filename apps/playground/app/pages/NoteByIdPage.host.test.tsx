@@ -636,4 +636,58 @@ describe('NoteByIdPage workout start & L3 outline parity', () => {
       resetFeedReadinessForTest();
     }
   });
+
+  it('clears remoteLoading when a settlementTick cancellation re-runs and finds the materialized remote note locally', async () => {
+    resetFeedReadinessForTest();
+    resetSyncActivityForTest();
+    let resolveFetch!: (value: Awaited<ReturnType<typeof feedCatalogModule.resolveRemoteWorkout>>) => void;
+    const fetchStarted = new Promise<void>((resolve) => {
+      vi.spyOn(feedCatalogModule, 'resolveRemoteWorkout').mockImplementation(
+        () =>
+          new Promise((res) => {
+            resolveFetch = res;
+            resolve();
+          }),
+      );
+    });
+
+    try {
+      const host = await renderWithPlaygroundHost(
+        <NoteByIdPage noteId="remote:cloud-wod-feed:remote-mid-cancel-1" theme="light" />,
+        { route: '/note/remote:cloud-wod-feed:remote-mid-cancel-1' },
+      );
+      activeHosts.push(host);
+
+      await fetchStarted;
+      await waitFor(() => {
+        expect(screen.getByText('Loading workout from feed…')).toBeDefined();
+      });
+
+      // Simulate materializeCachedRemoteRecord persisting the note and firing
+      // a storage/seed settlement tick while resolveRemoteWorkout is still in flight.
+      await act(async () => {
+        const raw = '# Cloud Annie\n\n```wod\n0:03 AMRAP\n  5 Double-unders\n```\n';
+        await storageService.saveNoteSource({
+          noteId: 'remote-mid-cancel-1',
+          rawContent: raw,
+          blocks: reconcileNoteBlocks(raw, { sourceRevision: 1 }),
+          expectedSourceRevision: 0,
+          metadata: { title: 'Cloud Annie', type: 'note' },
+        });
+        invalidateSeedContent();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Cloud Annie')).toBeDefined();
+      });
+      expect(screen.queryByText('Loading workout from feed…')).toBeNull();
+      expect(host.readAgentViewState().status).toBe('ready');
+
+      resolveFetch(undefined);
+    } finally {
+      vi.restoreAllMocks();
+      resetSyncActivityForTest();
+      resetFeedReadinessForTest();
+    }
+  });
 });

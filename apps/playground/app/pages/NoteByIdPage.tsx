@@ -175,6 +175,8 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
           setEntry(loaded)
           setMissing(false)
           setTentativeMissing(false)
+          setRemoteLoading(false)
+          setRemoteError(null)
           setResolving(false)
           return
         }

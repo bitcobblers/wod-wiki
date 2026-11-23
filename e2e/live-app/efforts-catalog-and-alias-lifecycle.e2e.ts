@@ -91,7 +91,9 @@ test.describe('PRP-01 — Efforts Catalog & Alias Lifecycle', () => {
     await expect(aliases.getByRole('button', { name: 'Remove row', exact: true })).toBeVisible();
     await expect(aliases.getByRole('button', { name: 'Remove rower', exact: true })).toBeVisible();
     await expect(aliases.getByRole('button', { name: 'Remove concept2 row', exact: true })).toBeVisible();
-    await expect(aliases.getByRole('link', { name: 'Open Rowing page' }).first()).toBeVisible();
+    // WW-071: self-referencing aliases render as visible non-link pills, not self-linking anchors.
+    await expect(aliases.getByText('row', { exact: true })).toBeVisible();
+    await expect(aliases.getByRole('link', { name: 'Open Rowing page' })).toHaveCount(0);
 
     // Bundled Markdown prose renders in the Note editor on /effort/burpee
     const burpee = await app.properties.openEffort('burpee');
