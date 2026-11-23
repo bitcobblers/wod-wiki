@@ -228,7 +228,7 @@ export function resolveOutputRowLabel(out: OutputStatementRow): string {
       (typeof meta?.originalKey === 'string' && meta.originalKey) ||
       (typeof meta?.canonicalKey === 'string' && meta.canonicalKey) ||
       String(first.type ?? '');
-    if (summaryName) return computeColumnLabel(summaryName);
+    if (summaryName) return summaryName;
   }
 
   return formatOutputTypeLabel(out.outputType);
