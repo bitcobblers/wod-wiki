@@ -14,13 +14,13 @@
  * static. By call time every module is initialized, so a lazy import is both
  * safe and cycle-free.
  */
-import type { HistoryQuery, HistoryRecord } from '@/types/history';
-import type { NoteQuery } from '@/services/persistence/types';
-import { IndexedDBNotePersistence } from '@/services/persistence/IndexedDBNotePersistence';
+import type { HistoryRecord } from '@/types/history';
+import {
+  IndexedDBNotePersistence,
+  type SelectiveRecordQuery,
+} from '@/services/persistence/IndexedDBNotePersistence';
 import { waitForAllPendingNoteSaves } from '@/services/persistence/pendingNoteSaves';
 import { flushPendingUnloadResults } from '@/services/resultRecorder';
-
-interface SelectiveRecordQuery extends HistoryQuery, Pick<NoteQuery, 'journalDate' | 'kind' | 'search'> {}
 
 export class IndexedDBContentProvider extends IndexedDBNotePersistence {
   override async getRecord(id: string): Promise<HistoryRecord | null> {

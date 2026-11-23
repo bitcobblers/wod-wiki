@@ -132,6 +132,10 @@ function entryFromNoteSummary(note: Note): HistoryRecord {
   return {
     id: note.id,
     title: note.title,
+    journalDate:
+      note.type === 'journal' && note.date !== undefined
+        ? localDateKey(new Date(note.date))
+        : undefined,
     createdAt: note.createdAt,
     updatedAt: note.createdAt,
     targetDate: note.date ?? note.createdAt,
@@ -158,7 +162,9 @@ function entryDateWindow(query?: HistoryQuery): { start: number; end: number } |
   return undefined;
 }
 
-interface SelectiveRecordQuery extends HistoryQuery, Pick<NoteQuery, 'journalDate' | 'kind' | 'search' | 'offset' | 'limit' | 'projection'> {}
+export interface SelectiveRecordQuery extends HistoryQuery, Pick<NoteQuery, 'journalDate' | 'kind' | 'search' | 'offset' | 'limit'> {
+  projection?: NoteQuery['projection'] | 'workbench';
+}
 
 /**
  * Unified IndexedDB-backed note persistence & content provider.
@@ -271,6 +277,9 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
         entry.rawContent.toLowerCase().includes(search)
       );
     }
+    if (query.offset || query.limit) {
+      entries = entries.slice(query.offset ?? 0, (query.offset ?? 0) + (query.limit ?? entries.length));
+    }
     if (query.projection === 'history-detail') {
       entries = await Promise.all(entries.map(entry =>
         this.getNote(entry.id, {
@@ -278,9 +287,6 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           resultSelection: { mode: 'all-for-note' },
         })
       ));
-    }
-    if (query.offset || query.limit) {
-      entries = entries.slice(query.offset ?? 0, (query.offset ?? 0) + (query.limit ?? entries.length));
     }
     return entries;
   }
@@ -701,7 +707,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
   private async selectLocalCandidateIds(
     query: SelectiveRecordQuery | undefined,
     window: { start: number; end: number } | undefined,
-  ): Promise<string[]> {
+  ): Promise<{ candidateIds: string[]; loadedNotes: Map<string, Note> | null }> {
     let candidateIds: Set<string> | null = null;
     let loadedNotes: Map<string, Note> | null = null;
 
@@ -719,13 +725,13 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
 
     if (query?.journalDate) {
       intersect(await this.storage.getNoteIdsForJournalDate(query.journalDate));
-      if (candidateIds!.size === 0) return [];
+      if (candidateIds!.size === 0) return { candidateIds: [], loadedNotes };
     }
 
     if (query?.tags && query.tags.length > 0) {
       for (const tag of query.tags) {
         intersect(await this.storage.getNoteIdsForTag(tag));
-        if (candidateIds!.size === 0) return [];
+        if (candidateIds!.size === 0) return { candidateIds: [], loadedNotes };
       }
     }
 
@@ -733,7 +739,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       const typedNotes = await this.storage.getNotesByType(query.kind);
       loadedNotes = new Map(typedNotes.map((n) => [n.id, n]));
       intersect(typedNotes.map((n) => n.id));
-      if (candidateIds!.size === 0) return [];
+      if (candidateIds!.size === 0) return { candidateIds: [], loadedNotes };
     }
 
     if (window) {
@@ -761,7 +767,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           loadedNotes = new Map(ranged.map((n) => [n.id, n]));
         }
         intersect([...unionIds]);
-        if (candidateIds!.size === 0) return [];
+        if (candidateIds!.size === 0) return { candidateIds: [], loadedNotes };
       } else {
         const currentIds: string[] = [...(candidateIds as Set<string>)];
         if (!loadedNotes) {
@@ -778,7 +784,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           }
         }
         intersect(inWindow);
-        if (candidateIds!.size === 0) return [];
+        if (candidateIds!.size === 0) return { candidateIds: [], loadedNotes };
       }
     }
 
@@ -786,7 +792,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       const all = await this.storage.getAllNotes();
       loadedNotes = new Map(all.map((n) => [n.id, n]));
       intersect(all.map((n) => n.id));
-      if (candidateIds!.size === 0) return [];
+      if (candidateIds!.size === 0) return { candidateIds: [], loadedNotes };
     }
 
     const survivingIds: string[] = [...(candidateIds as Set<string>)];
@@ -811,10 +817,10 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
         }
         filtered.push(id);
       }
-      return filtered;
+      return { candidateIds: filtered, loadedNotes };
     }
 
-    return survivingIds;
+    return { candidateIds: survivingIds, loadedNotes };
   }
 
   async getRecords(query?: SelectiveRecordQuery): Promise<HistoryRecord[]> {
@@ -825,7 +831,9 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
     if (query?.kind && query.kind !== 'note') selection.push({ field: 'type', values: [query.kind] });
     if (query?.search?.trim()) selection.push({ field: 'text', value: query.search.trim() });
 
-    const useSummaryPlan = query?.projection === 'summary' && !query?.journalDate && !(query?.tags?.length);
+    const requestedDetail = query?.projection === 'history-detail' || query?.projection === 'workbench';
+    const requiresDetailJoin = Boolean(query?.journalDate) || Boolean(query?.tags?.length) || Boolean(window);
+    const useSummaryPlan = !requestedDetail && !requiresDetailJoin;
     const canBoundWindow = query?.limit !== undefined && !query?.journalDate && query?.kind !== 'note' && !window && !(query?.tags?.length);
     const boundedLimit = canBoundWindow ? (query?.offset ?? 0) + query.limit! : undefined;
 
@@ -842,11 +850,16 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
     } else if (result?.plan === 'notes') {
       entries = result.rows.map(entryFromNoteSummary);
     } else {
-      let candidateIds = await this.selectLocalCandidateIds(query, window);
+      const selected = await this.selectLocalCandidateIds(query, window);
+      let candidateIds = selected.candidateIds;
+      let loadedNotes = selected.loadedNotes;
       if (candidateIds.length === 0) return [];
       if (boundedLimit !== undefined && candidateIds.length > boundedLimit) {
-        const notes = await this.storage.getNotesByIds(candidateIds);
-        const byId = new Map(notes.map((n) => [n.id, n]));
+        if (!loadedNotes) {
+          const notes = await this.storage.getNotesByIds(candidateIds);
+          loadedNotes = new Map(notes.map((n) => [n.id, n]));
+        }
+        const byId = loadedNotes;
         candidateIds = [...candidateIds]
           .sort((a, b) => {
             const na = byId.get(a);
@@ -856,7 +869,9 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           .slice(0, boundedLimit);
       }
       if (useSummaryPlan) {
-        const notes = await this.storage.getNotesByIds(candidateIds);
+        const notes = loadedNotes
+          ? candidateIds.map((id) => loadedNotes!.get(id)).filter((n): n is Note => n !== undefined)
+          : await this.storage.getNotesByIds(candidateIds);
         entries = notes.map(entryFromNoteSummary);
       } else {
         const bundles = await this.storage.getDetailBatches(candidateIds);

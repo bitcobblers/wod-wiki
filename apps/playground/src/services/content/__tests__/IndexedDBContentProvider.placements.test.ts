@@ -54,7 +54,7 @@ describe('placing a note on several pages', () => {
     await provider.addRecordPlacement(saved.id, { date: '2026-10-15' });
     await provider.addRecordPlacement(saved.id, { date: '2026-10-16' });
 
-    const first = await provider.getRecords();
+    const first = await provider.getRecords({ projection: 'history-detail' });
     expect(first.filter((entry) => entry.placements?.some((placement) => placement.date === '2026-10-15'))).toHaveLength(1);
     expect(first.filter((entry) => entry.placements?.some((placement) => placement.date === '2026-10-16'))).toHaveLength(1);
     expect(await service.getAllPageNotes()).toHaveLength(2);
