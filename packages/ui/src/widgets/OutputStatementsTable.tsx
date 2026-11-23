@@ -16,6 +16,16 @@ export function formatMMSS(ms: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+export function formatOffsetMMSS(deltaMs: number): string {
+  if (!Number.isFinite(deltaMs)) return '+00:00';
+  if (deltaMs < 0) {
+    const absSec = Math.floor(-deltaMs / 1000);
+    if (absSec === 0) return '+00:00';
+    return `-${formatMMSS(-deltaMs)}`;
+  }
+  return `+${formatMMSS(deltaMs)}`;
+}
+
 export function formatClockTime(d: Date): string {
   return d.toLocaleTimeString('en-US', {
     hour12: false,
@@ -132,9 +142,185 @@ function formatOutputTypeLabel(outputType: unknown): string {
   return OUTPUT_TYPE_LABEL[raw] ?? raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-function formatOutputRowTitle(outputType: unknown, elapsedStr: string): string {
-  const label = formatOutputTypeLabel(outputType);
+const ACRONYMS: Record<string, string> = {
+  c2b: 'C2B',
+  t2b: 'T2B',
+  ghd: 'GHD',
+  hspu: 'HSPU',
+  amrap: 'AMRAP',
+  emom: 'EMOM',
+  rft: 'RFT',
+};
+
+function humanizeSlug(slug: string): string {
+  return slug
+    .trim()
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((word) => {
+      const lower = word.toLowerCase();
+      return ACRONYMS[lower] ?? word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
+const GENERIC_LABELS = new Set(['segment', 'statement', 'completed', 'system']);
+
+/** Resolve a human-readable movement/block/event name for an output row (WW-092). */
+export function resolveOutputRowLabel(out: OutputStatementRow): string {
+  const explicitLabel = out.label?.trim();
+  if (explicitLabel && !GENERIC_LABELS.has(explicitLabel.toLowerCase())) {
+    return explicitLabel;
+  }
+
+  const all = out.metrics ? Array.from(out.metrics) : [];
+  for (const m of all) {
+    const t = String(m.type ?? '').toLowerCase();
+    if (t === 'effort' || t === 'action' || t === 'label' || t === 'text') {
+      const rawText =
+        (typeof m.image === 'string' && m.image.trim()) ||
+        (typeof m.value === 'string' && m.value.trim()) ||
+        '';
+      if (!rawText) continue;
+      const lower = rawText.toLowerCase();
+      if (lower === 'ready to start') return 'Start';
+      if (lower === 'session' || lower === 'session completed') return 'Session';
+      if (!GENERIC_LABELS.has(lower)) return rawText;
+    }
+  }
+
+  if (out.effortSlug && out.effortSlug.trim()) {
+    return humanizeSlug(out.effortSlug);
+  }
+
+  const rawStatement = (out.statement ?? out.text ?? '').trim();
+  if (rawStatement) {
+    const firstLine = rawStatement.split('\n')[0]?.trim() ?? '';
+    if (firstLine && !GENERIC_LABELS.has(firstLine.toLowerCase())) {
+      return firstLine;
+    }
+  }
+
+  for (const m of all) {
+    const t = String(m.type ?? '').toLowerCase();
+    if (t === 'current-round' || t === 'rounds') {
+      const img = typeof m.image === 'string' ? m.image.trim() : '';
+      if (/^completed\b/i.test(img)) return img;
+      const n = typeof m.value === 'number' ? m.value : Number(m.value);
+      if (Number.isFinite(n) && n > 0) {
+        return t === 'current-round' ? `Round ${n}` : `${n} ${n === 1 ? 'Round' : 'Rounds'}`;
+      }
+    }
+  }
+
+  const blockKey = String(out.sourceBlockKey ?? '').trim().toLowerCase();
+  if (blockKey.startsWith('waiting-to-start')) return 'Start';
+  if (blockKey.startsWith('session-root') || blockKey === 'root') return 'Session';
+  if (blockKey.startsWith('rest')) return 'Rest';
+  const roundMatch = /^round[-_:\s]*(\d+)/i.exec(blockKey);
+  if (roundMatch) return `Round ${roundMatch[1]}`;
+  if (blockKey.startsWith('rounds')) return 'Rounds';
+
+  if (String(out.outputType ?? '').toLowerCase() === 'analytics' && all.length > 0) {
+    const first = all[0]!;
+    const meta = first.metadata as Record<string, unknown> | undefined;
+    const summaryName =
+      (typeof meta?.originalKey === 'string' && meta.originalKey) ||
+      (typeof meta?.canonicalKey === 'string' && meta.canonicalKey) ||
+      String(first.type ?? '');
+    if (summaryName) return computeColumnLabel(summaryName);
+  }
+
+  return formatOutputTypeLabel(out.outputType);
+}
+
+/** Resolve the Type column badge text so structural/lifecycle rows are not homogenized as 'Segment'. */
+export function resolveOutputTypeBadgeLabel(out: OutputStatementRow): string {
+  const rawType = String(out.outputType ?? 'system').trim().toLowerCase();
+  if (rawType !== 'segment') return formatOutputTypeLabel(out.outputType);
+
+  const blockKey = String(out.sourceBlockKey ?? '').trim().toLowerCase();
+  if (blockKey.startsWith('waiting-to-start')) return 'Start';
+  if (blockKey.startsWith('session-root') || blockKey === 'root') return 'Session';
+  if (blockKey.startsWith('rest')) return 'Rest';
+
+  const all = out.metrics ? Array.from(out.metrics) : [];
+  const hasEffort =
+    Boolean(out.effortSlug) ||
+    all.some((m) => String(m.type ?? '').toLowerCase() === 'effort');
+  if (!hasEffort) {
+    const hasRoundMetric = all.some((m) => {
+      const t = String(m.type ?? '').toLowerCase();
+      return t === 'rounds' || t === 'current-round';
+    });
+    if (hasRoundMetric || blockKey.startsWith('round')) return 'Rounds';
+  }
+  return 'Segment';
+}
+
+function formatOutputRowTitle(out: OutputStatementRow, elapsedStr: string): string {
+  const label = resolveOutputRowLabel(out);
   return elapsedStr ? `${label} (${elapsedStr})` : label;
+}
+
+/** Resolve a consistent time origin across outputs; ignore completion timestamps that post-date all rows (WW-092). */
+export function resolveTimeOrigin(
+  outputs: readonly OutputStatementRow[],
+  timeOrigin?: number,
+): number | undefined {
+  let minStarted: number | undefined;
+  let maxStarted: number | undefined;
+  for (const o of outputs) {
+    const s = o.timeSpan?.started;
+    if (typeof s !== 'number' || !Number.isFinite(s)) continue;
+    minStarted = minStarted === undefined ? s : Math.min(minStarted, s);
+    maxStarted = maxStarted === undefined ? s : Math.max(maxStarted, s);
+  }
+  if (typeof timeOrigin === 'number' && Number.isFinite(timeOrigin)) {
+    if (minStarted !== undefined && timeOrigin > minStarted && (maxStarted === undefined || timeOrigin >= maxStarted)) {
+      return minStarted;
+    }
+    return timeOrigin;
+  }
+  return minStarted;
+}
+
+function metricDurationToMs(m: IMetric): number | undefined {
+  const rawVal = typeof m.value === 'number' ? m.value : Number(m.value);
+  if (!Number.isFinite(rawVal) || rawVal <= 0) return undefined;
+  const unit =
+    'unit' in m && typeof (m as { unit?: unknown }).unit === 'string'
+      ? (m as { unit: string }).unit.trim().toLowerCase()
+      : '';
+  if (unit === 's' || unit === 'sec' || unit === 'secs' || unit === 'second' || unit === 'seconds') {
+    return rawVal * 1000;
+  }
+  if (unit === 'min' || unit === 'mins' || unit === 'minute' || unit === 'minutes') {
+    return rawVal * 60_000;
+  }
+  return rawVal;
+}
+
+/** Resolve row duration in ms, falling back to an explicit positive elapsed/duration metric when timeSpan is zero-width. */
+export function resolveRowDurationMs(out: OutputStatementRow): number | undefined {
+  const started = out.timeSpan?.started;
+  const ended = out.timeSpan?.ended;
+  if (started !== undefined && ended !== undefined && ended > started) {
+    return ended - started;
+  }
+  if (out.metrics) {
+    for (const m of out.metrics) {
+      const t = String(m.type ?? '').toLowerCase();
+      if (t === 'elapsed' || t === 'duration') {
+        const ms = metricDurationToMs(m);
+        if (ms !== undefined && ms > 0) return ms;
+      }
+    }
+  }
+  if (started !== undefined && ended !== undefined) {
+    return Math.max(0, ended - started);
+  }
+  return undefined;
 }
 
 // ── Metric categorisation (base column vocabulary + dynamic custom discovery) ─
@@ -266,6 +452,10 @@ export interface OutputStatementRow {
   readonly id?: number | string;
   readonly grain?: string;
   readonly outputType?: string;
+  readonly effortSlug?: string;
+  readonly label?: string;
+  readonly statement?: string;
+  readonly text?: string;
   readonly timeSpan?: { started: number; ended?: number };
   readonly metrics?: Iterable<IMetric>;
   readonly sourceBlockKey?: string;
@@ -475,16 +665,11 @@ function extractMetricsForColumn(
     case 'effort': {
       const explicitEfforts = all.filter((m) => EFFORT_TYPES.has(String(m.type).toLowerCase()));
       if (explicitEfforts.length > 0) return explicitEfforts;
-      if (String(out.outputType ?? '').toLowerCase() === 'analytics' && all.length > 0) {
-        const first = all[0]!;
-        const meta = first.metadata as Record<string, unknown> | undefined;
-        const summaryName =
-          (typeof meta?.originalKey === 'string' && meta.originalKey) ||
-          (typeof meta?.canonicalKey === 'string' && meta.canonicalKey) ||
-          String(first.type ?? '');
-        if (summaryName) {
-          return [{ type: 'label' as IMetric['type'], value: summaryName, image: summaryName, origin: first.origin }];
-        }
+      const resolved = resolveOutputRowLabel(out);
+      const genericType = formatOutputTypeLabel(out.outputType);
+      if (resolved && resolved !== genericType) {
+        const origin = all[0]?.origin ?? 'runtime';
+        return [{ type: 'label' as IMetric['type'], value: resolved, image: resolved, origin }];
       }
       return [];
     }
@@ -696,13 +881,20 @@ function StatementCards({
     <ol className="flex flex-col" data-testid="output-statements-cards">
       {rows.map((out, idx) => {
         const cats = extractMetricsByCategory(out.metrics);
+        if (cats.efforts.length === 0) {
+          const resolved = resolveOutputRowLabel(out);
+          const genericType = formatOutputTypeLabel(out.outputType);
+          if (resolved && resolved !== genericType) {
+            cats.efforts.push({ type: 'label' as IMetric['type'], value: resolved, image: resolved, origin: 'runtime' });
+          }
+        }
         const started = out.timeSpan?.started;
-        const ended = out.timeSpan?.ended;
-        const elapsedStr = ended !== undefined && started !== undefined ? formatMMSS(ended - started) : 'running';
-        const offsetStr = started !== undefined && t0 !== undefined ? `+${formatMMSS(started - t0)}` : '+00:00';
+        const durationMs = resolveRowDurationMs(out);
+        const elapsedStr = durationMs !== undefined ? formatMMSS(durationMs) : 'running';
+        const offsetStr = started !== undefined && t0 !== undefined ? formatOffsetMMSS(started - t0) : '+00:00';
         const typeKey = String(out.outputType);
-        const typeLabel = formatOutputTypeLabel(out.outputType);
-        const rowTitle = formatOutputRowTitle(out.outputType, elapsedStr);
+        const typeLabel = resolveOutputTypeBadgeLabel(out);
+        const rowTitle = formatOutputRowTitle(out, elapsedStr);
         const pr = lookupPrHighlight(out, prHighlights);
         const bodyMetrics = [...cats.reps, ...cats.loads, ...cats.rounds, ...cats.durations, ...cats.distances];
         const hasBody = bodyMetrics.length > 0;
@@ -830,7 +1022,7 @@ export function OutputStatementsTable({
   onEditMetric,
   prHighlights,
 }: OutputStatementsTableProps) {
-  const t0 = timeOrigin ?? (outputs.length > 0 ? outputs[0].timeSpan?.started : undefined);
+  const t0 = useMemo(() => resolveTimeOrigin(outputs, timeOrigin), [outputs, timeOrigin]);
   const [internalSort, setInternalSort] = useState<SessionTableSortSpec[]>(
     controlledSort ? [...controlledSort] : [],
   );
@@ -1048,12 +1240,15 @@ export function OutputStatementsTable({
               rows.map((out, idx) => {
                 const started = out.timeSpan?.started;
                 const ended = out.timeSpan?.ended;
-                const elapsedStr =
-                  ended !== undefined && started !== undefined ? formatMMSS(ended - started) : 'running';
-                const wallTimeStr = formatClockTime(new Date(ended ?? started ?? 0));
-                const offsetStr = started !== undefined && t0 !== undefined ? `+${formatMMSS(started - t0)}` : '+00:00';
-                const typeLabel = formatOutputTypeLabel(out.outputType);
-                const rowTitle = formatOutputRowTitle(out.outputType, elapsedStr);
+                const durationMs = resolveRowDurationMs(out);
+                const elapsedStr = durationMs !== undefined ? formatMMSS(durationMs) : 'running';
+                const wallTimeStr =
+                  ended !== undefined || started !== undefined
+                    ? formatClockTime(new Date(ended ?? started ?? 0))
+                    : '—';
+                const offsetStr = started !== undefined && t0 !== undefined ? formatOffsetMMSS(started - t0) : '+00:00';
+                const typeLabel = resolveOutputTypeBadgeLabel(out);
+                const rowTitle = formatOutputRowTitle(out, elapsedStr);
                 const rowKey = String(out.id ?? `${out.sourceBlockKey ?? 'row'}-${idx}`);
                 const pr = lookupPrHighlight(out, prHighlights);
                 const canInlineEditRow =

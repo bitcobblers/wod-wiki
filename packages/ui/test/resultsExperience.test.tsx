@@ -398,4 +398,175 @@ describe('Results Experience Phase 2 UI components', () => {
     // reps/min must not be rendered as a distance pace (1:53 /km)
     expect(container.textContent).not.toContain('1:53 /km');
   });
+
+  it('WW-051: SessionSummaryCard split count agrees with ResultsSpreadsheetGrid Splits tab header (4 splits === Splits (4))', () => {
+    const t0 = 1_735_689_600_000;
+    const run = makeSampleRun({
+      resultId: 'res-ww051-parity',
+      timestamp: t0 + 30_000,
+      durationMs: 18_000,
+      summary: undefined,
+      events: [
+        {
+          id: 'ev-wait',
+          resultId: 'res-ww051-parity',
+          noteId: 'note-1',
+          timestamp: t0,
+          grain: 'event',
+          outputType: 'segment',
+          sourceBlockKey: 'waiting-to-start',
+          stackLevel: 1,
+          timeSpan: { started: t0, ended: t0 + 12_000 },
+          metrics: [{ type: 'label', value: 'Ready to Start', origin: 'runtime' }],
+        },
+        {
+          id: 'ev-1',
+          resultId: 'res-ww051-parity',
+          noteId: 'note-1',
+          timestamp: t0 + 12_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'burpees',
+          sourceBlockKey: 'stmt-1',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 12_000, ended: t0 + 16_000 },
+          metrics: [{ type: 'effort', value: 'burpees', image: 'Burpees', origin: 'parser' }, { type: 'rep', value: 5, origin: 'parser' }],
+        },
+        {
+          id: 'ev-2',
+          resultId: 'res-ww051-parity',
+          noteId: 'note-1',
+          timestamp: t0 + 16_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'squats',
+          sourceBlockKey: 'stmt-2',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 16_000, ended: t0 + 21_000 },
+          metrics: [{ type: 'effort', value: 'squats', image: 'Squats', origin: 'parser' }, { type: 'rep', value: 10, origin: 'parser' }],
+        },
+        {
+          id: 'ev-3',
+          resultId: 'res-ww051-parity',
+          noteId: 'note-1',
+          timestamp: t0 + 21_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'burpees',
+          sourceBlockKey: 'stmt-1',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 21_000, ended: t0 + 25_000 },
+          metrics: [{ type: 'effort', value: 'burpees', image: 'Burpees', origin: 'parser' }, { type: 'rep', value: 5, origin: 'parser' }],
+        },
+        {
+          id: 'ev-4',
+          resultId: 'res-ww051-parity',
+          noteId: 'note-1',
+          timestamp: t0 + 25_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'squats',
+          sourceBlockKey: 'stmt-2',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 25_000, ended: t0 + 30_000 },
+          metrics: [{ type: 'effort', value: 'squats', image: 'Squats', origin: 'parser' }, { type: 'rep', value: 10, origin: 'parser' }],
+        },
+        {
+          id: 'ev-rounds',
+          resultId: 'res-ww051-parity',
+          noteId: 'note-1',
+          timestamp: t0 + 12_000,
+          grain: 'event',
+          outputType: 'segment',
+          sourceBlockKey: 'rounds-container',
+          stackLevel: 1,
+          timeSpan: { started: t0 + 12_000, ended: t0 + 30_000 },
+          metrics: [{ type: 'rounds', value: 2, origin: 'runtime' }],
+        },
+        {
+          id: 'ev-root',
+          resultId: 'res-ww051-parity',
+          noteId: 'note-1',
+          timestamp: t0 + 12_000,
+          grain: 'event',
+          outputType: 'segment',
+          sourceBlockKey: 'session-root',
+          stackLevel: 0,
+          timeSpan: { started: t0 + 12_000, ended: t0 + 30_000 },
+          metrics: [],
+        },
+      ],
+    });
+
+    const { container } = render(
+      <>
+        <SessionSummaryCard run={run} />
+        <ResultsSpreadsheetGrid run={run} />
+      </>,
+    );
+
+    expect(container.textContent).toContain('4 splits');
+    expect(container.textContent).not.toContain('7 splits');
+    expect(container.textContent).toContain('Splits (4)');
+  });
+
+  it('WW-092: OutputStatementsTable renders meaningful row labels and consistent offset/elapsed pairs', () => {
+    const t0 = 1_735_689_600_000;
+    const { container } = render(
+      <OutputStatementsTable
+        // Intentionally pass a completion timestamp (post-dating all rows) to verify defensive origin resolution
+        timeOrigin={t0 + 30_000}
+        outputs={[
+          {
+            id: 'r0',
+            outputType: 'segment',
+            sourceBlockKey: 'waiting-to-start',
+            timeSpan: { started: t0, ended: t0 + 13_000 },
+            metrics: [],
+          },
+          {
+            id: 'r1',
+            outputType: 'segment',
+            effortSlug: 'kettlebell-swing',
+            sourceBlockKey: 'stmt-1',
+            timeSpan: { started: t0 + 13_000, ended: t0 + 13_000 },
+            // Zero-width span with explicit elapsed metric (4000ms) should render (00:04), not (00:00)
+            metrics: [{ type: 'elapsed', value: 4_000, origin: 'runtime' }],
+          },
+          {
+            id: 'r2',
+            outputType: 'segment',
+            sourceBlockKey: 'rounds-1',
+            timeSpan: { started: t0 + 13_000, ended: t0 + 30_000 },
+            metrics: [{ type: 'rounds', value: 2, origin: 'runtime' }],
+          },
+          {
+            id: 'r3',
+            outputType: 'segment',
+            sourceBlockKey: 'session-root',
+            timeSpan: { started: t0 + 13_000, ended: t0 + 30_000 },
+            metrics: [],
+          },
+        ]}
+      />,
+    );
+
+    const rows = Array.from(container.querySelectorAll('tbody tr'));
+    expect(rows).toHaveLength(4);
+
+    // Meaningful labels instead of homogenized 'Segment'
+    expect(rows[0]!.textContent).toContain('Start');
+    expect(rows[1]!.textContent).toContain('Kettlebell Swing');
+    expect(rows[2]!.textContent).toContain('2 Rounds');
+    expect(rows[3]!.textContent).toContain('Session');
+
+    // Consistent offsets (not clamped to +00:00 by completion timestamp) and duration fallback (00:04)
+    expect(rows[0]!.textContent).toContain('+00:00');
+    expect(rows[0]!.textContent).toContain('(00:13)');
+    expect(rows[1]!.textContent).toContain('+00:13');
+    expect(rows[1]!.textContent).toContain('(00:04)');
+    expect(rows[1]!.textContent).not.toContain('(00:00)');
+    expect(rows[2]!.textContent).toContain('+00:13');
+    expect(rows[2]!.textContent).toContain('(00:17)');
+  });
 });

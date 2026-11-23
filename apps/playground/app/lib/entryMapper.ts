@@ -10,7 +10,7 @@
  */
 import type { BlockIndexRow, Note } from '@/types/storage'
 import type { IEffort, RowsRun, RowsQueryResult } from '@bitcobblers/wod-wiki-wql'
-import { isNoteEditable, notebookOfItem, notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
+import { isNoteEditable, notebookOfItem, notebookOriginOfItem, selectSplitSegmentEvents } from '@bitcobblers/wod-wiki-wql'
 import {
   formatDurationMMSS,
   getNotebookCapabilities,
@@ -753,14 +753,6 @@ function classifyMetric(m: MetricLike) {
   return null
 }
 
-function isStructuralSegmentEvent(event: EventRecord): boolean {
-  const blockKey = (event.sourceBlockKey ?? '').toLowerCase()
-  if (blockKey.startsWith('waiting-to-start') || blockKey.startsWith('session-root')) {
-    return true
-  }
-  return !event.effortSlug && event.stackLevel === 0
-}
-
 function isGroupedAnalyticsEvent(event: EventRecord, metric: MetricLike): boolean {
   if (event.effortSlug) return true
   const scope = event.summaryCoverage?.scope
@@ -788,9 +780,10 @@ function extractRunMetrics(run: RowsRun) {
   let maxTis = 0
   let segmentCount = 0
   const effortSlugs = new Set<string>()
+  const splitSegmentSet = new Set(selectSplitSegmentEvents(run.events))
 
   for (const event of run.events) {
-    const isNonStructuralSegment = event.outputType === 'segment' && !isStructuralSegmentEvent(event)
+    const isNonStructuralSegment = splitSegmentSet.has(event)
     if (isNonStructuralSegment) {
       segmentCount++
       if (event.timeSpan?.started != null) {

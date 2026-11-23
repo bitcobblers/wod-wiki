@@ -950,6 +950,39 @@ function extractSessionRpeValue(events: readonly EventRecord[]): number | undefi
   return undefined;
 }
 
+export function isStructuralSegmentEvent(event: Pick<EventRecord, 'sourceBlockKey'>): boolean {
+  const key = String(event.sourceBlockKey ?? '').toLowerCase();
+  return key.startsWith('waiting-to-start') || key.startsWith('session-root') || key === 'root';
+}
+
+/**
+ * Select the canonical non-structural split segment events for a session run.
+ * Shared by `computeRowsRunSummary`, `ResultsSpreadsheetGrid`, and `entryMapper`
+ * so Workout Complete banners, Splits tab headers, `/results/:sessionId`, and
+ * `/sessions` cards always agree on the exact same split count (WW-051).
+ */
+export function selectSplitSegmentEvents(events: readonly EventRecord[]): EventRecord[] {
+  const rawSegments = events.filter(
+    (e) => e.grain !== 'summary' && e.outputType === 'segment' && !isStructuralSegmentEvent(e),
+  );
+  const maxStackLevel = rawSegments.reduce((max, e) => Math.max(max, e.stackLevel ?? 0), 0);
+  const hasEffortLeaves = rawSegments.some((e) => {
+    if (e.effortSlug) return true;
+    const metrics = visibleRowMetrics(e.metrics);
+    return metrics.some((m) => String(m.type ?? '').toLowerCase() === 'effort');
+  });
+  if (!hasEffortLeaves) return rawSegments;
+  return rawSegments.filter((e) => {
+    if ((e.stackLevel ?? 0) >= maxStackLevel) return true;
+    if (e.effortSlug) return true;
+    const metrics = visibleRowMetrics(e.metrics);
+    return metrics.some((m) => {
+      const t = String(m.type ?? '').toLowerCase();
+      return t === 'effort' || t === 'rep' || t === 'reps' || t === 'distance';
+    });
+  });
+}
+
 /**
  * Compute the single canonical `RowsRunSummary` shared by inline note summary
  * cards, FullscreenTimer completion hero, `/sessions`, `/results/:sessionId`,
@@ -965,7 +998,9 @@ export function computeRowsRunSummary(
   } = {},
 ): RowsRunSummary {
   const events = run.events ?? [];
-  const segmentRows = events.filter((e) => e.grain === 'event' && e.outputType === 'segment');
+  const allSegmentRows = events.filter((e) => e.grain !== 'summary' && e.outputType === 'segment');
+  const segmentRows = selectSplitSegmentEvents(allSegmentRows);
+  const splitRowSet = new Set(segmentRows);
   const summaryRows = events.filter((e) => e.grain === 'summary' || e.outputType === 'analytics');
   const hasUserOverride = events.some((e) => (e.metrics ?? []).some((m) => m.origin === 'user'));
 
@@ -979,6 +1014,22 @@ export function computeRowsRunSummary(
   let segDistanceUnit: string | undefined;
   let roundsCompleted = 0;
   let blockContentId = events.find((e) => e.blockContentId)?.blockContentId;
+
+  // Preserve roundsCompleted reported on enclosing container segments (e.g. rounds blocks)
+  // without inflating splitCount or double-counting leaf work metrics.
+  for (const row of allSegmentRows) {
+    if (splitRowSet.has(row)) continue;
+    const key = String(row.sourceBlockKey ?? '').toLowerCase();
+    if (key.startsWith('waiting-to-start')) continue;
+    for (const m of visibleRowMetrics(row.metrics)) {
+      if (typeof m.value !== 'number' || !Number.isFinite(m.value)) continue;
+      const mType = m.type ?? '';
+      const canon = typeof m.metadata?.canonicalKey === 'string' ? m.metadata.canonicalKey : mType;
+      if (canon === 'rounds' || mType === 'rounds' || mType === 'current-round' || canon === 'currentRound') {
+        roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
+      }
+    }
+  }
 
   const rollupMap = new Map<string, MovementRollupItem>();
 

@@ -17,6 +17,7 @@ import { createMetricOwnershipLedger, metricToMs, type EventRecord, type IMetric
 import { computeColumnLabel } from '@bitcobblers/wod-wiki-lang';
 import {
   computeRowsRunSummary,
+  selectSplitSegmentEvents,
   type RowsRun,
 } from '@bitcobblers/wod-wiki-wql';
 import { EditorDialog } from '../dialog/EditorDialog';
@@ -233,29 +234,7 @@ export function buildSpreadsheetRows(
   prHighlights?: ReadonlyMap<string | number, RowPrHighlight> | Record<string, RowPrHighlight>,
 ): SpreadsheetSplitRow[] {
   const prMap = normalizePrLookup(prHighlights);
-  const rawSegments = (run.events ?? []).filter((e) => {
-    if (e.outputType !== 'segment') return false;
-    const key = String(e.sourceBlockKey ?? '').toLowerCase();
-    return !key.startsWith('waiting-to-start') && key !== 'session-root' && key !== 'root';
-  });
-  const maxStackLevel = rawSegments.reduce((max, e) => Math.max(max, e.stackLevel ?? 0), 0);
-  const hasEffortLeaves = rawSegments.some((e) => {
-    const metrics = extractVisibleMetrics(e);
-    return Boolean(e.effortSlug) || metrics.some((m) => String(m.type ?? '').toLowerCase() === 'effort');
-  });
-  const segmentEvents = hasEffortLeaves
-    ? rawSegments.filter((e) => {
-        if ((e.stackLevel ?? 0) >= maxStackLevel) return true;
-        const metrics = extractVisibleMetrics(e);
-        const hasMovement =
-          Boolean(e.effortSlug) ||
-          metrics.some((m) => {
-            const t = String(m.type ?? '').toLowerCase();
-            return t === 'effort' || t === 'rep' || t === 'reps' || t === 'distance';
-          });
-        return hasMovement;
-      })
-    : rawSegments;
+  const segmentEvents = selectSplitSegmentEvents(run.events ?? []);
   const sessionStart = segmentEvents.reduce<number>(
     (min, e) => (e.timeSpan?.started !== undefined ? Math.min(min, e.timeSpan.started) : min),
     run.timestamp,
@@ -1685,23 +1664,38 @@ export function ResultsSpreadsheetGrid({
       )}
 
       {/* Tab 4: Raw Events OutputStatementsTable */}
-      {activeTab === 'raw' && (
-        <div data-testid="results-tab-panel-raw" className="space-y-2.5">
-          <OutputFilterPills
-            presets={DEFAULT_OUTPUT_FILTERS.map(normalizeOutputFilter)}
-            filter={rawFilter}
-            onChange={setRawFilter}
-          />
-          <OutputStatementsTable
-            outputs={run.events as unknown as OutputStatementRow[]}
-            filter={rawFilter}
-            timeOrigin={run.timestamp}
-            onClearFilter={() => setRawFilter('')}
-            onEditMetric={onEditMetric ? (p) => onEditMetric(run.resultId, p) : undefined}
-            prHighlights={prHighlights}
-          />
-        </div>
-      )}
+      {activeTab === 'raw' && (() => {
+        const events = run.events ?? [];
+        let activeMinStart: number | undefined;
+        let anyMinStart: number | undefined;
+        for (const e of events) {
+          const s = e.timeSpan?.started;
+          if (typeof s !== 'number' || !Number.isFinite(s)) continue;
+          anyMinStart = anyMinStart === undefined ? s : Math.min(anyMinStart, s);
+          const key = String(e.sourceBlockKey ?? '').toLowerCase();
+          if (e.outputType === 'segment' && !key.startsWith('waiting-to-start')) {
+            activeMinStart = activeMinStart === undefined ? s : Math.min(activeMinStart, s);
+          }
+        }
+        const rawTimeOrigin = activeMinStart ?? anyMinStart ?? run.timestamp;
+        return (
+          <div data-testid="results-tab-panel-raw" className="space-y-2.5">
+            <OutputFilterPills
+              presets={DEFAULT_OUTPUT_FILTERS.map(normalizeOutputFilter)}
+              filter={rawFilter}
+              onChange={setRawFilter}
+            />
+            <OutputStatementsTable
+              outputs={events as unknown as OutputStatementRow[]}
+              filter={rawFilter}
+              timeOrigin={rawTimeOrigin}
+              onClearFilter={() => setRawFilter('')}
+              onEditMetric={onEditMetric ? (p) => onEditMetric(run.resultId, p) : undefined}
+              prHighlights={prHighlights}
+            />
+          </div>
+        );
+      })()}
 
       {/* Bottom Sheet / Dialog Editor */}
       <EditorDialog
