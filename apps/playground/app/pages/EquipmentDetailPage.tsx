@@ -61,7 +61,7 @@ export function EquipmentDetailPage() {
   const actualTheme = theme === 'dark' ? 'dark' : 'vs';
   const { isReady, refresh } = useEquipmentRegistry();
 
-  const isCreateMode = searchParams.get('mode') === 'create';
+  const isCreateMode = searchParams.get('mode') === 'create' || slug === 'new';
   const {
     document,
     setDocument,
