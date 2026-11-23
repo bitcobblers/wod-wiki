@@ -877,3 +877,119 @@ describe('the notebook plane (ticket 08)', () => {
     expect(summary.elapsedMs).toBe(18_000);
   });
 });
+
+describe('WW-036: :note{} N+1-free execution and queryDomain fast path', () => {
+  it('issues zero getNoteTagLabels calls and uses queryDomain({ plan: "notes" }) without getAllNotes on unfiltered :note{}', async () => {
+    const notes = Array.from({ length: 50 }, (_, i) => ({
+      id: `note-${String(i).padStart(3, '0')}`,
+      title: `Workout ${i}`,
+      rawContent: `# Workout ${i}`,
+      sourceRevision: 1,
+      blocks: {},
+      tags: ['strength', `week-${i % 4}`],
+      createdAt: 1_700_000_000_000 + i * 1000,
+    }));
+
+    let getAllNotesCalls = 0;
+    let getNoteTagLabelsCalls = 0;
+    let queryDomainCalls = 0;
+
+    const service = new QueryService({
+      noteStore: {
+        getAllNotes: async () => {
+          getAllNotesCalls += 1;
+          return notes;
+        },
+        getNoteIdsForTag: async () => new Set<string>(),
+        getNoteTagLabels: async () => {
+          getNoteTagLabelsCalls += 1;
+          return [];
+        },
+        queryDomain: async (req) => {
+          queryDomainCalls += 1;
+          expect(req.plan).toBe('notes');
+          return {
+            plan: 'notes',
+            projectionVersion: 1,
+            selectedCount: notes.length,
+            matchedCount: notes.length,
+            rows: notes,
+          };
+        },
+      },
+    });
+
+    const result = await service.runFind(parseQuery(':note{}') as never);
+    expect(result.notes).toHaveLength(50);
+    expect(result.stages).toEqual({ selected: 50, matched: 50 });
+    expect(queryDomainCalls).toBe(1);
+    expect(getAllNotesCalls).toBe(0);
+    expect(getNoteTagLabelsCalls).toBe(0);
+  });
+
+  it('uses bulk pageStore.getAllLinks/getAllPages instead of N+1 getNotePages/getPage for multi-note :note{}', async () => {
+    const notes = Array.from({ length: 20 }, (_, i) => ({
+      id: `n-${i}`,
+      title: `Note ${i}`,
+      rawContent: '',
+      sourceRevision: 1,
+      blocks: {},
+      tags: ['daily'],
+      createdAt: 1_700_000_000_000 + i * 1000,
+    }));
+
+    let getNotePagesCalls = 0;
+    let getPageCalls = 0;
+    let getAllLinksCalls = 0;
+    let getAllPagesCalls = 0;
+    let getNoteTagLabelsCalls = 0;
+
+    const service = new QueryService({
+      noteStore: {
+        getAllNotes: async () => notes,
+        getNoteIdsForTag: async () => new Set<string>(),
+        getNoteTagLabels: async () => {
+          getNoteTagLabelsCalls += 1;
+          return [];
+        },
+      },
+      pageStore: {
+        getNotePages: async () => {
+          getNotePagesCalls += 1;
+          return [];
+        },
+        getPage: async () => {
+          getPageCalls += 1;
+          return undefined;
+        },
+        getAllLinks: async () => {
+          getAllLinksCalls += 1;
+          return [
+            { id: 'l-1', pageId: 'p-1', noteId: 'n-0', position: 0, createdAt: 1 },
+            { id: 'l-2', pageId: 'p-2', noteId: 'n-5', position: 0, createdAt: 2 },
+          ];
+        },
+        getAllPages: async () => {
+          getAllPagesCalls += 1;
+          return [
+            { id: 'p-1', slug: 'morning-plan', createdAt: 1 },
+            { id: 'p-2', date: '2026-11-23', createdAt: 2 },
+          ];
+        },
+      },
+    });
+
+    const result = await service.runFind(parseQuery(':note{}') as never);
+    expect(result.notes).toHaveLength(20);
+    expect(getAllLinksCalls).toBe(1);
+    expect(getAllPagesCalls).toBe(1);
+    expect(getNotePagesCalls).toBe(0);
+    expect(getPageCalls).toBe(0);
+    expect(getNoteTagLabelsCalls).toBe(0);
+    expect(result.containers?.['n-0']).toEqual({ kind: 'page', id: 'p-1', slug: 'morning-plan' });
+    expect(result.containers?.['n-5']).toEqual({ kind: 'page', id: 'p-2', date: '2026-11-23' });
+    expect(result.containers?.['n-1']).toEqual({ kind: 'note', id: 'n-1' });
+    expect(result.placements?.['n-0']).toHaveLength(1);
+    expect(result.placements?.['n-1']).toEqual([]);
+  });
+});

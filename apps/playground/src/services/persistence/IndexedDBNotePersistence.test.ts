@@ -146,12 +146,12 @@ describe('Note persistence projections', () => {
     expect(getAllNotesCalls).toBe(0);
     expect(hydratedBatches).toEqual([['journal-target']]);
 
-    // 3. Kind-filtered dashboard lookup: uses by-type index and hydrates ONLY the 1 dashboard note.
+    // 3. Kind-filtered dashboard lookup: uses by-type index with summary-first default (zero detail hydration).
     hydratedBatches.length = 0;
     const dashboards = await persistence.listNotes({ kind: 'dashboard' });
     expect(dashboards.map((e) => e.id)).toEqual(['dash-custom']);
     expect(getAllNotesCalls).toBe(0);
-    expect(hydratedBatches).toEqual([['dash-custom']]);
+    expect(hydratedBatches).toEqual([]);
   });
 
   it('window getRecords keeps undated notes dated by their journal page placement (WW-024 Bug C)', async () => {
@@ -210,7 +210,11 @@ describe('Note persistence projections', () => {
 
     const localPage = await persistence.listNotes({ offset: 1, limit: 1 });
     expect(localPage.map((n) => n.id)).toEqual(['n2']);
-    expect(hydratedBatches).toEqual([['n3', 'n2']]);
+    expect(hydratedBatches).toEqual([]);
+
+    const detailPage = await persistence.listNotes({ projection: 'history-detail', offset: 1, limit: 1 });
+    expect(detailPage.map((n) => n.id)).toEqual(['n2']);
+    expect(hydratedBatches).toEqual([['n3', 'n2'], ['n2']]);
 
     const seenQueries: unknown[] = [];
     service.queryDomain = async (q) => {
@@ -225,9 +229,102 @@ describe('Note persistence projections', () => {
       };
     };
 
+    const defaultPage = await persistence.listNotes({ offset: 1, limit: 1 });
+    expect(defaultPage.map((n) => n.id)).toEqual(['n2']);
+    expect(seenQueries[0]).toMatchObject({ plan: 'notes', offset: 0, limit: 2 });
+
     const summaryPage = await persistence.listNotes({ projection: 'summary', offset: 1, limit: 1 });
     expect(summaryPage.map((n) => n.id)).toEqual(['n2']);
-    expect(seenQueries[0]).toMatchObject({ plan: 'notes', offset: 0, limit: 2 });
+    expect(seenQueries[1]).toMatchObject({ plan: 'notes', offset: 0, limit: 2 });
+  });
+
+  it('defaults unfiltered getRecords() and listNotes() to summary plan without calling getDetailBatches while preserving history-detail and getNote() hydration (WW-036 Phase 1a)', async () => {
+    const memory = new InMemoryStorage();
+    const service = new StorageService(memory);
+    const persistence = new IndexedDBNotePersistence(service);
+
+    const n1 = await persistence.createNote({
+      id: 'sum-1',
+      title: 'Summary Note 1',
+      rawContent: SOURCE,
+      tags: ['metcon'],
+      targetDate: 1_000,
+    });
+    await persistence.createNote({
+      id: 'sum-2',
+      title: 'Summary Note 2',
+      rawContent: SOURCE,
+      tags: ['strength'],
+      targetDate: 2_000,
+    });
+    await persistence.createNote({
+      id: 'sum-3',
+      title: 'Summary Note 3',
+      rawContent: SOURCE,
+      tags: ['metcon'],
+      targetDate: 3_000,
+    });
+
+    const blockId = Object.keys(n1.blocks!)[0]!;
+    await persistence.startSession(
+      { noteId: 'sum-1', rawContent: SOURCE, blocks: n1.blocks!, expectedSourceRevision: n1.sourceRevision! },
+      { id: 'sess-sum-1', noteId: 'sum-1', blockId, startTime: 100, endTime: 100, duration: 0, completed: false, createdAt: 100 },
+    );
+    await persistence.finishSession('sess-sum-1', { startTime: 100, endTime: 250, duration: 150, completed: true, logs: [] });
+
+    const hydratedBatches: string[][] = [];
+    const origGetDetailBatches = service.getDetailBatches.bind(service);
+    service.getDetailBatches = async (noteIds) => {
+      hydratedBatches.push([...noteIds]);
+      return origGetDetailBatches(noteIds);
+    };
+
+    let getNotesByIdsCalls = 0;
+    const origGetNotesByIds = service.getNotesByIds.bind(service);
+    service.getNotesByIds = async (ids) => {
+      getNotesByIdsCalls++;
+      return origGetNotesByIds(ids);
+    };
+
+    const seenPlans: Array<{ plan: string; limit?: number; offset?: number }> = [];
+    const origQueryDomain = service.queryDomain.bind(service);
+    service.queryDomain = async (q) => {
+      seenPlans.push({ plan: q.plan, limit: q.limit, offset: q.offset });
+      return origQueryDomain(q);
+    };
+
+    // 1. Unfiltered getRecords() uses plan: 'notes' and zero getDetailBatches / getNotesByIds calls.
+    const allRecords = await persistence.getRecords();
+    expect(allRecords.map((r) => r.id)).toEqual(['sum-3', 'sum-2', 'sum-1']);
+    expect(seenPlans.at(-1)).toEqual({ plan: 'notes', limit: undefined, offset: undefined });
+    expect(hydratedBatches).toEqual([]);
+    expect(getNotesByIdsCalls).toBe(0);
+
+    // 2. Unfiltered listNotes() uses plan: 'notes' and zero getDetailBatches calls.
+    const allListed = await persistence.listNotes();
+    expect(allListed.map((r) => r.id)).toEqual(['sum-3', 'sum-2', 'sum-1']);
+    expect(seenPlans.at(-1)).toEqual({ plan: 'notes', limit: undefined, offset: undefined });
+    expect(hydratedBatches).toEqual([]);
+
+    // 3. Bounded limit query respects limit without detail hydration.
+    const limited = await persistence.getRecords({ limit: 2 });
+    expect(limited.map((r) => r.id)).toEqual(['sum-3', 'sum-2']);
+    expect(seenPlans.at(-1)).toEqual({ plan: 'notes', limit: 2, offset: 0 });
+    expect(hydratedBatches).toEqual([]);
+
+    // 4. Explicit projection: 'history-detail' still hydrates full detail (results, extendedResults, sections).
+    const detailed = await persistence.listNotes({ projection: 'history-detail' });
+    const detailedN1 = detailed.find((r) => r.id === 'sum-1');
+    expect(seenPlans.at(-1)).toEqual({ plan: 'detail', limit: undefined, offset: undefined });
+    expect(hydratedBatches.length).toBeGreaterThan(0);
+    expect(detailedN1?.results?.duration).toBe(150);
+    expect(detailedN1?.extendedResults?.map((s) => s.id)).toEqual(['sess-sum-1']);
+    expect(detailedN1?.sections?.length).toBeGreaterThan(0);
+
+    // 5. getNote() still hydrates full detail (results, sections).
+    const single = await persistence.getNote('sum-1');
+    expect(single.results?.duration).toBe(150);
+    expect(single.sections?.length).toBeGreaterThan(0);
   });
 
   it('WW-120: finishSession upserts a missing session row from fallback after a deferred-persist reload while preserving WW-052', async () => {
