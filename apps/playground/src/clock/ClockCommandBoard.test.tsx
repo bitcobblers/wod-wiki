@@ -85,12 +85,20 @@ describe('WW-097: Completed / inactive rep controls expose disabled state and fe
 
     const minusBtn = screen.getByTestId(TEST_IDS.CLOCK_REP_MINUS) as HTMLButtonElement;
     const plusBtn = screen.getByTestId(TEST_IDS.CLOCK_REP_PLUS) as HTMLButtonElement;
+    const valuesBtn = screen.getByTestId(TEST_IDS.CLOCK_VALUES_BUTTON) as HTMLButtonElement;
+    const pill1 = screen.getByTestId(`${TEST_IDS.CLOCK_REP_SELECT}-occ-1`) as HTMLButtonElement;
+    expect(screen.getByTestId(TEST_IDS.CLOCK_REP_VALUE).textContent).toBe('Complete');
+    expect(screen.getByTestId(TEST_IDS.CLOCK_REP_VALUE).textContent).not.toContain('Target');
     expect(minusBtn.getAttribute('title')).toBe('Subtract one rep');
     expect(plusBtn.getAttribute('title')).toBe('Add one rep');
     expect(minusBtn.disabled).toBe(true);
     expect(plusBtn.disabled).toBe(true);
+    expect(valuesBtn.disabled).toBe(true);
+    expect(pill1.disabled).toBe(true);
     expect(minusBtn.getAttribute('aria-disabled')).toBe('true');
     expect(plusBtn.getAttribute('aria-disabled')).toBe('true');
+    expect(valuesBtn.getAttribute('aria-disabled')).toBe('true');
+    expect(pill1.getAttribute('aria-disabled')).toBe('true');
 
     fireEvent.click(screen.getByRole('button', { name: 'Keypad' }));
     const digit1 = screen.getByRole('button', { name: 'Digit 1' }) as HTMLButtonElement;
@@ -163,5 +171,65 @@ describe('WW-097: Completed / inactive rep controls expose disabled state and fe
     });
     expect(handled).toBe(false);
     expect(authorityRef.snapshot?.error).toBeTruthy();
+  });
+
+  it('tracks FOR TIME 21 -> 15 -> 9 rungs with working controls and clears stale target on completion', () => {
+    const dispatched: Array<{ kind: string; occurrenceId?: string; delta?: number }> = [];
+    const dispatch = (cmd: { kind: string; occurrenceId?: string; delta?: number }) => {
+      dispatched.push(cmd);
+      return true;
+    };
+
+    const { rerender } = render(
+      <ClockCommandBoard
+        snapshot={makeSnapshot({
+          reps: [{ occurrenceId: 'rung-21', label: 'Thrusters 21', actual: null, target: 21 }],
+          selectedOccurrenceId: 'rung-21',
+        })}
+        dispatch={dispatch as never}
+      />,
+    );
+
+    expect(screen.getByTestId(TEST_IDS.CLOCK_REP_VALUE).textContent).toBe('— / Target 21');
+    fireEvent.click(screen.getByTestId(TEST_IDS.CLOCK_REP_PLUS));
+    expect(dispatched).toContainEqual({ kind: 'reps-adjust', occurrenceId: 'rung-21', delta: 1 });
+
+    rerender(
+      <ClockCommandBoard
+        snapshot={makeSnapshot({
+          reps: [{ occurrenceId: 'rung-15', label: 'Thrusters 15', actual: null, target: 15 }],
+          selectedOccurrenceId: 'rung-15',
+        })}
+        dispatch={dispatch as never}
+      />,
+    );
+    expect(screen.getByTestId(TEST_IDS.CLOCK_REP_VALUE).textContent).toBe('— / Target 15');
+
+    rerender(
+      <ClockCommandBoard
+        snapshot={makeSnapshot({
+          reps: [{ occurrenceId: 'rung-9', label: 'Thrusters 9', actual: 9, target: 9 }],
+          selectedOccurrenceId: 'rung-9',
+        })}
+        dispatch={dispatch as never}
+      />,
+    );
+    expect(screen.getByTestId(TEST_IDS.CLOCK_REP_VALUE).textContent).toBe('9 / Target 9');
+
+    // Completed ladder: even if stale reps linger on snapshot, no stale Target 21/9 appears
+    rerender(
+      <ClockCommandBoard
+        snapshot={makeSnapshot({
+          status: 'completed',
+          reps: [{ occurrenceId: 'rung-21', label: 'Thrusters 21', actual: null, target: 21 }],
+          selectedOccurrenceId: 'rung-21',
+        })}
+        dispatch={dispatch as never}
+      />,
+    );
+    expect(screen.getByTestId(TEST_IDS.CLOCK_REP_VALUE).textContent).toBe('Complete');
+    expect(screen.getByTestId(TEST_IDS.CLOCK_REP_VALUE).textContent).not.toContain('Target');
+    expect((screen.getByTestId(TEST_IDS.CLOCK_REP_PLUS) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId(TEST_IDS.CLOCK_REP_MINUS) as HTMLButtonElement).disabled).toBe(true);
   });
 });

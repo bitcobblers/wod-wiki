@@ -219,10 +219,13 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
     previousField.current = field;
   }, [entry?.fieldId, getFocusProps]);
   const entryError = snapshot.error ?? draftError;
-  const rep = snapshot.reps.find((r) => r.occurrenceId === snapshot.selectedOccurrenceId) ?? null;
+  const isCompleted = snapshot.status === 'completed' || snapshot.phase === 'review';
+  const rep = isCompleted
+    ? null
+    : (snapshot.reps.find((r) => r.occurrenceId === snapshot.selectedOccurrenceId) ?? null);
   const canEditReps =
     snapshot.phase === 'live' &&
-    snapshot.status !== 'completed' &&
+    !isCompleted &&
     snapshot.selectedOccurrenceId !== null &&
     rep !== null;
   const showReps =
@@ -254,8 +257,9 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
         >
           <span className="text-xs text-muted-foreground">Actual reps</span>
           <span data-testid={TEST_IDS.CLOCK_REP_VALUE} className="font-mono text-sm font-semibold">
-            {rep?.actual ?? '—'}
-            {rep?.target != null ? ` / Target ${rep.target}` : ''}
+            {isCompleted
+              ? 'Complete'
+              : `${rep?.actual ?? '—'}${rep?.target != null ? ` / Target ${rep.target}` : ''}`}
           </span>
           <button
             type="button"
@@ -302,11 +306,13 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
                   key={r.occurrenceId}
                   type="button"
                   data-testid={`${TEST_IDS.CLOCK_REP_SELECT}-${r.occurrenceId}`}
-                  aria-pressed={r.occurrenceId === snapshot.selectedOccurrenceId}
+                  aria-pressed={!isCompleted && r.occurrenceId === snapshot.selectedOccurrenceId}
+                  disabled={isCompleted}
+                  aria-disabled={isCompleted}
                   {...focus(`board-reps-${r.occurrenceId}`)}
                   onClick={() => dispatch({ kind: 'reps-select', occurrenceId: r.occurrenceId })}
-                  className={`min-h-11 min-w-11 max-w-[9rem] truncate rounded-full border px-3 py-2 text-xs ${
-                    r.occurrenceId === snapshot.selectedOccurrenceId
+                  className={`min-h-11 min-w-11 max-w-[9rem] truncate rounded-full border px-3 py-2 text-xs disabled:opacity-40 disabled:cursor-not-allowed ${
+                    !isCompleted && r.occurrenceId === snapshot.selectedOccurrenceId
                       ? 'border-foreground bg-foreground text-background'
                       : 'border-border text-muted-foreground hover:bg-accent'
                   }`}
@@ -319,7 +325,9 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
           <button
             type="button"
             data-testid={TEST_IDS.CLOCK_VALUES_BUTTON}
-            className="ml-auto min-h-11 min-w-11 rounded-full border border-border px-3 py-2 text-xs font-medium hover:bg-accent"
+            disabled={isCompleted}
+            aria-disabled={isCompleted}
+            className="ml-auto min-h-11 min-w-11 rounded-full border border-border px-3 py-2 text-xs font-medium hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
             {...focus('board-values')}
             onClick={() => dispatch({ kind: 'values-open' })}
           >

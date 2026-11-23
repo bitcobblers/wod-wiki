@@ -173,15 +173,24 @@ export function getActualRepTargets(runtime: IScriptRuntime): ActualRepTarget[] 
   return targets;
 }
 
-/** Planned rep value (last non-user rep metric with a numeric value), or null. */
+/**
+ * Planned rep value (non-user rep metric with a numeric value), or null.
+ * Prefers compiler/runtime-resolved rung reps (e.g. a 21-15-9 ladder rung)
+ * over static parser reps regardless of metric order in `metric:display`.
+ */
 function lastRepTarget(loc: { metrics: Iterable<IMetric> }): number | null {
-  let target: number | null = null;
+  let parserTarget: number | null = null;
+  let resolvedTarget: number | null = null;
   for (const m of loc.metrics) {
     if (m.type === MetricType.Rep && m.origin !== 'user' && typeof m.value === 'number') {
-      target = m.value;
+      if (m.origin === 'parser') {
+        parserTarget = m.value;
+      } else {
+        resolvedTarget = m.value;
+      }
     }
   }
-  return target;
+  return resolvedTarget ?? parserTarget;
 }
 
 function movementLabel(block: IRuntimeBlock, loc: { metrics: Iterable<IMetric> }): string {

@@ -264,4 +264,62 @@ describe('actuals on grouped movement blocks', () => {
     expect(findActualRepOccurrence(runtime, 'completed-rung')).toBeUndefined();
     expect(findActualRepOccurrence(runtime, 'active-rung')?.block).toBe(activeBlock);
   });
+
+  it('WW-097: prefers compiler-resolved ladder rep target over static parser rep regardless of metric order', () => {
+    const compilerFirstBlock = {
+      key: { toString: () => 'ladder-rung' },
+      sourceIds: [1],
+      label: 'Thrusters 9',
+      blockType: 'effort',
+      isComplete: false,
+      getMemoryByTag: (tag: string) =>
+        tag === 'metric:display'
+          ? [new MemoryLocation('metric:display', [
+            { type: MetricType.Rep, value: 9, origin: 'compiler', image: '9' },
+            repMetric(21),
+            effortMetric('Thrusters'),
+          ])]
+          : [],
+    } as unknown as IRuntimeBlock;
+
+    const runtime = { stack: { blocks: [compilerFirstBlock] } } as unknown as IScriptRuntime;
+    const targets = getActualRepTargets(runtime);
+    expect(targets).toHaveLength(1);
+    expect(targets[0]!.target).toBe(9);
+  });
+
+  it('WW-097: FOR TIME (21-15-9) ladder tracks 21 -> 15 -> 9 and clears all targets once completed', () => {
+    const { runtime } = makeRuntime('FOR TIME (21-15-9)\n  Thrusters 42.5kg');
+    try {
+      runtime.do(new StartSessionAction());
+      // Advance past WaitingToStart gate
+      runtime.handle({ name: 'next', timestamp: runtime.clock.currentDate, data: {} });
+
+      const seenTargets: Array<number | null> = [];
+      const seenOccurrenceIds: string[] = [];
+
+      for (const expectedTarget of [21, 15, 9]) {
+        const targets = getActualRepTargets(runtime);
+        expect(targets).toHaveLength(1);
+        expect(targets[0]!.target).toBe(expectedTarget);
+        seenTargets.push(targets[0]!.target);
+        seenOccurrenceIds.push(targets[0]!.occurrenceId);
+
+        commitActualReps(targets[0]!.block, expectedTarget);
+        expect(readActualReps(targets[0]!.block)).toBe(expectedTarget);
+
+        runtime.handle({ name: 'next', timestamp: runtime.clock.currentDate, data: {} });
+      }
+
+      expect(seenTargets).toEqual([21, 15, 9]);
+      expect(new Set(seenOccurrenceIds).size).toBe(3);
+      // Ladder completed: stack drained, no stale Target 21 or resolvable occurrence left
+      expect(getActualRepTargets(runtime)).toEqual([]);
+      for (const id of seenOccurrenceIds) {
+        expect(findActualRepOccurrence(runtime, id)).toBeUndefined();
+      }
+    } finally {
+      runtime.dispose();
+    }
+  });
 });
