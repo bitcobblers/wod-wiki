@@ -10,6 +10,8 @@ export interface RecordResultInput {
   blockId: string;
   noteId: string;
   resultId: string;
+  blockVersion?: number;
+  blockContentId?: string;
   data: Sessions;
   createdAt: number;
   origin?: ResultOrigin;
@@ -41,9 +43,25 @@ export function notifyResultSaved(result: Session): void {
 
 export function createResultRecorder(writer: ResultWriter): ResultRecorder {
   return {
-    async record({ resultId, data, createdAt }) {
-      const result = await writer.finishSession(resultId, data, createdAt);
+    async record({ resultId, noteId, blockId, runBlock, blockVersion, blockContentId, data, createdAt, origin, scheduleItemId, sessionDate }) {
+      const resolvedBlockVersion =
+        blockVersion ??
+        (runBlock && 'version' in runBlock && typeof runBlock.version === 'number' ? runBlock.version : undefined);
+      const resolvedBlockContentId = blockContentId ?? runBlock?.contentId;
+      const fallback = noteId && blockId
+        ? {
+            noteId,
+            blockId,
+            ...(resolvedBlockVersion !== undefined ? { blockVersion: resolvedBlockVersion } : {}),
+            ...(resolvedBlockContentId ? { blockContentId: resolvedBlockContentId } : {}),
+            ...(origin ? { origin } : {}),
+            ...(scheduleItemId ? { scheduleItemId } : {}),
+            ...(sessionDate ? { sessionDate } : {}),
+          }
+        : undefined;
+      const result = await writer.finishSession(resultId, data, createdAt, fallback);
       clearPendingUnloadResult(resultId);
+      setPendingUnloadState(resultId, { status: 'saved' });
       notifyResultSaved(result);
       return result;
     },
@@ -52,7 +70,7 @@ export function createResultRecorder(writer: ResultWriter): ResultRecorder {
 
 export const playgroundRecorder = createResultRecorder(notePersistence);
 
-// ── Hard-unload durability (WW-012) ─────────────────────────────────────
+// ── Hard-unload durability (WW-012 / WW-120) ────────────────────────────
 // A real browser reload kills the async IndexedDB completion write mid-flight
 // (document teardown), leaving the sessions store empty. Halting runs park
 // their partial result here SYNCHRONOUSLY before the async write starts; the
@@ -62,9 +80,62 @@ export interface PendingUnloadResult {
   resultId: string;
   noteId?: string;
   blockId?: string;
+  blockVersion?: number;
+  blockContentId?: string;
   data: Sessions;
   createdAt: number;
   origin?: ResultOrigin;
+  scheduleItemId?: string;
+  sessionDate?: string;
+}
+
+export type PendingUnloadStatus = 'idle' | 'pending' | 'flushing' | 'saved' | 'failed';
+
+export interface PendingUnloadState {
+  status: PendingUnloadStatus;
+  error?: string;
+}
+
+const unloadFlushStates = new Map<string, PendingUnloadState>();
+const unloadFlushListeners = new Set<() => void>();
+
+function notifyPendingUnloadStateChange(): void {
+  for (const listener of unloadFlushListeners) {
+    try {
+      listener();
+    } catch (err) {
+      appError('resultRecorder', 'error in unload state listener:', err);
+    }
+  }
+}
+
+function setPendingUnloadState(sessionId: string, state: PendingUnloadState | null): void {
+  if (state === null) {
+    if (!unloadFlushStates.has(sessionId)) return;
+    unloadFlushStates.delete(sessionId);
+  } else {
+    unloadFlushStates.set(sessionId, state);
+  }
+  notifyPendingUnloadStateChange();
+}
+
+export function onPendingUnloadStateChange(listener: () => void): () => void {
+  unloadFlushListeners.add(listener);
+  return () => { unloadFlushListeners.delete(listener); };
+}
+
+export function getPendingUnloadState(sessionId: string): PendingUnloadState {
+  const pendingMap = readPendingUnloadResults();
+  const hasStaged = sessionId in pendingMap;
+  const tracked = unloadFlushStates.get(sessionId);
+  if (tracked) {
+    if ((tracked.status === 'pending' || tracked.status === 'failed') && !hasStaged) {
+      unloadFlushStates.delete(sessionId);
+      return { status: 'idle' };
+    }
+    return tracked;
+  }
+  return hasStaged ? { status: 'pending' } : { status: 'idle' };
 }
 
 const PENDING_UNLOAD_KEY = 'wodwiki:pending-halted-sessions:v1';
@@ -139,40 +210,51 @@ export function stagePendingUnloadResult(input: PendingUnloadResult): void {
   const map = readPendingUnloadResults();
   map[input.resultId] = input;
   writePendingUnloadResults(map);
+  setPendingUnloadState(input.resultId, { status: 'pending' });
 }
 
 export function clearPendingUnloadResult(sessionId: string): void {
   const map = readPendingUnloadResults();
-  if (!(sessionId in map)) return;
-  delete map[sessionId];
-  writePendingUnloadResults(map);
+  if (sessionId in map) {
+    delete map[sessionId];
+    writePendingUnloadResults(map);
+  }
+  const tracked = unloadFlushStates.get(sessionId);
+  if (tracked && tracked.status !== 'saved') {
+    setPendingUnloadState(sessionId, null);
+  }
 }
 
 let flushUnloadPromise: Promise<void> | null = null;
 
 /** Commit every staged unload result into IndexedDB. Deduped single-flight;
- *  entries are dropped even when the write fails so they cannot poison
- *  later flushes. */
+ *  entries are cleared only when persistence succeeds so failures are never
+ *  silently dropped and can be retried or surfaced to the user. */
 export function flushPendingUnloadResults(recorder: ResultRecorder = playgroundRecorder): Promise<void> {
   flushUnloadPromise ??= (async () => {
     const pending = readPendingUnloadResults();
     for (const entry of Object.values(pending)) {
+      setPendingUnloadState(entry.resultId, { status: 'flushing' });
       try {
         await recorder.record({
           resultId: entry.resultId,
           noteId: entry.noteId ?? '',
           blockId: entry.blockId ?? '',
+          ...(entry.blockVersion !== undefined ? { blockVersion: entry.blockVersion } : {}),
+          ...(entry.blockContentId ? { blockContentId: entry.blockContentId } : {}),
           data: entry.data,
           createdAt: entry.createdAt,
           ...(entry.origin ? { origin: entry.origin } : {}),
+          ...(entry.scheduleItemId ? { scheduleItemId: entry.scheduleItemId } : {}),
+          ...(entry.sessionDate ? { sessionDate: entry.sessionDate } : {}),
         });
+        clearPendingUnloadResult(entry.resultId);
+        setPendingUnloadState(entry.resultId, { status: 'saved' });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes('Session not found')) {
-          appError('resultRecorder', 'pending unload flush failed:', err);
-        }
+        appError('resultRecorder', 'pending unload flush failed:', err);
+        setPendingUnloadState(entry.resultId, { status: 'failed', error: msg });
       }
-      clearPendingUnloadResult(entry.resultId);
     }
   })().finally(() => { flushUnloadPromise = null; });
   return flushUnloadPromise;

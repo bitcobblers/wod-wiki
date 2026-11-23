@@ -47,6 +47,7 @@ import { sessionToPayload } from './sessionPayload';
 import {
   NotePersistenceError,
   type CreateNoteInput,
+  type FinishSessionFallback,
   type GetNoteOptions,
   type NoteLocator,
   type NoteMutation,
@@ -474,11 +475,70 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
     );
   }
 
-  async finishSession(sessionId: string, data: Sessions, createdAt?: number): Promise<Session> {
+  async finishSession(
+    sessionId: string,
+    data: Sessions,
+    createdAt?: number,
+    fallback?: FinishSessionFallback,
+  ): Promise<Session> {
     await this.provider.persistenceReady;
-    const finished = await this.storage.withTransaction(['sessions', 'block_revisions', 'events', 'notebook_links', 'schedule_items'], async scoped => {
+    const finished = await this.storage.withTransaction(['sessions', 'notes', 'block_revisions', 'events', 'notebook_links', 'schedule_items'], async scoped => {
       const storedPrevious = await scoped.getSessionById(sessionId);
-      const previous = storedPrevious ?? preparedJournalSessions.get(sessionId);
+      let previous = storedPrevious ?? preparedJournalSessions.get(sessionId);
+      if (!previous && fallback?.noteId && fallback?.blockId) {
+        const parsedRemote = parseRemoteNoteId(fallback.noteId);
+        const lookupId = parsedRemote.isRemote ? parsedRemote.uuid : fallback.noteId;
+        const note =
+          (await scoped.getNote(lookupId)) ??
+          (lookupId !== fallback.noteId ? await scoped.getNote(fallback.noteId) : undefined);
+        const targetNoteId = note?.id ?? lookupId;
+        const block = note?.blocks[fallback.blockId];
+        const targetBlockId = block?.id ?? fallback.blockId;
+        const targetVersion = fallback.blockVersion ?? block?.version;
+
+        let revision =
+          targetVersion !== undefined
+            ? await scoped.getBlockRevision(targetNoteId, targetBlockId, targetVersion)
+            : undefined;
+        if (!revision) {
+          const history = await scoped.getBlockHistory(targetNoteId, targetBlockId);
+          revision = history.reduce<BlockRevision | undefined>(
+            (latest, item) => (!latest || item.version > latest.version ? item : latest),
+            undefined,
+          );
+        }
+        if (!revision && note) {
+          const wodBlocks = Object.values(note.blocks).filter((b) => b.kind === 'wod');
+          if (wodBlocks.length === 1) {
+            const singleBlock = wodBlocks[0]!;
+            revision = await scoped.getBlockRevision(note.id, singleBlock.id, singleBlock.version);
+          }
+        }
+
+        if (revision) {
+          const section = parseDocumentSections(revision.rawContent, BLOCK_OPTIONS).find(sec => sec.scriptBlock);
+          const civilDate = fallback.sessionDate ?? localDateKey(new Date(data.endTime || data.startTime || createdAt || Date.now()));
+          const explicitNotebooks = note?.notebookIds && note.notebookIds.length > 0 ? note.notebookIds : undefined;
+          previous = {
+            id: sessionId,
+            noteId: revision.noteId,
+            blockId: revision.blockId,
+            blockVersion: revision.version,
+            blockContentId: fallback.blockContentId ?? section?.scriptBlock?.contentId,
+            noteSourceRevision: note?.sourceRevision,
+            origin: fallback.origin ?? 'journal',
+            ...(fallback.scheduleItemId ? { scheduleItemId: fallback.scheduleItemId } : {}),
+            sessionDate: civilDate,
+            startTime: data.startTime,
+            endTime: data.endTime,
+            duration: data.duration ?? 0,
+            completed: data.completed,
+            status: 'in-progress',
+            createdAt: createdAt ?? data.endTime ?? Date.now(),
+            ...(explicitNotebooks ? { notebookIds: explicitNotebooks } : {}),
+          };
+        }
+      }
       if (!previous) throw new NotePersistenceError('RESULT_NOT_FOUND', `Session not found: ${sessionId}`);
       const revision = await scoped.getBlockRevision(previous.noteId, previous.blockId, previous.blockVersion);
       if (!revision) throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Pinned workout revision is missing');

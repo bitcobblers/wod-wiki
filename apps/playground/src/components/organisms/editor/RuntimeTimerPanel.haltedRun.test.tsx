@@ -455,4 +455,81 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
     expect(keypadBtn.getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByRole('group', { name: 'Numeric keypad' })).toBeDefined();
   });
+
+  it('WW-120: HaltedRunNotice waits until staged unload persistence succeeds before showing /results/:id link', async () => {
+    const partial: Sessions = { startTime: 1_000, endTime: 16_000, duration: 15_000, completed: false };
+    recordHaltedRun({
+      sessionId: 'sess-ww120-ok',
+      noteId: 'note-ww120',
+      workoutTitle: '20:00 AMRAP',
+      timestamp: Date.now(),
+      elapsedMs: 15_000,
+    });
+    stagePendingUnloadResult({
+      resultId: 'sess-ww120-ok',
+      noteId: 'note-ww120',
+      blockId: 'block-1',
+      data: partial,
+      createdAt: 16_000,
+    });
+
+    render(<HaltedRunNotice noteId="note-ww120" />);
+    // Hidden while pending — must not claim saved before persistence succeeds
+    expect(screen.queryByTestId('halted-run-notice')).toBeNull();
+
+    const recorder = createResultRecorder({
+      finishSession: async (id) => ({ id } as Session),
+    });
+    await act(async () => {
+      await flushPendingUnloadResults(recorder);
+    });
+
+    const notice = screen.getByTestId('halted-run-notice');
+    expect(notice.textContent).toContain('Previous workout run was saved as partial results on reload');
+    expect(screen.getByRole('link', { name: /partial results/i }).getAttribute('href')).toBe('/results/sess-ww120-ok');
+  });
+
+  it('WW-120: HaltedRunNotice surfaces an error/recovery notice without a broken /results/:id link when persistence fails', async () => {
+    const partial: Sessions = { startTime: 1_000, endTime: 16_000, duration: 15_000, completed: false };
+    recordHaltedRun({
+      sessionId: 'sess-ww120-fail',
+      noteId: 'note-ww120-fail',
+      workoutTitle: '20:00 AMRAP',
+      timestamp: Date.now(),
+      elapsedMs: 15_000,
+    });
+    stagePendingUnloadResult({
+      resultId: 'sess-ww120-fail',
+      noteId: 'note-ww120-fail',
+      blockId: 'block-1',
+      data: partial,
+      createdAt: 16_000,
+    });
+
+    render(<HaltedRunNotice noteId="note-ww120-fail" />);
+
+    const failingRecorder = createResultRecorder({
+      finishSession: async () => {
+        throw new Error('IndexedDB write failed');
+      },
+    });
+    await act(async () => {
+      await flushPendingUnloadResults(failingRecorder);
+    });
+
+    const notice = screen.getByTestId('halted-run-notice');
+    expect(notice.getAttribute('role')).toBe('alert');
+    expect(notice.textContent).toContain('Previous workout run could not be saved on reload');
+    expect(notice.textContent).toContain('IndexedDB write failed');
+    expect(screen.queryByRole('link', { name: /partial results/i })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry save' })).toBeDefined();
+    // Staged entry is retained until retry or dismiss
+    expect(localStorage.getItem(PENDING_HALTED_KEY)).not.toBeNull();
+
+    // Dismissing clears both halted-run marker and staged entry
+    fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
+    expect(screen.queryByTestId('halted-run-notice')).toBeNull();
+    expect(getHaltedRun()).toBeNull();
+    expect(localStorage.getItem(PENDING_HALTED_KEY)).toBeNull();
+  });
 });

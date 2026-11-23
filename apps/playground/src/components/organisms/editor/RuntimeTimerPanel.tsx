@@ -28,7 +28,13 @@ import { PanelSizeProvider, usePanelSize } from "@/panels/panel-system/PanelSize
 import { ScriptRuntimeProvider, useRuntimeExecution, type UseRuntimeExecutionReturn, NextEvent, ScriptRuntime } from "@/hooks/useRuntimeTimer";
 import type { IScriptRuntime, StackSnapshot } from "@/hooks/useRuntimeTimer";
 import { clearHaltedRun, getHaltedRun, recordHaltedRun, useActiveRunStore } from "@/stores/activeRunStore";
-import { stagePendingUnloadResult } from "@/hooks/useWorkbenchServices";
+import {
+  clearPendingUnloadResult,
+  flushPendingUnloadResults,
+  getPendingUnloadState,
+  onPendingUnloadStateChange,
+  stagePendingUnloadResult,
+} from "@/hooks/useWorkbenchServices";
 import { sessionDetailPath } from "@/lib/routes";
 import { getActiveCastTransport } from "@/hooks/useCastSignaling";
 import { useSessionCastBridge } from "@/hooks/useSessionCastBridge";
@@ -120,6 +126,7 @@ export interface HaltedRunNoticeProps {
 export const HaltedRunNotice: React.FC<HaltedRunNoticeProps> = ({ noteId }) => {
   const haltedRun = useActiveRunStore((state) => state.haltedRun);
   const inRouter = useInRouterContext();
+  const [, setUnloadTick] = useState(0);
 
   useEffect(() => {
     const stored = getHaltedRun();
@@ -128,9 +135,67 @@ export const HaltedRunNotice: React.FC<HaltedRunNoticeProps> = ({ noteId }) => {
     }
   }, []);
 
+  useEffect(() => {
+    return onPendingUnloadStateChange(() => {
+      setUnloadTick((n) => n + 1);
+    });
+  }, []);
+
   const marker = haltedRun ?? getHaltedRun();
   if (!marker) return null;
   if (noteId && marker.noteId && marker.noteId !== noteId) return null;
+
+  const unloadState = getPendingUnloadState(marker.sessionId);
+  // Wait for staged reload persistence to settle before claiming the run was saved.
+  if (unloadState.status === 'pending' || unloadState.status === 'flushing') {
+    return null;
+  }
+
+  if (unloadState.status === 'failed') {
+    const handleDismissFailure = () => {
+      clearPendingUnloadResult(marker.sessionId);
+      clearHaltedRun(marker.sessionId);
+    };
+    return (
+      <div
+        role="alert"
+        data-testid="halted-run-notice"
+        className="mx-4 my-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-foreground"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span>Previous workout run could not be saved on reload.</span>
+          {(marker.workoutTitle || (marker.elapsedMs !== undefined && marker.elapsedMs > 0)) && (
+            <span className="font-medium text-muted-foreground">
+              {marker.workoutTitle}
+              {marker.elapsedMs !== undefined && marker.elapsedMs > 0
+                ? `${marker.workoutTitle ? ' · ' : ''}${formatDurationMMSS(marker.elapsedMs)}`
+                : ''}
+            </span>
+          )}
+          {unloadState.error && (
+            <span className="text-destructive">{unloadState.error}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { void flushPendingUnloadResults(); }}
+            className="min-h-11 rounded border border-border/70 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            Retry save
+          </button>
+          <button
+            type="button"
+            onClick={handleDismissFailure}
+            aria-label="Dismiss partial results notice"
+            className="min-h-11 min-w-11 rounded border border-border/70 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const resultsHref = sessionDetailPath(marker.sessionId);
 
@@ -142,10 +207,12 @@ export const HaltedRunNotice: React.FC<HaltedRunNoticeProps> = ({ noteId }) => {
     >
       <div className="flex flex-wrap items-center gap-2">
         <span>Previous workout run was saved as partial results on reload.</span>
-        {(marker.workoutTitle || marker.elapsedMs > 0) && (
+        {(marker.workoutTitle || (marker.elapsedMs !== undefined && marker.elapsedMs > 0)) && (
           <span className="font-medium text-muted-foreground">
             {marker.workoutTitle}
-            {marker.elapsedMs > 0 ? `${marker.workoutTitle ? ' · ' : ''}${formatDurationMMSS(marker.elapsedMs)}` : ''}
+            {marker.elapsedMs !== undefined && marker.elapsedMs > 0
+              ? `${marker.workoutTitle ? ' · ' : ''}${formatDurationMMSS(marker.elapsedMs)}`
+              : ''}
           </span>
         )}
         {inRouter ? (
@@ -707,10 +774,12 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
       resultId: resolvedSessionId || block.id,
       ...(resolvedNoteId ? { noteId: resolvedNoteId } : {}),
       blockId: block.id,
+      ...(typeof block.version === 'number' ? { blockVersion: block.version } : {}),
+      ...(block.contentId ? { blockContentId: block.contentId } : {}),
       data: results,
       createdAt: Date.now(),
     });
-  }, [runtime, execution, block.id, resolvedSessionId, resolvedNoteId]);
+  }, [runtime, execution, block.id, block.version, block.contentId, resolvedSessionId, resolvedNoteId]);
   const unloadStateRef = useRef({
     isLive: isLiveRun,
     sessionId: resolvedSessionId,
