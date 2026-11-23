@@ -503,4 +503,39 @@ describe('buildNoteContextSpec — whiteboard L2 ordering', () => {
       { kind: 'note', noteId: 'n-0', title: 'Session 0' },
     ])
   })
+
+  it('WW-048: derives all deduplicated N:M notebook memberships from notebookIds, notebook_links, and legacy notebookId', () => {
+    const titlesBySlug = new Map<string, string>([
+      ['strength-cycle', 'Strength Cycle'],
+      ['hyrox', 'HYROX'],
+      ['open-prep', 'Open Prep'],
+    ])
+    const chips = collectionLinks(
+      {
+        id: '018f3c2a-9b7c-7d4e-8f1a-2b3c4d5e6f99',
+        notebookId: 'notebook/strength-cycle',
+        notebookIds: ['notebook/strength-cycle', 'notebook/hyrox', 'notebook/journal'],
+      },
+      undefined,
+      [
+        { notebookId: 'notebook/hyrox', targetKind: 'note' },
+        { notebookId: 'notebook/open-prep', targetKind: 'note' },
+      ],
+      titlesBySlug,
+    )
+    expect(chips).toEqual([
+      { id: 'strength-cycle', title: 'Strength Cycle', to: '/notebook/strength-cycle' },
+      { id: 'hyrox', title: 'HYROX', to: '/notebook/hyrox' },
+      { id: 'open-prep', title: 'Open Prep', to: '/notebook/open-prep' },
+    ])
+
+    // noteOwnership also resolves notebooks zone + Up link from notebookIds when legacy notebookId is absent
+    const own = noteOwnership({
+      id: '018f3c2a-9b7c-7d4e-8f1a-2b3c4d5e6f99',
+      type: 'note',
+      notebookIds: ['notebook/journal', 'notebook/hyrox', 'notebook/open-prep'],
+    })
+    expect(own.zone).toBe('notebooks')
+    expect(own.up).toMatchObject({ id: 'hyrox', title: 'hyrox', to: '/notebook/hyrox' })
+  })
 })

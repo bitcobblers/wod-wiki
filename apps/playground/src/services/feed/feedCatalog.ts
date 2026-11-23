@@ -17,6 +17,7 @@ import {
   toNotebookId,
   type NotebookLink,
 } from '@bitcobblers/wod-wiki-core';
+import { notebooksOfItem } from '@bitcobblers/wod-wiki-wql';
 import {
   FEED_INDEX_META_PREFIX,
   HttpFeedTree,
@@ -832,7 +833,7 @@ async function listCatalogNotebooks(): Promise<FeedNotebookCatalogRow[]> {
   ]);
 
   const notesById = new Map(allNotes.map((n) => [n.id, n]));
-  const noteCounts = countNotesByNotebook(allNotes, allLinks);
+  const noteCounts = countNotesByNotebook(allNotes, allLinks, notebooksOfItem);
 
   const out: FeedNotebookCatalogRow[] = [];
   const seenKeys = new Set<string>();

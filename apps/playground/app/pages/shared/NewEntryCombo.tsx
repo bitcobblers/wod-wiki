@@ -64,7 +64,8 @@ export function MobileNewEntryCombo() {
 }
 
 export function resolveNewEntryRoute(pathname: string): NewEntryRouteContext {
-  const notebookDateMatch = /^\/notebook\/([^/]+)\/(\d{4}-\d{2}-\d{2})\/?$/.exec(pathname)
+  const normalized = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+  const notebookDateMatch = /^\/notebook\/([^/]+)\/(\d{4}-\d{2}-\d{2})$/.exec(normalized)
   if (notebookDateMatch?.[1] && notebookDateMatch?.[2]) {
     return {
       defaultKind: 'note',
@@ -72,20 +73,20 @@ export function resolveNewEntryRoute(pathname: string): NewEntryRouteContext {
       defaultDate: notebookDateMatch[2],
     }
   }
-  const notebookMatch = /^\/notebook\/([^/]+)/.exec(pathname)
+  const notebookMatch = /^\/notebook\/([^/]+)/.exec(normalized)
   if (notebookMatch?.[1]) {
     return { defaultKind: 'note', notebookSlug: decodeURIComponent(notebookMatch[1]) }
   }
-  const dayMatch = /^\/day\/(\d{4}-\d{2}-\d{2})\/?$/.exec(pathname)
+  const dayMatch = /^\/day\/(\d{4}-\d{2}-\d{2})$/.exec(normalized)
   if (dayMatch?.[1]) {
     return { defaultKind: 'journal', defaultDate: dayMatch[1] }
   }
-  if (pathname === '/notebooks') return { defaultKind: 'notebook' }
-  if (pathname === '/pages') return { defaultKind: 'page' }
-  if (pathname === '/tags') return { defaultKind: 'tag' }
-  if (pathname.startsWith('/playground')) return { defaultKind: 'playground' }
-  if (pathname.startsWith('/effort')) return { defaultKind: 'effort' }
-  if (pathname.startsWith('/equipment')) return { defaultKind: 'equipment' }
+  if (normalized === '/notebooks') return { defaultKind: 'notebook' }
+  if (normalized === '/pages') return { defaultKind: 'page' }
+  if (normalized === '/tags') return { defaultKind: 'tag' }
+  if (normalized.startsWith('/playground')) return { defaultKind: 'playground' }
+  if (normalized.startsWith('/effort')) return { defaultKind: 'effort' }
+  if (normalized.startsWith('/equipment')) return { defaultKind: 'equipment' }
   return { defaultKind: 'journal' }
 }
 

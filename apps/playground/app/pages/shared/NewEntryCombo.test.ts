@@ -10,10 +10,13 @@ describe('resolveNewEntryRoute', () => {
     ['/playgrounds', 'playground'],
     ['/playground/entry-id', 'playground'],
     ['/notebooks', 'notebook'],
+    ['/notebooks/', 'notebook'],
     ['/efforts', 'effort'],
     ['/equipment', 'equipment'],
     ['/pages', 'page'],
+    ['/pages/', 'page'],
     ['/tags', 'tag'],
+    ['/tags/', 'tag'],
     ['/notes', 'journal'],
   ])('uses the current library type for %s', (pathname, expected) => {
     expect(resolveNewEntryRoute(pathname).defaultKind).toBe(expected)
