@@ -27,16 +27,155 @@ import {
   type QueryResult,
   type RowsQueryResult,
 } from '@bitcobblers/wod-wiki-engine';
-import { blockContentId, parseDocumentSections, projectPlacements, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import { blockContentId, projectPlacements, resolvePlacements, type Note, type NoteBlock } from '@bitcobblers/wod-wiki-core';
 import {
   toEntry,
   blockToEntry,
   effortToEntry,
   rowsQueryResultToEntries,
   formatEffortName,
-  blockPreview,
   type Entry,
 } from './entryMapper';
+
+const EXCERPT_LINE_CAP = 3;
+const EXCERPT_CHAR_CAP = 120;
+const WOD_FENCE_OPEN_RE = /^(`{3,})(time|wod|whiteboard|log)(?::([\w-]+))?\s*$/i;
+
+/** Fast equivalent of `blockPreview` that stops after 3 non-empty lines instead
+ *  of splitting the entire markdown document into an array of all lines. */
+function fastExcerpt(rawContent: string): string[] {
+  if (!rawContent) return [];
+  const out: string[] = [];
+  const len = rawContent.length;
+  let pos = 0;
+  while (pos < len && out.length < EXCERPT_LINE_CAP) {
+    const nl = rawContent.indexOf('\n', pos);
+    const end = nl === -1 ? len : nl;
+    const line = rawContent.slice(pos, end).trim();
+    if (line) {
+      out.push(line.length > EXCERPT_CHAR_CAP ? `${line.slice(0, EXCERPT_CHAR_CAP - 1)}…` : line);
+    }
+    if (nl === -1) break;
+    pos = nl + 1;
+  }
+  return out;
+}
+
+function isClosingBacktickFence(trimmedLine: string, minLength: number): boolean {
+  if (trimmedLine.length < minLength) return false;
+  for (let i = 0; i < trimmedLine.length; i++) {
+    if (trimmedLine.charCodeAt(i) !== 96) return false; // '`'
+  }
+  return true;
+}
+
+/** Extract the first actionable `wod` block directly from pre-stored `note.blocks`
+ *  offsets, avoiding full-document `parseDocumentSections` / `validateNoteBlocks`
+ *  passes across hundreds of notes on the main thread. Fails closed (returns
+ *  `undefined`) if block metadata or fence boundaries are invalid. */
+function extractFirstWodBlock(note: Note): Entry['wodBlock'] | undefined {
+  const { rawContent, blocks, sourceRevision } = note;
+  if (
+    typeof rawContent !== 'string' ||
+    !blocks ||
+    typeof blocks !== 'object' ||
+    Array.isArray(blocks) ||
+    !Number.isSafeInteger(sourceRevision) ||
+    sourceRevision < 1
+  ) {
+    return undefined;
+  }
+
+  let first: NoteBlock | undefined;
+  for (const [id, block] of Object.entries(blocks)) {
+    if (
+      !block ||
+      !id ||
+      block.id !== id ||
+      !Number.isSafeInteger(block.version) ||
+      block.version < 1 ||
+      block.sourceRevision !== sourceRevision ||
+      !Number.isSafeInteger(block.from) ||
+      !Number.isSafeInteger(block.to) ||
+      block.from < 0 ||
+      block.to < block.from ||
+      block.to > rawContent.length
+    ) {
+      return undefined;
+    }
+    if (block.kind === 'wod' && (!first || block.from < first.from)) {
+      first = block;
+    }
+  }
+  if (!first) return undefined;
+
+  if (first.from > 0) {
+    const prev = rawContent.charCodeAt(first.from - 1);
+    if (prev !== 10 && prev !== 13) return undefined; // must start at a line boundary
+  }
+
+  const slice = rawContent.slice(first.from, first.to);
+  let openLineEnd = -1;
+  let contentStart = -1;
+  for (let i = 0; i < slice.length; i++) {
+    const code = slice.charCodeAt(i);
+    if (code === 13) {
+      openLineEnd = i;
+      contentStart = slice.charCodeAt(i + 1) === 10 ? i + 2 : i + 1;
+      break;
+    }
+    if (code === 10) {
+      openLineEnd = i;
+      contentStart = i + 1;
+      break;
+    }
+  }
+  if (openLineEnd === -1 || contentStart > slice.length) return undefined;
+
+  const openMatch = WOD_FENCE_OPEN_RE.exec(slice.slice(0, openLineEnd).trim());
+  if (!openMatch) return undefined;
+  const markerLen = openMatch[1]!.length;
+  const parsedDialect: 'time' | 'log' = openMatch[2]!.toLowerCase() === 'log' ? 'log' : 'time';
+  const parsedSport = openMatch[3];
+  if (first.dialect !== undefined && first.dialect !== parsedDialect) return undefined;
+  if (first.sport !== undefined && first.sport !== parsedSport) return undefined;
+
+  let lastSep = -1;
+  for (let i = slice.length - 1; i >= contentStart - 1; i--) {
+    const code = slice.charCodeAt(i);
+    if (code === 10 || code === 13) {
+      lastSep = i;
+      break;
+    }
+  }
+  if (lastSep === -1) return undefined;
+  const closeLineStart = lastSep + 1;
+  if (!isClosingBacktickFence(slice.slice(closeLineStart).trim(), markerLen)) return undefined;
+
+  // Reject corrupt spans that swallow an earlier closing fence inside the slice.
+  let lineStart = contentStart;
+  while (lineStart < closeLineStart) {
+    let lineEnd = lineStart;
+    while (lineEnd < closeLineStart) {
+      const code = slice.charCodeAt(lineEnd);
+      if (code === 10 || code === 13) break;
+      lineEnd++;
+    }
+    if (isClosingBacktickFence(slice.slice(lineStart, lineEnd).trim(), markerLen)) {
+      return undefined;
+    }
+    lineStart = slice.charCodeAt(lineEnd) === 13 && slice.charCodeAt(lineEnd + 1) === 10 ? lineEnd + 2 : lineEnd + 1;
+  }
+
+  const content = slice.slice(contentStart, closeLineStart);
+  const fingerprint = blockContentId(content);
+  return {
+    blockId: first.id,
+    blockVersion: first.version,
+    blockContentId: fingerprint,
+    content,
+  };
+}
 
 /**
  * :segment / :event — the executor returns tabular scalar rows
@@ -201,10 +340,18 @@ export class StreamQueryEngine {
     for (const entry of entries) {
       if (entry.kind === 'feed' || entry.kind === 'notebook' || entry.isRemotePreview) continue;
       const alreadyHydrated = Boolean(preResolvedPlacements && Object.prototype.hasOwnProperty.call(preResolvedPlacements, entry.id));
-      if (!alreadyHydrated && (entry.kind === 'note' || entry.sourceNotebook === 'journal')) {
+      if (alreadyHydrated) {
+        const placements = preResolvedPlacements![entry.id]!;
+        entry.placements = placements;
+        const projection = projectPlacements(placements);
+        entry.pageId ??= projection.pageId;
+        if (projection.pageSlug) entry.pageSlug = projection.pageSlug;
+        continue;
+      }
+      if (entry.kind === 'note' || entry.sourceNotebook === 'journal') {
         bundleIds.add(entry.id);
       }
-      if (withNoteFields && !alreadyHydrated && (!entry.title || !entry.tags || entry.tags.length === 0)) {
+      if (withNoteFields && (!entry.title || !entry.tags || entry.tags.length === 0)) {
         bundleIds.add(entry.id);
       }
     }
@@ -212,12 +359,12 @@ export class StreamQueryEngine {
     const bundles = await storageService.getDetailBatches([...bundleIds]);
     for (const entry of entries) {
       if (entry.kind === 'feed' || entry.kind === 'notebook' || entry.isRemotePreview) continue;
+      if (!bundleIds.has(entry.id)) continue;
       const bundle = bundles.get(entry.id);
-      const preResolved = preResolvedPlacements?.[entry.id];
-      if (!bundle && !preResolved) continue;
+      if (!bundle) continue;
       // Every page the note sits on; the single-page fields below are the
       // deterministic primary projections of that list.
-      const placements = preResolved ?? resolvePlacements(bundle?.links ?? [], bundle?.pages ?? []);
+      const placements = resolvePlacements(bundle.links ?? [], bundle.pages ?? []);
       entry.placements = placements;
       const projection = projectPlacements(placements);
       entry.pageId ??= projection.pageId;
@@ -321,20 +468,11 @@ export class StreamQueryEngine {
         for (let index = 0; index < entries.length; index++) {
           const entry = entries[index]!;
           const note = primaryResult.notes[index]!;
-          entry.excerpt = blockPreview(note.rawContent);
-          try {
-            validateNoteBlocks(note.rawContent, note.blocks, note.sourceRevision);
-          } catch {
-            continue;
-          }
-          const blocks = Object.values(note.blocks).sort((a, b) => a.from - b.from);
-          const first = blocks.find(block => block.kind === 'wod');
-          const workout = first && parseDocumentSections(note.rawContent).find(section => section.from === first.from && section.scriptBlock);
-          if (first && workout?.scriptBlock) {
-            const content = workout.scriptBlock.content;
-            const fingerprint = blockContentId(content);
-            entry.wodBlock = { blockId: first.id, blockVersion: first.version, blockContentId: fingerprint, content };
-            entry.blockContentId = fingerprint;
+          entry.excerpt = fastExcerpt(note.rawContent);
+          const wodBlock = extractFirstWodBlock(note);
+          if (wodBlock) {
+            entry.wodBlock = wodBlock;
+            entry.blockContentId = wodBlock.blockContentId;
           }
         }
       }

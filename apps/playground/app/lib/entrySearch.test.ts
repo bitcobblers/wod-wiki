@@ -569,4 +569,139 @@ describe('StreamQueryEngine — WW-036 avoids duplicate getDetailBatches for pre
       await memory.close()
     }
   })
+
+  it('applies pre-resolved placements (pageId and pageSlug) even when getDetailBatches is skipped', async () => {
+    const memory = new InMemoryStorage()
+    setStorageForTesting(memory)
+    let detailBatchCalls = 0
+    const origGetDetailBatches = storageService.getDetailBatches.bind(storageService)
+    storageService.getDetailBatches = async (ids) => {
+      detailBatchCalls += 1
+      return origGetDetailBatches(ids)
+    }
+    try {
+      const note: Note = {
+        id: 'n-placed',
+        title: 'Placed Note',
+        createdAt: 1000,
+        rawContent: '# Placed Note',
+        sourceRevision: 1,
+        blocks: {},
+      }
+      const engine = new StreamQueryEngine({
+        service: {
+          runFind: async parsed => ({
+            parsed,
+            notes: [note],
+            blocks: [],
+            placements: {
+              'n-placed': [{ noteId: 'n-placed', pageId: 'page-1', slug: 'my-plan', position: 0, createdAt: 1000 }],
+            },
+            stages: { selected: 1, matched: 1 },
+          }),
+        },
+      })
+      const entries = await engine.query(':note{}')
+      expect(detailBatchCalls).toBe(0)
+      expect(entries[0]!.placements).toEqual([{ noteId: 'n-placed', pageId: 'page-1', slug: 'my-plan', position: 0, createdAt: 1000 }])
+      expect(entries[0]!.pageId).toBe('page-1')
+      expect(entries[0]!.pageSlug).toBe('my-plan')
+      expect(entryOpenHref(entries[0]!)).toBe('/page/my-plan')
+    } finally {
+      storageService.getDetailBatches = origGetDetailBatches
+      resetStorageForTesting()
+      await memory.close()
+    }
+  })
+
+  it('extracts excerpts and first wodBlock from pre-stored note.blocks across 300 notes without full document parsing', async () => {
+    const wod1 = '```wod\n5x5 Back Squat\n```'
+    const wod2 = '```log:running\n5km Easy\n```'
+    const crlfPrefix = 'Warmup line\r\n\r\nSecond line\r\n'
+    const crlfWod = '```time\r\n10 Burpees\r\n```'
+
+    const notes: Note[] = [
+      // Multiple blocks (non-wod first, then two wod blocks -> picks earliest wod by `from`)
+      {
+        id: 'n-multi',
+        title: 'Multi',
+        createdAt: 1000,
+        rawContent: `Intro line\n\n${wod1}\n\n${wod2}`,
+        sourceRevision: 2,
+        blocks: {
+          b2: { id: 'b2', kind: 'wod', version: 3, sourceRevision: 2, from: 12 + wod1.length + 2, to: 12 + wod1.length + 2 + wod2.length, dialect: 'log', sport: 'running' },
+          b1: { id: 'b1', kind: 'wod', version: 2, sourceRevision: 2, from: 12, to: 12 + wod1.length, dialect: 'time' },
+        },
+      },
+      // CRLF line endings
+      {
+        id: 'n-crlf',
+        title: 'CRLF',
+        createdAt: 1001,
+        rawContent: crlfPrefix + crlfWod,
+        sourceRevision: 1,
+        blocks: {
+          c1: { id: 'c1', kind: 'wod', version: 1, sourceRevision: 1, from: crlfPrefix.length, to: crlfPrefix.length + crlfWod.length, dialect: 'time' },
+        },
+      },
+      // Corrupt block metadata (mismatched sourceRevision) -> fails closed
+      {
+        id: 'n-corrupt',
+        title: 'Corrupt',
+        createdAt: 1002,
+        rawContent: wod1,
+        sourceRevision: 2,
+        blocks: {
+          bad: { id: 'bad', kind: 'wod', version: 1, sourceRevision: 1, from: 0, to: wod1.length, dialect: 'time' },
+        },
+      },
+      // 297 prose-only notes with no wod blocks
+      ...Array.from({ length: 297 }, (_, i) => ({
+        id: `n-prose-${i}`,
+        title: `Prose ${i}`,
+        createdAt: 2000 + i,
+        rawContent: `\nLine 1 for ${i}\n\nLine 2\nLine 3\nLine 4 ignored`,
+        sourceRevision: 1,
+        blocks: {},
+      })),
+    ]
+
+    const placements = Object.fromEntries(notes.map(n => [n.id, []]))
+    const engine = new StreamQueryEngine({
+      noteBlockInfo: true,
+      service: {
+        runFind: async parsed => ({
+          parsed,
+          notes,
+          blocks: [],
+          placements,
+          stages: { selected: notes.length, matched: notes.length },
+        }),
+      },
+    })
+
+    const entries = await engine.query(':note{}')
+    expect(entries).toHaveLength(300)
+
+    expect(entries[0]!.excerpt).toEqual(['Intro line', '```wod', '5x5 Back Squat'])
+    expect(entries[0]!.wodBlock).toEqual({
+      blockId: 'b1',
+      blockVersion: 2,
+      blockContentId: blockContentId('5x5 Back Squat\n'),
+      content: '5x5 Back Squat\n',
+    })
+    expect(entries[0]!.blockContentId).toBe(blockContentId('5x5 Back Squat\n'))
+
+    expect(entries[1]!.excerpt).toEqual(['Warmup line', 'Second line', '```time'])
+    expect(entries[1]!.wodBlock).toEqual({
+      blockId: 'c1',
+      blockVersion: 1,
+      blockContentId: blockContentId('10 Burpees\r\n'),
+      content: '10 Burpees\r\n',
+    })
+
+    expect(entries[2]!.wodBlock).toBeUndefined()
+    expect(entries[3]!.excerpt).toEqual(['Line 1 for 0', 'Line 2', 'Line 3'])
+    expect(entries[3]!.wodBlock).toBeUndefined()
+  })
 })

@@ -2475,7 +2475,7 @@ export class QueryService {
     // so the wire count baselines the historical pre-filter stages.selected.
     const read = compileContentRead(parsed.filters, 'note', parsed.sourceScope);
     const paging = domainPaging(parsed, options, read.residual);
-    const fetchedNotes = (read.filters.length > 0 || read.selection.length > 0 || paging.paged) && this.noteStore.queryDomain
+    const fetchedNotes = this.noteStore.queryDomain
       ? await this.noteStore.queryDomain({
           plan: 'notes',
           selection: read.selection,
@@ -2729,6 +2729,23 @@ export class QueryService {
     const bundles = this.relationStore
       ? await this.relationStore.getBatches([...new Set(notes.map((n) => n.id))])
       : undefined;
+    // When relationStore is absent but pageStore exposes bulk reads, fetch all
+    // links and pages in 2 reads instead of N+1 sequential per-note lookups.
+    let bulkLinksByNote: Map<string, PageNote[]> | undefined;
+    let bulkPagesById: Map<string, Page> | undefined;
+    if (!bundles && notes.length > 1 && this.pageStore?.getAllLinks && this.pageStore?.getAllPages) {
+      const [allLinks, allPages] = await Promise.all([
+        this.pageStore.getAllLinks(),
+        this.pageStore.getAllPages(),
+      ]);
+      bulkLinksByNote = new Map<string, PageNote[]>();
+      for (const link of allLinks) {
+        const list = bulkLinksByNote.get(link.noteId);
+        if (list) list.push(link);
+        else bulkLinksByNote.set(link.noteId, [link]);
+      }
+      bulkPagesById = new Map<string, Page>(allPages.map((p) => [p.id, p]));
+    }
     const pageCache = new Map<string, Page | undefined>();
     for (const note of notes) {
       let bundle: NoteRelationBundle | undefined;
@@ -2745,6 +2762,14 @@ export class QueryService {
             note.tags = bundle.tags.map((t) => t.label);
           }
         }
+      } else if (bulkLinksByNote && bulkPagesById) {
+        const links = bulkLinksByNote.get(note.id) ?? [];
+        const pages: Page[] = [];
+        for (const link of links) {
+          const page = bulkPagesById.get(link.pageId);
+          if (page) pages.push(page);
+        }
+        resolved = resolvePlacements(links, pages);
       } else {
         const links = await this.pageStore!.getNotePages(note.id);
         const pages: Page[] = [];
