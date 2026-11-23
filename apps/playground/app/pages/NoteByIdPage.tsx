@@ -7,7 +7,7 @@ import { JournalPageShell } from '@/panels/page-shells'
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor'
 import { BlockHistory } from '@/components/organisms/editor/BlockHistory'
 import { useNoteDraft, waitForPendingNoteSave } from '../hooks/useNoteDraft'
-import { useColdRouteResolution } from '../hooks/useColdRouteResolution'
+import { isColdSettlementActive, useColdRouteResolution } from '../hooks/useColdRouteResolution'
 import { useNav, useNoteL1Zone } from '../nav/NavContext'
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider'
 import { storageService } from '@/services/storage'
@@ -77,6 +77,8 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   const [entry, setEntry] = useState<HistoryRecord | null>(null)
   const [rawNote, setRawNote] = useState<Note | null>(null)
   const [missing, setMissing] = useState(false)
+  const [tentativeMissing, setTentativeMissing] = useState(false)
+  const [resolving, setResolving] = useState(true)
   const [remoteLoading, setRemoteLoading] = useState(false)
   const [remoteError, setRemoteError] = useState<string | null>(null)
   const [remoteRetryTick, setRemoteRetryTick] = useState(0)
@@ -113,12 +115,16 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   // changed since the previous page loaded).
   const sourcesReady = usePageSourcesReady()
   const { isSettling, settlementTick } = useColdRouteResolution({
-    loading: (!entry && !missing && !remoteError) || remoteLoading,
-    missing,
+    loading: (!entry && !missing && !remoteError) || remoteLoading || resolving || tentativeMissing,
+    missing: missing || tentativeMissing,
   })
+  const isSettlingRef = useRef(isSettling)
+  isSettlingRef.current = isSettling
   const prevLookupKeyRef = useRef<string | null>(null)
   const loadedEntryRef = useRef<HistoryRecord | null>(null)
   loadedEntryRef.current = entry
+  const tentativeMissingRef = useRef(false)
+  tentativeMissingRef.current = tentativeMissing
   useEffect(() => {
     void refreshPageSources().catch(() => {
       // Failure stays on the cached promise — child queries surface it.
@@ -136,23 +142,40 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
     if (routeChanged) {
       setEntry(null)
       setMissing(false)
+      setTentativeMissing(false)
       setRemoteError(null)
       setRemoteLoading(false)
+      setResolving(true)
+    } else if (tentativeMissingRef.current) {
+      setResolving(true)
     }
     // saveError handled in draft
     // Await any in-flight draft flush for this noteId (e.g. Ctrl+S / unmount right before Back).
     const lookupKey = remoteUuid ?? noteId
+    const startedWhileSettling = isSettlingRef.current || isColdSettlementActive()
     waitForPendingNoteSave(lookupKey)
       .then(async () => {
-        const [loaded, fetchedRaw] = await Promise.all([
+        let [loaded, fetchedRaw] = await Promise.all([
           contentProvider.getRecord(lookupKey),
           storageService.getNote(lookupKey),
         ])
         if (cancelled) return
+        if (!loaded && startedWhileSettling && !isSettlingRef.current && !isColdSettlementActive()) {
+          // Settlement finished while the initial read was in flight — re-read
+          // once against the settled vault before deciding not-found.
+          await waitForPendingNoteSave(lookupKey)
+          ;[loaded, fetchedRaw] = await Promise.all([
+            contentProvider.getRecord(lookupKey),
+            storageService.getNote(lookupKey),
+          ])
+          if (cancelled) return
+        }
         if (loaded) {
           setRawNote(fetchedRaw ?? null)
           setEntry(loaded)
           setMissing(false)
+          setTentativeMissing(false)
+          setResolving(false)
           return
         }
         if (parsedRemote.isRemote || feedParam || remoteParam) {
@@ -170,6 +193,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
           if (!resolved) {
             setRemoteError('This remote workout could not be fetched from its feed.')
             setRemoteLoading(false)
+            setResolving(false)
             return
           }
           const [afterRecord, afterRaw] = await Promise.all([
@@ -199,18 +223,35 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
             })
           }
           setMissing(false)
+          setTentativeMissing(false)
           setRemoteLoading(false)
+          setResolving(false)
           return
         }
-        setMissing(true)
+        if (isSettlingRef.current || isColdSettlementActive()) {
+          setTentativeMissing(true)
+          setMissing(false)
+          setResolving(false)
+        } else {
+          setTentativeMissing(false)
+          setMissing(true)
+          setResolving(false)
+        }
       })
       .catch((err) => {
         if (cancelled) return
         if (parsedRemote.isRemote || feedParam || remoteParam) {
           setRemoteError(err instanceof Error ? err.message : 'Unable to load this remote workout.')
           setRemoteLoading(false)
+          setResolving(false)
+        } else if (isSettlingRef.current || isColdSettlementActive()) {
+          setTentativeMissing(true)
+          setMissing(false)
+          setResolving(false)
         } else {
+          setTentativeMissing(false)
           setMissing(true)
+          setResolving(false)
         }
       })
     return () => {
@@ -545,7 +586,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
         </div>
       </div>
     )
-  } else if (missing && isSettling) {
+  } else if (tentativeMissing || (missing && isSettling) || (resolving && isSettling)) {
     body = (
       <div role="status" data-testid={TEST_IDS.NOTE_LOADING_SETTLING} className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
         <p>Loading library content…</p>

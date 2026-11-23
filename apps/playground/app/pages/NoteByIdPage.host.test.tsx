@@ -13,6 +13,12 @@ import {
   markFeedSyncStarted,
   resetFeedReadinessForTest,
 } from '@/services/feed/feedReadiness';
+import { invalidateSeedContent } from '@/services/content/seedContent';
+import {
+  beginSyncActivity,
+  reportSyncResult,
+  resetSyncActivityForTest,
+} from '@/services/syncActivity';
 import { storageService } from '@/services/storage';
 import { pendingRuntimes } from '../runtimeStore';
 import { journalNotes } from '../services/journalNotes';
@@ -504,6 +510,129 @@ describe('NoteByIdPage workout start & L3 outline parity', () => {
       expect(host.readAgentViewState().status).toBe('ready');
       expect(screen.queryByTestId('note-loading-settling')).toBeNull();
     } finally {
+      resetFeedReadinessForTest();
+    }
+  });
+
+  it('WW-019: holds pending state during active same-session feed download/hydration and auto-recovers without flashing Note not found', async () => {
+    resetFeedReadinessForTest();
+    resetSyncActivityForTest();
+    const endDownload = beginSyncActivity('download', 'Sample Feed');
+    try {
+      const host = await renderWithPlaygroundHost(
+        <NoteByIdPage noteId="same-session-mid-import-note" theme="light" />,
+        { route: '/note/same-session-mid-import-note' },
+      );
+      activeHosts.push(host);
+
+      // Even though boot feedReadiness is already 'ready', an active feed
+      // download must keep NoteByIdPage pending (never definitive Not Found).
+      const pending = await waitFor(() => screen.getByTestId('note-loading-settling'));
+      expect(pending).toBeDefined();
+      expect(screen.queryByText(/Note not found/i)).toBeNull();
+      expect(host.readAgentViewState().status).toBe('loading');
+
+      // Watch DOM mutations across settlement to prove "Note not found" NEVER flashes.
+      let sawNotFoundFlash = false;
+      const observer = new MutationObserver(() => {
+        if (document.body.textContent?.includes('Note not found')) {
+          sawNotFoundFlash = true;
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+      try {
+        await act(async () => {
+          const raw = '# Same Session Created Note\n\n```wod\n10 Burpees\n```\n';
+          await storageService.saveNoteSource({
+            noteId: 'same-session-mid-import-note',
+            rawContent: raw,
+            blocks: reconcileNoteBlocks(raw, { sourceRevision: 1 }),
+            expectedSourceRevision: 0,
+            metadata: { title: 'Same Session Created Note', type: 'note' },
+          });
+          reportSyncResult({ source: 'Sample Feed', added: 1, updated: 0 });
+          endDownload();
+        });
+
+        await waitFor(() => {
+          expect(screen.getByText('Same Session Created Note')).toBeDefined();
+        });
+        expect(sawNotFoundFlash).toBe(false);
+        expect(host.readAgentViewState().status).toBe('ready');
+        expect(screen.queryByTestId('note-loading-settling')).toBeNull();
+      } finally {
+        observer.disconnect();
+      }
+    } finally {
+      endDownload();
+      resetSyncActivityForTest();
+      resetFeedReadinessForTest();
+    }
+  });
+
+  it('WW-019: renders clean Note not found once settled for genuinely nonexistent note IDs', async () => {
+    markFeedSyncStarted();
+    try {
+      const host = await renderWithPlaygroundHost(
+        <NoteByIdPage noteId="genuinely-nonexistent-note-id" theme="light" />,
+        { route: '/note/genuinely-nonexistent-note-id' },
+      );
+      activeHosts.push(host);
+
+      expect(await waitFor(() => screen.getByTestId('note-loading-settling'))).toBeDefined();
+      expect(screen.queryByText(/Note not found/i)).toBeNull();
+      expect(host.readAgentViewState().status).toBe('loading');
+
+      await act(async () => {
+        markFeedSyncSettled('imported');
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Note not found.')).toBeDefined();
+      });
+      expect(screen.getByRole('button', { name: /Go back/i })).toBeDefined();
+      expect(host.readAgentViewState().status).toBe('ready');
+      expect(screen.queryByTestId('note-loading-settling')).toBeNull();
+    } finally {
+      resetFeedReadinessForTest();
+    }
+  });
+
+  it('WW-019: auto-recovers from Note not found if the note is subsequently persisted and content updates', async () => {
+    resetFeedReadinessForTest();
+    resetSyncActivityForTest();
+    try {
+      const host = await renderWithPlaygroundHost(
+        <NoteByIdPage noteId="late-persisted-note-1" theme="light" />,
+        { route: '/note/late-persisted-note-1' },
+      );
+      activeHosts.push(host);
+
+      await waitFor(() => {
+        expect(screen.getByText('Note not found.')).toBeDefined();
+      });
+      expect(host.readAgentViewState().status).toBe('ready');
+
+      await act(async () => {
+        const raw = '# Late Persisted Note\n\n```wod\n20 Push-ups\n```\n';
+        await storageService.saveNoteSource({
+          noteId: 'late-persisted-note-1',
+          rawContent: raw,
+          blocks: reconcileNoteBlocks(raw, { sourceRevision: 1 }),
+          expectedSourceRevision: 0,
+          metadata: { title: 'Late Persisted Note', type: 'note' },
+        });
+        invalidateSeedContent();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Late Persisted Note')).toBeDefined();
+      });
+      expect(screen.queryByText('Note not found.')).toBeNull();
+      expect(host.readAgentViewState().status).toBe('ready');
+    } finally {
+      resetSyncActivityForTest();
       resetFeedReadinessForTest();
     }
   });

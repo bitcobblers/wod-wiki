@@ -349,4 +349,25 @@ describe('feedReadiness', () => {
     expect(getFeedReadiness()).toBe('ready');
     expect(isBootImportPending()).toBe(false);
   });
+
+  it('settles feedReadiness and bootImportPending atomically without an intermediate torn state (WW-019)', () => {
+    const snapshots: Array<{ readiness: string; pending: boolean }> = [];
+    const { unmount } = renderHook(() => {
+      const pending = useFeedImportPending();
+      snapshots.push({ readiness: getFeedReadiness(), pending });
+      return pending;
+    });
+    try {
+      act(() => markFeedSyncStarted());
+      snapshots.length = 0;
+
+      act(() => markFeedSyncSettled('imported'));
+      // Subscribers must never observe a torn (preparing, pending=false) or (ready, pending=true) state.
+      expect(snapshots.some((s) => s.readiness === 'preparing' && !s.pending)).toBe(false);
+      expect(snapshots.some((s) => s.readiness === 'ready' && s.pending)).toBe(false);
+      expect(snapshots[snapshots.length - 1]).toEqual({ readiness: 'ready', pending: false });
+    } finally {
+      unmount();
+    }
+  });
 });
