@@ -30,7 +30,7 @@ import { commitReferenceNote } from '@/repositories/referenceNotes';
 import { getAppEffortRegistry, hydrateAppEffortRegistry } from '@/services/effortRegistry';
 import { getAppEquipmentRegistry, hydrateAppEquipmentRegistry } from '@/services/equipmentRegistry';
 import type { NotebookScopeSnapshot } from '@/components/organisms/editor/wheelSources';
-import { getTagIndex, refreshTagIndex } from '@/services/tags/tagCatalogue';
+import { getTagIndex, refreshTagIndex, subscribeTagIndex } from '@/services/tags/tagCatalogue';
 import { readSoundProfiles } from '@/services/sound/soundProfiles';
 import { SEED_BROADCAST_CHANNEL } from '@/services/feed/feedSync';
 import { v7 as uuidv7 } from 'uuid';
@@ -97,11 +97,25 @@ function tagOpenHref(slug: string, explicitType?: string): string {
   return `/t/${encodeURIComponent(type)}/${encodeURIComponent(slug)}`;
 }
 
+function resolveCatalogueTag(slugOrLabel: string, tagType?: string): { slug: string; type?: string } | null {
+  const trimmed = slugOrLabel.trim();
+  if (!trimmed) return null;
+  const tagIndex = getTagIndex();
+  const def = tagIndex.resolve(trimmed) ?? tagIndex.resolve(trimmed.toLowerCase());
+  if (!def || def.isCategory) return null;
+  const categoryFromContributions = def.contributions.find(
+    (c): c is { kind: 'tag'; slug: string } => c.kind === 'tag' && Boolean(tagIndex.resolve(c.slug)?.isCategory),
+  )?.slug;
+  const resolvedType = tagTypesByLabel?.get(def.slug) ?? categoryFromContributions ?? tagType;
+  return { slug: def.slug, type: resolvedType };
+}
+
 function buildProvider(index: ReferenceIndex): FrontmatterReferenceProvider {
   return {
     resolve: (label, defaults) => index.resolve(label, defaults),
     resolveEffort: (slugOrAlias) => index.resolveEffort(slugOrAlias),
     resolveEquipment: (slugOrAlias) => index.resolveEquipment(slugOrAlias),
+    resolveTag: resolveCatalogueTag,
     openHref: (kind, slug, tagType) =>
       kind === 'tag' ? tagOpenHref(slug, tagType) : referenceOpenHref(kind, slug, slug),
     createHref: (kind) => (kind === 'effort'
@@ -160,17 +174,20 @@ export function createFrontmatterReferenceProvider(): Extension {
   const reloadListener = ViewPlugin.fromClass(
     class {
       private readonly channel: BroadcastChannel | null = null;
-      private readonly onSeed = () => {
+      private readonly unsubscribeTags: () => void;
+      private readonly onReload = () => {
         this.view.dispatch({ effects: referenceIndexReload.of(null) });
       };
       constructor(private readonly view: EditorView) {
         if (typeof BroadcastChannel !== 'undefined') {
           this.channel = new BroadcastChannel(SEED_BROADCAST_CHANNEL);
-          this.channel.onmessage = this.onSeed;
+          this.channel.onmessage = this.onReload;
         }
+        this.unsubscribeTags = subscribeTagIndex(this.onReload);
       }
       destroy() {
         this.channel?.close();
+        this.unsubscribeTags();
       }
     },
   );

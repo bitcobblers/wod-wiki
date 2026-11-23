@@ -62,6 +62,8 @@ export interface FrontmatterReferenceProvider {
   ): FrontmatterReferenceResolution;
   resolveEffort(slugOrAlias: string): { slug: string; label: string } | null;
   resolveEquipment(slugOrAlias: string): { slug: string; label: string } | null;
+  /** Exact catalogue tag lookup (optional — providers without a tag index omit it). */
+  resolveTag?(slugOrLabel: string, tagType?: string): { slug: string; type?: string } | null;
   /** Route href for an existing effort/equipment/tag page (app-owned). */
   openHref(kind: FrontmatterReferenceRef['kind'], slug: string, tagType?: string): string;
   /** Route href for the create page of a kind (app-owned). */
@@ -1013,7 +1015,7 @@ function createFrontmatterSummary(
     summary.appendChild(row);
   };
 
-  // 1. Tags (preserving source key category so /t/<type>/<tag> routes accurately)
+  // 1. Tags (only link chips that resolve to a real catalogue tag — WW-124)
   const seenTags = new Set<string>();
   const tagItems: Array<{ text: string; hash: boolean; href?: string }> = [];
   for (const [key, value] of entries) {
@@ -1023,10 +1025,13 @@ function createFrontmatterSummary(
       const lower = val.toLowerCase();
       if (seenTags.has(lower)) continue;
       seenTags.add(lower);
+      const match = referenceProvider?.resolveTag?.(val, normKey) ?? null;
       tagItems.push({
         text: val,
         hash: true,
-        href: referenceProvider?.openHref("tag", val, normKey),
+        href: match && referenceProvider
+          ? referenceProvider.openHref("tag", match.slug, match.type ?? normKey)
+          : undefined,
       });
     }
   }

@@ -376,4 +376,41 @@ describe('TimerStackView', () => {
     fireEvent.click(nextButton);
     expect(nextCalls).toBe(0);
   });
+
+  it('WW-127: constrains long up-next caption within flex containers to prevent mobile horizontal overflow', () => {
+    render(
+      <TimerStackView
+        {...baseProps}
+        upNext="15 Kettlebell Swings 24 kg"
+        primaryTimer={{
+          id: 'timer-1',
+          ownerId: 'block-1',
+          timerMemoryId: '',
+          label: 'AMRAP 20:00',
+          format: 'down',
+          durationMs: 1200000,
+          accumulatedMs: 5000,
+        }}
+      />,
+    );
+
+    const caption = screen.getByTestId('timer-up-next-caption');
+    expect(caption.textContent).toContain('15 Kettlebell Swings 24 kg');
+    expect(caption.className).toContain('max-w-full');
+    expect(caption.className).toContain('overflow-hidden');
+    expect(caption.className).toContain('text-ellipsis');
+    expect(caption.className).toContain('whitespace-nowrap');
+
+    const nextColumn = caption.parentElement;
+    expect(nextColumn).not.toBeNull();
+    expect(nextColumn!.className).toContain('min-w-0');
+    expect(nextColumn!.className).toContain('max-w-full');
+    expect(nextColumn!.className).toContain('shrink');
+
+    const controlsRow = nextColumn!.parentElement;
+    expect(controlsRow).not.toBeNull();
+    expect(controlsRow!.className).toContain('w-full');
+    expect(controlsRow!.className).toContain('min-w-0');
+    expect(controlsRow!.className).toContain('max-w-full');
+  });
 });

@@ -292,7 +292,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
 
     return (
         <div 
-            className={`flex w-full flex-1 ${tight ? `flex-row items-stretch gap-2 min-h-[80px]` : `flex-col ${dense ? (compact ? 'min-h-[136px]' : 'min-h-[112px]') : 'min-h-[192px]'} ${compact ? '' : dense ? 'gap-2' : 'gap-4'}`}`}
+            className={`flex w-full min-w-0 max-w-full flex-1 overflow-x-hidden ${tight ? `flex-row items-stretch gap-2 min-h-[80px]` : `flex-col ${dense ? (compact ? 'min-h-[136px]' : 'min-h-[112px]') : 'min-h-[192px]'} ${compact ? '' : dense ? 'gap-2' : 'gap-4'}`}`}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
@@ -422,7 +422,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                 Sizing follows the dense tier so short embedded contexts keep controls
                 usable instead of pushing them out of the panel; the shape (pill vs
                 circular) follows the compact tier only. */}
-            <div className={`flex flex-shrink-0 items-center justify-center flex-wrap ${tight ? 'gap-3 px-2 py-1' : compact ? 'px-4 py-3 bg-background border-t border-border gap-3' : dense ? 'gap-6 px-2 py-1' : 'gap-8 px-2 pb-8'}`}>
+            <div className={`flex w-full min-w-0 max-w-full flex-shrink-0 items-center justify-center flex-wrap ${tight ? 'gap-3 px-2 py-1' : compact ? 'px-4 py-3 bg-background border-t border-border gap-3' : dense ? 'gap-6 px-2 py-1' : 'gap-4 sm:gap-8 px-2 pb-8'}`}>
                 {/* Stop Button */}
                 <div className={`flex flex-col items-center ${dense ? 'gap-1' : 'gap-2'}`}>
                     <button
@@ -482,11 +482,11 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                 ) : (
                     /* Desktop: circular button with icon above a small NEXT
                         label (prototype .dt-now-ctrl .btn-next). */
-                    <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex min-w-0 max-w-full shrink flex-col items-center gap-1.5">
                         {upNext && !dense && (
                             <p
                                 data-testid={TEST_IDS.TIMER_UP_NEXT_CAPTION}
-                                className="max-w-[200px] truncate text-xs text-muted-foreground"
+                                className="max-w-full sm:max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs text-muted-foreground"
                             >
                                 Up next: <b className="font-semibold text-foreground">{upNext}</b>
                             </p>
