@@ -32,6 +32,9 @@ import {
 } from './streamProfile'
 import { TEST_IDS } from '@/lib/testIds'
 import { journalNotes } from '../../services/journalNotes'
+import { journalSchedule } from '../../services/journalSchedule'
+import { markFeedSyncSettled, markFeedSyncStarted, resetFeedReadinessForTest } from '@/services/feed/feedReadiness'
+import { reportSyncResult, resetSyncActivityForTest } from '@/services/syncActivity'
 import { resetFeedSubscriptionsForTest, setFeedSubscribed } from '@/services/feed/feedSubscriptions'
 import { NavContext, initialNavState, type StreamNavControls } from '../../nav/NavContext'
 import type { NavItemL3 } from '../../nav/navTypes'
@@ -2177,5 +2180,143 @@ describe('QueriableStreamView — query truth and retained state', () => {
     })
     expect(screen.getByTestId('stream-empty-state').textContent).toContain('No efforts match your search.')
     expect(screen.queryByTestId('route-wql-empty-options')).toBeNull()
+  })
+
+  it('WW-036: renders local entries immediately while feedReadiness is preparing and exposes data-feed-sync', async () => {
+    resetFeedReadinessForTest()
+    markFeedSyncStarted()
+    try {
+      const localNotes: Entry[] = [
+        { id: 'local-1', kind: 'note', sourceNotebook: 'journal', sourceNote: 'local-1', title: 'Heavy pulls', date: '2026-04-01' },
+        { id: 'local-2', kind: 'note', sourceNotebook: 'girls', sourceNote: 'local-2', title: 'Fran', date: '2026-04-01' },
+      ]
+      const { engine } = stubEngine(() => localNotes)
+      render(
+        <MemoryRouter initialEntries={['/notes']}>
+          <QueriableStreamView profile={NOTES_STREAM_PROFILE} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+
+      const root = screen.getByTestId('queriable-stream-view')
+      expect(root.getAttribute('data-feed-sync')).toBe('syncing')
+      expect(screen.queryByTestId('stream-preparing')).toBeNull()
+
+      await waitFor(() => {
+        expect(screen.getByText('Heavy pulls')).toBeDefined()
+        expect(screen.getByText('Fran')).toBeDefined()
+      })
+      expect(root.getAttribute('data-feed-sync')).toBe('syncing')
+
+      act(() => {
+        markFeedSyncSettled('current')
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('queriable-stream-view').getAttribute('data-feed-sync')).toBe('settled')
+      })
+    } finally {
+      resetFeedReadinessForTest()
+    }
+  })
+
+  it('WW-036: keeps empty vault in loading state while feedReadiness is preparing without flashing empty state', async () => {
+    resetFeedReadinessForTest()
+    markFeedSyncStarted()
+    try {
+      const { engine, executed } = stubEngine(() => [])
+
+      render(
+        <MemoryRouter initialEntries={['/notes']}>
+          <QueriableStreamView profile={NOTES_STREAM_PROFILE} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+
+      const root = screen.getByTestId('queriable-stream-view')
+      expect(root.getAttribute('data-feed-sync')).toBe('syncing')
+      expect(screen.getByTestId('stream-loading')).toBeDefined()
+      expect(screen.queryByTestId('stream-empty-state')).toBeNull()
+
+      await waitFor(() => expect(executed.length).toBe(1))
+      // Even after the local query settles with 0 entries, stay loading while feed is preparing.
+      expect(screen.getByTestId('stream-loading')).toBeDefined()
+      expect(screen.queryByTestId('stream-empty-state')).toBeNull()
+
+      act(() => {
+        markFeedSyncSettled('current')
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('queriable-stream-view').getAttribute('data-feed-sync')).toBe('settled')
+        expect(screen.getByTestId('stream-empty-state')).toBeDefined()
+      })
+    } finally {
+      resetFeedReadinessForTest()
+    }
+  })
+
+  it('WW-036: coalesces rapid syncActivity.result bursts into a single re-query', async () => {
+    resetSyncActivityForTest()
+    try {
+      const localNotes: Entry[] = [
+        { id: 'local-1', kind: 'note', sourceNotebook: 'journal', sourceNote: 'local-1', title: 'Heavy pulls', date: '2026-04-01' },
+      ]
+      const { engine, executed } = stubEngine(() => localNotes)
+
+      render(
+        <MemoryRouter initialEntries={['/notes']}>
+          <QueriableStreamView profile={NOTES_STREAM_PROFILE} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+
+      await waitFor(() => expect(executed.length).toBe(1))
+
+      // Emit a burst of 4 chunk commits in rapid succession.
+      act(() => {
+        reportSyncResult({ source: 'core', added: 5, updated: 0 })
+        reportSyncResult({ source: 'core', added: 5, updated: 0 })
+        reportSyncResult({ source: 'core', added: 5, updated: 0 })
+        reportSyncResult({ source: 'core', added: 5, updated: 0 })
+      })
+
+      // Immediately after the burst, trailing debounce has not fired yet.
+      expect(executed.length).toBe(1)
+
+      // After trailing debounce (300ms) + query execute debounce (150ms), exactly one re-query runs.
+      await waitFor(() => expect(executed.length).toBe(2), { timeout: 2000 })
+      await act(async () => {
+        await delay(250)
+      })
+      expect(executed.length).toBe(2)
+    } finally {
+      resetSyncActivityForTest()
+    }
+  })
+
+  it('WW-036: defers getUsageCountsByNote until after the primary stream query settles', async () => {
+    const usageSpy = spyOn(journalSchedule, 'getUsageCountsByNote').mockImplementation(async () => new Map())
+    const deferred = Promise.withResolvers<Entry[]>()
+    const localNotes: Entry[] = [
+      { id: 'local-1', kind: 'note', sourceNotebook: 'journal', sourceNote: 'local-1', title: 'Heavy pulls', date: '2026-04-01' },
+    ]
+    const { engine, executed } = stubEngine(() => deferred.promise)
+
+    render(
+      <MemoryRouter initialEntries={['/notes']}>
+        <QueriableStreamView profile={NOTES_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    // On initial mount (during debounce) and while the primary query is in-flight,
+    // secondary enrichment must not contend with IndexedDB.
+    expect(usageSpy).toHaveBeenCalledTimes(0)
+    await waitFor(() => expect(executed.length).toBe(1))
+    expect(usageSpy).toHaveBeenCalledTimes(0)
+
+    await act(async () => {
+      deferred.resolve(localNotes)
+      await deferred.promise
+    })
+
+    await waitFor(() => {
+      expect(usageSpy).toHaveBeenCalledTimes(1)
+    })
   })
 })

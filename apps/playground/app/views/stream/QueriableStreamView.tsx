@@ -170,6 +170,10 @@ export function plainTextFallbackQuery(rawInput: string, target: string): string
  *  drafts synchronously; only the run coalesces (existing 150ms behavior). */
 const STREAM_EXECUTE_DEBOUNCE_MS = 150
 
+/** Trailing debounce for coalescing bursty `syncActivity.result` commits into
+ *  a single stream re-query (WW-036). */
+const SYNC_ACTIVITY_DEBOUNCE_MS = 300
+
 /** `/notebook/:slug` — the single-notebook landing route (WW-032). */
 const NOTEBOOK_PATH_RE = /^\/notebook\/([^/]+)\/?$/
 
@@ -370,8 +374,9 @@ export function QueriableStreamView({
 }: QueriableStreamViewProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  // First-run gate: the vault query must not execute until the seed import
-  // has settled, or a fresh profile briefly commits a permanent "0 of 0".
+  // Local-first feed readiness: the stream queries local IndexedDB immediately
+  // even while `feedReadiness === 'preparing'`, staying in the loading state
+  // only when zero local entries exist so cold boot never flashes an empty state.
   const feedReadiness = useFeedReadiness()
   const feedImportPending = useFeedImportPending()
   const libraryMissing = useFeedLibraryMissing()
@@ -1008,16 +1013,26 @@ export function QueriableStreamView({
   // A sync that commits records (inline notice run, Settings page, another
   // tab) changes the vault under the mounted query — re-run it so imported
   // entries appear without a refresh. Only `result` bumps (not task
-  // start/end) so unrelated activity never re-executes.
+  // start/end) so unrelated activity never re-executes, and trailing-debounce
+  // bursts so multi-chunk cold-boot commits trigger one refresh (WW-036).
   useEffect(() => {
     let lastSeen = getSyncActivity().result?.id ?? -1
-    return subscribeSyncActivity(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const unsub = subscribeSyncActivity(() => {
       const id = getSyncActivity().result?.id ?? -1
       if (id !== lastSeen) {
         lastSeen = id
-        setSavedTick((t) => t + 1)
+        if (timer !== null) clearTimeout(timer)
+        timer = setTimeout(() => {
+          timer = null
+          setSavedTick((t) => t + 1)
+        }, SYNC_ACTIVITY_DEBOUNCE_MS)
       }
     })
+    return () => {
+      unsub()
+      if (timer !== null) clearTimeout(timer)
+    }
   }, [])
 
   // Inline sync of the user's SUBSCRIBED library sources from the core-only
@@ -1082,10 +1097,6 @@ export function QueriableStreamView({
     }
   }, [subscribedLibraryIds, openLibraryManager])
   useEffect(() => {
-    if (feedReadiness === 'preparing') {
-      setQueryPending(false)
-      return
-    }
     if (parsed.error) {
       setLoading(false)
       setQueryPending(false)
@@ -1160,6 +1171,7 @@ export function QueriableStreamView({
   const [overlayNotesById, setOverlayNotesById] = useState<ReadonlyMap<string, StoredNote>>(() => new Map())
 
   useEffect(() => {
+    if (loading || !hasSettledRun) return
     let cancelled = false
     const needsCounts =
       profile.route === '/notes' ||
@@ -1191,7 +1203,7 @@ export function QueriableStreamView({
     return () => {
       cancelled = true
     }
-  }, [profile.route, profile.notebookSlug, profile.calendarCapable, location.pathname, layout, savedTick])
+  }, [profile.route, profile.notebookSlug, profile.calendarCapable, location.pathname, layout, savedTick, loading, hasSettledRun])
 
   const enrichedEntries = useMemo(() => {
     const schedDatesByNote = new Map<string, string[]>()
@@ -1684,29 +1696,8 @@ export function QueriableStreamView({
 
   // Invalid draft: previous results stay visible but visibly stale.
   const stale = !!parsed.error && entries.length > 0
-
-  // First-run vault gate: skeleton until the seed import settles, then the
-  // query effect above runs against the full corpus on this mount.
-  if (feedReadiness === 'preparing') {
-    return (
-      <div
-        className="bg-card flex flex-col flex-1"
-        data-testid="stream-preparing"
-        role="status"
-        aria-busy="true"
-      >
-        {createNotebookDialog}
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-          <div className="w-full max-w-2xl space-y-3" aria-hidden="true">
-            <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-          </div>
-          <span className="text-sm text-muted-foreground">Loading library…</span>
-        </div>
-      </div>
-    )
-  }
+  const feedSyncing = feedImportPending || feedReadiness === 'preparing'
+  const awaitingFeedEntries = entries.length === 0 && feedSyncing
 
   const visibleHeaderTitle = notebookSlugParam ? (resolvedNotebookTitle ?? undefined) : undefined
   const streamHeading = resolvedNotebookTitle ?? profile.title ?? 'Stream'
@@ -1719,7 +1710,11 @@ export function QueriableStreamView({
   const addActionLabel = isNotebooksRoute ? '+ New notebook' : '+ Add'
 
   return (
-    <div className="bg-card flex flex-col flex-1" data-testid="queriable-stream-view">
+    <div
+      className="bg-card flex flex-col flex-1"
+      data-testid="queriable-stream-view"
+      data-feed-sync={feedSyncing ? 'syncing' : 'settled'}
+    >
       {!visibleHeaderTitle && (
         <h1 className="sr-only" data-testid={TEST_IDS.STREAM_PAGE_HEADING}>
           {streamHeading}
@@ -1820,7 +1815,7 @@ export function QueriableStreamView({
           target={statusTarget}
           matched={entries.length}
           total={Math.max(stages?.selected ?? 0, entries.length)}
-          countsPending={!parsed.error && (!hasSettledRun || (loading && !stages))}
+          countsPending={!parsed.error && (!hasSettledRun || (loading && !stages) || awaitingFeedEntries)}
           applied={appliedFilters}
           ignored={ignoredFilters}
           advisories={parsed.error ? [] : parsed.advisories ?? []}
@@ -1837,7 +1832,7 @@ export function QueriableStreamView({
           scopeOptions list is a deliberate Route WQL Config state, shown only
           when a settled query returns zero entries so populated planes
           (/tags, /efforts, /sessions, /pages) never show a dead-end warning. */}
-      {profile.scopeOptions.length === 0 && hasSettledRun && !loading && entries.length === 0 && !hasAppliedFilters && (
+      {profile.scopeOptions.length === 0 && hasSettledRun && !loading && !awaitingFeedEntries && entries.length === 0 && !hasAppliedFilters && (
         <p
           data-testid="route-wql-empty-options"
           className="px-4 pt-3 text-xs text-muted-foreground sm:px-6 lg:px-8"
@@ -2043,7 +2038,7 @@ export function QueriableStreamView({
         </div>
       )}
       {/* Unified Stream Content across all Library routes (/feeds, /notebooks, /notes, /journal, /sessions, /efforts, /tags) */}
-      {readmeOverride ? null : (layout === 'rows' || layout === 'agenda' || layout === 'planner') && entries.length === 0 && (!hasSettledRun || loading) ? (
+      {readmeOverride ? null : (layout === 'rows' || layout === 'agenda' || layout === 'planner') && entries.length === 0 && (!hasSettledRun || loading || awaitingFeedEntries) ? (
         <div className="py-16 text-center text-xs text-muted-foreground" data-testid="stream-loading">
           Loading…
         </div>
@@ -2108,11 +2103,11 @@ export function QueriableStreamView({
             onEditNotebook={e => void handleOpenEditNotebook(e)}
             onDeleteNotebook={e => void handleDeleteNotebookEntry(e)}
           />
-        ) : loading && entries.length === 0 ? (
+        ) : (loading || awaitingFeedEntries) && entries.length === 0 ? (
           <div className="py-16 text-center text-xs text-muted-foreground" data-testid="stream-loading">
             Loading…
           </div>
-        ) : entries.length === 0 && !loading ? (
+        ) : entries.length === 0 && !loading && !awaitingFeedEntries ? (
           streamEmptyState
         ) : null
       ) : (
@@ -2213,12 +2208,12 @@ export function QueriableStreamView({
               })}
               <BatchingSentinel batch={entriesBatch} />
             </div>
-          ) : loading && entries.length === 0 ? (
+          ) : (loading || awaitingFeedEntries) && entries.length === 0 ? (
             /* Initial loading state */
             <div className="py-16 text-center text-xs text-muted-foreground" data-testid="stream-loading">
               Loading…
             </div>
-          ) : entries.length === 0 && !loading ? (
+          ) : entries.length === 0 && !loading && !awaitingFeedEntries ? (
             streamEmptyState
           ) : null}
         </div>
