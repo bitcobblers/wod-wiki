@@ -12,9 +12,16 @@
  * the document is re-synthesized without the user's edits.
  */
 
+import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { IndexedDBStorage } from '@bitcobblers/wod-wiki-storage/idb';
+import { SEED_SCHEMA, seedNoteId, type SeedManifest } from '@bitcobblers/wod-wiki-engine';
+import { compileSeedRow } from '../../../../packages/tools/src/seedbuild/compiler';
 import { setStorageForTesting, resetStorageForTesting, storageService } from '@/services/storage';
 import { InMemoryStorage } from '@/services/storage/InMemoryStorage';
+import { IndexedDBFeedImportStorage } from '@/services/feed/FeedImportStorage';
+import { InMemoryFeedSource } from '@/services/feed/InMemoryFeedSource';
+import { runBootFeedSync, type FeedSourceSpec } from '@/services/feed/feedSync';
 import { commitReferenceNote } from './referenceNotes';
 
 beforeEach(() => {
@@ -221,5 +228,146 @@ describe('commitReferenceNote — Tag Property Note (/t/:category/:slug)', () =>
     const tags = await storageService.getAllTags();
     const tonnage = tags.find((tag) => tag.label === 'tonnage');
     expect(tonnage!.contributions).toContainEqual({ kind: 'metric', type: 'summaries.totalWork', value: 'sum(work)' });
+  });
+});
+
+describe('WW-020 — commitReferenceNote durable IndexedDB persistence across reload and boot feed sync', () => {
+  it('stamps seedOrigin=user and survives IndexedDB reopen + runBootFeedSync for effort create, clone, and tag save', async () => {
+    const dbName = `ww020-refnotes-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const idb1 = new IndexedDBStorage({ dbName });
+    setStorageForTesting(idb1);
+
+    const effortDoc = [
+      '---',
+      'id: effort-user-rowing-custom',
+      'slug: rowing-custom',
+      'label: Rowing (Custom)',
+      'aliases:',
+      '  - row custom',
+      'baseAttributes:',
+      '  met: 8.5',
+      'registrySource: user',
+      '---',
+      '',
+      'Custom rowing body prose preserved across reload.',
+    ].join('\n');
+
+    const tagDoc = [
+      '---',
+      'type: domain',
+      'id: tag-user-erg-test',
+      'slug: erg-test',
+      'label: erg-test',
+      'metrics.resistance: 10',
+      '---',
+      '',
+      '# erg-test',
+    ].join('\n');
+
+    try {
+      const committedEffort = await commitReferenceNote({
+        kind: 'effort',
+        slug: 'rowing-custom',
+        title: 'Rowing (Custom)',
+        rawContent: effortDoc,
+        expectedSourceRevision: 0,
+      });
+      expect(committedEffort.id).toBe('effort/rowing-custom');
+
+      // Second revision commit verifies update path works cleanly inside IndexedDB transaction scope.
+      const updatedEffort = await commitReferenceNote({
+        kind: 'effort',
+        slug: 'rowing-custom',
+        title: 'Rowing (Custom)',
+        rawContent: `${effortDoc}\n\nSecond line.`,
+        expectedSourceRevision: committedEffort.sourceRevision,
+      });
+      expect(updatedEffort.sourceRevision).toBe(2);
+
+      await commitReferenceNote({
+        kind: 'tag',
+        slug: 'erg-test',
+        category: 'domain',
+        title: 'erg-test',
+        rawContent: tagDoc,
+        expectedSourceRevision: 0,
+      });
+
+      const beforeClose = await storageService.getNote('effort/rowing-custom');
+      expect(beforeClose?.seedOrigin).toBe('user');
+      expect(beforeClose?.rawContent).toContain('Custom rowing body prose preserved across reload.');
+      expect(beforeClose?.rawContent).toContain('Second line.');
+    } finally {
+      await idb1.close();
+    }
+
+    // Reopen fresh IndexedDBStorage against the same dbName (simulates full page reload)
+    // and run boot feed sync with a core efforts chunk.
+    const idb2 = new IndexedDBStorage({ dbName });
+    setStorageForTesting(idb2);
+    try {
+      const bundledEffortRow = compileSeedRow(
+        'markdown/efforts/rowing.md',
+        [
+          '---',
+          'id: effort-rowing',
+          'slug: rowing',
+          'label: Rowing',
+          'aliases:',
+          '  - row',
+          'baseAttributes:',
+          '  met: 7.0',
+          'registrySource: bundled',
+          '---',
+          '',
+          'Bundled rowing.',
+        ].join('\n'),
+      );
+      bundledEffortRow.uuid = await seedNoteId(bundledEffortRow.path);
+      const manifest: SeedManifest = {
+        schema: SEED_SCHEMA,
+        version: 1,
+        commit: 'seed-v1',
+        builtAt: new Date(1000).toISOString(),
+        chunks: [
+          {
+            id: 'efforts',
+            path: 'chunks/efforts.json',
+            sha256: '1'.repeat(64),
+            bytes: 100,
+            count: 1,
+          },
+        ],
+      };
+      const feedStorage = new IndexedDBFeedImportStorage(idb2);
+      const sources: FeedSourceSpec[] = [
+        {
+          id: 'core',
+          label: 'Core',
+          source: new InMemoryFeedSource(manifest, { 'chunks/efforts.json': [bundledEffortRow] }),
+          url: 'https://feed.test/core/',
+          embeddedVersion: 1,
+        },
+      ];
+      const outcome = await runBootFeedSync({ sources, storage: feedStorage, isEnabled: () => true });
+      expect(outcome).toBe('imported');
+
+      const reloadedEffortNote = await storageService.getNote('effort/rowing-custom');
+      expect(reloadedEffortNote).toBeDefined();
+      expect(reloadedEffortNote?.seedOrigin).toBe('user');
+      expect(reloadedEffortNote?.rawContent).toContain('Custom rowing body prose preserved across reload.');
+      expect(reloadedEffortNote?.rawContent).toContain('Second line.');
+
+      const reloadedEffortProj = await storageService.getEffort('rowing-custom');
+      expect(reloadedEffortProj).toBeDefined();
+      expect(reloadedEffortProj?.registrySource).toBe('user');
+
+      const reloadedTagNote = await storageService.getNote('t/domain/erg-test');
+      expect(reloadedTagNote).toBeDefined();
+      expect(reloadedTagNote?.seedOrigin).toBe('user');
+      expect(reloadedTagNote?.rawContent).toContain('metrics.resistance: 10');
+    } finally {
+      await idb2.close();
+    }
   });
 });

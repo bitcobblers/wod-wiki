@@ -1,9 +1,10 @@
 /**
- * WW-071 — Alias chips on /effort/:slug and /equipment/:slug are
- * non-interactive spans instead of links to the canonical property route.
+ * WW-071 — On /effort/:slug (e.g. /effort/rowing), alias chips must NOT
+ * self-link back to /effort/rowing (a no-op self-link).
  *
- * Expected behavior: alias chips in the frontmatter summary render as links
- * (`<a href="/effort/rowing">`) targeting the canonical property route.
+ * Expected behavior: alias chips in the frontmatter summary render as
+ * non-link pills/badges when they resolve to the current effort's own
+ * canonical URL.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
@@ -20,8 +21,8 @@ afterEach(async () => {
   }
 });
 
-describe('WW-071 — alias chips are links on property detail pages', () => {
-  it('renders /effort/rowing alias chips as links to /effort/rowing', async () => {
+describe('WW-071 — alias chips do not self-link on property detail pages', () => {
+  it('renders /effort/rowing alias chips as non-link pills instead of self-links to /effort/rowing', async () => {
     host = await renderWithPlaygroundHost(<EffortDetailPage />, {
       route: '/effort/rowing',
       routePath: '/effort/:slug',
@@ -45,13 +46,12 @@ describe('WW-071 — alias chips are links on property detail pages', () => {
 
     const editorHost = screen.getByTestId(TEST_IDS.EFFORT_DETAIL_NOTEBOOK_EDITOR);
     await waitFor(() => {
-      const link = within(editorHost).queryByRole('link', { name: 'row' });
-      expect(link).not.toBeNull();
+      expect(within(editorHost).queryByText('row')).not.toBeNull();
     });
 
     for (const alias of ['row', 'rower', 'concept2 row']) {
-      const link = within(editorHost).getByRole('link', { name: alias });
-      expect(link.getAttribute('href')).toMatch(/\/effort\/rowing$/);
+      expect(within(editorHost).getByText(alias)).toBeTruthy();
+      expect(within(editorHost).queryByRole('link', { name: alias })).toBeNull();
     }
   });
 });

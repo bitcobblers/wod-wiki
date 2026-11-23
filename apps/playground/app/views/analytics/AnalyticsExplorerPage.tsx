@@ -210,6 +210,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
     };
   }, [examplesOpen]);
   const [result, setResult] = useState<QueryResult | undefined>(undefined);
+  const [queryError, setQueryError] = useState<string | null>(null);
   const [entries, setEntries] = useState<Entry[] | undefined>(undefined);
   const [records, setRecords] = useState<Entry[] | undefined>(undefined);
   const [efforts, setEfforts] = useState<IEffort[] | undefined>(undefined);
@@ -229,6 +230,8 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   // composer's picker rows without excluding anything.
   const preferredChoices = routeConfig.typeOptions;
   const liveParsed = useMemo(() => parseQuery(draft), [draft]);
+  const isStaleInvalid = Boolean((liveParsed.error || queryError) && submitted);
+  const showStaleBanner = isStaleInvalid && !invalidBannerQuery;
   const displayedFindParsed = activeFindParsed ?? (isFindQuery(liveParsed) ? liveParsed : null);
   const scopeLabel = sourceFilterLabel(displayedFindParsed ? displayedFindParsed.filters : []);
   const findWindowLabel = displayedFindParsed?.window ? windowLabel(displayedFindParsed.window) : null;
@@ -315,19 +318,27 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
 
     if (!submitted) {
       setResult(undefined);
+      setQueryError(null);
       setEntries(undefined);
       setEfforts(undefined);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
     const parsed = parseQuery(submitted);
+    if (parsed.error) {
+      setQueryError(parsed.error);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
 
     if (isFindQuery(parsed)) {
       // Content query — the shared WQL → Entry[] pipeline (same rows as the
       // Library, #833); effort targets come from the engine's effort plane.
       setResult(undefined);
+      setQueryError(null);
       if (parsed.target === 'effort') {
         queryService.runFind(parsed)
           .then((r) => { if (!cancelled) { setEfforts(r.efforts ?? []); setEntries([]); } })
@@ -346,8 +357,20 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
       const now = Date.now();
       const rangeStart = now - activeWeeks * 7 * DAY;
       queryService.runQuery(submitted, { rangeStart, rangeEnd: now, preferredUnit })
-        .then((r) => { if (!cancelled) setResult(r); })
-        .catch(() => { if (!cancelled) setResult(undefined); })
+        .then((r) => {
+          if (cancelled) return;
+          if (r.parsed.error) {
+            // Preserve the last valid chart/result when a parse/syntax error occurs (WW-038).
+            setQueryError(r.parsed.error);
+            return;
+          }
+          setQueryError(null);
+          setResult(r);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setQueryError(err instanceof Error ? err.message : 'Query execution failed');
+        })
         .finally(() => { if (!cancelled) setLoading(false); });
     }
 
@@ -677,12 +700,16 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
           {activeFindParsed ? (
             /* ── Find query result: Library stream grouped by active WQL dimension ── */
             <div className="mt-3">
-              {liveParsed.error && submitted && (
+              {showStaleBanner && (
                 <div
+                  role="alert"
                   data-testid="explorer-results-stale"
                   className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700"
                 >
-                  <span>Stale — showing the last run's results; the current draft is invalid and not applied.</span>
+                  <span>
+                    Stale — showing the last run's results; the current draft is invalid
+                    {(liveParsed.error ?? queryError) ? ` (${liveParsed.error ?? queryError})` : ''} and not applied.
+                  </span>
                   <button
                     type="button"
                     onClick={revertDraft}
@@ -700,7 +727,13 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
                   {findAdvisories.join(' · ')}
                 </div>
               )}
-              <div className="bg-card border border-border rounded-lg p-4">
+              <div
+                data-stale={isStaleInvalid ? 'true' : undefined}
+                className={cn(
+                  'bg-card border border-border rounded-lg p-4 transition-opacity',
+                  isStaleInvalid && 'opacity-60',
+                )}
+              >
                 <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
                   Find {activeFindParsed.target}
                   {scopeLabel && <span className="ml-1">in {scopeLabel}</span>}
@@ -740,12 +773,16 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
                 <SampleDataPrompt layout="banner" refreshKey={refreshKey} onChanged={() => setRefreshKey((k) => k + 1)} />
               </div>
 
-              {liveParsed.error && submitted && (
+              {showStaleBanner && (
                 <div
+                  role="alert"
                   data-testid="explorer-results-stale"
                   className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700"
                 >
-                  <span>Stale — showing the last run's results; the current draft is invalid and not applied.</span>
+                  <span>
+                    Stale — showing the last run's results; the current draft is invalid
+                    {(liveParsed.error ?? queryError) ? ` (${liveParsed.error ?? queryError})` : ''} and not applied.
+                  </span>
                   <button
                     type="button"
                     onClick={revertDraft}
@@ -756,7 +793,13 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
                 </div>
               )}
 
-              <div className="mt-3">
+              <div
+                data-stale={isStaleInvalid ? 'true' : undefined}
+                className={cn(
+                  'mt-3 transition-opacity',
+                  isStaleInvalid && 'opacity-60',
+                )}
+              >
                 <WidgetFrame title="Query result" question={exampleQuestion} query={submitted || '(empty)'}>
                   <div className="h-64">
                     {!submitted ? (

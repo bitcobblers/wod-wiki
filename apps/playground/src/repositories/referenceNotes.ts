@@ -60,6 +60,7 @@ const FAMILY_SOURCE: Record<ReferenceKind, string> = {
 const REFERENCE_TX_STORES = [
   'notes',
   'block_revisions',
+  'note_revisions',
   'block_index',
   'block_efforts',
   'block_equipment',
@@ -71,6 +72,10 @@ const REFERENCE_TX_STORES = [
   'tags',
   'tag_types',
   'attachments',
+  'sessions',
+  'notebook_links',
+  'schedule_items',
+  'meta',
 ] as const;
 /**
  * Property Note frontmatter → contribution rows: `metrics.*` (quantity
@@ -139,6 +144,9 @@ export async function commitReferenceNote(input: CommitReferenceNoteInput): Prom
         metadata: { title: parsedTag.tag.label || input.title, sourceId: FAMILY_SOURCE.tag },
         createdAt: Date.now(),
       });
+      if (note.seedOrigin !== 'user') {
+        await scoped.saveNote({ ...note, seedOrigin: 'user' });
+      }
       return { id: noteId, sourceRevision: note.sourceRevision };
     });
   }
@@ -175,6 +183,9 @@ export async function commitReferenceNote(input: CommitReferenceNoteInput): Prom
         metadata: { title: label, sourceId: FAMILY_SOURCE['tag-type'] },
         createdAt: Date.now(),
       });
+      if (note.seedOrigin !== 'user') {
+        await scoped.saveNote({ ...note, seedOrigin: 'user' });
+      }
       return { id: noteId, sourceRevision: note.sourceRevision };
     });
   }
@@ -254,6 +265,9 @@ export async function commitReferenceNote(input: CommitReferenceNoteInput): Prom
       metadata: { title: parsed!.label, sourceId: FAMILY_SOURCE[input.kind] },
       createdAt: Date.now(),
     });
+    if (note.seedOrigin !== 'user') {
+      await scoped.saveNote({ ...note, seedOrigin: 'user' });
+    }
     return { id: noteId, sourceRevision: note.sourceRevision };
   });
 }

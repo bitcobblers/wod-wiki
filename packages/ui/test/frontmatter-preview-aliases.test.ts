@@ -161,4 +161,64 @@ describe('frontmatter alias fidelity', () => {
       container.remove();
     }
   });
+
+  it('WW-071: does not self-link alias chips to the current effort canonical URL in summary or detailed view', () => {
+    const { container, view } = openThrusterEditor();
+    try {
+      const summary = container.querySelector<HTMLElement>('[data-frontmatter-summary]');
+      expect(summary).not.toBeNull();
+      expect(summary!.querySelectorAll('a').length).toBe(0);
+
+      openDetails(container);
+      const row = container.querySelector<HTMLElement>('[data-frontmatter-row="aliases"]');
+      expect(row).not.toBeNull();
+      expect(row!.querySelectorAll('a').length).toBe(0);
+    } finally {
+      view.destroy();
+      container.remove();
+    }
+  });
+
+  it('WW-071: still links an alias chip when it resolves to a distinct effort destination', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const mixedCatalog = {
+      ...thrusterCatalog,
+      resolveEffort: (token: string) =>
+        token.toLowerCase() === 'front squat'
+          ? { slug: 'front-squat', label: 'Front Squat' }
+          : { slug: 'thruster', label: 'Thruster' },
+    };
+    const doc = `---
+slug: thruster
+title: Thruster
+type: effort
+aliases:
+  - thrusters
+  - front squat
+---
+# Thruster
+`;
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          sectionField,
+          frontmatterReferenceIndex.of(() => mixedCatalog),
+          frontmatterPreview,
+        ],
+      }),
+    });
+    try {
+      const summary = container.querySelector<HTMLElement>('[data-frontmatter-summary]')!;
+      const links = [...summary.querySelectorAll('a')];
+      expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
+        ['front squat', '/t/effort/front-squat'],
+      ]);
+    } finally {
+      view.destroy();
+      container.remove();
+    }
+  });
 });

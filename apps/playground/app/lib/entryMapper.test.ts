@@ -1104,4 +1104,110 @@ describe('WW-009: structural segment titles vs real round numbers', () => {
     expect(segComputedEntry.execution?.loadLbs).toBe(360)
     expect(segComputedEntry.execution?.volumeUnit).toBe('kg')
   })
+
+  it('WW-051: rowsRunToEntry segmentCount excludes structural and container segments to match splitCount (4 splits)', () => {
+    const t0 = new Date('2026-11-23T10:00:00Z').getTime()
+    const run: RowsRun = {
+      resultId: 'res-ww051-count',
+      noteId: 'ww051-note',
+      timestamp: t0 + 30_000,
+      durationMs: 18_000,
+      events: [
+        {
+          id: 'res-ww051-count:0',
+          resultId: 'res-ww051-count',
+          noteId: 'ww051-note',
+          timestamp: t0,
+          grain: 'event',
+          outputType: 'segment',
+          sourceBlockKey: 'waiting-to-start',
+          stackLevel: 1,
+          timeSpan: { started: t0, ended: t0 + 12_000 },
+          metrics: [{ type: 'label', value: 'Ready to Start' }],
+        } as unknown as EventRecord,
+        {
+          id: 'res-ww051-count:1',
+          resultId: 'res-ww051-count',
+          noteId: 'ww051-note',
+          timestamp: t0 + 12_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'burpees',
+          sourceBlockKey: 'stmt-1',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 12_000, ended: t0 + 16_000 },
+          metrics: [{ type: 'effort', value: 'burpees' }, { type: 'rep', value: 5 }],
+        } as unknown as EventRecord,
+        {
+          id: 'res-ww051-count:2',
+          resultId: 'res-ww051-count',
+          noteId: 'ww051-note',
+          timestamp: t0 + 16_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'squats',
+          sourceBlockKey: 'stmt-2',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 16_000, ended: t0 + 21_000 },
+          metrics: [{ type: 'effort', value: 'squats' }, { type: 'rep', value: 10 }],
+        } as unknown as EventRecord,
+        {
+          id: 'res-ww051-count:3',
+          resultId: 'res-ww051-count',
+          noteId: 'ww051-note',
+          timestamp: t0 + 21_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'burpees',
+          sourceBlockKey: 'stmt-1',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 21_000, ended: t0 + 25_000 },
+          metrics: [{ type: 'effort', value: 'burpees' }, { type: 'rep', value: 5 }],
+        } as unknown as EventRecord,
+        {
+          id: 'res-ww051-count:4',
+          resultId: 'res-ww051-count',
+          noteId: 'ww051-note',
+          timestamp: t0 + 25_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'squats',
+          sourceBlockKey: 'stmt-2',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 25_000, ended: t0 + 30_000 },
+          metrics: [{ type: 'effort', value: 'squats' }, { type: 'rep', value: 10 }],
+        } as unknown as EventRecord,
+        {
+          id: 'res-ww051-count:5',
+          resultId: 'res-ww051-count',
+          noteId: 'ww051-note',
+          timestamp: t0 + 12_000,
+          grain: 'event',
+          outputType: 'segment',
+          sourceBlockKey: 'rounds-container',
+          stackLevel: 1,
+          timeSpan: { started: t0 + 12_000, ended: t0 + 30_000 },
+          metrics: [{ type: 'rounds', value: 2 }],
+        } as unknown as EventRecord,
+        {
+          id: 'res-ww051-count:6',
+          resultId: 'res-ww051-count',
+          noteId: 'ww051-note',
+          timestamp: t0 + 12_000,
+          grain: 'event',
+          outputType: 'segment',
+          sourceBlockKey: 'session-root',
+          stackLevel: 0,
+          timeSpan: { started: t0 + 12_000, ended: t0 + 30_000 },
+          metrics: [],
+        } as unknown as EventRecord,
+      ],
+    }
+
+    const entry = rowsRunToEntry(run)
+    expect(entry.execution?.segmentCount).toBe(4)
+    expect(entry.subtitle).toContain('4 splits')
+    expect(entry.subtitle).not.toContain('7 splits')
+    expect(entry.subtitle).not.toContain('5 splits')
+  })
 })

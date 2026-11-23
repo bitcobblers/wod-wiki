@@ -203,4 +203,47 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
         expect(newTagSection.querySelector('.min-w-\\[200px\\]')).toBeNull();
         expect(newTagSection.querySelector('.w-40')).toBeNull();
     });
+
+    it('WW-122: clicking Create #<tag> on the not-found panel creates the tag and opens its editor', async () => {
+        renderTagRoute('/t/general/e2e-heavy-2099');
+
+        const createBtn = await waitFor(
+            () => screen.getByTestId('tag-not-found-create-btn'),
+            { timeout: 5000 },
+        );
+        expect(createBtn.textContent).toContain('Create #e2e-heavy-2099');
+
+        fireEvent.click(createBtn);
+
+        await waitFor(async () => {
+            const tags = await storageService.getAllTags();
+            expect(tags.map(tag => tag.label)).toContain('e2e-heavy-2099');
+        }, { timeout: 5000 });
+        await waitFor(
+            () => expect(screen.getByRole('heading', { name: 'Edit e2e-heavy-2099' })).toBeTruthy(),
+            { timeout: 5000 },
+        );
+        expect(screen.queryByTestId('tag-not-found')).toBeNull();
+    });
+
+    it('WW-122: creating from a categorized not-found route preserves the category kind', async () => {
+        renderTagRoute('/t/domain/e2e-domain-2099');
+
+        const createBtn = await waitFor(
+            () => screen.getByTestId('tag-not-found-create-btn'),
+            { timeout: 5000 },
+        );
+        fireEvent.click(createBtn);
+
+        await waitFor(async () => {
+            const tags = await storageService.getAllTags();
+            const created = tags.find(tag => tag.label === 'e2e-domain-2099');
+            expect(created).toBeTruthy();
+            expect(created?.type).toBe('domain');
+        }, { timeout: 5000 });
+        await waitFor(
+            () => expect(screen.getByRole('heading', { name: 'Edit e2e-domain-2099' })).toBeTruthy(),
+            { timeout: 5000 },
+        );
+    });
 });

@@ -162,6 +162,19 @@ export function markFeedFirstPaint(): void {
   }
 }
 
+function settleAtomically(next: 'ready' | 'error'): void {
+  const prevState = state;
+  const prevEffective = bootImportPending || activeImportCount > 0;
+  bootImportPending = false;
+  state = next;
+  const nextEffective = bootImportPending || activeImportCount > 0;
+  reflectImportPending(nextEffective);
+  reflectState(next);
+  if (prevState !== next || prevEffective !== nextEffective) {
+    notify();
+  }
+}
+
 /** Called with the outcome of every boot feed sync attempt (including retries). */
 export function markFeedSyncSettled(outcome: FeedSyncOutcome): void {
   reflectOutcome(outcome);
@@ -174,8 +187,7 @@ export function markFeedSyncSettled(outcome: FeedSyncOutcome): void {
           if ((event.data as { kind?: string } | null)?.kind === 'seed-imported') {
             clearBusyWatch();
             freshBootImporting = false;
-            setBootImportPending(false);
-            setState('ready');
+            settleAtomically('ready');
           }
         };
       }
@@ -186,13 +198,18 @@ export function markFeedSyncSettled(outcome: FeedSyncOutcome): void {
     }
     case 'error':
       clearBusyWatch();
-      if (!freshBootImporting) setBootImportPending(false);
-      setState('error');
+      if (freshBootImporting) {
+        setState('error');
+      } else {
+        settleAtomically('error');
+      }
       break;
     default:
       clearBusyWatch();
-      if (!freshBootImporting) setBootImportPending(false);
-      setState('ready');
+      // WW-019: never flip data-feed-state to 'ready' while freshBootImporting
+      // still holds bootImportPending=true.
+      if (freshBootImporting) return;
+      settleAtomically('ready');
       break;
   }
 }

@@ -759,4 +759,121 @@ describe('the notebook plane (ticket 08)', () => {
     expect(summary.totalVolume).toBe(360);
     expect(summary.volumeUnit).toBe('kg');
   });
+
+  it('WW-051: computeRowsRunSummary splitCount excludes waiting-to-start, session-root, and container segments while preserving roundsCompleted', () => {
+    const t0 = 1_700_000_000_000;
+    const summary = computeRowsRunSummary({
+      resultId: 'run-ww051-splits',
+      noteId: 'n-ww051',
+      timestamp: t0 + 30_000,
+      durationMs: 18_000,
+      events: [
+        {
+          id: 'run-ww051-splits:0',
+          resultId: 'run-ww051-splits',
+          noteId: 'n-ww051',
+          timestamp: t0,
+          grain: 'event',
+          outputType: 'segment',
+          sourceBlockKey: 'waiting-to-start',
+          stackLevel: 1,
+          timeSpan: { started: t0, ended: t0 + 12_000 },
+          metrics: [{ type: 'label', value: 'Ready to Start', origin: 'runtime' }],
+        },
+        {
+          id: 'run-ww051-splits:1',
+          resultId: 'run-ww051-splits',
+          noteId: 'n-ww051',
+          timestamp: t0 + 12_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'burpees',
+          sourceBlockKey: 'stmt-1',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 12_000, ended: t0 + 16_000 },
+          metrics: [
+            { type: 'effort', value: 'burpees', origin: 'parser' },
+            { type: 'rep', value: 5, origin: 'parser' },
+          ],
+        },
+        {
+          id: 'run-ww051-splits:2',
+          resultId: 'run-ww051-splits',
+          noteId: 'n-ww051',
+          timestamp: t0 + 16_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'squats',
+          sourceBlockKey: 'stmt-2',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 16_000, ended: t0 + 21_000 },
+          metrics: [
+            { type: 'effort', value: 'squats', origin: 'parser' },
+            { type: 'rep', value: 10, origin: 'parser' },
+          ],
+        },
+        {
+          id: 'run-ww051-splits:3',
+          resultId: 'run-ww051-splits',
+          noteId: 'n-ww051',
+          timestamp: t0 + 21_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'burpees',
+          sourceBlockKey: 'stmt-1',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 21_000, ended: t0 + 25_000 },
+          metrics: [
+            { type: 'effort', value: 'burpees', origin: 'parser' },
+            { type: 'rep', value: 5, origin: 'parser' },
+          ],
+        },
+        {
+          id: 'run-ww051-splits:4',
+          resultId: 'run-ww051-splits',
+          noteId: 'n-ww051',
+          timestamp: t0 + 25_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'squats',
+          sourceBlockKey: 'stmt-2',
+          stackLevel: 2,
+          timeSpan: { started: t0 + 25_000, ended: t0 + 30_000 },
+          metrics: [
+            { type: 'effort', value: 'squats', origin: 'parser' },
+            { type: 'rep', value: 10, origin: 'parser' },
+          ],
+        },
+        {
+          id: 'run-ww051-splits:5',
+          resultId: 'run-ww051-splits',
+          noteId: 'n-ww051',
+          timestamp: t0 + 12_000,
+          grain: 'event',
+          outputType: 'segment',
+          sourceBlockKey: 'rounds-container',
+          stackLevel: 1,
+          timeSpan: { started: t0 + 12_000, ended: t0 + 30_000 },
+          metrics: [{ type: 'rounds', value: 2, origin: 'runtime' }],
+        },
+        {
+          id: 'run-ww051-splits:6',
+          resultId: 'run-ww051-splits',
+          noteId: 'n-ww051',
+          timestamp: t0 + 12_000,
+          grain: 'event',
+          outputType: 'segment',
+          sourceBlockKey: 'session-root',
+          stackLevel: 0,
+          timeSpan: { started: t0 + 12_000, ended: t0 + 30_000 },
+          metrics: [],
+        },
+      ],
+    });
+
+    expect(summary.splitCount).toBe(4);
+    expect(summary.roundsCompleted).toBe(2);
+    expect(summary.totalReps).toBe(30);
+    expect(summary.elapsedMs).toBe(18_000);
+  });
 });
