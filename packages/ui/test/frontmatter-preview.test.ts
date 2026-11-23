@@ -1108,11 +1108,13 @@ summaries.totalWork: sum(work)
     ].join('\n');
     const calls: Array<{ kind: string; slug: string; tagType?: string }> = [];
     const mockProvider = {
-      resolve: () => ({ matched: 'none' as const, refs: [], diagnostics: [] }),
+      resolve: () => ({ matched: 'none' as const, effortRef: null, equipment: [], diagnostics: [] }),
       resolveEffort: (token: string) =>
         token === 'back-squat' || token === 'BS' ? { slug: 'back-squat', label: 'Back Squat' } : null,
       resolveEquipment: (token: string) =>
         token === 'barbell' ? { slug: 'barbell', label: 'Barbell' } : null,
+      resolveTag: (token: string, tagType?: string) =>
+        token === 'benchmark' || token === 'strength' ? { slug: token, type: tagType } : null,
       openHref: (kind: 'effort' | 'equipment' | 'tag', slug: string, tagType?: string) => {
         calls.push({ kind, slug, tagType });
         return kind === 'tag' ? `/t/${tagType ?? 'general'}/${slug}` : `/${kind}/${slug}`;
@@ -1145,6 +1147,100 @@ summaries.totalWork: sum(work)
       expect(anchors).toContainEqual({ text: 'Barbell', href: '/equipment/barbell' });
       expect(anchors).toContainEqual({ text: 'Back Squat', href: '/effort/back-squat' });
       expect(calls.some((c) => c.kind === 'tag' && c.tagType === 'discipline')).toBe(true);
+    } finally {
+      view.destroy();
+      container.remove();
+    }
+  });
+
+  it('WW-124: only links tag chips that resolve in the tag catalogue and leaves unknown frontmatter tags as plain pills', () => {
+    const doc = [
+      '---',
+      'discipline: rowing',
+      'intensityTier: high',
+      'quality: heavy',
+      'equipment: [rower]',
+      '---',
+      '# Row',
+    ].join('\n');
+    const calls: Array<{ kind: string; slug: string; tagType?: string }> = [];
+    const mockProvider = {
+      resolve: () => ({ matched: 'none' as const, effortRef: null, equipment: [], diagnostics: [] }),
+      resolveEffort: () => null,
+      resolveEquipment: (token: string) =>
+        token === 'rower' ? { slug: 'rower', label: 'Rower' } : null,
+      resolveTag: (token: string) =>
+        token === 'heavy' ? { slug: 'heavy', type: 'quality' } : null,
+      openHref: (kind: 'effort' | 'equipment' | 'tag', slug: string, tagType?: string) => {
+        calls.push({ kind, slug, tagType });
+        return kind === 'tag' ? `/t/${tagType ?? 'general'}/${slug}` : `/${kind}/${slug}`;
+      },
+      createHref: (kind: 'effort' | 'equipment' | 'tag') => `/${kind}/new`,
+    };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({
+        doc,
+        extensions: [sectionField, frontmatterPreview, frontmatterReferenceIndex.of(() => mockProvider)],
+      }),
+    });
+
+    try {
+      const summary = container.querySelector('[data-frontmatter-summary]')!;
+      expect(summary.textContent).toContain('#rowing');
+      expect(summary.textContent).toContain('#high');
+      expect(summary.textContent).toContain('#heavy');
+
+      const anchors = Array.from(summary.querySelectorAll('a')).map((a) => ({
+        text: a.textContent,
+        href: a.getAttribute('href'),
+      }));
+      expect(anchors).toEqual([
+        { text: '#heavy', href: '/t/quality/heavy' },
+        { text: 'Rower', href: '/equipment/rower' },
+      ]);
+      expect(calls.filter((c) => c.kind === 'tag')).toEqual([
+        { kind: 'tag', slug: 'heavy', tagType: 'quality' },
+      ]);
+    } finally {
+      view.destroy();
+      container.remove();
+    }
+  });
+
+  it('WW-124: leaves tag chips unlinked when referenceProvider omits resolveTag', () => {
+    const doc = [
+      '---',
+      'discipline: rowing',
+      'intensityTier: high',
+      '---',
+      '# Row',
+    ].join('\n');
+    const mockProvider = {
+      resolve: () => ({ matched: 'none' as const, effortRef: null, equipment: [], diagnostics: [] }),
+      resolveEffort: () => null,
+      resolveEquipment: () => null,
+      openHref: (kind: 'effort' | 'equipment' | 'tag', slug: string, tagType?: string) =>
+        kind === 'tag' ? `/t/${tagType ?? 'general'}/${slug}` : `/${kind}/${slug}`,
+      createHref: (kind: 'effort' | 'equipment' | 'tag') => `/${kind}/new`,
+    };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({
+        doc,
+        extensions: [sectionField, frontmatterPreview, frontmatterReferenceIndex.of(() => mockProvider)],
+      }),
+    });
+
+    try {
+      const summary = container.querySelector('[data-frontmatter-summary]')!;
+      expect(summary.textContent).toContain('#rowing');
+      expect(summary.textContent).toContain('#high');
+      expect(summary.querySelectorAll('a').length).toBe(0);
     } finally {
       view.destroy();
       container.remove();

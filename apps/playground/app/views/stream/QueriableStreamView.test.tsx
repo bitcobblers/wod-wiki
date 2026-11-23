@@ -21,6 +21,7 @@ import {
   NOTEBOOKS_STREAM_PROFILE,
   NOTES_STREAM_PROFILE,
   EFFORTS_STREAM_PROFILE,
+  EQUIPMENT_STREAM_PROFILE,
   FEEDS_STREAM_PROFILE,
   JOURNAL_STREAM_PROFILE,
   PLAYGROUNDS_STREAM_PROFILE,
@@ -29,6 +30,7 @@ import {
   createResultDetailProfile,
   createNotebookProfile,
 } from './streamProfile'
+import { TEST_IDS } from '@/lib/testIds'
 import { journalNotes } from '../../services/journalNotes'
 import { resetFeedSubscriptionsForTest, setFeedSubscribed } from '@/services/feed/feedSubscriptions'
 import { NavContext, initialNavState, type StreamNavControls } from '../../nav/NavContext'
@@ -2060,5 +2062,120 @@ describe('QueriableStreamView — query truth and retained state', () => {
     } finally {
       resetStorageForTesting()
     }
+  })
+
+  it('WW-128 & WW-121: surfaces a visible desktop primary create button on creatable stream headers without opening View popover', async () => {
+    const { engine } = stubEngine(() => [])
+
+    // /notebooks -> "+ New notebook" button opens CreateNotebookDialog directly
+    render(
+      <MemoryRouter initialEntries={['/notebooks']}>
+        <QueriableStreamView profile={NOTEBOOKS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+    const notebooksCreateBtn = screen.getByTestId(TEST_IDS.NOTEBOOKS_CREATE_BUTTON)
+    expect(notebooksCreateBtn.textContent).toBe('+ New notebook')
+    fireEvent.click(notebooksCreateBtn)
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeDefined()
+    })
+
+    // /efforts -> "+ Add" button with efforts-create-btn testid calls openCreateJournal with kind: 'effort'
+    cleanup()
+    const openCreateEffort = mock(() => {})
+    render(
+      <NavContext.Provider
+        value={{
+          tree: [],
+          navState: initialNavState,
+          dispatch: () => {},
+          l3Items: [],
+          setL3Items: () => {},
+          setL3Actions: () => {},
+          scrollToSection: () => {},
+          registerScrollFn: () => {},
+          setContextNav: () => {},
+          setStreamControls: () => {},
+          setSecondarySpec: () => {},
+          openCreateJournal: openCreateEffort,
+          registerCreateJournal: () => {},
+        }}
+      >
+        <MemoryRouter initialEntries={['/efforts']}>
+          <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={engine} />
+        </MemoryRouter>
+      </NavContext.Provider>,
+    )
+    const effortsCreateBtn = screen.getByTestId(TEST_IDS.EFFORTS_CREATE_BTN)
+    expect(effortsCreateBtn.textContent).toBe('+ Add')
+    fireEvent.click(effortsCreateBtn)
+    expect(openCreateEffort).toHaveBeenCalledWith({
+      kind: 'effort',
+      notebookSlug: undefined,
+      date: undefined,
+    })
+
+    // /equipment -> "+ Add" button with new-entry-primary testid calls openCreateJournal with kind: 'equipment'
+    cleanup()
+    const openCreateEquipment = mock(() => {})
+    render(
+      <NavContext.Provider
+        value={{
+          tree: [],
+          navState: initialNavState,
+          dispatch: () => {},
+          l3Items: [],
+          setL3Items: () => {},
+          setL3Actions: () => {},
+          scrollToSection: () => {},
+          registerScrollFn: () => {},
+          setContextNav: () => {},
+          setStreamControls: () => {},
+          setSecondarySpec: () => {},
+          openCreateJournal: openCreateEquipment,
+          registerCreateJournal: () => {},
+        }}
+      >
+        <MemoryRouter initialEntries={['/equipment']}>
+          <QueriableStreamView profile={EQUIPMENT_STREAM_PROFILE} queryEngine={engine} />
+        </MemoryRouter>
+      </NavContext.Provider>,
+    )
+    const equipmentCreateBtn = screen.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY)
+    expect(equipmentCreateBtn.textContent).toBe('+ Add')
+    fireEvent.click(equipmentCreateBtn)
+    expect(openCreateEquipment).toHaveBeenCalledWith({
+      kind: 'equipment',
+      notebookSlug: undefined,
+      date: undefined,
+    })
+
+    // /results -> non-creatable route omits desktop create button
+    cleanup()
+    render(
+      <MemoryRouter initialEntries={['/results']}>
+        <QueriableStreamView profile={SESSIONS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+    expect(screen.queryByTestId(TEST_IDS.NOTEBOOKS_CREATE_BUTTON)).toBeNull()
+    expect(screen.queryByTestId(TEST_IDS.EFFORTS_CREATE_BTN)).toBeNull()
+    expect(screen.queryByTestId(TEST_IDS.NEW_ENTRY_PRIMARY)).toBeNull()
+  })
+
+  it('WW-123: suppresses route-wql-empty-options when filtered stream returns 0 results', async () => {
+    const { engine } = stubEngine(() => [])
+    const filteredQuery = ':effort{text:nonexistent-movement}'
+
+    render(
+      <MemoryRouter initialEntries={[`/efforts?q=${encodeURIComponent(filteredQuery)}`]}>
+        <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('stream-empty-state')).toBeDefined()
+    })
+    expect(screen.getByTestId('stream-empty-state').textContent).toContain('No efforts match your search.')
+    expect(screen.queryByTestId('route-wql-empty-options')).toBeNull()
   })
 })

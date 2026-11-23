@@ -319,4 +319,68 @@ describe('LibraryRow — field projection adaptation', () => {
     const link = screen.getByRole('link', { name: 'Journal Entry Title' })
     expect(link.getAttribute('href')).toBe('/note/test-1')
   })
+
+  it('WW-128: exposes Make Public / Make Private for user-owned local notebooks while keeping system notebooks gated', () => {
+    const toggled: Entry[] = []
+    const privateCustom: Entry = {
+      id: 'notebook/my-conditioning',
+      kind: 'notebook',
+      feedId: 'local',
+      notebookId: 'notebook/my-conditioning',
+      sourceNotebook: 'my-conditioning',
+      sourceNote: 'my-conditioning',
+      title: 'My Conditioning',
+      date: null,
+      isPublic: false,
+    }
+    const publicCustom: Entry = {
+      ...privateCustom,
+      isPublic: true,
+    }
+    const systemDefaults: Entry = {
+      id: 'notebook/defaults',
+      kind: 'notebook',
+      feedId: 'local',
+      notebookId: 'notebook/defaults',
+      sourceNotebook: 'defaults',
+      sourceNote: 'defaults',
+      title: 'Defaults',
+      date: null,
+      isPublic: false,
+    }
+
+    render(
+      <MemoryRouter>
+        <LibraryRow entry={privateCustom} onTogglePublicNotebook={(e) => toggled.push(e)} />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW))
+    const makePublic = screen.getByTestId('row-toggle-public-my-conditioning')
+    expect(makePublic.textContent).toContain('Make Public')
+    fireEvent.click(makePublic)
+    expect(toggled).toHaveLength(1)
+
+    cleanup()
+
+    render(
+      <MemoryRouter>
+        <LibraryRow entry={publicCustom} onTogglePublicNotebook={(e) => toggled.push(e)} />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW))
+    const makePrivate = screen.getByTestId('row-toggle-public-my-conditioning')
+    expect(makePrivate.textContent).toContain('Make Private')
+    fireEvent.click(makePrivate)
+    expect(toggled).toHaveLength(2)
+
+    cleanup()
+
+    render(
+      <MemoryRouter>
+        <LibraryRow entry={systemDefaults} onTogglePublicNotebook={(e) => toggled.push(e)} />
+      </MemoryRouter>,
+    )
+    expect(screen.queryByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW)).toBeNull()
+    expect(screen.queryByTestId('row-toggle-public-defaults')).toBeNull()
+  })
 })

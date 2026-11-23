@@ -1711,6 +1711,13 @@ export function QueriableStreamView({
   const visibleHeaderTitle = notebookSlugParam ? (resolvedNotebookTitle ?? undefined) : undefined
   const streamHeading = resolvedNotebookTitle ?? profile.title ?? 'Stream'
 
+  const desktopCreateTestId = isNotebooksRoute
+    ? TEST_IDS.NOTEBOOKS_CREATE_BUTTON
+    : profile.route === '/efforts'
+      ? TEST_IDS.EFFORTS_CREATE_BTN
+      : TEST_IDS.NEW_ENTRY_PRIMARY
+  const addActionLabel = isNotebooksRoute ? '+ New notebook' : '+ Add'
+
   return (
     <div className="bg-card flex flex-col flex-1" data-testid="queriable-stream-view">
       {!visibleHeaderTitle && (
@@ -1748,7 +1755,23 @@ export function QueriableStreamView({
         title={visibleHeaderTitle}
         actions={
           <ResponsiveActions
-            primary={canCreateOnRoute ? <MobileNewEntryCombo /> : undefined}
+            primary={
+              canCreateOnRoute ? (
+                isMobile ? (
+                  <MobileNewEntryCombo />
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleStreamAddAction}
+                    data-testid={desktopCreateTestId}
+                    className="h-8 gap-1.5 px-2.5 text-xs font-semibold whitespace-nowrap"
+                  >
+                    <span>{addActionLabel}</span>
+                  </Button>
+                )
+              ) : undefined
+            }
             label="Stream actions"
           >
             <StreamViewPopover
@@ -1763,7 +1786,7 @@ export function QueriableStreamView({
               calendarCapable={Boolean(profile.calendarCapable)}
               query={query}
               onQueryChange={setQuery}
-              addActionLabel={isNotebooksRoute ? '+ New notebook' : '+ Add'}
+              addActionLabel={addActionLabel}
               onAddAction={canCreateOnRoute ? handleStreamAddAction : undefined}
               onAddToDashboard={profile.dashboardEnabled ? () => setDashboardOpen(true) : undefined}
               addToDashboardDisabled={saveDisabled}
@@ -1814,7 +1837,7 @@ export function QueriableStreamView({
           scopeOptions list is a deliberate Route WQL Config state, shown only
           when a settled query returns zero entries so populated planes
           (/tags, /efforts, /sessions, /pages) never show a dead-end warning. */}
-      {profile.scopeOptions.length === 0 && hasSettledRun && !loading && entries.length === 0 && (
+      {profile.scopeOptions.length === 0 && hasSettledRun && !loading && entries.length === 0 && !hasAppliedFilters && (
         <p
           data-testid="route-wql-empty-options"
           className="px-4 pt-3 text-xs text-muted-foreground sm:px-6 lg:px-8"

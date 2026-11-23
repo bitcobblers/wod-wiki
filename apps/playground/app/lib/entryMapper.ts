@@ -804,6 +804,9 @@ function extractRunMetrics(run: RowsRun) {
       effortSlugs.add(event.effortSlug)
     }
     if (Array.isArray(event.metrics)) {
+      let eventExplicitVolume: { val: number; unit: string } | undefined
+      let eventLoad: { val: number; unit: string } | undefined
+      let eventReps = 0
       for (const m of event.metrics as MetricLike[]) {
         const classified = classifyMetric(m)
         if (!classified) continue
@@ -817,13 +820,24 @@ function extractRunMetrics(run: RowsRun) {
           } else if (classified.kind === 'elapsed' && classified.val > 0 && !isGroupedAnalyticsEvent(event, m)) {
             workoutElapsedMs = classified.val
           }
-        } else {
+        } else if (isNonStructuralSegment) {
           if (classified.kind === 'rep') {
             totalReps += classified.val
-          } else if ((classified.kind === 'load' || classified.kind === 'volume') && classified.val > 0) {
-            segmentLoadTotal += classified.val
-            segmentLoadUnit ??= classified.unit
+            eventReps += classified.val
+          } else if (classified.kind === 'volume' && classified.val > 0) {
+            eventExplicitVolume = { val: classified.val, unit: classified.unit }
+          } else if (classified.kind === 'load' && classified.val > 0) {
+            eventLoad = { val: classified.val, unit: classified.unit }
           }
+        }
+      }
+      if (isNonStructuralSegment) {
+        if (eventExplicitVolume) {
+          segmentLoadTotal += eventExplicitVolume.val
+          segmentLoadUnit ??= eventExplicitVolume.unit
+        } else if (eventLoad) {
+          segmentLoadTotal += eventReps > 0 ? eventReps * eventLoad.val : eventLoad.val
+          segmentLoadUnit ??= eventLoad.unit
         }
       }
     }
@@ -837,8 +851,16 @@ function extractRunMetrics(run: RowsRun) {
     : undefined
   const elapsedMs = authoritativeMs ?? workoutElapsedMs ?? spanMs
 
+  const summaryVolume =
+    typeof run.summary?.totalVolume === 'number' &&
+    Number.isFinite(run.summary.totalVolume) &&
+    run.summary.totalVolume > 0
+      ? { val: run.summary.totalVolume, unit: run.summary.volumeUnit ?? 'lbs' }
+      : undefined
+
   const resolvedVolume =
     workoutVolume ??
+    summaryVolume ??
     (segmentLoadTotal > 0 ? { val: segmentLoadTotal, unit: segmentLoadUnit ?? 'lbs' } : undefined)
 
   const summaryRpe = run.summary?.rpe

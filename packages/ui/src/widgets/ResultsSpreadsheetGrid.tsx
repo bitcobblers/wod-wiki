@@ -145,6 +145,19 @@ function formatPaceMMSS(secPerKm: number | null | undefined): string {
   return `${mins}:${String(secs).padStart(2, '0')} /km`;
 }
 
+function normalizePaceToSecPerKm(value: number, unit?: string): number | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  const u = (unit ?? '').trim().toLowerCase();
+  if (!u || u === 'sec/km' || u === 's/km') return value;
+  if (u === 'min/km') return value * 60;
+  if (u === 'min/mi') return (value * 60) / 1.609344;
+  if (u === 'sec/mi' || u === 's/mi') return value / 1.609344;
+  if (u === 'm/s') return 1000 / value;
+  if (u === 'km/h' || u === 'kph') return 3600 / value;
+  // Non-distance rates (e.g. reps/min) must not be interpreted as distance pace.
+  return null;
+}
+
 function humanizeSlug(slug: string): string {
   return slug
     .split(/[-_\s]+/)
@@ -343,7 +356,21 @@ export function buildSpreadsheetRows(
         power = m.value;
         if (m.unit) powerUnit = m.unit;
       } else if (canon === 'pace') {
-        paceSecPerKm = m.value;
+        const normalized = normalizePaceToSecPerKm(m.value, m.unit);
+        if (normalized !== null) {
+          const u = (m.unit ?? '').trim().toLowerCase();
+          const isExplicitPace =
+            !u ||
+            u === 'min/km' ||
+            u === 'sec/km' ||
+            u === 's/km' ||
+            u === 'min/mi' ||
+            u === 'sec/mi' ||
+            u === 's/mi';
+          if (paceSecPerKm === null || isExplicitPace || isUser) {
+            paceSecPerKm = normalized;
+          }
+        }
       } else if (canon === 'rounds' || canon === 'currentround' || lower === 'current-round') {
         round = Math.round(m.value);
       } else if (!KNOWN_CANONICAL_KEYS.has(canon) && !KNOWN_CANONICAL_KEYS.has(lower)) {

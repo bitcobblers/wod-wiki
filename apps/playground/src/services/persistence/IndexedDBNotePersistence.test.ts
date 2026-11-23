@@ -229,4 +229,57 @@ describe('Note persistence projections', () => {
     expect(summaryPage.map((n) => n.id)).toEqual(['n2']);
     expect(seenQueries[0]).toMatchObject({ plan: 'notes', offset: 0, limit: 2 });
   });
+
+  it('WW-120: finishSession upserts a missing session row from fallback after a deferred-persist reload while preserving WW-052', async () => {
+    const service = new StorageService(new InMemoryStorage());
+    const persistence = new IndexedDBNotePersistence(service);
+    const created = await persistence.createNote({
+      id: 'amrap-note',
+      title: '20:00 AMRAP',
+      rawContent: '```time\n20:00 AMRAP\n  5 Pullups\n  10 Pushups\n```',
+      targetDate: 1_000,
+    });
+    const blockId = Object.keys(created.blocks!)[0]!;
+
+    // WW-052: opening the Run gate with deferPersist: true must leave sessions=[]
+    await persistence.startSession(
+      { noteId: 'amrap-note', rawContent: created.rawContent, blocks: created.blocks!, expectedSourceRevision: created.sourceRevision! },
+      { id: 'sess-gate-only', noteId: 'amrap-note', blockId, startTime: 2_000, endTime: 2_000, duration: 0, completed: false, createdAt: 2_000 },
+      { deferPersist: true },
+    );
+    expect(await service.getSessionsForNote('amrap-note')).toEqual([]);
+
+    // Simulate reload: sessionId was never persisted to IDB and is absent from in-memory preparedJournalSessions
+    const finished = await persistence.finishSession(
+      'sess-reloaded-partial',
+      { startTime: 10_000, endTime: 25_000, duration: 15_000, completed: false, logs: [] },
+      25_000,
+      { noteId: 'amrap-note', blockId, origin: 'journal' },
+    );
+
+    expect(finished).toMatchObject({
+      id: 'sess-reloaded-partial',
+      noteId: 'amrap-note',
+      blockId,
+      blockVersion: 1,
+      origin: 'journal',
+      duration: 15_000,
+      completed: false,
+      status: 'completed',
+      createdAt: 25_000,
+    });
+    const persisted = await service.getSessionById('sess-reloaded-partial');
+    expect(persisted).toMatchObject({
+      id: 'sess-reloaded-partial',
+      noteId: 'amrap-note',
+      blockId,
+      completed: false,
+      duration: 15_000,
+    });
+
+    // Without fallback, unknown sessions still reject with RESULT_NOT_FOUND
+    await expect(
+      persistence.finishSession('sess-never-existed', { startTime: 1, endTime: 2, duration: 1, completed: false, logs: [] }),
+    ).rejects.toMatchObject({ code: 'RESULT_NOT_FOUND' });
+  });
 });

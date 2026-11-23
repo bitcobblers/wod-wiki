@@ -697,4 +697,66 @@ describe('the notebook plane (ticket 08)', () => {
     expect(summary.tis).toBeCloseTo(78.4, 4);
     expect(summary.sessionLoad).toBeCloseTo(112.5, 4);
   });
+
+  it('WW-126: computeRowsRunSummary does not double-count totalVolume when both workout-level and per-effort grouped summary rows exist', () => {
+    const summary = computeRowsRunSummary({
+      resultId: 'run-kb-vol-1',
+      noteId: 'n-kb',
+      timestamp: 1_700_000_000_000,
+      events: [
+        {
+          id: 'seg-kb-1',
+          resultId: 'run-kb-vol-1',
+          noteId: 'n-kb',
+          timestamp: 1_700_000_000_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'kettlebell-swing',
+          metrics: [
+            { type: 'effort', value: 'kettlebell-swing', origin: 'parser' },
+            { type: 'rep', value: 15, unit: 'reps', origin: 'runtime' },
+            { type: 'resistance', value: 24, unit: 'kg', origin: 'parser' },
+          ],
+        },
+        {
+          id: 'run-kb-vol-1:summary:totalVolume',
+          resultId: 'run-kb-vol-1',
+          noteId: 'n-kb',
+          timestamp: 1_700_000_030_000,
+          grain: 'summary',
+          outputType: 'analytics',
+          summaryCoverage: { scope: 'workout' },
+          metrics: [
+            { type: 'totalVolume', value: 360, unit: 'kg', origin: 'analyzed', metadata: { canonicalKey: 'totalVolume' } },
+          ],
+        },
+        {
+          id: 'run-kb-vol-1:summary:totalVolume:effort=kettlebell-swing',
+          resultId: 'run-kb-vol-1',
+          noteId: 'n-kb',
+          timestamp: 1_700_000_030_000,
+          grain: 'summary',
+          outputType: 'analytics',
+          effortSlug: 'kettlebell-swing',
+          summaryCoverage: { scope: 'effort', effortSlug: 'kettlebell-swing', groupTags: { effort: 'kettlebell-swing' } },
+          metrics: [
+            {
+              type: 'totalVolume',
+              value: 360,
+              unit: 'kg',
+              origin: 'analyzed',
+              metadata: {
+                canonicalKey: 'totalVolume',
+                effortSlug: 'kettlebell-swing',
+                groupTags: { effort: 'kettlebell-swing' },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(summary.totalVolume).toBe(360);
+    expect(summary.volumeUnit).toBe('kg');
+  });
 });

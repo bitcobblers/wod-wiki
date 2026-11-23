@@ -63,8 +63,8 @@ function mergedWithFreshStorage(): Record<string, boolean> {
   return { ...readAll(), ...readLegacyBooleanMap(STORAGE_KEY) };
 }
 
-function writeAll(next: Record<string, boolean>): boolean {
-  setLegacySubMapCache(next);
+function writeAll(next: Record<string, boolean>, explicitKeys?: ReadonlyArray<string>): boolean {
+  setLegacySubMapCache(next, false, explicitKeys);
   const localPersisted = writeLocalStorageJson(STORAGE_KEY, next);
   if (isFeedStateHydrated()) {
     schedulePersistSubscriptionsToStorage();
@@ -116,7 +116,7 @@ export function setFeedSubscribed(id: string, subscribed: boolean): boolean {
     all[key] = value;
   }
   all[id] = subscribed;
-  return writeAll(all);
+  return writeAll(all, [id]);
 }
 
 /** Check whether a specific notebook is subscribed (explicitly or via owning feed). */
@@ -154,7 +154,7 @@ export function setNotebookSubscribed(
       }
     }
     all[specificKey] = false;
-    return writeAll(all);
+    return writeAll(all, [feedId, specificKey, ...siblings.filter((s) => s !== notebookId).map((s) => `${feedId}#${s}`)]);
   }
 
   all[specificKey] = subscribed;
@@ -165,11 +165,13 @@ export function setNotebookSubscribed(
     for (const key of Object.keys(all)) {
       if (key.startsWith(prefix)) delete all[key];
     }
+    return writeAll(all, [feedId]);
   } else if (!subscribed && siblings.length > 0 && siblings.every((sib) => all[`${feedId}#${sib}`] === false)) {
     all[feedId] = false;
+    return writeAll(all, [feedId, specificKey]);
   }
 
-  return writeAll(all);
+  return writeAll(all, [specificKey]);
 }
 
 /** Returns the explicit notebook ids subscribed for a feed, or null if the whole feed is subscribed, or [] if unsubscribed. */

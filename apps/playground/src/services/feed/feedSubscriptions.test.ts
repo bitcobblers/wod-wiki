@@ -1,8 +1,11 @@
 import { describe, expect, it, beforeEach } from 'bun:test';
 import {
+  flushFeedStatePersistence,
+  getFeedOfflinePolicy,
   getFeedSubscriptionMode,
   getSubscribedNotebooks,
   hydrateFeedStateFromStorage,
+  isFeedSubscribed,
   isNotebookSubscribed,
   migrateFeedSubscriptions,
   resetFeedSubscriptionsForTest,
@@ -12,8 +15,9 @@ import {
   setNotebookSubscribed,
   subscribeFeedSubscriptions,
 } from './feedSubscriptions';
-import { getFeedOfflinePolicy } from './feedSubscriptions';
-import { syncNotebook, toggleNotebookSubscription } from './feedSync';
+import { PENDING_SUBSCRIPTIONS_KEY } from './feedRegistryStore';
+import { subscribeFeed, syncNotebook, toggleNotebookSubscription } from './feedSync';
+import type { IStorage } from '@/services/storage/IStorage';
 import { InMemoryFeedStorage } from './FeedImportStorage';
 import { InMemoryFeedSource } from './InMemoryFeedSource';
 import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/compiler';
@@ -279,5 +283,218 @@ describe('feedSubscriptions (Slice 2)', () => {
     await hydrateFeedStateFromStorage(storage.storageInstance);
     expect(getFeedSubscriptionMode('sport-crossfit')).toBe('full');
     expect(getFeedOfflinePolicy('sport-crossfit')).toBe('index-only');
+  });
+
+  it('WW-119: uncommitted mirror subscription survives reload and hydrates into canonical IStorage instead of being clobbered', async () => {
+    const storage = new InMemoryFeedStorage();
+    // Canonical IStorage already migrated with only core subscribed.
+    await storage.storageInstance.transaction(['meta'], 'readwrite', async (tx) => {
+      await tx.readwrite('meta').put({
+        key: 'feed:subscriptions',
+        entries: { core: { subscribed: true, notebookIds: null, updatedAt: 1 } },
+        checks: {},
+        migratedFromLocalStorage: true,
+      } as unknown as Record<string, unknown>);
+    });
+
+    // User subscribes to sport-yoga and a partial notebook before canonical
+    // persistence lands, then immediately reloads the page (in-memory state
+    // wiped, localStorage retained, canonical IStorage still lacks sport-yoga).
+    setFeedSubscribed('sport-yoga', true);
+    setNotebookSubscribed('sport-crossfit', 'notebook.girls', true);
+    expect(localStorage.getItem(PENDING_SUBSCRIPTIONS_KEY)).toBeTruthy();
+
+    // Simulate page reload before canonical IDB persistence landed.
+    resetFeedSubscriptionsForTest();
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+
+    expect(isFeedSubscribed('sport-yoga')).toBe(true);
+    expect(getFeedSubscriptionMode('sport-yoga')).toBe('full');
+    expect(getFeedSubscriptionMode('sport-crossfit')).toBe('partial');
+    expect(isNotebookSubscribed('sport-crossfit', 'notebook.girls')).toBe(true);
+    // Pending journal is cleared once canonical IStorage commits.
+    expect(localStorage.getItem(PENDING_SUBSCRIPTIONS_KEY)).toBeNull();
+
+    // Verify canonical IStorage meta now holds both subscriptions and survives
+    // a subsequent reload + route navigation re-hydration even with localStorage wiped.
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+    expect(isFeedSubscribed('sport-yoga')).toBe(true);
+    expect(getFeedSubscriptionMode('sport-crossfit')).toBe('partial');
+    expect(isNotebookSubscribed('sport-crossfit', 'notebook.girls')).toBe(true);
+  });
+
+  it('WW-119: feed-card Subscribe during an in-flight re-hydration is never clobbered by stale canonical snapshot', async () => {
+    const storage = new InMemoryFeedStorage();
+    await storage.storageInstance.transaction(['meta'], 'readwrite', async (tx) => {
+      await tx.readwrite('meta').put({
+        key: 'feed:subscriptions',
+        entries: { core: { subscribed: true, notebookIds: null, updatedAt: 1 } },
+        checks: {},
+        migratedFromLocalStorage: true,
+      } as unknown as Record<string, unknown>);
+    });
+
+    // Initial boot hydration completes.
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+    expect(isFeedSubscribed('sport-yoga')).toBe(false);
+
+    // Pause a second hydration read (e.g., feedReadiness / route re-hydration)
+    // right after reading the stale canonical meta.
+    let releaseRead!: () => void;
+    const readPaused = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    let hitGet = false;
+    const base = storage.storageInstance;
+    const delayedStorage: IStorage = {
+      ...base,
+      readonly(storeName) {
+        const ro = base.readonly(storeName);
+        if (storeName !== 'meta') return ro;
+        return {
+          ...ro,
+          async get(key) {
+            const val = await ro.get(key);
+            if (key === 'feed:subscriptions' && !hitGet) {
+              hitGet = true;
+              await readPaused;
+            }
+            return val;
+          },
+        };
+      },
+      readwrite: base.readwrite.bind(base),
+      transaction: base.transaction.bind(base),
+      wipe: base.wipe.bind(base),
+      close: base.close.bind(base),
+    };
+
+    const rehydratePromise = hydrateFeedStateFromStorage(delayedStorage);
+    // Wait a microtask so delayedStorage.readonly('meta').get('feed:subscriptions') is paused.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // User clicks feed-card Subscribe while re-hydration is in flight.
+    setFeedSubscribed('sport-yoga', true);
+    releaseRead();
+    await rehydratePromise;
+    await flushFeedStatePersistence();
+
+    expect(isFeedSubscribed('sport-yoga')).toBe(true);
+    expect(JSON.parse(localStorage.getItem('wodwiki.seedSubscriptions')!)['sport-yoga']).toBe(true);
+
+    // Reload + re-hydrate confirms canonical IStorage persisted sport-yoga.
+    resetFeedSubscriptionsForTest();
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+    expect(isFeedSubscribed('sport-yoga')).toBe(true);
+  });
+
+  it('WW-119: /subscribe intake (subscribeFeed) persists durably across reload and navigation re-hydration', async () => {
+    const storage = new InMemoryFeedStorage();
+    await storage.storageInstance.transaction(['meta'], 'readwrite', async (tx) => {
+      await tx.readwrite('meta').put({
+        key: 'feed:subscriptions',
+        entries: { core: { subscribed: true, notebookIds: null, updatedAt: 1 } },
+        checks: {},
+        migratedFromLocalStorage: true,
+      } as unknown as Record<string, unknown>);
+    });
+
+    const rowYoga = compileSeedRow('markdown/notebooks/yoga/sun.md', '# Sun Salutation\n\n```time\n10:00 Flow\n```\n');
+    const manifest = {
+      schema: SEED_SCHEMA,
+      version: 1,
+      builtAt: new Date(1).toISOString(),
+      chunks: [
+        { id: 'notebook.yoga', path: 'chunks/yoga.json', sha256: 'c'.repeat(64), bytes: 10, count: 1 },
+      ],
+    };
+    const source = new InMemoryFeedSource(manifest, { 'chunks/yoga.json': [rowYoga] });
+    const sources = [{ id: 'sport-yoga', label: 'Yoga', source, url: 'https://test/yoga/', embeddedVersion: 0 }];
+
+    const outcome = await subscribeFeed('sport-yoga', {
+      sources,
+      storage,
+      offlinePolicy: 'index-only',
+      isEnabled: () => true,
+    });
+    expect(outcome).toBe('imported');
+    expect(isFeedSubscribed('sport-yoga')).toBe(true);
+
+    // Simulate reload + navigating /feeds -> /notebooks (multiple hydrations).
+    resetFeedSubscriptionsForTest();
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+
+    expect(isFeedSubscribed('sport-yoga')).toBe(true);
+    expect(getFeedSubscriptionMode('sport-yoga')).toBe('full');
+    expect(JSON.parse(localStorage.getItem('wodwiki.seedSubscriptions')!)['sport-yoga']).toBe(true);
+
+    // Once committed with no pending local journal, an authoritative external
+    // IStorage unsubscribe still wins cleanly on reload.
+    await storage.storageInstance.transaction(['meta'], 'readwrite', async (tx) => {
+      await tx.readwrite('meta').put({
+        key: 'feed:subscriptions',
+        entries: {
+          core: { subscribed: true, notebookIds: null, updatedAt: 1 },
+          'sport-yoga': { subscribed: false, notebookIds: [], updatedAt: 2 },
+        },
+        checks: {},
+        migratedFromLocalStorage: true,
+      } as unknown as Record<string, unknown>);
+    });
+    resetFeedSubscriptionsForTest();
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+    expect(isFeedSubscribed('sport-yoga')).toBe(false);
+  });
+
+  it('WW-119: concurrent subscribe during cold-boot hydration write transaction survives without stranding pending overrides', async () => {
+    const storage = new InMemoryFeedStorage();
+    // Unmigrated storage triggers a readwrite transaction inside hydrateFeedStateFromStorage.
+    let releaseTx!: () => void;
+    const txPaused = new Promise<void>((resolve) => {
+      releaseTx = resolve;
+    });
+    let pausedOnce = false;
+    const base = storage.storageInstance;
+    const delayedTxStorage: IStorage = {
+      ...base,
+      readonly: base.readonly.bind(base),
+      readwrite: base.readwrite.bind(base),
+      async transaction(stores, mode, fn) {
+        return base.transaction(stores, mode, async (tx) => {
+          const result = await fn(tx);
+          if (mode === 'readwrite' && !pausedOnce) {
+            pausedOnce = true;
+            await txPaused;
+          }
+          return result;
+        });
+      },
+      wipe: base.wipe.bind(base),
+      close: base.close.bind(base),
+    };
+
+    const hydratePromise = hydrateFeedStateFromStorage(delayedTxStorage);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // User subscribes while the initial migration transaction is still in flight.
+    setFeedSubscribed('sport-yoga', true);
+    releaseTx();
+    await hydratePromise;
+    await flushFeedStatePersistence();
+
+    expect(isFeedSubscribed('sport-yoga')).toBe(true);
+    expect(localStorage.getItem(PENDING_SUBSCRIPTIONS_KEY)).toBeNull();
+
+    // Full reload from storage confirms canonical persistence.
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+    expect(isFeedSubscribed('sport-yoga')).toBe(true);
   });
 });

@@ -34,8 +34,11 @@ export {
 
 // ── Unload session durability ─────────────────────────────────────────────
 export {
+  clearPendingUnloadResult,
   createResultRecorder,
   flushPendingUnloadResults,
+  getPendingUnloadState,
+  onPendingUnloadStateChange,
   stagePendingUnloadResult,
 } from '@/services/resultRecorder';
 

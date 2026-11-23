@@ -159,7 +159,16 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
   // ── Phase 1: segment scope ─────────────────────────────────────────────
 
   process(output: IOutputStatement): IOutputStatement {
-    if (output.outputType !== 'segment' || !output.isLeaf) return output;
+    const blockKey = String(output.sourceBlockKey ?? '').toLowerCase();
+    if (
+      output.outputType !== 'segment' ||
+      !output.isLeaf ||
+      blockKey === 'session-root' ||
+      blockKey.startsWith('session-root:') ||
+      blockKey.startsWith('waiting-to-start')
+    ) {
+      return output;
+    }
     const effortData = extractEffortData(output.metrics.rawMetrics);
     if (effortData) this.lastSegmentEffort = effortData.resolved.slug;
     const appliedTags = this.appliedTags(output);
@@ -280,9 +289,10 @@ export class CalcEngine implements IRealtimeProcessor, ISummaryProcessor {
     metadata?: Record<string, unknown>,
   ): void {
     const unit = !declaredUnit || declaredUnit === 'auto' ? value.unit : declaredUnit;
+    const displayUnit = type === 'metMinutes' ? 'MET-min' : unit;
     output.metrics.add({
       type,
-      image: unit ? `${formatNumber(value.value)} ${unit}` : formatNumber(value.value),
+      image: displayUnit ? `${formatNumber(value.value)} ${displayUnit}` : formatNumber(value.value),
       value: value.value,
       unit,
       origin,

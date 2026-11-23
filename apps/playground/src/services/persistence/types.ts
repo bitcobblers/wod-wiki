@@ -79,6 +79,16 @@ export interface StartedSession {
   session: Session;
 }
 
+export interface FinishSessionFallback {
+  noteId: string;
+  blockId: string;
+  blockVersion?: number;
+  blockContentId?: string;
+  origin?: ResultOrigin;
+  scheduleItemId?: string;
+  sessionDate?: string;
+}
+
 export interface NoteQuery {
   ids?: string[];
   dateRange?: { start: number; end: number };
