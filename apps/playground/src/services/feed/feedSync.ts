@@ -270,17 +270,19 @@ function aggregateOutcomes(outcomes: FeedSyncOutcome[]): FeedSyncOutcome {
 }
 
 /** Shared side effects applied to one finished source result (both drivers). */
-function applySourceResult(
+async function applySourceResult(
   spec: FeedSourceSpec,
   result: SourceSyncCoreResult,
   deps: FeedSyncDeps,
   updates: Map<string, FeedSourceUpdate> | undefined,
-): void {
+): Promise<void> {
   const now = deps.now ?? Date.now;
   const broadcast = deps.broadcast ?? defaultBroadcast;
   const report = deps.reportActivity !== false;
   if (result.manifestChecked) markFeedChecked(spec.id, now());
-  if (result.manifest) void saveFeedCatalogManifest(spec.id, result.manifest, deps.storage?.storageInstance);
+  if (result.manifest) {
+    await saveFeedCatalogManifest(spec.id, result.manifest, deps.storage?.storageInstance).catch(() => undefined);
+  }
   if (result.outcome === 'error') {
     const message = result.error ?? 'feed sync failed';
     if (deps.mode === 'background') updates?.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'error' });
@@ -289,7 +291,7 @@ function applySourceResult(
   }
   if (result.outcome === 'imported' && result.applied) {
     broadcast({ kind: 'seed-imported', source: spec.id, version: result.importedVersion });
-    void hydrateImportedContent();
+    await hydrateImportedContent().catch(() => undefined);
     if (report) reportSyncResult({ source: spec.label, added: result.added ?? 0, updated: result.updated ?? 0 });
     // An applied update of an already-installed catalog is part of the
     // grouped snapshot ('updated'); a first import is not an update.
@@ -331,6 +333,7 @@ async function runFeedSyncViaWorker(
     }
     const updates = deps.mode === 'background' ? new Map<string, FeedSourceUpdate>() : undefined;
     const outcomes: FeedSyncOutcome[] = [];
+    const pendingEffects: Promise<unknown>[] = [];
     const totalSources = sources.length;
     let received = false;
     const settle = (value: FeedSyncOutcome | null): void => {
@@ -359,7 +362,7 @@ async function runFeedSyncViaWorker(
           phase: msg.progress.phase,
         });
         if (msg.progress.phase === 'committed' && (msg.progress.chunkId === 'efforts' || msg.progress.chunkId === 'equipment')) {
-          void hydrateImportedContent();
+          pendingEffects.push(hydrateImportedContent().catch(() => undefined));
         }
         deps.onProgress?.({
           ...msg.progress,
@@ -371,7 +374,7 @@ async function runFeedSyncViaWorker(
         return;
       }
       if (msg.type === 'first-paint') {
-        void hydrateImportedContent();
+        pendingEffects.push(hydrateImportedContent().catch(() => undefined));
         deps.onFirstPaint?.();
         return;
       }
@@ -380,7 +383,7 @@ async function runFeedSyncViaWorker(
         const spec = sources[index];
         if (!spec) return;
         outcomes.push(msg.result.outcome);
-        applySourceResult(spec, msg.result, deps, updates);
+        pendingEffects.push(applySourceResult(spec, msg.result, deps, updates));
         deps.onProgress?.({
           phase: 'finished', outcome: msg.result.outcome, error: msg.result.error,
           sourceId: spec.id, sourceLabel: spec.label,
@@ -389,8 +392,10 @@ async function runFeedSyncViaWorker(
         return;
       }
       // 'done'
-      if (updates) publishFeedUpdates([...updates.values()]);
-      settle(aggregateOutcomes(msg.outcomes.length ? msg.outcomes : outcomes));
+      void Promise.allSettled(pendingEffects).then(() => {
+        if (updates) publishFeedUpdates([...updates.values()]);
+        settle(aggregateOutcomes(msg.outcomes.length ? msg.outcomes : outcomes));
+      });
     };
     worker.postMessage({
       type: 'run',
@@ -616,7 +621,7 @@ async function runSourceSync(
         },
       },
     );
-    applySourceResult(spec, result, deps, updates);
+    await applySourceResult(spec, result, deps, updates);
     finish(result.outcome, result.error);
     return result.outcome;
   } finally {

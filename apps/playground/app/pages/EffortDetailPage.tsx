@@ -12,6 +12,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import type { EditorView } from '@codemirror/view';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
 import { Copy, Eye, Trash2 } from 'lucide-react';
@@ -334,11 +335,11 @@ export function EffortDetailPage() {
     () => (slug ? resolveEntityScope({ kind: 'effort', slug, label: effort?.label ?? slug }) : null),
     [slug, effort?.label],
   );
-  // ── Create-custom mode ("/effort/new?mode=create") ───────────────────────
+  // ── Create-custom mode ("/effort/new?mode=create" or "/effort/new") ───────
   const opts = parseEffortRouteOptions(searchParams);
-  const isCreateMode = opts.mode === 'create';
-  const [createDocument, setCreateDocument] = useState(() => {
-    const initialSlug = slug && slug !== 'new' ? slug.trim().toLowerCase().replace(/\s+/g, '-') : '';
+  const isCreateMode = opts.mode === 'create' || slug === 'new';
+  const buildBlankCreateDoc = useCallback((targetSlug: string | undefined): string => {
+    const initialSlug = targetSlug && targetSlug !== 'new' ? targetSlug.trim().toLowerCase().replace(/\s+/g, '-') : '';
     const initialLabel = initialSlug ? fileToDisplayName(initialSlug) : '';
     const blank: IEffort = {
       id: `effort-user-${crypto.randomUUID()}`,
@@ -351,8 +352,23 @@ export function EffortDetailPage() {
       updatedAt: new Date().toISOString(),
     };
     return `${effortToDocument(blank)}\n\n`;
-  });
+  }, []);
+  const [createDocument, setCreateDocument] = useState(() => buildBlankCreateDoc(slug));
   const createDocumentRef = useRef(createDocument);
+  const createEditorViewRef = useRef<EditorView | null>(null);
+  const createSeedSlugRef = useRef<string | undefined>(slug);
+  useEffect(() => {
+    if (!isCreateMode) {
+      createEditorViewRef.current = null;
+      return;
+    }
+    if (createSeedSlugRef.current !== slug) {
+      createSeedSlugRef.current = slug;
+      const fresh = buildBlankCreateDoc(slug);
+      createDocumentRef.current = fresh;
+      setCreateDocument(fresh);
+    }
+  }, [isCreateMode, slug, buildBlankCreateDoc]);
   const handleCreateDocumentChange = useCallback((next: string) => {
     createDocumentRef.current = next;
     setCreateDocument(next);
@@ -389,7 +405,7 @@ export function EffortDetailPage() {
   }, [slug, selectedTargetSlug, registry, refresh, navigate]);
 
   const handleCreateSubmit = useCallback(async () => {
-    const activeCreateDoc = createDocumentRef.current;
+    const activeCreateDoc = createEditorViewRef.current?.state.doc.toString() ?? createDocumentRef.current;
     const { effort: parsed, errors } = documentToEffort(activeCreateDoc);
     if (errors.length > 0) {
       toast({
@@ -689,8 +705,12 @@ export function EffortDetailPage() {
           editor={
             <div className="relative" data-testid="effort-create-editor">
               <NoteEditor
+                key={`effort-create-${slug ?? 'new'}`}
                 value={createDocument}
                 onChange={handleCreateDocumentChange}
+                onViewCreated={(view) => {
+                  createEditorViewRef.current = view;
+                }}
                 theme={actualTheme}
                 readonly={false}
                 showLineNumbers={true}
@@ -854,6 +874,7 @@ export function EffortDetailPage() {
               </div>
             )}
             <NoteEditor
+              key={`effort-detail-${noteId}`}
               noteId={noteId}
               value={activeDocument}
               onChange={activeSetDocument}

@@ -184,7 +184,11 @@ export class NotebookService {
     private async createNow(name: string, description: string, icon: string): Promise<Notebook> {
         const existing = await this.getAll();
         const baseSlug = slugifyNotebookName(name);
-        const taken = new Set([...RESERVED_SLUGS, ...existing.map((n) => n.slug)]);
+        const taken = new Set([
+            ...RESERVED_SLUGS,
+            ...this.getFeedNotebooks().map((n) => n.slug),
+            ...existing.map((n) => n.slug),
+        ]);
         let slug = baseSlug;
         for (let i = 2; taken.has(slug); i++) {
             slug = `${baseSlug}-${i}`;
@@ -217,7 +221,7 @@ export class NotebookService {
                 ...saved,
                 notebookId,
                 type: 'note',
-                seedOrigin: saved.seedOrigin ?? 'user',
+                seedOrigin: 'user',
             };
             if (expectedSourceRevision === undefined) stamped.createdAt = Date.now();
             await txStore.saveNote(stamped);
@@ -225,7 +229,7 @@ export class NotebookService {
         };
         if (scopedStore) return write(scopedStore);
         return this.store.withTransaction(
-            ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'],
+            ['notes', 'block_revisions', 'note_revisions', 'sessions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'],
             write,
         );
     }
@@ -385,7 +389,7 @@ export class NotebookService {
             // native IndexedDB never auto-commits across WebCrypto microtasks.
             const starterId = await seedNoteId('onboarding/my-workout');
             await this.store.withTransaction(
-                ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'notebook_links', 'meta'],
+                ['notes', 'block_revisions', 'note_revisions', 'sessions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'notebook_links', 'meta'],
                 async (scoped) => {
                     const notes = await scoped.getAllNotes();
                     if (!notes.some((n) => isNotebookLanding(n) && n.id === CUSTOM_NOTEBOOK_ID)) {

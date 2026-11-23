@@ -544,6 +544,8 @@ async function applyPreparedSeedChunkInTx(
       if (!owned.has(id)) continue;
       const existing = existingById.get(id) as RetentionNote | undefined;
       if (!existing) continue;
+      // Defense-in-depth: user-origin rows are untouchable on import delete/sync.
+      if (existing.seedOrigin !== 'seed') continue;
       const preservedRetention =
         pinnedNoteIds.has(id) || existing.retention === 'session-pinned'
           ? ('session-pinned' as const)
@@ -585,6 +587,8 @@ async function applyPreparedSeedChunkInTx(
                 .filter((c) => c.id.startsWith('notebook.'))
                 .map((c) => `notebook/${notebookSlugForChunkId(c.id)}`),
             ];
+      const existingAll = await overrideStore.getAll();
+      const existingByOvId = new Map(existingAll.map((ov) => [ov.id, ov]));
       const wantedIds = new Set<string>();
       const toPut: ScopedPropertyOverride[] = [];
       for (const [idx, row] of write.rows.entries()) {
@@ -593,7 +597,10 @@ async function applyPreparedSeedChunkInTx(
         for (const scope of scopes) {
           const ovId = makeScopedOverrideId(scope, kind, parsed.slug);
           wantedIds.add(ovId);
-          toPut.push({
+          const priorOv = existingByOvId.get(ovId);
+          // User-origin property overrides are untouchable on seed/feed import.
+          if (priorOv && priorOv.seedOrigin !== 'seed') continue;
+          const candidate: ScopedPropertyOverride = {
             id: ovId,
             notebookId: scope,
             kind,
@@ -605,17 +612,18 @@ async function applyPreparedSeedChunkInTx(
             seedOrigin: 'seed',
             feedSourceId,
             updatedAt: write.meta.importedAt,
-          });
+          };
+          if (!priorOv || !equal(priorOv, candidate)) toPut.push(candidate);
         }
       }
       if (toPut.length > 0) await overrideStore.putMany(toPut);
-      const existingAll = await overrideStore.getAll();
       for (const existingOv of existingAll) {
         if (
           existingOv.seedOrigin === 'seed' &&
           existingOv.feedSourceId === feedSourceId &&
           existingOv.kind === kind &&
-          !wantedIds.has(existingOv.id)
+          !wantedIds.has(existingOv.id) &&
+          (!existingOv.ownerNoteId || !declared.has(existingOv.ownerNoteId))
         ) {
           await overrideStore.delete(existingOv.id);
         }

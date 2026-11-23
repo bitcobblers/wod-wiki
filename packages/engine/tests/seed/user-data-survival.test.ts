@@ -364,4 +364,89 @@ describe('WW-020 — seed import never destroys user data', () => {
     expect(survivingSession?.id).toBe(activeSession.id);
     expect(survivingSession?.completed).toBe(false);
   });
+
+  it('WW-020: never overwrites or deletes user-origin property_overrides during effort/equipment seed sync', async () => {
+    const storage = createRealSqlStorage();
+    const effortPath = 'markdown/efforts/rowing.md';
+    const effortNoteId = await seedNoteId(effortPath);
+    const seedEffortDoc = [
+      '---',
+      'id: effort-rowing',
+      'slug: rowing',
+      'label: Rowing',
+      'aliases:',
+      '  - row',
+      'baseAttributes:',
+      '  met: 7.0',
+      'registrySource: bundled',
+      '---',
+      '',
+      'Bundled rowing definition.',
+    ].join('\n');
+    const userOverrideDoc = [
+      '---',
+      'id: effort-override-demo-rowing',
+      'slug: rowing',
+      'label: Rowing (User Scoped)',
+      'baseAttributes:',
+      '  met: 9.5',
+      'registrySource: user',
+      '---',
+      '',
+      'User custom scoped rowing override.',
+    ].join('\n');
+
+    // User creates a scoped property override in `notebook/demo` (a scope the feed also targets).
+    const overrideId = 'notebook/demo:effort:rowing';
+    await storage.transaction(['property_overrides'], 'readwrite', async (tx) => {
+      await tx.readwrite('property_overrides').put({
+        id: overrideId,
+        notebookId: 'notebook/demo',
+        kind: 'effort',
+        slug: 'rowing',
+        label: 'Rowing (User Scoped)',
+        ownerNoteId: 'override/demo/effort/rowing',
+        rawContent: userOverrideDoc,
+        payload: { slug: 'rowing', label: 'Rowing (User Scoped)', baseAttributes: { met: 9.5 }, registrySource: 'user' },
+        seedOrigin: 'user',
+        updatedAt: 100,
+      });
+    });
+
+    const effortRow = compileSeedRow(effortPath, seedEffortDoc);
+    const feedManifest = manifest(1, ['notebook.demo', 'efforts']);
+    const meta1 = metaRecord('seed:demo-feed', 1, { efforts: [effortNoteId] });
+    await applySeedChunk(storage, {
+      chunkId: 'efforts',
+      rows: [effortRow],
+      manifest: feedManifest,
+      expectedMeta: undefined,
+      meta: meta1,
+    });
+
+    const afterImport = await storage.transaction(['property_overrides'], 'readonly', (tx) =>
+      tx.readonly('property_overrides').get(overrideId),
+    );
+    expect(afterImport).toBeDefined();
+    expect(afterImport?.seedOrigin).toBe('user');
+    expect(afterImport?.label).toBe('Rowing (User Scoped)');
+    expect(afterImport?.rawContent).toContain('User custom scoped rowing override.');
+
+    // Subsequent vanish/prune of the efforts chunk must also leave the user override untouched.
+    const meta2 = metaRecord('seed:demo-feed', 2, { efforts: [] });
+    await applySeedChunk(storage, {
+      chunkId: 'efforts',
+      rows: [],
+      manifest: manifest(2, ['notebook.demo']),
+      expectedMeta: meta1,
+      meta: meta2,
+    });
+
+    const afterPrune = await storage.transaction(['property_overrides'], 'readonly', (tx) =>
+      tx.readonly('property_overrides').get(overrideId),
+    );
+    expect(afterPrune).toBeDefined();
+    expect(afterPrune?.seedOrigin).toBe('user');
+    expect(afterPrune?.rawContent).toContain('User custom scoped rowing override.');
+  });
 });
