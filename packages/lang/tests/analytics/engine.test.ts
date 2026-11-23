@@ -172,6 +172,51 @@ describe('Phase 1: segment-scope pipeline', () => {
     e.process(parent);
     expect(annotations(parent, 'metMinutes')).toHaveLength(0);
   });
+
+  it('WW-125: formats metMinutes segment annotation image as MET-min and skips session-root / waiting-to-start to avoid 2x double-counting', () => {
+    const e = engine();
+    const firstSeg = segment([
+      { type: MetricType.Elapsed, value: 106_000, origin: 'runtime' },
+      effortData('thruster', 'Thruster', 8.5, 'strength'),
+    ]);
+    const secondSeg = segment([
+      { type: MetricType.Elapsed, value: 8_000, origin: 'runtime' },
+      effortData('thruster', 'Thruster', 8.5, 'strength'),
+    ]);
+    const waitingGate = new OutputStatement({
+      outputType: 'segment',
+      timeSpan: { started: 0, ended: 2_000 },
+      sourceBlockKey: 'waiting-to-start',
+      stackLevel: 1,
+      metrics: [{ type: MetricType.Elapsed, value: 2_000, origin: 'runtime' }],
+    });
+    const sessionRoot = new OutputStatement({
+      outputType: 'segment',
+      timeSpan: { started: 0, ended: 114_000 },
+      sourceBlockKey: 'session-root',
+      stackLevel: 0,
+      metrics: [{ type: MetricType.Elapsed, value: 114_000, origin: 'runtime' }],
+    });
+
+    e.process(waitingGate);
+    e.process(firstSeg);
+    e.process(secondSeg);
+    e.process(sessionRoot);
+
+    const firstMet = annotations(firstSeg, 'metMinutes')[0]!;
+    expect(firstMet.value).toBeCloseTo((106 / 60) * 8.5, 2);
+    expect(firstMet.image).toMatch(/MET-min$/);
+    expect(firstMet.image).not.toMatch(/ min$/);
+
+    expect(annotations(waitingGate, 'metMinutes')).toHaveLength(0);
+    expect(annotations(sessionRoot, 'metMinutes')).toHaveLength(0);
+
+    const projections = e.summarize([waitingGate, firstSeg, secondSeg, sessionRoot]);
+    const totalMet = projections.find((p) => p.metadata?.canonicalKey === 'calc.metMinutes');
+    // (106 + 8) / 60 * 8.5 = 16.15 MET-min, NOT ~32.3 MET-min from counting session-root!
+    expect(totalMet?.value).toBeCloseTo((114 / 60) * 8.5, 2);
+    expect(totalMet?.unit).toBe('MET-min');
+  });
 });
 
 // ── Phase 2: workout scope (#875) ────────────────────────────────────────

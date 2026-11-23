@@ -1003,4 +1003,105 @@ describe('WW-009: structural segment titles vs real round numbers', () => {
     expect(fallbackEntry.subtitle).toContain('00:25')
     expect(fallbackEntry.subtitle).not.toContain('00:40')
   })
+
+  it('WW-126: derives exact 360 kg volume for 15x24 kg swings without 2x double-counting across analytics or segment load+volume metrics', () => {
+    const t0 = new Date('2026-08-15T10:00:00Z').getTime()
+    const runWithBothAnalytics: RowsRun = {
+      resultId: 'res-ww126-1',
+      noteId: 'kb-swings',
+      timestamp: t0,
+      events: [
+        {
+          id: 'res-ww126-1:0',
+          resultId: 'res-ww126-1',
+          noteId: 'kb-swings',
+          timestamp: t0,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'kettlebell-swing',
+          stackLevel: 1,
+          timeSpan: { started: t0, ended: t0 + 30_000 },
+          metrics: [
+            { type: 'rep', value: 15 },
+            { type: 'resistance', value: { amount: 24, unit: 'kg' }, unit: 'kg' },
+            { type: 'volume', value: 360, unit: 'kg', metadata: { canonicalKey: 'totalVolume' } },
+          ],
+        } as unknown as EventRecord,
+        {
+          id: 'res-ww126-1:summary:totalVolume',
+          resultId: 'res-ww126-1',
+          noteId: 'kb-swings',
+          timestamp: t0 + 30_000,
+          grain: 'summary',
+          outputType: 'analytics',
+          summaryCoverage: { scope: 'workout' },
+          metrics: [
+            { type: 'totalVolume', value: 360, unit: 'kg', metadata: { canonicalKey: 'totalVolume' } },
+          ],
+        } as unknown as EventRecord,
+        {
+          id: 'res-ww126-1:summary:totalVolume:effort=kettlebell-swing',
+          resultId: 'res-ww126-1',
+          noteId: 'kb-swings',
+          timestamp: t0 + 30_000,
+          grain: 'summary',
+          outputType: 'analytics',
+          effortSlug: 'kettlebell-swing',
+          summaryCoverage: { scope: 'effort', effortSlug: 'kettlebell-swing' },
+          metrics: [
+            {
+              type: 'totalVolume',
+              value: 360,
+              unit: 'kg',
+              metadata: { canonicalKey: 'totalVolume', effortSlug: 'kettlebell-swing' },
+            },
+          ],
+        } as unknown as EventRecord,
+      ],
+    }
+
+    const entry = rowsRunToEntry(runWithBothAnalytics)
+    expect(entry.execution?.loadLbs).toBe(360)
+    expect(entry.execution?.volumeUnit).toBe('kg')
+    expect(entry.subtitle).toContain('Volume: 360 kg')
+    expect(entry.subtitle).not.toContain('720')
+
+    // Segment-only fallback (no analytics rows): prefers explicit volume over load+volume sum
+    const segmentOnlyWithExplicitVol: RowsRun = {
+      resultId: 'res-ww126-2',
+      noteId: 'kb-swings',
+      timestamp: t0,
+      events: [runWithBothAnalytics.events[0]!],
+    }
+    const segExplicitEntry = rowsRunToEntry(segmentOnlyWithExplicitVol)
+    expect(segExplicitEntry.execution?.loadLbs).toBe(360)
+    expect(segExplicitEntry.execution?.volumeUnit).toBe('kg')
+
+    // Segment-only fallback without explicit volume: computes reps * load = 15 * 24 = 360 kg
+    const segmentOnlyLoadAndReps: RowsRun = {
+      resultId: 'res-ww126-3',
+      noteId: 'kb-swings',
+      timestamp: t0,
+      events: [
+        {
+          id: 'res-ww126-3:0',
+          resultId: 'res-ww126-3',
+          noteId: 'kb-swings',
+          timestamp: t0,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'kettlebell-swing',
+          stackLevel: 1,
+          timeSpan: { started: t0, ended: t0 + 30_000 },
+          metrics: [
+            { type: 'rep', value: 15 },
+            { type: 'resistance', value: { amount: 24, unit: 'kg' }, unit: 'kg' },
+          ],
+        } as unknown as EventRecord,
+      ],
+    }
+    const segComputedEntry = rowsRunToEntry(segmentOnlyLoadAndReps)
+    expect(segComputedEntry.execution?.loadLbs).toBe(360)
+    expect(segComputedEntry.execution?.volumeUnit).toBe('kg')
+  })
 })

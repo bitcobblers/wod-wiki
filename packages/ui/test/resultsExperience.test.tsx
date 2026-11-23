@@ -314,4 +314,88 @@ describe('Results Experience Phase 2 UI components', () => {
     expect(container.querySelector('.uppercase')?.textContent).not.toBe('Segment');
     expect(container.querySelector('[aria-label="Effort: Thrusters"]')).not.toBeNull();
   });
+
+  it('WW-125: normalizes pace units (min/km, sec/km, min/mi, m/s) and ignores reps/min in ResultsSpreadsheetGrid', () => {
+    const run = makeSampleRun({
+      resultId: 'res-pace-1',
+      events: [
+        {
+          id: 'ev-run',
+          resultId: 'res-pace-1',
+          noteId: 'note-run',
+          timestamp: 1_735_689_600_000,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'running',
+          sourceBlockKey: 'seg-run-1',
+          stackLevel: 1,
+          timeSpan: { started: 1_735_689_600_000, ended: 1_735_689_706_560 },
+          metrics: [
+            { type: 'effort', value: 'running', image: 'Running', origin: 'parser', metadata: { effortSlug: 'running' } },
+            { type: 'distance', value: 200, unit: 'm', origin: 'parser' },
+            { type: 'pace', value: 1.88, unit: 'm/s', origin: 'analyzed', metadata: { canonicalKey: 'pace' } },
+            { type: 'pace', value: 8.88, unit: 'min/km', origin: 'analyzed', metadata: { canonicalKey: 'pace' } },
+          ],
+        },
+        {
+          id: 'ev-run-sec',
+          resultId: 'res-pace-1',
+          noteId: 'note-run',
+          timestamp: 1_735_689_706_560,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'rowing',
+          sourceBlockKey: 'seg-row-1',
+          stackLevel: 1,
+          timeSpan: { started: 1_735_689_706_560, ended: 1_735_689_856_560 },
+          metrics: [
+            { type: 'effort', value: 'rowing', image: 'Rowing', origin: 'parser', metadata: { effortSlug: 'rowing' } },
+            { type: 'pace', value: 300, unit: 'sec/km', origin: 'analyzed', metadata: { canonicalKey: 'pace' } },
+          ],
+        },
+        {
+          id: 'ev-run-mi',
+          resultId: 'res-pace-1',
+          noteId: 'note-run',
+          timestamp: 1_735_689_856_560,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'jogging',
+          sourceBlockKey: 'seg-jog-1',
+          stackLevel: 1,
+          timeSpan: { started: 1_735_689_856_560, ended: 1_735_689_956_560 },
+          metrics: [
+            { type: 'effort', value: 'jogging', image: 'Jogging', origin: 'parser', metadata: { effortSlug: 'jogging' } },
+            { type: 'pace', value: 8, unit: 'min/mi', origin: 'analyzed', metadata: { canonicalKey: 'pace' } },
+          ],
+        },
+        {
+          id: 'ev-kb',
+          resultId: 'res-pace-1',
+          noteId: 'note-run',
+          timestamp: 1_735_689_956_560,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'kettlebell-swing',
+          sourceBlockKey: 'seg-kb-1',
+          stackLevel: 1,
+          timeSpan: { started: 1_735_689_956_560, ended: 1_735_689_964_560 },
+          metrics: [
+            { type: 'effort', value: 'kettlebell-swing', image: 'Kettlebell Swings', origin: 'parser', metadata: { effortSlug: 'kettlebell-swing' } },
+            { type: 'rep', value: 15, unit: 'reps', origin: 'runtime' },
+            { type: 'resistance', value: 24, unit: 'kg', origin: 'parser' },
+            { type: 'pace', value: 112.5, unit: 'reps/min', origin: 'analyzed', metadata: { canonicalKey: 'pace' } },
+          ],
+        },
+      ],
+    });
+
+    const { container } = render(<ResultsSpreadsheetGrid run={run} />);
+    expect(container.textContent).toContain('8:53 /km');
+    expect(container.textContent).not.toContain('0:09 /km');
+    expect(container.textContent).toContain('5:00 /km');
+    expect(container.textContent).toContain('4:58 /km');
+    // reps/min must not be rendered as a distance pace (1:53 /km)
+    expect(container.textContent).not.toContain('1:53 /km');
+  });
 });

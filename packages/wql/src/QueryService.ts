@@ -1101,8 +1101,12 @@ export function computeRowsRunSummary(
 
   let storedVolume: number | undefined;
   let storedVolumeUnit: string | undefined;
+  let groupedVolume: number | undefined;
+  let groupedVolumeUnit: string | undefined;
   let storedDistance: number | undefined;
   let storedDistanceUnit: string | undefined;
+  let groupedDistance: number | undefined;
+  let groupedDistanceUnit: string | undefined;
   let storedReps: number | undefined;
   let tis: number | undefined;
   let sessionLoad: number | undefined;
@@ -1116,10 +1120,20 @@ export function computeRowsRunSummary(
   const seenSummaryKeys = new Set<string>();
 
   for (const row of dedupedSummaryRows) {
+    const rowIsGrouped =
+      Boolean(row.effortSlug) ||
+      row.summaryCoverage?.scope === 'effort' ||
+      row.summaryCoverage?.scope === 'partition';
     for (const m of visibleRowMetrics(row.metrics)) {
       if (typeof m.value !== 'number' || !Number.isFinite(m.value)) continue;
       const canon = typeof m.metadata?.canonicalKey === 'string' ? m.metadata.canonicalKey : m.type ?? '';
-      const groupTags = m.metadata?.groupTags ? JSON.stringify(m.metadata.groupTags) : (typeof m.metadata?.effortSlug === 'string' ? m.metadata.effortSlug : '');
+      const metricIsGrouped =
+        rowIsGrouped ||
+        typeof m.metadata?.effortSlug === 'string' ||
+        (typeof m.metadata?.groupTags === 'object' && m.metadata?.groupTags !== null);
+      const groupTags = m.metadata?.groupTags
+        ? JSON.stringify(m.metadata.groupTags)
+        : (typeof m.metadata?.effortSlug === 'string' ? m.metadata.effortSlug : (row.effortSlug ?? ''));
       const dedupeKey = `${canon}:${groupTags}`;
       if ((canon === 'tis' || canon === 'sessionLoad' || canon === 'totalVolume' || canon === 'totalDistance') && seenSummaryKeys.has(dedupeKey)) {
         continue;
@@ -1128,11 +1142,21 @@ export function computeRowsRunSummary(
         seenSummaryKeys.add(dedupeKey);
       }
       if (canon === 'totalVolume' || canon === 'volume') {
-        storedVolume = (storedVolume ?? 0) + m.value;
-        if (m.unit && !storedVolumeUnit) storedVolumeUnit = m.unit;
+        if (metricIsGrouped) {
+          groupedVolume = (groupedVolume ?? 0) + m.value;
+          if (m.unit && !groupedVolumeUnit) groupedVolumeUnit = m.unit;
+        } else {
+          storedVolume = (storedVolume ?? 0) + m.value;
+          if (m.unit && !storedVolumeUnit) storedVolumeUnit = m.unit;
+        }
       } else if (canon === 'totalDistance' || canon === 'distance') {
-        storedDistance = (storedDistance ?? 0) + m.value;
-        if (m.unit && !storedDistanceUnit) storedDistanceUnit = m.unit;
+        if (metricIsGrouped) {
+          groupedDistance = (groupedDistance ?? 0) + m.value;
+          if (m.unit && !groupedDistanceUnit) groupedDistanceUnit = m.unit;
+        } else {
+          storedDistance = (storedDistance ?? 0) + m.value;
+          if (m.unit && !storedDistanceUnit) storedDistanceUnit = m.unit;
+        }
       } else if (canon === 'totalReps' || canon === 'reps' || canon === 'rep') {
         storedReps = Math.max(storedReps ?? 0, m.value);
       } else if (canon === 'tis') {
@@ -1147,6 +1171,11 @@ export function computeRowsRunSummary(
       }
     }
   }
+
+  const resolvedStoredVolume = storedVolume ?? groupedVolume;
+  const resolvedStoredVolumeUnit = storedVolume !== undefined ? storedVolumeUnit : groupedVolumeUnit;
+  const resolvedStoredDistance = storedDistance ?? groupedDistance;
+  const resolvedStoredDistanceUnit = storedDistance !== undefined ? storedDistanceUnit : groupedDistanceUnit;
 
   const elapsedMs =
     typeof run.durationMs === 'number' && Number.isFinite(run.durationMs) && run.durationMs > 0
@@ -1163,17 +1192,17 @@ export function computeRowsRunSummary(
   const finalVolume =
     hasUserOverride && segVolume > 0
       ? segVolume
-      : storedVolume !== undefined
-        ? storedVolume
+      : resolvedStoredVolume !== undefined
+        ? resolvedStoredVolume
         : segVolume;
-  const finalVolumeUnit = storedVolumeUnit ?? segVolumeUnit;
+  const finalVolumeUnit = resolvedStoredVolumeUnit ?? segVolumeUnit;
   const finalDistance =
     hasUserOverride && segDistance > 0
       ? segDistance
-      : storedDistance !== undefined
-        ? storedDistance
+      : resolvedStoredDistance !== undefined
+        ? resolvedStoredDistance
         : segDistance;
-  const finalDistanceUnit = storedDistanceUnit ?? segDistanceUnit;
+  const finalDistanceUnit = resolvedStoredDistanceUnit ?? segDistanceUnit;
   const rpe = extractSessionRpeValue(events);
 
   return {
