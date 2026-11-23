@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
+import { SecondaryNav } from '@app/nav/SecondaryNav';
 import { SessionResultsPage } from '@app/pages/SessionResultsPage';
 import { TEST_IDS } from '@/lib/testIds';
 import sessionDetailFixture from './screens/data/session-detail';
@@ -9,6 +10,18 @@ const meta: Meta = {
   title: 'Playground/Pages/SessionResultsPage',
   component: SessionResultsPage,
   parameters: { layout: 'fullscreen' },
+  decorators: [
+    (Story) => (
+      <div className="flex min-h-screen w-full">
+        <div className="min-w-0 flex-1">
+          <Story />
+        </div>
+        <aside className="w-60 shrink-0 border-l border-border/50 bg-background/72">
+          <SecondaryNav />
+        </aside>
+      </div>
+    ),
+  ],
 };
 export default meta;
 type Story = StoryObj;
@@ -32,7 +45,8 @@ export const PopulatedMurphResults: Story = {
     await userEvent.click(canvas.getByTestId('results-tab-movement'));
     await expect(canvas.getByTestId('results-tab-panel-movement')).toBeVisible();
 
-    await userEvent.click(canvas.getByTestId(TEST_IDS.RESULTS_SOURCE_DRAWER_BTN));
+    const sourceBtn = await canvas.findByTestId(TEST_IDS.RESULTS_SOURCE_DRAWER_BTN);
+    await userEvent.click(sourceBtn);
     await expect(body.findByTestId(TEST_IDS.RESULTS_SOURCE_DRAWER)).resolves.toBeVisible();
   },
 };
