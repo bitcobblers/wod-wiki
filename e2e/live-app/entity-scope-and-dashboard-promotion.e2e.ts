@@ -1,5 +1,5 @@
 // spec: e2e/specs/analytics/entity-scope-and-dashboard-promotion.md
-import { expect, test, TEST_IDS } from '../fixtures/playgroundActor';
+import { expect, test, TEST_IDS, openL3Action } from '../fixtures/playgroundActor';
 
 const RESULTS_NOTE_ID = '01950000-0000-7000-8000-000000000777';
 const RESULTS_CONTENT =
@@ -88,7 +88,9 @@ test.describe('ANL-04 — Entity Scope & Dashboard Promotion', () => {
     await expect(table.locator('tbody')).not.toContainText(/burpee/i);
 
     // 3. Promote the filtered Entity Scope query into WidgetComposerDialog and inspect /dashboards?q=
-    await page.getByTestId(TEST_IDS.SAVE_STREAM_QUERY).click();
+    const saveStreamQueryBtn = page.getByTestId(TEST_IDS.SAVE_STREAM_QUERY);
+    await openL3Action(page, saveStreamQueryBtn);
+    await saveStreamQueryBtn.click();
     await expect(page.getByTestId(TEST_IDS.WIDGET_COMPOSER_SUBSET)).toHaveText(filteredQuery);
     await expect(page.getByTestId(TEST_IDS.WIDGET_COMPOSER_WQL)).toHaveText(filteredQuery);
     await expect(page.getByTestId(TEST_IDS.WIDGET_COMPOSER_APPLY)).toBeEnabled();

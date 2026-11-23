@@ -92,22 +92,21 @@ test('the layout picker offers the calendar layouts only where entries have date
   await page.goto('/notes?q=:note{}', { waitUntil: 'domcontentloaded' });
   await waitForFeedReady(page);
 
-  // The page options drawer carries the L3 controls on phones. The controls
-  // are mounted in more than one place (the desktop rail stays in the DOM,
-  // the dock sheet and the ⋯ sheet both carry them), so every assertion
-  // here is scoped to the VISIBLE copy.
-  await page.getByRole('button', { name: 'Open page options' }).click();
-
-  await expect(page.locator('[data-testid="l3-layout-agenda"]:visible')).toBeVisible();
-  await expect(page.locator('[data-testid="l3-layout-planner"]:visible')).toBeVisible();
+  // On mobile, the View popover lives inside the thumb-dock overflow sheet.
+  await page.getByTestId('actions-overflow').click();
+  await page.getByTestId('stream-view-popover-trigger').click();
+  const viewPopover = page.getByTestId('stream-view-popover-content');
+  await expect(viewPopover.getByRole('button', { name: 'Agenda', exact: true })).toBeVisible();
+  await expect(viewPopover.getByRole('button', { name: 'Planner', exact: true })).toBeVisible();
 
   // An effort has no date — the calendar layouts cannot place one, so the
   // picker must not offer them there.
   await page.goto('/efforts', { waitUntil: 'domcontentloaded' });
   await waitForFeedReady(page);
-  await page.getByRole('button', { name: 'Open page options' }).click();
+  await page.getByTestId('actions-overflow').click();
+  await page.getByTestId('stream-view-popover-trigger').click();
 
-  await expect(page.locator('[data-testid="l3-layout-cards"]:visible')).toBeVisible();
-  await expect(page.locator('[data-testid="l3-layout-agenda"]:visible')).toHaveCount(0);
-  await expect(page.locator('[data-testid="l3-layout-planner"]:visible')).toHaveCount(0);
+  await expect(viewPopover.getByRole('button', { name: 'Cards', exact: true })).toBeVisible();
+  await expect(viewPopover.getByRole('button', { name: 'Agenda', exact: true })).toHaveCount(0);
+  await expect(viewPopover.getByRole('button', { name: 'Planner', exact: true })).toHaveCount(0);
 });

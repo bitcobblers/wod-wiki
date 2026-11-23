@@ -1,5 +1,5 @@
 // spec: e2e/specs/journal/contextual-new-entry.md
-import { expect, test, TEST_IDS } from '../fixtures/playgroundActor';
+import { expect, test, TEST_IDS, clickStreamAdd, openL3Action } from '../fixtures/playgroundActor';
 import { deleteNoteByRouteId } from '../helpers/wodwikiDb';
 
 test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', () => {
@@ -9,11 +9,9 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     const { page } = app;
     await page.setViewportSize({ width: 1280, height: 900 });
 
-    // 1. Contextual wizard options & per-library labels
+    // 1. Contextual wizard options & per-library labels (via View -> + Add on desktop streams)
     await app.journal.openStream();
-    await expect(page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY)).toHaveText('+ Add');
-    await expect(page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY)).toHaveAttribute('aria-label', '+ Add Journal entry');
-    await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await clickStreamAdd(page);
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByTestId('new-entry-note')).toBeVisible();
@@ -42,7 +40,7 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await expect(page).toHaveURL(/\/day\/\d{4}-\d{2}-\d{2}$/, { timeout: 15_000 });
     await app.goto('/journal');
 
-    await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await clickStreamAdd(page);
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('tab', { name: 'Write a Note' })).toHaveAttribute('aria-selected', 'true');
     const advBtn = dialog.getByRole('button', { name: /Advanced options/i });
@@ -54,22 +52,23 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await expect(dialog).toBeHidden();
 
     // Reopen again on /journal -> Advanced options resets back to collapsed
-    await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await clickStreamAdd(page);
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('button', { name: /Advanced options/i })).toHaveAttribute('aria-expanded', 'false');
     await page.keyboard.press('Escape');
 
     await app.goto('/playgrounds');
-    await expect(page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY)).toHaveText('+ Add');
-    await expect(page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY)).toHaveAttribute('aria-label', '+ Add Playground');
+    await page.getByTestId(TEST_IDS.STREAM_VIEW_POPOVER_TRIGGER).click();
+    await expect(page.getByTestId(TEST_IDS.STREAM_VIEW_ADD_ACTION)).toHaveText('+ Add');
+    await page.keyboard.press('Escape');
 
     await app.notebooks.openLibrary();
-    await expect(page.getByTestId(TEST_IDS.NOTEBOOKS_CREATE_BUTTON)).toHaveText('+ Add');
+    await page.getByTestId(TEST_IDS.STREAM_VIEW_POPOVER_TRIGGER).click();
+    await expect(page.getByTestId(TEST_IDS.STREAM_VIEW_ADD_ACTION)).toHaveText('+ New notebook');
+    await page.keyboard.press('Escape');
 
     await app.goto('/pages');
-    await expect(page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY)).toHaveText('+ Add');
-    await expect(page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY)).toHaveAttribute('aria-label', '+ Add Page');
-    await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await clickStreamAdd(page);
     await expect(page.getByRole('dialog').getByRole('tab', { name: 'Write a Note' })).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('dialog').getByRole('button', { name: /Advanced options/i })).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByRole('dialog').getByTestId('journal-create-page-toggle')).toBeChecked();
@@ -77,7 +76,7 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
 
     // 2. Create a Playground from /journal and add a timer
     await app.journal.openStream();
-    await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await clickStreamAdd(page);
     await dialog.getByTestId('new-entry-playground').click();
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/playground\/[^/]+$/);
@@ -85,21 +84,23 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     const playgroundEditor = page.getByRole('textbox', { name: 'Note editor' });
     await expect(playgroundEditor).toBeVisible();
     await expect(page.getByTestId('new-entry-combo')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Page options' }).click();
-    await page.getByRole('button', { name: 'Add timer', exact: true }).click();
+    const addTimerPlayground = page.getByRole('button', { name: 'Add timer', exact: true });
+    await openL3Action(page, addTimerPlayground);
+    await addTimerPlayground.click();
     await expect(playgroundEditor.getByText('10:00', { exact: true }).first()).toBeVisible();
 
     // 3. Create a blank Journal Note and add a timer
     await app.journal.openStream();
-    await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await clickStreamAdd(page);
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/note\/[0-9a-f-]+\?edit=1$/);
     const createdJournalNoteId = new URL(page.url()).pathname.replace(/^\/note\//, '');
     await expect(page.locator('#create-journal-note-form')).toHaveCount(0);
     const journalEditor = page.getByRole('textbox', { name: 'Note editor' });
     await expect(journalEditor).toBeVisible();
-    await page.getByRole('button', { name: 'Page options' }).click();
-    await page.getByRole('button', { name: 'Add timer', exact: true }).click();
+    const addTimerJournal = page.getByRole('button', { name: 'Add timer', exact: true });
+    await openL3Action(page, addTimerJournal);
+    await addTimerJournal.click();
     await expect(journalEditor.getByText('10:00', { exact: true }).first()).toBeVisible();
     await deleteNoteByRouteId(page, createdJournalNoteId);
 
@@ -107,18 +108,16 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await app.notebooks.openLibrary();
     await app.notebooks.create('Combo notes');
     await expect(page).toHaveURL('/notebook/combo-notes');
-    await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await clickStreamAdd(page);
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/notebook\/combo-notes\/[0-9a-f-]+$/);
     await expect(page.locator('#create-journal-note-form')).toHaveCount(0);
     await expect(page.getByRole('textbox', { name: 'Note editor' })).toContainText('Untitled note');
-    await expect(
-      page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'combo-notes' }),
-    ).toBeVisible();
+    await expect(page.getByRole('link', { name: 'combo-notes' })).toBeVisible();
 
     // 5. Create a Tag from catalog wizard
     await app.journal.openStream();
-    await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await clickStreamAdd(page);
     await dialog.getByTestId('new-entry-tag').click();
     await dialog.getByPlaceholder('e.g., heavy').fill('E2E catalog tag');
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
@@ -133,11 +132,10 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
   }) => {
     const { page } = app;
 
-    // Home sticky entry creation on desktop
+    // Home sticky header stays calm on desktop (Cast only; mobile mounts MobileNewEntryCombo)
     await page.setViewportSize({ width: 1280, height: 900 });
     await app.goto('/');
-    await expect(page.getByTestId('new-entry-combo')).toHaveCount(1);
-    await expect(page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY)).toHaveText('+ Add');
+    await expect(page.getByTestId('new-entry-combo')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Cast to TV/ })).toBeVisible();
 
     // Mobile 375x812 thumb-dock ordering & custom notebook New Note
@@ -147,7 +145,7 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     await expect(page.getByRole('button', { name: 'New Journal entry', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'New journal note', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Cast to TV/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Open page options' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open page options' })).toHaveCount(0);
     await expect(page.getByTestId('actions-overflow')).toBeVisible();
 
     const searchY = (await page.getByTestId('search-fab').boundingBox())!.y;
@@ -177,7 +175,7 @@ test.describe('JRN-03 — Contextual New Entry Creation & Title Persistence', ()
     // Editing H1 updates title and survives reload
     await page.setViewportSize({ width: 1280, height: 900 });
     await app.journal.openStream();
-    await page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY).click();
+    await clickStreamAdd(page);
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page).toHaveURL(/\/note\/[0-9a-f-]+\?edit=1$/);

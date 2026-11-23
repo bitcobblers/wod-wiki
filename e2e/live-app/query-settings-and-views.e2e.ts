@@ -4,13 +4,12 @@ import { expect, test } from '../fixtures/playgroundActor';
 import { deleteNoteByRouteId } from '../helpers/wodwikiDb';
 
 const JOURNAL = '/journal';
-const VISIBLE_TRIGGER = '[data-testid="query-settings-trigger"]:visible';
 const VISIBLE_COMPOSER = '[data-testid="wql-composer-root"]:visible';
 const VISIBLE_STATUS = '[data-testid="stream-query-status"]:visible';
 
 async function openQuerySettings(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Page options', exact: true }).click();
-  await page.locator(VISIBLE_TRIGGER).click();
+  await page.getByTestId('stream-view-popover-trigger').click();
+  await page.getByRole('button', { name: /Configure view defaults/i }).click();
   await expect(page.getByTestId('query-settings-panel')).toBeVisible();
 }
 
@@ -104,8 +103,8 @@ test.describe('ANL-01 — Per-Surface Query Settings & Explorer Navigation', () 
 
     try {
       await app.wql.openDashboard('anl01-nav-dashboard');
-      const navigation = page.getByRole('navigation').first();
-      await expect(navigation.getByRole('button', { name: 'Dashboards', exact: true })).toBeVisible();
+      const navigation = page.getByTestId('dashboards-nav-panel');
+      await expect(navigation).toBeVisible();
       const explore = navigation.getByRole('button', { name: 'Explorer', exact: true });
       await expect(explore).toBeVisible();
       await expect(navigation.getByRole('button', { name: 'ANL01 Nav Dashboard' })).toBeVisible({ timeout: 15_000 });
@@ -117,11 +116,11 @@ test.describe('ANL-01 — Per-Surface Query Settings & Explorer Navigation', () 
       await expect(page.getByRole('heading', { name: 'Metric Explorer' })).toBeVisible();
       await expect(page.getByText(/Cannot parse/)).toHaveCount(0);
 
-      const example = navigation.getByRole('button', { name: 'Weekly strength volume' });
+      await page.getByTestId('explorer-examples-trigger').click();
+      const example = page.getByRole('menuitem', { name: /Weekly strength volume/i });
       await expect(example).toBeVisible();
       await example.click();
       await expect(page).toHaveURL(/[?&]q=/);
-      await expect(example).toContainText('Weekly strength volume');
 
       app.assertCleanConsole();
     } finally {

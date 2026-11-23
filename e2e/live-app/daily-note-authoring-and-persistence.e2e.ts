@@ -1,6 +1,6 @@
 // spec: e2e/specs/journal/daily-note-authoring-and-persistence.md
 import type { Page } from '@playwright/test';
-import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
+import { test, expect, TEST_IDS, openL3Action } from '../fixtures/playgroundActor';
 import { deleteNoteByRouteId } from '../helpers/wodwikiDb';
 
 // Stable far-future dates — never collide with real entries; cleared before
@@ -14,11 +14,7 @@ const DATE_CLONE = '2099-07-06';
 
 async function openNotePageAction(page: Page, name: string): Promise<void> {
   const action = page.getByRole('button', { name, exact: true });
-  const options = page.getByRole('button', { name: 'Page options' });
-  await expect(action.or(options).first()).toBeVisible({ timeout: 20_000 });
-  if (!(await action.isVisible().catch(() => false))) {
-    await options.click();
-  }
+  await openL3Action(page, action);
   await expect(action).toBeVisible({ timeout: 10_000 });
   await action.click();
 }

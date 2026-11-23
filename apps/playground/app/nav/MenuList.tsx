@@ -82,6 +82,10 @@ export function useResolvedMenu(spec: MenuSpec | undefined): MenuEntry[] {
     }
   }, [signature])
 
+  if (!spec || !spec.some(e => e.kind === 'wql')) {
+    return spec ?? []
+  }
+
   return resolved
 }
 

@@ -75,6 +75,7 @@ test.describe('ANL-06 — WQL Composer Scope Map & Command Palette Parity', () =
       // 2. /notes default :note{} (all notes + unfiled) + narrow to journal + Add Tag filter positive/exclusion + pill removal
       await app.goto('/notes');
       const notesBar = page.getByTestId(TEST_IDS.STREAM_QUERY_BAR);
+      await app.wql.openScopeMap();
       await expect(notesBar.getByTestId('token-slot-target')).toContainText('note');
       await expect(notesBar.getByTestId('token-slot-notebook')).toHaveCount(0);
       await app.wql.fillStreamQueryBar(':note{notebook:journal}');
@@ -108,7 +109,8 @@ test.describe('ANL-06 — WQL Composer Scope Map & Command Palette Parity', () =
       const explorerRoot = page.getByTestId(TEST_IDS.WQL_COMPOSER_ROOT).first();
       await expect(explorerRoot.getByTestId(TEST_IDS.WQL_SCOPE_MAP)).toBeVisible();
       await expect(explorerRoot.locator('[role="textbox"]')).toHaveCount(1);
-      await page.getByRole('button', { name: 'Weekly strength volume' }).click();
+      await page.getByTestId(TEST_IDS.EXPLORER_EXAMPLES_TRIGGER).click();
+      await page.getByRole('menuitem', { name: /Weekly strength volume/i }).click();
       await expect(page).toHaveURL(/[?&]q=/);
 
       app.assertCleanConsole();

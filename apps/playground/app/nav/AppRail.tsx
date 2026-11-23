@@ -130,7 +130,7 @@ export function AppRail({
         className={
           isMobileList
             ? 'flex w-full flex-col gap-0.5'
-            : 'flex flex-col items-center gap-1.5'
+            : 'flex w-full flex-col items-center gap-1.5'
         }
       >
         {items.map(item => {

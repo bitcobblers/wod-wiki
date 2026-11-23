@@ -132,7 +132,7 @@ function PlannerCell({
           </Link>
         )}
         {day.isToday && (
-          <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
             Today
           </span>
         )}
@@ -310,7 +310,7 @@ function PlannerPhone({
                     </span>
                   )}
                   {day.isToday && (
-                    <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+                    <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                       Today
                     </span>
                   )}

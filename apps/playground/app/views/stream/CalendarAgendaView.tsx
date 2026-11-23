@@ -109,7 +109,6 @@ function AgendaDayHeader({
           type="button"
           onClick={() => onInspectDay(day.key)}
           data-testid={TEST_IDS.CALENDAR_DAY_HEADER}
-          aria-label={`Inspect ${label}`}
           title={`Inspect ${label}`}
           className="flex min-w-0 flex-1 max-lg:min-h-11 items-center gap-3 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
@@ -119,7 +118,7 @@ function AgendaDayHeader({
         <div className="flex min-w-0 flex-1 items-center gap-3">{headerIdentity}</div>
       )}
       {day.isToday && (
-        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
           Today
         </span>
       )}

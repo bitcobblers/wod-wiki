@@ -1,5 +1,5 @@
 // spec: e2e/specs/properties/efforts-catalog-and-alias-lifecycle.md
-import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
+import { test, expect, TEST_IDS, openL3Action } from '../fixtures/playgroundActor';
 
 function buildCustomEffortYaml(slug: string, label: string, body: string): string {
   return [
@@ -31,7 +31,7 @@ test.describe('PRP-01 — Efforts Catalog & Alias Lifecycle', () => {
     await efforts.waitForCatalogLoaded();
 
     await expect(app.page.getByTestId(TEST_IDS.STREAM_QUERY_BAR)).toBeVisible();
-    await expect(efforts.createCustomButton()).toBeVisible();
+    await expect(app.page.getByTestId(TEST_IDS.STREAM_VIEW_POPOVER_TRIGGER)).toBeVisible();
     await expect(efforts.effortRow('burpee')).toBeVisible();
     await expect(efforts.effortRow('rowing')).toBeVisible();
     await expect.poll(() => efforts.effortRows().count(), { timeout: 15_000 }).toBeGreaterThan(10);
@@ -72,8 +72,10 @@ test.describe('PRP-01 — Efforts Catalog & Alias Lifecycle', () => {
     await expect(rowing.detailRoot()).toBeVisible();
     await expect(rowing.detailLabel()).toHaveText('Rowing');
     await expect(rowing.detailSource()).toHaveText('Bundled');
+    await openL3Action(app.page, rowing.cloneButton());
     await expect(rowing.cloneButton()).toBeVisible();
     await expect(rowing.editButton()).toHaveCount(0);
+    await app.page.keyboard.press('Escape');
 
     const rowingProps = rowing.frontmatterProperties();
     await expect(rowingProps).toBeVisible();
@@ -113,6 +115,7 @@ test.describe('PRP-01 — Efforts Catalog & Alias Lifecycle', () => {
     // 1. Explicit Clone on /effort/burpee + inline property autosave
     const burpee = await app.properties.openEffort('burpee');
     await expect(burpee.detailRoot()).toBeVisible();
+    await openL3Action(app.page, burpee.cloneButton());
     await burpee.cloneButton().click();
     await expect(app.page).toHaveURL(/\/effort\/burpee-custom$/);
     await expect(burpee.detailSource()).toContainText('Custom');
@@ -256,8 +259,10 @@ test.describe('PRP-01 — Efforts Catalog & Alias Lifecycle', () => {
 
     const customDetail = await app.properties.openEffort(slug);
     await customDetail.waitForDetailLoaded();
-    await expect(app.page.getByTestId(TEST_IDS.EFFORT_DETAIL_DELETE_BTN)).toBeVisible();
-    await app.page.getByTestId(TEST_IDS.EFFORT_DETAIL_DELETE_BTN).click();
+    const deleteEffortBtn = app.page.getByTestId(TEST_IDS.EFFORT_DETAIL_DELETE_BTN);
+    await openL3Action(app.page, deleteEffortBtn);
+    await expect(deleteEffortBtn).toBeVisible();
+    await deleteEffortBtn.click();
 
     const deleteDialog = app.page.getByTestId('effort-delete-dialog');
     await expect(deleteDialog).toBeVisible();

@@ -1,6 +1,6 @@
 // spec: e2e/specs/properties/scoped-property-override-sheets.md
 import type { Page } from '@playwright/test';
-import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
+import { test, expect, TEST_IDS, openL3Action } from '../fixtures/playgroundActor';
 import { WOD_DB } from '../helpers/wodwikiDb';
 import { getSessions } from '../utils/sessionsDb';
 
@@ -107,7 +107,9 @@ test.describe('PRP-04 — Scoped Property Override Sheets & Runtime Precedence',
     const metInput = kbDetail.frontmatterProperties().getByLabel('Value for metrics.met');
     await expect(metInput).toHaveValue('9.8');
 
-    await app.page.getByTestId('effort-detail-override-btn').click();
+    const overrideBtn = app.page.getByTestId(TEST_IDS.L3_EFFORT_OVERRIDE);
+    await openL3Action(app.page, overrideBtn);
+    await overrideBtn.click();
     const sheet = app.page.getByTestId(TEST_IDS.PROPERTY_OVERRIDE_SHEET);
     await expect(sheet).toBeVisible();
 
@@ -144,7 +146,9 @@ test.describe('PRP-04 — Scoped Property Override Sheets & Runtime Precedence',
     await expect(kbDetail.frontmatterProperties().getByLabel('Value for metrics.met')).toHaveValue('30');
 
     // 3. Global bundled /effort/kettlebell-swing remains untouched at 9.8
-    await app.page.getByTestId('effort-detail-global-link').click();
+    const globalBtn = app.page.getByRole('button', { name: 'Global Definition', exact: true });
+    await openL3Action(app.page, globalBtn);
+    await globalBtn.click();
     await expect(app.page).toHaveURL(/\/effort\/kettlebell-swing$/);
     await kbDetail.waitForDetailLoaded();
     await expect(kbDetail.detailSource()).toHaveText('Bundled');

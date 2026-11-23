@@ -1,5 +1,5 @@
 // spec: e2e/specs/analytics/recovery-sample-and-dashboard-lifecycle.md
-import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
+import { test, expect, TEST_IDS, openL3Action } from '../fixtures/playgroundActor';
 
 test.describe('ANL-05 — Recovery Sample Coverage, Precision & User Dashboard Deletion', () => {
   test('Scenario 1: sample data populates Recovery & Readiness and hides contradictory empty-range record counts', async ({
@@ -79,16 +79,12 @@ test.describe('ANL-05 — Recovery Sample Coverage, Precision & User Dashboard D
     await expect(page).toHaveURL(/\/dashboard\//, { timeout: 15_000 });
 
     // Enter Edit mode and delete user-created dashboard (analytics finding #7)
+    const editBtn = page.getByTestId('dashboard-edit-toggle');
+    await openL3Action(page, editBtn);
+    await expect(editBtn).toBeVisible({ timeout: 10_000 });
+    await editBtn.click();
     if (isMobile) {
-      await page.getByRole('button', { name: 'Open page options' }).click();
-      const mobileEdit = page.locator('button:visible', { hasText: /^Edit$/ }).first();
-      await expect(mobileEdit).toBeVisible({ timeout: 10_000 });
-      await mobileEdit.click();
       await page.keyboard.press('Escape');
-    } else {
-      const editBtn = page.getByTestId('dashboard-edit-toggle');
-      await expect(editBtn).toBeVisible({ timeout: 10_000 });
-      await editBtn.click();
     }
     const deleteBtn = page.getByTestId(TEST_IDS.DELETE_DASHBOARD_BUTTON);
     await expect(deleteBtn).toBeVisible();

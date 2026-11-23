@@ -548,7 +548,7 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
 
         async create(name: string, description?: string): Promise<void> {
           await waitForMainReady(page);
-          await page.getByTestId(TEST_IDS.NOTEBOOKS_CREATE_BUTTON).click();
+          await clickStreamAdd(page);
           const dialog = page.locator('[role="dialog"]');
           await dialog.getByPlaceholder('e.g., Morning Routines').fill(name);
           if (description) {
@@ -846,5 +846,62 @@ export const test = base.extend<{ app: PlaygroundTestActor }>({
     }
   },
 });
+
+export async function clickStreamAdd(page: Page): Promise<void> {
+  const viewTrigger = page.getByTestId(TEST_IDS.STREAM_VIEW_POPOVER_TRIGGER);
+  if (await viewTrigger.isVisible().catch(() => false)) {
+    await viewTrigger.click();
+    const addBtn = page.getByTestId(TEST_IDS.STREAM_VIEW_ADD_ACTION);
+    await expect(addBtn).toBeVisible({ timeout: 5_000 });
+    await addBtn.click();
+    return;
+  }
+  const mobileCta = page
+    .locator(
+      `[data-testid="${TEST_IDS.NOTEBOOKS_CREATE_BUTTON}"], [data-testid="${TEST_IDS.EFFORTS_CREATE_BTN}"], [data-testid="${TEST_IDS.NEW_ENTRY_PRIMARY}"]`,
+    )
+    .first();
+  await expect(mobileCta).toBeVisible({ timeout: 10_000 });
+  await mobileCta.click();
+}
+
+export async function openL3Surface(page: Page): Promise<Locator> {
+  const inlineRail = page.getByTestId(TEST_IDS.L3_INLINE_RAIL);
+  if (await inlineRail.isVisible().catch(() => false)) {
+    return inlineRail;
+  }
+  const desktopTrigger = page.getByTestId('l3-drawer-trigger');
+  if (await desktopTrigger.isVisible().catch(() => false)) {
+    const drawer = page.getByTestId(TEST_IDS.L3_RIGHT_DRAWER);
+    if (!(await drawer.isVisible().catch(() => false))) {
+      await desktopTrigger.click();
+    }
+    await expect(drawer).toBeVisible({ timeout: 5_000 });
+    return drawer;
+  }
+  const mobileOverflow = page.getByTestId(TEST_IDS.ACTIONS_OVERFLOW);
+  if (await mobileOverflow.isVisible().catch(() => false)) {
+    const sheet = page.getByTestId(TEST_IDS.ACTIONS_SHEET_L3);
+    if (!(await sheet.isVisible().catch(() => false))) {
+      await mobileOverflow.click();
+    }
+    await expect(sheet).toBeVisible({ timeout: 5_000 });
+    return sheet;
+  }
+  return page.locator('body');
+}
+
+export async function openL3Action(page: Page, locator: Locator): Promise<void> {
+  if (await locator.isVisible().catch(() => false)) return;
+  const surface = await openL3Surface(page);
+  if (await locator.isVisible().catch(() => false)) return;
+  let guard = 10;
+  while (guard-- > 0) {
+    const nextClosed = surface.locator('details:not([open]) > summary').first();
+    if (!(await nextClosed.isVisible().catch(() => false))) break;
+    await nextClosed.click();
+    if (await locator.isVisible().catch(() => false)) return;
+  }
+}
 
 export { expect, TEST_IDS };

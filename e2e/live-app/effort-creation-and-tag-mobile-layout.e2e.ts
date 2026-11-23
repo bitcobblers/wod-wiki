@@ -1,5 +1,5 @@
 // spec: e2e/specs/properties/effort-creation-and-tag-mobile-layout.md
-import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
+import { test, expect, TEST_IDS, clickStreamAdd } from '../fixtures/playgroundActor';
 
 test.describe('PRP-03 — Effort Creation, WQL Syntax Guidance & Mobile Tag Layout', () => {
   test('Scenario 1: invalid WQL shows syntax hint and newly created Effort resolves immediately on /effort/:slug', async ({
@@ -22,8 +22,8 @@ test.describe('PRP-03 — Effort Creation, WQL Syntax Guidance & Mobile Tag Layo
       'Syntax: :effort{key:value} — supported keys: effort, discipline, intensity, origin, text. Example: :effort{text:kettlebell}',
     );
 
-    // Create new Effort via + Add dialog (WW-035)
-    await page.getByTestId(TEST_IDS.EFFORTS_CREATE_BTN).click();
+    // Create new Effort via View -> + Add dialog (WW-035)
+    await clickStreamAdd(page);
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
 

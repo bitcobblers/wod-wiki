@@ -382,6 +382,7 @@ function ResponsiveActionsDock({
       if (dr.width > 0 && dr.height > 0) {
         const inputs = document.querySelectorAll<HTMLInputElement>('.cm-frontmatter-preview input')
         for (const input of inputs) {
+          if (document.activeElement !== input) continue
           const ir = input.getBoundingClientRect()
           if (ir.width <= 4 || ir.height <= 4) continue
           if (
@@ -474,7 +475,7 @@ function ResponsiveActionsDock({
       data-testid={TEST_IDS.ACTIONS_DOCK}
       aria-hidden={yieldToOverlay || undefined}
       className={cn(
-        'fixed z-30 lg:hidden flex flex-col gap-2 w-auto',
+        'fixed z-40 lg:hidden flex flex-col gap-2 w-auto',
         'transition-opacity duration-150 ease-out',
         alignment === 'left' ? 'left-4 items-start' : 'right-4 items-end',
         yieldToOverlay && 'invisible pointer-events-none',

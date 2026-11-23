@@ -567,8 +567,11 @@ export function QueriableStreamView({
   const handleCreateNotebook = useCallback(async (name: string, description: string, icon: string) => {
     const created = await notebookService.create(name, description, icon)
     setSavedTick(t => t + 1)
+    if (created?.slug) {
+      navigate(notebookPath(created.slug))
+    }
     return created
-  }, [])
+  }, [navigate])
   const handleSaveEditedNotebook = useCallback(async (nb: Notebook, name: string, description: string, icon: string) => {
     try {
       const updated = await notebookService.update(nb.id, { name, description, icon })
@@ -2153,7 +2156,7 @@ export function QueriableStreamView({
                       icon={<CalendarIcon className="size-3.5 shrink-0 text-muted-foreground" />}
                       label={group.label}
                       badge={group.isToday ? (
-                        <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+                        <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                           Today
                         </span>
                       ) : undefined}

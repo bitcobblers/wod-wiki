@@ -1,6 +1,6 @@
 // spec: e2e/specs/feeds/feed-subscription-and-autosync.md
 import { createHash } from 'node:crypto';
-import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
+import { test, expect, TEST_IDS, openL3Action } from '../fixtures/playgroundActor';
 import { compileSeedRow, seedNoteIdSync } from '../../packages/tools/src/seedbuild/compiler';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
 
@@ -478,6 +478,7 @@ test.describe('FED-01 — Feed Subscription & Auto-Sync Lifecycle', () => {
     const subBtn = page
       .getByTestId(TEST_IDS.FEED_DETAIL_SUBSCRIBE_BUTTON)
       .or(page.getByRole('button', { name: /^Subscribe$/i }));
+    await openL3Action(page, subBtn.first());
     await expect(subBtn.first()).toBeVisible();
     await subBtn.first().click();
 

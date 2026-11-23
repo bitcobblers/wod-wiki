@@ -199,7 +199,7 @@ describe('ResponsiveActions mobile fixed thumb dock', () => {
 
     const dock = screen.getByTestId('actions-dock');
     expect(dock.className).toContain('fixed');
-    expect(dock.className).toContain('z-30');
+    expect(dock.className).toContain('z-40');
     expect(dock.className).toContain('lg:hidden');
     expect(dock.className).toContain('w-auto');
     expect(dock.className).toContain('right-4');
@@ -348,6 +348,7 @@ describe('ResponsiveActions mobile fixed thumb dock', () => {
       const input = document.querySelector<HTMLInputElement>('.cm-frontmatter-preview input')!;
       dock.getBoundingClientRect = () => dockRect;
       input.getBoundingClientRect = () => inputRect;
+      input.focus();
 
       act(() => {
         window.dispatchEvent(new Event('scroll'));

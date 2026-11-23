@@ -1,5 +1,5 @@
 // spec: e2e/specs/notebooks/nm-promotion-and-note-provenance.md
-import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
+import { test, expect, TEST_IDS, openL3Action } from '../fixtures/playgroundActor';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
 
 const PROMO_NOTE_ID = '01950000-0000-7000-8000-000000000902';
@@ -53,7 +53,8 @@ test.describe('NBK-02 — N:M Notebook Promotion & Note Provenance', () => {
 
     // Mobile Scoped Property Override sheet targeting personal `notebook/custom`
     await app.properties.openEffort('air-squat');
-    const overrideBtn = page.getByTestId('effort-detail-override-btn');
+    const overrideBtn = app.page.getByTestId(TEST_IDS.L3_EFFORT_OVERRIDE);
+    await openL3Action(app.page, overrideBtn);
     await expect(overrideBtn).toBeVisible();
     await overrideBtn.click();
     const overrideOverflow = await page.evaluate(
