@@ -71,6 +71,15 @@ export function groupEntriesByDimension(
   return build(entries, dims)
 }
 
+function effectiveEntryDate(e: Entry): string | null {
+  return (
+    e.date ??
+    (e.sourceNotebook === 'playground' && e.createdAt && e.createdAt > 946684800000
+      ? new Date(e.createdAt).toISOString().slice(0, 10)
+      : null)
+  )
+}
+
 /**
  * Group entries by one dimension. The CONTENT_GROUPING_DIMENSIONS vocabulary
  * keeps its special buckets below; any other dimension names a note property
@@ -96,7 +105,7 @@ function groupByDimension(
       // Playground notes carry no journal date — createdAt IS their stream
       // date, so `by {date}` groups stay meaningful. ponytail: playground-only
       // fallback; widen to other sources when one needs dated undated grouping.
-      const key = e.date ?? (e.sourceNotebook === 'playground' && e.createdAt && e.createdAt > 946684800000 ? new Date(e.createdAt).toISOString().slice(0, 10) : null)
+      const key = effectiveEntryDate(e)
       if (options?.shelfVisible && (key == null || (e.kind === 'note' && !e.sourceNote))) {
         undatedShelf.push(e)
       } else if (key) {
@@ -147,11 +156,12 @@ function groupByDimension(
     const undated: Entry[] = []
 
     for (const e of entries) {
-      if (!e.date) {
+      const dateStr = effectiveEntryDate(e)
+      if (!dateStr) {
         undated.push(e)
         continue
       }
-      const [y, m, d] = e.date.split('-').map(Number)
+      const [y, m, d] = dateStr.split('-').map(Number)
       const dt = new Date(Date.UTC(y!, m! - 1, d!))
       const day = dt.getUTCDay()
       const diff = dt.getUTCDate() - day + (day === 0 ? -6 : 1)
@@ -193,11 +203,12 @@ function groupByDimension(
     const undated: Entry[] = []
 
     for (const e of entries) {
-      if (!e.date) {
+      const dateStr = effectiveEntryDate(e)
+      if (!dateStr) {
         undated.push(e)
         continue
       }
-      const ym = e.date.slice(0, 7)
+      const ym = dateStr.slice(0, 7)
       const [y, m] = ym.split('-').map(Number)
       const label = new Date(Date.UTC(y!, m! - 1, 1)).toLocaleDateString(locale, {
         month: 'long',
@@ -234,11 +245,12 @@ function groupByDimension(
     const undated: Entry[] = []
 
     for (const e of entries) {
-      if (!e.date) {
+      const dateStr = effectiveEntryDate(e)
+      if (!dateStr) {
         undated.push(e)
         continue
       }
-      const y = e.date.slice(0, 4)
+      const y = dateStr.slice(0, 4)
       const arr = map.get(y)
       if (arr) arr.push(e)
       else map.set(y, [e])

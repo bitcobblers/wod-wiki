@@ -13,13 +13,15 @@ import {
   RotateCcw,
   Table2,
 } from 'lucide-react';
-import { createMetricOwnershipLedger, type EventRecord, type IMetric } from '@bitcobblers/wod-wiki-core';
+import { createMetricOwnershipLedger, metricToMs, type EventRecord, type IMetric } from '@bitcobblers/wod-wiki-core';
+import { computeColumnLabel } from '@bitcobblers/wod-wiki-lang';
 import {
   computeRowsRunSummary,
   type RowsRun,
 } from '@bitcobblers/wod-wiki-wql';
 import { EditorDialog } from '../dialog/EditorDialog';
 import {
+  formatAnalyticsFloat,
   formatSummaryDurationMMSS,
   RpePopoverControl,
   type SessionActionContext,
@@ -218,11 +220,29 @@ export function buildSpreadsheetRows(
   prHighlights?: ReadonlyMap<string | number, RowPrHighlight> | Record<string, RowPrHighlight>,
 ): SpreadsheetSplitRow[] {
   const prMap = normalizePrLookup(prHighlights);
-  const segmentEvents = (run.events ?? []).filter(
-    (e) =>
-      e.outputType === 'segment' &&
-      !String(e.sourceBlockKey ?? '').toLowerCase().startsWith('waiting-to-start'),
-  );
+  const rawSegments = (run.events ?? []).filter((e) => {
+    if (e.outputType !== 'segment') return false;
+    const key = String(e.sourceBlockKey ?? '').toLowerCase();
+    return !key.startsWith('waiting-to-start') && key !== 'session-root' && key !== 'root';
+  });
+  const maxStackLevel = rawSegments.reduce((max, e) => Math.max(max, e.stackLevel ?? 0), 0);
+  const hasEffortLeaves = rawSegments.some((e) => {
+    const metrics = extractVisibleMetrics(e);
+    return Boolean(e.effortSlug) || metrics.some((m) => String(m.type ?? '').toLowerCase() === 'effort');
+  });
+  const segmentEvents = hasEffortLeaves
+    ? rawSegments.filter((e) => {
+        if ((e.stackLevel ?? 0) >= maxStackLevel) return true;
+        const metrics = extractVisibleMetrics(e);
+        const hasMovement =
+          Boolean(e.effortSlug) ||
+          metrics.some((m) => {
+            const t = String(m.type ?? '').toLowerCase();
+            return t === 'effort' || t === 'rep' || t === 'reps' || t === 'distance';
+          });
+        return hasMovement;
+      })
+    : rawSegments;
   const sessionStart = segmentEvents.reduce<number>(
     (min, e) => (e.timeSpan?.started !== undefined ? Math.min(min, e.timeSpan.started) : min),
     run.timestamp,
@@ -241,6 +261,7 @@ export function buildSpreadsheetRows(
     let loadType = 'resistance';
     let loadModified = false;
     let splitSec: number | null = null;
+    let splitFromElapsed = false;
     let splitModified = false;
     let distance: number | null = null;
     let distanceUnit = 'm';
@@ -293,10 +314,17 @@ export function buildSpreadsheetRows(
           loadType = mType || 'resistance';
           loadModified = isUser;
         }
-      } else if (canon === 'elapsed' || canon === 'duration' || lower === 'duration') {
-        const sec = m.unit === 'ms' ? m.value / 1000 : m.unit === 'min' ? m.value * 60 : m.value;
-        if (splitSec === null || isUser) {
-          splitSec = sec;
+      } else if (canon === 'elapsed' || lower === 'elapsed') {
+        const ms = metricToMs(m);
+        if (ms !== undefined && (!splitModified || isUser)) {
+          splitSec = ms / 1000;
+          splitFromElapsed = true;
+          splitModified = isUser;
+        }
+      } else if (canon === 'duration' || lower === 'duration') {
+        const ms = metricToMs(m);
+        if (ms !== undefined && ((splitSec === null && !splitFromElapsed) || isUser)) {
+          splitSec = ms / 1000;
           splitModified = isUser;
         }
       } else if (canon === 'distance' || canon === 'totaldistance' || lower === 'distance') {
@@ -596,7 +624,10 @@ function formatCellDisplay(row: SpreadsheetSplitRow, colId: string): string {
     default: {
       const custom = row.custom[colId];
       if (!custom) return '—';
-      return `${formatNum(custom.value, 2)}${custom.unit ? ` ${custom.unit}` : ''}`;
+      const displayVal = Number.isInteger(custom.value)
+        ? formatNum(custom.value, 0)
+        : formatAnalyticsFloat(custom.value);
+      return `${displayVal}${custom.unit ? ` ${custom.unit}` : ''}`;
     }
   }
 }
@@ -885,18 +916,24 @@ export function ResultsSpreadsheetGrid({
     if (!showCustomSummariesStrip) return [];
     const seen = new Set<string>();
     const items: Array<{ key: string; label: string; value: string; origin?: string }> = [];
+    const hasGrainSummary = (run.events ?? []).some((e) => e.grain === 'summary');
     for (const ev of run.events ?? []) {
       if (ev.outputType !== 'analytics' && ev.grain !== 'summary') continue;
+      if (hasGrainSummary && ev.grain !== 'summary') continue;
       for (const m of extractVisibleMetrics(ev)) {
         const mType = String(m.type ?? '');
         if (!mType || mType === 'label' || mType === 'hint' || mType === 'diagnostic') continue;
         if (typeof m.value !== 'number' || !Number.isFinite(m.value)) continue;
-        if (seen.has(mType)) continue;
-        seen.add(mType);
+        const canonKey = String((m.metadata as Record<string, unknown> | undefined)?.canonicalKey ?? mType);
+        if (seen.has(canonKey)) continue;
+        seen.add(canonKey);
+        const formatted = Number.isInteger(m.value) && (m.unit === 'reps' || m.unit === 'rounds')
+          ? formatNum(m.value, 0)
+          : formatAnalyticsFloat(m.value);
         items.push({
-          key: mType,
-          label: mType,
-          value: `${formatNum(m.value, 1)}${m.unit ? ` ${m.unit}` : ''}`,
+          key: canonKey,
+          label: computeColumnLabel(canonKey),
+          value: `${formatted}${m.unit ? ` ${m.unit}` : ''}`,
           origin: m.origin,
         });
       }
@@ -1606,7 +1643,7 @@ export function ResultsSpreadsheetGrid({
                         {s.totalReps > 0 ? formatNum(s.totalReps, 0) : '—'}
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono tabular-nums">
-                        {s.tis !== undefined ? `${formatNum(s.tis, 0)} pts` : '—'}
+                        {s.tis !== undefined ? `${formatAnalyticsFloat(s.tis)} pts` : '—'}
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono tabular-nums">
                         {s.rpe !== undefined ? `${s.rpe}/10` : '—'}
@@ -1631,6 +1668,7 @@ export function ResultsSpreadsheetGrid({
           <OutputStatementsTable
             outputs={run.events as unknown as OutputStatementRow[]}
             filter={rawFilter}
+            timeOrigin={run.timestamp}
             onClearFilter={() => setRawFilter('')}
             onEditMetric={onEditMetric ? (p) => onEditMetric(run.resultId, p) : undefined}
             prHighlights={prHighlights}

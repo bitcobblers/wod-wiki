@@ -25,3 +25,23 @@ describeCompliance(
     });
   },
 );
+
+describeCompliance(
+  'WW-077 — childless header-only AMRAP exits cleanly on Next without deadlocking',
+  '20:00 AMRAP',
+  (ctx) => {
+    it('advances from gate into the childless AMRAP block and exits cleanly on Next', async () => {
+      const script = await ctx.compile();
+
+      // Gate -> AMRAP block
+      await script.next();
+      let snap = await script.snapshot();
+      expect(snap.stackDepth).toBeGreaterThanOrEqual(1);
+
+      // Next exits immediately without error
+      await script.next();
+      snap = await script.snapshot();
+      expect(snap.stackDepth).toBe(0);
+    });
+  },
+);

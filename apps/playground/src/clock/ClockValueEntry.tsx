@@ -305,7 +305,7 @@ export const ClockValueEntry: React.FC<ClockValueEntryProps> = ({
           data-testid="entry-cancel"
           onClick={onCancel}
           {...fp(getFocusProps, 'entry-cancel')}
-          className="px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="min-h-11 min-w-11 px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           Cancel
         </button>
@@ -316,7 +316,7 @@ export const ClockValueEntry: React.FC<ClockValueEntryProps> = ({
               data-testid="entry-skip"
               onClick={onSkip}
               {...fp(getFocusProps, 'entry-skip')}
-              className="px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="min-h-11 min-w-11 px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               {skipLabel ?? 'Skip'}
             </button>
@@ -327,7 +327,7 @@ export const ClockValueEntry: React.FC<ClockValueEntryProps> = ({
             onClick={commit}
             disabled={saving}
             {...fp(getFocusProps, 'entry-save')}
-            className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2 font-bold text-primary-foreground shadow-sm transition-all hover:brightness-110 disabled:opacity-50"
+            className="flex min-h-11 min-w-11 items-center gap-2 rounded-lg bg-primary px-6 py-2 font-bold text-primary-foreground shadow-sm transition-all hover:brightness-110 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>

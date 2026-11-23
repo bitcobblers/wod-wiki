@@ -11,8 +11,9 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { NavContext, NavProvider, useNav, initialNavState, type AnalyticsNavControls, type L3ActionItem } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
-import { useNotePageNav, wirePageIndexLinks } from './useNotePageNav';
-import { NoteContextNav } from './noteContextLinks';
+import { useNotePageNav, wirePageIndexLinks, type GroupedL3ActionItem } from './useNotePageNav';
+import { NoteContextNav, type NotePeekTarget } from './noteContextLinks';
+import type { MenuSpec } from '../../nav/menuModel';
 import type { PageNavLink } from '@/components/organisms/layout/PageNavDropdown';
 import type { ScriptBlock } from '@/components/Editor/types';
 
@@ -316,5 +317,108 @@ describe('useNotePageNav — log link gating', () => {
     );
 
     expect(renderCount).toBeLessThan(10);
+  });
+
+  it('forwards group metadata on helpfulActions into published L3ActionItems', () => {
+    let publishedActions: GroupedL3ActionItem[] = [];
+    function Harness() {
+      useNotePageNav({
+        content: CONTENT,
+        scriptBlocks: [],
+        helpfulActions: [
+          { id: 'run', label: 'Run Workout', group: 'primary', onRun: () => {} },
+          { id: 'add-timer', label: 'Add timer', group: 'author', onRun: () => {} },
+          { id: 'clone', label: 'Clone', group: 'organize', onRun: () => {} },
+          { id: 'copy-link', label: 'Copy link', group: 'share', onRun: () => {} },
+          { id: 'delete', label: 'Delete note', group: 'danger', onRun: () => {} },
+        ],
+      });
+      return null;
+    }
+
+    render(
+      <MemoryRouter>
+        <NavContext.Provider
+          value={{
+            tree: [],
+            navState: initialNavState,
+            dispatch: () => {},
+            l3Items: [],
+            setL3Items: () => {},
+            setL3Actions: (actions: L3ActionItem[]) => {
+              publishedActions = actions as GroupedL3ActionItem[];
+            },
+            scrollToSection: () => {},
+            registerScrollFn: () => {},
+            setContextNav: () => {},
+            setSecondarySpec: () => {},
+            setStreamControls: () => {},
+            openCreateJournal: () => {},
+            registerCreateJournal: () => {},
+          }}
+        >
+          <Harness />
+        </NavContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(publishedActions.map((a) => [a.id, a.group])).toEqual([
+      ['helpful-run', 'primary'],
+      ['helpful-add-timer', 'author'],
+      ['helpful-clone', 'organize'],
+      ['helpful-copy-link', 'share'],
+      ['helpful-delete', 'danger'],
+    ]);
+  });
+
+  it('publishes NoteContextNav into setL3Connections (without wiping setContextNav) and wires peekMode to openPeek', () => {
+    const l3ConnectionsCalls: Array<MenuSpec | undefined> = [];
+    const contextNavCalls: unknown[] = [];
+    const peekCalls: NotePeekTarget[] = [];
+
+    const navValue = {
+      tree: [],
+      navState: initialNavState,
+      dispatch: () => {},
+      l3Items: [],
+      setL3Items: () => {},
+      scrollToSection: () => {},
+      registerScrollFn: () => {},
+      setContextNav: (arg: unknown) => contextNavCalls.push(arg),
+      setSecondarySpec: () => {},
+      setStreamControls: () => {},
+      openCreateJournal: () => {},
+      registerCreateJournal: () => {},
+      setL3Connections: (spec?: MenuSpec) => l3ConnectionsCalls.push(spec),
+      openPeek: (target: NotePeekTarget) => peekCalls.push(target),
+    };
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/note/n1']}>
+        <NavContext.Provider value={navValue as never}>
+          <NoteContextNav
+            data={{
+              efforts: [{ id: 'back-squat', title: 'Back Squat', to: '/effort/back-squat' }],
+              related: [],
+              backlinks: [],
+            }}
+            peekMode
+          />
+        </NavContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(contextNavCalls).toHaveLength(0);
+    expect(l3ConnectionsCalls.length).toBeGreaterThan(0);
+    const published = l3ConnectionsCalls.at(-1)!;
+    const effortSec = published.find((s) => s.id === 'note-context-efforts');
+    expect(effortSec?.kind).toBe('section');
+    if (effortSec?.kind === 'section' && effortSec.entries[0]?.kind === 'link') {
+      effortSec.entries[0].onSelect?.();
+    }
+    expect(peekCalls).toEqual([{ kind: 'effort', slug: 'back-squat', label: 'Back Squat' }]);
+
+    unmount();
+    expect(l3ConnectionsCalls.at(-1)).toBeUndefined();
   });
 });

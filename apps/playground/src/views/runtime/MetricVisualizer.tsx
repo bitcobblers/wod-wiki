@@ -162,6 +162,7 @@ export const MetricVisualizer = React.memo<MetricVisualizerProps>(({
                 currentStyle.text
               )}
               title={token.tooltip}
+              aria-label={token.columnLabel ? `${token.columnLabel}: ${token.label}` : token.label}
             >
               {token.icon && <span className={currentStyle.icon}>{token.icon}</span>}
               <span>{token.label}</span>

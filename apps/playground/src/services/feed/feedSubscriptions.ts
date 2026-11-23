@@ -1,75 +1,76 @@
 /**
  * feedSubscriptions — per-feed subscription state (local-first contract).
- * Persisted in localStorage ('wodwiki.seedSubscriptions',
- * { [feedId]: boolean }); absence means "no explicit choice":
+ * Persisted canonically in IStorage `meta` (`feed:subscriptions` via
+ * feedRegistryStore) with non-destructive migration from and best-effort
+ * mirror to legacy localStorage (`wodwiki.seedSubscriptions`,
+ * `wodwiki.seedAutoSync`), plus synchronous in-memory cache + listener
+ * notifications for React selectors.
+ *
+ * Absence of a record means "no explicit choice":
  * migrateFeedSubscriptions() subscribes previously imported feeds, a
  * persisted false always stays off, and core is always on (unsubscribe is
  * a no-op for it). Pre-feed-unit records were written per notebook — they
  * fold onto the feed that publishes the notebook on read and on migration.
- * The per-feed auto-sync preference lives beside it ('wodwiki.seedAutoSync')
- * but is a separate choice: subscription never implies auto-update. Kept
- * free of feedSync imports so the runtime graph stays acyclic — callers pass
- * the source list in.
  */
+import type { FeedOfflinePolicy } from '@bitcobblers/wod-wiki-engine';
 import type { FeedImportStorage } from './FeedImportStorage';
 import { mainThreadFeedImportStorage } from './feedStorageDefault';
 import { NOTEBOOKS, feedIdForLegacyId, LEGACY_FEED_ID_MAP } from './feedSources';
+import {
+  flushFeedStatePersistence,
+  getAutoSyncCache,
+  getLegacySubMapCache,
+  getOfflinePolicyCache,
+  getSubsEntriesCache,
+  hydrateFeedStateFromStorage,
+  invalidateLegacyCachesFromStorageEvent,
+  isFeedStateHydrated,
+  LEGACY_AUTO_SYNC_KEY,
+  LEGACY_SUBSCRIPTIONS_KEY,
+  readLegacyBooleanMap,
+  resetFeedRegistryStoreForTest,
+  schedulePersistSubscriptionsToStorage,
+  setAutoSyncCache,
+  setLegacySubMapCache,
+  setOfflinePolicyCache,
+  subscribeFeedRegistryListeners,
+  writeLocalStorageJson,
+} from './feedRegistryStore';
 import { seedMetaKey } from '@/types/seed';
 
-const STORAGE_KEY = 'wodwiki.seedSubscriptions';
-const AUTO_SYNC_KEY = 'wodwiki.seedAutoSync';
+export { hydrateFeedStateFromStorage, flushFeedStatePersistence };
 
-let cache: Record<string, boolean> | null = null;
-let autoSyncCache: Record<string, boolean> | null = null;
-const listeners = new Set<() => void>();
-
-function readMap(key: string): Record<string, boolean> {
-  let parsed: Record<string, boolean> = {};
-  try {
-    const raw = localStorage.getItem(key);
-    const value: unknown = raw ? JSON.parse(raw) : {};
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      for (const [id, flag] of Object.entries(value)) {
-        if (typeof flag === 'boolean') parsed[id] = flag;
-      }
-    }
-  } catch {
-    parsed = {};
-  }
-  return parsed;
-}
+const STORAGE_KEY = LEGACY_SUBSCRIPTIONS_KEY;
+const AUTO_SYNC_KEY = LEGACY_AUTO_SYNC_KEY;
 
 function readAll(): Record<string, boolean> {
-  if (cache) return cache;
-  cache = readMap(STORAGE_KEY);
-  return cache;
+  const cached = getLegacySubMapCache();
+  if (cached) return cached;
+  const fromStorage = readLegacyBooleanMap(STORAGE_KEY);
+  setLegacySubMapCache(fromStorage, true);
+  return fromStorage;
 }
 
 /**
- * The cached map merged with a fresh `localStorage` read. Mutators use this
- * so an explicit verdict another writer persisted behind the stale cache
- * (other tab, sync, migration) is never lost or downgraded.
+ * The cached map merged with a fresh `localStorage` read when running without
+ * an IStorage host, or the hydrated IStorage-backed cache directly once
+ * hydrated (so stale localStorage never overrides IStorage verdicts).
  */
 function mergedWithFreshStorage(): Record<string, boolean> {
-  return { ...readAll(), ...readMap(STORAGE_KEY) };
-}
-
-function writeMap(key: string, next: Record<string, boolean>): boolean {
-  let persisted = true;
-  try {
-    localStorage.setItem(key, JSON.stringify(next));
-  } catch {
-    // Storage unavailable (private mode): in-memory only for this session.
-    persisted = false;
+  if (isFeedStateHydrated()) {
+    return { ...(getLegacySubMapCache() ?? {}) };
   }
-  return persisted;
+  return { ...readAll(), ...readLegacyBooleanMap(STORAGE_KEY) };
 }
 
 function writeAll(next: Record<string, boolean>): boolean {
-  cache = next;
-  const persisted = writeMap(STORAGE_KEY, next);
-  for (const listener of listeners) listener();
-  return persisted;
+  setLegacySubMapCache(next);
+  const localPersisted = writeLocalStorageJson(STORAGE_KEY, next);
+  if (isFeedStateHydrated()) {
+    schedulePersistSubscriptionsToStorage();
+    return true;
+  }
+  return localPersisted;
 }
 
 /**
@@ -186,16 +187,15 @@ export function getSubscribedNotebooks(feedId: string): string[] | null {
 }
 
 export function subscribeFeedSubscriptions(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return subscribeFeedRegistryListeners(listener);
 }
 
 function readAutoSyncAll(): Record<string, boolean> {
-  if (autoSyncCache) return autoSyncCache;
-  autoSyncCache = readMap(AUTO_SYNC_KEY);
-  return autoSyncCache;
+  const cached = getAutoSyncCache();
+  if (cached) return cached;
+  const fromStorage = readLegacyBooleanMap(AUTO_SYNC_KEY);
+  setAutoSyncCache(fromStorage, true);
+  return fromStorage;
 }
 
 /**
@@ -212,22 +212,61 @@ export function isFeedAutoSync(id: string): boolean {
  *  persisted (browser storage unavailable) — session-only then. */
 export function setFeedAutoSync(id: string, enabled: boolean): boolean {
   const all = { ...readAutoSyncAll(), [id]: enabled };
-  const persisted = writeMap(AUTO_SYNC_KEY, all);
-  autoSyncCache = all;
-  for (const listener of listeners) listener();
-  return persisted;
+  setAutoSyncCache(all);
+  const localPersisted = writeLocalStorageJson(AUTO_SYNC_KEY, all);
+  if (isFeedStateHydrated()) {
+    schedulePersistSubscriptionsToStorage();
+    return true;
+  }
+  return localPersisted;
 }
 
 /**
- * Migration: a registered library with an imported checkpoint becomes
- * subscribed when the user never made an explicit choice. Persisted
- * on/off entries always win. Returns the migrated source ids.
+ * Effective offline caching policy for a feed:
+ * - `core` is always `'offline-full'`
+ * - All other feeds default to `'index-only'` unless set to `'offline-full'`
+ */
+export function getFeedOfflinePolicy(id: string): FeedOfflinePolicy {
+  const canonicalId = feedIdForLegacyId(id);
+  if (canonicalId === 'core') return 'offline-full';
+  const map = getOfflinePolicyCache();
+  if (map) {
+    if (map[canonicalId]) return map[canonicalId]!;
+    if (map[id]) return map[id]!;
+  }
+  const entries = getSubsEntriesCache();
+  if (entries) {
+    const entry = entries[canonicalId] ?? entries[id];
+    if (entry?.offlinePolicy) return entry.offlinePolicy;
+  }
+  return 'index-only';
+}
+
+/** Persist the per-feed offline caching policy (`core` stays `'offline-full'`). */
+export function setFeedOfflinePolicy(id: string, policy: FeedOfflinePolicy): boolean {
+  const canonicalId = feedIdForLegacyId(id);
+  const effective: FeedOfflinePolicy = canonicalId === 'core' ? 'offline-full' : policy;
+  const prev = getOfflinePolicyCache() ?? {};
+  setOfflinePolicyCache({ ...prev, [id]: effective });
+  if (isFeedStateHydrated()) {
+    schedulePersistSubscriptionsToStorage();
+  }
+  return true;
+}
+
+/**
+ * Migration: hydrate IStorage feed state (migrating legacy localStorage once),
+ * then subscribe any registered library with an imported checkpoint when the
+ * user never made an explicit choice. Persisted on/off entries always win.
  */
 export async function migrateFeedSubscriptions(
   sources: ReadonlyArray<{ id: string }>,
   storage: FeedImportStorage = mainThreadFeedImportStorage(),
 ): Promise<string[]> {
-  const all = { ...mergedWithFreshStorage() };
+  if (storage.storageInstance && !isFeedStateHydrated()) {
+    await hydrateFeedStateFromStorage(storage.storageInstance);
+  }
+  const initialAll = { ...mergedWithFreshStorage() };
   const migrated: string[] = [];
   let renamedLegacyKeys = false;
   // Pre-rename builds keyed per-notebook verdicts by the old chunk-id
@@ -236,12 +275,12 @@ export async function migrateFeedSubscriptions(
   // value; an explicit current-key verdict always wins, and the rewrite
   // is idempotent (the legacy key is deleted once read).
   for (const [oldId, newId] of Object.entries(LEGACY_FEED_ID_MAP)) {
-    if (oldId in all) {
-      if (!(newId in all)) {
-        all[newId] = all[oldId]!;
-        if (all[oldId]) migrated.push(newId);
+    if (oldId in initialAll) {
+      if (!(newId in initialAll)) {
+        initialAll[newId] = initialAll[oldId]!;
+        if (initialAll[oldId]) migrated.push(newId);
       }
-      delete all[oldId];
+      delete initialAll[oldId];
       renamedLegacyKeys = true;
     }
   }
@@ -255,9 +294,9 @@ export async function migrateFeedSubscriptions(
     for (const fid of feedIds) {
       for (const legacyId of [`collection.${slug}`, `feed.${slug}`, notebook.chunkId]) {
         const legacyKey = `${fid}#${legacyId}`;
-        if (legacyKey === currentKey || !(legacyKey in all)) continue;
-        if (!(currentKey in all)) all[currentKey] = all[legacyKey]!;
-        delete all[legacyKey];
+        if (legacyKey === currentKey || !(legacyKey in initialAll)) continue;
+        if (!(currentKey in initialAll)) initialAll[currentKey] = initialAll[legacyKey]!;
+        delete initialAll[legacyKey];
         renamedLegacyKeys = true;
       }
     }
@@ -265,43 +304,63 @@ export async function migrateFeedSubscriptions(
   // Pre-feed-unit builds subscribed per notebook and never wrote a feed
   // record; the notebook verdicts they left behind become the feed's.
   for (const notebook of NOTEBOOKS) {
-    if (!(notebook.id in all)) continue;
-    if (!(notebook.feedId in all)) {
-      all[notebook.feedId] = all[notebook.id];
-      if (all[notebook.id]) migrated.push(notebook.feedId);
+    if (!(notebook.id in initialAll)) continue;
+    if (!(notebook.feedId in initialAll)) {
+      initialAll[notebook.feedId] = initialAll[notebook.id];
+      if (initialAll[notebook.id]) migrated.push(notebook.feedId);
     }
-    delete all[notebook.id];
+    delete initialAll[notebook.id];
+    renamedLegacyKeys = true;
   }
+  if (renamedLegacyKeys) {
+    writeAll(initialAll);
+  }
+  const checkpointIds: string[] = [];
   for (const { id } of sources) {
-    if (id === 'core' || id in all) continue;
+    if (id === 'core' || id in initialAll) continue;
     try {
       const meta = await storage.getSeedMeta(seedMetaKey(id));
       if (meta && meta.seedVersion > 0) {
-        all[id] = true;
-        migrated.push(id);
+        checkpointIds.push(id);
       }
     } catch {
       // Unreadable provider: nothing to migrate for this source.
     }
   }
-  if (migrated.length || renamedLegacyKeys) writeAll(all);
+  // Re-read the latest hydrated subscription state after async checkpoint
+  // probes so concurrent subscribe toggles made during awaits are never clobbered.
+  let addedFromCheckpoints = false;
+  if (checkpointIds.length > 0) {
+    const latest = { ...mergedWithFreshStorage() };
+    for (const id of checkpointIds) {
+      if (id in latest) continue;
+      latest[id] = true;
+      migrated.push(id);
+      addedFromCheckpoints = true;
+    }
+    if (addedFromCheckpoints) {
+      writeAll(latest);
+    }
+  }
+  if (addedFromCheckpoints || renamedLegacyKeys) {
+    await flushFeedStatePersistence();
+  }
   return migrated;
 }
 
-/** Test-only: drop the cached maps (tests mutate localStorage). */
+/** Test-only: drop the cached maps and storage binding. */
 export function resetFeedSubscriptionsForTest(): void {
-  cache = null;
-  autoSyncCache = null;
+  resetFeedRegistryStoreForTest();
 }
 
-// Cross-tab / external writers go through the `storage` event: drop both
-// caches so the next read sees the persisted verdicts, and let subscribers
-// (React state) re-render from the new truth.
+// Cross-tab / external writers go through the `storage` event: when running
+// unhydrated or notified by another tab, refresh caches from localStorage when
+// appropriate and let subscribers re-render.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event: StorageEvent) => {
     if (event.key !== null && event.key !== STORAGE_KEY && event.key !== AUTO_SYNC_KEY) return;
-    cache = null;
-    autoSyncCache = null;
-    for (const listener of listeners) listener();
+    if (!isFeedStateHydrated()) {
+      invalidateLegacyCachesFromStorageEvent();
+    }
   });
 }

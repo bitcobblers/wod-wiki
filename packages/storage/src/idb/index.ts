@@ -154,10 +154,11 @@ function mutationBytes(op: SyncMutation): number {
  */
 const SNAPSHOT_OP_ORDER: readonly StoreName[] = [
   'block_revisions',
+  'note_revisions',
   'notes',
   'sessions',
   ...NON_SYSTEM_STORES.filter(
-    name => name !== 'block_revisions' && name !== 'notes' && name !== 'sessions',
+    name => name !== 'block_revisions' && name !== 'note_revisions' && name !== 'notes' && name !== 'sessions',
   ),
 ];
 
@@ -264,7 +265,7 @@ class IDBStore<T> implements IReadWriteStore<T> {
   async put(value: T, _key?: IDBValidKey): Promise<IDBValidKey> {
     if (!this.mutable) throw new Error('read-only store');
     if (!this.tx) {
-      const scope = this.name === 'notes' ? [this.name, 'block_revisions'] as const : [this.name, 'block_revisions', 'notes'] as const;
+      const scope = this.name === 'notes' ? [this.name, 'block_revisions', 'note_revisions'] as const : [this.name, 'block_revisions', 'note_revisions', 'notes'] as const;
       return this.owner.transaction([...scope], 'readwrite', tx => tx.readwrite(this.name).put(value as StoreType<typeof this.name>));
     }
     const stored = this.owner.stamp(this.name, value);
@@ -273,7 +274,9 @@ class IDBStore<T> implements IReadWriteStore<T> {
     const key = keyFromValue(def, stored);
     const store = this.tx.objectStore(this.name);
     const previous = await store.get(key);
-    if (this.name === 'block_revisions' && previous !== undefined && !rowsEqual(previous, stored)) throw new Error('immutable block revision collision');
+    if ((this.name === 'block_revisions' || this.name === 'note_revisions') && previous !== undefined && !rowsEqual(previous, stored)) {
+      throw new Error(this.name === 'note_revisions' ? 'immutable note revision collision' : 'immutable block revision collision');
+    }
     if (this.name === 'notes') validateNoteWrite(previous, stored);
     if (this.name === 'sessions') validateSessionWrite(previous, stored);
     if (rowsEqual(previous, stored)) return key;
@@ -294,10 +297,18 @@ class IDBStore<T> implements IReadWriteStore<T> {
           for (const revision of await this.tx.objectStore('block_revisions').index('by-note').getAll(String(stored.id))) {
             this.journal.ops.push({ op: 'put', store: 'block_revisions', key: [revision.noteId, revision.blockId, revision.version], value: revision });
           }
+          for (const noteRevision of await this.tx.objectStore('note_revisions').index('by-note').getAll(String(stored.id))) {
+            this.journal.ops.push({ op: 'put', store: 'note_revisions', key: [noteRevision.noteId, noteRevision.version], value: noteRevision });
+          }
         } else if (this.name === 'sessions' && stored !== null && typeof stored === 'object' && 'noteId' in stored && 'blockId' in stored && 'blockVersion' in stored) {
           const revisionKey = [stored.noteId, stored.blockId, stored.blockVersion] as IDBValidKey;
           const revision = await this.tx.objectStore('block_revisions').get(revisionKey);
           if (revision) this.journal.ops.push({ op: 'put', store: 'block_revisions', key: revisionKey as KeyDTO, value: revision });
+          if ('noteSourceRevision' in stored && typeof stored.noteSourceRevision === 'number') {
+            const noteRevisionKey = [stored.noteId, stored.noteSourceRevision] as IDBValidKey;
+            const noteRevision = await this.tx.objectStore('note_revisions').get(noteRevisionKey);
+            if (noteRevision) this.journal.ops.push({ op: 'put', store: 'note_revisions', key: noteRevisionKey as KeyDTO, value: noteRevision });
+          }
         }
         this.journal.ops.push({ op: 'put', store: this.name, key: key as KeyDTO, value: stored });
       }
@@ -314,7 +325,7 @@ class IDBStore<T> implements IReadWriteStore<T> {
   async putMany(values: T[], keys?: IDBValidKey[]): Promise<IDBValidKey[]> {
     if (keys && keys.length !== values.length) throw new Error('putMany key count mismatch');
     if (!this.tx) {
-      const scope = this.name === 'notes' ? [this.name, 'block_revisions'] as const : [this.name, 'block_revisions', 'notes'] as const;
+      const scope = this.name === 'notes' ? [this.name, 'block_revisions', 'note_revisions'] as const : [this.name, 'block_revisions', 'note_revisions', 'notes'] as const;
       return this.owner.transaction([...scope], 'readwrite', tx => tx.readwrite(this.name).putMany(values as StoreType<typeof this.name>[], keys));
     }
     const out: IDBValidKey[] = [];
@@ -324,7 +335,7 @@ class IDBStore<T> implements IReadWriteStore<T> {
 
   async delete(key: IDBValidKey | IDBKeyRange): Promise<void> {
     if (!this.mutable) throw new Error('read-only store');
-    if (this.name === 'block_revisions') throw new Error('block history requires explicit wipe');
+    if (this.name === 'block_revisions' || this.name === 'note_revisions') throw new Error('block history requires explicit wipe');
     if (!this.tx) {
       // Journal-time ownership classification reads notes in the same tx.
       const scope = this.name === 'notes' ? [this.name] as const : [this.name, 'notes'] as const;
@@ -374,7 +385,7 @@ class IDBStore<T> implements IReadWriteStore<T> {
    */
   async clear(): Promise<void> {
     if (!this.mutable) throw new Error('read-only store');
-    if (this.name === 'block_revisions') throw new Error('block history requires explicit wipe');
+    if (this.name === 'block_revisions' || this.name === 'note_revisions') throw new Error('block history requires explicit wipe');
     if (!this.tx) {
       const scope = this.name === 'notes' ? ['notes', 'block_index', 'block_efforts'] as const : [this.name, 'notes'] as const;
       return this.owner.transaction([...scope], 'readwrite', tx => tx.readwrite(this.name).clear());
@@ -547,6 +558,7 @@ export class IndexedDBStorage implements IStorage {
     const scope = new Set<string>(stores);
     if (mode === 'readwrite') {
       scope.add('block_revisions');
+      scope.add('note_revisions');
       scope.add(OUTBOX_STORE);
       scope.add('notes');
       if (scope.has('notes')) {
@@ -591,7 +603,7 @@ export class IndexedDBStorage implements IStorage {
   }
 
   async wipeUserData(): Promise<void> {
-    const names = STORE_DEFS.filter(def => !def.system && def.name !== 'block_revisions').map(def => def.name);
+    const names = STORE_DEFS.filter(def => !def.system && def.name !== 'block_revisions' && def.name !== 'note_revisions').map(def => def.name);
     await this.transaction(names, 'readwrite', async tx => {
       for (const name of names) await tx.readwrite(name).clear();
     });
@@ -692,7 +704,7 @@ export class IndexedDBStorage implements IStorage {
         // may pin a revision still pending in the journal, and the snapshot
         // ships first — the pinned revision must already be on the remote.
         // Revision-first op ordering keeps every chunk self-contained.
-        if (op.store !== 'block_revisions' && pendingKeys.has(`${op.store}:${JSON.stringify(op.key)}`)) continue;
+        if (op.store !== 'block_revisions' && op.store !== 'note_revisions' && pendingKeys.has(`${op.store}:${JSON.stringify(op.key)}`)) continue;
         const size = mutationBytes(op);
         if (ops.length > 0 && (ops.length >= BOOTSTRAP_MAX_OPS || bytes + size > BOOTSTRAP_MAX_BYTES)) flush();
         ops.push(op);
@@ -793,7 +805,7 @@ export class IndexedDBStorage implements IStorage {
       }
       if (mutation.store === 'memberships') return; // system store: never applied remotely
       if (mutation.op === 'clear') {
-        if (mutation.store === 'block_revisions') return;
+        if (mutation.store === 'block_revisions' || mutation.store === 'note_revisions') return;
         const store = tx.objectStore(mutation.store);
         const ctx = collectUserScopeContext(await tx.objectStore('notes').getAll());
         for (const row of await store.getAll()) {
@@ -812,24 +824,29 @@ export class IndexedDBStorage implements IStorage {
             for (const id of await store.index('by-note').getAllKeys(noteId)) await store.delete(id);
           }
         }
-        if (mutation.store !== 'block_revisions') await tx.objectStore(mutation.store).delete(mutation.key as IDBValidKey);
+        if (mutation.store !== 'block_revisions' && mutation.store !== 'note_revisions') await tx.objectStore(mutation.store).delete(mutation.key as IDBValidKey);
         return;
       }
       // put
       const store = tx.objectStore(mutation.store);
-      if (mutation.store === 'block_revisions') {
+      if (mutation.store === 'block_revisions' || mutation.store === 'note_revisions') {
         const existing = await store.get(mutation.key as IDBValidKey);
         if (existing !== undefined && !rowsEqual(existing, mutation.value) && !preferLocal) {
           // Immutable-history collision: preserve BOTH as versioned records —
-          // the incoming row moves to the next free version for that block.
-          // Both rows passed validateStorageRow when written (the incoming row
-          // just above; the existing row at its original commit), so the
-          // revision shape is guaranteed here.
-          const incoming = mutation.value as BlockRevision;
-          const existingRow = existing as BlockRevision;
-          let version = existingRow.version + 1;
-          while (await store.get([incoming.noteId, incoming.blockId, version] as IDBValidKey) !== undefined) version += 1;
-          await store.put({ ...incoming, version });
+          // the incoming row moves to the next free version.
+          if (mutation.store === 'block_revisions') {
+            const incoming = mutation.value as BlockRevision;
+            const existingRow = existing as BlockRevision;
+            let version = existingRow.version + 1;
+            while (await store.get([incoming.noteId, incoming.blockId, version] as IDBValidKey) !== undefined) version += 1;
+            await store.put({ ...incoming, version });
+          } else {
+            const incoming = mutation.value as { noteId: string; version: number };
+            const existingRow = existing as { version: number };
+            let version = existingRow.version + 1;
+            while (await store.get([incoming.noteId, version] as IDBValidKey) !== undefined) version += 1;
+            await store.put({ ...incoming, version });
+          }
           return;
         }
         if (existing === undefined || !rowsEqual(existing, mutation.value)) await store.put(mutation.value);
@@ -1314,9 +1331,9 @@ async function migrateSchema(db: IDBPDatabase, oldVersion: number, tx: IDBPTrans
       for (const mutation of group.ops) {
         if (mutation.op === 'wipe') {
           for (const name of NON_SYSTEM_STORES) {
-            if (name !== 'block_revisions') ops.push({ op: 'clear', store: name });
+            if (name !== 'block_revisions' && name !== 'note_revisions') ops.push({ op: 'clear', store: name });
           }
-        } else if (mutation.op !== 'put' && mutation.store !== 'memberships' && mutation.store !== 'block_revisions') {
+        } else if (mutation.op !== 'put' && mutation.store !== 'memberships' && mutation.store !== 'block_revisions' && mutation.store !== 'note_revisions') {
           ops.push(mutation);
         }
       }
@@ -1329,6 +1346,41 @@ async function migrateSchema(db: IDBPDatabase, oldVersion: number, tx: IDBPTrans
       for (const key of await state.getAllKeys()) {
         if (typeof key === 'string' && key.startsWith(BOOTSTRAP_RUN_PREFIX)) await state.delete(key);
       }
+    }
+  }
+
+  // V35: idempotent additive backfill of dated page_notes -> schedule_items.
+  if (
+    oldVersion > 0
+    && oldVersion < 35
+    && db.objectStoreNames.contains('page_notes')
+    && db.objectStoreNames.contains('page')
+    && db.objectStoreNames.contains('schedule_items')
+  ) {
+    const pages = await store('page').getAll() as Array<{ id: string; date?: string }>;
+    const dateByPage = new Map<string, string>();
+    for (const p of pages) {
+      if (p.date) dateByPage.set(p.id, p.date);
+    }
+    const pageNotes = await store('page_notes').getAll() as Array<{ id: string; pageId: string; noteId: string; position?: number; createdAt?: number }>;
+    const schedStore = store('schedule_items');
+    for (const pn of pageNotes) {
+      const date = dateByPage.get(pn.pageId);
+      if (!date) continue;
+      const id = `sched-${pn.id}`;
+      const existing = await schedStore.get(id);
+      if (existing) continue;
+      const createdAt = pn.createdAt ?? Date.now();
+      await schedStore.put({
+        id,
+        date,
+        noteId: pn.noteId,
+        pageId: pn.pageId,
+        position: pn.position ?? 0,
+        status: 'planned',
+        createdAt,
+        updatedAt: createdAt,
+      });
     }
   }
 }

@@ -79,5 +79,12 @@ describe('wql unit policy (ticket 13)', () => {
       expect(resolveOutputUnit([{ unit: 'lb' }], { preferred: 'kg' })).toEqual({ unit: 'kg', convert: true });
       expect(resolveOutputUnit([{ unit: 'm' }], { preferred: 'kg' })).toEqual({ unit: 'm', convert: true });
     });
+
+    it('preserves natural duration scales for wellness metrics (calc.hrv ms, calc.sleep h)', () => {
+      expect(resolveOutputUnit([{ unit: 'ms' }], { metric: 'calc.hrv' })).toEqual({ unit: 'ms', convert: false });
+      expect(resolveOutputUnit([{ unit: 'h' }], { metric: 'calc.sleep' })).toEqual({ unit: 'h', convert: false });
+      // Explicit `in s` directive still converts
+      expect(resolveOutputUnit([{ unit: 'h' }], { metric: 'calc.sleep', directive: 's' })).toEqual({ unit: 's', convert: true });
+    });
   });
 });

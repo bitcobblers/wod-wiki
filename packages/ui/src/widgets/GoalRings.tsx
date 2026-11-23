@@ -1,5 +1,6 @@
 import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { WqlEmptyState } from './WqlEmptyState';
+import { formatMetricValue } from './chartFormat';
 
 export interface GoalRingsProps {
   result: QueryResult | undefined;
@@ -58,8 +59,8 @@ function GoalRingItem({
   pct?: number;
   unit: string;
 }) {
-  const formattedCurrent = current.toLocaleString();
-  const formattedTarget = target ? target.toLocaleString() : undefined;
+  const formattedCurrent = formatMetricValue(current);
+  const formattedTarget = target !== undefined ? formatMetricValue(target) : undefined;
 
   const radius = 38;
   const circumference = 2 * Math.PI * radius;

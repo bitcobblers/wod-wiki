@@ -503,7 +503,15 @@ export async function importFromZip(file: File, provider: IContentProvider): Pro
   let sessionsImported = 0;
   let eventsImported = 0;
 
-  const allPaths = Object.keys(zip.files).filter((name) => !zip.files[name]?.dir && !name.startsWith('dist/'));
+  const rawPaths = Object.keys(zip.files).filter((name) => !zip.files[name]?.dir);
+  const nonDistPaths = rawPaths.filter((name) => !name.startsWith('dist/'));
+  const isImportableArtifact = (name: string): boolean =>
+    name.endsWith('.jsonl') ||
+    name.endsWith('.csv') ||
+    (name.endsWith('.md') && !/(?:^|\/)README\.md$/i.test(name));
+  // Prefer source paths when present to avoid double-importing mirrored dist/ bundles;
+  // fall back to dist/ only when an archive contains compiled feed artifacts alone.
+  const allPaths = nonDistPaths.some(isImportableArtifact) ? nonDistPaths : rawPaths;
   const jsonlFiles = allPaths.filter((name) => name.endsWith('.jsonl'));
   const csvFiles = allPaths.filter((name) => name.endsWith('.csv'));
   const mdFiles = allPaths.filter(
@@ -558,6 +566,7 @@ export async function importFromZip(file: File, provider: IContentProvider): Pro
       const existing = entry.id ? await provider.getRecord(entry.id) : null;
       const saved = await provider.saveRecord({
         ...entry,
+        seedOrigin: existing?.seedOrigin ?? 'user',
         sourceRevision: existing?.sourceRevision ?? entry.sourceRevision,
         blocks: existing?.rawContent === entry.rawContent ? existing.blocks : entry.blocks,
       });

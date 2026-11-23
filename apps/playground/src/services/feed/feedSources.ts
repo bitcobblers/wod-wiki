@@ -14,6 +14,26 @@
  */
 import type { FeedId } from '@bitcobblers/wod-wiki-core';
 import type { SeedPrecedenceTier } from '@/types/seed';
+import {
+  getCustomFeedsCache,
+  getHiddenFeedIdsCache,
+  hydrateFeedStateFromStorage,
+  isFeedStateHydrated,
+  LEGACY_CUSTOM_FEEDS_KEY,
+  LEGACY_HIDDEN_FEEDS_KEY,
+  readLegacyCustomFeeds,
+  readLegacyHiddenIds,
+  schedulePersistRegistryToStorage,
+  setCustomFeedsCache,
+  setHiddenFeedIdsCache,
+  subscribeFeedRegistryListeners,
+  writeLocalStorageJson,
+} from './feedRegistryStore';
+
+export { hydrateFeedStateFromStorage as hydrateFeedSourcesFromStorage };
+export function subscribeFeedSources(listener: () => void): () => void {
+  return subscribeFeedRegistryListeners(listener);
+}
 
 /** Shape persisted in localStorage — a feed directory URL serving the
  *  standard manifest/chunks layout (see HttpFeedSource). */
@@ -26,8 +46,8 @@ export interface CustomFeedSource {
   repositoryUrl?: string;
 }
 
-const STORAGE_KEY = 'wodwiki.seedSources';
-const HIDDEN_KEY = 'wodwiki.seedSources.hidden';
+const STORAGE_KEY = LEGACY_CUSTOM_FEEDS_KEY;
+const HIDDEN_KEY = LEGACY_HIDDEN_FEEDS_KEY;
 
 /**
  * Strict feed-directory URL: absolute http(s), no query/hash, no embedded
@@ -92,27 +112,38 @@ export function toAbsoluteFeedUrl(url: string, base?: string): string {
   }
 }
 
+function sanitizeCustomFeeds(entries: ReadonlyArray<unknown>): CustomFeedSource[] {
+  return entries.flatMap((s): CustomFeedSource[] => {
+    if (!s || typeof s !== 'object' ||
+      typeof (s as CustomFeedSource).id !== 'string' ||
+      typeof (s as CustomFeedSource).label !== 'string' ||
+      typeof (s as CustomFeedSource).url !== 'string') return [];
+    const { repositoryUrl } = s as CustomFeedSource;
+    // Persisted metadata is untrusted input: an invalid external link
+    // (e.g. `javascript:`) is dropped, never handed to the UI as href.
+    const safeLink = typeof repositoryUrl === 'string' ? safeRepositoryUrl(repositoryUrl) : null;
+    const clean: CustomFeedSource = {
+      id: (s as CustomFeedSource).id,
+      label: (s as CustomFeedSource).label,
+      url: (s as CustomFeedSource).url,
+    };
+    return [safeLink ? { ...clean, repositoryUrl: safeLink } : clean];
+  });
+}
+
 function readAll(): CustomFeedSource[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap((s): CustomFeedSource[] => {
-      if (!s || typeof s !== 'object' ||
-        typeof (s as CustomFeedSource).id !== 'string' ||
-        typeof (s as CustomFeedSource).label !== 'string' ||
-        typeof (s as CustomFeedSource).url !== 'string') return [];
-      const { repositoryUrl } = s as CustomFeedSource;
-      // Persisted metadata is untrusted input: an invalid external link
-      // (e.g. `javascript:`) is dropped, never handed to the UI as href.
-      const safeLink = typeof repositoryUrl === 'string' ? safeRepositoryUrl(repositoryUrl) : null;
-      const clean: CustomFeedSource = { id: (s as CustomFeedSource).id, label: (s as CustomFeedSource).label, url: (s as CustomFeedSource).url };
-      return [safeLink ? { ...clean, repositoryUrl: safeLink } : clean];
-    });
-  } catch {
-    return [];
+  if (isFeedStateHydrated()) {
+    return sanitizeCustomFeeds(getCustomFeedsCache() ?? []);
   }
+  return sanitizeCustomFeeds(readLegacyCustomFeeds());
+}
+
+function writeCustomFeedList(next: CustomFeedSource[]): void {
+  if (isFeedStateHydrated()) {
+    setCustomFeedsCache(next);
+    schedulePersistRegistryToStorage();
+  }
+  writeLocalStorageJson(STORAGE_KEY, next);
 }
 
 /** Registered custom sources, storage order. */
@@ -166,14 +197,14 @@ export function addCustomFeedSource(label: string, url: string, metadata?: { rep
   let id = slugify(cleanLabel);
   for (let n = 2; taken[id]; n++) id = `${slugify(cleanLabel)}-${n}`;
   const entry: CustomFeedSource = { id, label: cleanLabel, url: normalized, ...(repositoryUrl ? { repositoryUrl } : {}) };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...list, entry]));
+  writeCustomFeedList([...list, entry]);
   return entry;
 }
 
 /** Unregister a source. The storage checkpoint and imported notes stay —
  *  removing a source only removes it from sync runs and the status list. */
 export function removeCustomFeedSource(id: string): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(readAll().filter(s => s.id !== id)));
+  writeCustomFeedList(readAll().filter(s => s.id !== id));
 }
 
 /** Built-in feed ids a Delete can hide from the sync/catalog surfaces (core is
@@ -183,12 +214,10 @@ export function builtInFeedSourceIds(): string[] {
 }
 
 function readHidden(): string[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? 'null');
-    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
-  } catch {
-    return [];
+  if (isFeedStateHydrated()) {
+    return [...(getHiddenFeedIdsCache() ?? [])];
   }
+  return readLegacyHiddenIds();
 }
 
 /** Hide a built-in source row (Delete of a built-in catalog whose config
@@ -198,7 +227,12 @@ export function hideFeedSourceRow(id: string): void {
   const feedId = feedIdForLegacyId(id);
   const hidden = readHidden();
   if (builtInFeedSourceIds().includes(feedId) && !hidden.includes(feedId)) {
-    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden, feedId]));
+    const next = [...hidden, feedId];
+    if (isFeedStateHydrated()) {
+      setHiddenFeedIdsCache(next);
+      schedulePersistRegistryToStorage();
+    }
+    writeLocalStorageJson(HIDDEN_KEY, next);
   }
 }
 

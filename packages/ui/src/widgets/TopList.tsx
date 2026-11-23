@@ -4,6 +4,7 @@ import { useChartShape } from './useChartShape';
 import { WqlEmptyState } from './WqlEmptyState';
 import { SERIES_COLORS } from './chartPalette';
 import { resolveWidgetDisplayUnit } from './unitIntegrity';
+import { formatMetricValue } from './chartFormat';
 
 export interface TopListProps {
   result: QueryResult;
@@ -45,8 +46,8 @@ export function TopList({ result, unit: unitProp, limit = 8 }: TopListProps) {
               }}
             />
           </div>
-          <span className="text-xs tabular-nums text-muted-foreground w-20 text-right">
-            {r.value.toLocaleString()} {unit}
+          <span className="text-xs tabular-nums text-muted-foreground w-24 text-right whitespace-nowrap">
+            {formatMetricValue(r.value, unit)}
           </span>
         </div>
       ))}

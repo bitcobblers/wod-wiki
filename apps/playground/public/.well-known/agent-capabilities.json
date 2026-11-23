@@ -194,8 +194,22 @@
             "description": "Filter to Notes carrying this tag label.",
             "type": "string"
           },
+          "origin": {
+            "description": "Filter by Note origin (\"user\", \"feed\", \"seed\", or \"all\"; defaults to \"all\").",
+            "type": "string",
+            "enum": [
+              "all",
+              "user",
+              "feed",
+              "seed"
+            ]
+          },
           "includeSeed": {
-            "description": "Include read-only Seed/Feed notes (default true when notebookId is specified, false otherwise).",
+            "description": "Include read-only Seed/Feed notes (default true; pass false for user-authored notes only).",
+            "type": "boolean"
+          },
+          "orphanedOnly": {
+            "description": "When true, return only user Notes not belonging to any Notebook (equivalent to `:note{!notebook:*}`).",
             "type": "boolean"
           },
           "limit": {
@@ -290,7 +304,7 @@
             "maximum": 9007199254740991
           },
           "notebookId": {
-            "description": "Optional user Notebook ID/slug to link this Note into (always stays anchored in notebook/journal).",
+            "description": "Optional user Notebook ID/slug to assign this Note into (omit for unfiled/existing memberships).",
             "type": "string"
           },
           "journalDate": {
@@ -424,7 +438,7 @@
     {
       "name": "wod_journal_add",
       "title": "Add Workout to Journal Day",
-      "description": "Create a new workout Note in `notebook/journal` and place it onto the specified calendar day (`YYYY-MM-DD` or `today`).",
+      "description": "Create a lightweight workout Note (unfiled unless `notebookId` is given) and schedule it onto the specified calendar day via a `ScheduleItem`.",
       "tier": 1,
       "domain": "journal",
       "surfaces": [
@@ -462,12 +476,266 @@
             "type": "string"
           },
           "notebookId": {
-            "description": "Optional additional user Notebook to promote this Journal Note into.",
+            "description": "Optional user Notebook ID to assign this Note into (omit to keep unfiled on Journal).",
             "type": "string"
           }
         },
         "required": [
           "content"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "wod_schedule_list",
+      "title": "List Scheduled Workouts",
+      "description": "List M:N ScheduleItem instances by date range (`from`/`to`) or for a specific Note ID.",
+      "tier": 0,
+      "domain": "journal",
+      "surfaces": [
+        "webmcp",
+        "mcp",
+        "cli"
+      ],
+      "cliEquivalent": "wod schedule list --json",
+      "annotations": {
+        "title": "List Scheduled Workouts",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "from": {
+            "description": "Start date in YYYY-MM-DD format (inclusive, or \"today\").",
+            "type": "string"
+          },
+          "to": {
+            "description": "End date in YYYY-MM-DD format (inclusive, or \"today\").",
+            "type": "string"
+          },
+          "noteId": {
+            "description": "Optional Note ID to list scheduled dates for one workout.",
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "wod_schedule_add",
+      "title": "Schedule Workout onto Day",
+      "description": "Link an existing Note onto a Journal calendar date via a ScheduleItem (M:N link-first scheduling without cloning user Notes or forcing notebook/journal).",
+      "tier": 1,
+      "domain": "journal",
+      "surfaces": [
+        "webmcp",
+        "mcp",
+        "cli"
+      ],
+      "cliEquivalent": "wod schedule add <noteId> --date YYYY-MM-DD --json",
+      "annotations": {
+        "title": "Schedule Workout",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "noteId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Canonical Note ID to schedule onto a calendar day."
+          },
+          "date": {
+            "description": "Calendar date YYYY-MM-DD or \"today\" (defaults to \"today\").",
+            "type": "string"
+          },
+          "slot": {
+            "description": "Optional slot badge such as \"AM\", \"PM\", or \"Warmup\".",
+            "type": "string"
+          },
+          "position": {
+            "description": "Optional ordering index within the day.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "notes": {
+            "description": "Optional scaling or session intent notes for this scheduled instance.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "wod_schedule_batch",
+      "title": "Batch Schedule Workouts",
+      "description": "Schedule one or more existing Notes across target calendar dates atomically via ScheduleItem links.",
+      "tier": 1,
+      "domain": "journal",
+      "surfaces": [
+        "webmcp",
+        "mcp",
+        "cli"
+      ],
+      "cliEquivalent": "wod schedule batch --json",
+      "annotations": {
+        "title": "Batch Schedule Workouts",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "items": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "noteId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "date": {
+                  "type": "string",
+                  "description": "Calendar date YYYY-MM-DD or \"today\"."
+                },
+                "slot": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "noteId",
+                "date"
+              ],
+              "additionalProperties": false
+            },
+            "description": "List of Note + date pairs to schedule atomically."
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "wod_schedule_update",
+      "title": "Update Scheduled Workout",
+      "description": "Reschedule, reorder, or update status (`planned`, `completed`, `moved`, `skipped`) on a ScheduleItem.",
+      "tier": 1,
+      "domain": "journal",
+      "surfaces": [
+        "webmcp",
+        "mcp",
+        "cli"
+      ],
+      "cliEquivalent": "wod schedule update <scheduleItemId> --json",
+      "annotations": {
+        "title": "Update Scheduled Workout",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "scheduleItemId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ScheduleItem ID to update."
+          },
+          "date": {
+            "description": "New calendar date YYYY-MM-DD or \"today\".",
+            "type": "string"
+          },
+          "status": {
+            "description": "Updated schedule status.",
+            "type": "string",
+            "enum": [
+              "planned",
+              "completed",
+              "moved",
+              "skipped"
+            ]
+          },
+          "slot": {
+            "description": "Updated slot label.",
+            "type": "string"
+          },
+          "position": {
+            "description": "Updated intra-day ordering index.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "notes": {
+            "description": "Updated intent or scaling notes.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduleItemId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "wod_schedule_remove",
+      "title": "Unschedule Workout Instance",
+      "description": "Remove a single ScheduleItem from a calendar day while leaving the canonical Note and recorded Sessions intact.",
+      "tier": 1,
+      "domain": "journal",
+      "surfaces": [
+        "webmcp",
+        "mcp",
+        "cli"
+      ],
+      "cliEquivalent": "wod schedule remove <scheduleItemId> --json",
+      "annotations": {
+        "title": "Unschedule Workout",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "scheduleItemId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ScheduleItem ID to remove from the calendar."
+          }
+        },
+        "required": [
+          "scheduleItemId"
         ],
         "additionalProperties": false
       }
@@ -644,7 +912,7 @@
         "type": "object",
         "properties": {
           "noteId": {
-            "description": "Existing Note ID to execute (read-only Seed/Feed Notes are automatically cloned to notebook/journal).",
+            "description": "Existing Note ID to execute (read-only Seed/Feed Notes pin one immutable copy on first run).",
             "type": "string"
           },
           "blockId": {
@@ -664,7 +932,11 @@
             "type": "string"
           },
           "journalDate": {
-            "description": "Optional YYYY-MM-DD or \"today\" Journal calendar date.",
+            "description": "Optional YYYY-MM-DD or \"today\" attributed Session calendar date.",
+            "type": "string"
+          },
+          "scheduleItemId": {
+            "description": "Optional ScheduleItem ID that triggered this workout run.",
             "type": "string"
           },
           "collectibles": {
@@ -768,6 +1040,52 @@
             "type": "string",
             "minLength": 1,
             "description": "Session ID to inspect."
+          }
+        },
+        "required": [
+          "sessionId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "wod_session_attribute",
+      "title": "Attribute Session to Day or Plan",
+      "description": "Associate a recorded workout Session with a specific Journal civil date and/or pair or unlink it with a planned ScheduleItem.",
+      "tier": 1,
+      "domain": "session",
+      "surfaces": [
+        "webmcp",
+        "mcp",
+        "cli"
+      ],
+      "cliEquivalent": "wod session attribute <sessionId> --json",
+      "annotations": {
+        "title": "Attribute Session",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Session ID to attribute to a calendar date or ScheduleItem."
+          },
+          "sessionDate": {
+            "description": "Attributed Journal date (YYYY-MM-DD).",
+            "type": "string"
+          },
+          "scheduleItemId": {
+            "description": "ScheduleItem ID to link this Session with, or null to unlink into an ad-hoc Session.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1224,7 +1542,7 @@
     {
       "name": "ui_set_stream_query",
       "title": "Set Live Stream WQL Query or Layout",
-      "description": "Update the live WQL query, layout (`cards`, `rows`, `feed`, `agenda`, `planner`), or grouping on the currently mounted stream view, or reset to the route default.",
+      "description": "Update the live WQL query, layout (`cards`, `rows`, `feed`, `agenda`, `planner`), grouping, calendar `month` (`YYYY-MM`), or calendar `overlayMode` (`all`, `planned`, `logged`) on the currently mounted stream view, or reset to the route default.",
       "tier": 1,
       "surfaces": [
         "webmcp"
@@ -1260,6 +1578,20 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "month": {
+            "description": "Calendar month anchor in YYYY-MM format (syncs ?month= on calendar/journal views).",
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}$"
+          },
+          "overlayMode": {
+            "description": "Calendar schedule/session overlay filter (`all`, `planned`, or `logged`).",
+            "type": "string",
+            "enum": [
+              "all",
+              "planned",
+              "logged"
             ]
           },
           "resetToDefault": {
@@ -1654,6 +1986,83 @@
             "type": "boolean"
           }
         },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ui_peek_entity",
+      "title": "Inspect, Open, or Close Entity Peek Drawer",
+      "description": "Read the active Entity Peek Drawer state (`status`), open a non-destructive 340px right-edge preview for an effort, equipment, tag, unrecognized term, note, notebook, or day (`open`), or dismiss the drawer (`close`). Mutually exclusive with the Whiteboard Token Inspector drawer.",
+      "tier": 1,
+      "surfaces": [
+        "webmcp"
+      ],
+      "mountScope": "mounted Playground shell / Note editor / Entity Peek surfaces (AppContent / NoteEditor / EntityPeekDrawer)",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "status",
+              "open",
+              "close"
+            ],
+            "description": "Read active Entity Peek Drawer state (\"status\"), open a preview for a target entity (\"open\"), or dismiss it (\"close\")."
+          },
+          "kind": {
+            "description": "Target entity kind when action=\"open\".",
+            "type": "string",
+            "enum": [
+              "effort",
+              "equipment",
+              "tag",
+              "unrecognized",
+              "note",
+              "notebook",
+              "day"
+            ]
+          },
+          "slug": {
+            "description": "Canonical slug when kind is \"effort\", \"equipment\", or \"notebook\".",
+            "type": "string"
+          },
+          "label": {
+            "description": "Tag label (required when kind=\"tag\") or optional display label for effort/equipment.",
+            "type": "string"
+          },
+          "tagType": {
+            "description": "Optional tag category/type when kind=\"tag\" (e.g. \"domain\", \"format\", \"general\").",
+            "type": "string"
+          },
+          "term": {
+            "description": "Unrecognized term to quick-define when kind=\"unrecognized\".",
+            "type": "string"
+          },
+          "noteId": {
+            "description": "Target Note ID when kind=\"note\".",
+            "type": "string"
+          },
+          "title": {
+            "description": "Optional display title hint when kind is \"note\" or \"notebook\".",
+            "type": "string"
+          },
+          "date": {
+            "description": "Civil date (YYYY-MM-DD) when kind=\"day\".",
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        },
+        "required": [
+          "action"
+        ],
         "additionalProperties": false
       }
     },

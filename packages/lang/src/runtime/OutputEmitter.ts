@@ -7,6 +7,7 @@ import { CurrentRoundMetric } from './compiler/metrics/CurrentRoundMetric';
 import { MetricContainer } from '@bitcobblers/wod-wiki-core';
 import { IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
 import { TimeSpan } from './models/TimeSpan';
+import { ElapsedMetric } from './compiler/metrics/ElapsedMetric';
 import { IRuntimeClock } from './contracts/IRuntimeClock';
 import { IRuntimeBlock } from './contracts/IRuntimeBlock';
 import { IRuntimeStack } from './contracts/IRuntimeStack';
@@ -438,6 +439,13 @@ export class OutputEmitter {
                 .filter((m) => m.type === MetricType.Spans && Array.isArray(m.value))
                 .flatMap((m) => m.value as Array<{ started?: number; ended?: number }>)
                 .filter((s): s is { started: number; ended?: number } => typeof s?.started === 'number' && Number.isFinite(s.started));
+            if (recordedSpans.length > 0 && !metrics.some((m) => m.type === MetricType.Elapsed)) {
+                const activeElapsedMs = recordedSpans.reduce(
+                    (acc, s) => acc + Math.max(0, (typeof s.ended === 'number' && Number.isFinite(s.ended) ? s.ended : fallbackEndMs) - s.started),
+                    0,
+                );
+                metrics.add(new ElapsedMetric(activeElapsedMs, block.key.toString(), new Date(fallbackEndMs)));
+            }
             const timeSpan = recordedSpans.length > 0
                 ? new TimeSpan(
                     Math.min(...recordedSpans.map((s) => s.started)),

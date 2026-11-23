@@ -131,7 +131,7 @@ describe('streamProfile', () => {
     expect(profile?.defaultWql).toBe(':note{notebook:dan-john} by {date}')
     expect(profile?.notebookSlug).toBe('dan-john')
     expect(profile?.defaultLayout).toBe('cards')
-    expect(profile?.level).toBe('session')
+    expect(profile?.level).toBe('note')
   })
 
   it('normalizes community- prefixed notebook slug in profile query and slug', () => {
@@ -232,7 +232,7 @@ describe('NOTEBOOKS_STREAM_PROFILE default query (ticket 08)', () => {
 })
 
 describe('NOTES_STREAM_PROFILE default query (WW-003)', () => {
-  it('defaults to :note{notebook:*} with zero advisories and matches notes belonging to any notebook', async () => {
+  it('defaults to :note{} with zero advisories and matches all notes including unfiled ones', async () => {
     const { QueryService } = await import('@bitcobblers/wod-wiki-engine')
     const parsed = parseQuery(NOTES_STREAM_PROFILE.defaultWql)
     expect(parsed.error).toBeUndefined()
@@ -242,6 +242,7 @@ describe('NOTES_STREAM_PROFILE default query (WW-003)', () => {
       { id: '01950000-0000-7000-8000-000000000001', title: 'Morning', seedOrigin: 'user', sourceId: 'journal', createdAt: 1, rawContent: '', sourceRevision: 1, blocks: {} },
       { id: 'crossfit-girls/fran', title: 'Fran', seedOrigin: 'seed', sourceId: 'notebook:crossfit-girls/fran', createdAt: 2, rawContent: '', sourceRevision: 1, blocks: {} },
       { id: 'user-nb-1', title: 'Custom WOD', seedOrigin: 'user', notebookId: 'notebook/open-prep', createdAt: 3, rawContent: '', sourceRevision: 1, blocks: {} },
+      { id: 'unfiled-1', title: 'Orphaned WOD', seedOrigin: 'user', notebookIds: [], createdAt: 3.5, rawContent: '', sourceRevision: 1, blocks: {} },
       { id: 'root-readme', title: 'Root', seedOrigin: 'seed', sourceId: 'notebook:_root', sourcePath: 'markdown/notebooks/README.md', createdAt: 4, rawContent: '', sourceRevision: 1, blocks: {} },
     ]
     const service = new QueryService({
@@ -254,6 +255,8 @@ describe('NOTES_STREAM_PROFILE default query (WW-003)', () => {
     expect(result.notes.map((n) => n.id).sort()).toEqual([
       '01950000-0000-7000-8000-000000000001',
       'crossfit-girls/fran',
+      'root-readme',
+      'unfiled-1',
       'user-nb-1',
     ])
   })

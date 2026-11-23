@@ -13,6 +13,7 @@ import {
   type PlaygroundRenderResult,
 } from './host';
 import { ROUTE_PATTERNS } from '../lib/routes';
+import { TEST_IDS } from '../lib/testIds';
 import { AppRoutes } from '../../app/AppRoutes';
 import { useCanvasRoutes } from '../../app/canvas/canvasRoutes';
 import { useNoteDraft } from '../../app/hooks/useNoteDraft';
@@ -815,7 +816,9 @@ describe('PlaygroundTestHost', () => {
         expect(screen.queryByRole('heading', { name: 'Edit missing-tag-qa' })).toBeNull();
         await waitFor(
           () => {
-            expect(screen.getByText(/No tag is selected/)).toBeTruthy();
+            const notFound = screen.getByTestId('tag-not-found');
+            expect(notFound).toBeTruthy();
+            expect(notFound.textContent).toMatch(/#missing-tag-qa.*not found/i);
           },
           { timeout: 3000 },
         );
@@ -944,7 +947,8 @@ describe('PlaygroundTestHost', () => {
           expect(screen.getByRole('heading', { name: 'Metric Explorer' })).toBeTruthy();
         });
 
-        const exampleBtn = screen.getAllByRole('button', { name: /Weekly strength volume/i })[0]!;
+        fireEvent.click(screen.getByTestId(TEST_IDS.EXPLORER_EXAMPLES_TRIGGER));
+        const exampleBtn = screen.getAllByRole('menuitem', { name: /Weekly strength volume/i })[0]!;
         fireEvent.click(exampleBtn);
 
         await waitFor(() => {

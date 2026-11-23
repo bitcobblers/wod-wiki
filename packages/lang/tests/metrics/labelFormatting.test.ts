@@ -4,7 +4,14 @@
  * strip the `calc.` namespace and uppercase known acronyms.
  */
 import { describe, expect, it } from 'vitest';
-import { computeColumnLabel, humanizeMetricKey } from '../../src/metrics/presentation/labelFormatting';
+import { MetricType, metricToMs } from '@bitcobblers/wod-wiki-core';
+import {
+  buildTooltip,
+  computeColumnLabel,
+  computeLabel,
+  dedupePresentedLabels,
+  humanizeMetricKey,
+} from '../../src/metrics/presentation/labelFormatting';
 
 describe('metric label formatting', () => {
   it('maps calc.metMinutes and known derived columns to canonical labels', () => {
@@ -45,5 +52,38 @@ describe('metric label formatting', () => {
     expect(humanizeMetricKey('customMetric')).toBe('Custom Metric');
     expect(humanizeMetricKey('')).toBe('');
     expect(computeColumnLabel('rep')).toBe('Reps');
+  });
+
+  it('WW-079: collapses adjacent repeated or suffix-redundant labels', () => {
+    expect(dedupePresentedLabels(['Thrusters', 'Thrusters', '42.5 kg'])).toEqual(['Thrusters', '42.5 kg']);
+    expect(dedupePresentedLabels(['5 Pullups', 'Pullups'])).toEqual(['5 Pullups']);
+  });
+
+  it('WW-068: produces athlete-friendly non-debug tooltips without raw ms or object dumps', () => {
+    const durationMetric = { type: MetricType.Duration, value: 1_200_000, unit: 'ms', origin: 'parser' as const };
+    const runtimeTooltip = buildTooltip(durationMetric, 'runtime-badge');
+    expect(runtimeTooltip).toBe('Duration: 20:00');
+    expect(runtimeTooltip).not.toContain('Type:');
+    expect(runtimeTooltip).not.toContain('1200000');
+
+    const debugTooltip = buildTooltip(durationMetric, 'debug');
+    expect(debugTooltip).toContain('Type: duration');
+    expect(debugTooltip).toContain('Value: 20:00');
+
+    const spansMetric = {
+      type: MetricType.Spans,
+      value: [{ started: 1_000, ended: 61_000 }],
+      origin: 'runtime' as const,
+    };
+    expect(computeLabel(spansMetric, 'debug')).toBe('01:00');
+    expect(buildTooltip(spansMetric, 'runtime-badge')).toBe('Spans: 01:00');
+    expect(buildTooltip(spansMetric, 'runtime-badge')).not.toContain('[object Object]');
+  });
+
+  it('WW-051: treats unitless time metrics as milliseconds in metricToMs', () => {
+    expect(metricToMs({ type: MetricType.Elapsed, value: 15_000 })).toBe(15_000);
+    expect(metricToMs({ type: MetricType.Duration, value: 300_000 })).toBe(300_000);
+    expect(metricToMs({ type: MetricType.Elapsed, value: 30, unit: 's' })).toBe(30_000);
+    expect(metricToMs({ type: MetricType.Elapsed, value: 2, unit: 'min' })).toBe(120_000);
   });
 });

@@ -20,12 +20,20 @@ import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { useTheme } from '@/contexts/ThemeProvider';
 import { JournalPageShell } from '@/panels/page-shells';
 import type { ScriptBlock } from '@/components/Editor/types';
+import { useColdRouteResolution } from '../hooks/useColdRouteResolution';
 import { useEquipmentContent, useEquipmentLinks, blankEquipmentDocument } from '../hooks/useEquipmentContent';
 import { useNotePageNav } from './shared/useNotePageNav';
-import { NoteContextNav, noteOwnership, useNoteContextLinks, noteLinkPath } from './shared/noteContextLinks';
+import {
+  NoteContextNav,
+  noteOwnership,
+  notesFacetFilterPath,
+  useNoteContextLinks,
+  noteLinkPath,
+  type ContextNoteLink,
+} from './shared/noteContextLinks';
+import { PageActions } from './shared/PageActions';
 import { useEquipmentRegistry } from '../contexts/EquipmentRegistryContext';
 import { equipmentPath, effortPath, ROUTE_PATTERNS } from '../lib/routes';
-import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import type { MenuSpec } from '../nav/menuModel';
 import { toast } from '@/hooks/use-toast';
 import { TEST_IDS } from '@/lib/testIds';
@@ -53,6 +61,7 @@ export function EquipmentDetailPage() {
   const actualTheme = theme === 'dark' ? 'dark' : 'vs';
   const { isReady, refresh } = useEquipmentRegistry();
 
+  const isCreateMode = searchParams.get('mode') === 'create';
   const {
     document,
     setDocument,
@@ -66,6 +75,10 @@ export function EquipmentDetailPage() {
     onBlur,
     flush,
   } = useEquipmentContent(slug);
+  const { isSettling } = useColdRouteResolution({
+    loading: !isReady || isLoading,
+    missing: !isCreateMode && !equipment && !error && notFound,
+  });
 
   const previousSlugRef = useRef(equipment?.slug);
   useEffect(() => {
@@ -84,13 +97,21 @@ export function EquipmentDetailPage() {
     [slug, equipment?.label],
   );
   // ── Create mode ("/equipment/new?mode=create" or "?mode=create" on any slug) ──
-  const isCreateMode = searchParams.get('mode') === 'create';
-  const [createDocument, setCreateDocument] = useState(() =>
-    blankEquipmentDocument(slug && slug !== 'new' ? slug.trim().toLowerCase().replace(/\s+/g, '-') : ''),
-  );
+  const [createDocument, setCreateDocument] = useState(() => {
+    const doc = blankEquipmentDocument(
+      slug && slug !== 'new' ? slug.trim().toLowerCase().replace(/\s+/g, '-') : '',
+    );
+    return doc.endsWith('\n\n') ? doc : `${doc}\n\n`;
+  });
+  const createDocumentRef = useRef(createDocument);
+  const handleCreateDocumentChange = useCallback((next: string) => {
+    createDocumentRef.current = next;
+    setCreateDocument(next);
+  }, []);
 
   const handleCreateSubmit = useCallback(async () => {
-    const { equipment: parsed, errors } = documentToEquipment(createDocument);
+    const activeCreateDoc = createDocumentRef.current;
+    const { equipment: parsed, errors } = documentToEquipment(activeCreateDoc);
     if (errors.length > 0) {
       toast({ title: 'Invalid YAML', description: errors.join('\n'), variant: 'destructive' });
       return;
@@ -114,7 +135,7 @@ export function EquipmentDetailPage() {
       await commitReferenceNote({
         kind: 'equipment',
         slug: slugValue,
-        rawContent: createDocument,
+        rawContent: activeCreateDoc,
         title: parsed.label.trim() || fileToDisplayName(slugValue),
         expectedSourceRevision: 0,
       });
@@ -128,7 +149,7 @@ export function EquipmentDetailPage() {
         variant: 'destructive',
       });
     }
-  }, [createDocument, refresh, navigate]);
+  }, [refresh, navigate]);
 
   // ── L3 nav from document content (display-only links — equipment bodies
   // are reference material, not runnable workouts) ──────────────────────────
@@ -143,30 +164,72 @@ export function EquipmentDetailPage() {
     scriptBlocks,
     enableUnrecognizedActions: false,
     helpfulActions: [
-      ...(equipment ? [{ id: 'override', label: 'Override Scope', onRun: () => setOverrideSheetOpen(true), key: `ov-${equipment.slug}` }] : []),
-      ...(equipment && !isEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: equipment.slug }] : []),
-      ...(equipment ? [{ id: 'add-widget', label: 'Add widget', onRun: () => setWidgetComposerOpen(true) }] : []),
-      { id: 'copy-link', label: 'Copy link', onRun: handleCopyLink },
+      ...(equipment
+        ? [
+            {
+              id: 'override',
+              label: !isEditable ? 'Override Equipment' : 'Override Scope',
+              testId: TEST_IDS.L3_EQUIPMENT_OVERRIDE,
+              group: 'primary' as const,
+              onRun: () => setOverrideSheetOpen(true),
+              key: `ov-${equipment.slug}`,
+            },
+          ]
+        : []),
+      ...(equipment
+        ? [
+            {
+              id: 'add-widget',
+              label: 'Add widget',
+              group: 'author' as const,
+              onRun: () => setWidgetComposerOpen(true),
+            },
+          ]
+        : []),
+      ...(equipment && !isEditable
+        ? [
+            {
+              id: 'clone',
+              label: 'Clone to my catalog',
+              icon: DocumentDuplicateIcon,
+              testId: TEST_IDS.EQUIPMENT_DETAIL_CLONE_BTN,
+              group: 'organize' as const,
+              onRun: () => void handleClone(),
+              key: equipment.slug,
+            },
+          ]
+        : []),
+      { id: 'copy-link', label: 'Copy link', group: 'share' as const, onRun: handleCopyLink },
     ],
   });
 
-  // ── Contextual links + editor identity ride the ACTUAL owner note id —
-  // never an invented `equipment/<slug>` when the projection carries one.
+  // ── Contextual links + guaranteed `< Equipment` parent fallback even for
+  // UUID-backed seed records.
   const ownerNoteId = equipment?.ownerNoteId ?? (slug ? `equipment/${slug}` : '');
   const ownership = useMemo(
     () => (ownerNoteId ? noteOwnership({ id: ownerNoteId, type: 'collection' }) : null),
     [ownerNoteId],
   );
+  const parentLink: ContextNoteLink = useMemo(
+    () => ownership?.up ?? { id: 'equipment', title: 'Equipment', to: ROUTE_PATTERNS.equipment },
+    [ownership?.up],
+  );
+  const stamps = useMemo(
+    () => (ownership?.stamps.length ? ownership.stamps : slug ? [equipmentPath(slug)] : []),
+    [ownership?.stamps, slug],
+  );
   const baseContext = useNoteContextLinks({
     noteId: ownerNoteId,
-    stamps: ownership?.stamps ?? [],
+    stamps,
   });
   const links = useEquipmentLinks(equipment?.slug);
   const contextData = useMemo(() => ({
     efforts: links.efforts.map(e => ({ id: e.slug, title: e.label, to: effortPath(e.slug) })),
     related: links.usedBy.map(u => ({ id: u.noteId, title: u.title, to: noteLinkPath(u.noteId) })),
+    relatedTotal: links.usedBy.length,
+    relatedViewAllTo: equipment?.slug ? notesFacetFilterPath('equipment', equipment.slug) : undefined,
     backlinks: baseContext.backlinks,
-  }), [links, baseContext.backlinks]);
+  }), [links, equipment?.slug, baseContext.backlinks]);
   // Whiteboard equipment L2: related efforts (section above), recent
   // equipment last.
   const trailingSections = useMemo<MenuSpec>(() => [
@@ -211,17 +274,9 @@ export function EquipmentDetailPage() {
   }, [cloneForEdit, equipment, navigate]);
 
   // ── Loading / error states ───────────────────────────────────────────────
-  if (!isReady) {
+  if (!isReady || isLoading || (!isCreateMode && (notFound || !equipment) && isSettling && !error)) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-pulse h-4 w-32 bg-muted rounded" />
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
+      <div role="status" className="flex items-center justify-center py-20">
         <div className="animate-pulse h-4 w-32 bg-muted rounded" />
       </div>
     );
@@ -248,13 +303,14 @@ export function EquipmentDetailPage() {
     return (
       <div data-testid={TEST_IDS.EQUIPMENT_DETAIL_ROOT} className="contents">
         <JournalPageShell
+          parent={{ label: 'Equipment', to: ROUTE_PATTERNS.equipment }}
           title={slug && slug !== 'new' ? `New equipment: ${slug}` : 'New equipment'}
           actions={pageActions}
           editor={
             <div className="relative" data-testid="equipment-create-editor">
               <NoteEditor
                 value={createDocument}
-                onChange={setCreateDocument}
+                onChange={handleCreateDocumentChange}
                 theme={actualTheme}
                 readonly={false}
                 showLineNumbers={true}
@@ -314,51 +370,33 @@ export function EquipmentDetailPage() {
   }
 
   // ── Actions bar (rendered by JournalPageShell actions prop) ──────────────
-  // Whiteboard equipment sticky: Clone + Cast — Back became the L2 Up link
-  // (NoteContextNav "Up" section).
-  const pageActions = (
-    <div className="flex items-center gap-2">
-      <ResponsiveActions
-        navbar={
-          <Button
-            variant={!isEditable ? 'default' : 'outline'}
-            onClick={() => setOverrideSheetOpen(true)}
-            data-testid="equipment-detail-override-btn"
-            className="max-lg:min-h-11 max-lg:px-3 whitespace-nowrap"
-          >
-            {!isEditable ? 'Override' : 'Override Scope'}
-          </Button>
-        }
-        primary={!isEditable ? (
-          <Button variant="outline" onClick={handleClone} data-testid={TEST_IDS.EQUIPMENT_DETAIL_CLONE_BTN}>
-            <DocumentDuplicateIcon className="size-4 mr-1.5" />
-            Clone
-          </Button>
-        ) : undefined}
-      >
-        <Badge
-          data-testid={TEST_IDS.EQUIPMENT_DETAIL_SOURCE}
-          variant={equipment.registrySource === 'bundled' && !scopedNotebookId ? 'secondary' : 'default'}
-        >
-          {scopedNotebookId
-            ? `Scoped · ${notebookSlugFromId(scopedNotebookId)}`
-            : equipment.registrySource === 'bundled'
-              ? 'Bundled'
-              : 'Custom'}
-        </Badge>
-      </ResponsiveActions>
-      <CastButtonRpc />
-    </div>
-  );
+  // Clean detail StickyPageHeader: < Parent + Title + Cast + passive Sync +
+  // <2xl L3DrawerTrigger ONLY. Override and Clone live in grouped L3 Actions.
+  const pageActions = <PageActions mode="notebook-readonly" index={[]} />;
+
+  const sourceLabel = scopedNotebookId
+    ? `Scoped · ${notebookSlugFromId(scopedNotebookId)}`
+    : equipment.registrySource === 'bundled'
+      ? 'Bundled'
+      : 'Custom';
 
   return (
     <div data-testid={TEST_IDS.EQUIPMENT_DETAIL_ROOT} className="contents">
       <JournalPageShell
+        parent={{ label: parentLink.title, to: parentLink.to ?? ROUTE_PATTERNS.equipment }}
         title={equipment.label}
         titleTestId={TEST_IDS.EQUIPMENT_DETAIL_LABEL}
         actions={pageActions}
         editor={
           <div className="relative" data-testid={TEST_IDS.EQUIPMENT_DETAIL_NOTEBOOK_EDITOR}>
+            <div className="flex flex-wrap items-center gap-2 px-6 lg:px-10 pt-4">
+              <Badge
+                data-testid={TEST_IDS.EQUIPMENT_DETAIL_SOURCE}
+                variant={equipment.registrySource === 'bundled' && !scopedNotebookId ? 'secondary' : 'default'}
+              >
+                {sourceLabel}
+              </Badge>
+            </div>
             <NoteEditor
               noteId={ownerNoteId}
               value={document}
@@ -438,7 +476,14 @@ export function EquipmentDetailPage() {
                 )}
               </section>
             )}
-            <NoteContextNav data={contextData} up={ownership?.up} relatedLabel="Used in" trailingSections={trailingSections} />
+            <NoteContextNav
+              data={contextData}
+              up={parentLink}
+              relatedLabel="Used in"
+              relatedViewAllTo={equipment.slug ? notesFacetFilterPath('equipment', equipment.slug) : undefined}
+              currentPath={equipmentPath(equipment.slug)}
+              trailingSections={trailingSections}
+            />
           </div>
         }
       />

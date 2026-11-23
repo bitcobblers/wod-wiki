@@ -11,6 +11,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
+import { Delete } from 'lucide-react';
 import { ClockValueEntry } from '@/clock/ClockValueEntry';
 import { TEST_IDS } from '@/lib/testIds';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
@@ -34,14 +35,14 @@ export interface ClockCommandBoardProps {
 }
 
 
-const LEGEND_NAVIGATION = '⏎ Select · Pad⏎ Next · 8/2/4/6 Move · +/− Reps · * Values · / Play · Esc Stop';
-const LEGEND_KEYPAD = '⏎ Next · Pad⏎ Next · 8/2/4/6 Move · +/− Reps · * Values · / Play · Esc Stop';
+const LEGEND_NAVIGATION = 'Enter Select · Numpad Enter Next · 8/2/4/6 Move · +/- Reps · * Values · / Play · Esc Stop';
+const LEGEND_KEYPAD = 'Enter Next · Numpad Enter Next · 8/2/4/6 Move · +/- Reps · * Values · / Play · Esc Stop';
 
 export function ClockKeyLegend({ mode, className }: { mode: ClockKeyMode; className?: string }): React.ReactElement {
   return (
     <p
       data-testid={TEST_IDS.CLOCK_LEGEND}
-      className={`px-3 text-[10px] leading-4 text-muted-foreground ${className ?? ''}`}
+      className={`hidden sm:block px-3 text-[10px] leading-4 text-muted-foreground ${className ?? ''}`}
     >
       {mode === 'keypad' ? LEGEND_KEYPAD : LEGEND_NAVIGATION}
     </p>
@@ -379,9 +380,9 @@ export const ClockCommandBoard: React.FC<ClockCommandBoardProps> = ({
                 aria-disabled={!canEditReps || draft.length === 0}
                 onClick={() => writeClockDraft(draft.slice(0, -1))}
                 {...focus('board-keypad-back')}
-                className="min-h-11 min-w-11 w-full rounded-md border border-border px-2 text-xs font-medium hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex min-h-11 min-w-11 w-full items-center justify-center rounded-md border border-border px-2 text-xs font-medium hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                ⌫
+                <Delete className="h-4 w-4" aria-hidden="true" />
               </button>
               <button
                 type="button"

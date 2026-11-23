@@ -35,14 +35,14 @@ test.describe('PRP-05 — Tag Catalog Query Surface & Direct Property Editor', (
     await page.getByRole('button', { name: 'Metric' }).click();
     await page.getByLabel('Metric type').fill('intensity');
     await page.getByLabel('Metric value').fill('heavy');
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 
     // Default /tags query surface (Split-Pills at rest, Scope Map when toggled)
     await app.properties.openTags();
-    await expect(page.locator(VISIBLE_COMPOSER).getByTestId('token-slot-value-target')).toHaveText('tag');
-    await expect(page.getByTestId('stream-query-status')).toContainText(':tag');
+    await expect(page.getByTestId('stream-query-status')).toContainText('tag');
     await page.locator(VISIBLE_COMPOSER).getByTestId('wql-scope-toggle').click();
+    await expect(page.locator(VISIBLE_COMPOSER).getByTestId('token-slot-value-target')).toHaveText('tag');
     await expect(page.locator(VISIBLE_COMPOSER)).toContainText(':tag{}');
 
     // ?q= override narrows list and survives reload
@@ -81,7 +81,7 @@ test.describe('PRP-05 — Tag Catalog Query Surface & Direct Property Editor', (
     await page.getByLabel('Metric type').fill('resistance');
     await page.getByLabel('Metric value').fill('24');
     await page.getByLabel('Metric unit').fill('kg');
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 
     await page.reload({ waitUntil: 'domcontentloaded' });

@@ -40,6 +40,10 @@ import {
 import { extractNoteIdentity, extractTypedTags } from '../exchange';
 import { makeNotebookLinkId } from '../notebook/membership';
 import {
+  noteHasRecordedSessionsInTx,
+  snapshotNoteRevisionIfHasSessionsInTx,
+} from '../notebook/schedule';
+import {
   buildQueryServiceStoresFromStorage,
   type BuildQueryServiceStoresOptions,
 } from '../storage/queryServiceStores';
@@ -125,6 +129,7 @@ export interface UpsertNoteInStorageResult {
   effortSlugs: string[];
   equipmentSlugs: string[];
   tagLabels: string[];
+  scheduleItemId?: string;
 }
 
 async function diffProjectionRows(
@@ -162,6 +167,7 @@ export async function upsertNoteInStorage(
     [
       'notes',
       'block_revisions',
+      'note_revisions',
       'block_index',
       'block_efforts',
       'block_equipment',
@@ -171,6 +177,8 @@ export async function upsertNoteInStorage(
       'note_tags',
       'page',
       'page_notes',
+      'schedule_items',
+      'sessions',
       'notebook_links',
     ],
     'readwrite',
@@ -268,13 +276,31 @@ export async function upsertNoteInStorage(
         ? toNotebookId(input.notebookId)
         : existing?.notebookId;
 
-      const notebookIds = Array.from(
-        new Set([
-          'notebook/journal',
-          ...(existing?.notebookIds ?? []),
-          ...(targetNotebookId ? [targetNotebookId] : []),
-        ]),
-      );
+      const notebookIds = targetNotebookId
+        ? Array.from(new Set([...(existing?.notebookIds ?? []), targetNotebookId]))
+        : existing
+          ? [...(existing.notebookIds ?? [])]
+          : [];
+
+      const nextTagLabels = extractedTags.map((t) => t.label);
+      const nextNoteType = input.type ?? existing?.type ?? (input.journalDate ? 'journal' : 'note');
+
+      // Annotation 1: Snapshot previous Note version before mutating a session-bearing Note.
+      if (existing) {
+        const meaningfulChange =
+          existing.rawContent !== input.rawContent ||
+          existing.title !== resolvedTitle ||
+          existing.type !== nextNoteType ||
+          !rowsEqual(existing.blocks, blocks) ||
+          !rowsEqual(existing.tags ?? [], nextTagLabels);
+        if (meaningfulChange && (await noteHasRecordedSessionsInTx(tx, noteId))) {
+          await snapshotNoteRevisionIfHasSessionsInTx(tx, existing, now);
+          if (sourceRevision <= existing.sourceRevision) {
+            sourceRevision = existing.sourceRevision + 1;
+            for (const block of Object.values(blocks)) block.sourceRevision = sourceRevision;
+          }
+        }
+      }
 
       const dateMs = input.journalDate
         ? Date.parse(`${civilDateKey(input.journalDate, now)}T12:00:00Z`)
@@ -287,14 +313,14 @@ export async function upsertNoteInStorage(
         rawContent: input.rawContent,
         sourceRevision,
         blocks,
-        type: input.type ?? existing?.type ?? (input.journalDate ? 'journal' : 'note'),
+        type: nextNoteType,
         date: dateMs,
         createdAt: existing?.createdAt ?? now,
         notebookIds,
         ...(targetNotebookId && targetNotebookId !== 'notebook/journal'
           ? { notebookId: targetNotebookId }
           : {}),
-        tags: extractedTags.map((t) => t.label),
+        tags: nextTagLabels,
         seedOrigin: 'user',
       };
 
@@ -440,7 +466,8 @@ export async function upsertNoteInStorage(
         await tx.readwrite('notebook_links').putMany(links);
       }
 
-      // Optional Journal calendar Page placement
+      // Optional Journal calendar Page + ScheduleItem placement (V35)
+      let scheduleItemId: string | undefined;
       if (input.journalDate) {
         const dateKey = civilDateKey(input.journalDate, now);
         let pages: Page[];
@@ -473,6 +500,34 @@ export async function upsertNoteInStorage(
             createdAt: now,
           });
         }
+        try {
+          const existingSchedules = await tx.readonly('schedule_items').getAllFromIndex('by-date', dateKey);
+          const matchedSched = existingSchedules.find((s) => s.noteId === noteId);
+          if (matchedSched) {
+            scheduleItemId = matchedSched.id;
+          } else {
+            const maxSchedPos = existingSchedules.reduce(
+              (m, s) => (typeof s.position === 'number' && s.position > m ? s.position : m),
+              -1,
+            );
+            const nextSchedId = mintAgentUuid();
+            await tx.readwrite('schedule_items').put({
+              id: nextSchedId,
+              date: dateKey,
+              noteId,
+              pageId: targetPage.id,
+              ...(note.notebookId ? { sourceNotebookId: note.notebookId } : {}),
+              fallbackTitle: note.title,
+              position: maxSchedPos + 1,
+              status: 'planned',
+              createdAt: now,
+              updatedAt: now,
+            });
+            scheduleItemId = nextSchedId;
+          }
+        } catch {
+          // Optional store on minimal mocks
+        }
       }
 
       return {
@@ -482,6 +537,7 @@ export async function upsertNoteInStorage(
         effortSlugs: [...allEffortSlugs],
         equipmentSlugs: [...allEquipSlugs],
         tagLabels: extractedTags.map((t) => t.label),
+        ...(scheduleItemId ? { scheduleItemId } : {}),
       };
     },
   );
@@ -497,6 +553,7 @@ export async function deleteNoteFromStorage(storage: IStorage, noteId: string): 
       'block_efforts',
       'block_equipment',
       'page_notes',
+      'schedule_items',
       'notebook_links',
       'meta',
     ],
@@ -523,6 +580,13 @@ export async function deleteNoteFromStorage(storage: IStorage, noteId: string): 
       }
       for (const pn of await tx.readonly('page_notes').getAllFromIndex('by-note', noteId)) {
         await tx.readwrite('page_notes').delete(pn.id);
+      }
+      try {
+        for (const sched of await tx.readonly('schedule_items').getAllFromIndex('by-note', noteId)) {
+          await tx.readwrite('schedule_items').delete(sched.id);
+        }
+      } catch {
+        // Optional index on minimal mocks
       }
       try {
         for (const nl of await tx.readonly('notebook_links').getAllFromIndex('by-note', noteId)) {

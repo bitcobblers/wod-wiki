@@ -1,7 +1,7 @@
 import type { BlockIndexRow, Note, Page, PageNote, Tag } from './entities';
 import { validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 
-export const DOMAIN_PROJECTION_VERSION = 4;
+export const DOMAIN_PROJECTION_VERSION = 5;
 
 export type DomainPredicate =
   | { field: 'id' | 'noteId' | 'type' | 'source' | 'tags' | 'effort'; values: string[]; negate?: boolean }

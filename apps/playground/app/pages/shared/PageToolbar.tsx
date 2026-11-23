@@ -87,7 +87,7 @@ export function PageDownloadAction({
         closeDrawer()
         downloadMarkdown(currentWorkout, onDownload)
       }}
-      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 max-lg:min-h-11 text-left text-[13px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
     >
       <ArrowDownTrayIcon className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate">Download Markdown</span>

@@ -405,8 +405,8 @@ export function buildSessionLogs(session: SampleSession): StoredOutputStatement[
   const acwr = round1(0.85 + dayPhase(5) * 0.4);
 
   push('Readiness', readiness, 'pts', 'calc.readiness', { intensityTier: sessionIntensity });
-  push('HRV', hrvMs, 'pts', 'calc.hrv', { intensityTier: sessionIntensity });
-  push('Sleep', sleepHours, 'pts', 'calc.sleep', { intensityTier: sessionIntensity });
+  push('HRV', hrvMs, 'ms', 'calc.hrv', { intensityTier: sessionIntensity });
+  push('Sleep', sleepHours, 'h', 'calc.sleep', { intensityTier: sessionIntensity });
   push('Soreness', soreness, 'rating', 'calc.soreness', { intensityTier: sessionIntensity });
   push('Monotony', monotony, 'ratio', 'calc.monotony', { intensityTier: sessionIntensity });
   push('ACWR', acwr, 'ratio', 'calc.acwr', { intensityTier: sessionIntensity });

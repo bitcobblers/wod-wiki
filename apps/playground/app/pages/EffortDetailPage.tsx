@@ -14,10 +14,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
-import {
-  DocumentDuplicateIcon,
-} from '@heroicons/react/20/solid';
-import { Eye, Trash2 } from 'lucide-react';
+import { Copy, Eye, Trash2 } from 'lucide-react';
 import {
   listScopedPropertyOverrides,
   makeScopedOverrideId,
@@ -50,19 +47,22 @@ import { JournalPageShell } from '@/panels/page-shells';
 import type { ScriptBlock } from '@/components/Editor/types';
 import type { Session } from '@/types/storage';
 import { storageService } from '@/services/storage';
+import { useColdRouteResolution } from '../hooks/useColdRouteResolution';
 import { useEffortContent } from '../hooks/useEffortContent';
 import { useEditorSave } from '../hooks/useEditorSave';
 import { useNotePageNav } from './shared/useNotePageNav';
 import {
   NoteContextNav,
   noteOwnership,
+  notesFacetFilterPath,
   useNoteContextLinks,
+  type ContextNoteLink,
 } from './shared/noteContextLinks';
+import { PageActions } from './shared/PageActions';
 import { useScriptBlockCommands } from '../hooks/useScriptBlockCommands';
 import { useEffortRegistry } from '../contexts/EffortRegistryContext';
 import { EffortResolver, addAliasToEffort, type IEffort, type ResolvedEffort } from '@bitcobblers/wod-wiki-lang';
 import { effortsPath, parseEffortRouteOptions, effortPath, dayPath } from '../lib/routes';
-import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import type { MenuSpec } from '../nav/menuModel';
 import { toast } from '@/hooks/use-toast';
 import { TEST_IDS } from '@/lib/testIds';
@@ -132,7 +132,7 @@ export function EffortDetailPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const actualTheme = theme === 'dark' ? 'dark' : 'vs';
-  const { registry, isReady, refresh } = useEffortRegistry();
+  const { registry, isReady, revision, refresh } = useEffortRegistry();
 
   const {
     document,
@@ -350,7 +350,7 @@ export function EffortDetailPage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    return effortToDocument(blank);
+    return `${effortToDocument(blank)}\n\n`;
   });
   const createDocumentRef = useRef(createDocument);
   const handleCreateDocumentChange = useCallback((next: string) => {
@@ -359,10 +359,15 @@ export function EffortDetailPage() {
   }, []);
   const [showAliasLinking, setShowAliasLinking] = useState(false);
   const [selectedTargetSlug, setSelectedTargetSlug] = useState<string>('');
+  const { isSettling } = useColdRouteResolution({
+    loading: isLoading || isScopedPending,
+    missing: !effort && !error && notFound,
+  });
+
   const existingEfforts = useMemo(() => {
     if (!registry) return [];
     return [...registry.list()].sort((a, b) => a.label.localeCompare(b.label));
-  }, [registry]);
+  }, [registry, revision]);
 
   const handleLinkAlias = useCallback(async () => {
     if (!slug || !selectedTargetSlug || !registry) return;
@@ -487,9 +492,8 @@ export function EffortDetailPage() {
   }, [effort, navigate]);
 
   // ── L3 nav from document content ─────────────────────────────────────────
-  // Whiteboard effort L3: Clone (read-only), Show Resolved, Copy link after
-  // the outline. `key` republishes when the effort loads so Clone's closure
-  // never stays null.
+  // Grouped L3 Actions: Primary Override, Author Show Resolved / Add widget,
+  // Organize Clone / Global Definition, Share Copy link, Danger Delete.
   const handleCopyLink = useCallback(() => {
     void navigator.clipboard?.writeText(window.location.href)
   }, [])
@@ -502,16 +506,84 @@ export function EffortDetailPage() {
     results,
     enableUnrecognizedActions: false,
     helpfulActions: [
-      ...(effort && !activeIsEditable ? [{ id: 'clone', label: 'Clone', onRun: () => void handleClone(), key: effort.slug }] : []),
-      ...(effort ? [{ id: 'add-widget', label: 'Add widget', onRun: () => setWidgetComposerOpen(true) }] : []),
-      ...(resolved ? [{ id: 'show-resolved', label: showResolved ? 'Hide Resolved' : 'Show Resolved', onRun: () => setShowResolved(v => !v) }] : []),
-      ...(effort && activeIsEditable ? [{ id: 'delete', label: 'Delete', onRun: () => setConfirmDeleteOpen(true), key: `${effort.slug}:delete` }] : []),
-      { id: 'copy-link', label: 'Copy link', onRun: handleCopyLink },
+      ...(effort
+        ? [
+            {
+              id: 'override',
+              label: !activeIsEditable ? 'Override Effort' : 'Override Scope',
+              testId: TEST_IDS.L3_EFFORT_OVERRIDE,
+              group: 'primary' as const,
+              onRun: () => setOverrideSheetOpen(true),
+            },
+          ]
+        : []),
+      ...(resolved
+        ? [
+            {
+              id: 'show-resolved',
+              label: showResolved ? 'Hide Resolved' : 'Show Resolved',
+              icon: Eye,
+              testId: TEST_IDS.L3_EFFORT_SHOW_RESOLVED,
+              group: 'author' as const,
+              onRun: () => setShowResolved(v => !v),
+            },
+          ]
+        : []),
+      ...(effort
+        ? [
+            {
+              id: 'add-widget',
+              label: 'Add widget',
+              group: 'author' as const,
+              onRun: () => setWidgetComposerOpen(true),
+            },
+          ]
+        : []),
+      ...(effort && !activeIsEditable
+        ? [
+            {
+              id: 'clone',
+              label: 'Clone to my catalog',
+              icon: Copy,
+              testId: TEST_IDS.EFFORT_DETAIL_CLONE_BTN,
+              group: 'organize' as const,
+              onRun: () => void handleClone(),
+              key: effort.slug,
+            },
+          ]
+        : []),
+      ...(effort && scopedNotebookId
+        ? [
+            {
+              id: 'global-definition',
+              label: 'Global Definition',
+              group: 'organize' as const,
+              onRun: () => void navigate(effortPath(effort.slug)),
+            },
+          ]
+        : []),
+      { id: 'copy-link', label: 'Copy link', group: 'share' as const, onRun: handleCopyLink },
+      ...(effort && activeIsEditable
+        ? [
+            {
+              id: 'delete',
+              label: 'Delete effort',
+              icon: Trash2,
+              testId: TEST_IDS.EFFORT_DETAIL_DELETE_BTN,
+              group: 'danger' as const,
+              onRun: () => {
+                setDeleteError(null);
+                setConfirmDeleteOpen(true);
+              },
+              key: `${effort.slug}:delete`,
+            },
+          ]
+        : []),
     ],
   });
 
-  // ── Contextual links: back to the catalog (history state intact) + journal
-  // copies stamped with /e/<slug> + workouts whose scripts use this effort.
+  // ── Contextual links: guaranteed `< Efforts` parent fallback even for
+  // UUID-backed seed records, plus journal copies & capped Used in rows.
   const ownerNoteId = scopedNotebookId
     ? (scopedOwnerNoteId ?? `override/${notebookSlugFromId(scopedNotebookId)}/effort/${slug}`)
     : (effort?.ownerNoteId ?? `effort/${slug}`);
@@ -519,9 +591,17 @@ export function EffortDetailPage() {
     () => slug ? noteOwnership({ id: ownerNoteId, type: 'note' }) : null,
     [slug, ownerNoteId],
   );
+  const parentLink: ContextNoteLink = useMemo(
+    () => ownership?.up ?? { id: 'efforts', title: 'Efforts', to: effortsPath() },
+    [ownership?.up],
+  );
+  const stamps = useMemo(
+    () => (ownership?.stamps.length ? ownership.stamps : slug ? [effortPath(slug)] : []),
+    [ownership?.stamps, slug],
+  );
   const contextData = useNoteContextLinks({
     noteId: ownerNoteId,
-    stamps: ownership?.stamps ?? [],
+    stamps,
     effortSlug: slug,
   });
   // Whiteboard effort L2: recent efforts last.
@@ -603,6 +683,7 @@ export function EffortDetailPage() {
     return (
       <div data-testid={TEST_IDS.EFFORT_DETAIL_ROOT} className="contents">
         <JournalPageShell
+          parent={{ label: 'Efforts', to: effortsPath() }}
           title={slug && slug !== 'new' ? `New effort: ${slug}` : 'Create Custom Effort'}
           actions={createActions}
           editor={
@@ -627,9 +708,9 @@ export function EffortDetailPage() {
     );
   }
 
-  if (isLoading || isScopedPending) {
+  if (isLoading || isScopedPending || ((notFound || !effort) && isSettling && !error)) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div role="status" className="flex items-center justify-center py-20">
         <div className="animate-pulse h-4 w-32 bg-muted rounded" />
       </div>
     );
@@ -734,77 +815,17 @@ export function EffortDetailPage() {
     );
   }
 
+  const sourceLabel = scopedNotebookId
+    ? `Scoped · ${notebookSlugFromId(scopedNotebookId)}`
+    : effort.registrySource === 'bundled'
+      ? 'Bundled'
+      : 'Custom';
+
   // ── Actions bar (rendered by JournalPageShell actions prop) ──────────────
-  // Whiteboard effort sticky: Clone, Show Resolved, Cast — Back became the
-  // L2 Up link (NoteContextNav "Up" section).
-  const pageActions = (
-    <div className="flex items-center gap-2">
-      <ResponsiveActions
-        navbar={
-          <Button
-            type="button"
-            variant={!activeIsEditable ? 'default' : 'outline'}
-            onClick={() => setOverrideSheetOpen(true)}
-            data-testid="effort-detail-override-btn"
-            className="max-lg:min-h-11 max-lg:px-3 whitespace-nowrap"
-          >
-            {!activeIsEditable ? 'Override' : 'Override Scope'}
-          </Button>
-        }
-        primary={!activeIsEditable ? (
-          <Button type="button" variant="outline" onClick={handleClone} data-testid={TEST_IDS.EFFORT_DETAIL_CLONE_BTN}>
-            <DocumentDuplicateIcon className="size-4 mr-1.5" />
-            Clone
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => {
-              setDeleteError(null);
-              setConfirmDeleteOpen(true);
-            }}
-            data-testid={TEST_IDS.EFFORT_DETAIL_DELETE_BTN}
-          >
-            <Trash2 className="size-4 mr-1.5" />
-            Delete
-          </Button>
-        )}
-      >
-        <Badge
-          data-testid={TEST_IDS.EFFORT_DETAIL_SOURCE}
-          variant={!activeIsEditable ? 'secondary' : 'default'}
-        >
-          {scopedNotebookId
-            ? `Scoped · ${notebookSlugFromId(scopedNotebookId)}`
-            : effort.registrySource === 'bundled'
-              ? 'Bundled'
-              : 'Custom'}
-        </Badge>
-        {scopedNotebookId && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate(effortPath(effort.slug))}
-            data-testid="effort-detail-global-link"
-          >
-            Global Definition
-          </Button>
-        )}
-        {resolved && (
-          <Button
-            type="button"
-            variant={showResolved ? 'default' : 'outline'}
-            onClick={() => setShowResolved(v => !v)}
-          >
-            <Eye className="size-4 mr-1.5" />
-            {showResolved ? 'Hide Resolved' : 'Show Resolved'}
-          </Button>
-        )}
-      </ResponsiveActions>
-      <CastButtonRpc />
-    </div>
-  );
+  // Clean detail StickyPageHeader: < Parent + Title + Cast + passive Sync +
+  // <2xl L3DrawerTrigger ONLY. Override, Clone, Show Resolved, and Delete live
+  // exclusively in grouped L3 Actions.
+  const pageActions = <PageActions mode="notebook-readonly" index={[]} />;
 
   const noteId = ownerNoteId;
 
@@ -812,11 +833,20 @@ export function EffortDetailPage() {
   return (
     <div data-testid={TEST_IDS.EFFORT_DETAIL_ROOT} className="contents">
       <JournalPageShell
+        parent={{ label: parentLink.title, to: parentLink.to ?? effortsPath() }}
         title={effort.label}
         titleTestId={TEST_IDS.EFFORT_DETAIL_LABEL}
         actions={pageActions}
         editor={
           <div className="relative" data-testid={TEST_IDS.EFFORT_DETAIL_NOTEBOOK_EDITOR}>
+            <div className="flex flex-wrap items-center gap-2 px-6 lg:px-10 pt-4">
+              <Badge
+                data-testid={TEST_IDS.EFFORT_DETAIL_SOURCE}
+                variant={!activeIsEditable ? 'secondary' : 'default'}
+              >
+                {sourceLabel}
+              </Badge>
+            </div>
             {/* Resolved view inline widget */}
             {showResolved && resolved && (
               <div className="px-6 lg:px-10 pt-4">
@@ -841,7 +871,14 @@ export function EffortDetailPage() {
               commands={commands}
               onBlocksChange={setScriptBlocks}
             />
-            <NoteContextNav data={contextData} up={ownership?.up} relatedLabel="Used in" trailingSections={trailingSections} />
+            <NoteContextNav
+              data={contextData}
+              up={parentLink}
+              relatedLabel="Used in"
+              relatedViewAllTo={slug ? notesFacetFilterPath('effort', slug) : undefined}
+              currentPath={slug ? effortPath(slug) : undefined}
+              trailingSections={trailingSections}
+            />
           </div>
         }
       />

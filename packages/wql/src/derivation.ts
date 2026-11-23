@@ -226,7 +226,7 @@ function firstEffortSlug(metrics: StoredOutputStatement['metrics']): string | un
  * a timeSpan carry per-metric temporal anchors ('instant') so projection
  * groups each observation under its own date.
  */
-const PLUMBING_OUTPUT_TYPES = new Set(['load', 'compiler', 'system', 'event']);
+const PLUMBING_OUTPUT_TYPES = new Set(['load', 'compiler', 'system', 'event', 'analytics']);
 
 export function toEventRows(
   logs: readonly StoredOutputStatement[],

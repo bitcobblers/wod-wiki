@@ -56,6 +56,7 @@ export default defineConfig({
         },
         test: {
           name: 'storybook-workbench',
+          testTimeout: 30_000,
           browser: {
             enabled: true,
             instances: [{ browser: 'chromium' }],

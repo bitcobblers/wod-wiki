@@ -48,6 +48,34 @@
   box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.24);
   border-radius: 3px;
 }
+/* Inside WOD blocks, use a subtle full-width tonal highlight without inset box borders
+   so the block perimeter and rounded corners stay unbroken. */
+.cm-note-editor .cm-editor.cm-focused .cm-wod-inner.cm-activeLine,
+.cm-note-editor[data-mobile-editing="true"] .cm-wod-inner.cm-activeLine {
+  background-color: hsl(var(--primary) / 0.08);
+  box-shadow: none;
+  border-radius: 0;
+}
+.cm-note-editor .cm-editor.cm-focused .cm-wod-inner.cm-wod-block-log.cm-activeLine,
+.cm-note-editor[data-mobile-editing="true"] .cm-wod-inner.cm-wod-block-log.cm-activeLine {
+  background-color: hsl(var(--metric-effort) / 0.09);
+}
+.cm-note-editor .cm-editor.cm-focused .cm-wod-fence-open.cm-activeLine,
+.cm-note-editor[data-mobile-editing="true"] .cm-wod-fence-open.cm-activeLine {
+  background-color: color-mix(in srgb, hsl(var(--primary)) 10%, hsl(var(--muted) / 0.88));
+  box-shadow: none;
+  border-radius: 10px 10px 0 0;
+}
+.cm-note-editor .cm-editor.cm-focused .cm-wod-fence-open.cm-wod-block-log.cm-activeLine,
+.cm-note-editor[data-mobile-editing="true"] .cm-wod-fence-open.cm-wod-block-log.cm-activeLine {
+  background-color: color-mix(in srgb, hsl(var(--metric-effort)) 10%, hsl(var(--muted) / 0.88));
+}
+.cm-note-editor .cm-editor.cm-focused .cm-wod-fence-close.cm-activeLine,
+.cm-note-editor[data-mobile-editing="true"] .cm-wod-fence-close.cm-activeLine {
+  background-color: hsl(var(--primary) / 0.08);
+  box-shadow: none;
+  border-radius: 0 0 10px 10px;
+}
 .cm-note-editor[data-mobile-editing="true"] .cm-selectionBackground {
   background-color: hsl(var(--primary) / 0.18);
 }
@@ -59,6 +87,12 @@
   }
   .cm-note-editor .cm-content {
     line-height: 24px;
+  }
+  /* Reserve room for 44px mobile header touch targets inside the opening fence bar. */
+  .cm-note-editor .cm-wod-fence-open {
+    padding-top: 13px;
+    padding-bottom: 13px;
+    padding-right: 140px;
   }
 
   html[data-mobile-editor-open="true"] {
@@ -573,4 +607,99 @@
   .timer-surface-flash {
     animation: none;
   }
+}
+
+/* L2 context sidebar hierarchy: pin calendar first when present and distinguish sections/links. */
+.l2-sidebar-body > .pt-1 > .flex.flex-col {
+  gap: 0;
+}
+.l2-sidebar-body > .pt-1 > .flex.flex-col > div:has([data-slot="calendar"]) {
+  order: -1;
+  padding: 0 0 8px;
+  margin: 0;
+}
+.l2-sidebar-body > .pt-1 > .flex.flex-col:has([data-slot="calendar"]) > div:not(:has([data-slot="calendar"])),
+.l2-sidebar-body > .pt-1 > .flex.flex-col:not(:has([data-slot="calendar"])) > div + div {
+  margin-top: 14px;
+}
+/* Lift L2 sidebar accordion triggers and micro-labels to >=12px and WCAG AA (>=4.5:1) contrast. */
+.l2-sidebar-body [data-collapsible-trigger],
+.l2-sidebar-body button.text-\[10px\],
+.l2-sidebar-body div.text-\[10px\] {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.12em;
+  color: hsl(var(--muted-foreground));
+}
+.l2-sidebar-body span.text-\[9px\],
+.l2-sidebar-body span.text-\[10px\] {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: hsl(var(--muted-foreground));
+}
+.l2-sidebar-body > .pt-1 > .flex.flex-col > div:not(:has([data-slot="calendar"])) button.text-left {
+  background-color: hsl(var(--muted) / 0.42);
+  color: hsl(var(--foreground));
+  font-weight: 500;
+  padding: 7px 10px;
+  border-radius: 8px;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.l2-sidebar-body > .pt-1 > .flex.flex-col > div:not(:has([data-slot="calendar"])) button.text-left.text-primary {
+  background-color: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+  font-weight: 600;
+}
+.l2-sidebar-body > .pt-1 > .flex.flex-col > div:not(:has([data-slot="calendar"])) button.text-left:hover {
+  background-color: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}
+
+/* StickyPageHeader desktop action toolbar: compact 34px controls, quiet ghost secondaries, leading metadata badge. */
+.sph-actions .flex {
+  gap: 4px;
+}
+.sph-actions [data-slot="button"] {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 11px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  gap: 6px;
+}
+.sph-actions [data-slot="button"][data-size="icon"] {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  color: hsl(var(--muted-foreground));
+}
+.sph-actions [data-slot="button"][data-size="icon"]:hover {
+  color: hsl(var(--foreground));
+}
+.sph-actions [data-slot="button"] > svg {
+  width: 15px;
+  height: 15px;
+  margin-right: 0;
+}
+.sph-actions [data-slot="button"]:not([data-variant="solid"]):not([data-variant="destructive"]):not([aria-pressed="true"]):not([data-active="true"]) {
+  border-color: transparent;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+}
+.sph-actions [data-slot="button"]:not([data-variant="solid"]):not([data-variant="destructive"]):not([aria-pressed="true"]):not([data-active="true"]):hover {
+  background: hsl(var(--muted) / 0.75);
+  color: hsl(var(--foreground));
+}
+.sph-actions [data-slot="badge"] {
+  order: -1;
+  margin-right: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: hsl(var(--muted) / 0.6);
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  font-weight: 600;
 }

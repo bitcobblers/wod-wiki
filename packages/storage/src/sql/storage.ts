@@ -308,9 +308,11 @@ class SqlStore<T> implements IReadWriteStore<T> {
     this.assertMutable();
     const stored = this.owner.stamp(this.store, value) as T;
     const key = keyFromValue(this.def, stored);
-    if (this.store === 'block_revisions') {
+    if (this.store === 'block_revisions' || this.store === 'note_revisions') {
       const previous = this.buffer?.get(bufferSlot(this.store, key));
-      if (previous?.kind === 'put' && !rowsEqual(previous.value, stored)) throw new StorageError(409, 'immutable block revision collision', 'revision_conflict');
+      if (previous?.kind === 'put' && !rowsEqual(previous.value, stored)) {
+        throw new StorageError(409, this.store === 'note_revisions' ? 'immutable note revision collision' : 'immutable block revision collision', 'revision_conflict');
+      }
     }
     if (this.buffer) {
       this.buffer.set(bufferSlot(this.store, key), { kind: 'put', value: stored });
@@ -325,12 +327,14 @@ class SqlStore<T> implements IReadWriteStore<T> {
     this.assertMutable();
     const stored = values.map(value => this.owner.stamp(this.store, value) as T);
     const keys = stored.map(value => keyFromValue(this.def, value));
-    if (this.store === 'block_revisions') {
+    if (this.store === 'block_revisions' || this.store === 'note_revisions') {
       const seen = new Map<string, unknown>();
       keys.forEach((key, i) => {
         const slot = bufferSlot(this.store, key), previous = this.buffer?.get(slot);
         const value = seen.has(slot) ? seen.get(slot) : previous?.kind === 'put' ? previous.value : undefined;
-        if (value !== undefined && !rowsEqual(value, stored[i])) throw new StorageError(409, 'immutable block revision collision', 'revision_conflict');
+        if (value !== undefined && !rowsEqual(value, stored[i])) {
+          throw new StorageError(409, this.store === 'note_revisions' ? 'immutable note revision collision' : 'immutable block revision collision', 'revision_conflict');
+        }
         seen.set(slot, stored[i]);
       });
     }
@@ -342,7 +346,7 @@ class SqlStore<T> implements IReadWriteStore<T> {
   async delete(key: IDBValidKey | IDBKeyRange | RangeDTO): Promise<void> {
     await this.owner.ensureReady();
     this.assertMutable();
-    if (this.store === 'block_revisions') throw new StorageError(409, 'block history requires explicit wipe', 'revision_conflict');
+    if (this.store === 'block_revisions' || this.store === 'note_revisions') throw new StorageError(409, 'block history requires explicit wipe', 'revision_conflict');
     const range = isRange(key) ? key : undefined;
     const target = range ?? (key as KeyDTO);
     if (this.buffer) {
@@ -363,7 +367,7 @@ class SqlStore<T> implements IReadWriteStore<T> {
   async clear(): Promise<void> {
     await this.owner.ensureReady();
     this.assertMutable();
-    if (this.store === 'block_revisions') throw new StorageError(409, 'block history requires explicit wipe', 'revision_conflict');
+    if (this.store === 'block_revisions' || this.store === 'note_revisions') throw new StorageError(409, 'block history requires explicit wipe', 'revision_conflict');
     if (this.buffer) {
       this.cleared?.add(this.store);
       const prefix = `${this.store}\u0000`;

@@ -146,6 +146,20 @@ describe('installModelContextExecuteToolAdapter (WW-025)', () => {
       path: '/journal?q=test#top',
     });
   });
+
+  it('installs a callTool alias that normalizes (name, args) and { name, arguments } (WW-112)', async () => {
+    const tools = [makeRegisteredTool('ui_navigate')];
+    const { mc, calls } = makeFakeModelContext(tools);
+    installModelContextExecuteToolAdapter(mc);
+    const mcWithCall = mc as typeof mc & { callTool?: (...args: unknown[]) => Promise<string> };
+
+    expect(typeof mcWithCall.callTool).toBe('function');
+    await mcWithCall.callTool!('ui_navigate', { path: '/notes' });
+    await mcWithCall.callTool!({ name: 'ui_navigate', arguments: { path: '/efforts' } });
+    expect(calls).toHaveLength(2);
+    expect(calls[0].args[1]).toEqual({ path: '/notes' });
+    expect(calls[1].args[1]).toEqual({ path: '/efforts' });
+  });
 });
 
 describe('PlaygroundAgentProvider modelContext wiring (WW-025)', () => {
@@ -154,9 +168,10 @@ describe('PlaygroundAgentProvider modelContext wiring (WW-025)', () => {
     const navAny = navigator as unknown as Record<string, unknown>;
     delete docAny.modelContext;
     delete navAny.modelContext;
+    delete navAny.modelContextTesting;
   });
 
-  it('wraps document.modelContext (and a distinct navigator.modelContext) on mount', async () => {
+  it('wraps document.modelContext (and a distinct navigator.modelContext) and exposes navigator.modelContextTesting on mount (WW-112)', async () => {
     const docTools = [makeRegisteredTool('ui_preferences')];
     const navTools = [makeRegisteredTool('ui_navigate')];
     const docFake = makeFakeModelContext(docTools);
@@ -177,6 +192,18 @@ describe('PlaygroundAgentProvider modelContext wiring (WW-025)', () => {
       await expect(navFake.mc.executeTool('ui_navigate', { path: '/journal' })).resolves.toBeTruthy();
       expect(navFake.calls[0].args[0]).toBe(navTools[0]);
       expect(navFake.calls[0].args[1]).toEqual({ path: '/journal' });
+
+      const testing = (navigator as Navigator & {
+        modelContextTesting?: {
+          listTools: () => Promise<FakeRegisteredTool[]>;
+          executeTool: (...args: unknown[]) => Promise<string>;
+          callTool: (...args: unknown[]) => Promise<string>;
+        };
+      }).modelContextTesting;
+      expect(testing).toBeDefined();
+      expect(await testing!.listTools()).toEqual(navTools);
+      await expect(testing!.callTool('ui_navigate', { path: '/dashboards' })).resolves.toBeTruthy();
+      expect(navFake.calls[1].args[1]).toEqual({ path: '/dashboards' });
     } finally {
       await host?.cleanup();
     }

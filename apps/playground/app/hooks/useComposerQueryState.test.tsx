@@ -148,4 +148,36 @@ describe('useComposerQueryState', () => {
       window.history.replaceState(null, '', '/journal')
     }
   })
+
+  it('salvages plain-text ?q= params across URL navigation and popstate (WW-089)', async () => {
+    const legacy = {
+      keys: [] as const,
+      toQuery: () => null,
+      salvageQ: (q: string) => (/[:{}|]/.test(q) ? null : `:note{text:${q.trim()}}`),
+    }
+    let nav: ReturnType<typeof useNavigate>
+    let state!: ComposerQueryState
+    function SalvageProbe() {
+      state = useComposerQueryState({ defaultQuery: DEFAULT_QUERY, legacy })
+      nav = useNavigate()
+      return (
+        <div>
+          <output data-testid="salvaged-query">{state.query}</output>
+          <output data-testid="salvaged-error">{state.urlQueryError ?? ''}</output>
+        </div>
+      )
+    }
+    render(
+      <MemoryRouter initialEntries={['/notes']}>
+        <SalvageProbe />
+      </MemoryRouter>,
+    )
+    expect(screen.getByTestId('salvaged-query').textContent).toBe(':note')
+
+    act(() => {
+      void nav('/notes?q=kettlebell')
+    })
+    await waitFor(() => expect(screen.getByTestId('salvaged-query').textContent).toBe(':note{text:kettlebell}'))
+    expect(screen.getByTestId('salvaged-error').textContent).toBe('')
+  })
 })

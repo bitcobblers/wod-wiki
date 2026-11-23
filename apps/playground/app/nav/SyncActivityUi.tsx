@@ -49,7 +49,7 @@ export function SyncActivityIndicators() {
         >
           <Download className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />
           {activity.downloading > 1 && (
-            <span className="text-[10px] tabular-nums">{activity.downloading}</span>
+            <span className="text-[11px] tabular-nums">{activity.downloading}</span>
           )}
         </span>
       )}
@@ -61,7 +61,7 @@ export function SyncActivityIndicators() {
         >
           <Upload className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />
           {activity.uploading > 1 && (
-            <span className="text-[10px] tabular-nums">{activity.uploading}</span>
+            <span className="text-[11px] tabular-nums">{activity.uploading}</span>
           )}
         </span>
       )}
@@ -94,8 +94,8 @@ function notifyResult(result: NonNullable<SyncActivitySnapshot['result']>, navig
   toast({
     title: `${result.source} sync complete`,
     description: parts.length > 0
-      ? `${parts.join(', ')} — feeds can be refreshed anytime.`
-      : 'Nothing new — feeds can be refreshed anytime.',
+      ? `${parts.join(', ')}. Feeds can be refreshed anytime.`
+      : 'Nothing new. Feeds can be refreshed anytime.',
     action: {
       label: 'Open notebooks',
       onAction: () => navigate('/notebooks'),

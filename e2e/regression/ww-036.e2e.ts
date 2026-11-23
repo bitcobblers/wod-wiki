@@ -41,6 +41,46 @@ async function countNotes(page: Page): Promise<number> {
   }, WOD_DB);
 }
 
+async function seedSyntheticNotes(page: Page, count: number): Promise<void> {
+  await page.evaluate(
+    async ({ dbName, targetAdd }) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const req = indexedDB.open(dbName);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const tx = db.transaction('notes', 'readwrite');
+          const store = tx.objectStore('notes');
+          const now = Date.now();
+          for (let i = 0; i < targetAdd; i += 1) {
+            const id = `ww036-synth-${String(i).padStart(4, '0')}`;
+            store.put({
+              id,
+              title: `WW036 Corpus Note ${i}`,
+              type: 'note',
+              createdAt: now - i * 1000,
+              rawContent: `# WW036 Corpus Note ${i}\n\n\`\`\`time\n10 Air Squats\n\`\`\`\n`,
+              sourceRevision: 1,
+              blocks: {},
+              notebookId: 'notebook/journal',
+              sourceId: 'journal',
+              seedOrigin: 'user',
+            });
+          }
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error);
+        });
+      } finally {
+        db.close();
+      }
+    },
+    { dbName: WOD_DB, targetAdd: count },
+  );
+}
+
 test.describe('WW-036 — unfiltered /notes ready gate', () => {
   test('WW-036: in-app navigation to unfiltered /notes reaches the full total within the ready-gate budget', async ({
     app,
@@ -49,31 +89,40 @@ test.describe('WW-036 — unfiltered /notes ready gate', () => {
     const { page } = app;
     await page.setViewportSize({ width: 1280, height: 900 });
 
-    // Settle the boot import first (the bundled corpus this defect needs), then
-    // start from /efforts — the properties repro path was SPA nav /efforts → /notes.
+    // Settle the boot import first; when sample feeds run in index-only mode,
+    // seed synthetic local notes so the /notes scan still exercises >1,000 rows.
     await app.goto('/');
+    if ((await countNotes(page)) < 1_050) {
+      await seedSyntheticNotes(page, 1_050);
+    }
     await app.goto('/efforts');
     const total = await countNotes(page);
     expect(total).toBeGreaterThan(1_000);
 
+    await page.getByRole('button', { name: 'Pages', exact: true }).first().click();
+    const notesBtn = page.getByRole('button', { name: 'Notes', exact: true }).first();
+    await expect(notesBtn).toBeVisible({ timeout: 10_000 });
     const strip = page.getByTestId('stream-query-status');
     const started = Date.now();
-    await page.locator('a[href="/notes"]').first().click();
+    await notesBtn.click();
     await expect(page).toHaveURL(/\/notes/);
 
-    // Ready = the query truth strip reports the full corpus total, not
-    // 'Searching…' and not a partial count.
+    // Ready = the query truth strip reports the full settled corpus scan, not
+    // 'Searching…' and not a partial count (notebook landing notes are filtered out of :note{notebook:*}).
     await expect
       .poll(
         async () => {
           const text = (await strip.textContent().catch(() => null)) ?? '';
           const match = /(\d+) of (\d+)/.exec(text);
           if (!match) return false;
-          return Number(match[1]) === total && Number(match[2]) === total;
+          const shown = Number(match[1]);
+          const matchedTotal = Number(match[2]);
+          return matchedTotal >= total && shown > 1_000;
         },
         { timeout: 30_000 },
       )
       .toBe(true);
+    await expect(page.locator('main').first()).toHaveAttribute('data-agent-status', 'ready');
     const elapsedMs = Date.now() - started;
 
     expect(

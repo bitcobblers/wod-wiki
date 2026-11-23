@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import type { EventRecord } from '@bitcobblers/wod-wiki-core';
-import { QueryService, type NoteQueryStore, type EventStore } from '../src/QueryService';
+import { QueryService, computeRowsRunSummary, type NoteQueryStore, type EventStore } from '../src/QueryService';
 import { parseQuery } from '../src/wql';
 
 const DAY = 86_400_000;
@@ -646,5 +646,55 @@ describe('the notebook plane (ticket 08)', () => {
     // Explicit subscribed:true,false
     const allRes = await s.runFind(parseQuery(':notebook{subscribed:true,false}') as never);
     expect(allRes.notes.map(n => n.id)).toEqual(['user-note', 'sub-note', 'unsub-note']);
+  });
+
+  it('WW-116 & WW-051: computeRowsRunSummary deduplicates TIS/sessionLoad and treats unitless Elapsed/Duration as ms', () => {
+    const summary = computeRowsRunSummary({
+      resultId: 'run-dedupe-1',
+      noteId: 'n1',
+      timestamp: 1_700_000_000_000,
+      events: [
+        {
+          id: 'seg-1',
+          resultId: 'run-dedupe-1',
+          noteId: 'n1',
+          timestamp: 1_700_000_000_000,
+          grain: 'event',
+          outputType: 'segment',
+          metrics: [
+            { type: 'effort', value: 'burpees', origin: 'parser' },
+            { type: 'elapsed', value: 45_000, origin: 'runtime' }, // unitless ms!
+          ],
+        },
+        {
+          id: 'legacy-evt-analytics',
+          resultId: 'run-dedupe-1',
+          noteId: 'n1',
+          timestamp: 1_700_000_000_000,
+          grain: 'event',
+          outputType: 'analytics',
+          metrics: [
+            { type: 'metric', value: 78.4, unit: 'pts', origin: 'analyzed', metadata: { canonicalKey: 'tis' } },
+            { type: 'metric', value: 112.5, unit: 'AU', origin: 'analyzed', metadata: { canonicalKey: 'sessionLoad' } },
+          ],
+        },
+        {
+          id: 'canonical-summary',
+          resultId: 'run-dedupe-1',
+          noteId: 'n1',
+          timestamp: 1_700_000_000_000,
+          grain: 'summary',
+          outputType: 'analytics',
+          metrics: [
+            { type: 'metric', value: 78.4, unit: 'pts', origin: 'analyzed', metadata: { canonicalKey: 'tis' } },
+            { type: 'metric', value: 112.5, unit: 'AU', origin: 'analyzed', metadata: { canonicalKey: 'sessionLoad' } },
+          ],
+        },
+      ],
+    });
+
+    expect(summary.elapsedMs).toBe(45_000);
+    expect(summary.tis).toBeCloseTo(78.4, 4);
+    expect(summary.sessionLoad).toBeCloseTo(112.5, 4);
   });
 });

@@ -12,6 +12,7 @@ import { useLocation } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 import {
   File,
+  FileQuestion,
   Rss,
 } from 'lucide-react'
 import { ROUTE_PATTERNS } from '../../lib/routes'
@@ -23,6 +24,13 @@ import type { NavItem, NavPanelProps } from '../navTypes'
 import { startsWithAny, guideChildrenFrom } from '../appNavTree'
 import { createConditionsNavPanel } from './ConditionsNavPanel'
 import type { CanvasRoute } from '../../canvas/canvasRoutes'
+
+const ORPHANED_NOTES_WQL = ':note{!notebook:*}'
+
+function isOrphanedNotesLocation(loc: Location): boolean {
+  if (loc.pathname !== ROUTE_PATTERNS.notes) return false
+  return new URLSearchParams(loc.search).get('q')?.trim() === ORPHANED_NOTES_WQL
+}
 
 export function pagesVariationChildren(canvasRoutes: CanvasRoute[] = []): NavItem[] {
   return [
@@ -41,7 +49,19 @@ export function pagesVariationChildren(canvasRoutes: CanvasRoute[] = []): NavIte
       icon: Rss,
       action: { type: 'route', to: ROUTE_PATTERNS.notes },
       isActive: (loc: Location) =>
-        loc.pathname === '/notes' || (loc.pathname.startsWith('/note/') && !loc.pathname.startsWith('/notebook')),
+        (loc.pathname === '/notes' && !isOrphanedNotesLocation(loc)) ||
+        (loc.pathname.startsWith('/note/') && !loc.pathname.startsWith('/notebook')),
+    },
+    {
+      id: 'pages-sub-orphaned-notes',
+      label: 'Orphaned notes',
+      level: 2,
+      icon: FileQuestion,
+      action: {
+        type: 'route',
+        to: `${ROUTE_PATTERNS.notes}?q=${encodeURIComponent(ORPHANED_NOTES_WQL)}`,
+      },
+      isActive: isOrphanedNotesLocation,
     },
     ...guideChildrenFrom(canvasRoutes),
   ]
@@ -49,13 +69,28 @@ export function pagesVariationChildren(canvasRoutes: CanvasRoute[] = []): NavIte
 
 export function createPagesZonePanel(canvasRoutes: CanvasRoute[] = []): (props: NavPanelProps) => React.ReactElement {
   const variations = pagesVariationChildren(canvasRoutes)
+  // Omit the landing route's own variation row so `/pages` never renders
+  // duplicate active rows (`All pages` + `All Pages`), and `/notes` / `/note/:id`
+  // never renders duplicate active rows (`All notes` + `Notes`).
+  const pagesExtras = variations.filter((item) => item.id !== 'pages-sub-all')
+  const notesExtrasWithNotes = variations.map((item) =>
+    item.id === 'pages-sub-notes'
+      ? {
+          ...item,
+          // Active state for the Notes stream is owned by NotesConditionsPanel's
+          // landing row; keep the extra link inactive to prevent dual highlight.
+          isActive: () => false,
+        }
+      : item,
+  )
+  const notesExtrasBase = variations.filter((item) => item.id !== 'pages-sub-notes')
 
   const PagesConditionsPanel = createConditionsNavPanel({
     landingLabel: 'All pages',
     icon: File,
     route: ROUTE_PATTERNS.pages,
     profile: PAGES_STREAM_PROFILE,
-    extraChildren: variations,
+    extraChildren: pagesExtras,
     familyActive: (loc: Location) => startsWithAny(loc.pathname, '/pages', '/page'),
   })
 
@@ -64,13 +99,27 @@ export function createPagesZonePanel(canvasRoutes: CanvasRoute[] = []): (props: 
     icon: Rss,
     route: ROUTE_PATTERNS.notes,
     profile: NOTES_STREAM_PROFILE,
-    extraChildren: variations,
+    extraChildren: notesExtrasBase,
     familyActive: (loc: Location) =>
-      loc.pathname === '/notes' || (loc.pathname.startsWith('/note/') && !loc.pathname.startsWith('/notebook')),
+      (loc.pathname === '/notes' && !isOrphanedNotesLocation(loc)) ||
+      (loc.pathname.startsWith('/note/') && !loc.pathname.startsWith('/notebook')),
+  })
+
+  const NotesFilteredConditionsPanel = createConditionsNavPanel({
+    landingLabel: 'All notes',
+    icon: Rss,
+    route: ROUTE_PATTERNS.notes,
+    profile: NOTES_STREAM_PROFILE,
+    extraChildren: notesExtrasWithNotes,
+    familyActive: (loc: Location) =>
+      loc.pathname === '/notes' && !isOrphanedNotesLocation(loc),
   })
 
   return function PagesZonePanel(props: NavPanelProps) {
     const location = useLocation()
+    if (isOrphanedNotesLocation(location)) {
+      return <NotesFilteredConditionsPanel {...props} />
+    }
     if (
       location.pathname === '/notes' ||
       (location.pathname.startsWith('/note/') && !location.pathname.startsWith('/notebook'))

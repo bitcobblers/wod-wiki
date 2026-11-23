@@ -6,6 +6,7 @@ import type { Entry } from '../../lib/entryMapper'
 import { StreamQueryEngine } from '../../lib/entrySearch'
 import * as toastModule from '@/hooks/use-toast'
 import * as feedSyncModule from '@/services/feed/feedSync'
+import * as feedCatalogModule from '@/services/feed/feedCatalog'
 import * as seedContentModule from '@/services/content/seedContent'
 import * as effortRegistryModule from '@/services/effortRegistry'
 import * as createPlaygroundPageModule from '../../services/createPlaygroundPage'
@@ -192,7 +193,7 @@ describe('QueriableStreamView component', () => {
     },
   ]
 
-  it('renders the sticky header without a page title — the query bar fills the row', async () => {
+  it('renders a semantic h1 while the query bar fills the sticky header row', async () => {
     const engine = createMockEngine([])
 
     render(
@@ -202,7 +203,8 @@ describe('QueriableStreamView component', () => {
     )
 
     expect(screen.getByTestId('queriable-stream-view')).toBeDefined()
-    expect(screen.queryByRole('heading')).toBeNull()
+    const h1 = screen.getByRole('heading', { level: 1, name: 'Efforts' })
+    expect(h1).toBeDefined()
     expect(screen.getByTestId('stream-query-bar')).toBeDefined()
   })
   it('renders entries in card stream layout by default', async () => {
@@ -303,8 +305,10 @@ describe('QueriableStreamView component', () => {
     expect(screen.getByText('Heavy pulls')).toBeDefined()
     expect(screen.getByText('Fran')).toBeDefined()
 
-    // The undated note is named, not dropped.
-    expect(screen.getByText('Undated · 1')).toBeDefined()
+    // The undated shelf defaults collapsed; expanding reveals the undated note.
+    const undatedBtn = screen.getByText('Undated · 1')
+    expect(undatedBtn).toBeDefined()
+    fireEvent.click(undatedBtn)
     expect(screen.getByText('No date yet')).toBeDefined()
   })
 
@@ -478,6 +482,7 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
 
+    fireEvent.click(screen.getByTestId('stream-view-popover-trigger'))
     fireEvent.click(await screen.findByTestId('save-stream-query'))
 
     expect(screen.getByTestId('widget-composer-subset').textContent).toBe(filteredQuery)
@@ -519,7 +524,8 @@ describe('QueriableStreamView component', () => {
       expect(screen.getByText('Fran Workout')).toBeDefined()
     })
 
-    const addButton = screen.getByTestId('action-add')
+    fireEvent.click(screen.getByTestId('library-row-overflow'))
+    const addButton = await waitFor(() => screen.getByTestId('action-add'))
     fireEvent.click(addButton)
     expect(handleAdd).toHaveBeenCalledTimes(1)
     expect(handleAdd.mock.calls[0][0].id).toBe('res-42')
@@ -562,7 +568,8 @@ describe('QueriableStreamView component', () => {
       expect(screen.getByText('Fran Workout')).toBeDefined()
     })
 
-    const addButton = screen.getByTestId('action-add')
+    fireEvent.click(screen.getByTestId('library-row-overflow'))
+    const addButton = await waitFor(() => screen.getByTestId('action-add'))
     fireEvent.click(addButton)
 
     await waitFor(() => {
@@ -573,7 +580,12 @@ describe('QueriableStreamView component', () => {
     expect(createCall.rawContent).toContain('Thrusters')
   })
 
-  it('publishes dynamic section links to NavContext and updates them when WQL grouping changes', async () => {
+  it('keeps resting L3 empty (0px) on streams and never publishes streamControls', async () => {
+    writeViewSettings('/journal', {
+      level: 'note',
+      layout: 'cards',
+      visibleFields: ['title'],
+    })
     const datedEntries: Entry[] = [
       {
         id: 'note-1',
@@ -584,25 +596,17 @@ describe('QueriableStreamView component', () => {
         date: '2026-09-04',
         effort: { slug: 'fran', label: 'Fran', discipline: 'gymnastics' },
       },
-      {
-        id: 'note-2',
-        kind: 'note',
-        sourceNotebook: 'canonical',
-        sourceNote: 'item-2',
-        title: 'Workout 2',
-        date: '2026-08-15',
-        effort: { slug: 'grace', label: 'Grace', discipline: 'strength' },
-      },
     ]
 
-    let capturedLinks: NavItemL3[] = []
+    let capturedLinks: NavItemL3[] = [{ id: 'stale', label: 'Stale', level: 3, action: { type: 'scroll', sectionId: 'stale' } }]
     const setL3Items = mock((items: NavItemL3[]) => {
       capturedLinks = items
     })
+    const setStreamControls = mock((_c: StreamNavControls | null) => {})
 
     const engine = createMockEngine(datedEntries)
 
-    const { unmount } = render(
+    render(
       <MemoryRouter initialEntries={['/journal']}>
         <NavContext.Provider
           value={{
@@ -614,6 +618,10 @@ describe('QueriableStreamView component', () => {
             scrollToSection: () => {},
             registerScrollFn: () => {},
             setContextNav: () => {},
+            setStreamControls,
+            setSecondarySpec: () => {},
+            openCreateJournal: () => {},
+            registerCreateJournal: () => {},
           }}
         >
           <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
@@ -622,47 +630,10 @@ describe('QueriableStreamView component', () => {
     )
 
     await waitFor(() => {
-      expect(capturedLinks.length).toBeGreaterThan(0)
+      expect(screen.getByText('Workout 1')).toBeDefined()
     })
-    // Default date grouping
-    expect(capturedLinks.some(l => l.id.includes('2026-09-04'))).toBe(true)
-    expect(capturedLinks.some(l => l.id.includes('2026-08-15'))).toBe(true)
-
-    unmount()
-    cleanup()
-
-    // When WQL has `by {discipline}`, grouping updates to discipline
-    let disciplineLinks: NavItemL3[] = []
-    const setL3Discipline = mock((items: NavItemL3[]) => {
-      disciplineLinks = items
-    })
-
-    render(
-      <MemoryRouter initialEntries={['/journal']}>
-        <NavContext.Provider
-          value={{
-            tree: [],
-            navState: initialNavState,
-            dispatch: () => {},
-            l3Items: [],
-            setL3Items: setL3Discipline,
-            scrollToSection: () => {},
-            registerScrollFn: () => {},
-            setContextNav: () => {},
-          }}
-        >
-          <QueriableStreamView
-            profile={{ ...JOURNAL_STREAM_PROFILE, defaultWql: ':journal{} by {discipline}' }}
-            queryEngine={engine}
-          />
-        </NavContext.Provider>
-      </MemoryRouter>,
-    )
-
-    await waitFor(() => {
-      expect(disciplineLinks.some(l => l.label === 'Gymnastics')).toBe(true)
-      expect(disciplineLinks.some(l => l.label === 'Strength')).toBe(true)
-    })
+    expect(capturedLinks).toEqual([])
+    expect(setStreamControls).not.toHaveBeenCalled()
   })
 
   it('renders the feed layout with rich previews and working actions for playground entries', async () => {
@@ -843,9 +814,9 @@ describe('QueriableStreamView component', () => {
     }
   })
 
-  it('L3 toggleGroupDim writes through to the WQL line and the grid follows', async () => {
+  it('StreamViewPopover Group by writes through to the WQL line without publishing L3 streamControls', async () => {
     const engine = createMockEngine(sampleEffortEntries)
-    let capturedControls: StreamNavControls | null = null
+    const setStreamControls = mock((_c: StreamNavControls | null) => {})
     render(
       <MemoryRouter initialEntries={['/efforts']}>
         <NavContext.Provider
@@ -858,7 +829,10 @@ describe('QueriableStreamView component', () => {
             scrollToSection: () => {},
             registerScrollFn: () => {},
             setContextNav: () => {},
-            setStreamControls: (c) => { capturedControls = c },
+            setStreamControls,
+            setSecondarySpec: () => {},
+            openCreateJournal: () => {},
+            registerCreateJournal: () => {},
           }}
         >
           <QueriableStreamView profile={EFFORTS_STREAM_PROFILE} queryEngine={engine} />
@@ -866,11 +840,16 @@ describe('QueriableStreamView component', () => {
       </MemoryRouter>,
     )
     await waitFor(() => {
-      expect(capturedControls).not.toBeNull()
+      expect(screen.getByText('Back Squat')).toBeDefined()
     })
-    act(() => {
-      capturedControls?.onToggleGroupDim('tag')
-    })
+    expect(setStreamControls).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTestId('stream-view-popover-trigger'))
+    const popover = await waitFor(() => screen.getByTestId('stream-view-popover-content'))
+    // Undated route hides Date window & date grouping
+    expect(popover.textContent).not.toContain('Date window')
+    fireEvent.click(within(popover).getByRole('button', { name: 'tag' }))
+
     await waitFor(() => {
       expect(screen.getByTestId('stream-query-status').textContent).toContain('by tag')
     })
@@ -1357,7 +1336,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     usePaletteStore.setState({ isOpen: false, request: null, _resolve: null })
   })
 
-  it('shows query truth — target, matched of total, filters, grouping precedence — from the stage callback', async () => {
+  it('shows calm athlete copy at rest and escalates to full query diagnostics when user-authored filters are applied', async () => {
     const { engine } = stubEngine((_q, onStages) => {
       onStages?.({ selected: 7, matched: 2 })
       return DATED_NOTE_ENTRIES
@@ -1369,20 +1348,31 @@ describe('QueriableStreamView — query truth and retained state', () => {
       </MemoryRouter>,
     )
 
+    // At rest on default query: calm athlete counts, zero raw :note / "1 applied" telemetry,
+    // and route-implied notebook:journal does NOT falsely light up the active-filter badge.
+    await waitFor(() => {
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('2 notes')
+    })
+    const restingStatus = screen.getByTestId('stream-query-status').textContent ?? ''
+    expect(restingStatus).not.toContain(':note')
+    expect(restingStatus).not.toContain('applied')
+    expect(restingStatus).toContain('by date')
+    expect(restingStatus).not.toContain('(query)')
+    expect(screen.getByTestId('stream-query-status').querySelector('[data-grouping-source]')?.getAttribute('data-grouping-source')).toBe('query')
+    expect(screen.queryByTestId('stream-facet-filter-badge')).toBeNull()
+    expect(screen.queryByText('Invalid query — showing previous results')).toBeNull()
+
+    // Authoring a real user filter lights up the active-filter badge and shows diagnostics
+    act(() => {
+      getActiveStreamBridge()?.setQuery(':note{notebook:journal,tags:strength} by {date} last 4w')
+    })
     await waitFor(() => {
       expect(screen.getByTestId('stream-query-counts').textContent).toBe('2 of 7')
     })
-    const status = screen.getByTestId('stream-query-status').textContent ?? ''
-    expect(status).toContain(':note')
-    expect(status).toContain('1 applied')
-    // The journal default groups by date in the query itself — a copied URL
-    // reproduces the same list, grouping included (ticket 11). The raw enum
-    // source never leaks into the text (WW-004/#5); it rides the data
-    // attribute for diagnostics instead.
-    expect(status).toContain('by date')
-    expect(status).not.toContain('(query)')
-    expect(screen.getByTestId('stream-query-status').querySelector('[data-grouping-source]')?.getAttribute('data-grouping-source')).toBe('query')
-    expect(screen.queryByText('Invalid query — showing previous results')).toBeNull()
+    const diagnosticStatus = screen.getByTestId('stream-query-status').textContent ?? ''
+    expect(diagnosticStatus).toContain(':note')
+    expect(diagnosticStatus).toContain('2 applied')
+    expect(screen.getByTestId('stream-facet-filter-badge').textContent).toBe('1')
   })
 
   it('keeps previous results, their grouping, and their counts under an invalid draft', async () => {
@@ -1510,7 +1500,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     })
   })
 
-  it('renders NOTES_STREAM_PROFILE default :note{notebook:*} with zero advisories (WW-003)', async () => {
+  it('renders NOTES_STREAM_PROFILE default :note{} with calm copy and zero advisories (WW-003)', async () => {
     const { engine } = stubEngine((_q, onStages) => {
       onStages?.({ selected: 2, matched: 2 })
       return DATED_NOTE_ENTRIES
@@ -1523,11 +1513,10 @@ describe('QueriableStreamView — query truth and retained state', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId('stream-query-counts').textContent).toBe('2 of 2')
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('2 notes')
     })
     const status = screen.getByTestId('stream-query-status').textContent ?? ''
-    expect(status).toContain(':note')
-    expect(status).toContain('1 applied')
+    expect(status).not.toContain(':note')
     expect(status).not.toContain('wildcard')
     expect(status).not.toContain('ignored')
   })
@@ -1578,7 +1567,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
       pendingNoStages.resolve([])
     })
     await waitFor(() => {
-      expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 of 0')
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 notes')
     })
     expect(screen.getByTestId('stream-query-status').textContent).toContain('by date')
     expect(getSurfaceBusy()).toBe(false)
@@ -1596,10 +1585,10 @@ describe('QueriableStreamView — query truth and retained state', () => {
   })
 
   it('omits raw enum tokens from the status strip; grouping source rides data-grouping-source (WW-004/#5)', async () => {
-    for (const [route, profile, expectedDim] of [
-      ['/feeds', FEEDS_STREAM_PROFILE, 'by date'],
-      ['/efforts', EFFORTS_STREAM_PROFILE, 'by discipline'],
-      ['/tags', TAGS_STREAM_PROFILE, 'by date'],
+    for (const [route, profile, expectedCount, expectedDim] of [
+      ['/feeds', FEEDS_STREAM_PROFILE, '0 feeds', 'by date'],
+      ['/efforts', EFFORTS_STREAM_PROFILE, '0 efforts', 'by discipline'],
+      ['/tags', TAGS_STREAM_PROFILE, '0 tags', 'by date'],
     ] as const) {
       cleanup()
       const { engine } = stubEngine(() => [])
@@ -1609,7 +1598,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
         </MemoryRouter>,
       )
       await waitFor(() => {
-        expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 of 0')
+        expect(screen.getByTestId('stream-query-counts').textContent).toBe(expectedCount)
       })
       const statusText = screen.getByTestId('stream-query-status').textContent ?? ''
       expect(statusText).toContain(expectedDim)
@@ -1699,16 +1688,15 @@ describe('QueriableStreamView — query truth and retained state', () => {
       </MemoryRouter>,
     )
     await waitFor(() => {
-      expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 of 0')
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 tags')
     })
     expect(screen.getByTestId('route-wql-empty-options')).toBeDefined()
   })
 
-  it('gates feed card Unsubscribe behind window.confirm on /feeds (WW-016)', async () => {
+  it('gates feed card Unsubscribe behind an accessible AlertDialog on /feeds (WW-016)', async () => {
     const unsubscribeSpy = spyOn(feedSyncModule, 'unsubscribeFeedSource').mockImplementation(
       (async () => ({ deleted: 5 })) as never,
     )
-    const confirmSpy = spyOn(window, 'confirm').mockImplementation(() => false)
 
     const feedEntries: Entry[] = [
       {
@@ -1732,18 +1720,21 @@ describe('QueriableStreamView — query truth and retained state', () => {
 
     const unsubBtn = await waitFor(() => screen.getByTestId('row-unsubscribe-sport-hyrox'))
 
+    // Clicking Unsubscribe opens an accessible AlertDialog mentioning the feed & pinned local sessions.
+    fireEvent.click(unsubBtn)
+    const alertDialog = await waitFor(() => screen.getByRole('alertdialog'))
+    expect(alertDialog.textContent).toContain('HYROX Workouts')
+    expect(alertDialog.textContent).toContain('pinned locally')
+
     // Declined confirmation -> unsubscribeFeedSource is not called.
-    await act(async () => {
-      fireEvent.click(unsubBtn)
-    })
-    expect(confirmSpy).toHaveBeenCalledTimes(1)
-    expect(confirmSpy.mock.calls[0]?.[0]).toContain('HYROX Workouts')
+    fireEvent.click(within(alertDialog).getByRole('button', { name: 'Cancel' }))
     expect(unsubscribeSpy).not.toHaveBeenCalled()
 
     // Accepted confirmation -> unsubscribeFeedSource runs with feedId.
-    confirmSpy.mockImplementation(() => true)
+    fireEvent.click(unsubBtn)
+    const confirmDialog = await waitFor(() => screen.getByRole('alertdialog'))
     await act(async () => {
-      fireEvent.click(unsubBtn)
+      fireEvent.click(within(confirmDialog).getByRole('button', { name: 'Unsubscribe' }))
     })
     await waitFor(() => {
       expect(unsubscribeSpy).toHaveBeenCalledTimes(1)
@@ -1915,6 +1906,157 @@ describe('QueriableStreamView — query truth and retained state', () => {
         await delay(200)
       })
       expect(screen.queryByTestId('notebook-not-found')).toBeNull()
+    } finally {
+      resetStorageForTesting()
+    }
+  })
+
+  it('prompts with a writable notebook picker dialog before cloning a remote preview note and never defaults to notebook/defaults', async () => {
+    setStorageForTesting(new InMemoryStorage())
+    const cloneSpy = spyOn(feedCatalogModule, 'cloneRemotePreviewNoteToNotebook').mockResolvedValue({
+      id: 'cloned-note-1',
+      title: 'KB Day 1',
+      rawContent: '# KB Day 1',
+      sourceRevision: 1,
+      blocks: {},
+      createdAt: Date.now(),
+    } as Note)
+    const subSpy = spyOn(feedSyncModule, 'toggleNotebookSubscription').mockResolvedValue(undefined)
+    try {
+      const remoteEntries: Entry[] = [
+        {
+          id: 'remote:peer-kb:uuid-1',
+          kind: 'note',
+          sourceNotebook: 'kettlebell-club',
+          sourceNote: 'kb-day-1',
+          title: 'KB Day 1',
+          date: null,
+          feedId: 'peer-kb',
+          seedChunkId: 'notebook.kettlebell-custom',
+          isRemotePreview: true,
+          editable: false,
+        },
+      ]
+      const { engine } = stubEngine(() => remoteEntries)
+      render(
+        <MemoryRouter initialEntries={['/notebook/kettlebell-club?feed=peer-kb']}>
+          <QueriableStreamView profile={createNotebookProfile('kettlebell-club')} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+
+      const banner = await waitFor(() => screen.getByTestId('remote-notebook-preview-banner'))
+      expect(banner.textContent).toContain('Index Preview · 1 workout — loaded on demand')
+
+      // Subscribe CTA passes entries[0].seedChunkId instead of hardcoded slug
+      fireEvent.click(screen.getByTestId('remote-preview-subscribe-btn'))
+      await waitFor(() => {
+        expect(subSpy).toHaveBeenCalledWith('peer-kb', 'notebook.kettlebell-custom', true)
+      })
+
+      // Clone button opens destination notebook picker dialog instead of silent dump
+      fireEvent.click(screen.getByTestId('row-clone-remote-remote:peer-kb:uuid-1'))
+      const dialog = await waitFor(() => screen.getByRole('dialog'))
+      const select = within(dialog).getByLabelText('Destination notebook') as HTMLSelectElement
+      await waitFor(() => {
+        expect(Array.from(select.options).some(o => o.value === 'notebook/custom')).toBe(true)
+      })
+      expect(Array.from(select.options).some(o => o.value === 'notebook/defaults')).toBe(false)
+      expect(cloneSpy).not.toHaveBeenCalled()
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Clone to Notebook' }))
+      await waitFor(() => {
+        expect(cloneSpy).toHaveBeenCalledTimes(1)
+      })
+      expect(cloneSpy.mock.calls[0]![1]).not.toBe('notebook/defaults')
+    } finally {
+      cloneSpy.mockRestore()
+      subSpy.mockRestore()
+      resetStorageForTesting()
+    }
+  })
+
+  it('confirms user notebook deletion through an accessible AlertDialog and resolves /notebook/:slug heading (WW-037/WW-101)', async () => {
+    const mem = new InMemoryStorage()
+    setStorageForTesting(mem)
+    try {
+      const nbEntries: Entry[] = [
+        {
+          id: 'notebook:open-prep',
+          kind: 'notebook',
+          feedId: 'local',
+          sourceNotebook: 'open-prep',
+          sourceNote: 'open-prep',
+          notebookId: 'notebook/open-prep',
+          title: 'Open Prep',
+          date: null,
+          isPublic: false,
+        },
+        {
+          id: 'notebook:journal',
+          kind: 'notebook',
+          feedId: 'local',
+          sourceNotebook: 'journal',
+          sourceNote: 'journal',
+          notebookId: 'notebook/journal',
+          title: 'Journal',
+          date: null,
+          isPublic: false,
+        },
+      ]
+      await storageService.saveNote({
+        id: 'notebook/open-prep',
+        title: 'Open Prep',
+        rawContent: '# Open Prep\n',
+        blocks: {},
+        sourceRevision: 1,
+        createdAt: 1000,
+        notebookId: 'notebook/open-prep',
+        seedOrigin: 'user',
+      })
+      const { engine } = stubEngine(() => nbEntries)
+      const { unmount } = render(
+        <MemoryRouter initialEntries={['/notebooks']}>
+          <QueriableStreamView profile={NOTEBOOKS_STREAM_PROFILE} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+
+      await waitFor(() => expect(screen.getByText('Open Prep')).toBeDefined())
+      // Built-in journal offers no overflow edit/delete actions.
+      const overflowButtons = screen.getAllByTestId('library-row-overflow')
+      expect(overflowButtons).toHaveLength(1)
+      fireEvent.click(overflowButtons[0]!)
+      fireEvent.click(screen.getByTestId('notebook-delete-open-prep'))
+
+      const dialog = await waitFor(() => screen.getByTestId('notebook-delete-dialog'))
+      expect(dialog.textContent).toContain('Open Prep')
+      expect(await storageService.getNote('notebook/open-prep')).toBeDefined()
+
+      fireEvent.click(within(dialog).getByTestId('notebook-delete-confirm-open-prep'))
+      await waitFor(async () => {
+        expect(await storageService.getNote('notebook/open-prep')).toBeUndefined()
+      })
+      unmount()
+
+      // /notebook/:slug resolves registered title into StickyPageHeader heading (fixed slice('/notebook/'.length) bug)
+      await storageService.saveNote({
+        id: 'notebook/kettlebell-prep',
+        title: 'Kettlebell Prep',
+        rawContent: '# Kettlebell Prep\n',
+        blocks: {},
+        sourceRevision: 1,
+        createdAt: 2000,
+        notebookId: 'notebook/kettlebell-prep',
+        seedOrigin: 'user',
+      })
+      const singleEngine = stubEngine(() => []).engine
+      render(
+        <MemoryRouter initialEntries={['/notebook/kettlebell-prep']}>
+          <QueriableStreamView profile={createNotebookProfile('kettlebell-prep')} queryEngine={singleEngine} />
+        </MemoryRouter>,
+      )
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Kettlebell Prep' })).toBeDefined()
+      })
     } finally {
       resetStorageForTesting()
     }

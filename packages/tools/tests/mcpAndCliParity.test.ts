@@ -50,7 +50,7 @@ describe('MCP Server (/api/mcp) and CLI Noun-Verb Parity', () => {
       const capRes = await handler(new Request('http://127.0.0.1:3000/.well-known/agent-capabilities.json'));
       expect(capRes.status).toBe(200);
       const manifest = (await capRes.json()) as { domainTools: Array<{ name: string }> };
-      expect(manifest.domainTools).toHaveLength(22);
+      expect(manifest.domainTools).toHaveLength(28);
 
       // 2. MCP initialize
       const init = await postMcpJsonRpc(handler, {
@@ -75,8 +75,10 @@ describe('MCP Server (/api/mcp) and CLI Noun-Verb Parity', () => {
       });
       expect(toolsList.status).toBe(200);
       const tools = (toolsList.json.result as { tools: Array<{ name: string }> }).tools;
-      expect(tools).toHaveLength(22);
+      expect(tools).toHaveLength(28);
       expect(tools.some((t) => t.name === 'wod_note_upsert')).toBe(true);
+      expect(tools.some((t) => t.name === 'wod_schedule_add')).toBe(true);
+      expect(tools.some((t) => t.name === 'wod_session_attribute')).toBe(true);
 
       // 4. MCP tools/call: create note -> run session -> query WQL
       const createCall = await postMcpJsonRpc(handler, {
@@ -227,6 +229,52 @@ describe('MCP Server (/api/mcp) and CLI Noun-Verb Parity', () => {
     expect(runEnvelope.ok).toBe(true);
     expect(runEnvelope.data.completed).toBe(true);
 
+    // 3b. M:N schedule add/list/update, orphaned note discovery, session attribution & schedule remove
+    const schedAdd = await runCli([
+      'schedule',
+      'add',
+      noteId,
+      '--date',
+      '2026-11-23',
+      '--slot',
+      'AM',
+      '--json',
+    ]);
+    expect(schedAdd.code).toBe(0);
+    const schedItemId = (JSON.parse(schedAdd.stdout).data as { item: { id: string } }).item.id;
+
+    const schedList = await runCli(['schedule', 'list', '--from', '2026-11-23', '--to', '2026-11-23', '--json']);
+    expect(schedList.code).toBe(0);
+    expect((JSON.parse(schedList.stdout).data as { totalCount: number }).totalCount).toBe(1);
+
+    const sessAttr = await runCli([
+      'session',
+      'attribute',
+      runEnvelope.data.sessionId,
+      '--schedule-item',
+      schedItemId,
+      '--date',
+      '2026-11-23',
+      '--json',
+    ]);
+    expect(sessAttr.code).toBe(0);
+    expect((JSON.parse(sessAttr.stdout).data as { session: { scheduleItemId?: string; sessionDate?: string } }).session).toMatchObject({
+      scheduleItemId: schedItemId,
+      sessionDate: '2026-11-23',
+    });
+
+    const schedUpd = await runCli(['schedule', 'update', schedItemId, '--status', 'skipped', '--json']);
+    expect(schedUpd.code).toBe(0);
+    expect((JSON.parse(schedUpd.stdout).data as { item: { status: string } }).item.status).toBe('skipped');
+
+    const orphanList = await runCli(['note', 'list', '--orphaned-only', '--json']);
+    expect(orphanList.code).toBe(0);
+    expect((JSON.parse(orphanList.stdout).data as { notes: Array<{ id: string }> }).notes.some((n) => n.id === noteId)).toBe(true);
+
+    const schedRm = await runCli(['schedule', 'remove', schedItemId, '--json']);
+    expect(schedRm.code).toBe(0);
+    expect(JSON.parse(schedRm.stdout).data.removed).toBe(true);
+
     // 4. Tier 2 confirmation gate: deleting without --yes returns exit code 4
     const deleteBlocked = await runCli(['note', 'delete', noteId, '--json']);
     expect(deleteBlocked.code).toBe(4);
@@ -246,14 +294,14 @@ describe('MCP Server (/api/mcp) and CLI Noun-Verb Parity', () => {
     expect(deleteConfirmed.code).toBe(0);
     expect(JSON.parse(deleteConfirmed.stdout).data.deleted).toBe(true);
 
-    // 6. wod doctor --json reports 22 domain tools and bundled skills
+    // 6. wod doctor --json reports 28 domain tools and bundled skills
     const doctor = await runCli(['doctor', '--json']);
     expect(doctor.code).toBe(0);
     const doctorData = JSON.parse(doctor.stdout).data as {
       domainToolCount: number;
       bundledSkills: string[];
     };
-    expect(doctorData.domainToolCount).toBe(22);
+    expect(doctorData.domainToolCount).toBe(28);
     expect(doctorData.bundledSkills).toEqual(
       expect.arrayContaining(['wod-extraction', 'wod-cli', 'wod-wql']),
     );

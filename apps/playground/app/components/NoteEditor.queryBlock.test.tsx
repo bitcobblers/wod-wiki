@@ -14,7 +14,8 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
  * The real queryService executes over the test host's InMemoryStorage; a spy
  * records the executor calls.
  */
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
+import { cleanup, act, render, screen, waitFor } from '@testing-library/react';
 import { setupPlaygroundTestHost, type PlaygroundHostHandle } from '@/testing/host';
 import { queryService } from '@/services/queryService';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
@@ -127,5 +128,50 @@ describe('NoteEditor query block executor wiring', () => {
       );
     }).not.toThrow();
     expect(screen.getByRole('textbox')).toBeDefined();
+  });
+
+  it('preserves query block DOM node and avoids re-executing queries when typing prose with unstable parent callbacks', async () => {
+    function ControlledHarness() {
+      const [content, setContent] = useState(DOC);
+      const [blocks, setBlocks] = useState<Record<string, any>>({});
+      return (
+        <NoteEditor
+          value={content}
+          noteBlocks={blocks}
+          noteId="journal/2026-08-03"
+          onChange={(next) => setContent(next)}
+          onIdentityChange={(snap) => setBlocks(snap.blocks)}
+          onBlocksChange={() => {}}
+          onBlur={() => {}}
+        />
+      );
+    }
+
+    const { container } = render(<ControlledHarness />);
+    expect(await screen.findByText('No workout logs matched this rows query.')).toBeDefined();
+    const initialCalls = runFind.mock.calls.length;
+    const beforeNode = container.querySelector('.cm-query-block-preview');
+    expect(beforeNode).not.toBeNull();
+
+    const cmHost = container.querySelector('.cm-note-editor') as { __codemirrorView?: any } | null;
+    const view = cmHost?.__codemirrorView;
+    expect(view).toBeDefined();
+
+    // Type multiple keystrokes in prose above the query block (each one updates parent state
+    // and recreates all inline parent callbacks).
+    for (const ch of ['A', 'B', 'C', ' ']) {
+      act(() => {
+        view.dispatch({
+          changes: { from: 0, to: 0, insert: ch },
+          selection: { anchor: 1 },
+        });
+      });
+    }
+
+    const afterNode = container.querySelector('.cm-query-block-preview');
+    expect(afterNode).toBe(beforeNode);
+    expect(screen.queryByText('Loading rows…')).toBeNull();
+    // Unrelated prose edits should not trigger query re-execution.
+    expect(runFind.mock.calls.length).toBe(initialCalls);
   });
 });

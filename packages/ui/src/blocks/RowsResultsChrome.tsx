@@ -182,6 +182,9 @@ export function useSessionPrHighlights(
 ): { wideResult: RowsQueryResult | undefined; prHighlights: Map<string | number, RowPrHighlight> | undefined } {
   const [wideResult, setWideResult] = useState<RowsQueryResult | undefined>(undefined);
 
+  const sessionRunId = sessionRun?.resultId;
+  const sessionEventCount = sessionRun?.events.length ?? 0;
+
   useEffect(() => {
     if (!enabled || !blockContentId || !executor) {
       if (!retainHistory) setWideResult(undefined);
@@ -206,13 +209,13 @@ export function useSessionPrHighlights(
         if (!cancelled && res && Array.isArray(res.runs)) setWideResult(res);
       })
       .catch(() => {
-        if (!cancelled) setWideResult(undefined);
+        if (!cancelled && !retainHistory) setWideResult(undefined);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [enabled, retainHistory, blockContentId, executor, sessionRun?.events]);
+  }, [enabled, retainHistory, blockContentId, executor, sessionRunId, sessionEventCount]);
 
   const prHighlights = useMemo(
     () => (enabled ? computeSessionPrHighlights(sessionRun, wideResult?.runs) : undefined),

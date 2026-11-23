@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { NoteBlock } from '@/types/storage';
 import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wiki-core';
 import { revertBlock } from '@/components/organisms/editor/BlockHistory';
@@ -9,14 +9,18 @@ import { useEditorSave } from './useEditorSave';
 
 import {
   clearStagedNoteSave,
+  isNoteDeleting,
   pendingNoteSaves,
   readStagedNoteSaves,
+  registerActiveDraft,
   replayStagedNoteSaves,
   stageNoteSave,
   waitForAllPendingNoteSaves,
   waitForPendingNoteSave,
   type StagedNoteSave,
 } from '@/services/persistence/pendingNoteSaves';
+
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 export {
   replayStagedNoteSaves,
@@ -81,6 +85,10 @@ export function useNoteDraft({
   const savedSnapshotRef = useRef<EditorIdentitySnapshot | null>(null);
   const metadataRef = useRef(metadata);
   metadataRef.current = metadata;
+  const onExternalChangeRef = useRef(onExternalChange);
+  onExternalChangeRef.current = onExternalChange;
+  const onSavedRecordRef = useRef(onSavedRecord);
+  onSavedRecordRef.current = onSavedRecord;
   const loadedNoteIdRef = useRef<string | null>(null);
 
   // When a note finishes loading, install its source and blocks once
@@ -98,11 +106,15 @@ export function useNoteDraft({
     const draft = draftRef.current;
     const sameDraft = draft.rawContent === saved.rawContent && areBlocksEqual(draft.blocks, saved.blocks);
     setCommitted(prev => ({ blocks: sameDraft ? saved.blocks : prev.blocks, sourceRevision: saved.sourceRevision }));
-    onSavedRecord?.(saved);
-  }, [onSavedRecord]);
+    onSavedRecordRef.current?.(saved);
+  }, []);
 
   const save = useCallback(async (snapshot: EditorIdentitySnapshot) => {
-    const effectiveMetadata = { ...metadata, ...derivedTitle(snapshot.rawContent, metadata) };
+    if (isNoteDeleting(noteId)) {
+      return draftRef.current;
+    }
+    const currentMetadata = metadataRef.current;
+    const effectiveMetadata = { ...currentMetadata, ...derivedTitle(snapshot.rawContent, currentMetadata) };
     const savePromise = notePersistence.saveNote({
       noteId,
       rawContent: snapshot.rawContent,
@@ -128,14 +140,26 @@ export function useNoteDraft({
     accept(snapshotSaved);
     setActionError(null);
     return snapshotSaved;
-  }, [noteId, metadata, noteType, accept]);
+  }, [noteId, noteType, accept]);
   const saves = useEditorSave<EditorIdentitySnapshot>({
     onSave: async snapshot => { await save(snapshot); },
     getSnapshotKey: snapshot => JSON.stringify([snapshot.rawContent, Object.values(snapshot.blocks).map(b => [b.id, b.from, b.to, b.kind, b.dialect, b.sport])]),
     onError: err => setActionError(`Save failed. ${err instanceof Error ? err.message : String(err)} Your draft is kept. Retry saving.`),
   });
 
+  const flushIfDirty = useCallback(async (): Promise<boolean> => {
+    if (!saves.hasDirtyDraft()) return false;
+    await saves.flush();
+    return true;
+  }, [saves.hasDirtyDraft, saves.flush]);
+
+  useIsomorphicLayoutEffect(() => {
+    if (!noteId) return;
+    return registerActiveDraft(noteId, flushIfDirty);
+  }, [noteId, flushIfDirty]);
+
   const stageDirtyDraft = useCallback((draft: EditorIdentitySnapshot) => {
+    if (isNoteDeleting(noteId)) return;
     const title = derivedTitle(draft.rawContent, metadataRef.current);
     stageNoteSave({
       noteId,
@@ -183,8 +207,8 @@ export function useNoteDraft({
       ? draftRef.current.blocks
       : reconcileNoteBlocks(nextContent, { sourceRevision: rev, blocks: draftRef.current.blocks, registeredWidgets: KNOWN_SECTION_WIDGETS });
     onIdentityChange({ rawContent: nextContent, blocks, sourceRevision: committedRevisionRef.current });
-    onExternalChange?.(nextContent);
-  }, [onIdentityChange, onExternalChange]);
+    onExternalChangeRef.current?.(nextContent);
+  }, [onIdentityChange]);
 
   const restoreRevision = useCallback(async (revision: Parameters<typeof revertBlock>[1]) => {
     await saves.flush();
@@ -194,8 +218,8 @@ export function useNoteDraft({
     const saved = await save(restored);
     draftRef.current = saved;
     setRestoredContent(restored.rawContent);
-    onExternalChange?.(restored.rawContent);
-  }, [saves.flush, save, onExternalChange]);
+    onExternalChangeRef.current?.(restored.rawContent);
+  }, [saves.flush, save]);
 
   const captureForRun = useCallback(async (block: Parameters<typeof captureRun>[1], runtimeId: string) => {
     setActionError(null);
@@ -203,9 +227,12 @@ export function useNoteDraft({
       await saves.flush();
       const draft = draftRef.current;
       const captured = await captureRun(
-        { noteId, rawContent: draft.rawContent, blocks: draft.blocks, expectedSourceRevision: committedRevisionRef.current, metadata, noteType },
+        { noteId, rawContent: draft.rawContent, blocks: draft.blocks, expectedSourceRevision: committedRevisionRef.current, metadata: metadataRef.current, noteType },
         block,
         runtimeId,
+        undefined,
+        undefined,
+        { deferPersist: true },
       );
       accept({ rawContent: captured.note.rawContent, blocks: captured.note.blocks, sourceRevision: captured.note.sourceRevision });
       return captured;
@@ -214,11 +241,17 @@ export function useNoteDraft({
       setActionError(msg);
       throw err;
     }
-  }, [saves.flush, noteId, metadata, noteType, accept]);
+  }, [saves.flush, noteId, noteType, accept]);
 
   const flush = useCallback(async (): Promise<void> => {
     await saves.flush();
   }, [saves.flush]);
+
+  const cancel = useCallback((): void => {
+    saves.cancel();
+    draftRef.current = savedSnapshotRef.current ?? draftRef.current;
+    clearStagedNoteSave(noteId);
+  }, [saves.cancel, noteId]);
 
   return {
     content: restoredContent ?? draftRef.current.rawContent,
@@ -228,6 +261,7 @@ export function useNoteDraft({
     draftSnapshot: draftRef.current,
     saveError: actionError ?? (saves.error ? `Save failed. ${saves.error instanceof Error ? saves.error.message : String(saves.error)} Your draft is kept. Retry saving.` : null),
     flush,
+    cancel,
     onLineChange: saves.onLineChange,
     onBlur: saves.onBlur,
     onIdentityChange,

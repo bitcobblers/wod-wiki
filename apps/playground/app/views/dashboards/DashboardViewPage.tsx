@@ -28,6 +28,7 @@ import {
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogTitle,
+  Badge,
   DialogFooter,
   DialogHeader,
 } from '@bitcobblers/wod-wiki-ui/primitives';
@@ -51,7 +52,6 @@ import { onResultSaved } from '@/services/resultRecorder';
 import { SEED_BROADCAST_CHANNEL } from '@/types/seed';
 import { feedProgressLabel } from '@/services/feed/feedProgress';
 import { useFeedImportPending, useFeedSyncProgress } from '@/services/feed/feedReadiness';
-import { CastButtonRpc } from '@/components/organisms/cast/CastButtonRpc';
 import {
   StickyPageHeader,
   useMobileQuerySlot,
@@ -82,9 +82,10 @@ import {
 import { useDashboardSource } from '../../hooks/useDashboards';
 import { analyticsExplorerPath, dashboardsPath, sessionDetailPath } from '../../lib/routes';
 import { clearContextualPageSources, setContextualPageSources } from '@/services/queryService';
-import { useNav } from '../../nav/NavContext';
+import { useNav, type L3ActionItem } from '../../nav/NavContext';
 import type { NavItemL3 } from '../../nav/navTypes';
-import { ResponsiveActions } from '../../nav/ResponsiveActions';
+import { PageActions } from '../../pages/shared/PageActions';
+import type { GroupedL3ActionItem } from '../../pages/shared/useNotePageNav';
 
 import { SampleDataPrompt } from '../analytics/SampleDataPrompt';
 import { WidgetComposerDialog, type WidgetComposerApply } from './WidgetComposerDialog';
@@ -254,29 +255,67 @@ export function DashboardViewPage() {
     return () => setL3Items([]);
   }, [outline.items, setL3Items]);
 
-  // L3 Slot 3 ("Actions"): Edit/Done, Add widget (vault), Clone to vault (prebuilt), Copy link.
+  // L3 Slot 3 ("Actions"): grouped Edit/Done (editable vault boards ONLY — never
+  // shown on read-only prebuilt boards), Add widget, Clone to vault (prebuilt),
+  // Copy link, and separated red Danger Delete dashboard.
   useEffect(() => {
-    const actions = [
+    const actions: GroupedL3ActionItem[] = [
       ...(source?.editable
         ? [
-            { id: 'helpful-edit', label: editMode ? 'Done' : 'Edit', onRun: () => setEditMode(v => !v) },
+            {
+              id: 'helpful-edit',
+              label: editMode ? 'Done' : 'Edit',
+              icon: Pencil,
+              testId: TEST_IDS.DASHBOARD_EDIT_TOGGLE,
+              group: 'primary' as const,
+              onRun: () => setEditMode(v => !v),
+            },
             {
               id: 'helpful-add-widget',
               label: 'Add widget',
+              icon: Plus,
+              group: 'author' as const,
               onRun: () => {
                 setEditMode(true);
                 setComposer({ mode: 'add', expectedRaw: source.rawContent });
               },
             },
-            { id: 'helpful-delete-dashboard', label: 'Delete dashboard', onRun: () => setConfirmDeleteOpen(true) },
+            {
+              id: 'helpful-copy-link',
+              label: 'Copy link',
+              group: 'share' as const,
+              onRun: handleCopyLink,
+            },
+            {
+              id: 'helpful-delete-dashboard',
+              label: 'Delete dashboard',
+              icon: Trash2,
+              testId: TEST_IDS.L3_DASHBOARD_DELETE,
+              group: 'danger' as const,
+              onRun: () => setConfirmDeleteOpen(true),
+            },
           ]
         : [
-            { id: 'helpful-edit', label: editMode ? 'Done' : 'Edit', onRun: () => setEditMode(v => !v) },
-            ...(source ? [{ id: 'helpful-clone', label: 'Clone to vault', onRun: () => void handleClone() }] : []),
+            ...(source
+              ? [
+                  {
+                    id: 'helpful-clone',
+                    label: 'Clone to vault',
+                    testId: TEST_IDS.L3_DASHBOARD_CLONE,
+                    group: 'primary' as const,
+                    onRun: () => void handleClone(),
+                  },
+                ]
+              : []),
+            {
+              id: 'helpful-copy-link',
+              label: 'Copy link',
+              group: 'share' as const,
+              onRun: handleCopyLink,
+            },
           ]),
-      { id: 'helpful-copy-link', label: 'Copy link', onRun: handleCopyLink },
     ];
-    setL3Actions?.(actions);
+    setL3Actions?.(actions as L3ActionItem[]);
     return () => setL3Actions?.([]);
   }, [editMode, source, handleClone, handleCopyLink, setL3Actions]);
 
@@ -542,8 +581,9 @@ export function DashboardViewPage() {
       <div className={cn(PAGE_SHELL_CONTAINER_CLASS, PAGE_SHELL_CONTENT_SURFACE_CLASS)}>
         <StickyPageHeader
           id={TITLE_ANCHOR}
+          parent={{ label: 'Dashboards', to: dashboardsPath() }}
           title={document?.title || source.title}
-          subtitle={editable ? 'Editable dashboard note.' : 'Prebuilt — read-only until cloned to your vault.'}
+          titleAccessory={!editable ? <Badge variant="secondary">Prebuilt</Badge> : undefined}
           queryBar={
             !isMobile ? (
               <div className="flex min-w-0 flex-1 items-center gap-2 text-xs" data-testid="dashboard-scope-query-bar">
@@ -559,31 +599,7 @@ export function DashboardViewPage() {
               </div>
             ) : undefined
           }
-          actions={
-            <div className="flex items-center gap-2">
-              <ResponsiveActions
-                label="Dashboard actions"
-                primary={
-                  editable ? (
-                    <button
-                      type="button"
-                      data-testid="dashboard-edit-toggle"
-                      aria-pressed={editMode}
-                      onClick={() => setEditMode((v) => !v)}
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                        editMode
-                          ? 'bg-primary text-primary-foreground'
-                          : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
-                      }`}
-                    >
-                      <Pencil size={12} /> {editMode ? 'Done' : 'Edit'}
-                    </button>
-                  ) : undefined
-                }
-              />
-              <CastButtonRpc />
-            </div>
-          }
+          actions={<PageActions mode="notebook-readonly" index={[]} />}
         />
         <div className="w-full p-4 md:p-6 lg:p-8 flex-1">
         {actionError && (

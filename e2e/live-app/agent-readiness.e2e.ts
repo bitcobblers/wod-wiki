@@ -15,7 +15,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
     expect(llmsRes.status()).toBe(200);
     const llmsBody = await llmsRes.text();
     expect(llmsBody).toContain('navigator.modelContext');
-    expect(llmsBody).toContain('22 portable domain tools + 14 live React UI/Clock tools');
+    expect(llmsBody).toContain('28 portable domain tools + 15 live React UI/Clock tools');
 
     const capRes = await page.request.get('/.well-known/agent-capabilities.json');
     expect(capRes.status()).toBe(200);
@@ -23,8 +23,8 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       domainTools: unknown[];
       uiTools: unknown[];
     };
-    expect(capJson.domainTools).toHaveLength(22);
-    expect(capJson.uiTools).toHaveLength(14);
+    expect(capJson.domainTools).toHaveLength(28);
+    expect(capJson.uiTools).toHaveLength(15);
 
     // Layer 2 hydration, landmark busy state, and embedded view-state script
     await expect(page.locator('body')).toHaveAttribute('data-app-hydrated', 'true');
@@ -38,6 +38,10 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
     });
     expect(viewState).not.toBeNull();
     expect(viewState.route.pathname).toBe('/journal');
+    expect(typeof viewState.build?.version).toBe('string');
+    expect(viewState.build.version.length).toBeGreaterThan(0);
+    expect(typeof viewState.build?.gitSha).toBe('string');
+    expect(typeof viewState.build?.builtAt).toBe('string');
 
     // Layer 1 WebMCP: stream tools mounted on /journal, editor/clock/explorer tools unmounted
     const journalTools = await page.evaluate(() => {
@@ -92,14 +96,31 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
     expect(singleEnvelopeOut).toContain('light');
     await expect(page.locator('html')).toHaveClass(/(^|\s)light(\s|$)/);
 
-    // Switch back to dark via name+args convenience form
+    // Switch back to dark via name+args convenience form and WW-112 callTool / modelContextTesting alias
     await page.evaluate(async () => {
       const mc = (navigator as unknown as {
         modelContext: {
           executeTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<string>;
+          callTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<string>;
+        };
+        modelContextTesting?: {
+          listTools(): Promise<Array<{ name: string }>> | Array<{ name: string }>;
+          callTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<string>;
         };
       }).modelContext;
-      return mc.executeTool('ui_preferences', { action: 'set', theme: 'dark' });
+      const mct = (navigator as unknown as {
+        modelContextTesting?: {
+          listTools(): Promise<Array<{ name: string }>> | Array<{ name: string }>;
+          callTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContextTesting;
+      if (!mct) throw new Error('navigator.modelContextTesting missing');
+      const testingTools = await mct.listTools();
+      if (!testingTools.some((t) => t.name === 'ui_preferences')) {
+        throw new Error('ui_preferences missing on navigator.modelContextTesting');
+      }
+      await mc.callTool('ui_preferences', { action: 'set', theme: 'dark' });
+      return mct.callTool('ui_preferences', { action: 'status' });
     });
     await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
     // Create a workout Note via WebMCP domain tool

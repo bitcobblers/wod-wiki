@@ -167,12 +167,15 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
     rerender(<HaltedRunNotice noteId="note-42" />);
     const notice = screen.getByTestId('halted-run-notice');
     expect(notice.textContent).toContain('Previous workout run was saved as partial results on reload');
+    expect(notice.textContent).toContain('20:00 AMRAP');
+    expect(notice.textContent).toContain('01:35');
 
     const link = screen.getByRole('link', { name: /partial results/i });
     expect(link.getAttribute('href')).toBe('/results/sess-partial-42');
 
     const dismissBtn = screen.getByRole('button', { name: /dismiss/i });
     expect(dismissBtn.getAttribute('type')).toBe('button');
+    expect(dismissBtn.className).toContain('min-h-11');
     fireEvent.click(dismissBtn);
 
     expect(screen.queryByTestId('halted-run-notice')).toBeNull();

@@ -45,6 +45,11 @@ describe('AgentStateScript and MainLandmark boot import readiness (WW-019)', () 
       status: 'ready',
       feedReadiness: 'ready',
       importPending: false,
+      build: {
+        version: expect.any(String),
+        gitSha: expect.any(String),
+        builtAt: expect.any(String),
+      },
     });
 
     act(() => {
@@ -100,6 +105,11 @@ describe('AgentStateScript and MainLandmark boot import readiness (WW-019)', () 
       status: 'ready',
       feedReadiness: 'ready',
       importPending: false,
+      build: {
+        version: expect.any(String),
+        gitSha: expect.any(String),
+        builtAt: expect.any(String),
+      },
     });
   });
 

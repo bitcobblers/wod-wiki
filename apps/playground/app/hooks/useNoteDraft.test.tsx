@@ -192,4 +192,121 @@ describe('useNoteDraft durability', () => {
     }
     unmount();
   });
+
+  it('coordinates staged replay through a live dirty draft without STALE_SOURCE when an unrelated read triggers waitForAllPendingNoteSaves', async () => {
+    const revisions = new Map<string, number>([['n-coord', 1]]);
+    const calls: number[] = [];
+    stubSaveNote(async input => {
+      const current = revisions.get(input.noteId) ?? 0;
+      calls.push(input.expectedSourceRevision ?? -1);
+      if (input.expectedSourceRevision !== current) {
+        throw new Error(`Note ${input.noteId} changed since it was loaded`);
+      }
+      const next = current + 1;
+      revisions.set(input.noteId, next);
+      return recordOf(input.rawContent, next);
+    });
+
+    const { result, unmount } = renderHook(() =>
+      useNoteDraft({ noteId: 'n-coord', initialContent: '# T\n', initialRevision: 1 }),
+    );
+
+    act(() => result.current.onIdentityChange(snapshot('# T reconciled', 1)));
+
+    const baseGetRecord = IndexedDBNotePersistence.prototype.getRecord;
+    IndexedDBNotePersistence.prototype.getRecord = async () => null;
+    try {
+      await act(async () => {
+        await new IndexedDBContentProvider().getRecord('other-note');
+      });
+    } finally {
+      IndexedDBNotePersistence.prototype.getRecord = baseGetRecord;
+    }
+
+    expect(calls).toEqual([1]);
+    expect(result.current.committedSourceRevision()).toBe(2);
+    expect(localStorage.getItem(PENDING_KEY)).toBeNull();
+    expect(result.current.saveError).toBeNull();
+
+    act(() => result.current.onIdentityChange(snapshot('# T edited after replay', 2)));
+    await act(async () => {
+      await result.current.flush();
+    });
+
+    expect(calls).toEqual([1, 2]);
+    expect(result.current.committedSourceRevision()).toBe(3);
+    expect(result.current.saveError).toBeNull();
+    unmount();
+  });
+
+  it('still replays an orphaned staged draft on mount before initialRevision loads', async () => {
+    const replayed: SaveCall[] = [];
+    stubSaveNote(async input => {
+      replayed.push(input);
+      return recordOf(input.rawContent, (input.expectedSourceRevision ?? 0) + 1);
+    });
+
+    localStorage.setItem(
+      PENDING_KEY,
+      JSON.stringify({
+        'n-recover': {
+          noteId: 'n-recover',
+          rawContent: '# Recovered\n',
+          blocks: {},
+          expectedSourceRevision: 1,
+          stagedAt: 1,
+        },
+      }),
+    );
+
+    const { unmount } = renderHook(() =>
+      useNoteDraft({ noteId: 'n-recover', initialContent: '', initialRevision: 0 }),
+    );
+
+    await act(async () => {
+      await waitForPendingNoteSave('n-recover');
+    });
+
+    expect(replayed.some(call => call.noteId === 'n-recover' && call.rawContent === '# Recovered\n')).toBe(true);
+    expect(localStorage.getItem(PENDING_KEY)).toBeNull();
+    unmount();
+  });
+
+  it('waits for an in-flight flush before running replayStagedNoteSaves so saveNote runs once', async () => {
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    const saved: string[] = [];
+    stubSaveNote(async input => {
+      saved.push(input.rawContent);
+      await gate;
+      return recordOf(input.rawContent, 2);
+    });
+
+    const { result, unmount } = renderHook(() =>
+      useNoteDraft({ noteId: 'n-inflight', initialContent: '# T\n', initialRevision: 1 }),
+    );
+    act(() => result.current.onIdentityChange(snapshot('# T in-flight', 1)));
+    act(() => {
+      void result.current.flush();
+    });
+
+    let allSettled = false;
+    const waitAll = waitForAllPendingNoteSaves().then(() => {
+      allSettled = true;
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(allSettled).toBe(false);
+    expect(saved).toEqual(['# T in-flight']);
+
+    release();
+    await act(async () => {
+      await waitAll;
+    });
+
+    expect(allSettled).toBe(true);
+    expect(saved).toEqual(['# T in-flight']);
+    expect(localStorage.getItem(PENDING_KEY)).toBeNull();
+    unmount();
+  });
 });

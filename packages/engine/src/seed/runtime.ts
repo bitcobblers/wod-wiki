@@ -53,11 +53,18 @@ export interface SeedChunkResult {
   totalBlocks: number;
   skippedUserOwned: number;
   deleted: number;
+  /** Session-pinned feed notes preserved instead of deleted during sweep/unsubscribe. */
+  preservedPinned?: number;
   /** Committed canonical notes that did not exist before this chunk. */
   addedNotes: number;
   /** Committed canonical notes whose content changed in this chunk. */
   updatedNotes: number;
 }
+
+type RetentionNote = Note & {
+  retention?: 'indexed' | 'cached' | 'schedule-pinned' | 'session-pinned';
+  upstreamStatus?: 'live' | 'unsubscribed' | 'removed';
+};
 
 interface SeedCheckpointRef {
   key: string;
@@ -211,28 +218,34 @@ async function prepareSeedChunkWrite(write: SeedChunkWrite): Promise<PreparedSee
 }
 
 /**
- * Apply multiple seed chunk writes inside ONE atomic storage transaction so
- * partial non-canvas chunk counts are never exposed mid-import.
+ * Apply seed chunk writes, committing each chunk in its own transaction with a
+ * macrotask yield between chunks so concurrent user writes can interleave
+ * without waiting behind a multi-second bulk import lock.
  */
 export async function applySeedChunks(storage: IStorage, writes: SeedChunkWrite[]): Promise<SeedChunkResult> {
-  const empty: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
+  const empty: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, preservedPinned: 0, addedNotes: 0, updatedNotes: 0 };
   if (!writes.length) return empty;
   const prepared = await Promise.all(writes.map(prepareSeedChunkWrite));
-  return storage.transaction(SEED_TX_STORES, 'readwrite', async (tx) => {
-    const total: SeedChunkResult = { ...empty };
-    for (const item of prepared) {
-      const part = await applyPreparedSeedChunkInTx(tx, item);
-      total.totalNotes += part.totalNotes;
-      total.totalEfforts += part.totalEfforts;
-      total.totalEquipment += part.totalEquipment;
-      total.totalBlocks += part.totalBlocks;
-      total.skippedUserOwned += part.skippedUserOwned;
-      total.deleted += part.deleted;
-      total.addedNotes += part.addedNotes;
-      total.updatedNotes += part.updatedNotes;
+  const total: SeedChunkResult = { ...empty };
+  for (let i = 0; i < prepared.length; i++) {
+    const item = prepared[i]!;
+    const part = await storage.transaction(SEED_TX_STORES, 'readwrite', (tx) =>
+      applyPreparedSeedChunkInTx(tx, item),
+    );
+    total.totalNotes += part.totalNotes;
+    total.totalEfforts += part.totalEfforts;
+    total.totalEquipment += part.totalEquipment;
+    total.totalBlocks += part.totalBlocks;
+    total.skippedUserOwned += part.skippedUserOwned;
+    total.deleted += part.deleted;
+    total.preservedPinned = (total.preservedPinned ?? 0) + (part.preservedPinned ?? 0);
+    total.addedNotes += part.addedNotes;
+    total.updatedNotes += part.updatedNotes;
+    if (i + 1 < prepared.length) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
-    return total;
-  });
+  }
+  return total;
 }
 
 export async function applySeedChunk(storage: IStorage, write: SeedChunkWrite): Promise<SeedChunkResult> {
@@ -244,7 +257,7 @@ async function applyPreparedSeedChunkInTx(
   prepared: PreparedSeedChunkWrite,
 ): Promise<SeedChunkResult> {
   const { write, ids, pagesBySlug, linkIds, tagIds } = prepared;
-  const result: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, addedNotes: 0, updatedNotes: 0 };
+  const result: SeedChunkResult = { totalNotes: 0, totalEfforts: 0, totalEquipment: 0, totalBlocks: 0, skippedUserOwned: 0, deleted: 0, preservedPinned: 0, addedNotes: 0, updatedNotes: 0 };
     const metaStore = tx.readwrite('meta');
     // Durable user deletion intent (StorageService.deleteNote tombstones):
     // seed rows the user deleted through the app are never re-created by
@@ -257,7 +270,9 @@ async function applyPreparedSeedChunkInTx(
     }
     const actualMeta = await metaStore.get(write.meta.key);
     if (!equal(actualMeta, write.expectedMeta)) throw new Error('Seed checkpoint changed during import');
-    if (write.meta.schema !== SEED_SCHEMA || write.manifest.schema !== SEED_SCHEMA) throw new Error('Incompatible seed schema; recreate artifacts');
+    if (write.meta.schema !== SEED_SCHEMA || (write.manifest.schema !== SEED_SCHEMA && !Array.isArray(write.manifest.notebooks))) {
+      throw new Error('Incompatible seed schema; recreate artifacts');
+    }
     const noteStore = tx.readwrite('notes');
     const priorIds = write.chunkId ? write.expectedMeta?.chunks[write.chunkId]?.noteIds ?? [] : [];
     // Declared membership comes from the chunk meta written with this call,
@@ -331,6 +346,23 @@ async function applyPreparedSeedChunkInTx(
     const changedTags: Tag[] = [], changedNotes: Note[] = [], revisions: BlockRevision[] = [], pages: Page[] = [], pageNotes: PageNote[] = [], noteTags: NoteTag[] = [];
     const blocks: SeedRow['blockIndex'] = [], blockEfforts: SeedRow['blockEfforts'] = [], blockEquipment: SeedRow['blockEquipment'] = [];
     const sessionStore = tx.readwrite('sessions'), eventStore = tx.readwrite('events');
+    const pinnedNoteIds = new Set<string>();
+    if (ownedIds.length > 0) {
+      let existingSessionsByNote: Session[][];
+      try {
+        existingSessionsByNote = await sessionStore.getAllFromIndexMany('by-note', ownedIds);
+      } catch {
+        const allSessions = await sessionStore.getAll();
+        existingSessionsByNote = ownedIds.map((nid) => allSessions.filter((s) => s.noteId === nid));
+      }
+      for (let i = 0; i < ownedIds.length; i++) {
+        const nid = ownedIds[i]!;
+        const existing = existingById.get(nid) as RetentionNote | undefined;
+        if (existing?.retention === 'session-pinned' || (existingSessionsByNote[i]?.length ?? 0) > 0) {
+          pinnedNoteIds.add(nid);
+        }
+      }
+    }
     const telemetrySessionIds = write.rows.flatMap((row) => row.telemetry?.sessions.map((session) => session.id) ?? []);
     const storedTelemetrySessions = await sessionStore.getMany(telemetrySessionIds);
     const existingTelemetrySessions = new Map(telemetrySessionIds.map((sessionId, i) => [sessionId, storedTelemetrySessions[i]]));
@@ -382,7 +414,34 @@ async function applyPreparedSeedChunkInTx(
         date = ts;
       }
       const seedCommit = row.commit ?? write.manifest.commit;
-      const note: Note = { ...existing, id, title, rawContent: row.content, sourceRevision, blocks: map, createdAt: write.manifest.version, ...(date === undefined ? {} : { date }), type: write.chunkId === DASHBOARDS_CHUNK_ID ? 'dashboard' : 'note', sourceId, seedOrigin: 'seed', seedVersion: write.manifest.version, seedChunkId: write.chunkId ?? undefined, feedOrigin: 'feed', feedSourceId, sourcePath: row.path, ...(seedCommit ? { seedCommit } : {}) };
+      const existingRetention = existing as RetentionNote | undefined;
+      const resolvedPin =
+        pinnedNoteIds.has(id) || existingRetention?.retention === 'session-pinned'
+          ? ('session-pinned' as const)
+          : existingRetention?.retention === 'schedule-pinned'
+            ? ('schedule-pinned' as const)
+            : undefined;
+      const note: RetentionNote = {
+        ...existing,
+        id,
+        title,
+        rawContent: row.content,
+        sourceRevision,
+        blocks: map,
+        createdAt: write.manifest.version,
+        ...(date === undefined ? {} : { date }),
+        type: write.chunkId === DASHBOARDS_CHUNK_ID ? 'dashboard' : 'note',
+        sourceId,
+        seedOrigin: 'seed',
+        seedVersion: write.manifest.version,
+        seedChunkId: write.chunkId ?? undefined,
+        feedOrigin: 'feed',
+        feedSourceId,
+        sourcePath: row.path,
+        ...(seedCommit ? { seedCommit } : {}),
+        ...(resolvedPin ? { retention: resolvedPin } : existingRetention?.retention ? { retention: existingRetention.retention } : {}),
+        ...(resolvedPin || existingRetention?.upstreamStatus ? { upstreamStatus: 'live' as const } : {}),
+      };
       if (date === undefined) delete note.date;
       if (!equal(note, existing)) changedNotes.push(note);
       const byRange = new Map(Object.values(map).map((b) => [`${b.from}:${b.to}`, b]));
@@ -470,12 +529,37 @@ async function applyPreparedSeedChunkInTx(
       result.totalNotes++;
       result.totalBlocks += Object.keys(map).length;
     }
+    const preservedGoneIds = new Set(
+      goneIds.filter(
+        (id) =>
+          owned.has(id) &&
+          (pinnedNoteIds.has(id) || (existingById.get(id) as RetentionNote | undefined)?.retention === 'schedule-pinned'),
+      ),
+    );
     const wantedBlocks = new Set(blocks.map((b) => b.id)), wantedEfforts = new Set(blockEfforts.map((b) => b.id)), wantedEquipment = new Set(blockEquipment.map((b) => b.id));
-    for (const rows of currentIndexes) for (const row of rows) if (row.isStatic === true && !wantedBlocks.has(row.id)) await indexStore.delete(row.id);
-    for (const rows of currentEfforts) for (const row of rows) if (row.isStatic === true && !wantedEfforts.has(row.id)) await effortLinks.delete(row.id);
-    for (const rows of currentEquipment) for (const row of rows) if (row.isStatic === true && !wantedEquipment.has(row.id)) await equipmentLinks.delete(row.id);
+    for (const rows of currentIndexes) for (const row of rows) if (row.isStatic === true && !wantedBlocks.has(row.id) && !preservedGoneIds.has(row.noteId)) await indexStore.delete(row.id);
+    for (const rows of currentEfforts) for (const row of rows) if (row.isStatic === true && !wantedEfforts.has(row.id) && !preservedGoneIds.has(row.noteId)) await effortLinks.delete(row.id);
+    for (const rows of currentEquipment) for (const row of rows) if (row.isStatic === true && !wantedEquipment.has(row.id) && !preservedGoneIds.has(row.noteId)) await equipmentLinks.delete(row.id);
     for (const id of goneIds) {
-      if (!owned.has(id) || !existingById.get(id)) continue;
+      if (!owned.has(id)) continue;
+      const existing = existingById.get(id) as RetentionNote | undefined;
+      if (!existing) continue;
+      const preservedRetention =
+        pinnedNoteIds.has(id) || existing.retention === 'session-pinned'
+          ? ('session-pinned' as const)
+          : existing.retention === 'schedule-pinned'
+            ? ('schedule-pinned' as const)
+            : undefined;
+      if (preservedRetention) {
+        const preserved: RetentionNote = {
+          ...existing,
+          retention: preservedRetention,
+          upstreamStatus: 'removed',
+        };
+        if (!equal(preserved, existing)) changedNotes.push(preserved);
+        result.preservedPinned = (result.preservedPinned ?? 0) + 1;
+        continue;
+      }
       const n = slot.get(id)!;
       await noteStore.delete(id);
       for (const link of currentTags[n]) await tagLinks.delete(link.id);

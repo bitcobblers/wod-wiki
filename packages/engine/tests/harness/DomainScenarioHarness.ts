@@ -42,6 +42,7 @@ import {
   extractPropertyRulesFromMeta,
   getNotePublicationSummary,
   isFindQuery,
+  makeNotebookLinkId,
   MemoryFeedTree,
   parseQuery,
   prepareJournalSessionRun,
@@ -55,6 +56,7 @@ import {
   seedMetaKey,
   setNotebookPublic,
   setSessionPublic,
+  toNotebookId,
   toStoredOutputStatement,
   type BlockEffort,
   type BlockEquipment,
@@ -93,13 +95,15 @@ import {
 // ── Public input/result shapes ──────────────────────────────────────────────
 
 export interface SessionRunInput {
-  /** Note to run — read-only Feed/Seed Notes are cloned into `notebook/journal` first. */
+  /** Note to run — external Feed/Seed Notes pin in place (`retention: 'session-pinned'`). */
   noteId: string;
   /** Block occurrence to run; defaults to the Note's first workout block. */
   blockId?: string;
   sessionId?: string;
   /** Civil journal date (`YYYY-MM-DD`) the run lands on. */
   journalDate?: string;
+  /** Optional planned ScheduleItem paired to this execution. */
+  scheduleItemId?: string;
   /** Run start epoch-ms (also seeds the mock runtime clock). */
   startedAt?: number;
   origin?: ResultOrigin;
@@ -111,9 +115,10 @@ export interface SessionRunInput {
 
 export interface SessionRunResult {
   sessionId: string;
-  /** The Note the Session is pinned to — the Journal clone for read-only sources. */
+  /** The Note the Session is pinned to — the canonical Note for user or session-pinned external workouts. */
   noteId: string;
   clonedFromReadOnly: boolean;
+  pinnedExternalWorkout: boolean;
   provenance?: NoteProvenance;
   session: Session;
   outputs: IOutputStatement[];
@@ -348,6 +353,7 @@ export class DomainScenarioHarness {
       ...(input.blockId ? { blockId: input.blockId } : {}),
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       ...(input.journalDate ? { journalDate: input.journalDate } : {}),
+      ...(input.scheduleItemId ? { scheduleItemId: input.scheduleItemId } : {}),
       startedAt,
       ...(input.origin ? { origin: input.origin } : {}),
     });
@@ -399,8 +405,28 @@ export class DomainScenarioHarness {
       origin: session.origin ?? input.origin,
       workoutTimestamp: endTime,
     });
-    await this.storage.transaction(['sessions', 'events'], 'readwrite', async (tx) => {
+    await this.storage.transaction(['sessions', 'events', 'notebook_links', 'schedule_items'], 'readwrite', async (tx) => {
       await tx.readwrite('sessions').put(session);
+      if (session.scheduleItemId) {
+        const schedItem = await tx.readonly('schedule_items').get(session.scheduleItemId);
+        if (schedItem && schedItem.status !== 'completed') {
+          await tx.readwrite('schedule_items').put({
+            ...schedItem,
+            status: 'completed',
+            updatedAt: endTime,
+          });
+        }
+      }
+      const nbIds = session.notebookIds?.length ? session.notebookIds : ['notebook/journal'];
+      const links: NotebookLink[] = nbIds.map((nbId) => ({
+        id: makeNotebookLinkId(toNotebookId(nbId), 'session', session.id),
+        notebookId: toNotebookId(nbId),
+        targetKind: 'session',
+        targetId: session.id,
+        noteId: session.noteId,
+        createdAt: session.createdAt,
+      }));
+      if (links.length > 0) await tx.readwrite('notebook_links').putMany(links);
       if (events.length) await tx.readwrite('events').putMany(events);
     });
 
@@ -408,6 +434,7 @@ export class DomainScenarioHarness {
       sessionId: session.id,
       noteId: session.noteId,
       clonedFromReadOnly: intake.clonedFromReadOnly,
+      pinnedExternalWorkout: intake.pinnedExternalWorkout,
       ...(intake.note.provenance ? { provenance: intake.note.provenance } : {}),
       session,
       outputs,

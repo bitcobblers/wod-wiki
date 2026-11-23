@@ -102,4 +102,28 @@ describe('MinimalTimerSurface', () => {
 
     expect(handlers.onNext).toHaveBeenCalledTimes(0);
   });
+
+  it('WW-064 & WW-096: timer footer controls carry visible labels, type="button", and >=44px classes', () => {
+    renderSurface({ isRunning: true });
+
+    const stopBtn = screen.getByTestId(TEST_IDS.TIMER_STOP_SESSION);
+    const playPauseBtn = screen.getByTestId(TEST_IDS.TIMER_PLAY_PAUSE);
+    const nextBtn = screen.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK);
+
+    expect(stopBtn.getAttribute('type')).toBe('button');
+    expect(playPauseBtn.getAttribute('type')).toBe('button');
+    expect(nextBtn.getAttribute('type')).toBe('button');
+
+    expect(stopBtn.textContent).toContain('Stop');
+    expect(playPauseBtn.textContent).toContain('Pause');
+    expect(nextBtn.textContent).toContain('Next');
+
+    expect(stopBtn.getAttribute('aria-label')).toBe('Stop Session');
+    expect(playPauseBtn.getAttribute('aria-label')).toBe('Pause');
+    expect(nextBtn.getAttribute('aria-label')).toBe('Next Block');
+
+    expect(stopBtn.className).toContain('min-h-12');
+    expect(playPauseBtn.className).toContain('min-h-[54px]');
+    expect(nextBtn.className).toContain('min-h-[54px]');
+  });
 });

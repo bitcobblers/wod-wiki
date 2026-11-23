@@ -22,7 +22,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { TEST_IDS } from '../../apps/playground/src/lib/testIds';
-import { ROUTE_PATTERNS } from '../../apps/playground/src/lib/routes';
+import { ROUTE_PATTERNS } from '../../apps/playground/src/lib/routePatterns';
 import {
   MultiGraphStore,
   RDF,

@@ -169,12 +169,9 @@ for (const { route, primaryTestId, primaryLabel } of MOBILE_SURFACE_GATES) {
     await openReadyMobileRoute(page, route);
     await expectWcag21AA(page);
 
-    // Sticky mobile header primary controls
+    // Sticky mobile header primary controls (no top-right Open page options on mobile; dock owns L3/page sheet)
     await expectTouchable(page.getByTestId(TEST_IDS.MOBILE_NAV_OPEN), `${route} Open navigation`);
-    await expectTouchable(
-      page.getByRole('button', { name: 'Open page options' }),
-      `${route} Open page options`,
-    );
+    await expect(page.getByRole('button', { name: 'Open page options' })).toHaveCount(0);
     await expectTouchable(
       page.locator('header').getByRole('button', { name: /Cast to TV/i }),
       `${route} Cast to TV button`,
@@ -205,9 +202,10 @@ test('Dashboard view (/dashboard/recovery-readiness) passes un-excluded WCAG 2.1
     page.getByTestId(TEST_IDS.MOBILE_NAV_OPEN),
     '/dashboard/recovery-readiness Open navigation',
   );
+  await expect(page.getByRole('button', { name: 'Open page options' })).toHaveCount(0);
   await expectTouchable(
-    page.getByRole('button', { name: 'Open page options' }),
-    '/dashboard/recovery-readiness Open page options',
+    page.getByTestId('actions-overflow'),
+    '/dashboard/recovery-readiness Dock Page options',
   );
   await expectTouchable(
     page.getByTestId('search-fab'),
@@ -256,7 +254,6 @@ test('Mobile navigation & page-options drawers expose 44x44px rail/close/apply t
   await expectTouchable(navDrawer.getByTestId(TEST_IDS.NAV_L1_SEARCH), 'Rail Search');
   await expectTouchable(navDrawer.getByTestId('nav-profile'), 'Rail Profile');
   await expectTouchable(navDrawer.getByTestId('nav-settings'), 'Rail Settings');
-  await expectTouchable(navDrawer.getByTestId(TEST_IDS.DRAWER_APPLY_BTN), 'Drawer Apply');
 
   const railResults = await new AxeBuilder({ page })
     .include('[data-testid="mobile-nav-drawer"] nav[aria-label="Primary"]')
@@ -273,25 +270,25 @@ test('Mobile navigation & page-options drawers expose 44x44px rail/close/apply t
   await navDrawer.getByTestId(TEST_IDS.MOBILE_NAV_CLOSE).click();
   await expect(navDrawer).toBeHidden();
 
-  // Open right L3 page-options drawer and verify WCAG A/AA + 44x44px controls
-  await page.getByRole('button', { name: 'Open page options' }).click();
-  const rightDrawer = page.getByTestId('l3-right-drawer');
-  await expect(rightDrawer).toBeVisible();
+  // Open unified thumb-dock L3 page-options sheet on a detail/board route and verify WCAG A/AA + 44x44px controls
+  await openReadyMobileRoute(page, '/dashboard/recovery-readiness');
+  await page.getByTestId(TEST_IDS.ACTIONS_OVERFLOW).click();
+  const dockSheet = page.getByTestId(TEST_IDS.ACTIONS_SHEET_L3);
+  await expect(dockSheet).toBeVisible();
 
   await expectTouchable(
-    rightDrawer.getByRole('button', { name: 'Close page options' }),
-    'Close page options',
+    page.getByTestId(TEST_IDS.L3_DRAWER_DONE_BTN),
+    'Page options Done',
   );
-  await expectTouchable(rightDrawer.getByRole('button', { name: 'Apply' }), 'Page options Apply');
 
   const rightDrawerResults = await new AxeBuilder({ page })
-    .include('[data-testid="l3-right-drawer"]')
+    .include('[data-testid="actions-sheet-l3"]')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   expect(formatViolations(filterDrawerMutedCaptionContrast(rightDrawerResults.violations))).toEqual([]);
 
-  await rightDrawer.getByRole('button', { name: 'Close page options' }).click();
-  await expect(rightDrawer).toBeHidden();
+  await page.getByTestId(TEST_IDS.L3_DRAWER_DONE_BTN).click();
+  await expect(dockSheet).toBeHidden();
 
   expect(pageErrors).toEqual([]);
 });

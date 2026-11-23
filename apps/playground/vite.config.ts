@@ -1,5 +1,6 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { execSync } from 'node:child_process';
 import { resolve } from 'path';
 import fs from 'fs';
 const CODEMIRROR_SINGLETON_DEPS = [
@@ -108,6 +109,31 @@ function seedManifestVersions(): Record<string, number> {
     return versions;
 }
 
+function resolveGitSha(root: string): string {
+    const envSha = (process.env.VITE_GIT_SHA || process.env.GITHUB_SHA || '').trim();
+    if (envSha) return envSha.slice(0, 12);
+    try {
+        return execSync('git rev-parse --short HEAD', { cwd: root, encoding: 'utf-8' }).trim() || 'dev';
+    } catch {
+        return 'dev';
+    }
+}
+
+const appVersion = process.env.VITE_APP_VERSION || pkg.version;
+const appGitSha = resolveGitSha(projectRoot);
+const appBuiltAt = new Date().toISOString();
+
+const versionManifestPlugin: Plugin = {
+    name: 'version-manifest',
+    generateBundle() {
+        this.emitFile({
+            type: 'asset',
+            fileName: 'version.json',
+            source: `${JSON.stringify({ version: appVersion, gitSha: appGitSha, builtAt: appBuiltAt }, null, 2)}\n`,
+        });
+    },
+};
+
 export default defineConfig({
     root: import.meta.dirname,
     envDir: projectRoot,
@@ -116,7 +142,9 @@ export default defineConfig({
         // CI pipelines stamp the deployed artifact's version via VITE_APP_VERSION
         // (tagged version on main/prod, X.Y.Z-pr.N on PR previews); local dev
         // and library builds fall back to package.json.
-        __APP_VERSION__: JSON.stringify(process.env.VITE_APP_VERSION || pkg.version),
+        __APP_VERSION__: JSON.stringify(appVersion),
+        __GIT_SHA__: JSON.stringify(appGitSha),
+        __BUILT_AT__: JSON.stringify(appBuiltAt),
         // Optional Amazon Associates tag stamped at build time from GitHub variable ASSOCIATE_TAG.
         __ASSOCIATE_TAG__: JSON.stringify((process.env.ASSOCIATE_TAG || process.env.VITE_ASSOCIATE_TAG || '').trim()),
         // Seed version stamps (docs/prototypes/seed-data-unification.md §
@@ -126,7 +154,7 @@ export default defineConfig({
         // runtime then always consults their manifest.
         __FEED_VERSIONS__: JSON.stringify(seedManifestVersions()),
     },
-    plugins: [react(), receiverRedirectPlugin, seedFilesPlugin],
+    plugins: [react(), receiverRedirectPlugin, seedFilesPlugin, versionManifestPlugin],
     resolve: {
         dedupe: ['react', 'react-dom', ...CODEMIRROR_SINGLETON_DEPS],
         alias: [

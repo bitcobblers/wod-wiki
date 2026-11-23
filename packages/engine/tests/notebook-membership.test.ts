@@ -35,6 +35,7 @@ describe('Candidate 02 — Many-to-many Notebook Membership & Private Journal', 
       date: Date.parse('2026-11-10T12:00:00Z'),
       createdAt: 1000,
       type: 'journal',
+      notebookIds: ['notebook/journal'],
       seedOrigin: 'user',
     };
     await storage.transaction(['notes', 'block_revisions'], 'readwrite', async (tx) => {
@@ -93,17 +94,17 @@ describe('Candidate 02 — Many-to-many Notebook Membership & Private Journal', 
       'notebook/club-benchmarks',
     ]);
 
-    // Removing from one user notebook preserves the other AND keeps notebook/journal
+    // Removing from one user notebook preserves the other AND keeps notebook/journal if previously attached
     await removeNoteFromNotebook(storage, note.id, 'notebook/open-prep');
     expect(await getNoteNotebooks(storage, note.id)).toEqual([
       'notebook/journal',
       'notebook/club-benchmarks',
     ]);
 
-    // Attempting to remove a user note from notebook/journal is refused (Journal tracks all created notes/sessions)
-    await expect(
-      removeNoteFromNotebook(storage, note.id, 'notebook/journal'),
-    ).rejects.toThrow(/journal/i);
+    // ADR 0009 + Annotation 2: detaching remaining Notebooks cleanly leaves an unfiled/orphaned Note (`[]`)
+    await removeNoteFromNotebook(storage, note.id, 'notebook/club-benchmarks');
+    await removeNoteFromNotebook(storage, note.id, 'notebook/journal');
+    expect(await getNoteNotebooks(storage, note.id)).toEqual([]);
 
     await storage.close();
   });

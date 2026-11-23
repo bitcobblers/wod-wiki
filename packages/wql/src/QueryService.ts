@@ -19,8 +19,8 @@
  * Fully inverted dependencies: zero IndexedDB/storage module-level imports.
  */
 
-import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, IMetric, Page, PageNote, NotePlacement, Tag, TagContribution } from '@bitcobblers/wod-wiki-core';
-import { MetricType, createMetricOwnershipLedger, normalizeFieldComponent, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
+import type { AnalyticsDataPoint, Note, BlockIndexRow, EventRecord, IMetric, Page, PageNote, NotePlacement, ScheduleItem, Tag, TagContribution } from '@bitcobblers/wod-wiki-core';
+import { MetricType, createMetricOwnershipLedger, isNotebookLanding, metricToMs, normalizeFieldComponent, resolvePlacements, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import {
   DEFAULT_NOTEBOOK_SLUGS,
   isNoteEditable,
@@ -218,7 +218,7 @@ export function notebooksOfItem(item: NotebookResolvableItem): NotebookId[] {
       }
     }
   }
-  if (out.length === 0) {
+  if (out.length === 0 && (!Array.isArray(item.notebookIds) || item.seedOrigin === 'seed' || item.feedOrigin === 'feed')) {
     const intrinsic = resolveIntrinsicNotebook(item);
     if (intrinsic) {
       push(intrinsic);
@@ -253,6 +253,9 @@ export function notebookOfItem(item: NotebookResolvableItem): NotebookId | undef
       }
     }
   }
+  if (Array.isArray(item.notebookIds) && item.seedOrigin !== 'seed' && item.feedOrigin !== 'feed') {
+    return undefined;
+  }
   return resolveIntrinsicNotebook(item);
 }
 
@@ -271,7 +274,20 @@ export function notebookOfItem(item: NotebookResolvableItem): NotebookId | undef
  */
 export function notebookOriginOfItem(item: NotebookResolvableItem): NotebookOrigin | undefined {
   const notebook = notebookOfItem(item);
-  if (!notebook) return undefined;
+  if (!notebook) {
+    if (
+      Array.isArray(item.notebookIds) &&
+      item.notebookIds.length === 0 &&
+      item.seedOrigin !== 'seed' &&
+      item.feedOrigin !== 'feed' &&
+      !item.feedSourceId &&
+      !item.seedChunkId &&
+      !(!!item.sourcePath && item.sourcePath.startsWith('markdown/'))
+    ) {
+      return 'user';
+    }
+    return undefined;
+  }
   if (notebook === 'notebook/defaults') return 'default';
   if (item.notebookId?.trim()) return 'user';
   if (item.notebookIds?.some((id) => {
@@ -403,6 +419,7 @@ export function sourceMatches(
     id?: string; noteId?: string; sourceId?: string; type?: string;
     seedOrigin?: string; seedChunkId?: string; feedOrigin?: string; feedSourceId?: string;
     sourcePath?: string; notebookId?: string;
+    notebookIds?: readonly string[];
     tags?: readonly string[];
   },
   kind: string,
@@ -464,10 +481,17 @@ function matchesFeedFilterValue(fid: string, v: TagFilter['values'][number]): bo
 }
 
 /** Apply the `notebook:` filter key to a list of Note or BlockIndexRow items. */
-function applyNotebookFilter<T extends NotebookResolvableItem>(items: T[], filters: TagFilter[]): T[] {
+function applyNotebookFilter<T extends NotebookResolvableItem>(
+  items: T[],
+  filters: TagFilter[],
+  excludeLandings = true,
+): T[] {
   for (const filter of filters) {
     if (filter.key !== 'notebook') continue;
     items = items.filter(item => {
+      if (excludeLandings && 'id' in item && 'notebookId' in item && isNotebookLanding(item as { id: string; notebookId?: string })) {
+        return false;
+      }
       const memberships = notebooksOfItem(item);
       if (memberships.length === 0) return filter.negate;
       const hit = memberships.some(nb => filter.values.some(v => matchesNotebookFilterValue(nb, v)));
@@ -628,6 +652,7 @@ function runContext(options: { context?: ExecutionContext; anchorNow?: number })
 interface NoteRelations {
   containers: Record<string, NoteContainer>;
   placements: Record<string, NotePlacement[]>;
+  typedTags: Record<string, Array<{ label: string; type?: string }>>;
 }
 
 /** The note's effective window timestamp: the authored `date` wins; an
@@ -642,6 +667,35 @@ function noteEffectiveTimestamp(
   if (note.date !== undefined) return note.date;
   const placed = placements?.find((p) => p.date !== undefined)?.date;
   return placed !== undefined ? zonedNoon(placed, timeZone) : note.createdAt;
+}
+
+/**
+ * All effective timestamps for a Note across M:N `schedule_items`, legacy
+ * dated `page_notes` placements, and authored `note.date` / `createdAt`.
+ */
+function noteEffectiveTimestamps(
+  note: Note,
+  placements: readonly NotePlacement[] | undefined,
+  schedules: readonly ScheduleItem[] | undefined,
+  timeZone: string,
+): number[] {
+  const out: number[] = [];
+  const push = (ts: number) => {
+    if (!out.includes(ts)) out.push(ts);
+  };
+  if (schedules && schedules.length > 0) {
+    for (const s of schedules) {
+      if (s.status !== 'skipped') push(zonedNoon(s.date, timeZone));
+    }
+  }
+  if (placements && placements.length > 0) {
+    for (const p of placements) {
+      if (p.date !== undefined) push(zonedNoon(p.date, timeZone));
+    }
+  }
+  if (note.date !== undefined) push(note.date);
+  if (out.length === 0) push(note.createdAt);
+  return out;
 }
 
 /** Time-window predicate for a row (C1 + ticket 12): the query's own window
@@ -730,6 +784,8 @@ export interface FindQueryResult {
    *  primary projection of this map. Present only when a pageStore or
    *  relationStore is injected and notes were matched. */
   placements?: Record<string, NotePlacement[]>;
+  /** Typed junction tags per note id when loaded via `relationStore`. */
+  typedTags?: Record<string, Array<{ label: string; type?: string }>>;
   stages: { selected: number; matched: number };
 }
 
@@ -974,12 +1030,25 @@ export function computeRowsRunSummary(
       } else if (mType === MetricType.Distance || mType === 'distance' || canon === 'totalDistance') {
         rowDist += m.value;
         if (m.unit) rowDistUnit = m.unit;
-      } else if (canon === 'elapsed' || mType === 'duration' || mType === MetricType.Duration) {
+      } else if (canon === 'elapsed' || mType === 'elapsed' || mType === MetricType.Elapsed) {
+        rowElapsedMs = metricToMs(m) ?? rowElapsedMs;
+      } else if (mType === 'duration' || mType === MetricType.Duration) {
         if (rowElapsedMs === 0) {
-          rowElapsedMs = m.unit === 'ms' ? m.value : m.unit === 'min' ? m.value * 60_000 : m.value * 1000;
+          rowElapsedMs = metricToMs(m) ?? 0;
         }
       } else if (canon === 'rounds' || mType === 'rounds' || mType === 'current-round' || canon === 'currentRound') {
-        roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
+        const earlyTermination =
+          row.completionReason === 'user-abort' ||
+          row.completionReason === 'forced-pop' ||
+          row.completionReason === 'timer-expired';
+        const isLeafEffortRow =
+          Boolean(rowEffortSlug) ||
+          vis.some((x) => x.type === MetricType.Effort || x.type === 'effort');
+        const effectiveRound =
+          earlyTermination && isLeafEffortRow
+            ? Math.max(0, Math.round(m.value) - 1)
+            : Math.round(m.value);
+        roundsCompleted = Math.max(roundsCompleted, effectiveRound);
       } else if (canon === 'calc.e1rm' || canon === 'e1rm') {
         rowE1rm = rowE1rm === undefined ? m.value : Math.max(rowE1rm, m.value);
       }
@@ -1039,10 +1108,25 @@ export function computeRowsRunSummary(
   let sessionLoad: number | undefined;
   let summaryElapsedMs: number | undefined;
 
-  for (const row of summaryRows) {
+  // Prefer grain === 'summary' rows when present; otherwise fold legacy analytics rows once per metric key (WW-116).
+  const hasGrainSummary = summaryRows.some((r) => r.grain === 'summary');
+  const dedupedSummaryRows = hasGrainSummary
+    ? summaryRows.filter((r) => r.grain === 'summary')
+    : summaryRows;
+  const seenSummaryKeys = new Set<string>();
+
+  for (const row of dedupedSummaryRows) {
     for (const m of visibleRowMetrics(row.metrics)) {
       if (typeof m.value !== 'number' || !Number.isFinite(m.value)) continue;
       const canon = typeof m.metadata?.canonicalKey === 'string' ? m.metadata.canonicalKey : m.type ?? '';
+      const groupTags = m.metadata?.groupTags ? JSON.stringify(m.metadata.groupTags) : (typeof m.metadata?.effortSlug === 'string' ? m.metadata.effortSlug : '');
+      const dedupeKey = `${canon}:${groupTags}`;
+      if ((canon === 'tis' || canon === 'sessionLoad' || canon === 'totalVolume' || canon === 'totalDistance') && seenSummaryKeys.has(dedupeKey)) {
+        continue;
+      }
+      if (canon === 'tis' || canon === 'sessionLoad' || canon === 'totalVolume' || canon === 'totalDistance') {
+        seenSummaryKeys.add(dedupeKey);
+      }
       if (canon === 'totalVolume' || canon === 'volume') {
         storedVolume = (storedVolume ?? 0) + m.value;
         if (m.unit && !storedVolumeUnit) storedVolumeUnit = m.unit;
@@ -1056,7 +1140,7 @@ export function computeRowsRunSummary(
       } else if (canon === 'sessionLoad') {
         sessionLoad = (sessionLoad ?? 0) + m.value;
       } else if (canon === 'elapsed' || canon === 'duration') {
-        const ms = m.unit === 'ms' ? m.value : m.unit === 'min' ? m.value * 60_000 : m.value * 1000;
+        const ms = metricToMs(m) ?? 0;
         summaryElapsedMs = Math.max(summaryElapsedMs ?? 0, ms);
       } else if (canon === 'rounds' || canon === 'currentRound') {
         roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
@@ -1524,6 +1608,7 @@ export class QueryService {
   };
   private readonly isNotebookSubscribed?: (feedId: string, chunkId: string) => boolean;
   private readonly feedCatalogStore?: FeedCatalogQueryStore;
+  private readonly scheduleStore?: QueryServiceStores['scheduleStore'];
   private readonly sessionStore?: QueryServiceStores['sessionStore'];
 
   // Optional storage seam properties for block_efforts, block_equipment, and typed tag resolution.
@@ -1562,6 +1647,7 @@ export class QueryService {
         'relationStore' in storesOrEventStore ||
         'datasetStore' in storesOrEventStore ||
         'feedCatalogStore' in storesOrEventStore ||
+        'scheduleStore' in storesOrEventStore ||
         'sessionStore' in storesOrEventStore ||
         'isNotebookSubscribed' in storesOrEventStore)
     ) {
@@ -1579,6 +1665,7 @@ export class QueryService {
       if (stores.noteTagsStore) this.noteTagsStore = stores.noteTagsStore;
       if (stores.isNotebookSubscribed) this.isNotebookSubscribed = stores.isNotebookSubscribed;
       if (stores.feedCatalogStore) this.feedCatalogStore = stores.feedCatalogStore;
+      if (stores.scheduleStore) this.scheduleStore = stores.scheduleStore;
       if (stores.sessionStore) this.sessionStore = stores.sessionStore;
     } else {
       this.store = (storesOrEventStore as EventStore | undefined) ?? defaultEventStore;
@@ -1664,6 +1751,29 @@ export class QueryService {
     const blockIds = posScopeValues('block');
     const noteIds = posScopeValues('note');
 
+    const sessionMetaById = new Map<
+      string,
+      {
+        duration?: number;
+        notebookIds?: readonly string[];
+        blockContentId?: string;
+        completed?: boolean;
+        sessionDate?: string;
+        scheduleItemId?: string;
+      }
+    >();
+    const allSessions = this.sessionStore ? await this.sessionStore.getAll() : [];
+    for (const s of allSessions) {
+      sessionMetaById.set(s.id, {
+        duration: s.duration,
+        notebookIds: s.notebookIds,
+        blockContentId: s.blockContentId,
+        completed: s.completed,
+        sessionDate: s.sessionDate,
+        scheduleItemId: s.scheduleItemId,
+      });
+    }
+
     const byResult = new Map<string, EventRecord[]>();
     const collected = new Set<string>();
     const collect = (rows: EventRecord[]) => {
@@ -1682,6 +1792,14 @@ export class QueryService {
         ? await this.store.getEventsByTimeRange(range.start, range.end)
         : await this.store.scanAll();
       collect(eventRows);
+      if (range && allSessions.length > 0) {
+        for (const s of allSessions) {
+          if (byResult.has(s.id) || !s.sessionDate) continue;
+          if (inRange(zonedNoon(s.sessionDate, ctx.timeZone), range)) {
+            collect(await this.store.getEventsByResult(s.id));
+          }
+        }
+      }
     } else {
       for (const id of resultIds) collect(await this.store.getEventsByResult(id));
       for (const blockContentId of blockIds) collect(await this.store.getEventsByContent(blockContentId));
@@ -1709,9 +1827,13 @@ export class QueryService {
     });
 
     if (parsed.window || options.range) {
-      groups = groups.filter(([, rows]) =>
-        effectiveTimeWindow(sessionCompletedAt(rows), parsed.window, options.range, ctx),
-      );
+      groups = groups.filter(([resultId, rows]) => {
+        const meta = sessionMetaById.get(resultId);
+        const effectiveTs = meta?.sessionDate
+          ? zonedNoon(meta.sessionDate, ctx.timeZone)
+          : sessionCompletedAt(rows);
+        return effectiveTimeWindow(effectiveTs, parsed.window, options.range, ctx);
+      });
     }
     groups.sort((a, b) => sessionCompletedAt(b[1]) - sessionCompletedAt(a[1]));
 
@@ -1720,16 +1842,6 @@ export class QueryService {
       (f) => !['result', 'block', 'note', 'plane'].includes(f.key) && supportsWqlFilterKey('session', 'find', f.key),
     );
     const normalizedFactFilters = factFilters.map((f) => (f.key === 'tag' ? { ...f, key: 'tags' } : f));
-    const sessionMetaById = new Map<string, { duration?: number; notebookIds?: readonly string[]; blockContentId?: string; completed?: boolean }>();
-    const allSessions = this.sessionStore ? await this.sessionStore.getAll() : [];
-    for (const s of allSessions) {
-      sessionMetaById.set(s.id, {
-        duration: s.duration,
-        notebookIds: s.notebookIds,
-        blockContentId: s.blockContentId,
-        completed: s.completed,
-      });
-    }
     const dimSeedRows: AnalyticsDataPoint[] = groups.length > 0
       ? groups.map(([resultId, rows]) => ({
           resultId,
@@ -1815,7 +1927,8 @@ export class QueryService {
           if (!matchesFilters(dummyFact, notebookFactFilters, sessionDims)) continue;
         }
         const ts = s.completedAt ?? s.startedAt ?? s.createdAt ?? 0;
-        if ((parsed.window || options.range) && !effectiveTimeWindow(ts, parsed.window, options.range, ctx)) continue;
+        const effectiveTs = s.sessionDate ? zonedNoon(s.sessionDate, ctx.timeZone) : ts;
+        if ((parsed.window || options.range) && !effectiveTimeWindow(effectiveTs, parsed.window, options.range, ctx)) continue;
         const nbs = new Set<string>([
           ...(sessionDims.sessionNotebooks?.get(s.id) ?? []),
           ...(sessionDims.noteNotebooks?.get(s.noteId) ?? []),
@@ -2364,7 +2477,7 @@ export class QueryService {
       }
     }
 
-    notes = applyNotebookFilter(notes, parsed.filters);
+    notes = applyNotebookFilter(notes, parsed.filters, !parsed.raw.startsWith(':notebook'));
     // Zero-import remote preview fallback: after `applyNotebookFilter` narrows local notes,
     // if the requested `notebook:<slug>` has zero local rows, fetch its lightweight index records.
     if (notes.length === 0 && this.feedCatalogStore?.getRemoteNotebookNotes) {
@@ -2451,8 +2564,18 @@ export class QueryService {
       relations = await this.containersAndPlacements(notes);
     }
     if (parsed.window || options.range) {
+      const schedulesByNote = new Map<string, ScheduleItem[]>();
+      if (this.scheduleStore) {
+        const allSchedules = await this.scheduleStore.getAll();
+        for (const item of allSchedules) {
+          const bucket = schedulesByNote.get(item.noteId);
+          if (bucket) bucket.push(item);
+          else schedulesByNote.set(item.noteId, [item]);
+        }
+      }
       notes = notes.filter(n =>
-        effectiveTimeWindow(noteEffectiveTimestamp(n, relations?.placements[n.id], ctx.timeZone), parsed.window, options.range, ctx));
+        noteEffectiveTimestamps(n, relations?.placements[n.id], schedulesByNote.get(n.id), ctx.timeZone)
+          .some(ts => effectiveTimeWindow(ts, parsed.window, options.range, ctx)));
     }
 
     // Cross-store join (direction 1): keep notes owning a wod block whose
@@ -2486,18 +2609,25 @@ export class QueryService {
     }
     if (relations) {
       // Relations were computed over the pre-window candidates when a window
-      // ran — prune both maps to the surviving notes.
+      // ran — prune maps to the surviving notes.
       const surviving = new Set(notes.map((n) => n.id));
       relations = {
         containers: Object.fromEntries(Object.entries(relations.containers).filter(([id]) => surviving.has(id))),
         placements: Object.fromEntries(Object.entries(relations.placements).filter(([id]) => surviving.has(id))),
+        typedTags: Object.fromEntries(Object.entries(relations.typedTags).filter(([id]) => surviving.has(id))),
       };
     }
     return {
       parsed,
       notes,
       blocks: [],
-      ...(relations ? { containers: relations.containers, placements: relations.placements } : {}),
+      ...(relations
+        ? {
+            containers: relations.containers,
+            placements: relations.placements,
+            ...(Object.keys(relations.typedTags).length > 0 ? { typedTags: relations.typedTags } : {}),
+          }
+        : {}),
       stages: { selected: selectedCount, matched: notes.length },
     };
   }
@@ -2515,6 +2645,7 @@ export class QueryService {
   private async containersAndPlacements(notes: Note[]): Promise<NoteRelations> {
     const containers: Record<string, NoteContainer> = {};
     const placements: Record<string, NotePlacement[]> = {};
+    const typedTags: Record<string, Array<{ label: string; type?: string }>> = {};
     const bundles = this.relationStore
       ? await this.relationStore.getBatches([...new Set(notes.map((n) => n.id))])
       : undefined;
@@ -2528,8 +2659,11 @@ export class QueryService {
         // Inline the bundle's junction tags on notes without authored tags —
         // downstream Entry mapping hydrates from this same read (no-tag
         // stays a valid final state; inline tags are never overwritten).
-        if (bundle && bundle.tags.length > 0 && (!note.tags || note.tags.length === 0)) {
-          note.tags = bundle.tags.map((t) => t.label);
+        if (bundle && bundle.tags.length > 0) {
+          typedTags[note.id] = bundle.tags.map((t) => ({ label: t.label, ...(t.type ? { type: t.type } : {}) }));
+          if (!note.tags || note.tags.length === 0) {
+            note.tags = bundle.tags.map((t) => t.label);
+          }
         }
       } else {
         const links = await this.pageStore!.getNotePages(note.id);
@@ -2553,7 +2687,7 @@ export class QueryService {
         ? { kind: 'page', id: primary.pageId, ...(primary.slug ? { slug: primary.slug } : {}), ...(primary.date ? { date: primary.date } : {}) }
         : { kind: 'note', id: note.id };
     }
-    return { containers, placements };
+    return { containers, placements, typedTags };
   }
 
   private async hydrateBlocks(rows: BlockIndexRow[]): Promise<BlockIndexRow[]> {

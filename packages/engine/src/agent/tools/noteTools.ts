@@ -12,6 +12,7 @@ import { notebookOfItem, notebookOriginOfItem, notebooksOfItem } from '@bitcobbl
 import { composeNoteMarkdown } from '../../exchange';
 import { getNotePublicationSummary } from '../../feed/ingestor';
 import { getNoteNotebooks, promoteNoteToNotebooks } from '../../notebook/membership';
+import { listNoteRevisions, listScheduleItemsForNote } from '../../notebook/schedule';
 import { buildNoteProvenance, resolveUpstreamProvenance } from '../../notebook/sessionIntake';
 import {
   deleteNoteFromStorage,
@@ -33,10 +34,18 @@ const noteListInputSchema = z.strictObject({
     .describe('Filter by notebook ID or slug (e.g. "journal", "custom", "guides", "notebook/strength").'),
   search: z.string().optional().describe('Case-insensitive substring filter over title and Markdown content.'),
   tag: z.string().optional().describe('Filter to Notes carrying this tag label.'),
+  origin: z
+    .enum(['all', 'user', 'feed', 'seed'])
+    .optional()
+    .describe('Filter by Note origin ("user", "feed", "seed", or "all"; defaults to "all").'),
   includeSeed: z
     .boolean()
     .optional()
-    .describe('Include read-only Seed/Feed notes (default true when notebookId is specified, false otherwise).'),
+    .describe('Include read-only Seed/Feed notes (default true; pass false for user-authored notes only).'),
+  orphanedOnly: z
+    .boolean()
+    .optional()
+    .describe('When true, return only user Notes not belonging to any Notebook (equivalent to `:note{!notebook:*}`).'),
   limit: z.number().int().min(1).max(200).optional().describe('Max notes to return (default 50).'),
 });
 
@@ -58,37 +67,55 @@ export const wodNoteListTool = defineAgentTool({
   cliEquivalent: 'wod note list --json',
   async execute(args, ctx) {
     const targetNb = args.notebookId ? toNotebookId(args.notebookId) : undefined;
-    const includeSeed = args.includeSeed ?? Boolean(targetNb);
+    const includeSeed = args.includeSeed ?? true;
+    const origin = args.origin ?? 'all';
+    const orphanedOnly = args.orphanedOnly === true;
     const searchLower = args.search?.trim().toLowerCase();
     const tagLower = args.tag?.trim().toLowerCase();
     const limit = args.limit ?? 50;
 
     // WW-082: Read notes and notebook_links in one readonly snapshot transaction
     // so list results never skew against concurrent seed/feed import churn.
-    const { allNotes, linkedNoteIdsForNb } = await ctx.storage.transaction(
+    const { allNotes, linkedNoteIdsForNb, noteIdsWithLinks } = await ctx.storage.transaction(
       ['notes', 'notebook_links'],
       'readonly',
       async (tx) => {
         const notes = await tx.readonly('notes').getAll();
         let linkedIds: Set<string> | undefined;
-        if (targetNb) {
-          try {
+        const withLinks = new Set<string>();
+        try {
+          if (targetNb) {
             const links = await tx.readonly('notebook_links').getAllFromIndex('by-notebook', targetNb);
             linkedIds = new Set(
               links.filter((l) => l.targetKind === 'note').map((l) => l.noteId),
             );
-          } catch {
-            linkedIds = new Set();
           }
+          if (orphanedOnly) {
+            const allLinks = await tx.readonly('notebook_links').getAll();
+            for (const link of allLinks) {
+              if (link.targetKind === 'note') withLinks.add(link.noteId);
+            }
+          }
+        } catch {
+          linkedIds = new Set();
         }
-        return { allNotes: notes, linkedNoteIdsForNb: linkedIds };
+        return { allNotes: notes, linkedNoteIdsForNb: linkedIds, noteIdsWithLinks: withLinks };
       },
     );
 
     const filtered = allNotes
       .filter((n) => {
         if (isLandingNote(n)) return false;
-        if (!includeSeed && (n.seedOrigin === 'seed' || n.feedOrigin === 'feed')) return false;
+        const isSeedOrFeed = n.seedOrigin === 'seed' || n.feedOrigin === 'feed';
+        if (origin === 'user' && isSeedOrFeed) return false;
+        if (origin === 'feed' && n.feedOrigin !== 'feed') return false;
+        if (origin === 'seed' && n.seedOrigin !== 'seed') return false;
+        if (!includeSeed && isSeedOrFeed) return false;
+        if (orphanedOnly) {
+          if (isSeedOrFeed) return false;
+          if (noteIdsWithLinks.has(n.id)) return false;
+          if (notebooksOfItem(n).length > 0) return false;
+        }
         if (targetNb) {
           const inNb =
             linkedNoteIdsForNb?.has(n.id) ||
@@ -161,7 +188,7 @@ export const wodNoteGetTool = defineAgentTool({
     const nbOrigin = notebookOriginOfItem(note);
     const resolvedNb = notebookOfItem(note);
     const editable = isNoteEditable(note, nbOrigin, resolvedNb);
-    const [notebooks, provenance, visibility, sessions] = await Promise.all([
+    const [notebooks, provenance, visibility, sessions, scheduleItems, revisions] = await Promise.all([
       getNoteNotebooks(ctx.storage, note.id),
       resolveUpstreamProvenance(ctx.storage, note),
       getNotePublicationSummary(ctx.storage, note.id),
@@ -171,6 +198,8 @@ export const wodNoteGetTool = defineAgentTool({
         .catch(async () =>
           (await ctx.storage.readonly('sessions').getAll()).filter((s) => s.noteId === note.id),
         ),
+      listScheduleItemsForNote(ctx.storage, note.id).catch(() => []),
+      listNoteRevisions(ctx.storage, note.id).catch(() => []),
     ]);
 
     const sections = parseDocumentSections(note.rawContent, {
@@ -201,6 +230,9 @@ export const wodNoteGetTool = defineAgentTool({
       createdAt: note.createdAt,
       tags: note.tags ?? [],
       notebooks: notebooks.map((id) => ({ id, slug: notebookSlugFromId(id) })),
+      scheduleCount: scheduleItems.length,
+      scheduleItems,
+      revisionCount: revisions.length,
       blocks,
       sessionCount: sessions.length,
       recentSessions: sessions
@@ -239,7 +271,7 @@ const noteUpsertInputSchema = z.strictObject({
   notebookId: z
     .string()
     .optional()
-    .describe('Optional user Notebook ID/slug to link this Note into (always stays anchored in notebook/journal).'),
+    .describe('Optional user Notebook ID/slug to assign this Note into (omit for unfiled/existing memberships).'),
   journalDate: z
     .string()
     .optional()

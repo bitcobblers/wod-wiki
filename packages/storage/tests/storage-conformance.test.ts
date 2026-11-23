@@ -8,6 +8,7 @@ import { ApiStorage } from '../src/api';
 import { createHandler } from '@bitcobblers/wod-wiki-tools/server';
 import type { IStorage } from '../src/contract';
 import type { Note } from '../src/entities';
+import { reconcileNoteBlocks } from '@bitcobblers/wod-wiki-core';
 import { DOMAIN_PROJECTION_VERSION } from '../src/domain';
 
 interface StorageFixture {
@@ -267,4 +268,117 @@ describe.each(adapters)('Storage Conformance: $name', ({ create, supportsQueryDo
       }
     });
   }
+
+  it('supports V35 schedule_items M:N & AM/PM duplicates, immutable note_revisions, and mutable session attribution', async () => {
+    const { storage, cleanup } = await create();
+    try {
+      const now = 1_700_000_000_000;
+      const revRaw = '# Bench\n\n```time\n5x5 Bench Press\n```\n';
+      const blocks = reconcileNoteBlocks(revRaw, { sourceRevision: 1 });
+      const wod = Object.values(blocks)[0]!;
+      const note = makeNote('v35-note-1', now, {
+        title: 'Bench',
+        rawContent: revRaw,
+        blocks,
+        notebookIds: [],
+      });
+
+      await storage.transaction(
+        ['notes', 'block_revisions', 'note_revisions', 'schedule_items', 'sessions'],
+        'readwrite',
+        async (tx) => {
+          await tx.readwrite('notes').put(note);
+          await tx.readwrite('block_revisions').put({
+            noteId: note.id,
+            blockId: wod.id,
+            version: 1,
+            kind: 'wod',
+            rawContent: revRaw.slice(wod.from, wod.to),
+            savedAt: now,
+            dialect: 'time',
+          });
+          await tx.readwrite('note_revisions').put({
+            noteId: note.id,
+            version: 1,
+            title: note.title,
+            rawContent: revRaw,
+            blocks: note.blocks,
+            notebookIds: [],
+            savedAt: now,
+          });
+          await tx.readwrite('schedule_items').putMany([
+            {
+              id: 'sched-am',
+              date: '2026-11-26',
+              noteId: note.id,
+              position: 0,
+              slot: 'AM',
+              status: 'planned',
+              createdAt: now,
+              updatedAt: now,
+            },
+            {
+              id: 'sched-pm',
+              date: '2026-11-26',
+              noteId: note.id,
+              position: 1,
+              slot: 'PM',
+              status: 'planned',
+              createdAt: now + 1,
+              updatedAt: now + 1,
+            },
+          ]);
+          await tx.readwrite('sessions').put({
+            id: 'sess-v35-1',
+            noteId: note.id,
+            noteSourceRevision: 1,
+            blockId: wod.id,
+            blockVersion: 1,
+            sessionDate: '2026-11-26',
+            scheduleItemId: 'sched-am',
+            status: 'completed',
+            startTime: now,
+            endTime: now + 60_000,
+            duration: 60_000,
+            completed: true,
+            createdAt: now + 60_000,
+          });
+        },
+      );
+
+      // M:N AM/PM schedules on the same date & note coexist without unique collision
+      const byDate = await storage.readonly('schedule_items').getAllFromIndex('by-date', '2026-11-26');
+      expect(byDate.map((s) => s.id).sort()).toEqual(['sched-am', 'sched-pm']);
+
+      // Session attribution fields are queryable and mutable while block pin stays locked
+      const savedSess = await storage.readonly('sessions').get('sess-v35-1');
+      expect(savedSess?.sessionDate).toBe('2026-11-26');
+      expect(savedSess?.noteSourceRevision).toBe(1);
+
+      await storage.readwrite('sessions').put({
+        ...savedSess!,
+        sessionDate: '2026-11-27',
+        scheduleItemId: 'sched-pm',
+      });
+      const updatedSess = await storage.readonly('sessions').get('sess-v35-1');
+      expect(updatedSess?.sessionDate).toBe('2026-11-27');
+      expect(updatedSess?.scheduleItemId).toBe('sched-pm');
+
+      await expect(
+        storage.readwrite('sessions').put({
+          ...updatedSess!,
+          blockVersion: 99,
+        }),
+      ).rejects.toThrow();
+
+      // note_revisions rejects conflicting mutation & single delete
+      const existingRev = await storage.readonly('note_revisions').get([note.id, 1]);
+      expect(existingRev?.title).toBe('Bench');
+      await expect(
+        storage.readwrite('note_revisions').delete([note.id, 1]),
+      ).rejects.toThrow();
+    } finally {
+      await cleanup();
+    }
+  });
 });

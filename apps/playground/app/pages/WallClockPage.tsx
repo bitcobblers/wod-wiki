@@ -10,22 +10,32 @@ import { useRef, useEffect, useCallback, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { FileQuestion, Home } from 'lucide-react'
 import { KNOWN_SECTION_WIDGETS, parseDocumentSections } from '@bitcobblers/wod-wiki-core'
-import { createParser } from '@bitcobblers/wod-wiki-engine'
+import { createParser, type IScriptRuntime } from '@bitcobblers/wod-wiki-engine'
 import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity'
 import { sessionDetailPath } from '../lib/routes'
 import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer'
 import { HaltedRunNotice } from '@/components/organisms/editor/RuntimeTimerPanel'
 import { playgroundRecorder } from '@/services/resultRecorder'
-import { pendingRuntimes, type PendingRuntime } from '../runtimeStore'
+import { clearParkedRun, parkRun, peekParkedRun, pendingRuntimes, takeParkedRun, type PendingRuntime } from '../runtimeStore'
 import type { ScriptBlock, Sessions } from '@/components/Editor/types'
 import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
 import { storageService } from '@/services/storage';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
+import { notifyScheduleChanged } from '../services/journalSchedule';
+import { TEST_IDS } from '@/lib/testIds';
 import { sessionQueryFence, sessionQueryWql } from '@bitcobblers/wod-wiki-ui/extensions';
 
 async function injectSessionQueryIntoNote(noteId: string, blockId: string, resultId: string): Promise<void> {
   const note = await storageService.getNote(noteId);
   if (!note) return;
+  // ADR 0009: Never inject query fences into feed/pinned/Notebook workout recipes —
+  // only standalone unfiled Journal or Playground scratchpads receive inline queries.
+  const isNotebookRecipe =
+    note.feedOrigin === 'feed' ||
+    note.retention === 'schedule-pinned' ||
+    note.retention === 'session-pinned' ||
+    (Array.isArray(note.notebookIds) && note.notebookIds.length > 0 && note.type !== 'journal' && note.type !== 'playground');
+  if (isNotebookRecipe) return;
   const wql = sessionQueryWql(resultId);
   if (note.rawContent.includes(wql)) return;
   const block = Object.values(note.blocks ?? {}).find(b => b.id === blockId);
@@ -34,16 +44,50 @@ async function injectSessionQueryIntoNote(noteId: string, blockId: string, resul
   const provider = new IndexedDBContentProvider();
   await provider.updateRecord(note.id, { rawContent: newContent, expectedSourceRevision: note.sourceRevision });
 }
+
+interface InitialWallClockRun {
+  pending: PendingRuntime | undefined;
+  adoptedRuntime: IScriptRuntime | null;
+}
+
+function resolveInitialWallClockRun(runtimeId: string | undefined): InitialWallClockRun {
+  if (!runtimeId) return { pending: undefined, adoptedRuntime: null }
+  const direct = pendingRuntimes.get(runtimeId)
+  if (direct) return { pending: direct, adoptedRuntime: null }
+  const parked = peekParkedRun(runtimeId)
+  if (!parked) return { pending: undefined, adoptedRuntime: null }
+  return {
+    pending: {
+      block: parked.block,
+      noteId: parked.noteId,
+      captured: parked.captured,
+      origin: parked.origin,
+      returnTo: parked.returnTo,
+      scheduleItemId: parked.scheduleItemId,
+      sessionDate: parked.sessionDate,
+    },
+    adoptedRuntime: parked.runtime,
+  }
+}
+
 export function WallClockPage() {
   const { runtimeId } = useParams<{ runtimeId: string }>()
+  return <WallClockRouteView key={runtimeId ?? 'missing'} runtimeId={runtimeId} />
+}
+
+function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const pendingRef = useRef<PendingRuntime | undefined>(runtimeId ? pendingRuntimes.get(runtimeId) : undefined)
+  const [initial] = useState<InitialWallClockRun>(() => resolveInitialWallClockRun(runtimeId))
+  const pendingRef = useRef<PendingRuntime | undefined>(initial.pending)
   const coldNoteParam = searchParams.get('note')
   const coldBlockParam = searchParams.get('block')
-  const [coldLoading, setColdLoading] = useState<boolean>(() => !pendingRef.current && Boolean(coldNoteParam))
+  const [coldLoading, setColdLoading] = useState<boolean>(() => !initial.pending && Boolean(coldNoteParam))
   const [coldBootPending, setColdBootPending] = useState<PendingRuntime | undefined>(undefined)
-  const captureRef = useRef<CapturedRun | null>(null);
+  const captureRef = useRef<CapturedRun | null>(initial.pending?.captured ?? null)
+  // Flips true once the run completes or is explicitly closed so unmount
+  // disposes finished runtimes instead of parking them for Back/Forward resume.
+  const discardRunRef = useRef(false)
 
   useEffect(() => {
     if (pendingRef.current || !coldNoteParam || !runtimeId) {
@@ -105,8 +149,16 @@ export function WallClockPage() {
     if (!pending || !runtimeId) throw new Error('The pending workout is unavailable.');
     if (pending.captured) { captureRef.current = pending.captured; return pending.captured.block; }
     if (!captureRef.current) captureRef.current = pending.snapshot
-      ? await captureRun(pending.snapshot, pending.block, runtimeId, pending.origin)
-      : await captureStoredRun(pending.noteId, pending.block, runtimeId, pending.origin);
+      ? await captureRun(pending.snapshot, pending.block, runtimeId, pending.origin, undefined, {
+          deferPersist: true,
+          ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+          ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
+        })
+      : await captureStoredRun(pending.noteId, pending.block, runtimeId, pending.origin, {
+          deferPersist: true,
+          ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+          ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
+        });
     return captureRef.current.block;
   }, [runtimeId]);
 
@@ -115,7 +167,7 @@ export function WallClockPage() {
     if (runtimeId) pendingRuntimes.delete(runtimeId)
   }, [runtimeId])
 
-  const pending = pendingRef.current ?? coldBootPending
+  const pending = initial.pending ?? coldBootPending
   // The run reached natural completion — its review/queue dismissal routes to
   // the session detail (navigation is deferred until the overlay closes so
   // the post-run queue can run).
@@ -136,7 +188,12 @@ export function WallClockPage() {
         data: results,
         createdAt: results.endTime || Date.now(),
         ...(pending.origin ? { origin: pending.origin } : {}),
+        ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+        ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
       }).then(async () => {
+        notifyScheduleChanged()
+        discardRunRef.current = true
+        clearParkedRun(runtimeId)
         if (results.completed) {
           try {
             await injectSessionQueryIntoNote(pending.noteId, pending.block.id, runtimeId);
@@ -152,10 +209,12 @@ export function WallClockPage() {
   )
 
   const handleClose = useCallback(() => {
+    discardRunRef.current = true
+    if (runtimeId) clearParkedRun(runtimeId)
     if (!pending) { void navigate('/'); return }
     // A completed run's review/queue has been dismissed — the deferred
     // destination is the session detail page.
-    if (completedRef.current) {
+    if (completedRef.current && runtimeId) {
       void navigate(sessionDetailPath(runtimeId), { replace: true })
       return
     }
@@ -167,6 +226,31 @@ export function WallClockPage() {
     // in noteRefToPath, not an ad-hoc noteId.split('/') switch here.
     void navigate(noteRefToPath(parseNoteId(pending.noteId)), { replace: true })
   }, [runtimeId, pending, navigate])
+
+  const handlePark = useCallback((runtime: IScriptRuntime) => {
+    const activePending = pendingRef.current
+    if (!runtimeId || !activePending || discardRunRef.current) {
+      runtime.dispose()
+      return
+    }
+    parkRun({
+      runtimeId,
+      block: activePending.block,
+      noteId: activePending.noteId,
+      captured: captureRef.current ?? activePending.captured,
+      origin: activePending.origin,
+      returnTo: activePending.returnTo,
+      scheduleItemId: activePending.scheduleItemId,
+      sessionDate: activePending.sessionDate,
+      runtime,
+    })
+  }, [runtimeId])
+
+  const handleRuntimeReady = useCallback((runtime: IScriptRuntime) => {
+    if (!runtimeId) return
+    const stale = takeParkedRun(runtimeId)
+    if (stale && stale.runtime !== runtime) stale.runtime.dispose()
+  }, [runtimeId])
 
   if (coldLoading) {
     return (
@@ -243,10 +327,21 @@ export function WallClockPage() {
     )
   }
 
-  const noteContent = captureRef.current?.note.rawContent ?? pending.captured?.note.rawContent ?? pending.snapshot?.rawContent;
+  const noteContent = pending.captured?.note.rawContent ?? pending.snapshot?.rawContent;
+  const attributionLabel = pending.scheduleItemId
+    ? `Scheduled${pending.sessionDate ? ` · ${pending.sessionDate}` : ''}`
+    : pending.sessionDate
+      ? `Logged for ${pending.sessionDate}`
+      : 'Ad-hoc · Today';
 
   return (
     <main data-agent-status="ready" aria-busy={false} className="contents">
+      <div
+        data-testid={TEST_IDS.RUNNER_CONTEXT_PILL}
+        className="pointer-events-none fixed left-1/2 top-2.5 z-50 -translate-x-1/2 rounded-full border border-border/70 bg-background/90 px-3 py-1 text-[11px] font-semibold text-foreground shadow-sm backdrop-blur-sm"
+      >
+        {attributionLabel}
+      </div>
       <FullscreenTimer
         block={pending.block}
         noteContent={noteContent}
@@ -256,6 +351,10 @@ export function WallClockPage() {
         resultId={runtimeId}
         noteId={pending.noteId}
         autoStart
+        adoptRuntime={initial.adoptedRuntime}
+        parkOnUnmount
+        onPark={handlePark}
+        onRuntimeReady={handleRuntimeReady}
       />
     </main>
   )

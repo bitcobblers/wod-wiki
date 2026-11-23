@@ -291,4 +291,88 @@ describe('parser reference metrics', () => {
       { kind: 'equipment', slug: 'dumbbell', label: 'Dumbbell' },
     ]);
   });
+
+  it('breaks exact-slug collisions over aliases while keeping true alias collisions ambiguous', () => {
+    const tieIndex = createReferenceIndex({
+      efforts: [
+        ...efforts,
+        {
+          id: 'e7', slug: 'power-snatch', label: 'Power Snatch', aliases: ['snatch'],
+          baseAttributes: { met: 7 }, registrySource: 'bundled',
+        },
+      ],
+      equipment,
+    });
+
+    const snatchResolved = tieIndex.resolve('Snatch');
+    expect(snatchResolved.matched).toBe('whole');
+    expect(snatchResolved.effortRef?.slug).toBe('snatch');
+    expect(snatchResolved.diagnostics).toEqual([]);
+
+    // Neither press-a nor press-b has slug 'press', so 'Press' remains ambiguous.
+    const pressResolved = tieIndex.resolve('Press');
+    expect(pressResolved.effort).toBeNull();
+    expect(pressResolved.diagnostics[0]?.reason).toBe('ambiguous-effort');
+  });
+
+  it('prefers whole dedicated effort that explicitly defines matched equipment while preserving legacy DB Snatch split', () => {
+    const dedicatedIndex = createReferenceIndex({
+      efforts: [
+        ...efforts,
+        {
+          id: 'e8', slug: 'kettlebell-snatch', label: 'Kettlebell Snatch', aliases: ['kb snatch'],
+          baseAttributes: { met: 9 }, registrySource: 'bundled', equipment: ['kettlebell'],
+        },
+      ],
+      equipment,
+    });
+
+    for (const label of ['Kettlebell Snatch', 'KB Snatch']) {
+      const resolved = dedicatedIndex.resolve(label);
+      expect(resolved.matched).toBe('whole');
+      expect(resolved.effortRef?.slug).toBe('kettlebell-snatch');
+      expect(resolved.equipment.map(ref => ref.slug)).toEqual(['kettlebell']);
+      expect(resolved.diagnostics).toEqual([]);
+    }
+
+    // Legacy Dumbbell Snatch record without `equipment` still splits cleanly.
+    const dbSplit = dedicatedIndex.resolve('Dumbbell Snatch');
+    expect(dbSplit.matched).toBe('split');
+    expect(dbSplit.effortRef?.slug).toBe('snatch');
+    expect(dbSplit.equipment.map(ref => ref.slug)).toEqual(['dumbbell']);
+  });
+
+  it('splits exact equipment suffix after effort with disjoint equipmentSpan metadata', () => {
+    const walkingIndex = createReferenceIndex({
+      efforts: [
+        ...efforts,
+        {
+          id: 'e9', slug: 'walking-3-mph', label: 'Walking, 3 mph', aliases: ['walking', 'walk'],
+          baseAttributes: { met: 3.5 }, registrySource: 'bundled',
+        },
+      ],
+      equipment: [
+        ...equipment,
+        {
+          id: 'q4', slug: 'weight-vest', label: 'Weight Vest', aliases: ['vest'],
+          registrySource: 'bundled',
+        },
+      ],
+    });
+
+    for (const [line, expectedEffort, expectedEqSlug, expectedRawEq] of [
+      ['10 Snatch Kettlebell', 'snatch', 'kettlebell', 'Kettlebell'],
+      ['10 Snatch KB', 'snatch', 'kettlebell', 'KB'],
+      ['10 Walking Weight Vest', 'walking-3-mph', 'weight-vest', 'Weight Vest'],
+    ] as const) {
+      const statement = parseScript(line, { references: walkingIndex }).statements[0];
+      const effortMetric = statement.getMetric(MetricType.Effort);
+      const eqMetric = statement.getMetric(MetricType.Equipment);
+      expect(effortMetric?.value).toBe(expectedEffort);
+      expect(eqMetric?.value).toEqual([expectedEqSlug]);
+      expect(getReferenceMetadata(effortMetric?.metadata)?.matched).toBe('split');
+      expect(getReferenceMetadata(effortMetric?.metadata)?.diagnostics ?? []).toEqual([]);
+      expect(statement.metricMeta.get(eqMetric!)?.raw).toBe(expectedRawEq);
+    }
+  });
 });

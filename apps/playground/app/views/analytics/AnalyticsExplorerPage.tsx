@@ -19,14 +19,14 @@
  * analytics queries through `queryService.runQuery` with range/unit options
  * (calc.* metrics resolve directly against the unified event store).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AlertCircle, CalendarIcon, CheckCircle2, ChevronDown, ChevronRight, Save } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AlertCircle, BookOpen, CalendarIcon, CheckCircle2, ChevronDown, ChevronRight, Play, Save, SlidersHorizontal } from 'lucide-react';
 import { queryService } from '@/services/queryService';
 import { TEST_IDS } from '@/lib/testIds';
 import { parseQuery, serialize, isAggregateQuery, isFindQuery, type QueryResult, type TagFilter } from '@bitcobblers/wod-wiki-engine';
 import { StickyPageHeader, StickyGroupHeader, useStickyBoundaryOffset } from '@/panels/page-shells';
 import { searchEntries } from '../../lib/entrySearch';
-import { groupEntriesByDimension } from '../../lib/entryGrouping';
+import { groupEntriesByDimension, parseGroupingDimensions } from '../../lib/entryGrouping';
 import { formatDateHeader } from '@/lib/dateFormat';
 import { LibraryRow } from '../library/LibraryRow';
 import { QueryToDashboardDialog } from './QueryToDashboardDialog';
@@ -36,6 +36,7 @@ import type { Entry } from '../../lib/entryMapper';
 import type { IEffort } from '@bitcobblers/wod-wiki-lang';
 import {
   QueryValue,
+  RangeSelector,
   useChartShape,
   WidgetFrame,
   WqlBars,
@@ -61,11 +62,11 @@ import {
 } from '@bitcobblers/wod-wiki-ui';
 import { EXAMPLE_QUERIES } from '@/utils/analytics/explorerQueries';
 import { useExplorerVocabulary } from '@/utils/analytics/useExplorerVocabulary';
-import { useExplorerQueryState } from '../../hooks/useExplorerQueryState';
+import { useExplorerQueryState, type ExplorerRangeWeeks } from '../../hooks/useExplorerQueryState';
 import { useNav } from '../../nav/NavContext';
-import type { NavItemL3 } from '../../nav/navTypes';
 import { ResponsiveActions } from '../../nav/ResponsiveActions';
 import { MobileNewEntryCombo } from '../../pages/shared/NewEntryCombo';
+import { PageActions } from '../../pages/shared/PageActions';
 import { SampleDataPrompt } from './SampleDataPrompt';
 import { onSampleDataChanged } from '@/services/analytics/sample';
 import { useFeedImportPending } from '@/services/feed/feedReadiness';
@@ -101,10 +102,20 @@ function sourceFilterLabel(filters: TagFilter[]): string | null {
  * calculation's records section. Group wrappers carry the shared stream-group
  * DOM ids (`date-group-<key>`) so the L3 rail can scroll to them; `idPrefix`
  * keeps the records disclosure's ids distinct while both lists are mounted. */
-function GroupedEntryList({ entries, stickyOffset, idPrefix = '' }: { entries: Entry[]; stickyOffset: number; idPrefix?: string }) {
+function GroupedEntryList({
+  entries,
+  stickyOffset,
+  idPrefix = '',
+  groupBy = 'date',
+}: {
+  entries: Entry[];
+  stickyOffset: number;
+  idPrefix?: string;
+  groupBy?: string | readonly string[];
+}) {
   return (
     <div className="-mx-4">
-      {groupEntriesByDimension(entries, 'date').map(group => (
+      {groupEntriesByDimension(entries, groupBy).map(group => (
         <div key={group.id} id={`${idPrefix}${group.id}`} className="flex flex-col">
           <StickyGroupHeader
             top={stickyOffset}
@@ -158,15 +169,46 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   // /dashboard key aliased) overrides it; deep links (?q=) still win.
   const routeConfig = useRouteWqlConfig('/dashboards')
   const landingDefault = routeConfig.defaultWql ?? DASHBOARDS_LANDING_QUERY;
-  const { draft, setDraft, submitted, submit, weeks: activeWeeks, setWeeks } =
+  const { draft, setDraft, submitted, invalidUrlQuery, revertDraft, submit, weeks: activeWeeks, setWeeks } =
     useExplorerQueryState({ defaultQuery: landingDefault, runOnLanding: true });
   const submittedParsed = useMemo(() => (submitted ? parseQuery(submitted) : null), [submitted]);
   const submittedInvalid = Boolean(submittedParsed?.error);
-  const { unit: preferredUnit } = useAnalyticsUnitPreference();
+  const activeFindParsed = submittedParsed && isFindQuery(submittedParsed) ? submittedParsed : null;
+  const findGroupBy = useMemo(
+    () => (activeFindParsed ? parseGroupingDimensions(submitted, activeFindParsed) ?? ['date'] : ['date']),
+    [submitted, activeFindParsed],
+  );
+  const findAdvisories = useMemo(() => activeFindParsed?.advisories ?? [], [activeFindParsed]);
+  const invalidBannerQuery = submittedInvalid ? submitted : invalidUrlQuery;
+  const invalidBannerError = submittedInvalid
+    ? submittedParsed?.error
+    : invalidUrlQuery
+      ? parseQuery(invalidUrlQuery).error
+      : undefined;
+  const { unit: preferredUnit, setUnit: setPreferredUnit } = useAnalyticsUnitPreference();
   const { forced: unitForced } = useMemo(
     () => getEffectiveAnalyticsUnit(submitted, preferredUnit),
     [submitted, preferredUnit],
   );
+  const [examplesOpen, setExamplesOpen] = useState(false);
+  const examplesContainerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!examplesOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (examplesContainerRef.current && !examplesContainerRef.current.contains(event.target as Node)) {
+        setExamplesOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setExamplesOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [examplesOpen]);
   const [result, setResult] = useState<QueryResult | undefined>(undefined);
   const [entries, setEntries] = useState<Entry[] | undefined>(undefined);
   const [records, setRecords] = useState<Entry[] | undefined>(undefined);
@@ -187,8 +229,9 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   // composer's picker rows without excluding anything.
   const preferredChoices = routeConfig.typeOptions;
   const liveParsed = useMemo(() => parseQuery(draft), [draft]);
-  const scopeLabel = sourceFilterLabel(isFindQuery(liveParsed) ? liveParsed.filters : []);
-  const findWindowLabel = isFindQuery(liveParsed) && liveParsed.window ? windowLabel(liveParsed.window) : null;
+  const displayedFindParsed = activeFindParsed ?? (isFindQuery(liveParsed) ? liveParsed : null);
+  const scopeLabel = sourceFilterLabel(displayedFindParsed ? displayedFindParsed.filters : []);
+  const findWindowLabel = displayedFindParsed?.window ? windowLabel(displayedFindParsed.window) : null;
   const stickyOffset = useStickyBoundaryOffset(104);
 
   // The subset for the Query→Dashboard flow: a find draft IS the subset; an
@@ -322,33 +365,15 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
     submit(next);
   };
 
-  // L3 Slot 1 (Modifiers): Range, Units, and Query settings; Slot 2 (Goto):
-  // find result date groups; Slot 3 (Actions): Save to dashboard.
+  // Explorer hides the L3 rail (0px resting L3) — all query controls (Examples,
+  // unified RangeSelector, Units, Query settings, Run, Save) live in the inline
+  // Explorer bar right above results.
   const { setL3Items, setL3Actions, setAnalyticsControls } = useNav();
-  const handleOpenQuerySettings = useCallback(() => setQuerySettingsOpen(true), []);
   useEffect(() => {
-    setAnalyticsControls?.({
-      weeks: activeWeeks,
-      onWeeksChange: setWeeks,
-      showRange: true,
-      showUnits: true,
-      unitForced,
-      onOpenQuerySettings: handleOpenQuerySettings,
-    });
-    return () => setAnalyticsControls?.(null);
-  }, [activeWeeks, setWeeks, unitForced, handleOpenQuerySettings, setAnalyticsControls]);
-
-  useEffect(() => {
-    setL3Actions?.([
-      {
-        id: 'explorer-save-to-dashboard',
-        label: 'Save to dashboard',
-        disabled: !saveReady,
-        onRun: () => setDashOpen(true),
-      },
-    ]);
-    return () => setL3Actions?.([]);
-  }, [saveReady, setL3Actions]);
+    setAnalyticsControls?.(null);
+    setL3Actions?.([]);
+    setL3Items([]);
+  }, [setAnalyticsControls, setL3Actions, setL3Items]);
 
   useEffect(() => {
     return registerActiveExplorerBridge({
@@ -365,26 +390,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
     });
   }, [draft, submitted, activeWeeks, loading, saveReady, setDraft, submit, setWeeks]);
 
-  const findGroups = useMemo(
-    () => (entries !== undefined && entries.length > 0 ? groupEntriesByDimension(entries, 'date') : []),
-    [entries],
-  );
-  useEffect(() => {
-    if (findGroups.length === 0) {
-      setL3Items([]);
-      return;
-    }
-    const groupLinks: NavItemL3[] = findGroups.map((g) => ({
-      id: g.id,
-      label: g.label,
-      level: 3,
-      action: { type: 'scroll', sectionId: g.id },
-    }));
-    setL3Items(groupLinks);
-    return () => setL3Items([]);
-  }, [findGroups, setL3Items]);
-
-  const exampleQuestion = EXAMPLE_QUERIES.find((e) => e.query === submitted)?.question ?? 'custom query';
+  const exampleQuestion = EXAMPLE_QUERIES.find((e) => sameQuery(e.query, submitted))?.question ?? 'custom query';
 
   // Post-run telemetry shows only while the result answers the current draft.
   // The second disjunct covers deep links the clause model cannot restore
@@ -421,7 +427,6 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
 
   return (
     <div className="bg-card flex flex-col flex-1">
-      <AvailableFieldsPanel catalog={fieldCatalog} />
       <QuerySettingsDialog
         surface={DASHBOARDS_SURFACE}
         open={querySettingsOpen}
@@ -431,45 +436,157 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
         title="Metric Explorer"
         actions={
           <ResponsiveActions primary={<MobileNewEntryCombo />} label="Explorer actions">
-            {actions}
+            {actions ?? <PageActions mode="notebook-readonly" index={[]} />}
           </ResponsiveActions>
         }
       />
 
-      <div className="flex flex-col min-h-0 p-4">
-        {/* Examples live in the dashboards L2 panel — the bar is just the
-            composer (Run in its custom slot). */}
+      <div className="flex flex-col min-h-0 p-4 gap-3">
         <div className="min-w-[280px]">
           <WqlComposer
             query={draft}
             onQueryChange={setDraft}
             onValidationChange={(v) => setComposerValid(v.valid)}
             onSubmit={(wql) => submit(wql)}
-            actionLabel="Run"
             preferredChoices={preferredChoices}
             showDiagnostics={false}
             defaultExpanded
             surface="inline"
             segmentEditRequest={segmentEditRequest}
             placeholder={WQL_GRAMMAR_PLACEHOLDER}
-            diagnosticsActions={
+          />
+        </div>
+
+        {/* Inline Explorer bar: Examples (13) popover, unified RangeSelector + Units,
+            Query settings, Run, and Save to dashboard right above results. */}
+        <div
+          data-testid={TEST_IDS.EXPLORER_INLINE_BAR}
+          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 px-3 py-2"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <div ref={examplesContainerRef} className="relative">
               <button
                 type="button"
-                data-testid="save-query"
-                disabled={!saveReady}
-                onClick={() => setDashOpen(true)}
-                title="Save this query — decide where it lands (dashboard, …)"
-                className="flex min-h-12 items-center gap-1.5 rounded-lg border border-primary/40 text-primary px-3 text-[11px] font-semibold hover:bg-primary/10 transition-all shrink-0 disabled:opacity-40 disabled:hover:bg-transparent"
+                data-testid={TEST_IDS.EXPLORER_EXAMPLES_TRIGGER}
+                aria-expanded={examplesOpen}
+                aria-haspopup="menu"
+                onClick={() => setExamplesOpen((open) => !open)}
+                className="inline-flex min-h-9 max-lg:min-h-11 items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
               >
-                <Save size={12} /> Save
+                <BookOpen className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                <span>Examples ({EXAMPLE_QUERIES.length})</span>
+                <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden="true" />
               </button>
-            }
-          />
+              {examplesOpen && (
+                <div
+                  role="menu"
+                  data-testid={TEST_IDS.EXPLORER_EXAMPLES_POPOVER}
+                  className="absolute left-0 top-full z-40 mt-1.5 w-80 max-w-[calc(100vw-2rem)] max-h-96 overflow-y-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-lg"
+                >
+                  {EXAMPLE_QUERIES.map((ex) => {
+                    const active = sameQuery(submitted, ex.query);
+                    return (
+                      <button
+                        key={ex.query}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setDraft(ex.query);
+                          submit(ex.query);
+                          setExamplesOpen(false);
+                        }}
+                        className={cn(
+                          'flex w-full flex-col items-start gap-0.5 rounded-lg px-2.5 py-2 max-lg:min-h-11 text-left transition-colors',
+                          active
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-foreground hover:bg-muted',
+                        )}
+                      >
+                        <span className="text-xs font-semibold">{ex.label}</span>
+                        <span className="text-[11px] text-muted-foreground">{ex.question}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <RangeSelector
+              weeks={activeWeeks}
+              onWeeksChange={(w) => setWeeks(w as ExplorerRangeWeeks)}
+            />
+
+            <div
+              role="group"
+              aria-label={unitForced ? 'Units — pinned by query' : 'Preferred units'}
+              className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-card p-1"
+            >
+              {(['kg', 'lb'] as const).map((u) => {
+                const active = preferredUnit === u;
+                return (
+                  <button
+                    key={u}
+                    type="button"
+                    disabled={unitForced}
+                    aria-pressed={active}
+                    data-testid={u === 'kg' ? TEST_IDS.EXPLORER_UNIT_KG : TEST_IDS.EXPLORER_UNIT_LB}
+                    onClick={() => setPreferredUnit(u)}
+                    className={cn(
+                      'inline-flex min-h-9 max-lg:min-h-11 min-w-10 items-center justify-center rounded-md px-2.5 text-xs font-semibold transition-colors',
+                      unitForced
+                        ? 'cursor-not-allowed text-muted-foreground/50'
+                        : active
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                  >
+                    {u}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              data-testid={TEST_IDS.EXPLORER_QUERY_SETTINGS_BTN}
+              onClick={() => setQuerySettingsOpen(true)}
+              aria-label="Query settings"
+              title="Query settings"
+              className="inline-flex min-h-9 max-lg:min-h-11 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Defaults</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              data-testid={TEST_IDS.EXPLORER_RUN_BTN}
+              disabled={!saveReady}
+              onClick={() => submit(draft)}
+              className="inline-flex min-h-9 max-lg:min-h-11 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              <Play className="size-3.5" aria-hidden="true" />
+              Run
+            </button>
+            <button
+              type="button"
+              data-testid="save-query"
+              disabled={!saveReady}
+              onClick={() => setDashOpen(true)}
+              title="Save this query — decide where it lands (dashboard, …)"
+              className="inline-flex min-h-9 max-lg:min-h-11 items-center gap-1.5 rounded-lg border border-primary/40 bg-card px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 shrink-0 disabled:opacity-40 disabled:hover:bg-card"
+            >
+              <Save className="size-3.5" aria-hidden="true" />
+              Save
+            </button>
+          </div>
         </div>
 
         {/* Meta line: quiet draft-validity indicator + the metric/filter
             vocabulary chips that replaced the sidebar (issue #897). */}
-        <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1" data-testid="explorer-meta">
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1" data-testid="explorer-meta">
           {draft.trim().length > 0 && (
             <span data-testid="draft-validity" className="mr-1 inline-flex items-center gap-1 text-[11px]">
               {liveParsed.error ? (
@@ -533,15 +650,17 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
           ))}
         </div>
 
+        <AvailableFieldsPanel catalog={fieldCatalog} />
+
         <section className="min-w-0">
-          {submittedInvalid && (
+          {invalidBannerQuery && (
             <div
               role="alert"
               data-testid={TEST_IDS.EXPLORER_INVALID_URL_ALERT}
               className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
             >
               <span>
-                The URL query <code className="font-mono">{submitted}</code> is invalid ({submittedParsed?.error}).
+                The URL query <code className="font-mono">{invalidBannerQuery}</code> is invalid ({invalidBannerError}).
               </span>
               <button
                 type="button"
@@ -555,18 +674,42 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
               </button>
             </div>
           )}
-          {isFindQuery(liveParsed) ? (
-            /* ── Find query result: the Library's date-grouped stream ── */
+          {activeFindParsed ? (
+            /* ── Find query result: Library stream grouped by active WQL dimension ── */
             <div className="mt-3">
+              {liveParsed.error && submitted && (
+                <div
+                  data-testid="explorer-results-stale"
+                  className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700"
+                >
+                  <span>Stale — showing the last run's results; the current draft is invalid and not applied.</span>
+                  <button
+                    type="button"
+                    onClick={revertDraft}
+                    className="rounded border border-amber-500/40 bg-background px-2 py-0.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                  >
+                    Restore last valid query
+                  </button>
+                </div>
+              )}
+              {findAdvisories.length > 0 && (
+                <div
+                  data-testid={TEST_IDS.EXPLORER_FIND_ADVISORIES}
+                  className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+                >
+                  {findAdvisories.join(' · ')}
+                </div>
+              )}
               <div className="bg-card border border-border rounded-lg p-4">
                 <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
-                  Find {liveParsed.target}
+                  Find {activeFindParsed.target}
                   {scopeLabel && <span className="ml-1">in {scopeLabel}</span>}
                   {findWindowLabel && <span className="ml-1">{findWindowLabel}</span>}
+                  {findGroupBy.some((d) => d !== 'date') && (
+                    <span className="ml-1">by {findGroupBy.join(', ')}</span>
+                  )}
                 </div>
-                {liveParsed.error ? (
-                  <div className="text-sm text-destructive font-mono">{liveParsed.error}</div>
-                ) : loading ? (
+                {loading ? (
                   <div className="text-sm text-muted-foreground">Searching…</div>
                 ) : efforts && efforts.length > 0 ? (
                   <div className="flex flex-col divide-y divide-border/50">
@@ -583,9 +726,9 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
                     ))}
                   </div>
                 ) : entries && entries.length > 0 ? (
-                  <GroupedEntryList entries={entries} stickyOffset={stickyOffset} />
+                  <GroupedEntryList entries={entries} stickyOffset={stickyOffset} groupBy={findGroupBy} />
                 ) : (
-                  <div className="text-sm text-muted-foreground">No {liveParsed.target}s found.</div>
+                  <div className="text-sm text-muted-foreground">No {activeFindParsed.target}s found.</div>
                 )}
               </div>
             </div>
@@ -600,9 +743,16 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
               {liveParsed.error && submitted && (
                 <div
                   data-testid="explorer-results-stale"
-                  className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700"
+                  className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700"
                 >
-                  Stale — showing the last run's results; the current draft is invalid and not applied.
+                  <span>Stale — showing the last run's results; the current draft is invalid and not applied.</span>
+                  <button
+                    type="button"
+                    onClick={revertDraft}
+                    className="rounded border border-amber-500/40 bg-background px-2 py-0.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                  >
+                    Restore last valid query
+                  </button>
                 </div>
               )}
 

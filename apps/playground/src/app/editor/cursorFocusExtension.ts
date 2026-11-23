@@ -175,17 +175,22 @@ function buildDecorations(
         if (!meta) continue;
 
         let from = section.contentFrom + meta.startOffset;
-        const to = section.contentFrom + meta.endOffset;
+        let to = section.contentFrom + meta.endOffset;
 
-        // When an effort metric shares its start with a split equipment prefix
-        // (`KB swings`), advance the effort mark past the equipment token so
-        // `KB` renders as equipment and `swings` renders as effort.
+        // When an effort metric shares its boundary with a split equipment token
+        // (`KB swings` prefix or `Snatch Kettlebell` suffix), trim the effort mark
+        // past/before the equipment token so they render cleanly without overlapping.
         if (metric.type === MetricType.Effort) {
           for (const eq of equipmentRanges) {
             if (eq.from === from && eq.to < to) {
               from = eq.to;
               while (from < to && /\s/.test(state.doc.sliceString(from, from + 1))) {
                 from++;
+              }
+            } else if (eq.to === to && eq.from > from) {
+              to = eq.from;
+              while (to > from && /\s/.test(state.doc.sliceString(to - 1, to))) {
+                to--;
               }
             }
           }

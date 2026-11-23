@@ -214,7 +214,7 @@ describe('Engine FeedPublisher, VaultIngestor, Visibility & Distributed WQL Plan
     expect(nbIndex.records).toHaveLength(1);
     expect(nbIndex.records[0]!.title).toBe('Cindy');
 
-    const previewedRow = await previewRemoteRecord(remoteReader, nbIndex.records[0]!.recordPath);
+    const previewedRow = await previewRemoteRecord(remoteReader, nbIndex.records[0]!);
     expect(previewedRow.telemetry?.sessions).toHaveLength(1);
 
     const subscriberStorage = createTestStorage();

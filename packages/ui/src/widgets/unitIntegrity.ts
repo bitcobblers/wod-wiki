@@ -23,6 +23,7 @@ const INTRINSIC_METRIC_UNITS: Record<string, string> = {
   'calc.strain': 'AU',
   'calc.readiness': '',
   'calc.sends': '',
+  'calc.sleep': 'h',
   sleep: 'h',
 };
 

@@ -16,6 +16,7 @@
  */
 import { useMemo } from 'react'
 import { Plus } from 'lucide-react'
+import { TEST_IDS } from '@/lib/testIds'
 import type { Entry } from '../../lib/entryMapper'
 import {
   buildDayBuckets,
@@ -31,6 +32,7 @@ import {
   CalendarMonthBar,
   CalendarUndatedShelf,
   useCalendarMonth,
+  type OverlayFilterMode,
 } from './CalendarChrome'
 
 export interface CalendarAgendaViewProps {
@@ -52,6 +54,12 @@ export interface CalendarAgendaViewProps {
    * host opens the new-note dialog for that date.
    */
   onCreateOnDay?: (dateKey: string) => void
+  monthParam?: string
+  onMonthChange?: (monthKey: string) => void
+  overlayMode?: OverlayFilterMode
+  onOverlayModeChange?: (mode: OverlayFilterMode) => void
+  onInspectEntry?: (entry: Entry) => void
+  onInspectDay?: (dateKey: string) => void
 }
 
 /** Singular/plural entry-count copy shared across agenda headers, day cells, and month meta. */
@@ -65,12 +73,30 @@ function AgendaDayHeader({
   day,
   top,
   onCreateOnDay,
+  onInspectDay,
 }: {
   day: CalendarDay
   top: number
   onCreateOnDay: (dateKey: string) => void
+  onInspectDay?: (dateKey: string) => void
 }) {
   const weekday = WEEKDAY_SHORT[(day.date.getDay() + 6) % 7]
+  const label = `${shortMonthLabel(day.date)} ${day.dayOfMonth}`
+  const headerIdentity = (
+    <>
+      <div className="flex w-10 shrink-0 flex-col items-center leading-none">
+        <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+          {weekday}
+        </span>
+        <span className={`text-xl font-extrabold tracking-tight ${day.isToday ? 'text-primary' : 'text-foreground'}`}>
+          {day.dayOfMonth}
+        </span>
+      </div>
+      <div className="min-w-0 flex-1 text-xs font-medium text-muted-foreground">
+        {shortMonthLabel(day.date)} {day.date.getFullYear()}
+      </div>
+    </>
+  )
   return (
     <div
       id={`calendar-day-${day.key}`}
@@ -78,28 +104,32 @@ function AgendaDayHeader({
       className="sticky z-10 flex items-center gap-3 border-y border-border/60 bg-card/95 px-4 py-1.5 backdrop-blur"
       data-testid="calendar-agenda-day"
     >
-      <div className="flex w-9 shrink-0 flex-col items-center leading-none">
-        <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{weekday}</span>
-        <span className={`text-xl font-extrabold tracking-tight ${day.isToday ? 'text-primary' : 'text-foreground'}`}>
-          {day.dayOfMonth}
-        </span>
-      </div>
-      <div className="min-w-0 flex-1 text-[11px] text-muted-foreground">
-        {shortMonthLabel(day.date)} {day.date.getFullYear()}
-      </div>
+      {onInspectDay ? (
+        <button
+          type="button"
+          onClick={() => onInspectDay(day.key)}
+          data-testid={TEST_IDS.CALENDAR_DAY_HEADER}
+          title={`Inspect ${label}`}
+          className="flex min-w-0 flex-1 max-lg:min-h-11 items-center gap-3 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {headerIdentity}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3">{headerIdentity}</div>
+      )}
       {day.isToday && (
-        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
           Today
         </span>
       )}
-      <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
         {formatEntryCount(day.entries.length)}
       </span>
       <button
         type="button"
         onClick={() => onCreateOnDay(day.key)}
-        className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
-        aria-label={`Add an entry on ${shortMonthLabel(day.date)} ${day.dayOfMonth}`}
+        className="grid size-8 max-lg:size-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+        aria-label={`Add an entry on ${label}`}
         title="Add an entry on this day"
         data-testid="calendar-agenda-add-button"
       >
@@ -146,9 +176,9 @@ function DensityRibbon({ days }: { days: CalendarDay[] }) {
   }
   return (
     <div className="hidden items-center gap-3 border-b border-border/60 px-4 py-2 lg:flex">
-      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Load</span>
+      <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Load</span>
       <div className="flex flex-1 gap-0.5">{cells}</div>
-      <span className="font-mono text-[10px] text-muted-foreground">1 → {dayCount}</span>
+      <span className="font-mono text-[11px] text-muted-foreground">1 → {dayCount}</span>
     </div>
   )
 }
@@ -162,20 +192,36 @@ export function CalendarAgendaView({
   moveNotebookTargets,
   onMoveNotebook,
   onCreateOnDay,
+  monthParam,
+  onMonthChange,
+  overlayMode,
+  onOverlayModeChange,
+  onInspectEntry,
+  onInspectDay,
 }: CalendarAgendaViewProps) {
-  const nav = useCalendarMonth()
+  const nav = useCalendarMonth(monthParam, onMonthChange)
   const buckets = useMemo(() => buildDayBuckets(entries), [entries])
   const agenda = useMemo(() => buildMonthAgenda(nav.anchor, buckets), [nav.anchor, buckets])
   const grid = useMemo(() => buildMonthGrid(nav.anchor, buckets), [nav.anchor, buckets])
 
   const monthPrefix = `${nav.anchor.getFullYear()}-${String(nav.anchor.getMonth() + 1).padStart(2, '0')}`
-  const inMonth = entries.filter(entry => entry.date?.startsWith(monthPrefix))
-  const dated = entries.filter(entry => entry.date).length
+  const inMonth = entries.filter(
+    (entry) =>
+      entry.scheduledDates?.some((d) => d.startsWith(monthPrefix)) ||
+      entry.date?.startsWith(monthPrefix),
+  )
+  const dated = entries.filter(
+    (entry) => Boolean(entry.date) || Boolean(entry.scheduledDates?.length),
+  ).length
 
   if (entries.length === 0) {
     return (
       <div className="flex flex-1 flex-col bg-background" data-testid="calendar-agenda-view">
-        <CalendarMonthBar nav={nav} />
+        <CalendarMonthBar
+          nav={nav}
+          overlayMode={overlayMode}
+          onOverlayModeChange={onOverlayModeChange}
+        />
         <p className="px-4 py-16 text-center text-xs text-muted-foreground">No entries match your search.</p>
       </div>
     )
@@ -186,6 +232,8 @@ export function CalendarAgendaView({
       <CalendarMonthBar
         nav={nav}
         meta={`${inMonth.length} of ${formatEntryCount(dated, 'dated')} in ${nav.label}`}
+        overlayMode={overlayMode}
+        onOverlayModeChange={onOverlayModeChange}
       />
       <DensityRibbon days={grid.flatMap(week => week.days)} />
 
@@ -197,19 +245,29 @@ export function CalendarAgendaView({
         <div className="flex-1 pb-6">
           {agenda.map(day => (
             <section key={day.key}>
-              <AgendaDayHeader day={day} top={stickyOffset} onCreateOnDay={onCreateOnDay ?? (() => {})} />
+              <AgendaDayHeader
+                day={day}
+                top={stickyOffset}
+                onCreateOnDay={onCreateOnDay ?? (() => {})}
+                onInspectDay={onInspectDay}
+              />
               <div className="divide-y divide-border/30">
-                {day.entries.map(entry => (
-                  <LibraryRow
-                    key={entry.id}
-                    entry={entry}
-                    visibleFieldIds={visibleFieldIds}
-                    tone={day.isToday ? 'primary' : 'secondary'}
-                    onAddToToday={onAddToToday}
-                    onRunStart={onRunStart}
-                    moveNotebookTargets={moveNotebookTargets}
-                    onMoveNotebook={onMoveNotebook}
-                  />
+                {day.entries.map((entry, idx) => (
+                  <div
+                    key={entry.scheduleItemId ?? `${entry.id}-${idx}`}
+                    onClick={onInspectEntry ? () => onInspectEntry(entry) : undefined}
+                    className={onInspectEntry ? 'cursor-pointer' : undefined}
+                  >
+                    <LibraryRow
+                      entry={entry}
+                      visibleFieldIds={visibleFieldIds}
+                      tone={day.isToday ? 'primary' : 'secondary'}
+                      onAddToToday={onAddToToday}
+                      onRunStart={onRunStart}
+                      moveNotebookTargets={moveNotebookTargets}
+                      onMoveNotebook={onMoveNotebook}
+                    />
+                  </div>
                 ))}
               </div>
             </section>

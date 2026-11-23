@@ -11,9 +11,9 @@ import type { WorkbenchDisplayState } from '@/services/cast/rpc/RpcMessages';
 import type { FocusProps } from '@/hooks/useSpatialNavigation';
 import {
     Clock,
-    Dumbbell,
     Play,
 } from 'lucide-react';
+import { WodWikiWordmark } from '@/components/atoms/WodWikiBrand';
 
 export const ReceiverPreviewPanel: React.FC<{
     previewData: NonNullable<WorkbenchDisplayState['previewData']>;
@@ -25,10 +25,7 @@ export const ReceiverPreviewPanel: React.FC<{
         <div className="h-full w-full flex flex-col items-center bg-background overflow-hidden">
             {/* Header — logo + title (fixed, does not scroll) */}
             <div className="shrink-0 flex flex-col items-center gap-3 pt-12 pb-6 px-12">
-                <div className="flex items-center gap-3">
-                    <Dumbbell className="h-8 w-8 text-primary" />
-                    <span className="text-2xl font-bold tracking-tight text-foreground">Wod.Wiki</span>
-                </div>
+                <WodWikiWordmark size="lg" />
                 <div className="text-center">
                     <h1 className="text-4xl font-bold text-foreground leading-tight">
                         {previewData.title}

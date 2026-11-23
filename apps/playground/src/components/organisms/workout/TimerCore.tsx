@@ -136,9 +136,11 @@ export const TimerHero: React.FC<TimerHeroProps> = ({
 
       {/* Hero clock — tap to pause/resume/start */}
       <button
+        type="button"
         onClick={handleClockClick}
         {...(getFocusProps ? getFocusProps('timer-main') : {})}
         className="tv-focusable group relative z-10 flex min-h-[48px] w-full items-center justify-center focus:outline-none"
+        aria-label={primaryControlLabel}
         title={primaryControlLabel}
       >
         <FitArea>
@@ -237,45 +239,53 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
 
   const stopButton = (
     <button
+      type="button"
       onClick={handleStop}
       {...(getFocusProps ? getFocusProps('btn-stop') : {})}
-      className={`tv-focusable group flex shrink-0 items-center justify-center rounded-full border border-border bg-muted transition-all active:scale-95 ${isTv ? 'h-[6cqw] w-[6cqw]' : 'h-12 w-12'}`}
+      className={`tv-focusable group flex shrink-0 items-center justify-center border border-border bg-muted transition-all active:scale-95 ${isTv ? 'h-[6cqw] min-w-[6cqw] gap-[0.8cqw] rounded-full px-[1.8cqw]' : 'min-h-12 min-w-12 gap-1.5 rounded-full px-3'}`}
+      aria-label="Stop Session"
       title="Stop Session"
       data-testid={TEST_IDS.TIMER_STOP_SESSION}
     >
-      <Square className={`text-foreground transition-colors group-hover:text-destructive ${isTv ? 'h-[2.2cqw] w-[2.2cqw]' : 'h-[17px] w-[17px]'}`} />
+      <Square aria-hidden="true" className={`shrink-0 text-foreground transition-colors group-hover:text-destructive ${isTv ? 'h-[2cqw] w-[2cqw]' : 'h-[16px] w-[16px]'}`} />
+      <span className={isTv ? 'text-[1.8cqw] font-medium' : 'text-xs font-medium'}>Stop</span>
     </button>
   );
 
   const pauseButton = (
     <button
+      type="button"
       onClick={isPaused ? handleStart : isRunning ? handlePause : handleStart}
       {...(getFocusProps ? getFocusProps('btn-pause') : {})}
-      className={`tv-focusable flex shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-95 ${isTv ? 'h-[7cqw] w-[7cqw]' : 'h-[54px] w-[54px]'}`}
+      className={`tv-focusable flex shrink-0 items-center justify-center bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-95 ${isTv ? 'h-[7cqw] min-w-[7cqw] gap-[0.8cqw] rounded-full px-[2.2cqw]' : 'min-h-[54px] min-w-[54px] gap-1.5 rounded-full px-3.5'}`}
+      aria-label={primaryControlLabel}
       title={primaryControlLabel}
       data-testid={TEST_IDS.TIMER_PLAY_PAUSE}
     >
       {isPaused
-        ? <Play className={`${isTv ? 'ml-[0.3cqw] h-[2.8cqw] w-[2.8cqw]' : 'ml-0.5 h-[22px] w-[22px]'}`} />
+        ? <Play aria-hidden="true" className={`shrink-0 ${isTv ? 'h-[2.4cqw] w-[2.4cqw]' : 'h-[18px] w-[18px]'}`} />
         : isRunning
-          ? <Pause className={isTv ? 'h-[2.8cqw] w-[2.8cqw]' : 'h-[22px] w-[22px]'} />
-          : <Play className={`${isTv ? 'ml-[0.3cqw] h-[2.8cqw] w-[2.8cqw]' : 'ml-0.5 h-[22px] w-[22px]'}`} />
+          ? <Pause aria-hidden="true" className={`shrink-0 ${isTv ? 'h-[2.4cqw] w-[2.4cqw]' : 'h-[18px] w-[18px]'}`} />
+          : <Play aria-hidden="true" className={`shrink-0 ${isTv ? 'h-[2.4cqw] w-[2.4cqw]' : 'h-[18px] w-[18px]'}`} />
       }
+      <span className={isTv ? 'text-[2cqw] font-semibold' : 'text-xs font-semibold'}>{primaryControlLabel}</span>
     </button>
   );
 
   const nextButton = (
     <button
+      type="button"
       onClick={handleNext}
       disabled={isNextDisabled}
       aria-disabled={isNextDisabled ? 'true' : undefined}
       {...(getFocusProps ? getFocusProps('btn-next') : {})}
-      className={`tv-focusable flex shrink-0 items-center justify-center gap-2 bg-primary font-bold uppercase tracking-[0.12em] text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none ${isTv ? 'h-[7cqw] rounded-[1.4cqw] px-[4cqw] text-[2.2cqw]' : 'h-[54px] w-full rounded-2xl text-[15px]'}`}
+      className={`tv-focusable flex shrink-0 items-center justify-center gap-2 bg-primary font-bold uppercase tracking-[0.12em] text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none ${isTv ? 'h-[7cqw] rounded-[1.4cqw] px-[4cqw] text-[2.2cqw]' : 'min-h-[54px] h-[54px] w-full rounded-2xl text-[15px]'}`}
+      aria-label="Next Block"
       title="Next Block"
       data-testid={TEST_IDS.TIMER_NEXT_BLOCK}
     >
       <span>Next</span>
-      <SkipForward className={isTv ? 'h-[2.4cqw] w-[2.4cqw]' : 'h-5 w-5'} />
+      <SkipForward aria-hidden="true" className={isTv ? 'h-[2.4cqw] w-[2.4cqw]' : 'h-5 w-5'} />
     </button>
   );
 

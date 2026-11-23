@@ -16,7 +16,7 @@ import {
   exportAgentCapabilitiesManifest,
 } from '../packages/engine/src/agent';
 import { exportPlaygroundUiToolsManifest } from '../apps/playground/app/agent/uiToolSpecs';
-import { ROUTE_PATTERNS } from '../apps/playground/src/lib/routes';
+import { ROUTE_PATTERNS } from '../apps/playground/src/lib/routePatterns';
 
 const ROOT = join(import.meta.dirname, '..');
 const PUBLIC_DIR = join(ROOT, 'apps', 'playground', 'public');

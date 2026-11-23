@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChartBar, Edit3 } from 'lucide-react';
 import type { EventRecord, Note } from '@bitcobblers/wod-wiki-core';
 import {
@@ -145,10 +145,21 @@ export function QueryBlockView({
   const effectiveWidgetError = widgetError ?? yamlObject?.error;
   const syntaxError = isMultiLineDoc ? docParse.diagnostics[0] : parsed.error;
 
+  const missingKey = missing.join('\u0000');
+  const resolvedAttributesKey = useMemo(() => JSON.stringify(resolvedAttributes), [resolvedAttributes]);
+  const parsedRef = useRef(parsed);
+  parsedRef.current = parsed;
+  const resolvedAttributesRef = useRef(resolvedAttributes);
+  resolvedAttributesRef.current = resolvedAttributes;
+
   const unknownType =
     effectiveWidgetType != null && effectiveWidgetType !== '' && !isDashboardWidgetType(effectiveWidgetType);
   const [runResult, setRunResult] = useState<WidgetRunResult | undefined>(undefined);
   const [runError, setRunError] = useState<string | undefined>(undefined);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [lockedMinHeight, setLockedMinHeight] = useState<number | undefined>(undefined);
+  const bodyContainerRef = useRef<HTMLDivElement | null>(null);
+  const settledHeightRef = useRef<number>(0);
   const [rowsRefreshKey, setRowsRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -162,15 +173,55 @@ export function QueryBlockView({
     }
   }, [onResultSaved]);
 
+  // Track settled container height while not actively recalculating so we can
+  // lock minHeight across async recalculations without layout collapse.
+  useEffect(() => {
+    const el = bodyContainerRef.current;
+    if (!el || isRecalculating) return;
+    const measure = () => {
+      const h = el.getBoundingClientRect().height;
+      if (h > 0) settledHeightRef.current = h;
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isRecalculating, runResult, runError, syntaxError, effectiveWidgetError, unknownType, missingKey]);
+
+  // Release locked minHeight on the frame after recalculation settles so the new
+  // content paints at full layout before relaxing the constraint.
+  useEffect(() => {
+    if (isRecalculating || lockedMinHeight === undefined) return;
+    if (typeof requestAnimationFrame !== 'function') {
+      setLockedMinHeight(undefined);
+      return;
+    }
+    const rafId = requestAnimationFrame(() => {
+      setLockedMinHeight(undefined);
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [isRecalculating, lockedMinHeight]);
+
   useEffect(() => {
     let cancelled = false;
     let retryTimer: number | NodeJS.Timeout | undefined;
-    setRunError(undefined);
-    setRunResult(undefined);
 
-    if (syntaxError || effectiveWidgetError || unknownType || missing.length > 0 || !executor) return;
+    if (syntaxError || effectiveWidgetError || unknownType || missingKey.length > 0 || !executor) {
+      setRunError(undefined);
+      setIsRecalculating(false);
+      setLockedMinHeight(undefined);
+      return;
+    }
 
-    const isSessionFind = !isMultiLineDoc && isFindQuery(parsed) && parsed.target === 'session';
+    const currentParsed = parsedRef.current;
+    const currentAttributes = resolvedAttributesRef.current;
+    if (settledHeightRef.current > 0) {
+      setLockedMinHeight(Math.ceil(settledHeightRef.current));
+    }
+    setIsRecalculating(true);
+
+    const isSessionFind = !isMultiLineDoc && isFindQuery(currentParsed) && currentParsed.target === 'session';
     const host = createExecutorDocumentHost(executor);
 
     const executeRun = (attemptCount: number) => {
@@ -184,17 +235,23 @@ export function QueryBlockView({
           const error = res.outputs.find((o) => o.error !== undefined)?.error ?? res.diagnostics[0];
           if (!res.outputs.length && res.diagnostics.length) {
             setRunError(res.diagnostics[0]!);
+            setRunResult(undefined);
+            setIsRecalculating(false);
             return;
           }
           if (error) {
             setRunError(error);
+            setRunResult(undefined);
+            setIsRecalculating(false);
             return;
           }
           const effectiveParsed: AnyParsedQuery = isMultiLineDoc
             ? { family: 'aggregate', raw: effectiveQuery, agg: 'sum', metric: res.outputs[0]?.name ?? 'value', filters: [], groupBy: [] }
-            : parsed;
-          const shaped = outputsToRunResult(effectiveParsed, res, resolvedAttributes);
+            : currentParsed;
+          const shaped = outputsToRunResult(effectiveParsed, res, currentAttributes);
+          setRunError(undefined);
           setRunResult(shaped);
+          setIsRecalculating(false);
           if (isSessionFind && (shaped.runs ?? []).length === 0 && attemptCount < 4) {
             const delays = [50, 150, 350, 750];
             retryTimer = setTimeout(() => {
@@ -203,7 +260,11 @@ export function QueryBlockView({
           }
         })
         .catch((err) => {
-          if (!cancelled) setRunError(err instanceof Error ? err.message : String(err));
+          if (!cancelled) {
+            setRunError(err instanceof Error ? err.message : String(err));
+            setRunResult(undefined);
+            setIsRecalculating(false);
+          }
         });
     };
 
@@ -212,7 +273,7 @@ export function QueryBlockView({
       cancelled = true;
       clearTimeout(retryTimer);
     };
-  }, [effectiveQuery, parsed, isMultiLineDoc, syntaxError, effectiveWidgetError, unknownType, missing, executor, rowsRefreshKey, resolvedAttributes, pageSources]);
+  }, [effectiveQuery, isMultiLineDoc, syntaxError, effectiveWidgetError, unknownType, missingKey, executor, rowsRefreshKey, resolvedAttributesKey, pageSources]);
 
   const canEdit = onSaveQuery !== undefined && !readOnly;
   const onEdit = canEdit ? () => setIsModalOpen(true) : undefined;
@@ -268,29 +329,37 @@ export function QueryBlockView({
           onAddToDashboard={onAddToDashboard}
           hideActions={effectiveWidgetType === 'summary' && Boolean(runResult?.runs?.length)}
         >
-          <QueryBlockBody
-            parsed={parsed}
-            result={runResult}
-            resultId={resultId}
-            widgetType={effectiveWidgetType}
-            isMultiLineDoc={isMultiLineDoc}
-            yamlColumns={yamlObject?.columns}
-            yamlSort={yamlObject?.sort}
-            yamlLimit={yamlObject?.limit}
-            yamlComparePr={yamlObject?.comparePr}
-            attributes={resolvedAttributes}
-            fallbackLabel={fallbackLabel}
-            executor={executor}
-            onCaptureRpe={onCaptureRpe}
-            onEditMetric={readOnly ? undefined : onEditMetric}
-            onCaptured={() => setRowsRefreshKey((k) => k + 1)}
-            onOpenNote={onOpenNote}
-            noteHref={noteHref}
-            onOpenResults={onOpenResults}
-            onAddToDashboard={onAddToDashboard}
-            onEditSource={effectiveEditSource}
-            readOnly={readOnly}
-          />
+          <div
+            ref={bodyContainerRef}
+            aria-busy={isRecalculating || undefined}
+            data-recalculating={isRecalculating ? 'true' : undefined}
+            style={lockedMinHeight ? { minHeight: `${lockedMinHeight}px` } : undefined}
+            className={isRecalculating && runResult ? 'opacity-70 transition-opacity duration-150' : 'transition-opacity duration-150'}
+          >
+            <QueryBlockBody
+              parsed={parsed}
+              result={runResult}
+              resultId={resultId}
+              widgetType={effectiveWidgetType}
+              isMultiLineDoc={isMultiLineDoc}
+              yamlColumns={yamlObject?.columns}
+              yamlSort={yamlObject?.sort}
+              yamlLimit={yamlObject?.limit}
+              yamlComparePr={yamlObject?.comparePr}
+              attributes={resolvedAttributes}
+              fallbackLabel={fallbackLabel}
+              executor={executor}
+              onCaptureRpe={onCaptureRpe}
+              onEditMetric={readOnly ? undefined : onEditMetric}
+              onCaptured={() => setRowsRefreshKey((k) => k + 1)}
+              onOpenNote={onOpenNote}
+              noteHref={noteHref}
+              onOpenResults={onOpenResults}
+              onAddToDashboard={onAddToDashboard}
+              onEditSource={effectiveEditSource}
+              readOnly={readOnly}
+            />
+          </div>
         </QueryBlockShell>
       )}
       {canEdit && (
@@ -366,8 +435,18 @@ function QueryBlockBody({
   );
 
   if (!result) {
+    const expectsChart =
+      isPipelineQuery(parsed) ||
+      Boolean(isMultiLineDoc) ||
+      ['timeseries', 'bar', 'line', 'pie', 'area', 'chart'].includes(effectiveType);
+    const placeholderMinH =
+      effectiveType === 'value'
+        ? 'min-h-[64px]'
+        : expectsChart
+          ? 'min-h-[220px]'
+          : 'min-h-[120px]';
     return (
-      <div className="text-xs text-muted-foreground py-2">
+      <div className={`flex items-center text-xs text-muted-foreground py-2 ${placeholderMinH}`}>
         {isFindQuery(parsed) ? 'Loading rows…' : 'Loading…'}
       </div>
     );

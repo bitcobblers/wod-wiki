@@ -352,6 +352,55 @@ describe('toEntry → entryOpenHref seam (slug routing regressions)', () => {
     const entry = toEntry(note({ sourceId: 'notebook:crossfit-girls/fran' }))
     expect(entryOpenHref({ ...entry, block: { blockId: 'sec-1', dataType: 'wod', preview: [] } })).toBe('/notebook/crossfit-girls/fran#sec-1')
   })
+
+  it('preserves remote preview feed/uuid query parameters and ownership metadata for remote-indexed entries', () => {
+    const entry = toEntry(
+      note({
+        id: 'remote:daily-feed:uuid-mon-1',
+        sourceId: 'notebook:daily-feed/2026-11-10/monday',
+        notebookId: 'notebook/daily-feed',
+        feedOrigin: 'feed',
+        feedSourceId: 'daily-feed',
+        retention: 'indexed',
+      }),
+    )
+
+    expect(entry.isRemotePreview).toBe(true)
+    expect(entry.feedId).toBe('daily-feed')
+    expect(entry.ownership).toMatchObject({
+      kind: 'feed',
+      editable: false,
+      canPublish: false,
+      feedSourceId: 'daily-feed',
+    })
+    expect(entryOpenHref(entry)).toBe('/notebook/daily-feed/2026-11-10/monday?feed=daily-feed&remote=uuid-mon-1')
+    expect(
+      entryOpenHref({ ...entry, block: { blockId: 'wod-1', dataType: 'wod', preview: [] } }),
+    ).toBe('/notebook/daily-feed/2026-11-10/monday?feed=daily-feed&remote=uuid-mon-1#wod-1')
+  })
+
+  it('distinguishes user, feed, system, and feed-archived ownership in toEntry', () => {
+    expect(toEntry(note({ id: 'u1', notebookId: 'notebook/journal' })).ownership?.kind).toBe('user')
+    expect(toEntry(note({ id: 's1', seedOrigin: 'seed', notebookId: 'notebook/guides' })).ownership?.kind).toBe('system')
+    expect(
+      toEntry(
+        note({
+          id: 'f1',
+          seedOrigin: 'seed',
+          feedOrigin: 'feed',
+          feedSourceId: 'club-wod',
+          retention: 'session-pinned',
+          upstreamStatus: 'unsubscribed',
+        }),
+      ).ownership,
+    ).toMatchObject({
+      kind: 'feed-archived',
+      editable: false,
+      canPublish: false,
+      feedSourceId: 'club-wod',
+      upstreamStatus: 'unsubscribed',
+    })
+  })
 })
 
 describe('entryIsPlayground', () => {

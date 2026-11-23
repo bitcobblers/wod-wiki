@@ -76,6 +76,31 @@ describe('extractPageIndex', () => {
     expect(timeLink?.onRun).toBeUndefined()
     expect(logLink?.onRun).toBeUndefined()
   })
+
+  it('normalizes wod, whiteboard, and time:sport-slug fences to time-line-* links', () => {
+    const links = extractPageIndex([
+      '# Mixed Fences',
+      '',
+      '```wod',
+      '5x5 Squat',
+      '```',
+      '',
+      '```whiteboard',
+      '10:00 EMOM',
+      '```',
+      '',
+      '```time:crossfit-open',
+      '21-15-9',
+      '```',
+    ].join('\n'))
+
+    const timeLinks = links.filter(l => l.type === 'time')
+    expect(timeLinks).toEqual([
+      { id: 'time-line-3', label: 'Workout 1', type: 'time' },
+      { id: 'time-line-7', label: 'Workout 2', type: 'time' },
+      { id: 'time-line-11', label: 'Workout 3', type: 'time' },
+    ])
+  })
 })
 
 describe('applyTemplate', () => {

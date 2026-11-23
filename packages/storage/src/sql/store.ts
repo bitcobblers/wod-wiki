@@ -41,6 +41,7 @@ const SCHEMA_KEY = 'schema';
 const ADDED_STORES_BY_VERSION: Readonly<Record<number, readonly string[]>> = {
   31: ['equipment', 'block_equipment'],
   33: ['notebook_links', 'property_overrides'],
+  35: ['schedule_items', 'note_revisions'],
 };
 
 /** Store tables this server may create on a database stamped `stored`. */
@@ -473,7 +474,7 @@ export async function putRows(conn: SqlConnection, def: StoreDef, values: unknow
   const per = Math.max(1, Math.min(ROW_CAP, Math.floor(PARAM_BUDGET / cols.length)));
   const statements = chunks(rows, per).map(part => ({
     sql: `INSERT INTO "${def.name}" (${cols.map(col => `"${col}"`).join(', ')}) VALUES ${part.map(() => tuple).join(', ')} `
-      + (def.name === 'block_revisions' ? `ON CONFLICT (${pk}) DO NOTHING` : `ON CONFLICT (${pk}) DO UPDATE SET ${updates} WHERE "${def.name}"."data" <> excluded."data"`)
+      + ((def.name === 'block_revisions' || def.name === 'note_revisions') ? `ON CONFLICT (${pk}) DO NOTHING` : `ON CONFLICT (${pk}) DO UPDATE SET ${updates} WHERE "${def.name}"."data" <> excluded."data"`)
       + ` RETURNING ${keys.map(col => `"${col}"`).join(', ')}`,
     params: part.flat(),
   }));
@@ -519,7 +520,7 @@ export async function putRow(conn: SqlConnection, def: StoreDef, value: unknown)
 }
 
 export async function deleteRows(conn: SqlConnection, def: StoreDef, keyOrRange: KeyDTO | RangeDTO): Promise<void> {
-  if (def.name === 'block_revisions') throw new StorageError(409, 'block history may only be removed by explicit wipe', 'revision_conflict');
+  if (def.name === 'block_revisions' || def.name === 'note_revisions') throw new StorageError(409, 'block history may only be removed by explicit wipe', 'revision_conflict');
   const multi = multiEntryIndex(def);
   if (!isRange(keyOrRange)) {
     const parts = toParts(keyOrRange);
@@ -555,7 +556,7 @@ export async function deleteRows(conn: SqlConnection, def: StoreDef, keyOrRange:
 }
 
 export async function clearRows(conn: SqlConnection, def: StoreDef, wipe = false): Promise<void> {
-  if (def.name === 'block_revisions' && !wipe) throw new StorageError(409, 'block history may only be removed by explicit wipe', 'revision_conflict');
+  if ((def.name === 'block_revisions' || def.name === 'note_revisions') && !wipe) throw new StorageError(409, 'block history may only be removed by explicit wipe', 'revision_conflict');
   const multi = multiEntryIndex(def);
   if (multi) await conn.exec(`DELETE FROM "${junctionTable(def, multi)}"`);
   await conn.exec(`DELETE FROM "${def.name}"`);
@@ -664,6 +665,11 @@ async function ensureStoreTables(
       WHEN EXISTS (SELECT 1 FROM "block_revisions" old WHERE old."k0" = NEW."k0" AND old."k1" = NEW."k1" AND old."k2" = NEW."k2" AND old."data" <> NEW."data")
       BEGIN SELECT RAISE(ABORT, 'revision_conflict: immutable block revision collision'); END`);
   }
+  if (def.name === 'note_revisions' && dialect === 'sqlite') {
+    await conn.exec(`CREATE TRIGGER IF NOT EXISTS "note_revision_guard" BEFORE INSERT ON "note_revisions"
+      WHEN EXISTS (SELECT 1 FROM "note_revisions" old WHERE old."k0" = NEW."k0" AND old."k1" = NEW."k1" AND old."data" <> NEW."data")
+      BEGIN SELECT RAISE(ABORT, 'revision_conflict: immutable note revision collision'); END`);
+  }
   if (def.name === 'sessions' && dialect === 'sqlite') {
     await conn.exec(`CREATE TRIGGER IF NOT EXISTS "session_pin_guard" BEFORE UPDATE ON "sessions"
       WHEN json_extract(NEW."data", '$.noteId') IS NOT json_extract(OLD."data", '$.noteId')
@@ -671,17 +677,20 @@ async function ensureStoreTables(
         OR json_extract(NEW."data", '$.blockVersion') IS NOT json_extract(OLD."data", '$.blockVersion')
       BEGIN SELECT RAISE(ABORT, 'invalid_session_pin: Session pin is immutable'); END`);
   }
-  if (dialect === 'postgres' && ['notes', 'block_revisions', 'sessions'].includes(def.name)) {
+  if (dialect === 'postgres' && ['notes', 'block_revisions', 'note_revisions', 'sessions'].includes(def.name)) {
+    const isRevision = def.name === 'block_revisions' || def.name === 'note_revisions';
     const condition = def.name === 'block_revisions'
       ? `EXISTS (SELECT 1 FROM "block_revisions" saved WHERE saved."k0" = NEW."k0" AND saved."k1" = NEW."k1" AND saved."k2" = NEW."k2" AND saved."data" <> NEW."data")`
-      : def.name === 'notes'
-        ? `(NEW."data"::jsonb->>'sourceRevision')::bigint < (OLD."data"::jsonb->>'sourceRevision')::bigint OR ((NEW."data"::jsonb->'rawContent' IS DISTINCT FROM OLD."data"::jsonb->'rawContent' OR NEW."data"::jsonb->'blocks' IS DISTINCT FROM OLD."data"::jsonb->'blocks') AND (NEW."data"::jsonb->>'sourceRevision')::bigint <= (OLD."data"::jsonb->>'sourceRevision')::bigint)`
-        : `NEW."data"::jsonb->'noteId' IS DISTINCT FROM OLD."data"::jsonb->'noteId' OR NEW."data"::jsonb->'blockId' IS DISTINCT FROM OLD."data"::jsonb->'blockId' OR NEW."data"::jsonb->'blockVersion' IS DISTINCT FROM OLD."data"::jsonb->'blockVersion'`;
-    const code = def.name === 'block_revisions' ? 'revision_conflict' : def.name === 'notes' ? 'transaction_conflict' : 'invalid_session_pin';
+      : def.name === 'note_revisions'
+        ? `EXISTS (SELECT 1 FROM "note_revisions" saved WHERE saved."k0" = NEW."k0" AND saved."k1" = NEW."k1" AND saved."data" <> NEW."data")`
+        : def.name === 'notes'
+          ? `(NEW."data"::jsonb->>'sourceRevision')::bigint < (OLD."data"::jsonb->>'sourceRevision')::bigint OR ((NEW."data"::jsonb->'rawContent' IS DISTINCT FROM OLD."data"::jsonb->'rawContent' OR NEW."data"::jsonb->'blocks' IS DISTINCT FROM OLD."data"::jsonb->'blocks') AND (NEW."data"::jsonb->>'sourceRevision')::bigint <= (OLD."data"::jsonb->>'sourceRevision')::bigint)`
+          : `NEW."data"::jsonb->'noteId' IS DISTINCT FROM OLD."data"::jsonb->'noteId' OR NEW."data"::jsonb->'blockId' IS DISTINCT FROM OLD."data"::jsonb->'blockId' OR NEW."data"::jsonb->'blockVersion' IS DISTINCT FROM OLD."data"::jsonb->'blockVersion'`;
+    const code = isRevision ? 'revision_conflict' : def.name === 'notes' ? 'transaction_conflict' : 'invalid_session_pin';
     const guard = `${def.name}_guard`;
     await conn.exec(`CREATE OR REPLACE FUNCTION "${guard}"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF ${condition} THEN RAISE EXCEPTION '${code}'; END IF; RETURN NEW; END; $$`);
     await conn.exec(`DROP TRIGGER IF EXISTS "${guard}" ON "${def.name}"`);
-    await conn.exec(`CREATE TRIGGER "${guard}" BEFORE ${def.name === 'block_revisions' ? 'INSERT' : 'UPDATE'} ON "${def.name}" FOR EACH ROW EXECUTE FUNCTION "${guard}"()`);
+    await conn.exec(`CREATE TRIGGER "${guard}" BEFORE ${isRevision ? 'INSERT' : 'UPDATE'} ON "${def.name}" FOR EACH ROW EXECUTE FUNCTION "${guard}"()`);
   }
 }
 

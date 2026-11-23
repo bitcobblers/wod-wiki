@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect x="0" y="0" width="32" height="32" rx="8" fill="#49698d" />
+  <rect
+    x="0.5"
+    y="0.5"
+    width="31"
+    height="31"
+    rx="7.5"
+    fill="none"
+    stroke="#fcfbf8"
+    stroke-opacity="0.16"
+    stroke-width="1"
+  />
+  <g transform="translate(3.2 3.2) scale(0.8)">
+    <path
+      d="M10.5 6.5H7a1.5 1.5 0 0 0-1.5 1.5v16A1.5 1.5 0 0 0 7 25.5h3.5"
+      fill="none"
+      stroke="#fcfbf8"
+      stroke-width="2.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M21.5 6.5H25a1.5 1.5 0 0 1 1.5 1.5v16a1.5 1.5 0 0 1-1.5 1.5h-3.5"
+      fill="none"
+      stroke="#fcfbf8"
+      stroke-width="2.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M12.5 10.6a1.1 1.1 0 0 1 1.66-.95l7.9 4.86a1.15 1.15 0 0 1 0 1.98l-7.9 4.86a1.1 1.1 0 0 1-1.66-.95V10.6Z"
+      fill="#d6e4f0"
+    />
+  </g>
+</svg>

@@ -276,8 +276,7 @@ describe('MetricInlinePanel chip focus, hover, and palette click', () => {
     renderPanel([rep], null);
 
     const repChip = screen.getByText('Reps').parentElement!;
-    expect(repChip.getAttribute('title')).toContain('Type: rep');
-    expect(repChip.getAttribute('title')).toContain('Value: 10');
+    expect(repChip.getAttribute('title')).toBe('Reps: 10');
   });
 
   it('opens the unified syntax token inspector popover on chip click', async () => {
@@ -419,5 +418,77 @@ describe('MetricInlinePanel chip focus, hover, and palette click', () => {
       realView.destroy();
       host.remove();
     }
+  });
+
+  it('debounces newly appearing unknown-effort diagnostics during active same-line typing until pause', async () => {
+    let currentDoc = '10 ';
+    let currentStatement = makeStatement([
+      { type: MetricType.Rep, value: 10, image: '10', origin: 'parser' } as IMetric,
+    ]);
+    const section = makeSection();
+    const view = {
+      ...createMockView(),
+      state: {
+        doc: {
+          sliceString: () => currentDoc,
+        },
+      } as unknown as EditorState,
+    };
+    const getCursorFocusState = () => ({
+      section,
+      statement: currentStatement,
+      cursorLine: 1,
+      lineFrom: 0,
+      lineTo: currentDoc.length,
+      focusedMetric: null,
+    });
+
+    const { rerender } = render(
+      <MetricInlinePanel
+        view={view as unknown as EditorView}
+        cursorVersion={1}
+        getCursorFocusState={getCursorFocusState}
+      />,
+    );
+
+    expect(screen.queryByTestId('editor-ref-unknown')).toBeNull();
+
+    // Simulate typing partial unknown effort "Th" on the same line.
+    currentDoc = '10 Th';
+    currentStatement = makeStatement([
+      { type: MetricType.Rep, value: 10, image: '10', origin: 'parser' } as IMetric,
+      {
+        type: MetricType.Effort,
+        value: 'Th',
+        image: 'Th',
+        origin: 'parser',
+        metadata: {
+          references: {
+            matched: 'none',
+            source: 'Th',
+            diagnostics: [{ reason: 'unknown-effort', message: 'Unknown effort "Th".', token: 'Th' }],
+          },
+        },
+      } as IMetric,
+    ]);
+
+    rerender(
+      <MetricInlinePanel
+        view={view as unknown as EditorView}
+        cursorVersion={2}
+        getCursorFocusState={getCursorFocusState}
+      />,
+    );
+
+    // Mid-word diagnostic must NOT flash immediately on the keystroke.
+    expect(screen.queryByTestId('editor-ref-unknown')).toBeNull();
+
+    // After the ~320ms settle debounce completes without further edits, the diagnostic surfaces cleanly.
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('editor-define-token')).toBeDefined();
+      },
+      { timeout: 1000 },
+    );
   });
 });

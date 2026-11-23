@@ -1,16 +1,25 @@
 import { v7 as uuidv7 } from 'uuid';
 import {
   isNoteEditable,
+  isSystemReadOnlyNotebook,
   parseDocumentSections,
   reconcileNoteBlocks,
+  resolveNoteOwnership,
+  toNotebookId,
   KNOWN_SECTION_WIDGETS,
   projectPlacements,
   resolvePlacements,
+  type NotebookId,
   type PageTarget,
 } from '@bitcobblers/wod-wiki-core';
-import { createParser, prepareJournalSessionRun } from '@bitcobblers/wod-wiki-engine';
+import {
+  createParser,
+  makeNotebookLinkId,
+  parseRemoteNoteId,
+  prepareJournalSessionRun,
+} from '@bitcobblers/wod-wiki-engine';
 import { notebookOfItem, notebookOriginOfItem, toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
-import type { DomainDetail, DomainPredicate, DomainQuery } from '@bitcobblers/wod-wiki-storage';
+import { rowsEqual, type DomainDetail, type DomainPredicate, type DomainQuery } from '@bitcobblers/wod-wiki-storage';
 
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
 import { localDateKey } from '@/lib/dateFormat';
@@ -19,6 +28,7 @@ import { toShortId } from '@/lib/idUtils';
 import { formatPlaygroundTimestampId } from '@/lib/playgroundDisplay';
 import { captureWellnessFacts } from '@/services/analytics/wellness';
 import { replayResultAnalytics } from '@/services/analytics/workoutDerivation';
+import { loadRemoteRecordDetail, lookupRemoteRecord } from '@/services/feed/feedCatalog';
 import { storageService, type StorageService } from '@/services/storage';
 import type {
   AttachmentCreateInput,
@@ -31,6 +41,7 @@ import type { HistoryQuery, HistoryRecord, ProviderCapabilities } from '@/types/
 import type { Attachment, BlockRevision, EventRecord, Note, NoteBlock, Page, Session } from '@/types/storage';
 
 import { resolveAttachmentInput } from './attachmentInput';
+import { unmarkNoteDeleting } from './noteDeletionGuard';
 import type { INotePersistence } from './INotePersistence';
 import { sessionToPayload } from './sessionPayload';
 import {
@@ -50,6 +61,8 @@ const preparedJournalSessions = new Map<string, Session>();
 const MUTATION_STORES = [
   'notes',
   'block_revisions',
+  'note_revisions',
+  'schedule_items',
   'page',
   'page_notes',
   'tags',
@@ -62,6 +75,7 @@ const MUTATION_STORES = [
   'block_equipment',
   'efforts',
   'equipment',
+  'notebook_links',
 ] as const;
 
 function sortNewest(results: Session[]): Session[] {
@@ -179,6 +193,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
 
   async createNote(input: CreateNoteInput): Promise<HistoryRecord> {
     await this.provider.persistenceReady;
+    unmarkNoteDeleting(input.id);
     const existing = await this.storage.getNote(input.id);
     if (existing) {
       throw new Error(`Note already exists: ${input.id}`);
@@ -193,6 +208,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       type: input.type ?? 'note',
       slug: input.slug,
       sourceId: input.sourceId,
+      ...(input.notebookIds !== undefined ? { notebookIds: input.notebookIds } : {}),
     });
   }
 
@@ -278,7 +294,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
     const resolvedAttachments = mutation.attachments?.add
       ? await Promise.all(mutation.attachments.add.map(input => resolveAttachmentInput(input))) : [];
     await this.storage.withTransaction(
-      ['notes', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'block_revisions', 'sessions', 'events', 'attachments', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'],
+      [...MUTATION_STORES, 'attachments'],
       async scoped => {
         const scopedProvider = new IndexedDBNotePersistence(scoped);
         await scopedProvider.updateRecord(note.id, {
@@ -342,27 +358,71 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
     });
   }
 
-  async startSession(input: SaveNoteInput, session: Omit<Session, 'blockVersion'>): Promise<StartedSession> {
+  async startSession(
+    input: SaveNoteInput,
+    session: Omit<Session, 'blockVersion'>,
+    options?: { deferPersist?: boolean },
+  ): Promise<StartedSession> {
     await this.provider.persistenceReady;
     if (session.noteId !== input.noteId) {
       throw new NotePersistenceError('RESULT_NOTE_MISMATCH', 'Session belongs to another Note');
     }
-    const existingStored = await this.storage.getNote(input.noteId);
+    const parsedRemote = parseRemoteNoteId(input.noteId);
+    const lookupId = parsedRemote.isRemote ? parsedRemote.uuid : input.noteId;
+    const existingStored =
+      (await this.storage.getNote(lookupId)) ??
+      (lookupId !== input.noteId ? await this.storage.getNote(input.noteId) : undefined);
+
     if (
-      existingStored &&
-      !isNoteEditable(
-        existingStored,
-        notebookOriginOfItem(existingStored),
-        notebookOfItem(existingStored),
-      )
+      parsedRemote.isRemote ||
+      (existingStored &&
+        (!isNoteEditable(
+          existingStored,
+          notebookOriginOfItem(existingStored),
+          notebookOfItem(existingStored),
+        ) ||
+          resolveNoteOwnership(
+            existingStored,
+            notebookOriginOfItem(existingStored),
+            notebookOfItem(existingStored),
+          ).kind !== 'user'))
     ) {
+      let remotePayload: Parameters<typeof prepareJournalSessionRun>[1]['remotePayload'];
+      if (!existingStored && parsedRemote.isRemote) {
+        const seedRow = await loadRemoteRecordDetail(input.noteId).catch(() => undefined);
+        const meta = lookupRemoteRecord(input.noteId);
+        if (seedRow) {
+          remotePayload = {
+            row: seedRow,
+            canonicalNoteId: meta?.record.uuid ?? parsedRemote.uuid,
+            remoteNoteId: input.noteId,
+            feedId: meta?.feedId ?? parsedRemote.feedId,
+            notebookSlug: meta?.notebookSlug,
+            record: meta?.record,
+          };
+        } else if (input.rawContent?.trim()) {
+          remotePayload = {
+            id: parsedRemote.uuid,
+            title: input.metadata?.title,
+            rawContent: input.rawContent,
+            blocks: input.blocks,
+            feedSourceId: meta?.feedId ?? parsedRemote.feedId,
+            sourceNotebookId: meta?.notebookSlug ? `notebook/${meta.notebookSlug}` : undefined,
+          };
+        }
+      }
+
+      const civilDate = session.sessionDate ?? localDateKey(new Date(session.createdAt || session.startTime || Date.now()));
       const prepared = await prepareJournalSessionRun(this.storage.storage, {
-        noteId: existingStored.id,
+        noteId: existingStored ? existingStored.id : input.noteId,
         blockId: session.blockId,
+        ...(session.blockContentId ? { blockContentId: session.blockContentId } : {}),
         sessionId: session.id,
-        journalDate: localDateKey(new Date(session.startTime || Date.now())),
+        journalDate: civilDate,
         startedAt: session.startTime,
+        ...(session.scheduleItemId ? { scheduleItemId: session.scheduleItemId } : {}),
         origin: session.origin,
+        ...(remotePayload ? { remotePayload } : {}),
       });
       preparedJournalSessions.set(prepared.session.id, prepared.session);
       return {
@@ -372,7 +432,7 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       };
     }
     return this.storage.withTransaction(
-      ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'sessions', 'events', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'notebook_links'],
+      ['notes', 'block_revisions', 'note_revisions', 'schedule_items', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'sessions', 'events', 'page', 'page_notes', 'tags', 'note_tags', 'tag_types', 'notebook_links'],
       async scoped => {
         const scopedPersistence = new IndexedDBNotePersistence(scoped);
         await scopedPersistence.saveNote(input);
@@ -386,16 +446,29 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Selected workout revision is missing');
         }
         const existing = await scoped.getSessionById(session.id);
-        if (existing) throw new Error(`Session already exists: ${session.id}`);
+        if (existing || preparedJournalSessions.has(session.id)) {
+          throw new Error(`Session already exists: ${session.id}`);
+        }
         const section = parseDocumentSections(revision.rawContent, BLOCK_OPTIONS).find(sec => sec.scriptBlock);
+        const civilDate = session.sessionDate ?? localDateKey(new Date(session.createdAt || session.startTime || Date.now()));
+        const explicitNotebooks = session.notebookIds?.length
+          ? session.notebookIds
+          : (note.notebookIds && note.notebookIds.length > 0 ? note.notebookIds : undefined);
         const pinned: Session = {
           ...session,
           blockId: block.id,
           blockVersion: revision.version,
           blockContentId: section?.scriptBlock?.contentId,
+          noteSourceRevision: session.noteSourceRevision ?? note.sourceRevision,
+          sessionDate: civilDate,
           status: 'in-progress',
+          ...(explicitNotebooks ? { notebookIds: explicitNotebooks } : {}),
         };
-        await scoped.saveSession(pinned);
+        if (options?.deferPersist) {
+          preparedJournalSessions.set(pinned.id, pinned);
+        } else {
+          await scoped.saveSession(pinned);
+        }
         return { note, revision, session: pinned };
       },
     );
@@ -403,14 +476,16 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
 
   async finishSession(sessionId: string, data: Sessions, createdAt?: number): Promise<Session> {
     await this.provider.persistenceReady;
-    const finished = await this.storage.withTransaction(['sessions', 'block_revisions', 'events', 'notebook_links'], async scoped => {
+    const finished = await this.storage.withTransaction(['sessions', 'block_revisions', 'events', 'notebook_links', 'schedule_items'], async scoped => {
       const storedPrevious = await scoped.getSessionById(sessionId);
       const previous = storedPrevious ?? preparedJournalSessions.get(sessionId);
       if (!previous) throw new NotePersistenceError('RESULT_NOT_FOUND', `Session not found: ${sessionId}`);
       const revision = await scoped.getBlockRevision(previous.noteId, previous.blockId, previous.blockVersion);
       if (!revision) throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Pinned workout revision is missing');
+      const civilDate = previous.sessionDate ?? localDateKey(new Date(data.endTime || data.startTime || previous.createdAt || Date.now()));
       const session: Session = {
         ...previous,
+        sessionDate: civilDate,
         startTime: data.startTime,
         endTime: data.endTime,
         duration: data.duration ?? 0,
@@ -422,8 +497,24 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
         createdAt: createdAt ?? previous.createdAt,
       };
       await scoped.saveSession(session);
-      if (!storedPrevious && session.notebookIds?.length) {
-        const links = session.notebookIds.map((notebookId) => ({
+      if (session.scheduleItemId) {
+        try {
+          const scheduleStore = scoped.storage.readwrite('schedule_items');
+          const scheduled = await scheduleStore.get(session.scheduleItemId);
+          if (scheduled && scheduled.status !== 'completed') {
+            await scheduleStore.put({
+              ...scheduled,
+              status: 'completed',
+              updatedAt: session.endTime || Date.now(),
+            });
+          }
+        } catch {
+          // Optional schedule_items store on minimal mocks
+        }
+      }
+      const nbIds = session.notebookIds ?? [];
+      if (nbIds.length > 0) {
+        const links = nbIds.map((notebookId) => ({
           id: `${notebookId}:session:${session.id}`,
           notebookId,
           targetKind: 'session' as const,
@@ -704,8 +795,13 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           })
           .slice(0, boundedLimit);
       }
-      const bundles = await this.storage.getDetailBatches(candidateIds);
-      entries = [...bundles.values()].map(entryFromDomainRow);
+      if (useSummaryPlan) {
+        const notes = await this.storage.getNotesByIds(candidateIds);
+        entries = notes.map(entryFromNoteSummary);
+      } else {
+        const bundles = await this.storage.getDetailBatches(candidateIds);
+        entries = [...bundles.values()].map(entryFromDomainRow);
+      }
     }
     entries = entries.filter(entry =>
       (!window || (entry.targetDate >= window.start && entry.targetDate <= window.end))
@@ -791,6 +887,83 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       });
       await scopedPersistence.updateRelationships(noteId, { journalDate: entry.journalDate, slug: entry.slug });
       await scopedPersistence.updateTags(noteId, entry.rawContent, tags);
+      const written = await scoped.getNote(noteId);
+      if (written) {
+        const seedOrigin = entry.seedOrigin ?? previous?.seedOrigin ?? 'user';
+        const isLandingOrProperty =
+          written.id.startsWith('notebook/') ||
+          written.id.startsWith('effort/') ||
+          written.id.startsWith('equipment/') ||
+          written.id.startsWith('t/');
+        if (seedOrigin === 'seed' || written.feedOrigin === 'feed' || isLandingOrProperty) {
+          if (written.seedOrigin !== seedOrigin) {
+            await scoped.saveNote({ ...written, seedOrigin });
+          }
+        } else {
+          const hasExplicitTargets = entry.notebookIds !== undefined || entry.notebookId !== undefined;
+          const requestedTargets = [...(entry.notebookIds ?? []), ...(entry.notebookId ? [entry.notebookId] : [])]
+            .map((raw) => raw.trim())
+            .filter(Boolean)
+            .map((raw) => toNotebookId(raw))
+            .filter((nb) => !isSystemReadOnlyNotebook(nb));
+          const priorTargets = hasExplicitTargets && entry.notebookIds !== undefined
+            ? []
+            : (previous?.notebookIds ?? [])
+                .filter(Boolean)
+                .map((raw) => toNotebookId(raw))
+                .filter((nb) => !isSystemReadOnlyNotebook(nb));
+          const merged = Array.from(
+            new Set<NotebookId>([
+              ...(written.type === 'playground' || written.sourceId === 'playground'
+                ? (['notebook/playground'] as const)
+                : []),
+              ...priorTargets,
+              ...requestedTargets,
+            ]),
+          );
+          const primaryUserNb = merged.find((nb) => nb !== 'notebook/playground') ?? merged[0];
+          const nextNote: Note = {
+            ...written,
+            seedOrigin,
+            notebookIds: merged,
+            ...(primaryUserNb ? { notebookId: primaryUserNb } : { notebookId: undefined }),
+          };
+          if (!rowsEqual(written, nextNote)) {
+            await scoped.saveNote(nextNote);
+          }
+          try {
+            const linkStore = scoped.storage.readwrite('notebook_links');
+            const existingLinks = await linkStore.getAllFromIndex('by-note', noteId);
+            const mergedSet = new Set(merged);
+            const existingByNb = new Set(
+              existingLinks
+                .filter((l) => l.targetKind === 'note' && l.targetId === noteId)
+                .map((l) => toNotebookId(l.notebookId)),
+            );
+            if (entry.notebookIds !== undefined) {
+              for (const link of existingLinks) {
+                if (link.targetKind === 'note' && link.targetId === noteId && !mergedSet.has(toNotebookId(link.notebookId))) {
+                  await linkStore.delete(link.id);
+                }
+              }
+            }
+            const linkNow = Date.now();
+            const toPut = merged
+              .filter((nbId) => !existingByNb.has(nbId))
+              .map((nbId) => ({
+                id: makeNotebookLinkId(nbId, 'note' as const, noteId),
+                notebookId: nbId,
+                targetKind: 'note' as const,
+                targetId: noteId,
+                noteId,
+                createdAt: linkNow,
+              }));
+            if (toPut.length > 0) await linkStore.putMany(toPut);
+          } catch {
+            // Optional store/index on minimal storage mocks
+          }
+        }
+      }
     });
     const saved = await this.getRecord(noteId);
     if (!saved) throw new Error(`Saved note disappeared: ${noteId}`);
@@ -804,6 +977,20 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
       const note = await scoped.getNote(resolved.id);
       if (!note) throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: ${resolved.id}`);
       const rawContent = patch.rawContent ?? note.rawContent;
+      const mustProtectImmutableExternalSource =
+        note.id.startsWith('remote:') ||
+        note.retention === 'indexed' ||
+        note.retention === 'session-pinned' ||
+        note.retention === 'cached' ||
+        note.feedOrigin === 'feed' ||
+        note.upstreamStatus === 'unsubscribed' ||
+        note.upstreamStatus === 'removed';
+      if (patch.rawContent !== undefined && patch.rawContent !== note.rawContent && mustProtectImmutableExternalSource) {
+        const ownership = resolveNoteOwnership(note, notebookOriginOfItem(note), notebookOfItem(note));
+        if (!ownership.editable) {
+          throw new Error(`Note '${note.id}' is read-only (${ownership.kind}) and cannot be edited directly.`);
+        }
+      }
       if (patch.rawContent !== undefined && patch.expectedSourceRevision === undefined) {
         throw new NotePersistenceError('STALE_SOURCE', `An expected source revision is required for ${note.id}`);
       }
@@ -850,6 +1037,14 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           blockId: patch.blockId,
           blockVersion: patch.blockVersion,
           blockContentId: patch.blockContentId,
+          noteSourceRevision: previous?.noteSourceRevision ?? note.sourceRevision,
+          sessionDate:
+            patch.sessionDate ??
+            previous?.sessionDate ??
+            localDateKey(new Date(data.endTime ?? data.startTime ?? previous?.createdAt ?? Date.now())),
+          ...(patch.scheduleItemId ?? previous?.scheduleItemId
+            ? { scheduleItemId: patch.scheduleItemId ?? previous?.scheduleItemId }
+            : {}),
           origin: patch.origin ?? previous?.origin,
           startTime: data.startTime,
           endTime: data.endTime,
@@ -862,6 +1057,17 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           createdAt: previous?.createdAt ?? data.endTime ?? Date.now(),
         };
         await scoped.saveSession(session);
+        if (session.scheduleItemId) {
+          try {
+            const schedStore = scoped.storage.readwrite('schedule_items');
+            const sched = await schedStore.get(session.scheduleItemId);
+            if (sched && sched.status !== 'completed') {
+              await schedStore.put({ ...sched, status: 'completed', updatedAt: session.endTime || Date.now() });
+            }
+          } catch {
+            // Optional store on mocks
+          }
+        }
         if (data.logs?.length) {
           const identity = {
             noteId: session.noteId,

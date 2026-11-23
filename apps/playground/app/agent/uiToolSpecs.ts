@@ -42,6 +42,15 @@ export const uiSetStreamQuerySchema = z.strictObject({
     .nullable()
     .optional()
     .describe('Grouping dimension (e.g. "date", "week", "notebook") or null to clear.'),
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'Expected YYYY-MM calendar month')
+    .optional()
+    .describe('Calendar month anchor in YYYY-MM format (syncs ?month= on calendar/journal views).'),
+  overlayMode: z
+    .enum(['all', 'planned', 'logged'])
+    .optional()
+    .describe('Calendar schedule/session overlay filter (`all`, `planned`, or `logged`).'),
   resetToDefault: z
     .boolean()
     .optional()
@@ -199,6 +208,45 @@ export const uiResultsControlSchema = z.strictObject({
     .describe('Close any open source drawer or dashboard dialog on the results workbench.'),
 });
 
+export const uiPeekEntitySchema = z.strictObject({
+  action: z
+    .enum(['status', 'open', 'close'])
+    .describe('Read active Entity Peek Drawer state ("status"), open a preview for a target entity ("open"), or dismiss it ("close").'),
+  kind: z
+    .enum(['effort', 'equipment', 'tag', 'unrecognized', 'note', 'notebook', 'day'])
+    .optional()
+    .describe('Target entity kind when action="open".'),
+  slug: z
+    .string()
+    .optional()
+    .describe('Canonical slug when kind is "effort", "equipment", or "notebook".'),
+  label: z
+    .string()
+    .optional()
+    .describe('Tag label (required when kind="tag") or optional display label for effort/equipment.'),
+  tagType: z
+    .string()
+    .optional()
+    .describe('Optional tag category/type when kind="tag" (e.g. "domain", "format", "general").'),
+  term: z
+    .string()
+    .optional()
+    .describe('Unrecognized term to quick-define when kind="unrecognized".'),
+  noteId: z
+    .string()
+    .optional()
+    .describe('Target Note ID when kind="note".'),
+  title: z
+    .string()
+    .optional()
+    .describe('Optional display title hint when kind is "note" or "notebook".'),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD civil date')
+    .optional()
+    .describe('Civil date (YYYY-MM-DD) when kind="day".'),
+});
+
 export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
   return [
     {
@@ -238,7 +286,7 @@ export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
       name: 'ui_set_stream_query',
       title: 'Set Live Stream WQL Query or Layout',
       description:
-        'Update the live WQL query, layout (`cards`, `rows`, `feed`, `agenda`, `planner`), or grouping on the currently mounted stream view, or reset to the route default.',
+        'Update the live WQL query, layout (`cards`, `rows`, `feed`, `agenda`, `planner`), grouping, calendar `month` (`YYYY-MM`), or calendar `overlayMode` (`all`, `planned`, `logged`) on the currently mounted stream view, or reset to the route default.',
       tier: 1,
       surfaces: ['webmcp'],
       mountScope: 'mounted stream routes (/journal, /notes, /notebooks, /sessions, /efforts, /tags, /feeds)',
@@ -321,6 +369,17 @@ export function exportPlaygroundUiToolsManifest(): AgentUiToolManifestEntry[] {
       mountScope: 'mounted session results workbench (/results/:sessionId)',
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: zodSchemaToJsonSchema(uiResultsControlSchema),
+    },
+    {
+      name: 'ui_peek_entity',
+      title: 'Inspect, Open, or Close Entity Peek Drawer',
+      description:
+        'Read the active Entity Peek Drawer state (`status`), open a non-destructive 340px right-edge preview for an effort, equipment, tag, unrecognized term, note, notebook, or day (`open`), or dismiss the drawer (`close`). Mutually exclusive with the Whiteboard Token Inspector drawer.',
+      tier: 1,
+      surfaces: ['webmcp'],
+      mountScope: 'mounted Playground shell / Note editor / Entity Peek surfaces (AppContent / NoteEditor / EntityPeekDrawer)',
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      inputSchema: zodSchemaToJsonSchema(uiPeekEntitySchema),
     },
     ...agentTools.map(
       (tool): AgentUiToolManifestEntry => ({

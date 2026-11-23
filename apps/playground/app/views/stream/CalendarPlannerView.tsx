@@ -11,7 +11,11 @@
  * The planner never shows LESS of the month than the agenda does.
  */
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { CalendarIcon, Plus } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@bitcobblers/wod-wiki-ui/primitives'
+import { TEST_IDS } from '@/lib/testIds'
+import { dayPath } from '../../lib/routes'
 import type { Entry } from '../../lib/entryMapper'
 import {
   buildDayBuckets,
@@ -30,6 +34,7 @@ import {
   CalendarMonthBar,
   CalendarUndatedShelf,
   useCalendarMonth,
+  type OverlayFilterMode,
 } from './CalendarChrome'
 
 export interface CalendarPlannerViewProps {
@@ -49,6 +54,12 @@ export interface CalendarPlannerViewProps {
    * button both call this. The host opens the new-note dialog for that date.
    */
   onCreateOnDay?: (dateKey: string) => void
+  monthParam?: string
+  onMonthChange?: (monthKey: string) => void
+  overlayMode?: OverlayFilterMode
+  onOverlayModeChange?: (mode: OverlayFilterMode) => void
+  onInspectEntry?: (entry: Entry) => void
+  onInspectDay?: (dateKey: string) => void
 }
 
 /** How many entries one board cell shows before it counts the rest. */
@@ -62,10 +73,23 @@ const CELL_ENTRY_LIMIT = 3
  * Thursday is free, put something there"). The explicit "+" button says so
  * without a hover; the cell-wide target does it with one tap.
  */
-function PlannerCell({ day, onCreateOnDay }: { day: CalendarDay; onCreateOnDay: (dateKey: string) => void }) {
+function PlannerCell({
+  day,
+  onCreateOnDay,
+  onInspectEntry,
+  onInspectDay,
+}: {
+  day: CalendarDay
+  onCreateOnDay: (dateKey: string) => void
+  onInspectEntry?: (entry: Entry) => void
+  onInspectDay?: (dateKey: string) => void
+}) {
   const shown = day.entries.slice(0, CELL_ENTRY_LIMIT)
   const hidden = day.entries.length - shown.length
   const label = `${shortMonthLabel(day.date)} ${day.dayOfMonth}`
+  const dayNumberClass = `pointer-events-auto rounded px-1 py-0.5 font-mono text-xs font-bold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+    day.isToday ? 'text-primary' : day.inMonth ? 'text-foreground' : 'text-muted-foreground'
+  }`
   return (
     <div
       className={`group/cell relative flex min-h-[5.5rem] min-w-0 flex-col gap-1 border-l border-border/50 p-1.5 first:border-l-0 ${
@@ -82,41 +106,94 @@ function PlannerCell({ day, onCreateOnDay }: { day: CalendarDay; onCreateOnDay: 
         aria-label={`Add an entry on ${label}`}
         data-testid="calendar-planner-cell-add"
       />
-      <div className="pointer-events-none relative flex items-baseline gap-1">
-        <span
-          className={`font-mono text-[11px] font-bold ${
-            day.isToday ? 'text-primary' : day.inMonth ? 'text-foreground' : 'text-muted-foreground/50'
-          }`}
-        >
-          {day.dayOfMonth}
-        </span>
+      <div className="pointer-events-none relative flex items-center gap-1">
+        {onInspectDay ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onInspectDay(day.key)
+            }}
+            data-testid={TEST_IDS.CALENDAR_DAY_HEADER}
+            aria-label={`Inspect ${label}`}
+            title={`Inspect ${label}`}
+            className={dayNumberClass}
+          >
+            {day.dayOfMonth}
+          </button>
+        ) : (
+          <Link
+            to={dayPath(day.key)}
+            onClick={(e) => e.stopPropagation()}
+            className={dayNumberClass}
+            title={`Open ${label}`}
+          >
+            {day.dayOfMonth}
+          </Link>
+        )}
         {day.isToday && (
-          <span className="rounded-full bg-primary/10 px-1 text-[8px] font-bold uppercase tracking-wider text-primary">
+          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
             Today
           </span>
         )}
         <button
           type="button"
           onClick={() => onCreateOnDay(day.key)}
-          className="pointer-events-auto ml-auto grid size-5 place-items-center rounded text-muted-foreground/60 transition-colors hover:bg-muted hover:text-primary"
+          className="pointer-events-auto ml-auto grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
           aria-label={`Add an entry on ${label}`}
           title="Add an entry on this day"
           data-testid="calendar-planner-add-button"
         >
-          <Plus className="size-3" aria-hidden />
+          <Plus className="size-3.5" aria-hidden />
         </button>
         {day.entries.length > 0 && (
-          <span className="font-mono text-[9px] text-muted-foreground">{day.entries.length}</span>
+          <span className="font-mono text-[11px] font-medium text-muted-foreground">{day.entries.length}</span>
         )}
       </div>
       <div className="pointer-events-none relative flex flex-col gap-1">
-        {shown.map(entry => (
-          <span key={entry.id} className="pointer-events-auto">
-            <CalendarEntryChip entry={entry} />
+        {shown.map((entry, index) => (
+          <span key={entry.scheduleItemId ?? `${entry.id}-${index}`} className="pointer-events-auto">
+            <CalendarEntryChip entry={entry} onInspect={onInspectEntry} />
           </span>
         ))}
         {hidden > 0 && (
-          <span className="px-1 text-[10px] font-medium text-muted-foreground">+{hidden} more</span>
+          <span className="pointer-events-auto">
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full rounded px-1 py-0.5 text-left text-[11px] font-semibold text-primary hover:bg-muted"
+                  />
+                }
+              >
+                +{hidden} more
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                sideOffset={4}
+                data-testid={TEST_IDS.CALENDAR_MORE_POPOVER}
+                className="w-64 space-y-2 p-2.5"
+              >
+                <div className="flex items-center justify-between border-b border-border/60 pb-1.5 text-xs font-bold">
+                  <span>{label}</span>
+                  <Link to={dayPath(day.key)} className="text-xs font-medium text-primary hover:underline">
+                    Open day
+                  </Link>
+                </div>
+                <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
+                  {day.entries.map((entry, idx) => (
+                    <CalendarEntryChip
+                      key={entry.scheduleItemId ?? `${entry.id}-more-${idx}`}
+                      entry={entry}
+                      onInspect={onInspectEntry}
+                    />
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </span>
         )}
       </div>
     </div>
@@ -127,23 +204,33 @@ function PlannerCell({ day, onCreateOnDay }: { day: CalendarDay; onCreateOnDay: 
 function PlannerWeek({
   week,
   onCreateOnDay,
+  onInspectEntry,
+  onInspectDay,
 }: {
   week: CalendarWeek
   onCreateOnDay: (dateKey: string) => void
+  onInspectEntry?: (entry: Entry) => void
+  onInspectDay?: (dateKey: string) => void
 }) {
   return (
     <div
-      className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] border-t border-border/60"
+      className="grid grid-cols-[3.75rem_repeat(7,minmax(0,1fr))] border-t border-border/60"
       data-testid="calendar-planner-week"
     >
       <div className="flex flex-col justify-start gap-0.5 p-1.5">
-        <span className="font-mono text-[10px] font-bold text-muted-foreground">{week.label}</span>
-        <span className="font-mono text-[9px] text-muted-foreground/70">
+        <span className="font-mono text-[11px] font-bold text-foreground/85">{week.label}</span>
+        <span className="font-mono text-[11px] text-muted-foreground">
           {week.days.reduce((sum, day) => sum + day.entries.length, 0)}
         </span>
       </div>
       {week.days.map(day => (
-        <PlannerCell key={day.key} day={day} onCreateOnDay={onCreateOnDay} />
+        <PlannerCell
+          key={day.key}
+          day={day}
+          onCreateOnDay={onCreateOnDay}
+          onInspectEntry={onInspectEntry}
+          onInspectDay={onInspectDay}
+        />
       ))}
     </div>
   )
@@ -162,6 +249,7 @@ function PlannerPhone({
   moveNotebookTargets,
   onMoveNotebook,
   onCreateOnDay,
+  onInspectDay,
 }: {
   weeks: CalendarWeek[]
   visibleFieldIds?: readonly string[]
@@ -170,6 +258,7 @@ function PlannerPhone({
   moveNotebookTargets?: ReadonlyArray<{ id: string; name: string; icon: string }>
   onMoveNotebook?: (entry: Entry, notebookId: string) => void
   onCreateOnDay: (dateKey: string) => void
+  onInspectDay?: (dateKey: string) => void
 }) {
   const weeksWithEntries = weeks.filter(week => week.days.some(day => day.entries.length > 0))
   if (weeksWithEntries.length === 0) {
@@ -187,10 +276,10 @@ function PlannerPhone({
           className="overflow-hidden rounded-lg border border-border/60 bg-card"
           data-testid="calendar-planner-week-card"
         >
-          <header className="flex items-center gap-2 border-b border-border/60 bg-muted/30 px-3 py-1.5">
+          <header className="flex items-center gap-2 border-b border-border/60 bg-muted/30 px-3 py-2">
             <CalendarIcon className="size-3.5 text-muted-foreground" aria-hidden />
-            <span className="font-mono text-[11px] font-bold text-foreground">Week of {week.label}</span>
-            <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+            <span className="font-mono text-xs font-bold text-foreground">Week of {week.label}</span>
+            <span className="ml-auto font-mono text-[11px] text-muted-foreground">
               {week.days.reduce((sum, day) => sum + day.entries.length, 0)}{' '}
               {week.days.reduce((sum, day) => sum + day.entries.length, 0) === 1 ? 'entry' : 'entries'}
             </span>
@@ -200,13 +289,28 @@ function PlannerPhone({
             .map(day => (
               <div key={day.key} className="border-b border-border/40 last:border-b-0">
                 <div className="flex items-center gap-2 px-3 pt-2">
-                  <span
-                    className={`font-mono text-[11px] font-bold ${day.isToday ? 'text-primary' : 'text-muted-foreground'}`}
-                  >
-                    {WEEKDAY_SHORT[(day.date.getDay() + 6) % 7]} {day.dayOfMonth}
-                  </span>
+                  {onInspectDay ? (
+                    <button
+                      type="button"
+                      onClick={() => onInspectDay(day.key)}
+                      data-testid={TEST_IDS.CALENDAR_DAY_HEADER}
+                      className={`inline-flex min-h-11 items-center gap-1.5 rounded-md px-1 font-mono text-xs font-bold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        day.isToday ? 'text-primary' : 'text-foreground'
+                      }`}
+                    >
+                      <span>
+                        {WEEKDAY_SHORT[(day.date.getDay() + 6) % 7]} {day.dayOfMonth}
+                      </span>
+                    </button>
+                  ) : (
+                    <span
+                      className={`font-mono text-xs font-bold ${day.isToday ? 'text-primary' : 'text-foreground'}`}
+                    >
+                      {WEEKDAY_SHORT[(day.date.getDay() + 6) % 7]} {day.dayOfMonth}
+                    </span>
+                  )}
                   {day.isToday && (
-                    <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
+                    <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                       Today
                     </span>
                   )}
@@ -222,12 +326,12 @@ function PlannerPhone({
                     <button
                       type="button"
                       onClick={() => onCreateOnDay(day.key)}
-                      className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+                      className="grid size-11 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
                       aria-label={`Add an entry on ${WEEKDAY_SHORT[(day.date.getDay() + 6) % 7]} ${day.dayOfMonth}`}
                       title="Add an entry on this day"
                       data-testid="calendar-planner-add-button"
                     >
-                      <Plus className="size-3.5" aria-hidden />
+                      <Plus className="size-4" aria-hidden />
                     </button>
                   </span>
                 </div>
@@ -261,19 +365,33 @@ export function CalendarPlannerView({
   moveNotebookTargets,
   onMoveNotebook,
   onCreateOnDay,
+  monthParam,
+  onMonthChange,
+  overlayMode,
+  onOverlayModeChange,
+  onInspectEntry,
+  onInspectDay,
 }: CalendarPlannerViewProps) {
   const isMobile = useIsMobile()
-  const nav = useCalendarMonth()
+  const nav = useCalendarMonth(monthParam, onMonthChange)
   const buckets = useMemo(() => buildDayBuckets(entries), [entries])
   const weeks = useMemo(() => buildMonthWeeks(nav.anchor, buckets), [nav.anchor, buckets])
 
   const monthPrefix = `${nav.anchor.getFullYear()}-${String(nav.anchor.getMonth() + 1).padStart(2, '0')}`
-  const inMonth = entries.filter(entry => entry.date?.startsWith(monthPrefix)).length
+  const inMonth = entries.filter(
+    (entry) =>
+      entry.scheduledDates?.some((d) => d.startsWith(monthPrefix)) ||
+      entry.date?.startsWith(monthPrefix),
+  ).length
 
   if (entries.length === 0) {
     return (
       <div className="flex flex-1 flex-col bg-background" data-testid="calendar-planner-view">
-        <CalendarMonthBar nav={nav} />
+        <CalendarMonthBar
+          nav={nav}
+          overlayMode={overlayMode}
+          onOverlayModeChange={onOverlayModeChange}
+        />
         <p className="px-4 py-16 text-center text-xs text-muted-foreground">No entries match your search.</p>
       </div>
     )
@@ -284,6 +402,8 @@ export function CalendarPlannerView({
       <CalendarMonthBar
         nav={nav}
         meta={`${inMonth} dated ${inMonth === 1 ? 'entry' : 'entries'} in ${nav.label}`}
+        overlayMode={overlayMode}
+        onOverlayModeChange={onOverlayModeChange}
       />
 
       {isMobile ? (
@@ -295,23 +415,30 @@ export function CalendarPlannerView({
           moveNotebookTargets={moveNotebookTargets}
           onMoveNotebook={onMoveNotebook}
           onCreateOnDay={onCreateOnDay ?? (() => {})}
+          onInspectDay={onInspectDay}
         />
       ) : (
         <div className="flex-1 overflow-x-auto pb-6">
           <div className="min-w-[52rem]">
-            <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] bg-muted/40">
+            <div className="grid grid-cols-[3.75rem_repeat(7,minmax(0,1fr))] bg-muted/40">
               <div />
               {WEEKDAY_SHORT.map(day => (
                 <div
                   key={day}
-                  className="border-l border-border/50 px-1.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground first:border-l-0"
+                  className="border-l border-border/50 px-1.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground first:border-l-0"
                 >
                   {day}
                 </div>
               ))}
             </div>
             {weeks.map(week => (
-              <PlannerWeek key={week.label} week={week} onCreateOnDay={onCreateOnDay ?? (() => {})} />
+              <PlannerWeek
+                key={week.label}
+                week={week}
+                onCreateOnDay={onCreateOnDay ?? (() => {})}
+                onInspectEntry={onInspectEntry}
+                onInspectDay={onInspectDay}
+              />
             ))}
           </div>
         </div>

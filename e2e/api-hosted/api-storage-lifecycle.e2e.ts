@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
+import { test, expect, TEST_IDS, clickStreamAdd } from '../fixtures/playgroundActor';
 import { advanceUntilReview } from '../pages/WallClockPage';
 
 interface StoredApiNote {
@@ -26,7 +26,7 @@ interface StoredSeedMeta {
 }
 
 async function createJournalNoteViaUi(page: Page, markdown: string, expectedHeading: string): Promise<string> {
-  await page.getByTestId('new-entry-primary').click();
+  await clickStreamAdd(page);
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Create', exact: true }).click();
@@ -145,7 +145,9 @@ test.describe('Hosted VITE_STORAGE=api + wod server SQLite lifecycle', () => {
       timeout: 20_000,
     });
     await expect(app.page.getByTestId(TEST_IDS.STREAM_VIEW)).toBeVisible();
-    await expect(app.page.getByTestId(TEST_IDS.NOTEBOOKS_CREATE_BUTTON)).toBeVisible();
+    await app.page.getByTestId(TEST_IDS.STREAM_VIEW_POPOVER_TRIGGER).click();
+    await expect(app.page.getByTestId(TEST_IDS.STREAM_VIEW_ADD_ACTION)).toBeVisible();
+    await app.page.keyboard.press('Escape');
 
     assertCleanHostedSession();
   });
@@ -291,9 +293,7 @@ test.describe('Hosted VITE_STORAGE=api + wod server SQLite lifecycle', () => {
       timeout: 20_000,
     });
 
-    const startBtn = page
-      .locator(`[data-testid="${TEST_IDS.EDITOR_START_WORKOUT}"], button[aria-label*="Run" i], button:has-text("Run")`)
-      .first();
+    const startBtn = page.locator('main').getByTestId(TEST_IDS.EDITOR_START_WORKOUT).first();
     await expect(startBtn).toBeVisible({ timeout: 15_000 });
     await startBtn.click();
 

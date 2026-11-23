@@ -129,8 +129,6 @@ class MarkdownTableWidget extends WidgetType {
   eq(other: MarkdownTableWidget): boolean {
     if (
       this.readOnly !== other.readOnly ||
-      this.from !== other.from ||
-      this.to !== other.to ||
       this.head.length !== other.head.length ||
       this.rows.length !== other.rows.length
     ) {
@@ -162,37 +160,70 @@ class MarkdownTableWidget extends WidgetType {
       Array.from({ length: colCount }, (_, i) => row[i] ?? ""),
     );
 
+    const resolveLiveRange = (): { from: number; to: number } => {
+      const field = view.state.field(tablePreviewField, false);
+      if (field && view.dom.contains(outer)) {
+        try {
+          const domPos = view.posAtDOM(outer);
+          const searchFrom = Math.max(0, domPos - 1);
+          const searchTo = Math.min(view.state.doc.length, domPos + 1);
+          let found: { from: number; to: number } | null = null;
+          field.between(searchFrom, searchTo, (from, to, value) => {
+            const widget = (value.spec as { widget?: unknown })?.widget;
+            if (widget instanceof MarkdownTableWidget) {
+              found = { from, to };
+              return false;
+            }
+          });
+          if (found) return found;
+        } catch {
+          // Fall back to captured range
+        }
+      }
+      return {
+        from: Math.max(0, Math.min(this.from, view.state.doc.length)),
+        to: Math.max(0, Math.min(this.to, view.state.doc.length)),
+      };
+    };
+
     const commitTable = (
       nextHead: string[],
       nextRows: string[][],
       focusAfter?: { row: number; col: number },
     ) => {
       if (view.state.readOnly) return;
+      const { from: liveFrom, to: liveTo } = resolveLiveRange();
       const serialized = serializeMarkdownTable(nextHead, nextRows);
-      // Keep selection safely outside `from..to` so the rendered table stays mounted!
+      // Keep selection safely outside `liveFrom..liveTo` so the rendered table stays mounted!
       const safeSelection =
-        this.to < view.state.doc.length
-          ? Math.min(view.state.doc.length, this.from + serialized.length + 1)
-          : Math.max(0, this.from - 1);
+        liveTo < view.state.doc.length
+          ? Math.min(view.state.doc.length, liveFrom + serialized.length + 1)
+          : Math.max(0, liveFrom - 1);
       const currentCursor = view.state.selection.main.head;
       const nextCursor =
-        currentCursor >= this.from && currentCursor <= this.to
+        currentCursor >= liveFrom && currentCursor <= liveTo
           ? safeSelection
-          : currentCursor > this.to
-            ? currentCursor + (serialized.length - (this.to - this.from))
+          : currentCursor > liveTo
+            ? currentCursor + (serialized.length - (liveTo - liveFrom))
             : currentCursor;
 
+      wrap.dataset.tableFrom = String(liveFrom);
       view.dispatch({
-        changes: { from: this.from, to: this.to, insert: serialized },
-        selection: { anchor: Math.max(0, Math.min(nextCursor, view.state.doc.length + serialized.length - (this.to - this.from))) },
+        changes: { from: liveFrom, to: liveTo, insert: serialized },
+        selection: { anchor: Math.max(0, Math.min(nextCursor, view.state.doc.length + serialized.length - (liveTo - liveFrom))) },
         userEvent: "input.table",
       });
 
       if (focusAfter) {
         requestAnimationFrame(() => {
-          const targetCell = view.dom.querySelector<HTMLElement>(
-            `[data-table-from="${this.from}"] [data-cell-coord="${focusAfter.row}:${focusAfter.col}"]`,
-          );
+          const rootScope = outer.isConnected ? outer : view.dom;
+          const targetCell = outer.isConnected
+            ? rootScope.querySelector<HTMLElement>(
+                `[data-cell-coord="${focusAfter.row}:${focusAfter.col}"]`,
+              )
+            : rootScope.querySelector<HTMLElement>(
+                `[data-table-from="${liveFrom}"] [data-cell-coord="${focusAfter.row}:${focusAfter.col}"]`,
+              );
           targetCell?.click();
         });
       }
@@ -406,7 +437,8 @@ class MarkdownTableWidget extends WidgetType {
       );
 
       const sourceBtn = makeBtn("Source", "Edit raw Markdown table", () => {
-        view.dispatch({ selection: { anchor: this.from } });
+        const { from: liveFrom } = resolveLiveRange();
+        view.dispatch({ selection: { anchor: liveFrom } });
         view.focus();
       });
       sourceBtn.style.marginLeft = "auto";

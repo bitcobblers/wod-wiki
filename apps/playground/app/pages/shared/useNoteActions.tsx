@@ -17,8 +17,11 @@ import { exportNote } from '@/services/ExportImportService'
 import type { HistoryRecord } from '@/types/history'
 import { NotePlacementDialog, type NotePlacementMode } from '../../components/organisms/journal/NotePlacementDialog'
 import { waitForPendingNoteSave } from '../../hooks/useNoteDraft'
+import { clearStagedNoteSave, markNoteDeleting, unmarkNoteDeleting } from '@/services/persistence/pendingNoteSaves'
 import { notePath, ROUTE_PATTERNS } from '../../lib/routes'
 import { journalNotes } from '../../services/journalNotes'
+import { journalSchedule } from '../../services/journalSchedule'
+import { storageService } from '@/services/storage'
 import { appendTimerBlock } from './pageUtils'
 import type { NoteHelpfulAction } from './useNotePageNav'
 
@@ -47,6 +50,8 @@ export interface UseNoteActionsOptions {
   onCloned?: (created: HistoryRecord) => void
   /** Called after deleting (defaults to navigating to `deleteRedirectTo`). */
   onDeleted?: (deletedId: string) => void
+  /** Called immediately before deletion starts (cancels uncommitted editor drafts). */
+  onBeforeDelete?: (noteId: string) => void
 }
 
 export function buildNoteHelpfulActionsForEntry(params: {
@@ -81,12 +86,13 @@ export function buildNoteHelpfulActionsForEntry(params: {
   } = params
 
   return [
-    ...(!isReadOnly && onEditPageSlug
+    ...(!isReadOnly && onMutateContent
       ? [
           {
-            id: 'upgrade-to-page',
-            label: entry.slug ? 'Edit page route' : 'Upgrade to Page',
-            onRun: () => onEditPageSlug(entry),
+            id: 'add-timer',
+            label: 'Add timer',
+            group: 'author' as const,
+            onRun: () => onMutateContent(entry, appendTimerBlock(liveContent)),
           },
         ]
       : []),
@@ -95,13 +101,49 @@ export function buildNoteHelpfulActionsForEntry(params: {
           {
             id: 'add-widget',
             label: 'Add widget',
+            group: 'author' as const,
             onRun: () => onAddWidget(entry),
           },
         ]
       : []),
+    ...(!isReadOnly && onEditPageSlug
+      ? [
+          {
+            id: 'upgrade-to-page',
+            label: entry.slug ? 'Edit page route' : 'Upgrade to Page',
+            group: 'organize' as const,
+            onRun: () => onEditPageSlug(entry),
+          },
+        ]
+      : []),
+    {
+      id: 'promote-notebooks',
+      label: 'Notebooks & Promotion',
+      group: 'organize' as const,
+      onRun: () => onOpenPromotion(entry),
+    },
+    {
+      id: 'placements',
+      label: 'Note placements',
+      group: 'organize' as const,
+      onRun: () => onOpenPlacement(entry, 'relationships'),
+    },
+    {
+      id: 'clone',
+      label: 'Clone',
+      group: 'organize' as const,
+      onRun: () => onOpenPlacement(entry, 'clone'),
+    },
+    {
+      id: 'copy-link',
+      label: copied ? 'Copied' : 'Copy link',
+      group: 'share' as const,
+      onRun: () => onCopyLink(entry),
+    },
     {
       id: 'export-md',
       label: 'Export Note (.md)',
+      group: 'share' as const,
       onRun: () => {
         void exportNote(entry, provider, { format: 'md' })
       },
@@ -109,6 +151,7 @@ export function buildNoteHelpfulActionsForEntry(params: {
     {
       id: 'export-jsonl',
       label: 'Export Session Data (.jsonl)',
+      group: 'share' as const,
       onRun: () => {
         void exportNote(entry, provider, { format: 'jsonl' })
       },
@@ -116,38 +159,10 @@ export function buildNoteHelpfulActionsForEntry(params: {
     {
       id: 'export-csv',
       label: 'Export Session Data (.csv)',
+      group: 'share' as const,
       onRun: () => {
         void exportNote(entry, provider, { format: 'csv' })
       },
-    },
-    {
-      id: 'promote-notebooks',
-      label: 'Notebooks & Promotion',
-      onRun: () => onOpenPromotion(entry),
-    },
-    {
-      id: 'placements',
-      label: 'Note placements',
-      onRun: () => onOpenPlacement(entry, 'relationships'),
-    },
-    ...(!isReadOnly && onMutateContent
-      ? [
-          {
-            id: 'add-timer',
-            label: 'Add timer',
-            onRun: () => onMutateContent(entry, appendTimerBlock(liveContent)),
-          },
-        ]
-      : []),
-    {
-      id: 'clone',
-      label: 'Clone',
-      onRun: () => onOpenPlacement(entry, 'clone'),
-    },
-    {
-      id: 'copy-link',
-      label: copied ? 'Copied' : 'Copy link',
-      onRun: () => onCopyLink(entry),
     },
     ...(!isReadOnly
       ? [
@@ -155,6 +170,7 @@ export function buildNoteHelpfulActionsForEntry(params: {
             id: 'delete-note',
             label: 'Delete note',
             icon: Trash2,
+            group: 'danger' as const,
             disabled: deletingNote,
             testId: 'l3-delete-note',
             onRun: () => onRequestDelete(entry),
@@ -181,6 +197,7 @@ export function useNoteActions(options: UseNoteActionsOptions) {
     onUpdated,
     onCloned,
     onDeleted,
+    onBeforeDelete,
   } = options
 
   const navigate = useNavigate()
@@ -189,6 +206,30 @@ export function useNoteActions(options: UseNoteActionsOptions) {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deletingNote, setDeletingNote] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [blastRadius, setBlastRadius] = useState<{ schedules: number; sessions: number; notebooks: number } | null>(null)
+
+  useEffect(() => {
+    if (!confirmDeleteOpen || !entry) {
+      setBlastRadius(null)
+      return
+    }
+    let cancelled = false
+    void Promise.all([
+      journalSchedule.listForNote(entry.id).catch(() => []),
+      storageService.getSessionsForNote(entry.id).catch(() => []),
+    ]).then(([schedules, sessions]) => {
+      if (!cancelled) {
+        setBlastRadius({
+          schedules: schedules.length,
+          sessions: sessions.length,
+          notebooks: entry.notebookIds?.length ?? (entry.notebookId ? 1 : 0),
+        })
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [confirmDeleteOpen, entry])
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -210,9 +251,13 @@ export function useNoteActions(options: UseNoteActionsOptions) {
     if (!entry || isReadOnly || deletingNote) return
     setDeletingNote(true)
     setDeleteError(null)
+    markNoteDeleting(entry.id)
+    onBeforeDelete?.(entry.id)
+    clearStagedNoteSave(entry.id)
     try {
       await waitForPendingNoteSave(entry.id)
       await journalNotes.delete(entry.id)
+      clearStagedNoteSave(entry.id)
       setConfirmDeleteOpen(false)
       if (onDeleted) {
         onDeleted(entry.id)
@@ -220,11 +265,12 @@ export function useNoteActions(options: UseNoteActionsOptions) {
         void navigate(deleteRedirectTo, { replace: true })
       }
     } catch (err) {
+      unmarkNoteDeleting(entry.id)
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete note.')
     } finally {
       setDeletingNote(false)
     }
-  }, [deleteRedirectTo, deletingNote, entry, isReadOnly, navigate, onDeleted])
+  }, [deleteRedirectTo, deletingNote, entry, isReadOnly, navigate, onBeforeDelete, onDeleted])
 
   const helpfulActions = useMemo<NoteHelpfulAction[]>(() => {
     if (!entry) return []
@@ -292,6 +338,13 @@ export function useNoteActions(options: UseNoteActionsOptions) {
             <AlertDialogTitle>Delete note?</AlertDialogTitle>
             <AlertDialogDescription>
               Permanently delete &ldquo;{entry.title || 'Untitled note'}&rdquo;? This cannot be undone.
+              {blastRadius && (blastRadius.schedules > 0 || blastRadius.sessions > 0 || blastRadius.notebooks > 0) && (
+                <span className="mt-2 block text-xs text-muted-foreground">
+                  Removes {blastRadius.schedules} scheduled date{blastRadius.schedules === 1 ? '' : 's'} and detaches from{' '}
+                  {blastRadius.notebooks} notebook{blastRadius.notebooks === 1 ? '' : 's'}. Existing{' '}
+                  {blastRadius.sessions} logged session{blastRadius.sessions === 1 ? '' : 's'} and archived snapshots remain preserved.
+                </span>
+              )}
             </AlertDialogDescription>
           </DialogHeader>
           {deleteError && (

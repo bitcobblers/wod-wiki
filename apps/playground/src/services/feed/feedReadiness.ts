@@ -20,7 +20,12 @@ import { subscribeSyncActivity } from '@/services/syncActivity';
 import { markBootMilestone } from '@/services/bootDiagnostics';
 import { adoptFeedProvenance, adoptLegacyFeedCheckpoints, adoptNotebookVocabulary, defaultFeedSources, isFeedImportEnabled, readFeedCoverage, runBootFeedSync, SEED_CLAIM_TTL_MS, subscribeFeedUpdates, type FeedSyncDeps, type FeedSyncOutcome, type FeedSyncProgress } from './feedSync';
 import { mainThreadFeedImportStorage } from './feedStorageDefault';
-import { isFeedAutoSync, isFeedSubscribed, migrateFeedSubscriptions } from './feedSubscriptions';
+import {
+  hydrateFeedStateFromStorage,
+  isFeedAutoSync,
+  isFeedSubscribed,
+  migrateFeedSubscriptions,
+} from './feedSubscriptions';
 import { ensurePlaygroundDefaultSubscriptions } from './playgroundFeedBootstrap';
 export type FeedReadiness = 'preparing' | 'ready' | 'error';
 
@@ -291,6 +296,11 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
     markFeedSyncProgress(event);
     deps.onProgress?.(event);
   };
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
+  if (storage.storageInstance) {
+    await hydrateFeedStateFromStorage(storage.storageInstance)
+      .catch((err) => console.error('[feedSync] registry hydration failed', err));
+  }
   const all = deps.sources ?? defaultFeedSources();
   // Pre-feed-unit per-notebook checkpoints fold into their feed's checkpoint
   // first: the subscription migration below probes feed checkpoints, and the
@@ -303,10 +313,9 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
   await adoptLegacyFeedCheckpoints(deps)
     .catch((err) => console.error('[feedSync] checkpoint adoption failed', err));
   // Prior imported feeds become subscriptions (explicit on/off wins).
-  await migrateFeedSubscriptions(all, deps.storage)
+  await migrateFeedSubscriptions(all, storage)
     .catch((err) => console.error('[feedSync] subscription migration failed', err));
   ensurePlaygroundDefaultSubscriptions(all);
-  const storage = deps.storage ?? mainThreadFeedImportStorage();
   let coreMeta;
   try {
     coreMeta = await storage.getSeedMeta(seedMetaKey('core'));

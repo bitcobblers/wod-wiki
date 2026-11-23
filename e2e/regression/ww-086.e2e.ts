@@ -91,7 +91,7 @@ test.describe('WW-086 — Subscribe pending state during feed sync', () => {
     // …and must visibly say it is working, the way the Sync button does.
     await expect(subscribeBtn).toContainText(/subscribing|syncing|importing/i, { timeout: 5_000 });
 
-    // The sync does complete once the chunk lands.
-    await expect(row.getByTestId('feed-sync-status')).toContainText('Up to date', { timeout: 30_000 });
+    // Subscribe uses index-only by default, so once intake completes the row shows Index active.
+    await expect(row.getByTestId('feed-sync-status')).toContainText('Index active. Workouts load on demand.', { timeout: 30_000 });
   });
 });

@@ -30,7 +30,12 @@ import type { StoreName } from './contract';
 // V34 adds the `by-type` index on `notes` so kind-filtered vault reads
 // (`dashboard`, `journal`, `playground`) resolve via O(k) index lookups
 // instead of full-corpus scans (WW-001).
-export const DB_VERSION = 34;
+//
+// V35 adds `schedule_items` (M:N calendar scheduling without cloning Notes),
+// `note_revisions` (immutable Note snapshots whenever a Session-bearing Note
+// is edited), and additive `sessions` indexes (`by-session-date`,
+// `by-schedule-item`) for Journal Session overlays and attribution.
+export const DB_VERSION = 35;
 
 /**
  * Typed field metadata — column type per extracted field path, shared with
@@ -53,6 +58,8 @@ export const COLUMN_TYPES: Record<StoreName, Record<string, StorageColumnType>> 
   tag_types: { createdAt: 'number' },
   note_tags: {},
   block_revisions: { version: 'number', savedAt: 'number' },
+  note_revisions: { version: 'number', savedAt: 'number' },
+  schedule_items: { position: 'number', createdAt: 'number', updatedAt: 'number' },
   sessions: {
     blockVersion: 'number',
     startTime: 'number',
@@ -155,6 +162,9 @@ export const STORE_DEFS: StoreDef[] = [
     { name: 'by-note', keyPath: ['noteId'] },
     { name: 'by-block', keyPath: ['noteId', 'blockId'] },
   ] },
+  { name: 'note_revisions', keyPath: ['noteId', 'version'], indexes: [
+    { name: 'by-note', keyPath: ['noteId'] },
+  ] },
   // 6. sessions
   { name: 'sessions', keyPath: ['id'], indexes: [
     { name: 'by-note', keyPath: ['noteId'] },
@@ -162,6 +172,8 @@ export const STORE_DEFS: StoreDef[] = [
     { name: 'by-content', keyPath: ['blockContentId'] },
     { name: 'by-block', keyPath: ['blockId'] },
     { name: 'by-page', keyPath: ['pageId'] },
+    { name: 'by-session-date', keyPath: ['sessionDate'] },
+    { name: 'by-schedule-item', keyPath: ['scheduleItemId'] },
     { name: 'by-origin', keyPath: ['origin'] },
     { name: 'by-user', keyPath: ['userId'] },
   ] },
@@ -239,6 +251,14 @@ export const STORE_DEFS: StoreDef[] = [
     { name: 'by-notebook', keyPath: ['notebookId'] },
     { name: 'by-kind-slug', keyPath: ['kind', 'slug'] },
     { name: 'by-owner-note', keyPath: ['ownerNoteId'] },
+    { name: 'by-user', keyPath: ['userId'] },
+  ] },
+  // 13e. schedule_items (V35) — M:N scheduling link from calendar dates to Notes
+  { name: 'schedule_items', keyPath: ['id'], indexes: [
+    { name: 'by-date', keyPath: ['date'] },
+    { name: 'by-note', keyPath: ['noteId'] },
+    { name: 'by-page', keyPath: ['pageId'] },
+    { name: 'by-date-note', keyPath: ['date', 'noteId'] },
     { name: 'by-user', keyPath: ['userId'] },
   ] },
   // 14. meta

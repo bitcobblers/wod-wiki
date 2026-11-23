@@ -23,7 +23,14 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 export function validateStorageRow(store: StoreName, value: unknown): void {
-  if (store !== 'notes' && store !== 'block_revisions' && store !== 'sessions' && store !== 'block_index') return;
+  if (
+    store !== 'notes'
+    && store !== 'block_revisions'
+    && store !== 'note_revisions'
+    && store !== 'sessions'
+    && store !== 'block_index'
+    && store !== 'schedule_items'
+  ) return;
   const row = record(value);
   const positive = (field: string): boolean => typeof row[field] === 'number' && Number.isSafeInteger(row[field]) && row[field] > 0;
   const required = (field: string): boolean => typeof row[field] === 'string' && row[field].length > 0;
@@ -66,8 +73,32 @@ export function validateStorageRow(store: StoreName, value: unknown): void {
         ...(row.sport === undefined ? {} : { sport: row.sport as string }),
       } }, 1);
     } catch (error) { throw new StorageError(400, error instanceof Error ? error.message : 'invalid revision source', 'invalid_note_blocks'); }
+  } else if (store === 'note_revisions') {
+    if (!required('noteId') || !positive('version') || typeof row.title !== 'string' || typeof row.rawContent !== 'string'
+      || typeof row.savedAt !== 'number' || !Number.isFinite(row.savedAt)
+      || (row.tags !== undefined && (!Array.isArray(row.tags) || !row.tags.every(tag => typeof tag === 'string')))
+      || (row.notebookIds !== undefined && (!Array.isArray(row.notebookIds) || !row.notebookIds.every(nb => typeof nb === 'string')))
+      || (row.type !== undefined && typeof row.type !== 'string')) {
+      throw new StorageError(400, 'invalid note revision', 'invalid_note_blocks');
+    }
+    try { validateNoteBlocks(row.rawContent, record(row.blocks) as Note['blocks'], row.version as number); }
+    catch (error) { throw new StorageError(400, error instanceof Error ? error.message : 'invalid note revision blocks', 'invalid_note_blocks'); }
+  } else if (store === 'schedule_items') {
+    if (!required('id') || !required('date') || !required('noteId')
+      || typeof row.position !== 'number' || !Number.isFinite(row.position)
+      || !['planned', 'completed', 'skipped', 'moved'].includes(String(row.status))
+      || typeof row.createdAt !== 'number' || !Number.isFinite(row.createdAt)
+      || typeof row.updatedAt !== 'number' || !Number.isFinite(row.updatedAt)
+      || ['pageId', 'sourceNotebookId', 'fallbackTitle', 'blockId', 'slot', 'notes', 'movedFromDate'].some(
+        field => row[field] !== undefined && typeof row[field] !== 'string',
+      )) {
+      throw new StorageError(400, 'invalid schedule item', 'invalid_schedule_item');
+    }
   } else if (store === 'sessions') {
     if (!required('noteId') || !required('blockId') || !positive('blockVersion')
+      || (row.noteSourceRevision !== undefined && !positive('noteSourceRevision'))
+      || (row.sessionDate !== undefined && typeof row.sessionDate !== 'string')
+      || (row.scheduleItemId !== undefined && typeof row.scheduleItemId !== 'string')
       || (row.public !== undefined && typeof row.public !== 'boolean')
       || (row.notebookIds !== undefined && (!Array.isArray(row.notebookIds) || !row.notebookIds.every(nb => typeof nb === 'string')))
       || ['segmentId', 'segmentVersion', 'version', 'rawContent', 'script', 'serializedScript', 'source', 'data', 'logs'].some(field => field in row)) {

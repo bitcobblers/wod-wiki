@@ -1,5 +1,5 @@
 // spec: e2e/specs/notebooks/page-placements-and-shell-navigation.md
-import { expect, test, TEST_IDS } from '../fixtures/playgroundActor';
+import { expect, test, TEST_IDS, openL3Action } from '../fixtures/playgroundActor';
 import { deleteNoteByRouteId, getNotePlacements } from '../helpers/wodwikiDb';
 
 const PALETTE_NOTE_ID = '01950000-0000-7000-8000-000000000831';
@@ -183,15 +183,15 @@ test.describe('NBK-03 — Page Placements & Shell Navigation', () => {
       // Place Note 1 onto named page and second journal date
       await app.goto(`/note/${encodeURIComponent(noteOneId)}`);
       const placementsDialog = page.getByRole('dialog', { name: 'Note placements' });
-      await page.getByRole('button', { name: 'Page options', exact: true }).click();
-      await page.getByRole('button', { name: 'Note placements' }).click();
+      await openL3Action(page, page.getByRole('button', { name: 'Note placements', exact: true }));
+      await page.getByRole('button', { name: 'Note placements', exact: true }).click();
       await expect(placementsDialog).toBeVisible();
       await page.getByLabel('Named page').fill(namedSlug);
       await page.getByRole('button', { name: 'Place on this page' }).click();
       await expect(placementsDialog).toBeHidden();
 
-      await page.getByRole('button', { name: 'Page options', exact: true }).click();
-      await page.getByRole('button', { name: 'Note placements' }).click();
+      await openL3Action(page, page.getByRole('button', { name: 'Note placements', exact: true }));
+      await page.getByRole('button', { name: 'Note placements', exact: true }).click();
       await page.getByLabel('Journal date').fill(dateOther);
       await page.getByRole('button', { name: 'Place on this page' }).click();
       await expect(placementsDialog).toBeHidden();
@@ -201,8 +201,8 @@ test.describe('NBK-03 — Page Placements & Shell Navigation', () => {
 
       // Place Note 2 onto the same named page
       await app.goto(`/note/${encodeURIComponent(noteTwoId)}`);
-      await page.getByRole('button', { name: 'Page options', exact: true }).click();
-      await page.getByRole('button', { name: 'Note placements' }).click();
+      await openL3Action(page, page.getByRole('button', { name: 'Note placements', exact: true }));
+      await page.getByRole('button', { name: 'Note placements', exact: true }).click();
       await page.getByLabel('Named page').fill(namedSlug);
       await page.getByRole('button', { name: 'Place on this page' }).click();
       await expect(placementsDialog).toBeHidden();
@@ -220,8 +220,8 @@ test.describe('NBK-03 — Page Placements & Shell Navigation', () => {
       await expect(page.getByText('First note body.')).toBeVisible();
 
       // Remove one placement and verify canonical route still holds remaining placements
-      await page.getByRole('button', { name: 'Page options', exact: true }).click();
-      await page.getByRole('button', { name: 'Note placements' }).click();
+      await openL3Action(page, page.getByRole('button', { name: 'Note placements', exact: true }));
+      await page.getByRole('button', { name: 'Note placements', exact: true }).click();
       await page.getByRole('button', { name: 'Remove' }).first().click();
       await expect(placementsDialog).toBeHidden();
       expect(await getNotePlacements(page, noteOneId)).toHaveLength(2);
@@ -251,17 +251,18 @@ test.describe('NBK-03 — Page Placements & Shell Navigation', () => {
       const editor = page.locator('.cm-content').first();
       await expect(editor).toBeVisible({ timeout: 15_000 });
 
-      const sidebar = page.getByRole('navigation', { name: 'Main' }).locator('nav').last();
+      const sidebar = page.getByTestId(TEST_IDS.L3_INLINE_RAIL);
       await expect(sidebar.getByText('Efforts', { exact: true })).toBeVisible({ timeout: 30_000 });
 
-      await editor.click();
-      await page.keyboard.press('ControlOrMeta+End');
-      await page.keyboard.type('\n\n## Finisher\n#hyroxprep\n\n```time\n12 Kettlebell Zottman Curl\n```\n');
+      await app.editor.replaceDocument(
+        '# Morning Prep\n\n```time\n21-15-9\n  Thrusters 95 lb\n  Pull-ups\n```\n\n## Finisher\n#hyroxprep\n\n```time\n12 Kettlebell Zottman Curl\n```\n',
+      );
 
       await expect(page.getByRole('button', { name: 'Finisher', exact: true })).toBeVisible({ timeout: 10_000 });
-      await expect(sidebar.getByRole('button', { name: 'Kettlebell', exact: true })).toBeVisible({ timeout: 10_000 });
       const defineAction = page.getByTestId('l3-define-zottman-curl').first();
+      await openL3Action(page, defineAction);
       await expect(defineAction).toBeVisible({ timeout: 10_000 });
+      await expect(sidebar.getByRole('button', { name: 'Kettlebell', exact: true })).toBeVisible({ timeout: 10_000 });
 
       await defineAction.click();
       const createDialog = page.getByTestId('create-reference-dialog');
@@ -269,18 +270,24 @@ test.describe('NBK-03 — Page Placements & Shell Navigation', () => {
       await createDialog.getByTestId('create-reference-submit').click();
       await expect(createDialog).toBeHidden({ timeout: 10_000 });
 
-      await expect(sidebar.getByTestId('menu-filter-note-context-efforts:zottman-curl')).toBeVisible({ timeout: 10_000 });
-      await sidebar.getByTestId('menu-filter-note-context-efforts:zottman-curl').click();
+      const zottmanBtn = sidebar.getByRole('button', { name: 'Zottman Curl', exact: true });
+      await expect(zottmanBtn).toBeVisible({ timeout: 10_000 });
+      await zottmanBtn.click();
+      const peekDrawer = page.getByTestId(TEST_IDS.ENTITY_PEEK_DRAWER);
+      await expect(peekDrawer).toBeVisible();
+      await peekDrawer.getByTestId(TEST_IDS.ENTITY_PEEK_FILTER_NOTES).click();
       await expect(page).toHaveURL(/\/notes\?q=.*zottman-curl/);
 
       await page.goBack();
-      await expect(sidebar.getByRole('button', { name: 'Zottman Curl', exact: true })).toBeVisible({ timeout: 15_000 });
-      await sidebar.getByRole('button', { name: 'Zottman Curl', exact: true }).click();
+      await expect(zottmanBtn).toBeVisible({ timeout: 15_000 });
+      await zottmanBtn.click();
+      await expect(peekDrawer).toBeVisible();
+      await peekDrawer.getByTestId(TEST_IDS.ENTITY_PEEK_OPEN_FULL).click();
       await expect(page).toHaveURL(/\/effort\/zottman-curl$/);
 
       // L2 inline saved-link CRUD on /notes
       await app.goto('/notes');
-      const mainNav = page.getByRole('navigation', { name: 'Main' });
+      const mainNav = page.getByTestId('conditions-nav-panel');
       await mainNav.getByTestId('conditions-nav-shortcut-add').click();
       await expect(mainNav.getByTestId('conditions-nav-inline-editor')).toBeVisible();
       await mainNav.getByTestId('conditions-nav-editor-label').fill('Kettlebell Notes');
@@ -299,12 +306,13 @@ test.describe('NBK-03 — Page Placements & Shell Navigation', () => {
 
       // Dashboard L2 switcher live-syncs newly created dashboards with deduplicated slugs
       await app.wql.openExplorer();
-      await mainNav.getByTestId('dashboards-nav-new').click();
+      const dashNav = page.getByTestId('dashboards-nav-panel');
+      await dashNav.getByTestId('dashboards-nav-new').click();
       await expect(page).toHaveURL(/\/dashboard\/new-dashboard$/, { timeout: 15_000 });
-      await expect(mainNav.getByTestId('dashboard-nav-item-new-dashboard')).toBeVisible({ timeout: 10_000 });
-      await mainNav.getByTestId('dashboards-nav-new').click();
+      await expect(dashNav.getByTestId('dashboard-nav-item-new-dashboard')).toBeVisible({ timeout: 10_000 });
+      await dashNav.getByTestId('dashboards-nav-new').click();
       await expect(page).toHaveURL(/\/dashboard\/new-dashboard-2$/, { timeout: 15_000 });
-      await expect(mainNav.getByTestId('dashboard-nav-item-new-dashboard-2')).toBeVisible({ timeout: 15_000 });
+      await expect(dashNav.getByTestId('dashboard-nav-item-new-dashboard-2')).toBeVisible({ timeout: 15_000 });
 
       app.assertCleanConsole();
     } finally {

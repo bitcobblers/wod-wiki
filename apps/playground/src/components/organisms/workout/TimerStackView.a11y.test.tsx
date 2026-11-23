@@ -296,9 +296,14 @@ describe('TimerStackView — Accessibility & Keyboard Navigation', () => {
         compact: true,
         primaryTimer: { id: 't1', ownerId: 'b1', timerMemoryId: '', label: 'Workout', format: 'up' as const },
       }, derivePanelSize(375, 812));
-      expect(screen.getByTitle('Stop Session')).toBeTruthy();
-      expect(screen.getByTitle('Next Block')).toBeTruthy();
-      expect(screen.getAllByTitle('Start').length).toBeGreaterThanOrEqual(1);
+      const stopBtn = screen.getByTitle('Stop Session');
+      const nextBtn = screen.getByTitle('Next Block');
+      const startBtn = screen.getAllByTitle('Start')[1]!;
+      expect(stopBtn.textContent).toContain('Stop');
+      expect(startBtn.textContent).toContain('Start');
+      expect(nextBtn.textContent).toContain('Next');
+      expect(stopBtn.getAttribute('type')).toBe('button');
+      expect(stopBtn.getAttribute('aria-label')).toBe('Stop Session');
     });
 
     it('tablet layout keeps all controls visible and focusable', () => {

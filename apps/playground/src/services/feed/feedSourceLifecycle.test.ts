@@ -217,7 +217,10 @@ describe('exact-ownership removal', () => {
 
   it('a failing removal propagates and never leaves a half-unsubscribed source', async () => {
     class FailingRemovalStorage extends InMemoryFeedStorage {
-      async removeSourceContent(): Promise<number> {
+      async removeSourceContent(): Promise<{ deleted: number; preservedPinned: number }> {
+        throw new Error('provider unavailable');
+      }
+      async removeSourceContentById(): Promise<{ deleted: number; preservedPinned: number }> {
         throw new Error('provider unavailable');
       }
     }
@@ -302,7 +305,7 @@ describe('delete source', () => {
     const storage = new InMemoryFeedStorage();
     const sources = [spec(fixture([row('markdown/notebooks/x/a.md', '# A')], 1), added.id)];
     await syncFeedSource(added.id, { sources, storage, isEnabled: () => true });
-    expect(await deleteFeedSource(added.id, { storage })).toEqual({ deleted: 1 });
+    expect(await deleteFeedSource(added.id, { storage })).toEqual({ deleted: 1, preservedPinned: 0 });
     expect(customFeedSources()).toEqual([]);
     expect(await storage.getSeedMeta(seedMetaKey(added.id))).toBeUndefined();
 
@@ -317,7 +320,7 @@ describe('delete source', () => {
     await deleteFeedSource('nobody-home', { storage });
     expect(hiddenFeedSourceIds()).toEqual(['sport-crossfit']);
 
-    expect(await deleteFeedSource('core', { storage })).toEqual({ deleted: 0 });
+    expect(await deleteFeedSource('core', { storage })).toEqual({ deleted: 0, preservedPinned: 0 });
     expect(defaultFeedSources().some((s) => s.id === 'core')).toBe(true);
   });
 });
@@ -348,7 +351,7 @@ describe('feed status', () => {
     const rows = [row('markdown/notebooks/alpha/a.md', '# A')];
     const sources = [spec(fixture(rows, 3, 'notebook.alpha'), 'alpha')];
     await syncFeedSource('alpha', { sources, storage, isEnabled: () => true });
-    const status = await readFeedStatus({ sources, storage, now: () => 1234 });
+    const status = await readFeedStatus({ sources, storage, now: () => 1234, probe: true });
     expect(status.sources[0]).toMatchObject({
       id: 'alpha',
       url: 'https://feed.test/alpha/',

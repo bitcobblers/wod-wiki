@@ -7,4 +7,10 @@ export type {
 } from './types';
 
 export { metricPresentation, createMetricPresentationPolicy } from './MetricPresentationPolicy';
-export { isTimeLikeMetric, computeLabel, computeColumnLabel, buildTooltip } from './labelFormatting';
+export {
+  isTimeLikeMetric,
+  computeLabel,
+  computeColumnLabel,
+  buildTooltip,
+  dedupePresentedLabels,
+} from './labelFormatting';

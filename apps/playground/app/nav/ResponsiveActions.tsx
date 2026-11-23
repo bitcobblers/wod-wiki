@@ -4,24 +4,24 @@
  *
  * Composition model:
  *   - `ResponsiveActionsProvider` mounts once in SidebarLayout and owns the
- *     single mobile dock (fixed thumb-zone cluster: overflow sheet trigger +
- *     page primary + the search FAB, positioned per the fabAlignment
- *     preference). Pages never portal and never mount duplicate controls.
+ *     single mobile dock (fixed thumb-zone cluster: unified overflow + L3 sheet
+ *     trigger + contextual page primary + SearchFab, positioned per the
+ *     fabAlignment preference). Pages never portal and never mount duplicate
+ *     controls.
  *   - `<ResponsiveActions primary={…} label={…}>{actions}</ResponsiveActions>`
  *     in a page header renders inline on desktop and REGISTERS with the dock
- *     on mobile, where its children surface in the dock's overflow sheet
- *     (mounted lazily, only while the sheet is open). Page-only: the sheet
- *     never carries global chrome.
+ *     on mobile, where its children merge with `SecondaryNav` (L3 outline,
+ *     connections, grouped actions) inside ONE bottom sheet mounted lazily only
+ *     while open.
  *   - `navbar={…}` pins an action to the app navbar on mobile (beside the
  *     cast button, surfaced via `<NavbarActions />`); it still renders
  *     inline on desktop. For mode toggles that must never hide in the dock.
- *   - GLOBAL chrome (cast, page options with the L3 index) does NOT ride the
- *     dock — it lives in the header at every breakpoint: the page's
- *     PageActions bar on desktop, the app navbar cluster on mobile (see
- *     App.tsx Navbar).
- *   - Nesting: an inner ResponsiveActions inside an outer one renders inline
- *     only and never registers — a page's outer wrapper is the single
- *     registration point.
+ *   - Stream routes have 0px L3, so no L3 corner trigger appears on streams
+ *     unless page/fallback overflow children exist.
+ *   - Auto-yields (`invisible pointer-events-none`) whenever mobile editor
+ *     decks (`MOBILE_WHEEL_COMPOSER`, `MOBILE_TYPING_BAR`), `RESULTS_MOBILE_BAR`,
+ *     virtual keyboard (`>100px`), active mobile peek/inspector drawer, or
+ *     overlapping `.cm-frontmatter-preview` inputs occupy its footprint.
  *   - Standalone (no provider, e.g. Storybook/tests): renders inline on all
  *     viewports.
  */
@@ -43,10 +43,13 @@ import { EllipsisVerticalIcon, XMarkIcon } from '@heroicons/react/20/solid'
 import { cn } from '@/lib/utils'
 import { TEST_IDS } from '@/lib/testIds'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { useVisualViewportRect } from '@bitcobblers/wod-wiki-ui';
+import { useVisualViewportRect } from '@bitcobblers/wod-wiki-ui'
 import { useFabAlignment } from '../lib/fabAlignment'
+import type { MenuSpec } from './menuModel'
+import { useOptionalNav } from './NavContext'
 import { NavigationDrawerProvider } from './NavigationDrawerContext'
 import { SearchFab } from './SearchFab'
+import { SecondaryNav, useL3HasContent } from './SecondaryNav'
 
 // ── Registration ─────────────────────────────────────────────────────────────
 
@@ -65,10 +68,18 @@ interface ActionsRegistry {
   unregister: (id: string) => void
 }
 
+interface DockContextValue {
+  registrations: ActionsRegistration[]
+  onSearch?: () => void
+  secondarySpec?: MenuSpec
+  pageAction?: ReactNode
+}
+
 const RegistryContext = createContext<ActionsRegistry | null>(null)
 const InsideActionsContext = createContext(false)
 /** The active page's navbar-pinned action, rendered by `<NavbarActions />`. */
 const NavbarActionsContext = createContext<ReactNode>(null)
+const DockContext = createContext<DockContextValue | null>(null)
 
 /** True when rendered inside a ResponsiveActionsProvider (app shell). */
 export function useInResponsiveActionsProvider(): boolean {
@@ -93,6 +104,7 @@ export interface ResponsiveActionsProps {
    */
   fallback?: boolean
 }
+
 export function ResponsiveActions({
   primary,
   navbar,
@@ -153,10 +165,23 @@ export function ResponsiveActions({
 export interface ResponsiveActionsProviderProps {
   /** Opens the global search palette — integrated into the dock's search FAB. */
   onSearch?: () => void
+  /** Whether the provider renders the dock directly (default true). Set false
+   *  when the layout shell mounts `<ResponsiveActionsDockPort />` inside `<main>`. */
+  renderDock?: boolean
+  /** Route-declared L3 secondary spec unified into the mobile bottom sheet. */
+  secondarySpec?: MenuSpec
+  /** Per-page L3 action row (e.g. Download Markdown) unified into the mobile bottom sheet. */
+  pageAction?: ReactNode
   children?: ReactNode
 }
 
-export function ResponsiveActionsProvider({ onSearch, children }: ResponsiveActionsProviderProps) {
+export function ResponsiveActionsProvider({
+  onSearch,
+  renderDock = true,
+  secondarySpec,
+  pageAction,
+  children,
+}: ResponsiveActionsProviderProps) {
   const [registrations, setRegistrations] = useState<ActionsRegistration[]>([])
   const register = useCallback(
     (entry: ActionsRegistration) =>
@@ -196,13 +221,41 @@ export function ResponsiveActionsProvider({ onSearch, children }: ResponsiveActi
     return null
   }, [registrations])
 
+  const dockValue = useMemo<DockContextValue>(
+    () => ({ registrations, onSearch, secondarySpec, pageAction }),
+    [registrations, onSearch, secondarySpec, pageAction],
+  )
+
   return (
     <RegistryContext.Provider value={registry}>
       <NavbarActionsContext.Provider value={activeNav}>
-        {children}
-        <ResponsiveActionsDock registrations={registrations} onSearch={onSearch} />
+        <DockContext.Provider value={dockValue}>
+          {children}
+          {renderDock && (
+            <ResponsiveActionsDock
+              registrations={registrations}
+              onSearch={onSearch}
+              secondarySpec={secondarySpec}
+              pageAction={pageAction}
+            />
+          )}
+        </DockContext.Provider>
       </NavbarActionsContext.Provider>
     </RegistryContext.Provider>
+  )
+}
+
+/** Mounts the registered mobile thumb dock inside the shell's `<main>` landmark. */
+export function ResponsiveActionsDockPort() {
+  const ctx = useContext(DockContext)
+  if (!ctx) return null
+  return (
+    <ResponsiveActionsDock
+      registrations={ctx.registrations}
+      onSearch={ctx.onSearch}
+      secondarySpec={ctx.secondarySpec}
+      pageAction={ctx.pageAction}
+    />
   )
 }
 
@@ -216,35 +269,56 @@ export function NavbarActions() {
   return action ? <>{action}</> : null
 }
 
-/**
- * The single mounted mobile dock. Fixed thumb-zone cluster anchored to the
- * fabAlignment corner; lifts above MobileQueryFooter via `--thumb-dock-lift`
- * and respects bottom safe-area insets. Renders nothing on desktop — page
- * headers own actions there. Auto-yields (`invisible pointer-events-none`)
- * whenever mobile editor decks, `results-mobile-bar`, or visible
- * `.cm-frontmatter-preview` inputs occupy its corner footprint. Stack, top to
- * bottom: overflow sheet (expands upward above the controls), search FAB,
- * page primary, ⋮ trigger at the corner. The ⋮ renders only when registered
- * page/fallback children exist.
- */
-
 function testIdSelector(testId: string): string {
   return `[${'data-testid'}="${testId}"]`
 }
 
+/**
+ * The single mounted mobile dock. Fixed thumb-zone cluster anchored to the
+ * fabAlignment corner; lifts above MobileQueryFooter via `--thumb-dock-lift`
+ * and respects bottom safe-area insets. Renders nothing on desktop — page
+ * headers and inline/slide-over L3 own actions there. Auto-yields
+ * (`invisible pointer-events-none`) whenever mobile editor decks,
+ * `results-mobile-bar`, active peek/inspector overlay, or visible
+ * `.cm-frontmatter-preview` inputs occupy its corner footprint. Stack, top to
+ * bottom: unified overflow + L3 sheet (expands upward above the controls),
+ * SearchFab + contextual page primary, ⋮ corner trigger.
+ */
 function ResponsiveActionsDock({
   registrations,
   onSearch,
-}: {
-  registrations: ActionsRegistration[]
-  onSearch?: () => void
-}) {
+  secondarySpec,
+  pageAction,
+}: DockContextValue) {
   const isMobile = useIsMobile()
   const [alignment] = useFabAlignment()
   const viewport = useVisualViewportRect()
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const nav = useOptionalNav()
+  const hasL3Content = useL3HasContent(secondarySpec, pageAction)
+  const navRightDrawerOpen = Boolean(nav?.navState?.rightDrawerOpen)
+  const navInspectorOpen = Boolean(nav?.navState?.inspectorDrawerOpen || nav?.peekTarget)
+  const navDispatch = nav?.dispatch
+  const resetAnalytics = nav?.analyticsControls?.onReset
+
+  const [localSheetOpen, setLocalSheetOpen] = useState(false)
   const [yieldToOverlay, setYieldToOverlay] = useState(false)
-  const closeSheet = useCallback(() => setSheetOpen(false), [])
+  const sheetOpen = localSheetOpen || navRightDrawerOpen
+
+  const closeSheet = useCallback(() => {
+    setLocalSheetOpen(false)
+    if (navRightDrawerOpen) {
+      navDispatch?.({ type: 'SET_RIGHT_DRAWER', open: false })
+    }
+  }, [navRightDrawerOpen, navDispatch])
+
+  const toggleSheet = useCallback(() => {
+    if (sheetOpen) {
+      closeSheet()
+    } else {
+      setLocalSheetOpen(true)
+    }
+  }, [sheetOpen, closeSheet])
+
   const sheetId = useId()
   const dockRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -252,6 +326,7 @@ function ResponsiveActionsDock({
   const globalContentRef = useRef<HTMLDivElement>(null)
   const sheetOpenRef = useRef(sheetOpen)
   sheetOpenRef.current = sheetOpen
+
   // Most recent page registration wins; the most recent fallback supplies
   // the global Page options rows merged into every page's sheet.
   const active = useMemo(() => {
@@ -272,19 +347,24 @@ function ResponsiveActionsDock({
       setYieldToOverlay((prev) => (prev ? false : prev))
       return
     }
+    if (navInspectorOpen) {
+      setLocalSheetOpen((open) => (open ? false : open))
+      setYieldToOverlay((prev) => (prev ? prev : true))
+      return
+    }
     const hasEditorOverlay = Boolean(
       document.querySelector(
         `${testIdSelector(TEST_IDS.MOBILE_WHEEL_COMPOSER)}, ${testIdSelector(TEST_IDS.MOBILE_TYPING_BAR)}`,
       ),
     )
     if (hasEditorOverlay) {
-      setSheetOpen((open) => (open ? false : open))
+      setLocalSheetOpen((open) => (open ? false : open))
       setYieldToOverlay((prev) => (prev ? prev : true))
       return
     }
     const vv = window.visualViewport
     if (vv && window.innerHeight - (vv.height + vv.offsetTop) > 100) {
-      setSheetOpen((open) => (open ? false : open))
+      setLocalSheetOpen((open) => (open ? false : open))
       setYieldToOverlay((prev) => (prev ? prev : true))
       return
     }
@@ -292,7 +372,7 @@ function ResponsiveActionsDock({
     if (resultsBar && !resultsBar.hidden) {
       const rcs = window.getComputedStyle(resultsBar)
       if (rcs.display !== 'none' && rcs.visibility !== 'hidden') {
-        setSheetOpen((open) => (open ? false : open))
+        setLocalSheetOpen((open) => (open ? false : open))
         setYieldToOverlay((prev) => (prev ? prev : true))
         return
       }
@@ -327,11 +407,11 @@ function ResponsiveActionsDock({
       }
     }
     setYieldToOverlay((prev) => (prev ? false : prev))
-  }, [isMobile])
+  }, [isMobile, navInspectorOpen])
 
   useLayoutEffect(() => {
     evaluateYield()
-  }, [evaluateYield, alignment, sheetOpen, active, globalActions, onSearch, viewport.height])
+  }, [evaluateYield, alignment, sheetOpen, active, globalActions, onSearch, viewport.height, hasL3Content])
 
   useEffect(() => {
     if (!isMobile || typeof document === 'undefined' || !document.body) return
@@ -375,23 +455,26 @@ function ResponsiveActionsDock({
     if (sheetOpen) sheetRef.current?.focus({ preventScroll: true })
   }, [sheetOpen])
 
-  // Registration is the overflow contract: libraries publish stream controls,
-  // other routes publish page options. Do not measure live DOM rows here —
-  // asynchronous L2/L3 content can otherwise retrigger registration endlessly.
-  const showOverflow = Boolean(active?.hasContent || globalActions?.hasContent)
+  // Overflow shows whenever page/fallback rows OR L3 detail/board content exist.
+  const showOverflow = Boolean(active?.hasContent || globalActions?.hasContent || hasL3Content)
+  const sheetLabel = active?.hasContent
+    ? active.label
+    : globalActions?.hasContent
+      ? globalActions.label
+      : 'Page options'
 
   if (!isMobile) return null
-  if (!onSearch && !active && !globalActions) return null
+  if (!onSearch && !active && !globalActions && !hasL3Content) return null
 
   const viewportHeightCss = viewport.height === null ? '100dvh' : `${viewport.height}px`
 
   return (
     <div
       ref={dockRef}
-      data-testid="actions-dock"
+      data-testid={TEST_IDS.ACTIONS_DOCK}
       aria-hidden={yieldToOverlay || undefined}
       className={cn(
-        'fixed z-30 lg:hidden flex flex-col gap-2 w-auto',
+        'fixed z-40 lg:hidden flex flex-col gap-2 w-auto',
         'transition-opacity duration-150 ease-out',
         alignment === 'left' ? 'left-4 items-start' : 'right-4 items-end',
         yieldToOverlay && 'invisible pointer-events-none',
@@ -401,17 +484,16 @@ function ResponsiveActionsDock({
         maxHeight: `calc(${viewportHeightCss} - 2rem - var(--thumb-dock-lift, 0px) - env(safe-area-inset-bottom, 0px))`,
       }}
     >
-      {/* Overflow sheet expands upward above the primary/search/trigger stack.
-          Always mounted (hidden while closed) without exposing role="dialog"
-          until open (WW-087). Page rows stack first at ≥44px touch targets;
-          global Page options rows follow under a rule. */}
+      {/* Unified bottom sheet expands upward above the primary/search/trigger stack.
+          Closed shell stays mounted (hidden) without exposing role="dialog" (WW-087);
+          SecondaryNav mounts lazily ONLY while open so L3 never double-mounts. */}
       {sheetOpen && showOverflow && (
         <button
           type="button"
           tabIndex={-1}
           aria-hidden="true"
-          className="fixed inset-0 z-30 cursor-default"
-          onClick={() => setSheetOpen(false)}
+          className="fixed inset-0 z-30 bg-black/20 dark:bg-black/35 cursor-default"
+          onClick={closeSheet}
         />
       )}
       <div
@@ -419,34 +501,81 @@ function ResponsiveActionsDock({
         ref={sheetRef}
         role={sheetOpen && showOverflow ? 'dialog' : undefined}
         aria-modal={sheetOpen && showOverflow ? true : undefined}
-        aria-label={sheetOpen && showOverflow ? (active?.label ?? globalActions?.label ?? 'Page options') : undefined}
+        aria-label={sheetOpen && showOverflow ? sheetLabel : undefined}
         tabIndex={-1}
         hidden={!sheetOpen || !showOverflow}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             e.stopPropagation()
-            setSheetOpen(false)
+            closeSheet()
           }
         }}
         className={cn(
           sheetOpen && showOverflow ? 'flex' : 'hidden',
-          'relative z-40 min-h-0 w-60 max-w-[calc(100vw-2rem)] flex-col gap-3 overflow-y-auto rounded-2xl bg-card p-3 shadow-xl ring-1 ring-foreground/5 outline-none',
-          '[&_button]:min-h-11 [&_button]:min-w-11',
+          'relative z-40 min-h-0 max-w-[calc(100vw-2rem)] flex-col gap-3 overflow-y-auto rounded-2xl bg-card p-3 shadow-xl ring-1 ring-foreground/10 outline-none',
+          hasL3Content ? 'w-72' : 'w-60',
+          '[&_button]:min-h-11 [&_button]:min-w-11 [&_summary]:min-h-11',
         )}
         style={{
           maxHeight: `calc(${viewportHeightCss} - 8rem - var(--thumb-dock-lift, 0px) - env(safe-area-inset-bottom, 0px))`,
         }}
       >
         <NavigationDrawerProvider close={closeSheet}>
-          <div ref={activeContentRef} className="contents">
-            {active?.children}
-          </div>
-          {active?.children && globalActions?.children && (
-            <div className="my-1 border-t border-border/60" aria-hidden="true" />
+          {hasL3Content && (
+            <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground truncate">
+                {sheetLabel}
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                {resetAnalytics && (
+                  <button
+                    type="button"
+                    onClick={resetAnalytics}
+                    data-testid={TEST_IDS.L3_DRAWER_RESET_BTN}
+                    className="inline-flex min-h-11 items-center justify-center rounded-lg px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+                  >
+                    Reset
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={closeSheet}
+                  data-testid={TEST_IDS.L3_DRAWER_DONE_BTN}
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary/15 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
           )}
-          <div ref={globalContentRef} className="contents">
-            {globalActions?.children}
-          </div>
+
+          {active?.hasContent && (
+            <div ref={activeContentRef} className="contents">
+              {active.children}
+            </div>
+          )}
+
+          {sheetOpen && hasL3Content && (
+            <>
+              {active?.hasContent && (
+                <div className="my-1 border-t border-border/60" aria-hidden="true" />
+              )}
+              <div data-testid={TEST_IDS.ACTIONS_SHEET_L3} className="-mx-3 -my-2 flex flex-col">
+                <SecondaryNav spec={secondarySpec} pageAction={pageAction} />
+              </div>
+            </>
+          )}
+
+          {globalActions?.hasContent && (
+            <>
+              {(active?.hasContent || hasL3Content) && (
+                <div className="my-1 border-t border-border/60" aria-hidden="true" />
+              )}
+              <div ref={globalContentRef} className="contents">
+                {globalActions.children}
+              </div>
+            </>
+          )}
         </NavigationDrawerProvider>
       </div>
 
@@ -458,7 +587,7 @@ function ResponsiveActionsDock({
             alignment === 'left' ? 'items-start' : 'items-end',
           )}
         >
-          {onSearch && <SearchFab onOpen={() => { setSheetOpen(false); onSearch() }} />}
+          {onSearch && <SearchFab onOpen={() => { closeSheet(); onSearch() }} />}
           {active?.primary && (
             <div className="[&_button]:min-h-11 [&_button]:min-w-11">{active.primary}</div>
           )}
@@ -468,12 +597,12 @@ function ResponsiveActionsDock({
       {showOverflow && (
         <button
           type="button"
-          onClick={() => setSheetOpen(open => !open)}
-          aria-label={active?.label ?? globalActions?.label ?? 'Page options'}
-          title={active?.label ?? globalActions?.label ?? 'Page options'}
+          onClick={toggleSheet}
+          aria-label={sheetLabel}
+          title={sheetLabel}
           aria-expanded={sheetOpen}
           aria-controls={sheetId}
-          data-testid="actions-overflow"
+          data-testid={TEST_IDS.ACTIONS_OVERFLOW}
           className={cn(
             'relative z-40 flex size-12 shrink-0 items-center justify-center rounded-full',
             'bg-card text-foreground shadow-lg ring-1 ring-foreground/10',
@@ -482,7 +611,7 @@ function ResponsiveActionsDock({
           )}
         >
           {sheetOpen ? <XMarkIcon className="size-6" /> : <EllipsisVerticalIcon className="size-6" />}
-          <span className="sr-only">{active?.label ?? globalActions?.label ?? 'Page options'}</span>
+          <span className="sr-only">{sheetLabel}</span>
         </button>
       )}
     </div>

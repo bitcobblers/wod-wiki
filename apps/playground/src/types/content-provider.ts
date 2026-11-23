@@ -36,6 +36,8 @@ export type NoteRecordPatch = Partial<Pick<HistoryRecord, 'rawContent' | 'result
   blockVersion?: number;
   blockContentId?: string;
   origin?: ResultOrigin;
+  sessionDate?: string;
+  scheduleItemId?: string;
 };
 
 /**

@@ -29,24 +29,54 @@ test.describe('WW-047 — notebook card count includes the landing note', () => 
 
     // Library card: read the "N note(s)" subtitle off the notebook's row.
     await app.notebooks.openLibrary();
-    const row = app.page
-      .locator(`[data-testid="${TEST_IDS.LIBRARY_ROW_NOTEBOOK}"]`)
-      .filter({ has: app.page.getByRole('heading', { name: NB_NAME }) })
-      .first();
-    await expect(row).toBeVisible({ timeout: 15_000 });
-    const rowText = await row.innerText();
-    const countMatch = rowText.match(/(\d+)\s+notes?\b/);
-    expect(countMatch, `notebook card shows a note count (row text: ${rowText})`).not.toBeNull();
-    const cardCount = Number(countMatch![1]);
+    const rowSelector = `[data-testid="stream-feed-item"], [data-testid="${TEST_IDS.LIBRARY_ROW_NOTEBOOK}"]`;
+    const findRow = () =>
+      app.page
+        .locator(rowSelector)
+        .filter({ has: app.page.getByRole('heading', { name: NB_NAME }) })
+        .first();
+    const readCardCount = async (): Promise<number> => {
+      const row = findRow();
+      await expect(row).toBeVisible({ timeout: 15_000 });
+      const rowText = await row.innerText();
+      const countMatch = rowText.match(/(\d+)\s+notes?\b/);
+      expect(countMatch, `notebook card shows a note count (row text: ${rowText})`).not.toBeNull();
+      return Number(countMatch![1]);
+    };
+    const readDetailCount = async (): Promise<number> => {
+      await app.notebooks.openNotebook(NB_SLUG);
+      const stream = app.page.getByTestId(TEST_IDS.STREAM_VIEW);
+      await expect(stream).toContainText(NB_NAME, { timeout: 15_000 });
+      return stream.locator('[data-testid="library-row-note"], [data-testid="stream-feed-item"]').count();
+    };
 
-    // Detail page: the stream shows the landing note as a real note entry.
-    await app.notebooks.openNotebook(NB_SLUG);
-    const stream = app.page.getByTestId(TEST_IDS.STREAM_VIEW);
-    await expect(stream).toContainText(NB_NAME, { timeout: 15_000 });
-    const detailCount = await stream.locator('[data-testid="library-row-note"]').count();
-    expect(detailCount, 'detail stream lists the landing note').toBe(1);
+    // Landing note is excluded on both library card and detail stream (0 notes).
+    const initialCardCount = await readCardCount();
+    const initialDetailCount = await readDetailCount();
+    expect(initialCardCount, 'fresh notebook card excludes its own landing note').toBe(0);
+    expect(initialCardCount, 'library card count equals detail stream count when empty').toBe(
+      initialDetailCount,
+    );
 
-    // The two surfaces must agree.
-    expect(cardCount, 'library card count equals detail stream count').toBe(detailCount);
+    // Add 1 real note linked into the notebook -> both surfaces must agree at 1.
+    await app.page.evaluate(async (nbId) => {
+      const mc = (navigator as unknown as {
+        modelContext: {
+          executeTool(name: string, args: Record<string, unknown>): Promise<string>;
+        };
+      }).modelContext;
+      await mc.executeTool('wod_note_upsert', {
+        title: 'WW047 Member Note',
+        content: '# WW047 Member Note\n\n```time\n10 Burpees\n```\n',
+        notebookId: nbId,
+      });
+    }, `notebook/${NB_SLUG}`);
+    await app.notebooks.openLibrary();
+    const populatedCardCount = await readCardCount();
+    const populatedDetailCount = await readDetailCount();
+    expect(populatedCardCount, 'notebook card counts the linked note').toBe(1);
+    expect(populatedCardCount, 'library card count equals detail stream count with 1 member note').toBe(
+      populatedDetailCount,
+    );
   });
 });

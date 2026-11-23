@@ -12,9 +12,10 @@ import {
 import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { useChartShape } from './useChartShape';
 import { WqlEmptyState } from './WqlEmptyState';
-import { mergeSeries, formatTimestamp, tooltipTimestamp, compactNumber } from './chartData';
+import { mergeSeries, formatTimestamp, tooltipTimestamp } from './chartData';
 import { resolveWidgetDisplayUnit } from './unitIntegrity';
 import { SERIES_COLORS } from './chartPalette';
+import { SingleLineYAxisTick, computeYAxisWidth, formatMetricValue } from './chartFormat';
 
 export interface StackedBarProps {
   result: QueryResult;
@@ -27,6 +28,14 @@ export function StackedBar({ result, unit: unitProp }: StackedBarProps) {
   const shape = useChartShape(result);
   const data = useMemo(() => mergeSeries(result.series), [result]);
   const unit = resolveWidgetDisplayUnit(result, unitProp);
+  const yAxisWidth = useMemo(
+    () =>
+      computeYAxisWidth(
+        result.series.flatMap((s) => s.points.map((p) => p.value)),
+        unit,
+      ),
+    [result.series, unit],
+  );
 
   const keys = useMemo(() => {
     const labels = result.series.map((s) => s.label);
@@ -46,7 +55,7 @@ export function StackedBar({ result, unit: unitProp }: StackedBarProps) {
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 48 }}>
+      <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
         <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
         <XAxis
           dataKey="ts"
@@ -59,11 +68,9 @@ export function StackedBar({ result, unit: unitProp }: StackedBarProps) {
         <YAxis
           tickLine={false}
           axisLine={false}
-          width={48}
-          tickFormatter={compactNumber}
+          width={yAxisWidth}
           stroke="hsl(var(--muted-foreground))"
-          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-          unit={unit ? ` ${unit}` : ''}
+          tick={<SingleLineYAxisTick unit={unit} />}
         />
         <Tooltip
           contentStyle={{
@@ -73,9 +80,9 @@ export function StackedBar({ result, unit: unitProp }: StackedBarProps) {
             color: 'hsl(var(--popover-foreground))',
           }}
           labelFormatter={(v) => tooltipTimestamp(v as number)}
-          formatter={(v, _n, p) => {
-            const label = typeof p?.payload?.name === 'string' ? p.payload.name : '';
-            return [`${Number(v).toLocaleString()} ${unit ?? ''}`.trim(), label];
+          formatter={(v, name, p) => {
+            const label = typeof p?.payload?.name === 'string' && p.payload.name ? p.payload.name : String(name ?? '');
+            return [formatMetricValue(v as number | string, unit), label];
           }}
         />
         <Legend wrapperStyle={{ fontSize: 11 }} />

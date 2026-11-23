@@ -4,6 +4,7 @@ import type {
   EventRecord,
   Note,
   NoteKind,
+  NoteRevision,
   BlockRevision,
   NoteBlock,
   BlockEffort,
@@ -17,7 +18,7 @@ import type {
 import { orderPlacements, resolvePlacements, type NotePlacement } from '@bitcobblers/wod-wiki-core';
 import { parseScript, extractStatementRefs, createReferenceIndex, type ReferenceResolutionDefaults } from '@bitcobblers/wod-wiki-lang';
 import type { IEffort, IEquipment } from '@bitcobblers/wod-wiki-lang';
-import { readFrontmatterMeta } from '@bitcobblers/wod-wiki-engine';
+import { readFrontmatterMeta, snapshotNoteRevisionIfHasSessionsInTx } from '@bitcobblers/wod-wiki-engine';
 import { parseDocumentSections, validateNoteBlocks, reconcileNoteBlocks, KNOWN_SECTION_WIDGETS, MetricType } from '@bitcobblers/wod-wiki-core';
 import { rowsEqual, userDeletedSeedKey } from '@bitcobblers/wod-wiki-storage';
 import type { DomainDetail, DomainQuery, DomainQueryResult } from '@bitcobblers/wod-wiki-storage';
@@ -366,7 +367,7 @@ export class StorageService implements NotePersistenceStorage {
   async deleteNote(id: string): Promise<void> {
     let catalogChanged = false;
     await this.storage.transaction(
-      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'meta', ...CATALOG_MUTATION_STORES],
+      ['notes', 'attachments', 'note_tags', 'block_index', 'block_efforts', 'block_equipment', 'page_notes', 'notebook_links', 'schedule_items', 'meta', ...CATALOG_MUTATION_STORES],
       'readwrite',
       async (tx) => {
         const note = await tx.readonly('notes').get(id);
@@ -402,6 +403,24 @@ export class StorageService implements NotePersistenceStorage {
         const pageNotes = tx.readwrite('page_notes');
         for (const link of await pageNotes.getAllFromIndex('by-note', id)) {
           await pageNotes.delete(link.id);
+        }
+
+        try {
+          const notebookLinks = tx.readwrite('notebook_links');
+          for (const link of await notebookLinks.getAllFromIndex('by-note', id)) {
+            await notebookLinks.delete(link.id);
+          }
+        } catch {
+          // Optional store/index on minimal storage mocks
+        }
+
+        try {
+          const scheduleStore = tx.readwrite('schedule_items');
+          for (const item of await scheduleStore.getAllFromIndex('by-note', id)) {
+            await scheduleStore.delete(item.id);
+          }
+        } catch {
+          // Optional store/index on minimal storage mocks
         }
 
         // Durable seed-deletion suppression, atomic with the delete and its
@@ -808,10 +827,27 @@ export class StorageService implements NotePersistenceStorage {
     });
   }
 
+  async getNoteRevision(noteId: string, version: number): Promise<NoteRevision | undefined> {
+    try {
+      return await this.storage.readonly('note_revisions').get([noteId, version]);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getNoteRevisions(noteId: string): Promise<NoteRevision[]> {
+    try {
+      const rows = await this.storage.readonly('note_revisions').getAllFromIndex('by-note', noteId);
+      return rows.sort((a, b) => a.version - b.version);
+    } catch {
+      return [];
+    }
+  }
+
   async saveNoteSource(input: SaveNoteInput): Promise<Note> {
     // efforts/equipment are read (never written) by the scoped block-index
     // rebuild — they must be in the enclosing transaction scope.
-    return this.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'], async scoped => {
+    return this.withTransaction(['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'note_revisions', 'sessions'], async scoped => {
       const previous = await scoped.getNote(input.noteId);
       if ((previous?.sourceRevision ?? 0) !== input.expectedSourceRevision) {
         throw new NotePersistenceError('STALE_SOURCE', `Note ${input.noteId} changed since it was loaded`);
@@ -853,16 +889,34 @@ export class StorageService implements NotePersistenceStorage {
           return !old || old.kind !== block.kind || old.from !== block.from || old.to !== block.to
             || old.version !== block.version || old.dialect !== block.dialect || old.sport !== block.sport;
         });
-      const sourceRevision = (previous?.sourceRevision ?? 0) + (sourceChanged ? 1 : 0);
-      for (const block of Object.values(blocks)) block.sourceRevision = sourceRevision;
+      let sourceRevision = (previous?.sourceRevision ?? 0) + (sourceChanged ? 1 : 0);
       const headingTitle = extractHeadingTitle(input.rawContent);
       const noteTitle = input.metadata?.title ?? headingTitle ?? previous?.title ?? '';
+      const nextType = input.metadata?.type ?? previous?.type ?? input.noteType ?? 'note';
+      const nextTags = input.metadata?.tags ?? previous?.tags;
+      const metadataChanged = Boolean(
+        previous &&
+          (noteTitle !== previous.title ||
+            nextType !== (previous.type ?? 'note') ||
+            JSON.stringify(nextTags ?? []) !== JSON.stringify(previous.tags ?? [])),
+      );
+      if (previous && (sourceChanged || metadataChanged)) {
+        try {
+          const snapshotted = await snapshotNoteRevisionIfHasSessionsInTx(scoped.storage, previous, savedAt);
+          if (snapshotted) {
+            sourceRevision = Math.max(sourceRevision, snapshotted.version + 1);
+          }
+        } catch {
+          // Optional note_revisions store on minimal storage mocks
+        }
+      }
+      for (const block of Object.values(blocks)) block.sourceRevision = sourceRevision;
       const note: Note = { ...previous, id: input.noteId, title: noteTitle,
         createdAt: previous?.createdAt ?? input.createdAt ?? savedAt,
         rawContent: input.rawContent, sourceRevision, blocks,
-        type: input.metadata?.type ?? previous?.type ?? input.noteType ?? 'note',
+        type: nextType,
         date: input.metadata?.targetDate ?? previous?.date,
-        tags: input.metadata?.tags ?? previous?.tags,
+        tags: nextTags,
         sourceId: input.metadata?.sourceId === undefined ? previous?.sourceId : input.metadata.sourceId ?? undefined };
       if (previous && rowsEqual(previous, note)) return previous;
       if (revisions.length) await scoped.storage.readwrite('block_revisions').putMany(revisions);

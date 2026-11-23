@@ -18,6 +18,10 @@ import {
   type SeedPrecedenceTier,
 } from '@/types/seed';
 import type { FeedId } from '@bitcobblers/wod-wiki-core';
+import {
+  feedIndexMetaKey,
+  type FeedOfflinePolicy,
+} from '@bitcobblers/wod-wiki-engine';
 import type { FeedImportProgress } from './FeedImporter';
 import { HttpFeedSource } from './HttpFeedSource';
 import type { FeedImportStorage } from './FeedImportStorage';
@@ -25,7 +29,25 @@ import { mainThreadFeedImportStorage } from './feedStorageDefault';
 import { assertManifest, type IFeedSource } from './IFeedSource';
 import { EMBEDDED_FEED_VERSIONS } from './feedVersion';
 import { customFeedSources, CORE_FEED_URL, FEED_SOURCES, notebooksOfFeed, hideFeedSourceRow, hiddenFeedSourceIds, removeCustomFeedSource, safeRepositoryUrl, toAbsoluteFeedUrl } from './feedSources';
-import { getFeedSubscriptionMode, getSubscribedNotebooks, isNotebookSubscribed, isFeedAutoSync, isFeedSubscribed, setFeedAutoSync, setFeedSubscribed, setNotebookSubscribed } from './feedSubscriptions';
+import {
+  flushFeedStatePersistence,
+  getFeedOfflinePolicy,
+  getFeedSubscriptionMode,
+  getSubscribedNotebooks,
+  hydrateFeedStateFromStorage,
+  isFeedAutoSync,
+  isFeedSubscribed,
+  isNotebookSubscribed,
+  setFeedAutoSync,
+  setFeedOfflinePolicy,
+  setFeedSubscribed,
+  setNotebookSubscribed,
+} from './feedSubscriptions';
+import {
+  getFeedCheckedAtFromStore,
+  isFeedStateHydrated,
+  markFeedCheckedInStore,
+} from './feedRegistryStore';
 import { beginSyncActivity, reportSyncResult, reportSyncError, reportSyncProgress } from '@/services/syncActivity';
 import { invalidateSeedContent } from '@/services/content/seedContent';
 import { hydrateAppEffortRegistry, getAppEffortRegistry } from '@/services/effortRegistry';
@@ -38,8 +60,14 @@ import {
   type FeedSyncOutcome,
   type SourceSyncCoreResult,
 } from './feedSyncCore';
-import { saveFeedCatalogManifest } from './feedCatalog';
+import {
+  probeFeedManifest,
+  readFeedCatalogManifest,
+  saveFeedCatalogManifest,
+} from './feedCatalog';
 import type { FeedWorkerToMain } from './feedSync.worker';
+
+export { probeFeedManifest };
 
 export { SEED_BROADCAST_CHANNEL } from '@/types/seed';
 export { SEED_CLAIM_TTL_MS } from './feedSyncCore';
@@ -199,6 +227,10 @@ export interface FeedSyncDeps {
   notebookIds?: string[] | null;
   preserveSubscriptionState?: boolean;
   manifest?: SeedManifest;
+  /** Override per-source offline caching policy for this run. */
+  offlinePolicy?: FeedOfflinePolicy;
+  /** When true on readFeedStatus(), actively probe remote manifests over HTTP. */
+  probe?: boolean;
 }
 
 function defaultBroadcast(message: unknown): void {
@@ -248,7 +280,7 @@ function applySourceResult(
   const broadcast = deps.broadcast ?? defaultBroadcast;
   const report = deps.reportActivity !== false;
   if (result.manifestChecked) markFeedChecked(spec.id, now());
-  if (result.manifest) void saveFeedCatalogManifest(spec.id, result.manifest);
+  if (result.manifest) void saveFeedCatalogManifest(spec.id, result.manifest, deps.storage?.storageInstance);
   if (result.outcome === 'error') {
     const message = result.error ?? 'feed sync failed';
     if (deps.mode === 'background') updates?.set(spec.id, { sourceId: spec.id, label: spec.label, state: 'error' });
@@ -379,6 +411,7 @@ async function runFeedSyncViaWorker(
         autoSyncOn: isFeedAutoSync(s.id),
         notebookIds: deps.notebookIds !== undefined ? (deps.notebookIds ?? undefined) : (getFeedSubscriptionMode(s.id) === 'partial' ? (getSubscribedNotebooks(s.id) ?? undefined) : (deps.mode === 'background' && getFeedSubscriptionMode(s.id) === 'unsubscribed' ? [] : undefined)),
         granularRecords: true,
+        offlinePolicy: deps.offlinePolicy ?? getFeedOfflinePolicy(s.id),
       })),
     });
   });
@@ -430,35 +463,20 @@ function clearFeedSourceUpdate(sourceId: string): void {
 
 // ── Last manifest-check timestamps ─────────────────────────────────────────
 
-const SEED_CHECKS_KEY = 'wodwiki.seedChecks';
-
-function readFeedChecks(): Record<string, number> {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(SEED_CHECKS_KEY) ?? 'null');
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter((e): e is [string, number] => typeof e[1] === 'number'),
-    );
-  } catch {
-    return {};
-  }
-}
-
 function markFeedChecked(id: string, at: number): void {
-  try {
-    localStorage.setItem(SEED_CHECKS_KEY, JSON.stringify({ ...readFeedChecks(), [id]: at }));
-  } catch {
-    // Status timestamps are best-effort; a failed write keeps the old value.
-  }
+  markFeedCheckedInStore(id, at);
 }
 
 function feedCheckedAt(id: string): number | null {
-  return readFeedChecks()[id] ?? null;
+  return getFeedCheckedAtFromStore(id);
 }
 
 export async function runFeedSync(deps: FeedSyncDeps = {}): Promise<FeedSyncOutcome> {
   const outcomes: FeedSyncOutcome[] = [];
   const storage = deps.storage ?? mainThreadFeedImportStorage();
+  if (storage.storageInstance && !isFeedStateHydrated()) {
+    await hydrateFeedStateFromStorage(storage.storageInstance).catch(() => undefined);
+  }
   // Background load checks collect per-source update states; the run ends
   // with ONE grouped snapshot — never per-source notifications.
   const updates = deps.mode === 'background' ? new Map<string, FeedSourceUpdate>() : undefined;
@@ -565,6 +583,7 @@ async function runSourceSync(
         ...(spec.tier ? { tier: spec.tier } : {}),
         notebookIds: deps.notebookIds !== undefined ? (deps.notebookIds ?? undefined) : (getFeedSubscriptionMode(spec.id) === 'partial' ? (getSubscribedNotebooks(spec.id) ?? undefined) : (deps.mode === 'background' && getFeedSubscriptionMode(spec.id) === 'unsubscribed' ? [] : undefined)),
         granularRecords: true,
+        offlinePolicy: deps.offlinePolicy ?? getFeedOfflinePolicy(spec.id),
       },
       { storage, owner, now, force: deps.force, probeManifests: deps.probeManifests, background: deps.mode === 'background' },
       {
@@ -624,6 +643,8 @@ export interface FeedNotebookStatus {
   /** Published rows / bytes (0 when the manifest is unreachable). */
   count: number;
   bytes: number;
+  indexBytes?: number;
+  chunkBytes?: number;
   /** The stored checkpoint covers this chunk. */
   imported: boolean;
   subscribed?: boolean;
@@ -654,6 +675,10 @@ export interface FeedSourceStatus {
   count: number;
   /** Total published chunk bytes (0 when unreachable). */
   bytes: number;
+  indexBytes?: number;
+  chunkBytes?: number;
+  hasOfflineChunks?: boolean;
+  offlinePolicy?: FeedOfflinePolicy;
   /** Epoch ms of the last successful manifest check — null before one. */
   checkedAt: number | null;
   subscribed: boolean;
@@ -695,7 +720,9 @@ export async function syncFeedSource(id: string, deps: FeedSyncDeps = {}): Promi
       // already-current library the user explicitly chose. 'busy'/'error'/
       // 'server-stale' never change a persisted choice. (Core: no-op.)
       setFeedSubscribed(id, true);
+      if (deps.offlinePolicy) setFeedOfflinePolicy(id, deps.offlinePolicy);
     }
+    await flushFeedStatePersistence();
     // A successful manual sync applied (or confirmed) the remote version —
     // the pending-update marker is stale and the grouped snapshot clears.
     clearFeedSourceUpdate(id);
@@ -704,51 +731,138 @@ export async function syncFeedSource(id: string, deps: FeedSyncDeps = {}): Promi
 }
 
 /**
+ * Index-first subscribe: sets subscription & offline policy (default
+ * `'index-only'` except `'core'`) and fetches `manifest.json` + notebook
+ * indexes without downloading full chunk bundles.
+ */
+export async function subscribeFeed(
+  feedId: string,
+  options: FeedSyncDeps & { offlinePolicy?: FeedOfflinePolicy; autoSync?: boolean } = {},
+): Promise<FeedSyncOutcome> {
+  const storage = options.storage ?? mainThreadFeedImportStorage();
+  if (storage.storageInstance && !isFeedStateHydrated()) {
+    await hydrateFeedStateFromStorage(storage.storageInstance).catch(() => undefined);
+  }
+  const policy: FeedOfflinePolicy =
+    options.offlinePolicy ?? (feedId === 'core' ? 'offline-full' : 'index-only');
+  setFeedSubscribed(feedId, true);
+  setFeedOfflinePolicy(feedId, policy);
+  if (options.autoSync !== undefined) {
+    setFeedAutoSync(feedId, options.autoSync);
+  }
+  await flushFeedStatePersistence();
+  return syncFeedSource(feedId, {
+    ...options,
+    offlinePolicy: policy,
+    subscribe: true,
+    ...(options.notebookIds ? { preserveSubscriptionState: true } : {}),
+  });
+}
+
+/**
+ * Explicit opt-in offline download: switches the feed's offline policy to
+ * `'offline-full'` and pulls full chunks/records into local storage.
+ */
+export async function downloadFeedOffline(
+  feedId: string,
+  notebookIds?: string[],
+  deps: FeedSyncDeps = {},
+): Promise<FeedSyncOutcome> {
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
+  if (storage.storageInstance && !isFeedStateHydrated()) {
+    await hydrateFeedStateFromStorage(storage.storageInstance).catch(() => undefined);
+  }
+  setFeedOfflinePolicy(feedId, 'offline-full');
+  if (!notebookIds?.length && !isFeedSubscribed(feedId)) {
+    setFeedSubscribed(feedId, true);
+  }
+  await flushFeedStatePersistence();
+  return syncFeedSource(feedId, {
+    ...deps,
+    offlinePolicy: 'offline-full',
+    notebookIds,
+    preserveSubscriptionState: Boolean(notebookIds?.length),
+  });
+}
+
+/**
  * Targeted single-notebook sync: updates only the requested notebook without
  * promoting a partial feed to a full-feed subscription.
  */
 export async function syncNotebook(feedId: string, chunkId: string, deps: FeedSyncDeps = {}): Promise<FeedSyncOutcome> {
+  const policy = deps.offlinePolicy ?? getFeedOfflinePolicy(feedId);
   return syncFeedSource(feedId, {
     ...deps,
+    offlinePolicy: policy,
     notebookIds: [chunkId],
     preserveSubscriptionState: true,
-    force: true,
+    force: policy === 'offline-full' ? true : deps.force,
   });
 }
 
 /**
  * Subscribe or unsubscribe an individual notebook from a feed.
- * Subscribing syncs the chunk; unsubscribing immediately deletes that chunk's
- * seed-owned notes in one transaction. If no chunks remain, drops the checkpoint.
+ * Subscribing syncs the notebook index (or chunk if offline-full);
+ * unsubscribing immediately removes unpinned cached/seed notes while preserving
+ * `session-pinned` or `sessions`-attached copies.
  */
 export async function toggleNotebookSubscription(
   feedId: string,
   chunkId: string,
   subscribed: boolean,
   deps: FeedSyncDeps = {},
-): Promise<{ deleted?: number; outcome?: FeedSyncOutcome }> {
+): Promise<{ deleted?: number; preservedPinned?: number; outcome?: FeedSyncOutcome }> {
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
+  if (storage.storageInstance && !isFeedStateHydrated()) {
+    await hydrateFeedStateFromStorage(storage.storageInstance).catch(() => undefined);
+  }
   if (subscribed) {
     setNotebookSubscribed(feedId, chunkId, true);
-    const outcome = await syncNotebook(feedId, chunkId, deps);
+    await flushFeedStatePersistence();
+    const policy = deps.offlinePolicy ?? getFeedOfflinePolicy(feedId);
+    const outcome = await syncFeedSource(feedId, {
+      ...deps,
+      offlinePolicy: policy,
+      notebookIds: [chunkId],
+      preserveSubscriptionState: true,
+      force: policy === 'offline-full' ? true : deps.force,
+    });
     return { outcome };
   } else {
     setNotebookSubscribed(feedId, chunkId, false);
-    const storage = deps.storage ?? mainThreadFeedImportStorage();
+    await flushFeedStatePersistence();
+    await storage.deleteMeta?.(feedIndexMetaKey(feedId, chunkId)).catch(() => undefined);
+
     const meta = await storage.getSeedMeta(seedMetaKey(feedId));
     if (!meta || !meta.chunks[chunkId]) {
-      return { deleted: 0 };
+      const cachedSweep = (await storage.removeNotebookContent?.(feedId, chunkId)) ?? {
+        deleted: 0,
+        preservedPinned: 0,
+      };
+      if (cachedSweep.deleted > 0 || cachedSweep.preservedPinned > 0) {
+        invalidateSeedContent();
+        const effortRegistry = getAppEffortRegistry();
+        if (effortRegistry.isInitialized()) await hydrateAppEffortRegistry(effortRegistry);
+        const equipmentRegistry = getAppEquipmentRegistry();
+        if (equipmentRegistry.isInitialized()) await hydrateAppEquipmentRegistry(equipmentRegistry);
+        defaultBroadcast({ kind: 'seed-removed', source: feedId });
+      }
+      return {
+        deleted: cachedSweep.deleted,
+        preservedPinned: cachedSweep.preservedPinned,
+      };
     }
     const nextChunks = { ...meta.chunks };
     delete nextChunks[chunkId];
     if (Object.keys(nextChunks).length === 0) {
-      const deleted = await storage.removeSourceContent(meta);
+      const removed = await storage.removeSourceContent(meta);
       invalidateSeedContent();
       const effortRegistry = getAppEffortRegistry();
       if (effortRegistry.isInitialized()) await hydrateAppEffortRegistry(effortRegistry);
       const equipmentRegistry = getAppEquipmentRegistry();
       if (equipmentRegistry.isInitialized()) await hydrateAppEquipmentRegistry(equipmentRegistry);
       defaultBroadcast({ kind: 'seed-removed', source: feedId });
-      return { deleted };
+      return { deleted: removed.deleted, preservedPinned: removed.preservedPinned };
     }
     const nextMeta = { ...meta, chunks: nextChunks, importedAt: Date.now() };
     const manifest: SeedManifest = {
@@ -764,13 +878,20 @@ export async function toggleNotebookSubscription(
       expectedMeta: meta,
       meta: nextMeta,
     });
+    const extraCachedSweep = (await storage.removeNotebookContent?.(feedId, chunkId)) ?? {
+      deleted: 0,
+      preservedPinned: 0,
+    };
     invalidateSeedContent();
     const effortRegistry = getAppEffortRegistry();
     if (effortRegistry.isInitialized()) await hydrateAppEffortRegistry(effortRegistry);
     const equipmentRegistry = getAppEquipmentRegistry();
     if (equipmentRegistry.isInitialized()) await hydrateAppEquipmentRegistry(equipmentRegistry);
     defaultBroadcast({ kind: 'seed-removed', source: feedId });
-    return { deleted: res.deleted };
+    return {
+      deleted: res.deleted + extraCachedSweep.deleted,
+      preservedPinned: (res.preservedPinned ?? 0) + extraCachedSweep.preservedPinned,
+    };
   }
 }
 
@@ -779,19 +900,26 @@ export async function toggleNotebookSubscription(
 /**
  * Remove one source's imported content and checkpoint, and stop its
  * subscription and auto-sync — keeping the source row and its config for a
- * later Subscribe. Ownership is exact (`SeedMetaRecord.chunks` memberships),
- * so a package/custom-source removal can never touch another source's
- * rows, and user-authored notes always survive. Core is protected. Storage
- * failures propagate: a swallowed deletion would leave a stale checkpoint
- * that re-imports the removed content on the next sync.
+ * later Subscribe. Preserves `session-pinned` and `sessions`-attached notes.
  */
-export async function unsubscribeFeedSource(id: string, deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<{ deleted: number }> {
-  if (id === 'core') return { deleted: 0 };
+export async function unsubscribeFeedSource(
+  id: string,
+  deps: Pick<FeedSyncDeps, 'storage'> = {},
+): Promise<{ deleted: number; preservedPinned?: number }> {
+  if (id === 'core') return { deleted: 0, preservedPinned: 0 };
   const storage = deps.storage ?? mainThreadFeedImportStorage();
+  if (storage.storageInstance && !isFeedStateHydrated()) {
+    await hydrateFeedStateFromStorage(storage.storageInstance).catch(() => undefined);
+  }
   const meta = await storage.getSeedMeta(seedMetaKey(id));
-  const deleted = meta ? await storage.removeSourceContent(meta) : 0;
+  const res = storage.removeSourceContentById
+    ? await storage.removeSourceContentById(id)
+    : meta
+      ? await storage.removeSourceContent(meta)
+      : { deleted: 0, preservedPinned: 0 };
   setFeedSubscribed(id, false);
   setFeedAutoSync(id, false);
+  await flushFeedStatePersistence();
   clearFeedSourceUpdate(id);
   invalidateSeedContent();
   const effortRegistry = getAppEffortRegistry();
@@ -799,7 +927,7 @@ export async function unsubscribeFeedSource(id: string, deps: Pick<FeedSyncDeps,
   const equipmentRegistry = getAppEquipmentRegistry();
   if (equipmentRegistry.isInitialized()) await hydrateAppEquipmentRegistry(equipmentRegistry);
   defaultBroadcast({ kind: 'seed-removed', source: id });
-  return { deleted };
+  return { deleted: res.deleted, preservedPinned: res.preservedPinned };
 }
 
 /**
@@ -807,11 +935,17 @@ export async function unsubscribeFeedSource(id: string, deps: Pick<FeedSyncDeps,
  * registry; a built-in catalog row is hidden (its config lives in code).
  * Core is protected — deleting the app's own feed is a no-op.
  */
-export async function deleteFeedSource(id: string, deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<{ deleted: number }> {
-  if (id === 'core') return { deleted: 0 };
+export async function deleteFeedSource(
+  id: string,
+  deps: Pick<FeedSyncDeps, 'storage'> = {},
+): Promise<{ deleted: number; preservedPinned?: number }> {
+  if (id === 'core') return { deleted: 0, preservedPinned: 0 };
+  const storage = deps.storage ?? mainThreadFeedImportStorage();
   const result = await unsubscribeFeedSource(id, deps);
+  await storage.deleteMeta?.(`catalog:${id}`).catch(() => undefined);
   if (customFeedSources().some((s) => s.id === id)) removeCustomFeedSource(id);
   else hideFeedSourceRow(id);
+  await flushFeedStatePersistence();
   return result;
 }
 
@@ -866,6 +1000,10 @@ export async function isCoreFeedImported(deps: Pick<FeedSyncDeps, 'storage'> = {
  */
 export async function readFeedStatus(deps: FeedSyncDeps = {}): Promise<FeedStatus> {
   const storage = deps.storage ?? mainThreadFeedImportStorage();
+  if (storage.storageInstance && !isFeedStateHydrated()) {
+    await hydrateFeedStateFromStorage(storage.storageInstance).catch(() => undefined);
+  }
+  const activeProbe = deps.probe === true;
   const sources = await Promise.all(
     (deps.sources ?? defaultFeedSources()).map(async (spec) => {
       const stored = await storage.getSeedMeta(seedMetaKey(spec.id));
@@ -873,17 +1011,37 @@ export async function readFeedStatus(deps: FeedSyncDeps = {}): Promise<FeedStatu
       let remoteError: string | null = null;
       let manifest: SeedManifest | null = null;
       let repositoryUrl = spec.repositoryUrl;
-      try {
-        manifest = assertManifest(await spec.source.fetchManifest());
+
+      const cachedCatalog = await readFeedCatalogManifest(spec.id, storage.storageInstance);
+      if (cachedCatalog) {
+        manifest = cachedCatalog;
         remote = { version: manifest.version, schema: manifest.schema, builtAt: manifest.builtAt };
-        // A feed may publish its repository link only in the manifest —
-        // the registry entry is not required to carry it.
         repositoryUrl ??= safeRepositoryUrl(manifest.repositoryUrl ?? '') ?? undefined;
-        markFeedChecked(spec.id, (deps.now ?? Date.now)());
-      } catch (err) {
-        remoteError = err instanceof Error ? err.message : String(err);
       }
+
+      if (activeProbe) {
+        try {
+          manifest = assertManifest(await spec.source.fetchManifest());
+          remote = { version: manifest.version, schema: manifest.schema, builtAt: manifest.builtAt };
+          // A feed may publish its repository link only in the manifest —
+          // the registry entry is not required to carry it.
+          repositoryUrl ??= safeRepositoryUrl(manifest.repositoryUrl ?? '') ?? undefined;
+          await saveFeedCatalogManifest(spec.id, manifest, storage.storageInstance);
+          markFeedChecked(spec.id, (deps.now ?? Date.now)());
+          remoteError = null;
+        } catch (err) {
+          remoteError = err instanceof Error ? err.message : String(err);
+        }
+      }
+
       const notebooks = feedNotebookStatuses(spec.id, manifest, stored);
+      const indexBytes = manifest?.indexBytes ?? notebooks.reduce((n, nb) => n + (nb.indexBytes ?? 0), 0);
+      const manifestChunks = manifest?.chunks;
+      const chunkBytes =
+        manifest?.chunkBytes ??
+        (manifestChunks?.length
+          ? manifestChunks.reduce((n, c) => n + (c.bytes ?? 0), 0)
+          : notebooks.reduce((n, nb) => n + (nb.chunkBytes ?? 0), 0));
       return {
         id: spec.id,
         label: spec.label,
@@ -901,12 +1059,17 @@ export async function readFeedStatus(deps: FeedSyncDeps = {}): Promise<FeedStatu
           stored != null && remote != null && stored.schema === SEED_SCHEMA && stored.seedVersion === remote.version,
         count: notebooks.reduce((n, notebook) => n + notebook.count, 0),
         bytes: notebooks.reduce((n, notebook) => n + notebook.bytes, 0),
+        indexBytes,
+        chunkBytes,
+        hasOfflineChunks: (manifest?.chunks?.length ?? 0) > 0 || chunkBytes > 0,
+        offlinePolicy: getFeedOfflinePolicy(spec.id),
         checkedAt: feedCheckedAt(spec.id),
         subscribed: isFeedSubscribed(spec.id),
         autoSync: isFeedAutoSync(spec.id),
       };
     }),
   );
+  if (activeProbe) await flushFeedStatePersistence();
   return { sources };
 }
 
@@ -919,12 +1082,30 @@ function feedNotebookStatuses(
 ): FeedNotebookStatus[] {
   const byChunkId: Record<string, { id: string; label: string }> = {};
   for (const notebook of notebooksOfFeed(feedId)) byChunkId[notebook.chunkId] = notebook;
+  if (manifest?.notebooks && manifest.notebooks.length > 0) {
+    return manifest.notebooks.map((nb): FeedNotebookStatus => {
+      const matchingChunk = manifest.chunks.find((c) => c.id === nb.notebookId);
+      const chunkBytes = nb.chunkBytes ?? matchingChunk?.bytes;
+      return {
+        id: byChunkId[nb.notebookId]?.id ?? nb.notebookId,
+        label: nb.label || byChunkId[nb.notebookId]?.label || nb.notebookId,
+        chunkId: nb.notebookId,
+        count: nb.count,
+        bytes: nb.bytes,
+        ...(nb.indexBytes !== undefined ? { indexBytes: nb.indexBytes } : {}),
+        ...(chunkBytes !== undefined ? { chunkBytes } : {}),
+        imported: Boolean(stored?.chunks[nb.notebookId]),
+        subscribed: isNotebookSubscribed(feedId, nb.notebookId),
+      };
+    });
+  }
   const published = (manifest?.chunks ?? []).map((chunk): FeedNotebookStatus => ({
     id: byChunkId[chunk.id]?.id ?? chunk.id,
     label: byChunkId[chunk.id]?.label ?? chunk.id,
     chunkId: chunk.id,
     count: chunk.count,
     bytes: chunk.bytes,
+    chunkBytes: chunk.bytes,
     imported: Boolean(stored?.chunks[chunk.id]),
     subscribed: isNotebookSubscribed(feedId, chunk.id),
   }));

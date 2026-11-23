@@ -84,23 +84,35 @@ class InlineImageWidget extends WidgetType {
     img.loading = "lazy";
     img.className = "cm-image-embed-img";
 
+    if (this.standalone) {
+      card.classList.add("cm-image-embed-loading");
+      const clearLoading = () => card.classList.remove("cm-image-embed-loading");
+      img.addEventListener("load", clearLoading);
+      img.addEventListener("error", clearLoading);
+    }
+
     const resolver = view.state.facet(attachmentUrlFacet);
     if (isDirectImageUrl(this.target)) {
       img.src = this.target;
+      if (img.complete) card.classList.remove("cm-image-embed-loading");
     } else if (resolver) {
       Promise.resolve(resolver(this.target))
         .then((resolved) => {
           if (resolved) {
             img.src = resolved;
+            if (img.complete) card.classList.remove("cm-image-embed-loading");
           } else {
+            card.classList.remove("cm-image-embed-loading");
             card.classList.add("cm-image-embed-missing");
           }
         })
         .catch(() => {
+          card.classList.remove("cm-image-embed-loading");
           card.classList.add("cm-image-embed-missing");
         });
     } else {
       img.src = this.target;
+      if (img.complete) card.classList.remove("cm-image-embed-loading");
     }
 
     card.appendChild(img);
@@ -228,6 +240,9 @@ const embedPreviewTheme = EditorView.baseTheme({
     border: "1px solid hsl(var(--border))",
     backgroundColor: "hsl(var(--card))",
     overflow: "hidden",
+  },
+  ".cm-image-embed-block .cm-image-embed-card.cm-image-embed-loading": {
+    minHeight: "160px",
   },
   ".cm-image-embed-img": {
     display: "block",

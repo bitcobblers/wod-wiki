@@ -15,15 +15,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
-import { orderPlacements, type Page, type PageNote, type Tag } from '@bitcobblers/wod-wiki-core'
+import {
+  BUILTIN_NOTEBOOKS,
+  isNotebookLanding,
+  notebookSlugFromId,
+  orderPlacements,
+  type NotebookLink,
+  type Page,
+  type PageNote,
+  type ScheduleItem,
+  type Tag,
+} from '@bitcobblers/wod-wiki-core'
 import { WQL_TYPED_TAG_KEYS } from '@bitcobblers/wod-wiki-wql'
-import { storageService } from '@/services/storage'
+import { storage, storageService } from '@/services/storage'
+import { subscribeNotebooks } from '@/services/NotebookService'
+import { journalSchedule, subscribeSchedule } from '../../services/journalSchedule'
 import type { BlockEffort, BlockEquipment, BlockIndexRow, Note } from '@/types/storage'
 import type { HistoryRecord } from '@/types/history'
 import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity'
 import { useOptionalEffortRegistry } from '../../contexts/EffortRegistryContext'
 import { useOptionalEquipmentRegistry } from '../../contexts/EquipmentRegistryContext'
 import { useNav } from '../../nav/NavContext'
+import type { EntityPeekTarget } from '../../nav/navTypes'
 import type { MenuSpec } from '../../nav/menuModel'
 import {
   notebookPath,
@@ -74,6 +87,10 @@ export function notesFacetFilterPath(key: string, value: string): string {
   return `${ROUTE_PATTERNS.notes}?q=${encodeURIComponent(wql)}`
 }
 
+/** Canonical EntityPeekTarget re-exported from navTypes (NotePeekTarget kept as alias). */
+export type { EntityPeekTarget } from '../../nav/navTypes'
+export type NotePeekTarget = EntityPeekTarget
+
 export interface ContextNoteLink {
   id: string
   title: string
@@ -87,7 +104,9 @@ export interface ContextNoteLink {
 export interface NoteContextData {
   /** Notebooks/collections this note belongs to (1-part → `/notebook/:slug`). */
   collections?: ContextNoteLink[]
-  /** Named/date pages this note is placed on (1-part → `/page/:slug` or `/day/:date`). */
+  /** Scheduled journal dates for this note (1-part → `/day/:date`). */
+  schedules?: ContextNoteLink[]
+  /** Named pages this note is placed on (1-part → `/page/:slug`). */
   pages?: ContextNoteLink[]
   /** Non-effort/non-equipment tags on this note (2-part → `/t/:type/:tag` | `/notes?q=...`). */
   tags?: ContextNoteLink[]
@@ -95,17 +114,22 @@ export interface NoteContextData {
   efforts: ContextNoteLink[]
   /** Equipment referenced by this note (2-part → `/equipment/:slug` | `/notes?q=:note{equipment:...}`). */
   equipment?: ContextNoteLink[]
-  /** Unrecognized labels in live content (click → Define dialog | filter → `/notes?q=:note{text:...}`). */
+  /** Unrecognized labels in live content (click → Peek/Define | filter → `/notes?q=:note{text:...}`). */
   unrecognized?: ContextNoteLink[]
-  /** Other notes sharing a workout-block content id (same script shape). */
+  /** Other notes sharing a workout-block content id (or using an effort/equipment). */
   related: ContextNoteLink[]
+  /** Optional total count of related notes prior to slicing (drives `View all N in Notes →`). */
+  relatedTotal?: number
+  /** Optional `/notes?q=...` destination for `View all N in Notes →`. */
+  relatedViewAllTo?: string
   /** Notes whose sourceNote stamp (`sourceId`) points at this note. */
   backlinks: ContextNoteLink[]
 }
 
-/** Relationship-free context — pages whose L2 is Up/calendar/recent only. */
+/** Relationship-free context — pages whose L3 Connections are Up/calendar/recent only. */
 export const EMPTY_NOTE_CONTEXT: NoteContextData = {
   collections: [],
+  schedules: [],
   pages: [],
   tags: [],
   efforts: [],
@@ -115,14 +139,13 @@ export const EMPTY_NOTE_CONTEXT: NoteContextData = {
   backlinks: [],
 }
 
-/** ponytail: cap related links so the L2 nav section stays scannable; raise when a page wants full lists. */
-const MAX_RELATED = 8
+/** Cap related / Used in rows in L3 Connections before showing `View all N in Notes →`. */
+export const MAX_RELATED = 5
 
 // ── Source-aware ownership ───────────────────────────────────────────────────
 
-/** L1 zone ids that exist in the nav tree. The journal and playgrounds
- * views live inside the notebooks zone, so their notes light 'notebooks'. */
-export type NoteZone = 'notebooks' | 'feeds' | 'efforts' | 'equipment' | null
+/** L1 zone ids that exist in the nav tree. */
+export type NoteZone = 'journal' | 'notebooks' | 'pages' | 'feeds' | 'efforts' | 'equipment' | null
 
 export interface NoteOwnership {
   /** L1 zone id to light on the canonical /note/:id route (guarded against the tree). */
@@ -194,14 +217,20 @@ export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'source
   if (entry.type === 'journal' || entry.journalDate || ref.kind === 'journal') {
     const date = entry.journalDate ?? (ref.kind === 'journal' ? ref.id : undefined)
     return {
-      zone: 'notebooks',
-      up: date ? { id: date, title: 'Journal', to: dayPath(date) } : null,
+      zone: 'journal',
+      up: date ? { id: date, title: 'Journal', to: dayPath(date) } : { id: 'journal', title: 'Journal', to: ROUTE_PATTERNS.journal },
       stamps: [id],
     }
   }
-  if (entry.type === 'page' && (entry.pageId ?? entry.slug)) {
-    const slug = entry.pageId ?? entry.slug!
-    return { zone: null, up: { id: slug, title: `/page/${slug}`, to: pagePath(slug) }, stamps: [] }
+  if (entry.type === 'page') {
+    const slug = entry.pageId ?? entry.slug
+    return {
+      zone: 'pages',
+      up: slug
+        ? { id: slug, title: `/page/${slug}`, to: pagePath(slug) }
+        : { id: 'pages', title: 'Pages', to: ROUTE_PATTERNS.pages },
+      stamps: [],
+    }
   }
   return { zone: null, up: null, stamps: [] }
 }
@@ -232,8 +261,10 @@ export function provenanceLink(sourceId: string): ContextNoteLink | null {
 
 /** 1-part collection links (`/notebook/:slug`) for any notebook/collection a note belongs to. */
 export function collectionLinks(
-  note: Pick<Note, 'id' | 'notebookId' | 'sourceId' | 'tags'> | undefined,
+  note: Pick<Note, 'id' | 'notebookId' | 'notebookIds' | 'sourceId' | 'tags'> | undefined,
   fallbackNoteId?: string,
+  extraLinks?: readonly Pick<NotebookLink, 'notebookId' | 'targetKind'>[],
+  titlesBySlug?: ReadonlyMap<string, string>,
 ): ContextNoteLink[] {
   const slugs: string[] = []
   const pushSlug = (raw: string | undefined) => {
@@ -244,6 +275,19 @@ export function collectionLinks(
 
   if (note?.notebookId?.startsWith('notebook/')) {
     pushSlug(note.notebookId.slice('notebook/'.length))
+  }
+  if (note?.notebookIds) {
+    for (const nbId of note.notebookIds) {
+      if (nbId.startsWith('notebook/')) {
+        pushSlug(nbId.slice('notebook/'.length))
+      }
+    }
+  }
+  if (extraLinks) {
+    for (const link of extraLinks) {
+      if (link.targetKind && link.targetKind !== 'note') continue
+      pushSlug(notebookSlugFromId(link.notebookId))
+    }
   }
   if (note?.tags) {
     for (const tag of note.tags) {
@@ -280,9 +324,30 @@ export function collectionLinks(
 
   return slugs.map(slug => ({
     id: slug,
-    title: slug,
+    title: titlesBySlug?.get(slug) || slug,
     to: notebookPath(slug),
   }))
+}
+
+/** 1-part schedule links (`/day/:date`) for M:N scheduled occurrences of a note. */
+export function scheduleLinks(items: readonly Pick<ScheduleItem, 'id' | 'date' | 'status'>[]): ContextNoteLink[] {
+  const sorted = [...items].sort((a, b) => a.date.localeCompare(b.date))
+  const out: ContextNoteLink[] = []
+  const seen = new Set<string>()
+  for (const item of sorted) {
+    const date = item.date?.trim()
+    if (!date) continue
+    const to = dayPath(date)
+    if (seen.has(to)) continue
+    seen.add(to)
+    out.push({
+      id: item.id,
+      title: date,
+      to,
+      ...(item.status && item.status !== 'planned' ? { badge: item.status } : {}),
+    })
+  }
+  return out
 }
 
 /** 1-part page placement links (`/page/:slug` and canonical `/day/:date`) for a note. */
@@ -308,7 +373,14 @@ export function pagePlacementLinks(
       continue
     }
     if (page.slug) {
-      if (page.slug.startsWith('playground/') || page.slug.startsWith('e/')) continue
+      if (
+        page.slug.startsWith('playground/') ||
+        page.slug.startsWith('e/') ||
+        page.slug.startsWith('effort/') ||
+        page.slug.startsWith('equipment/')
+      ) {
+        continue
+      }
       const to = pagePath(page.slug)
       if (seen.has(to)) continue
       seen.add(to)
@@ -514,6 +586,8 @@ export function useNoteContextLinks({
   })
   const [catalogVersion, setCatalogVersion] = useState(0)
   useEffect(() => subscribeReferenceCatalogChanged(() => setCatalogVersion(v => v + 1)), [])
+  useEffect(() => subscribeNotebooks(() => setCatalogVersion(v => v + 1)), [])
+  useEffect(() => subscribeSchedule(() => setCatalogVersion(v => v + 1)), [])
 
   // Key results by route identity (not revision) so incremental edits update smoothly without flashing empty.
   const [result, setResult] = useState<{ key: string; data: NoteContextData }>({ key: '', data: EMPTY_NOTE_CONTEXT })
@@ -527,7 +601,9 @@ export function useNoteContextLinks({
     Promise.all([
       storageService.getNote(noteId).catch(() => undefined),
       storageService.getNotePages(noteId).catch(() => [] as PageNote[]),
+      journalSchedule.listForNote(noteId).catch(() => [] as ScheduleItem[]),
       storageService.getTagsForNote(noteId).catch(() => [] as Tag[]),
+      storage.readonly('notebook_links').getAllFromIndex('by-note', noteId).catch(() => [] as NotebookLink[]),
       storageService.getAllFromIndex('block_efforts', 'by-note', noteId) as Promise<BlockEffort[]>,
       (storageService.getAllFromIndex('block_equipment', 'by-note', noteId) as Promise<BlockEquipment[]>).catch(
         () => [] as BlockEquipment[],
@@ -543,7 +619,9 @@ export function useNoteContextLinks({
       .then(async ([
         noteRecord,
         notePageLinks,
+        noteScheduleItems,
         noteTags,
+        noteNotebookLinks,
         effortRows,
         equipmentRows,
         blockRows,
@@ -593,7 +671,7 @@ export function useNoteContextLinks({
           ownContentIds.map(cid => storageService.getAllFromIndex('block_index', 'by-content', cid) as Promise<BlockIndexRow[]>),
         )
         if (cancelled) return null
-        const related = relatedBlockLinks([...blockRows, ...siblingRows.flat()], noteId)
+        const related = relatedBlockLinks([...blockRows, ...siblingRows.flat()], noteId, Number.POSITIVE_INFINITY)
         if (effortSlug) {
           const seen = new Set(related.map(r => r.id))
           for (const usage of effortUsageLinks(usageRows, noteId, notes)) {
@@ -603,14 +681,43 @@ export function useNoteContextLinks({
             }
           }
         }
+        const notebookTitles = new Map<string, string>(
+          BUILTIN_NOTEBOOKS.map(b => [b.slug, b.name]),
+        )
+        for (const n of notes) {
+          if (isNotebookLanding(n)) {
+            const slug = notebookSlugFromId(n.id)
+            if (n.title) notebookTitles.set(slug, n.title)
+          }
+        }
+
+        // Partition date placements (`/day/:date`) into Schedules and named `/page/:slug` placements into Pages.
+        const allPlacements = pagePlacementLinks(notePageLinks, pagesById)
+        const schedules = scheduleLinks(noteScheduleItems)
+        const scheduleUrls = new Set(schedules.map(s => s.to).filter((u): u is string => Boolean(u)))
+        const namedPages: ContextNoteLink[] = []
+        for (const placement of allPlacements) {
+          if (placement.to?.startsWith('/day/')) {
+            if (!scheduleUrls.has(placement.to)) {
+              scheduleUrls.add(placement.to)
+              schedules.push(placement)
+            }
+          } else {
+            namedPages.push(placement)
+          }
+        }
+
         return {
-          collections: collectionLinks(noteRecord, noteId),
-          pages: pagePlacementLinks(notePageLinks, pagesById),
+          collections: collectionLinks(noteRecord, noteId, noteNotebookLinks, notebookTitles),
+          schedules,
+          pages: namedPages,
           tags: tagLinks(noteTags),
           efforts: effortLinks(mergedEffortRows, knownEffortSlugs, effortLabels),
           equipment: equipmentLinks(mergedEquipmentRows, knownEquipmentSlugs, equipmentLabels),
           unrecognized: [],
           related,
+          relatedTotal: related.length,
+          relatedViewAllTo: effortSlug ? notesFacetFilterPath('effort', effortSlug) : ROUTE_PATTERNS.notes,
           backlinks: backlinkNotes(notes, stampList, noteId),
         } satisfies NoteContextData
       })
@@ -638,10 +745,15 @@ export function useNoteContextLinks({
   }, [liveContent, effortsReady, equipmentReady, liveFacets, stored])
 }
 
-// ── L2 registration ──────────────────────────────────────────────────────────
+// ── L3 Connections registration ──────────────────────────────────────────────
 
 export type PartialNoteContextData = Pick<NoteContextData, 'efforts' | 'related' | 'backlinks'> &
-  Partial<Pick<NoteContextData, 'collections' | 'pages' | 'tags' | 'equipment' | 'unrecognized'>>
+  Partial<
+    Pick<
+      NoteContextData,
+      'collections' | 'schedules' | 'pages' | 'tags' | 'equipment' | 'unrecognized' | 'relatedTotal' | 'relatedViewAllTo'
+    >
+  >
 
 export interface NoteContextSpecOptions {
   data: PartialNoteContextData
@@ -651,9 +763,26 @@ export interface NoteContextSpecOptions {
   source?: ContextNoteLink | null
   /** Label override for the `related` section (e.g. "Used in" on effort pages). */
   relatedLabel?: string
+  /** Cap for the `related` section before emitting `View all N in Notes →` (default 5). */
+  relatedCap?: number
+  /** Explicit `/notes?q=...` destination for `View all N in Notes →`. */
+  relatedViewAllTo?: string
+  /** Active route pathname — suppressed from relationship rows so an entity never self-links. */
+  currentPath?: string
+  /**
+   * When set (e.g. on Note/Editor routes), clicking Efforts, Equipment, Tags,
+   * Unrecognized terms, Notebooks, Related Notes, and Backlinks invokes peek
+   * (`onSelect`) instead of hard-navigating away from the editor.
+   */
+  onPeekEntity?: (target: NotePeekTarget) => void
+  /**
+   * Convenience flag for `NoteContextNav`: automatically binds `onPeekEntity` to
+   * `NavContext.openPeek` when available.
+   */
+  peekMode?: boolean
   /**
    * Calendar widget entry rendered right after Up/Source (journal and
-   * notebook-date L2s); any renderable node (CalendarCard).
+   * notebook-date views); any renderable node (CalendarCard).
    */
   calendar?: ReactNode
   /**
@@ -666,45 +795,118 @@ export interface NoteContextSpecOptions {
   trailingSections?: MenuSpec
 }
 
+function parseTagPeekTarget(item: ContextNoteLink): NotePeekTarget {
+  const colonIdx = item.id.indexOf(':')
+  const cleanLabel = item.title.replace(/^#/, '')
+  if (colonIdx > 0) {
+    return {
+      kind: 'tag',
+      tagType: item.id.slice(0, colonIdx),
+      label: item.id.slice(colonIdx + 1) || cleanLabel,
+    }
+  }
+  return { kind: 'tag', label: cleanLabel }
+}
+
 /**
- * Pure L2 spec builder so ordering stays testable.
- * De-duplicates `collections` and `pages` against `up` / `source` so a primary
- * container never renders twice in the same L2 panel.
+ * Pure L3 Connections spec builder so ordering, capping, separation, and peek
+ * intent stay deterministically testable.
+ *
+ * - Keeps `Notebooks` | `Schedules` | `Pages` cleanly separated and de-duped
+ *   against `up`, `source`, and `currentPath` (no self-links).
+ * - Caps `related` / `Used in` at `relatedCap` (default 5) and appends an
+ *   explicit `View all N in Notes →` link when count > cap.
+ * - Wires `onSelect` peek callbacks for Efforts, Equipment, Tags, Unrecognized,
+ *   Notebooks, Related Notes, and Backlinks when `onPeekEntity` is provided.
  */
 export function buildNoteContextSpec({
   data,
   up,
   source,
   relatedLabel = 'Related workouts',
+  relatedCap = MAX_RELATED,
+  relatedViewAllTo,
+  currentPath,
+  onPeekEntity,
   calendar,
   sections,
   trailingSections,
 }: NoteContextSpecOptions): MenuSpec {
   const spec: MenuSpec = []
   const excludedUrls = new Set<string>(
-    [up?.to, source?.to].filter((u): u is string => Boolean(u)),
+    [up?.to, source?.to, currentPath].filter((u): u is string => Boolean(u)),
   )
 
-  const section = (id: string, label: string, items: readonly ContextNoteLink[] | undefined, dedupeContainers = false) => {
+  // Partition any legacy `/day/:date` entries in `data.pages` cleanly into `Schedules`
+  // when explicit `data.schedules` is provided or date placements exist alongside named pages.
+  const schedulesCombined: ContextNoteLink[] = []
+  const scheduleSeenUrls = new Set<string>()
+  const pushSchedule = (item: ContextNoteLink) => {
+    if (item.to && (excludedUrls.has(item.to) || scheduleSeenUrls.has(item.to))) return
+    if (item.to) scheduleSeenUrls.add(item.to)
+    schedulesCombined.push(item)
+  }
+  for (const s of data.schedules ?? []) pushSchedule(s)
+
+  const pagesFiltered: ContextNoteLink[] = []
+  for (const p of data.pages ?? []) {
+    if (p.to && excludedUrls.has(p.to)) continue
+    if (p.to?.startsWith('/day/')) {
+      if (data.schedules !== undefined) {
+        pushSchedule(p)
+        continue
+      }
+      // When caller only populated `data.pages`, keep date entries separated in Schedules
+      // unless excluded, while preserving named `/page/:slug` entries under Pages.
+      pushSchedule(p)
+      continue
+    }
+    pagesFiltered.push(p)
+  }
+
+  const mapEntry = (
+    sectionId: string,
+    item: ContextNoteLink,
+    peekTarget?: NotePeekTarget,
+  ) => {
+    const usePeek = Boolean(onPeekEntity && peekTarget)
+    return {
+      kind: 'link' as const,
+      id: `${sectionId}:${item.id}`,
+      label: item.title,
+      ...(item.to ? { to: item.to } : {}),
+      ...(usePeek
+        ? { onSelect: () => onPeekEntity!(peekTarget!) }
+        : item.onSelect
+          ? { onSelect: item.onSelect }
+          : {}),
+      ...(item.badge ? { badge: item.badge } : {}),
+      ...(!usePeek && item.filterTo ? { filterTo: item.filterTo } : {}),
+      ...(!usePeek && item.filterLabel ? { filterLabel: item.filterLabel } : {}),
+    }
+  }
+
+  const section = (
+    id: string,
+    label: string,
+    items: readonly ContextNoteLink[] | undefined,
+    opts?: {
+      dedupeContainers?: boolean
+      toPeekTarget?: (item: ContextNoteLink) => NotePeekTarget
+    },
+  ) => {
     if (!items || items.length === 0) return
-    const filtered = dedupeContainers
-      ? items.filter(item => !item.to || !excludedUrls.has(item.to))
-      : items
+    const filtered = items.filter(item => {
+      if (currentPath && item.to === currentPath) return false
+      if (opts?.dedupeContainers && item.to && excludedUrls.has(item.to)) return false
+      return true
+    })
     if (filtered.length === 0) return
     spec.push({
       kind: 'section',
       id,
       label,
-      entries: filtered.map(item => ({
-        kind: 'link' as const,
-        id: `${id}:${item.id}`,
-        label: item.title,
-        ...(item.to ? { to: item.to } : {}),
-        ...(item.onSelect ? { onSelect: item.onSelect } : {}),
-        ...(item.badge ? { badge: item.badge } : {}),
-        ...(item.filterTo ? { filterTo: item.filterTo } : {}),
-        ...(item.filterLabel ? { filterLabel: item.filterLabel } : {}),
-      })),
+      entries: filtered.map(item => mapEntry(id, item, opts?.toPeekTarget?.(item))),
     })
   }
 
@@ -712,49 +914,142 @@ export function buildNoteContextSpec({
   section('note-context-source', 'Source', source ? [source] : [])
   if (calendar) spec.push({ kind: 'widget', id: 'note-context-calendar', render: () => calendar })
   if (sections) spec.push(...sections)
-  section('note-context-collections', 'Collections', data.collections, true)
-  section('note-context-pages', 'Pages', data.pages, true)
-  section('note-context-tags', 'Tags', data.tags)
-  section('note-context-efforts', 'Efforts', data.efforts)
-  section('note-context-equipment', 'Equipment', data.equipment)
-  section('note-context-related', relatedLabel, data.related)
-  section('note-context-backlinks', 'Journal copies', data.backlinks)
+  section('note-context-collections', 'Notebooks', data.collections, {
+    dedupeContainers: true,
+    toPeekTarget: (item) => ({ kind: 'notebook', slug: item.id, title: item.title }),
+  })
+  section('note-context-schedules', 'Schedules', schedulesCombined)
+  section('note-context-pages', 'Pages', pagesFiltered)
+  section('note-context-tags', 'Tags', data.tags, {
+    toPeekTarget: parseTagPeekTarget,
+  })
+  section('note-context-efforts', 'Efforts', data.efforts, {
+    toPeekTarget: (item) => ({ kind: 'effort', slug: item.id, label: item.title }),
+  })
+  section('note-context-equipment', 'Equipment', data.equipment, {
+    toPeekTarget: (item) => ({ kind: 'equipment', slug: item.id, label: item.title }),
+  })
+  section('note-context-unrecognized', 'Unrecognized', data.unrecognized, {
+    toPeekTarget: (item) => ({ kind: 'unrecognized', term: item.title }),
+  })
+
+  // Related / Used in: cap at `relatedCap` (default 5) and append `View all N in Notes →` when count > cap.
+  const relatedFiltered = (data.related ?? []).filter(item => !currentPath || item.to !== currentPath)
+  if (relatedFiltered.length > 0) {
+    const totalCount = Math.max(data.relatedTotal ?? relatedFiltered.length, relatedFiltered.length)
+    const visible = relatedFiltered.slice(0, relatedCap)
+    const entries = visible.map(item =>
+      mapEntry('note-context-related', item, { kind: 'note', noteId: item.id, title: item.title }),
+    )
+    if (totalCount > relatedCap) {
+      entries.push({
+        kind: 'link' as const,
+        id: 'note-context-related:view-all',
+        label: `View all ${totalCount} in Notes →`,
+        to: relatedViewAllTo ?? data.relatedViewAllTo ?? ROUTE_PATTERNS.notes,
+      })
+    }
+    spec.push({
+      kind: 'section',
+      id: 'note-context-related',
+      label: relatedLabel,
+      entries,
+    })
+  }
+
+  section('note-context-backlinks', 'Journal copies', data.backlinks, {
+    toPeekTarget: (item) => ({ kind: 'note', noteId: item.id, title: item.title }),
+  })
   if (trailingSections) spec.push(...trailingSections)
   return spec
 }
 
 export interface NoteContextNavProps extends NoteContextSpecOptions {}
 
-/** Registers the note's relationships as the L2 sidebar content for the
- *  current route (replacing the listing panel). Renders nothing itself: the
- *  sidebar consumes the static MenuSpec. Links navigate to their canonical
- *  `to` — no history.back. */
+/** Publishes the note's relationships directly into L3 Connections via
+ *  `setL3Connections` so L2 stays steady as Zone Places + Saved Views. */
 export function NoteContextNav(props: NoteContextNavProps) {
-  const { setContextNav } = useNav()
+  const { setL3Connections, openPeek } = useNav()
   const location = useLocation()
   const calendarRef = useRef(props.calendar)
   calendarRef.current = props.calendar
   const hasCalendar = Boolean(props.calendar)
 
+  const resolvedPeekHandler = props.onPeekEntity ?? (props.peekMode ? openPeek : undefined)
+  const peekRef = useRef(resolvedPeekHandler)
+  peekRef.current = resolvedPeekHandler
+  const hasPeek = Boolean(resolvedPeekHandler)
+  const effectiveCurrentPath = props.currentPath ?? location.pathname
+
   const spec = useMemo(
     () =>
       buildNoteContextSpec({
         ...props,
+        currentPath: effectiveCurrentPath,
+        onPeekEntity: hasPeek ? (target) => peekRef.current?.(target) : undefined,
         calendar: hasCalendar ? <>{calendarRef.current}</> : undefined,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [props.data, props.up, props.source, props.relatedLabel, hasCalendar, props.sections, props.trailingSections],
+    [
+      props.data,
+      props.up,
+      props.source,
+      props.relatedLabel,
+      props.relatedCap,
+      props.relatedViewAllTo,
+      effectiveCurrentPath,
+      hasPeek,
+      hasCalendar,
+      props.sections,
+      props.trailingSections,
+    ],
+  )
+
+  const lastPublishedSigRef = useRef<string | null>(null)
+  const specSig = useMemo(
+    () =>
+      JSON.stringify([
+        location.pathname,
+        hasCalendar,
+        hasPeek,
+        spec.map((item) =>
+          item.kind !== 'section'
+            ? [item.kind, item.id, 'label' in item ? item.label : '']
+            : [
+                's',
+                item.id,
+                item.label,
+                item.entries.map((entry) =>
+                  entry.kind === 'link'
+                    ? [
+                        entry.id,
+                        entry.label,
+                        entry.to ?? '',
+                        entry.onSelect ? '1' : '0',
+                        entry.badge ?? '',
+                        entry.filterTo ?? '',
+                        entry.filterLabel ?? '',
+                      ]
+                    : [entry.kind, entry.id],
+                ),
+              ],
+        ),
+      ]),
+    [location.pathname, hasCalendar, hasPeek, spec],
   )
 
   useEffect(() => {
     return () => {
-      setContextNav(prev => (prev?.pathname === location.pathname ? undefined : prev))
+      lastPublishedSigRef.current = null
+      setL3Connections?.(undefined)
     }
-  }, [location.pathname, setContextNav])
+  }, [location.pathname, setL3Connections])
 
   useEffect(() => {
-    setContextNav({ pathname: location.pathname, spec })
-  }, [spec, location.pathname, setContextNav])
+    if (lastPublishedSigRef.current === specSig) return
+    lastPublishedSigRef.current = specSig
+    setL3Connections?.(spec)
+  }, [spec, specSig, setL3Connections])
 
   return null
 }

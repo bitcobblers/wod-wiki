@@ -85,14 +85,24 @@ export function buildDayBuckets(entries: readonly Entry[]): DayBuckets {
   const byDay = new Map<string, Entry[]>()
   const undated: Entry[] = []
   for (const entry of entries) {
-    const key = entry.date
-    if (!key) {
+    const rawDates =
+      entry.scheduledDates && entry.scheduledDates.length > 0
+        ? entry.scheduledDates
+        : entry.date
+          ? [entry.date]
+          : []
+    if (rawDates.length === 0) {
       undated.push(entry)
       continue
     }
-    const bucket = byDay.get(key)
-    if (bucket) bucket.push(entry)
-    else byDay.set(key, [entry])
+    const seen = new Set<string>()
+    for (const key of rawDates) {
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      const bucket = byDay.get(key)
+      if (bucket) bucket.push(entry)
+      else byDay.set(key, [entry])
+    }
   }
   return { byDay, undated }
 }

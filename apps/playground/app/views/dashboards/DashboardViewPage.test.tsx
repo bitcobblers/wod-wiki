@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:te
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
 import { useEffect, useState } from 'react';
 import type { QueryResult } from '@bitcobblers/wod-wiki-engine';
 import { parseDocument } from '@bitcobblers/wod-wiki-wql';
@@ -143,8 +144,11 @@ function installSpies(): void {
 
 import { notifyResultSaved } from '@/services/resultRecorder';
 import { DashboardViewPage } from './DashboardViewPage';
-import { NavContext, initialNavState } from '../../nav/NavContext';
+import { NavContext, NavProvider, initialNavState } from '../../nav/NavContext';
+import { SecondaryNav } from '../../nav/SecondaryNav';
 import type { NavItemL3 } from '../../nav/navTypes';
+import type { GroupedL3ActionItem } from '../../pages/shared/useNotePageNav';
+import { TEST_IDS } from '@/lib/testIds';
 
 afterEach(cleanup);
 afterEach(() => mock.restore());
@@ -157,12 +161,17 @@ beforeEach(() => {
 
 function renderPage(slug = 'stale-board') {
   return render(
-    <MemoryRouter initialEntries={[`/dashboard/${slug}`]} initialIndex={0}>
-      <Routes>
-        <Route path="/dashboard/:slug" element={<DashboardViewPage />} />
-        <Route path="/dashboards" element={<div data-testid="dashboards-landing" />} />
-      </Routes>
-    </MemoryRouter>,
+    <NuqsTestingAdapter>
+      <MemoryRouter initialEntries={[`/dashboard/${slug}`]} initialIndex={0}>
+        <NavProvider tree={[]}>
+          <Routes>
+            <Route path="/dashboard/:slug" element={<DashboardViewPage />} />
+            <Route path="/dashboards" element={<div data-testid="dashboards-landing" />} />
+          </Routes>
+          <SecondaryNav />
+        </NavProvider>
+      </MemoryRouter>
+    </NuqsTestingAdapter>,
   );
 }
 
@@ -171,7 +180,11 @@ describe('DashboardViewPage delete dashboard (late finding #7)', () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByText('Volume')).toBeDefined());
-    fireEvent.click(screen.getByTestId('dashboard-edit-toggle'));
+    const editBtn = await screen.findByTestId(TEST_IDS.DASHBOARD_EDIT_TOGGLE);
+    const header = document.querySelector('[data-page-sticky-boundary="true"]') as HTMLElement;
+    expect(within(header).queryByTestId(TEST_IDS.DASHBOARD_EDIT_TOGGLE)).toBeNull();
+    expect(within(header).getByTestId(TEST_IDS.PAGE_HEADER_PARENT_BREADCRUMB).getAttribute('href')).toBe('/dashboards');
+    fireEvent.click(editBtn);
 
     // Visible Delete affordance in the Edit-mode toolbar…
     fireEvent.click(screen.getByTestId('delete-dashboard-button'));
@@ -210,7 +223,7 @@ describe('DashboardViewPage stale-refresh transition', () => {
     await waitFor(() => expect(screen.getByText('Volume')).toBeDefined());
 
     // Enter edit mode, open the widget composer, type a draft title.
-    fireEvent.click(screen.getByTestId('dashboard-edit-toggle'));
+    fireEvent.click(await screen.findByTestId(TEST_IDS.DASHBOARD_EDIT_TOGGLE));
     fireEvent.click(await screen.findByRole('button', { name: 'Edit widget Volume' }));
 
     const titleInput = (await screen.findByTestId('widget-composer-title')) as HTMLInputElement;
@@ -244,7 +257,11 @@ describe('DashboardViewPage widget layers', () => {
   it('compiles, previews, and persists goal, baseline, and comparison series', async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText('Volume')).toBeDefined());
-    fireEvent.click(screen.getByTestId('dashboard-edit-toggle'));
+    const editBtn = await screen.findByTestId(TEST_IDS.DASHBOARD_EDIT_TOGGLE);
+    const header = document.querySelector('[data-page-sticky-boundary="true"]') as HTMLElement;
+    expect(within(header).queryByTestId(TEST_IDS.DASHBOARD_EDIT_TOGGLE)).toBeNull();
+    expect(within(header).getByTestId(TEST_IDS.PAGE_HEADER_PARENT_BREADCRUMB).getAttribute('href')).toBe('/dashboards');
+    fireEvent.click(editBtn);
     fireEvent.click(await screen.findByRole('button', { name: 'Edit widget Volume' }));
 
     fireEvent.change(await screen.findByTestId('widget-sentence-chart'), { target: { value: 'timeseries' } });
@@ -280,12 +297,12 @@ describe('DashboardViewPage widget layers', () => {
 });
 
 describe('DashboardViewPage L3 3-slot contract', () => {
-  it('publishes pure structural anchors to l3Items, Range/Units to analyticsControls, and board actions to l3Actions', async () => {
+  it('publishes pure structural anchors to l3Items, Range/Units to analyticsControls, and grouped board actions to l3Actions with a clean Cast-only sticky header', async () => {
     storedRaw = HEADING_RAW;
     const capturedOutline: NavItemL3[][] = [];
     let capturedAnalytics: unknown = null;
-    let capturedActions: Array<{ id: string; label: string }> = [];
-    render(
+    let capturedActions: GroupedL3ActionItem[] = [];
+    const { container } = render(
       <MemoryRouter initialEntries={['/dashboard/outline-board']} initialIndex={0}>
         <NavContext.Provider
           value={{
@@ -294,7 +311,7 @@ describe('DashboardViewPage L3 3-slot contract', () => {
             dispatch: () => {},
             l3Items: [],
             setL3Items: (items: NavItemL3[]) => capturedOutline.push(items),
-            setL3Actions: (actions) => { capturedActions = actions; },
+            setL3Actions: (actions) => { capturedActions = actions as GroupedL3ActionItem[]; },
             setAnalyticsControls: (controls) => { capturedAnalytics = controls; },
             secondarySpec: undefined,
             setSecondarySpec: () => {},
@@ -322,21 +339,71 @@ describe('DashboardViewPage L3 3-slot contract', () => {
       ]);
     });
 
+    // StickyPageHeader has `< Dashboards` parent breadcrumb and ZERO standalone Edit button.
+    const stickyHeader = container.querySelector('[data-page-sticky-boundary="true"]') as HTMLElement;
+    expect(within(stickyHeader).getByTestId(TEST_IDS.PAGE_HEADER_PARENT_BREADCRUMB).textContent).toContain('Dashboards');
+    expect(within(stickyHeader).queryByTestId(TEST_IDS.DASHBOARD_EDIT_TOGGLE)).toBeNull();
+
     // Slot 1 (Modifiers): Range + Units via AnalyticsControlsNav.
     expect(capturedAnalytics).toEqual({ showRange: true, showUnits: true });
 
-    // Slot 3 ("Actions"): Edit, Add widget (editable vault board), Delete dashboard, Copy link.
-    expect(capturedActions.map(a => a.id)).toEqual([
-      'helpful-edit',
-      'helpful-add-widget',
-      'helpful-delete-dashboard',
-      'helpful-copy-link',
+    // Slot 3 ("Actions"): grouped Edit (primary), Add widget (author), Copy link (share), Delete dashboard (danger).
+    expect(capturedActions.map((a) => [a.id, a.group])).toEqual([
+      ['helpful-edit', 'primary'],
+      ['helpful-add-widget', 'author'],
+      ['helpful-copy-link', 'share'],
+      ['helpful-delete-dashboard', 'danger'],
     ]);
 
     // Every heading entry targets a rendered anchor — no fake targets.
     for (const id of ['dashboard-title', 'note-h4', 'note-h5', 'note-h9']) {
       expect(globalThis.document.getElementById(id)).not.toBeNull();
     }
+  });
+
+  it('never exposes Edit in L3 Actions on read-only prebuilt boards and pins Clone to vault as primary', async () => {
+    spyOn(useDashboardsModule, 'useDashboardSource').mockImplementation(((slug: string | undefined, refreshKey?: number) => {
+      const base = useFakeDashboardSource(slug, refreshKey);
+      return { ...base, source: base.source ? { ...base.source, editable: false } : null };
+    }) as never);
+
+    let capturedActions: GroupedL3ActionItem[] = [];
+    render(
+      <MemoryRouter initialEntries={['/dashboard/stale-board']} initialIndex={0}>
+        <NavContext.Provider
+          value={{
+            tree: [],
+            navState: initialNavState,
+            dispatch: () => {},
+            l3Items: [],
+            setL3Items: () => {},
+            setL3Actions: (actions) => { capturedActions = actions as GroupedL3ActionItem[]; },
+            setAnalyticsControls: () => {},
+            secondarySpec: undefined,
+            setSecondarySpec: () => {},
+            scrollToSection: () => {},
+            registerScrollFn: () => {},
+            setContextNav: () => {},
+            setStreamControls: () => {},
+            openCreateJournal: () => {},
+            registerCreateJournal: () => {},
+          }}
+        >
+          <Routes>
+            <Route path="/dashboard/:slug" element={<DashboardViewPage />} />
+          </Routes>
+        </NavContext.Provider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText('Volume')).toBeDefined());
+    await waitFor(() => {
+      expect(capturedActions.some((a) => a.id === 'helpful-edit' || a.label === 'Edit')).toBe(false);
+      expect(capturedActions.map((a) => [a.id, a.group])).toEqual([
+        ['helpful-clone', 'primary'],
+        ['helpful-copy-link', 'share'],
+      ]);
+    });
   });
 });
 

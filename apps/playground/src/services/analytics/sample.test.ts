@@ -81,13 +81,12 @@ describe('sample analytics dataset', () => {
   it('emits wellness calc rollups so Recovery & Readiness renders out of the box (WW-028)', async () => {
     const query = queryService(service);
     // Stored unit per canonical key — what the Available Fields catalog and
-    // widget labels read. Values live in the unit's natural magnitude (hrv
-    // ms, sleep h); 'pts' matches the calc seeds' output units, which keeps
-    // the duration-dimension system-default policy (s) from mangling them.
+    // widget labels read. Values live in the unit's natural magnitude (`ms`
+    // for HRV, `h` for sleep), preserved by WQL's natural-scale policy.
     const expectations: Array<[string, string, number, number]> = [
       ['calc.readiness', 'pts', 40, 100],
-      ['calc.hrv', 'pts', 40, 90],
-      ['calc.sleep', 'pts', 5, 10],
+      ['calc.hrv', 'ms', 40, 90],
+      ['calc.sleep', 'h', 5, 10],
       ['calc.soreness', 'rating', 1, 7],
       ['calc.monotony', 'ratio', 1, 2],
       ['calc.acwr', 'ratio', 0.5, 1.6],

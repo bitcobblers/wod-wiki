@@ -1,4 +1,12 @@
-import type { BlockRevision, EventRecord, NoteBlock, Session } from '../types/storage';
+import type {
+  BlockRevision,
+  EventRecord,
+  NoteBlock,
+  NoteRevision,
+  NotebookLink,
+  ScheduleItem,
+  Session,
+} from '../types/storage';
 
 export interface NoteJsonlNote {
   id: string;
@@ -12,6 +20,7 @@ export interface NoteJsonlNote {
   tags?: string[];
   type?: string;
   sourceId?: string;
+  notebookIds?: string[];
 }
 
 export interface ParseLoadRecord {
@@ -31,6 +40,9 @@ export interface NoteTelemetryBundle {
   sessions: Session[];
   events: EventRecord[];
   revisions?: BlockRevision[];
+  noteRevisions?: NoteRevision[];
+  scheduleItems?: ScheduleItem[];
+  notebookLinks?: NotebookLink[];
   parses?: ParseLoadRecord[];
 }
 
@@ -49,6 +61,9 @@ type JsonlRecord =
   | ({ kind: 'session' } & Session)
   | ({ kind: 'event' } & EventRecord)
   | ({ kind: 'parse' } & ParseLoadRecord)
+  | ({ kind: 'note_revision' } & NoteRevision)
+  | ({ kind: 'schedule_item' } & ScheduleItem)
+  | ({ kind: 'notebook_link' } & NotebookLink)
   | RevisionJsonlRecord;
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -79,12 +94,17 @@ function validNote(value: Record<string, unknown>): boolean {
     && (value.blocks === undefined || isObject(value.blocks))
     && (value.tags === undefined || (Array.isArray(value.tags) && value.tags.every((tag) => typeof tag === 'string')))
     && (value.type === undefined || typeof value.type === 'string')
-    && (value.sourceId === undefined || typeof value.sourceId === 'string');
+    && (value.sourceId === undefined || typeof value.sourceId === 'string')
+    && (value.notebookIds === undefined || (Array.isArray(value.notebookIds) && value.notebookIds.every((id) => typeof id === 'string')));
 }
 
 function validSession(value: Record<string, unknown>): boolean {
   return isString(value.id) && isString(value.noteId) && isString(value.blockId)
     && isPositiveInteger(value.blockVersion) && isString(value.blockContentId)
+    && (value.noteSourceRevision === undefined || isPositiveInteger(value.noteSourceRevision))
+    && (value.sessionDate === undefined || isString(value.sessionDate))
+    && (value.scheduleItemId === undefined || isString(value.scheduleItemId))
+    && (value.pageId === undefined || typeof value.pageId === 'string')
     && hasValidOrigin(value.origin)
     && (value.status === undefined || value.status === 'in-progress' || value.status === 'completed')
     && (value.public === undefined || typeof value.public === 'boolean')
@@ -124,6 +144,36 @@ function validRevision(value: Record<string, unknown>): boolean {
     && (value.sport === undefined || typeof value.sport === 'string');
 }
 
+function validNoteRevision(value: Record<string, unknown>): boolean {
+  return isString(value.noteId) && isPositiveInteger(value.version)
+    && typeof value.title === 'string' && typeof value.rawContent === 'string'
+    && isObject(value.blocks) && isFiniteNumber(value.savedAt)
+    && (value.tags === undefined || (Array.isArray(value.tags) && value.tags.every((tag) => typeof tag === 'string')))
+    && (value.notebookIds === undefined || (Array.isArray(value.notebookIds) && value.notebookIds.every((id) => typeof id === 'string')))
+    && (value.type === undefined || typeof value.type === 'string');
+}
+
+function validScheduleItem(value: Record<string, unknown>): boolean {
+  return isString(value.id) && isString(value.date) && isString(value.noteId)
+    && isFiniteNumber(value.position)
+    && (value.status === 'planned' || value.status === 'completed' || value.status === 'skipped' || value.status === 'moved')
+    && isFiniteNumber(value.createdAt) && isFiniteNumber(value.updatedAt)
+    && (value.pageId === undefined || typeof value.pageId === 'string')
+    && (value.sourceNotebookId === undefined || typeof value.sourceNotebookId === 'string')
+    && (value.fallbackTitle === undefined || typeof value.fallbackTitle === 'string')
+    && (value.blockId === undefined || typeof value.blockId === 'string')
+    && (value.slot === undefined || typeof value.slot === 'string')
+    && (value.notes === undefined || typeof value.notes === 'string')
+    && (value.movedFromDate === undefined || typeof value.movedFromDate === 'string');
+}
+
+function validNotebookLink(value: Record<string, unknown>): boolean {
+  return isString(value.id) && isString(value.notebookId)
+    && (value.targetKind === 'note' || value.targetKind === 'session')
+    && isString(value.targetId) && isString(value.noteId)
+    && isFiniteNumber(value.createdAt);
+}
+
 function revisionToJsonl(revision: BlockRevision): RevisionJsonlRecord {
   const { kind: blockKind, ...identity } = revision;
   return { kind: 'revision', blockKind, ...identity };
@@ -132,7 +182,10 @@ function revisionToJsonl(revision: BlockRevision): RevisionJsonlRecord {
 export function serializeNoteBundleToJsonl(bundle: NoteTelemetryBundle): string {
   const records: JsonlRecord[] = [
     ...(bundle.note ? [{ kind: 'note' as const, ...bundle.note }] : []),
+    ...(bundle.noteRevisions ?? []).map((rev) => ({ kind: 'note_revision' as const, ...rev })),
     ...(bundle.revisions ?? []).map(revisionToJsonl),
+    ...(bundle.notebookLinks ?? []).map((link) => ({ kind: 'notebook_link' as const, ...link })),
+    ...(bundle.scheduleItems ?? []).map((item) => ({ kind: 'schedule_item' as const, ...item })),
     ...(bundle.parses ?? []).map((parse) => ({ kind: 'parse' as const, ...parse })),
     ...bundle.sessions.map((session) => ({ kind: 'session' as const, ...session })),
     ...bundle.events.map((event) => ({ kind: 'event' as const, ...event })),
@@ -145,7 +198,10 @@ export async function* streamNoteBundleToJsonlLines(
 ): AsyncGenerator<string, void, unknown> {
   for await (const bundle of bundles) {
     if (bundle.note) yield JSON.stringify({ kind: 'note', ...bundle.note });
+    for (const noteRevision of bundle.noteRevisions ?? []) yield JSON.stringify({ kind: 'note_revision', ...noteRevision });
     for (const revision of bundle.revisions ?? []) yield JSON.stringify(revisionToJsonl(revision));
+    for (const link of bundle.notebookLinks ?? []) yield JSON.stringify({ kind: 'notebook_link', ...link });
+    for (const item of bundle.scheduleItems ?? []) yield JSON.stringify({ kind: 'schedule_item', ...item });
     for (const parse of bundle.parses ?? []) yield JSON.stringify({ kind: 'parse', ...parse });
     for (const session of bundle.sessions) yield JSON.stringify({ kind: 'session', ...session });
     for (const event of bundle.events) yield JSON.stringify({ kind: 'event', ...event });
@@ -195,6 +251,27 @@ export function parseNoteBundleFromJsonl(jsonlText: string): NoteTelemetryBundle
         const { blockKind, ...identity } = value;
         const revision = { ...identity, kind: blockKind } as unknown as BlockRevision;
         (bundleFor(revision.noteId).revisions ??= []).push(revision);
+      } else if (kind === 'note_revision') {
+        if (!validNoteRevision(value)) {
+          errors.push(`Line ${lineNumber}: invalid note_revision record`);
+          continue;
+        }
+        const noteRevision = value as unknown as NoteRevision;
+        (bundleFor(noteRevision.noteId).noteRevisions ??= []).push(noteRevision);
+      } else if (kind === 'schedule_item') {
+        if (!validScheduleItem(value)) {
+          errors.push(`Line ${lineNumber}: invalid schedule_item record`);
+          continue;
+        }
+        const scheduleItem = value as unknown as ScheduleItem;
+        (bundleFor(scheduleItem.noteId).scheduleItems ??= []).push(scheduleItem);
+      } else if (kind === 'notebook_link') {
+        if (!validNotebookLink(value)) {
+          errors.push(`Line ${lineNumber}: invalid notebook_link record`);
+          continue;
+        }
+        const link = value as unknown as NotebookLink;
+        (bundleFor(link.noteId).notebookLinks ??= []).push(link);
       } else if (kind === 'session') {
         if (!validSession(value)) {
           errors.push(`Line ${lineNumber}: invalid session record`);

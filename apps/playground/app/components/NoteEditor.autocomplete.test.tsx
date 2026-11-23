@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { act } from 'react';
 import type { EditorView } from '@codemirror/view';
+import { deleteCharBackward } from '@codemirror/commands';
 import { completionStatus, currentCompletions, selectedCompletionIndex, setSelectedCompletion, startCompletion } from '@codemirror/autocomplete';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import { getAppEffortRegistry } from '@/services/effortRegistry';
+import { createInlineTagFromSlug } from '@/app/editor/noteEditorServices';
 import { InMemoryStorage, resetStorageForTesting, setStorageForTesting, storageService } from '@/hooks/useBrowserServices';
 import type { Tag } from '@/types/storage';
 
@@ -40,8 +42,8 @@ function editor(doc: string, cursor = doc.length, { preview = false }: { preview
   return view;
 }
 
-function key(view: EditorView, key: string) {
-  act(() => { fireEvent.keyDown(view.contentDOM, { key, code: key }); });
+function key(view: EditorView, key: string, opts: { shiftKey?: boolean } = {}) {
+  act(() => { fireEvent.keyDown(view.contentDOM, { key, code: key, shiftKey: Boolean(opts.shiftKey) }); });
 }
 
 async function complete(view: EditorView, label: string) {
@@ -113,13 +115,13 @@ describe('NoteEditor frontmatter keyboard behavior', () => {
   });
 
   it('preserves Enter for newlines inside workout blocks when typeahead is open without selection', async () => {
-    const doc = '```time\n10 \n```';
-    const pos = doc.indexOf('10 ') + 3;
+    const doc = '```time\n10\n```';
+    const pos = doc.indexOf('10') + 2;
     const view = editor(doc, pos);
     await complete(view, 'kg');
     expect(selectedCompletionIndex(view.state)).toBeNull();
     key(view, 'Enter');
-    expect(view.state.doc.toString()).toBe('```time\n10 \n\n```');
+    expect(view.state.doc.toString()).toBe('```time\n10\n\n```');
     expect(completionStatus(view.state)).toBeNull();
   });
 
@@ -259,5 +261,118 @@ describe('NoteEditor frontmatter raw editing reachability (preview on)', () => {
     } finally {
       storageService.getAllTags = realGetAllTags;
     }
+  });
+});
+
+describe('NoteEditor workout block indentation and lap-marker continuation', () => {
+  it('auto-indents rounds headers, preserves indent, resets on double-Enter, continues +/- markers, and supports Tab/Shift-Tab', () => {
+    const doc = '```time\n(3)\n```';
+    const view = editor(doc, doc.indexOf('(3)') + 3);
+
+    // 1. Enter after `(3)` -> auto-indented two spaces
+    key(view, 'Enter');
+    expect(view.state.doc.toString()).toBe('```time\n(3)\n  \n```');
+    expect(view.state.selection.main.head).toBe('```time\n(3)\n  '.length);
+
+    // 2. Type child line and press Enter -> preserves two-space indent
+    act(() => {
+      const pos = view.state.selection.main.head;
+      view.dispatch({ changes: { from: pos, insert: '10 Pull-ups' }, selection: { anchor: pos + 11 } });
+    });
+    key(view, 'Enter');
+    expect(view.state.doc.toString()).toBe('```time\n(3)\n  10 Pull-ups\n  \n```');
+
+    // 3. Double-Enter on blank indented line -> resets cursor to column 0 without trailing spaces
+    key(view, 'Enter');
+    expect(view.state.doc.toString()).toBe('```time\n(3)\n  10 Pull-ups\n\n\n```');
+    expect(view.state.selection.main.head).toBe('```time\n(3)\n  10 Pull-ups\n\n'.length);
+
+    // 4. `+` lap line continues `+ `, and Enter on empty `+ ` resets cleanly
+    act(() => {
+      const pos = view.state.selection.main.head;
+      view.dispatch({ changes: { from: pos, insert: '  + 5 Burpees' }, selection: { anchor: pos + 13 } });
+    });
+    key(view, 'Enter');
+    expect(view.state.doc.toString()).toBe('```time\n(3)\n  10 Pull-ups\n\n  + 5 Burpees\n  + \n```');
+    key(view, 'Enter');
+    expect(view.state.doc.toString()).toBe('```time\n(3)\n  10 Pull-ups\n\n  + 5 Burpees\n\n\n```');
+
+    // 5. `-` lap line continues `- `, and Tab / Shift-Tab indent & outdent when completion is closed
+    act(() => {
+      const pos = view.state.selection.main.head;
+      view.dispatch({ changes: { from: pos, insert: '- 10 Air Squats' }, selection: { anchor: pos + 15 } });
+    });
+    key(view, 'Enter');
+    expect(view.state.doc.toString()).toBe('```time\n(3)\n  10 Pull-ups\n\n  + 5 Burpees\n\n- 10 Air Squats\n- \n```');
+
+    key(view, 'Tab');
+    expect(view.state.doc.toString()).toBe('```time\n(3)\n  10 Pull-ups\n\n  + 5 Burpees\n\n- 10 Air Squats\n  - \n```');
+
+    key(view, 'Tab', { shiftKey: true });
+    expect(view.state.doc.toString()).toBe('```time\n(3)\n  10 Pull-ups\n\n  + 5 Burpees\n\n- 10 Air Squats\n- \n```');
+  });
+
+  it('triggers unit, effort, and tag typeahead when backspacing inside NoteEditor', async () => {
+    await getAppEffortRegistry().upsert({
+      id: 'eff-bs-back',
+      slug: 'back-squat',
+      label: 'Back Squat',
+      aliases: [],
+      baseAttributes: { met: 6, discipline: 'strength' },
+      registrySource: 'user',
+    });
+    await createInlineTagFromSlug('heavy');
+
+    // 1. Deleting unit back to number offers kg / reps / rounds.
+    const unitDoc = '```time\n10kg\n```';
+    const unitView = editor(unitDoc, unitDoc.indexOf('10kg') + 4);
+    act(() => { deleteCharBackward(unitView); });
+    act(() => { deleteCharBackward(unitView); });
+    await waitFor(() => {
+      expect(completionStatus(unitView.state)).toBe('active');
+      const labels = currentCompletions(unitView.state).map((o) => o.label);
+      expect(labels).toContain('kg');
+      expect(labels).toContain('reps');
+      expect(labels).toContain('rounds');
+    });
+
+    // 2. Deleting letters of effort re-opens from effort start and Tab restores full phrase.
+    const effortDoc = '```time\n10 Back Squat\n```';
+    const effortView = editor(effortDoc, effortDoc.indexOf('Squat') + 5);
+    act(() => { deleteCharBackward(effortView); });
+    await waitFor(() => {
+      expect(completionStatus(effortView.state)).toBe('active');
+      expect(currentCompletions(effortView.state).map((o) => o.label)).toContain('Back Squat');
+    });
+    key(effortView, 'Tab');
+    expect(effortView.state.doc.toString()).toBe('```time\n10 Back Squat\n```');
+
+    // 3. Backspacing space onto end of tag & deleting letters inside workout block opens tag completion.
+    const tagEndDoc = '```time\n10 Back Squat #heavy \n```';
+    const tagEndView = editor(tagEndDoc, tagEndDoc.indexOf('#heavy ') + 7);
+    act(() => { deleteCharBackward(tagEndView); });
+    await waitFor(() => {
+      expect(completionStatus(tagEndView.state)).toBe('active');
+      expect(currentCompletions(tagEndView.state).map((o) => o.label)).toContain('heavy');
+    });
+    act(() => { deleteCharBackward(tagEndView); });
+    await waitFor(() => {
+      expect(completionStatus(tagEndView.state)).toBe('active');
+      expect(currentCompletions(tagEndView.state).map((o) => o.label)).toContain('heavy');
+    });
+
+    // 4. Backspacing space onto end of Markdown inline prose tag & deleting letters opens #tag completion.
+    const proseDoc = 'See #heavy ';
+    const proseView = editor(proseDoc, proseDoc.length);
+    act(() => { deleteCharBackward(proseView); });
+    await waitFor(() => {
+      expect(completionStatus(proseView.state)).toBe('active');
+      expect(currentCompletions(proseView.state).map((o) => o.label)).toContain('#heavy');
+    });
+    act(() => { deleteCharBackward(proseView); });
+    await waitFor(() => {
+      expect(completionStatus(proseView.state)).toBe('active');
+      expect(currentCompletions(proseView.state).map((o) => o.label)).toContain('#heavy');
+    });
   });
 });

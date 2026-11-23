@@ -226,7 +226,7 @@ export function PropertyOverrideSheet({
                     <div className="font-mono text-[10px] text-muted-foreground">notebook/{nb.slug}</div>
                   </div>
                   {nb.hasExistingOverride && (
-                    <span className="rounded-full bg-primary/15 text-primary px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider">
+                    <span className="rounded-full bg-primary/10 text-primary px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wider">
                       Overridden
                     </span>
                   )}

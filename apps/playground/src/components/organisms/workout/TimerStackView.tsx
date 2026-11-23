@@ -358,9 +358,11 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                         clipping them. */}
                     <div className={`relative flex w-full items-center justify-center ${dense ? 'min-h-12 flex-1' : 'min-h-12'}`}>
                         <button
+                            type="button"
                             onClick={isPaused ? handleStart : isRunning ? handlePause : handleStart}
                             {...(getFocusProps ? getFocusProps('timer-main') : {})}
                             className={`tv-focusable relative z-10 flex w-full items-center justify-center focus:outline-none focus-visible:outline-2 focus-visible:outline-ring group ${dense ? 'min-h-[48px] py-1' : 'min-h-[48px]'}`}
+                            aria-label={primaryControlLabel}
                             title={primaryControlLabel}
                         >
                             <FitArea>
@@ -424,13 +426,16 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                 {/* Stop Button */}
                 <div className={`flex flex-col items-center ${dense ? 'gap-1' : 'gap-2'}`}>
                     <button
+                        type="button"
                         onClick={handleStop}
                         {...(getFocusProps ? getFocusProps('btn-stop') : {})}
-                        className={`tv-focusable group flex items-center justify-center rounded-full border transition-all active:scale-95 ${dense ? 'w-12 h-12 bg-muted border-border' : 'w-16 h-16 bg-surface-container-low border-outline-variant hover:bg-surface-variant shadow-sm'}`}
+                        className={`tv-focusable group flex items-center justify-center rounded-full border transition-all active:scale-95 ${dense ? 'min-h-12 min-w-12 gap-1.5 px-3 bg-muted border-border' : 'w-16 h-16 bg-surface-container-low border-outline-variant hover:bg-surface-variant shadow-sm'}`}
+                        aria-label="Stop Session"
                         title="Stop Session"
                         data-testid={TEST_IDS.TIMER_STOP_SESSION}
                     >
-                        <Square className={`${dense ? 'w-5 h-5' : 'w-7 h-7'} text-foreground group-hover:text-destructive transition-colors`} />
+                        <Square aria-hidden="true" className={`${dense ? 'w-4 h-4' : 'w-7 h-7'} shrink-0 text-foreground group-hover:text-destructive transition-colors`} />
+                        {dense && <span className="text-xs font-medium">Stop</span>}
                     </button>
                     {!dense && <span className="font-mono text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Stop</span>}
                 </div>
@@ -438,18 +443,21 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                 {/* Pause/Resume Button */}
                 <div className={`flex flex-col items-center ${dense ? 'gap-1' : 'gap-2'}`}>
                     <button
+                        type="button"
                         onClick={isPaused ? handleStart : isRunning ? handlePause : handleStart}
                         {...(getFocusProps ? getFocusProps('btn-pause') : {})}
-                        className={`tv-focusable group flex items-center justify-center rounded-full transition-all active:scale-95 ${dense ? 'w-12 h-12 bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'w-20 h-20 bg-surface-container-low border border-outline-variant hover:bg-surface-variant shadow-sm'}`}
+                        className={`tv-focusable group flex items-center justify-center rounded-full transition-all active:scale-95 ${dense ? 'min-h-12 min-w-12 gap-1.5 px-3.5 bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'w-20 h-20 bg-surface-container-low border border-outline-variant hover:bg-surface-variant shadow-sm'}`}
+                        aria-label={primaryControlLabel}
                         title={primaryControlLabel}
                         data-testid={TEST_IDS.TIMER_PLAY_PAUSE}
                     >
                         {isPaused
-                            ? <Play className={`${dense ? 'w-6 h-6 text-primary-foreground ml-0.5' : 'w-8 h-8 text-foreground ml-1'}`} />
+                            ? <Play aria-hidden="true" className={`${dense ? 'w-4 h-4 text-primary-foreground' : 'w-8 h-8 text-foreground ml-1'} shrink-0`} />
                             : isRunning
-                            ? <Pause className={`${dense ? 'w-6 h-6 text-primary-foreground' : 'w-8 h-8 text-foreground'}`} />
-                            : <Play className={`${dense ? 'w-6 h-6 text-primary-foreground ml-0.5' : 'w-8 h-8 text-foreground ml-1'}`} />
+                            ? <Pause aria-hidden="true" className={`${dense ? 'w-4 h-4 text-primary-foreground' : 'w-8 h-8 text-foreground'} shrink-0`} />
+                            : <Play aria-hidden="true" className={`${dense ? 'w-4 h-4 text-primary-foreground' : 'w-8 h-8 text-foreground ml-1'} shrink-0`} />
                         }
+                        {dense && <span className="text-xs font-semibold">{primaryControlLabel}</span>}
                     </button>
                     {!dense && <span className="font-mono text-[10px] font-medium uppercase tracking-widest text-muted-foreground">{primaryControlLabel}</span>}
                 </div>
@@ -458,16 +466,18 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                 {compact ? (
                     /* Mobile: wide pill button */
                     <button
+                        type="button"
                         onClick={handleNext}
                         disabled={isNextDisabled}
                         aria-disabled={isNextDisabled ? 'true' : undefined}
                         {...(getFocusProps ? getFocusProps('btn-next') : {})}
-                        className={`tv-focusable ${tight ? 'h-12 flex-none px-3' : 'flex-1 h-14'} rounded-2xl flex items-center justify-center gap-2 transition-transform shadow-lg ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary text-primary-foreground shadow-primary/20 active:scale-[0.98]'}`}
+                        className={`tv-focusable ${tight ? 'min-h-12 flex-none px-3' : 'flex-1 min-h-14'} rounded-2xl flex items-center justify-center gap-2 transition-transform shadow-lg ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary text-primary-foreground shadow-primary/20 active:scale-[0.98]'}`}
+                        aria-label="Next Block"
                         title="Next Block"
                         data-testid={TEST_IDS.TIMER_NEXT_BLOCK}
                     >
                         <span className="text-base font-bold tracking-widest uppercase">Next</span>
-                        <SkipForward className="w-5 h-5" />
+                        <SkipForward aria-hidden="true" className="w-5 h-5" />
                     </button>
                 ) : (
                     /* Desktop: circular button with icon above a small NEXT
@@ -482,16 +492,18 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                             </p>
                         )}
                         <button
+                            type="button"
                             onClick={handleNext}
                             disabled={isNextDisabled}
                             aria-disabled={isNextDisabled ? 'true' : undefined}
                             {...(getFocusProps ? getFocusProps('btn-next') : {})}
-                            className={`tv-focusable flex flex-col items-center justify-center gap-1 rounded-full transition-all shadow-xl ${dense ? 'w-12 h-12' : 'w-20 h-20'} ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary text-primary-foreground hover:opacity-95 active:scale-90'}`}
+                            className={`tv-focusable flex items-center justify-center gap-1 rounded-full transition-all shadow-xl ${dense ? 'min-h-12 min-w-12 px-3.5' : 'flex-col w-20 h-20'} ${isNextDisabled ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60' : 'bg-primary text-primary-foreground hover:opacity-95 active:scale-90'}`}
+                            aria-label="Next Block"
                             title="Next Block"
                             data-testid={TEST_IDS.TIMER_NEXT_BLOCK}
                         >
-                            <SkipForward className={`font-bold ${dense ? 'w-5 h-5' : 'w-6 h-6'}`} />
-                            {!dense && <span className="text-[10px] font-bold uppercase tracking-widest leading-none">Next</span>}
+                            <SkipForward aria-hidden="true" className={`font-bold shrink-0 ${dense ? 'w-4 h-4' : 'w-6 h-6'}`} />
+                            <span className={dense ? 'text-xs font-semibold uppercase tracking-wider leading-none' : 'text-[10px] font-bold uppercase tracking-widest leading-none'}>Next</span>
                         </button>
                     </div>
                 )}

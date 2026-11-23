@@ -22,13 +22,13 @@
 
 import { useMemo } from 'react'
 import {
-  PlayIcon,
-  ShareIcon,
-  PlusIcon,
-  CalendarDaysIcon,
-  PencilSquareIcon,
-  ArrowDownTrayIcon,
-} from '@heroicons/react/20/solid'
+  Play,
+  Share2,
+  Plus,
+  Calendar,
+  ExternalLink,
+  ArrowDownToLine,
+} from 'lucide-react'
 import type { ScriptCommand } from '@/components/Editor/overlays/ScriptCommand'
 import type { ScriptBlock } from '@/components/Editor/types'
 import type { PageMode } from '@/types/content-type'
@@ -65,7 +65,7 @@ export function useScriptBlockCommands(
       cmds.push({
         id: 'play',
         label: 'Play',
-        icon: <PlayIcon className="h-3 w-3 fill-current" />,
+        icon: <Play className="size-3.5 fill-current" />,
         primary: true,
         onClick: handlers.onPlay,
       })
@@ -84,7 +84,7 @@ export function useScriptBlockCommands(
       cmds.push({
         id: 'log',
         label: 'Log',
-        icon: <ArrowDownTrayIcon className="h-3 w-3" />,
+        icon: <ArrowDownToLine className="size-3.5" />,
         primary: true,
         onClick: handlers.onLog,
       })
@@ -98,7 +98,7 @@ export function useScriptBlockCommands(
       cmds.push({
         id: 'open-in-playground',
         label: 'Playground',
-        icon: <PencilSquareIcon className="h-3 w-3" />,
+        icon: <ExternalLink className="size-3.5" />,
         onClick: handlers.onOpenInPlayground,
       })
     }
@@ -108,7 +108,7 @@ export function useScriptBlockCommands(
       cmds.push({
         id: 'share',
         label: 'Share',
-        icon: <ShareIcon className="h-3 w-3" />,
+        icon: <Share2 className="size-3.5" />,
         onClick: handlers.onShare,
       })
     }
@@ -118,7 +118,7 @@ export function useScriptBlockCommands(
       cmds.push({
         id: 'add-to-today',
         label: 'Today',
-        icon: <PlusIcon className="h-3 w-3" />,
+        icon: <Plus className="size-3.5" />,
         onClick: handlers.onAddToToday,
       })
     }
@@ -130,7 +130,7 @@ export function useScriptBlockCommands(
       cmds.push({
         id: 'schedule',
         label: 'Schedule',
-        icon: <CalendarDaysIcon className="h-3 w-3" />,
+        icon: <Calendar className="size-3.5" />,
         onClick: handlers.onSchedule,
       })
     }

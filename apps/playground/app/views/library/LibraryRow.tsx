@@ -6,9 +6,11 @@
  * The Add-to-today action is a creation flow (not navigation); it is wired
  * in the Library page, not the row.
  */
-import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowUpRight, FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Wrench, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Loader2, Copy, Share2, Pencil, Trash2, MoreHorizontal } from 'lucide-react'
+import { ArrowUpRight, FileTextIcon, PlayIcon, BarChart3Icon, PlusIcon, Activity, Trophy, Layers, Dumbbell, Rss, LayoutDashboard, Flame, FlaskConical, BookOpen, FolderInput, Tag as TagIcon, Globe, Lock, CloudDownload, Loader2, Copy, Share2, Pencil, Trash2, MoreHorizontal, ShieldCheck } from 'lucide-react'
+import { getNotebookCapabilities, isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
+import { resolveFeedDisplayLabel } from '@/components/molecules/PublicationPill'
+import { feedSourceById } from '@/services/feed/feedSources'
 import {
   Menu,
   MenuContent,
@@ -19,7 +21,6 @@ import {
   MenuTrigger,
 } from '@bitcobblers/wod-wiki-ui/primitives'
 import { TEST_IDS } from '@/lib/testIds'
-import { useIsMobile } from '../../hooks/useIsMobile'
 import type { Entry } from '../../lib/entryMapper'
 import { entryOpenHref, entryCompareHref, entryCanAddToToday, entryNotebookHref } from '../../lib/entryActions'
 import { entryCanRun } from '../../lib/entryRun'
@@ -65,16 +66,19 @@ export interface LibraryRowProps {
   onTogglePublicNotebook?: (entry: Entry) => void
   onEditNotebook?: (entry: Entry) => void
   onDeleteNotebook?: (entry: Entry) => void
+  /** Multi-select checkbox support (used for Notebook batch scheduling). */
+  selected?: boolean
+  onToggleSelect?: (entry: Entry) => void
 }
 
 const KIND_ICON: Record<Entry['kind'], React.FC<{ className?: string }>> = {
   note: FileTextIcon,
-  effort: Dumbbell,
+  effort: Flame,
   result: Trophy,
   segment: Layers,
   event: Activity,
   dashboard: LayoutDashboard,
-  equipment: Wrench,
+  equipment: Dumbbell,
   tag: TagIcon,
   feed: Rss,
   notebook: BookOpen,
@@ -94,16 +98,16 @@ const KIND_LABEL: Record<Entry['kind'], string> = {
 }
 
 const KIND_TONE: Record<Entry['kind'], string> = {
-  note: 'bg-primary/10 text-primary group-hover:bg-primary/20',
-  effort: 'bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500/20',
-  result: 'bg-sky-500/10 text-sky-600 group-hover:bg-sky-500/20',
-  segment: 'bg-indigo-500/10 text-indigo-600 group-hover:bg-indigo-500/20',
-  event: 'bg-indigo-500/10 text-indigo-600 group-hover:bg-indigo-500/20',
-  dashboard: 'bg-cyan-500/10 text-cyan-600 group-hover:bg-cyan-500/20',
-  equipment: 'bg-orange-500/10 text-orange-600 group-hover:bg-orange-500/20',
-  tag: 'bg-violet-500/10 text-violet-600 group-hover:bg-violet-500/20',
-  feed: 'bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20',
-  notebook: 'bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500/20',
+  note: 'bg-primary/15 text-primary group-hover:bg-primary/20',
+  effort: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 group-hover:bg-emerald-500/20',
+  result: 'bg-sky-500/15 text-sky-800 dark:text-sky-200 group-hover:bg-sky-500/20',
+  segment: 'bg-indigo-500/15 text-indigo-800 dark:text-indigo-200 group-hover:bg-indigo-500/20',
+  event: 'bg-indigo-500/15 text-indigo-800 dark:text-indigo-200 group-hover:bg-indigo-500/20',
+  dashboard: 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-200 group-hover:bg-cyan-500/20',
+  equipment: 'bg-orange-500/15 text-orange-800 dark:text-orange-200 group-hover:bg-orange-500/20',
+  tag: 'bg-violet-500/15 text-violet-800 dark:text-violet-200 group-hover:bg-violet-500/20',
+  feed: 'bg-amber-500/15 text-amber-900 dark:text-amber-200 group-hover:bg-amber-500/20',
+  notebook: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 group-hover:bg-emerald-500/20',
 }
 
 export function LibraryRow({
@@ -124,6 +128,8 @@ export function LibraryRow({
   onTogglePublicNotebook,
   onEditNotebook,
   onDeleteNotebook,
+  selected,
+  onToggleSelect,
 }: LibraryRowProps) {
   const navigate = useNavigate()
   // Annotation 4 — plain `note` kind conflates journal/guide/playground and
@@ -132,18 +138,51 @@ export function LibraryRow({
   // Distinct kinds (dashboard/effort/…) resolve through the records directly.
   const noteCatalog = entry.kind === 'note' ? entry.sourceNotebook : undefined
   const isNotebookNote = !!noteCatalog && noteCatalog !== 'journal' && noteCatalog !== 'playground' && noteCatalog !== 'guides'
+  const ownershipKind = entry.ownership?.kind
+  const isArchivedNote = entry.kind === 'note' && ownershipKind === 'feed-archived'
+  const isSystemNote = entry.kind === 'note' && (
+    ownershipKind === 'system'
+    || noteCatalog === 'guides'
+    || (!!noteCatalog && isSystemReadOnlyNotebook(noteCatalog))
+  )
+  const isFeedNote = entry.kind === 'note' && !isArchivedNote && !isSystemNote && (
+    ownershipKind === 'feed'
+    || entry.isRemotePreview === true
+    || (entry.editable === false && !!entry.feedId && entry.feedId !== 'local')
+  )
+  const isUserPersonalNotebookNote = entry.kind === 'note' && isNotebookNote && !isArchivedNote && !isSystemNote && !isFeedNote
+  const noteFeedLabel = isFeedNote || isArchivedNote
+    ? resolveFeedDisplayLabel(
+        entry.ownership?.feedSourceId ?? (entry.feedId !== 'local' && entry.feedId !== 'core' ? entry.feedId : undefined),
+        (id) => feedSourceById(id)?.label,
+      )
+    : undefined
+
   const Icon =
     noteCatalog === 'playground' ? FlaskConical
-    : noteCatalog === 'guides' ? BookOpen
-    : isNotebookNote ? Rss
+    : isArchivedNote ? ShieldCheck
+    : isSystemNote ? BookOpen
+    : isFeedNote ? Rss
+    : isUserPersonalNotebookNote ? FileTextIcon
     : KIND_ICON[entry.kind]
+
   const kindLabel =
     noteCatalog === 'playground' ? 'Playground'
-    : noteCatalog === 'guides' ? 'Guide'
-    : isNotebookNote ? 'Notebook'
+    : isArchivedNote ? (
+      entry.ownership?.upstreamStatus === 'removed' || entry.ownership?.upstreamStatus === 'unsubscribed'
+        ? 'Upstream Removed'
+        : 'Saved Copy'
+    )
+    : isSystemNote ? (noteCatalog === 'guides' ? 'Guide' : 'System')
+    : isFeedNote ? (noteFeedLabel ?? 'Feed')
+    : isUserPersonalNotebookNote ? 'My Note'
     : KIND_LABEL[entry.kind]
-  const kindTone = isNotebookNote
-    ? 'bg-amber-500/10 text-amber-600 group-hover:bg-amber-500/20'
+
+  const kindTone =
+    isArchivedNote ? 'bg-amber-500/15 text-amber-900 dark:text-amber-200 group-hover:bg-amber-500/20'
+    : isSystemNote ? 'bg-muted text-foreground group-hover:bg-muted/80'
+    : isFeedNote ? 'bg-sky-500/15 text-sky-800 dark:text-sky-200 group-hover:bg-sky-500/20'
+    : isUserPersonalNotebookNote ? 'bg-primary/15 text-primary group-hover:bg-primary/20'
     : KIND_TONE[entry.kind]
   const isPrimary = tone === 'primary'
   const notebookHref = entryNotebookHref(entry)
@@ -176,6 +215,16 @@ export function LibraryRow({
       }`}
       data-testid={`library-row-${entry.kind}`}
     >
+      {onToggleSelect && entry.kind === 'note' && (
+        <input
+          type="checkbox"
+          checked={Boolean(selected)}
+          onChange={() => onToggleSelect(entry)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select ${entry.title || 'note'} for batch scheduling`}
+          className="size-4 shrink-0 rounded border-input accent-primary"
+        />
+      )}
       {leading}
       <div className={`flex-shrink-0 size-9 rounded-xl flex items-center justify-center transition-colors ${kindTone}`}>
         <Icon className="size-4" />
@@ -184,61 +233,118 @@ export function LibraryRow({
         {/* Title first: on narrow screens the secondary badges wrap under the
             title instead of squeezing the truncated title out. */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h3 className="text-sm font-bold text-foreground min-w-0 basis-full sm:basis-auto sm:truncate">{entry.title}</h3>
+          <h3 className="text-sm font-bold text-foreground min-w-0 basis-full sm:basis-auto sm:truncate">
+            <Link
+              to={entryOpenHref(entry)}
+              onClick={e => e.stopPropagation()}
+              onKeyDown={e => e.stopPropagation()}
+              className="hover:underline focus-visible:outline-none focus-visible:underline"
+            >
+              {entry.title}
+            </Link>
+          </h3>
           {entry.block && (
             <span
-              className="text-[9px] font-black uppercase tracking-widest text-sky-600 border border-sky-500/40 bg-sky-500/10 rounded-full px-1.5 py-0.5"
+              className="text-[11px] font-bold uppercase tracking-wider text-sky-800 dark:text-sky-200 border border-sky-700/30 dark:border-sky-400/30 bg-sky-500/15 rounded-full px-2 py-0.5"
               data-testid="library-row-block-type"
             >
               {entry.block.dataType}
             </span>
           )}
-          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground border border-border rounded-full px-1.5 py-0.5">
+          <span
+            data-ownership={entry.kind === 'note' ? (isArchivedNote ? 'feed-archived' : isFeedNote ? 'feed' : isSystemNote ? 'system' : 'user') : undefined}
+            className={`text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border ${
+              isArchivedNote
+                ? 'border-amber-700/30 bg-amber-500/15 text-amber-900 dark:border-amber-400/30 dark:text-amber-200'
+                : isFeedNote
+                  ? 'border-sky-700/30 bg-sky-500/15 text-sky-800 dark:border-sky-400/30 dark:text-sky-200'
+                  : 'text-foreground border-border bg-muted/50'
+            }`}
+          >
             {kindLabel}
           </span>
+          {entry.kind === 'note' &&
+            entry.ownership?.kind === 'user' &&
+            Array.isArray(entry.notebookIds) &&
+            entry.notebookIds.length === 0 && (
+              <span
+                className="text-[10px] font-semibold uppercase tracking-wider rounded-full border border-dashed border-border px-2 py-0.5 text-muted-foreground"
+                title="Not assigned to any Notebook"
+              >
+                Unfiled
+              </span>
+            )}
+          {entry.kind === 'note' && (entry.scheduleCount ?? 0) > 0 && (
+            <span
+              className="text-[10px] font-semibold rounded-full bg-primary/10 px-2 py-0.5 text-primary"
+              title={`Scheduled ${entry.scheduleCount} time${entry.scheduleCount === 1 ? '' : 's'}`}
+            >
+              Scheduled ×{entry.scheduleCount}
+            </span>
+          )}
+          {entry.kind === 'note' && (entry.sessionCount ?? 0) > 0 && (
+            <span
+              className="text-[10px] font-semibold rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-700 dark:text-emerald-300"
+              title={`${entry.sessionCount} logged session${entry.sessionCount === 1 ? '' : 's'}`}
+            >
+              {entry.sessionCount} run{entry.sessionCount === 1 ? '' : 's'}
+            </span>
+          )}
           {entry.kind === 'result' && entry.execution?.rpe != null && (
-            <span className="text-[10px] font-mono font-semibold tabular-nums rounded-full border border-border bg-muted/50 px-2 py-0.5 text-foreground">
+            <span className="text-[11px] font-mono font-semibold tabular-nums rounded-full border border-border bg-muted/60 px-2 py-0.5 text-foreground">
               RPE {entry.execution.rpe}/10
             </span>
           )}
           {entry.kind === 'result' && (entry.execution?.prCount ?? 0) > 0 && (
-            <span className="text-[10px] font-bold uppercase tracking-wider rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-200">
+            <span className="text-[11px] font-bold uppercase tracking-wider rounded-full border border-amber-400 bg-amber-100 px-2 py-0.5 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-200">
               {entry.execution!.prCount} PR
             </span>
           )}
           {(entry.kind === 'feed' || entry.kind === 'notebook') && entry.feedId !== 'local' && entry.feedId !== 'core' && (
             <span
-              className={`text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border ${
+              className={`text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border ${
                 entry.subscribed
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
-                  : 'border-border bg-muted text-muted-foreground'
+                  ? 'border-emerald-700/30 dark:border-emerald-400/30 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                  : 'border-border bg-muted text-foreground'
               }`}
               data-testid={`library-row-sub-status-${entry.sourceNote}`}
             >
               {entry.subscribed ? 'Subscribed' : 'Unsubscribed'}
             </span>
           )}
-          {entry.kind === 'notebook' && entry.feedId === 'local' && (
-            <span
-              className={`inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border ${
-                entry.isPublic
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
-                  : 'border-border bg-muted/60 text-muted-foreground'
-              }`}
-              data-testid={`library-row-visibility-${entry.sourceNotebook}`}
-            >
-              {entry.isPublic ? <Globe className="size-2.5" /> : <Lock className="size-2.5" />}
-              {entry.isPublic ? 'Public' : 'Private'}
-            </span>
-          )}
+          {entry.kind === 'notebook' && entry.feedId === 'local' && (() => {
+            const caps = getNotebookCapabilities({
+              slug: entry.sourceNotebook,
+              notebookId: entry.notebookId,
+              feedId: entry.feedId,
+            })
+            return caps.isSystem ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border border-border bg-muted text-foreground">
+                <BookOpen className="size-3" aria-hidden="true" />
+                System
+              </span>
+            ) : (
+              <span
+                className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border ${
+                  entry.isPublic
+                    ? 'border-emerald-700/30 dark:border-emerald-400/30 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                    : 'border-border bg-muted text-foreground'
+                }`}
+                data-testid={`library-row-visibility-${entry.sourceNotebook}`}
+              >
+                {entry.isPublic ? <Globe className="size-3" /> : <Lock className="size-3" />}
+                {entry.isPublic ? 'Public' : 'Private'}
+              </span>
+            )
+          })()}
           {entry.kind === 'feed' && entry.unpublishedChanges && (
-            <span className="text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border border-amber-500/40 bg-amber-500/10 text-amber-600">
+            <span className="text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border border-amber-700/30 dark:border-amber-400/30 bg-amber-500/15 text-amber-900 dark:text-amber-200">
               Unpublished changes
             </span>
           )}
           {entry.isRemotePreview && (
-            <span className="text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border border-sky-500/40 bg-sky-500/10 text-sky-600">
-              Remote Preview
+            <span className="text-[11px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 border border-sky-700/30 dark:border-sky-400/30 bg-sky-500/15 text-sky-800 dark:text-sky-200">
+              Index Preview
             </span>
           )}
           {entry.execution?.effortSlug && (
@@ -247,7 +353,7 @@ export function LibraryRow({
               onClick={e => e.stopPropagation()}
               onKeyDown={e => e.stopPropagation()}
               data-testid="library-row-effort-link"
-              className="text-[9px] font-bold tracking-wide text-primary/80 hover:text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-full px-2 py-0.5 transition-colors shrink-0"
+              className="text-[11px] font-semibold tracking-wide text-primary bg-primary/15 hover:bg-primary/20 border border-primary/25 rounded-full px-2 py-0.5 transition-colors shrink-0"
               title={`View movement history for ${entry.detail ?? entry.execution.effortSlug}`}
             >
               {entry.detail ?? entry.execution.effortSlug}
@@ -258,7 +364,7 @@ export function LibraryRow({
               <Link
                 to={openHref}
                 data-testid="library-row-details-link"
-                className="text-[9px] font-bold tracking-wide text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border rounded-full px-2 py-0.5 transition-colors"
+                className="text-[11px] font-semibold tracking-wide text-foreground bg-muted hover:bg-muted/80 border border-border rounded-full px-2 py-0.5 transition-colors"
                 title="View notebook details"
               >
                 Details
@@ -266,7 +372,7 @@ export function LibraryRow({
               <Link
                 to={notebookHref}
                 data-testid="library-row-feed-link"
-                className="text-[9px] font-bold tracking-wide text-primary/80 hover:text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-full px-2 py-0.5 transition-colors"
+                className="text-[11px] font-semibold tracking-wide text-primary bg-primary/15 hover:bg-primary/20 border border-primary/25 rounded-full px-2 py-0.5 transition-colors"
                 title="View feed"
               >
                 Feed
@@ -274,7 +380,7 @@ export function LibraryRow({
             </div>
           )}
           {entry.subtitle && showSubtitle && (
-            <span className="text-[10px] text-muted-foreground truncate">{entry.subtitle}</span>
+            <span className="text-[11px] text-muted-foreground truncate">{entry.subtitle}</span>
           )}
         </div>
         {showDetail && (
@@ -296,7 +402,7 @@ export function LibraryRow({
             : undefined
         )
         return effectiveDateLabel && showDate ? (
-          <span className="flex-shrink-0 text-[10px] text-muted-foreground tabular-nums self-start sm:self-auto pt-0.5 sm:pt-0" data-testid="library-row-date">
+          <span className="flex-shrink-0 text-[11px] text-muted-foreground tabular-nums self-start sm:self-auto pt-0.5 sm:pt-0" data-testid="library-row-date">
             {effectiveDateLabel}
           </span>
         ) : null
@@ -335,12 +441,13 @@ interface RowActionsProps {
   onTogglePublicNotebook?: (entry: Entry) => void
   onEditNotebook?: (entry: Entry) => void
   onDeleteNotebook?: (entry: Entry) => void
+  /** Multi-select checkbox support (used for Notebook batch scheduling). */
+  selected?: boolean
+  onToggleSelect?: (entry: Entry) => void
 }
 
 function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook, onToggleSubscribe, subscribing, onCloneRemote, onPublishFeed, onTogglePublicNotebook, onEditNotebook, onDeleteNotebook }: RowActionsProps) {
   const navigate = useNavigate()
-  const isMobile = useIsMobile()
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const compareHref = entryCompareHref(entry)
   const notebookHref = entryNotebookHref(entry)
   const canAdd = entryCanAddToToday(entry) && !!onAddToToday
@@ -353,92 +460,107 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
     && (entry.editable ?? true)
     && targets.length > 0
 
-  if (isMobile) {
-    return (
-      <div className="flex items-center gap-1.5 ml-auto shrink-0" onClick={e => e.stopPropagation()}>
-        {(entry.kind === 'feed' || entry.kind === 'notebook') && entry.feedId !== 'local' && entry.feedId !== 'core' && onToggleSubscribe && (
-          <button
-            type="button"
-            disabled={Boolean(subscribing)}
-            aria-busy={Boolean(subscribing)}
-            onClick={() => onToggleSubscribe(entry)}
-            data-testid={entry.subscribed ? `row-unsubscribe-${entry.sourceNote}` : `row-subscribe-${entry.sourceNote}`}
-            className={`min-h-11 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-60 disabled:cursor-wait ${
-              entry.subscribed
-                ? 'border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40'
-                : 'bg-primary text-primary-foreground hover:bg-primary/90'
-            }`}
-          >
-            {subscribing ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <CloudDownload className="size-3.5" aria-hidden="true" />}
-            <span>{subscribing ? (entry.subscribed ? 'Unsubscribing…' : 'Subscribing…') : (entry.subscribed ? 'Unsubscribe' : 'Subscribe')}</span>
-          </button>
-        )}
-        {entry.kind === 'notebook' && entry.feedId === 'local' && onTogglePublicNotebook && (
-          <button
-            type="button"
-            onClick={() => onTogglePublicNotebook(entry)}
-            data-testid={`row-toggle-public-${entry.sourceNotebook}`}
-            className="min-h-11 px-3 rounded-lg border border-border text-xs font-semibold flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            {entry.isPublic ? <Lock className="size-3.5" aria-hidden="true" /> : <Globe className="size-3.5" aria-hidden="true" />}
-            <span>{entry.isPublic ? 'Make Private' : 'Make Public'}</span>
-          </button>
-        )}
-        {entry.kind === 'feed' && entry.sourceNote === 'local' && onPublishFeed && (
-          <button
-            type="button"
-            onClick={() => onPublishFeed(entry)}
-            data-testid={TEST_IDS.LIBRARY_PUBLISH_LOCAL_FEED}
-            className="min-h-11 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-          >
-            <Share2 className="size-3.5" aria-hidden="true" />
-            <span>Publish / Export</span>
-          </button>
-        )}
-        {entry.isRemotePreview && onCloneRemote && (
-          <button
-            type="button"
-            onClick={() => onCloneRemote(entry)}
-            data-testid={`row-clone-remote-${entry.id}`}
-            className="min-h-11 px-3 rounded-lg border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-          >
-            <Copy className="size-3.5" aria-hidden="true" />
-            <span>Clone</span>
-          </button>
-        )}
-        {entry.kind === 'notebook' && entry.feedId === 'local' && onDeleteNotebook && confirmingDelete && (
-          <button
-            type="button"
-            title="Notes in this notebook return to the journal"
-            onClick={() => {
-              setConfirmingDelete(false)
-              onDeleteNotebook(entry)
-            }}
-            data-testid={`notebook-delete-confirm-${entry.sourceNotebook}`}
-            className="min-h-11 px-3 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-semibold flex items-center gap-1 transition-colors"
-          >
-            Confirm delete
-          </button>
-        )}
+  const nbCaps =
+    entry.kind === 'notebook'
+      ? getNotebookCapabilities({
+          slug: entry.sourceNotebook,
+          notebookId: entry.notebookId,
+          feedId: entry.feedId,
+        })
+      : null
+  const canTogglePublicNotebook = Boolean(nbCaps?.canTogglePublic && onTogglePublicNotebook)
+  const canEditNotebook = Boolean(nbCaps?.canEdit && onEditNotebook)
+  const canDeleteNotebook = Boolean(nbCaps?.canDelete && onDeleteNotebook)
+
+  const hasSubscribe = (entry.kind === 'feed' || entry.kind === 'notebook') && entry.feedId !== 'local' && entry.feedId !== 'core' && !!onToggleSubscribe
+  const hasPublish = entry.kind === 'feed' && entry.sourceNote === 'local' && !!onPublishFeed
+  const hasCloneRemote = !!entry.isRemotePreview && !!onCloneRemote
+  const hasPrimaryRun = !hasSubscribe && !hasPublish && !hasCloneRemote && canRun
+  const hasPrimaryOpen = !hasSubscribe && !hasPublish && !hasCloneRemote && !hasPrimaryRun
+  const hasOverflowActions =
+    !hasPrimaryOpen
+    || !!notebookHref
+    || (canRun && hasCloneRemote)
+    || canAdd
+    || !!compareHref
+    || canTogglePublicNotebook
+    || canEditNotebook
+    || canDeleteNotebook
+    || (moveable && targets.length > 0)
+
+  return (
+    <div className="flex items-center gap-1.5 ml-auto shrink-0" onClick={e => e.stopPropagation()}>
+      {hasSubscribe && (
+        <button
+          type="button"
+          disabled={Boolean(subscribing)}
+          aria-busy={Boolean(subscribing)}
+          onClick={() => onToggleSubscribe!(entry)}
+          data-testid={entry.subscribed ? `row-unsubscribe-${entry.sourceNote}` : `row-subscribe-${entry.sourceNote}`}
+          className={`h-8 max-sm:min-h-11 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-60 disabled:cursor-wait ${
+            entry.subscribed
+              ? 'border border-border text-foreground hover:text-destructive hover:border-destructive/40'
+              : 'bg-primary text-primary-foreground hover:bg-primary/90'
+          }`}
+        >
+          {subscribing ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <CloudDownload className="size-3.5" aria-hidden="true" />}
+          <span>{subscribing ? (entry.subscribed ? 'Unsubscribing…' : 'Subscribing…') : (entry.subscribed ? 'Unsubscribe' : 'Subscribe')}</span>
+        </button>
+      )}
+      {hasPublish && (
+        <button
+          type="button"
+          onClick={() => onPublishFeed!(entry)}
+          data-testid={TEST_IDS.LIBRARY_PUBLISH_LOCAL_FEED}
+          className="h-8 max-sm:min-h-11 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+        >
+          <Share2 className="size-3.5" aria-hidden="true" />
+          <span>Publish / Export</span>
+        </button>
+      )}
+      {hasCloneRemote && (
+        <button
+          type="button"
+          onClick={() => onCloneRemote!(entry)}
+          data-testid={`row-clone-remote-${entry.id}`}
+          className="h-8 max-sm:min-h-11 px-3 rounded-lg border border-primary/40 bg-primary/15 text-primary hover:bg-primary/20 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+        >
+          <Copy className="size-3.5" aria-hidden="true" />
+          <span>Clone</span>
+        </button>
+      )}
+      {hasPrimaryRun && (
+        <ActionButton title="Run" testId={TEST_IDS.LIBRARY_ACTION_RUN} onClick={() => onRunStart?.(entry)}>
+          <PlayIcon className="size-3.5" aria-hidden="true" />
+        </ActionButton>
+      )}
+      {hasPrimaryOpen && (
+        <ActionButton title={notebookHref ? 'Details' : 'Open'} testId={TEST_IDS.LIBRARY_ACTION_OPEN} onClick={() => navigate(entryOpenHref(entry))}>
+          <ArrowUpRight className="size-3.5" aria-hidden="true" />
+        </ActionButton>
+      )}
+      {hasOverflowActions && (
         <Menu>
           <MenuTrigger
             aria-label={`Actions for ${entry.title}`}
             title={`Actions for ${entry.title}`}
             data-testid={TEST_IDS.LIBRARY_ROW_OVERFLOW}
-            className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg border-0 bg-transparent p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            className="size-8 max-sm:min-h-11 max-sm:min-w-11 inline-flex items-center justify-center rounded-lg border-0 bg-transparent p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
           >
-            <MoreHorizontal className="size-5" aria-hidden="true" />
+            <MoreHorizontal className="size-4 sm:size-5" aria-hidden="true" />
           </MenuTrigger>
           <MenuContent align="end" sideOffset={6}>
             <MenuGroup>
-              <MenuItem
-                value="open"
-                data-testid={TEST_IDS.LIBRARY_ACTION_OPEN}
-                onClick={() => navigate(entryOpenHref(entry))}
-              >
-                <ArrowUpRight className="size-4 shrink-0" aria-hidden="true" />
-                <span>{notebookHref ? 'Details' : 'Open'}</span>
-              </MenuItem>
+              {!hasPrimaryOpen && (
+                <MenuItem
+                  value="open"
+                  data-testid={TEST_IDS.LIBRARY_ACTION_OPEN}
+                  onClick={() => navigate(entryOpenHref(entry))}
+                >
+                  <ArrowUpRight className="size-4 shrink-0" aria-hidden="true" />
+                  <span>{notebookHref ? 'Details' : 'Open'}</span>
+                </MenuItem>
+              )}
               {notebookHref && (
                 <MenuItem
                   value="notebook"
@@ -447,6 +569,16 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
                 >
                   <Rss className="size-4 shrink-0" aria-hidden="true" />
                   <span>Open Notebook</span>
+                </MenuItem>
+              )}
+              {canRun && hasCloneRemote && (
+                <MenuItem
+                  value="run"
+                  data-testid={TEST_IDS.LIBRARY_ACTION_RUN}
+                  onClick={() => onRunStart?.(entry)}
+                >
+                  <PlayIcon className="size-4 shrink-0" aria-hidden="true" />
+                  <span>Start workout</span>
                 </MenuItem>
               )}
               {canAdd && (
@@ -459,16 +591,6 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
                   <span>Add to today</span>
                 </MenuItem>
               )}
-              {canRun && (
-                <MenuItem
-                  value="run"
-                  data-testid={TEST_IDS.LIBRARY_ACTION_RUN}
-                  onClick={() => onRunStart?.(entry)}
-                >
-                  <PlayIcon className="size-4 shrink-0" aria-hidden="true" />
-                  <span>Start workout</span>
-                </MenuItem>
-              )}
               {compareHref && (
                 <MenuItem
                   value="compare"
@@ -479,21 +601,31 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
                   <span>Compare</span>
                 </MenuItem>
               )}
-              {entry.kind === 'notebook' && entry.feedId === 'local' && onEditNotebook && (
+              {canTogglePublicNotebook && (
+                <MenuItem
+                  value="toggle-public"
+                  data-testid={`row-toggle-public-${entry.sourceNotebook}`}
+                  onClick={() => onTogglePublicNotebook!(entry)}
+                >
+                  {entry.isPublic ? <Lock className="size-4 shrink-0" aria-hidden="true" /> : <Globe className="size-4 shrink-0" aria-hidden="true" />}
+                  <span>{entry.isPublic ? 'Make Private' : 'Make Public'}</span>
+                </MenuItem>
+              )}
+              {canEditNotebook && (
                 <MenuItem
                   value="edit-notebook"
                   data-testid={`notebook-edit-${entry.sourceNotebook}`}
-                  onClick={() => onEditNotebook(entry)}
+                  onClick={() => onEditNotebook!(entry)}
                 >
                   <Pencil className="size-4 shrink-0" aria-hidden="true" />
                   <span>Edit notebook</span>
                 </MenuItem>
               )}
-              {entry.kind === 'notebook' && entry.feedId === 'local' && onDeleteNotebook && !confirmingDelete && (
+              {canDeleteNotebook && (
                 <MenuItem
                   value="delete-notebook"
                   data-testid={`notebook-delete-${entry.sourceNotebook}`}
-                  onClick={() => setConfirmingDelete(true)}
+                  onClick={() => onDeleteNotebook!(entry)}
                 >
                   <Trash2 className="size-4 shrink-0" aria-hidden="true" />
                   <span>Delete notebook</span>
@@ -521,132 +653,6 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
             )}
           </MenuContent>
         </Menu>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity max-sm:basis-full max-sm:justify-end max-sm:pt-1" onClick={e => e.stopPropagation()}>
-      <ActionButton title={notebookHref ? "Details" : "Open"} testId="action-open" onClick={() => navigate(entryOpenHref(entry))}>
-        <ArrowUpRight className="size-3.5" aria-hidden="true" />
-      </ActionButton>
-      {(entry.kind === 'feed' || entry.kind === 'notebook') && entry.feedId !== 'local' && entry.feedId !== 'core' && onToggleSubscribe && (
-        <button
-          type="button"
-          disabled={Boolean(subscribing)}
-          aria-busy={Boolean(subscribing)}
-          onClick={() => onToggleSubscribe(entry)}
-          data-testid={entry.subscribed ? `row-unsubscribe-${entry.sourceNote}` : `row-subscribe-${entry.sourceNote}`}
-          className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors disabled:opacity-60 disabled:cursor-wait ${
-            entry.subscribed
-              ? 'border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40'
-              : 'bg-primary text-primary-foreground hover:bg-primary/90'
-          }`}
-        >
-          {subscribing ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <CloudDownload className="size-3" />}
-          <span>{subscribing ? (entry.subscribed ? 'Unsubscribing…' : 'Subscribing…') : (entry.subscribed ? 'Unsubscribe' : 'Subscribe')}</span>
-        </button>
-      )}
-      {entry.kind === 'notebook' && entry.feedId === 'local' && onTogglePublicNotebook && (
-        <button
-          type="button"
-          onClick={() => onTogglePublicNotebook(entry)}
-          data-testid={`row-toggle-public-${entry.sourceNotebook}`}
-          className="h-7 px-2.5 rounded-lg border border-border text-[11px] font-semibold flex items-center gap-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          {entry.isPublic ? <Lock className="size-3" /> : <Globe className="size-3" />}
-          <span>{entry.isPublic ? 'Make Private' : 'Make Public'}</span>
-        </button>
-      )}
-      {entry.kind === 'notebook' && entry.feedId === 'local' && onEditNotebook && (
-        <button
-          type="button"
-          title={`Edit ${entry.title}`}
-          aria-label={`Edit ${entry.title}`}
-          onClick={() => onEditNotebook(entry)}
-          data-testid={`notebook-edit-${entry.sourceNotebook}`}
-          className="size-8 max-sm:min-h-11 max-sm:min-w-11 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-        >
-          <Pencil className="size-3.5" />
-        </button>
-      )}
-      {entry.kind === 'notebook' && entry.feedId === 'local' && onDeleteNotebook && (
-        confirmingDelete ? (
-          <button
-            type="button"
-            title="Notes in this notebook return to the journal"
-            onClick={() => {
-              setConfirmingDelete(false)
-              onDeleteNotebook(entry)
-            }}
-            data-testid={`notebook-delete-confirm-${entry.sourceNotebook}`}
-            className="h-7 px-2.5 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[11px] font-semibold flex items-center gap-1 transition-colors"
-          >
-            Confirm delete
-          </button>
-        ) : (
-          <button
-            type="button"
-            title={`Delete ${entry.title}`}
-            aria-label={`Delete ${entry.title}`}
-            onClick={() => setConfirmingDelete(true)}
-            data-testid={`notebook-delete-${entry.sourceNotebook}`}
-            className="size-8 max-sm:min-h-11 max-sm:min-w-11 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
-        )
-      )}
-      {entry.kind === 'feed' && entry.sourceNote === 'local' && onPublishFeed && (
-        <button
-          type="button"
-          onClick={() => onPublishFeed(entry)}
-          data-testid="row-publish-local-feed"
-          className="h-7 px-2.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-[11px] font-semibold flex items-center gap-1 transition-colors"
-        >
-          <Share2 className="size-3" />
-          <span>Publish / Export</span>
-        </button>
-      )}
-      {entry.isRemotePreview && onCloneRemote && (
-        <button
-          type="button"
-          onClick={() => onCloneRemote(entry)}
-          data-testid={`row-clone-remote-${entry.id}`}
-          className="h-7 px-2.5 rounded-lg border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 text-[11px] font-semibold flex items-center gap-1 transition-colors"
-        >
-          <Copy className="size-3" />
-          <span>Clone</span>
-        </button>
-      )}
-      {notebookHref && (
-        <ActionButton title="Notebook" testId="action-notebook" onClick={() => navigate(notebookHref)}>
-          <Rss className="size-3.5" />
-        </ActionButton>
-      )}
-      {canAdd && (
-        <ActionButton title="Add to today" testId="action-add" onClick={() => onAddToToday?.(entry)}>
-          <PlusIcon className="size-3.5" />
-        </ActionButton>
-      )}
-      {canRun && (
-        <ActionButton title="Run" testId="action-run" onClick={() => onRunStart?.(entry)}>
-          <PlayIcon className="size-3.5" />
-        </ActionButton>
-      )}
-      {moveable && targets.length > 0 && (
-        <MoveToNotebookMenu
-          targets={targets}
-          triggerTestId="action-move"
-          itemTestIdPrefix="action-move-"
-          triggerClassName="size-8 max-sm:min-h-11 max-sm:min-w-11 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-          onMove={(notebookId) => onMoveNotebook?.(entry, notebookId)}
-        />
-      )}
-      {compareHref && (
-        <ActionButton title="Compare" testId="action-compare" onClick={() => navigate(compareHref)}>
-          <BarChart3Icon className="size-3.5" />
-        </ActionButton>
       )}
     </div>
   )

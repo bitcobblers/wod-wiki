@@ -102,9 +102,10 @@ export function extractPageIndex(content: string): PageNavLink[] {
       links.push({ id, label, type: 'heading', timestamp })
       continue
     }
-    const fenceMatch = line.trim().match(/^```(time|log|query|widget)(:[-\w]+)?\s*$/)
+    const fenceMatch = line.trim().match(/^```(time|wod|whiteboard|log|query|widget)(:[-\w]+)?\s*$/i)
     if (fenceMatch) {
-      const tag = fenceMatch[1] as 'time' | 'log' | 'query' | 'widget'
+      const rawTag = fenceMatch[1].toLowerCase()
+      const tag = (rawTag === 'wod' || rawTag === 'whiteboard' ? 'time' : rawTag) as 'time' | 'log' | 'query' | 'widget'
       if (tag === 'query') {
         queryCount++
         links.push({ id: `query-line-${i + 1}`, label: queryTitle(i) ?? `Query ${queryCount}`, type: 'query' })

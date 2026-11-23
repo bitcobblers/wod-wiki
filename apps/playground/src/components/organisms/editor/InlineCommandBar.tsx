@@ -7,7 +7,7 @@
  * desktop and mobile.
  */
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import type { EditorView } from "@codemirror/view";
 import { MoreHorizontal } from "lucide-react";
 import { sectionField, type EditorSection } from "@bitcobblers/wod-wiki-ui/extensions";
@@ -17,8 +17,6 @@ import type { ScriptBlock, FenceDialect } from "@/components/Editor/types";
 import { runAffordance } from "@/components/Editor/types/section";
 import { cn } from "@/lib/utils";
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
-import { ButtonGroup } from "@/components/molecules/ButtonGroup";
-import type { INavActivation } from "@/nav/navTypes";
 import { TEST_IDS } from "@/lib/testIds";
 
 function buildScriptBlock(view: EditorView, section: EditorSection): ScriptBlock {
@@ -40,20 +38,6 @@ function buildScriptBlock(view: EditorView, section: EditorSection): ScriptBlock
     version: 1,
     createdAt: Date.now(),
     widgetIds: {},
-  };
-}
-
-function wrapNodeAsIcon(
-  node: React.ReactNode,
-): React.ComponentType<{ className?: string }> {
-  return function WrappedIcon({ className }: { className?: string }) {
-    if (React.isValidElement(node)) {
-      return React.cloneElement(
-        node as React.ReactElement<{ className?: string }>,
-        { className: cn((node.props as { className?: string }).className, className) },
-      );
-    }
-    return <span className={cn("flex items-center", className)}>{node}</span>;
   };
 }
 
@@ -80,56 +64,25 @@ const CommandPill: React.FC<{
     }
   }, [cmd, block, actionOk]);
 
-  const PrimaryIcon = useMemo(
-    () => wrapNodeAsIcon(actionOk ? (cmd.successIcon ?? cmd.icon) : cmd.icon),
-    [cmd.icon, cmd.successIcon, actionOk],
-  );
-  const SplitIcon = useMemo(
-    () =>
-      splitOk
-        ? wrapNodeAsIcon(cmd.splitSuccessIcon ?? cmd.splitIcon)
-        : wrapNodeAsIcon(cmd.splitIcon),
-    [splitOk, cmd.splitIcon, cmd.splitSuccessIcon],
-  );
-
-  const primaryActivation = useMemo<INavActivation>(
-    () => ({
-      id: cmd.id,
-      label: cmd.label,
-      icon: PrimaryIcon,
-      action: { type: "call", handler: () => { void handleAction(); } },
-    }),
-    [cmd.id, cmd.label, PrimaryIcon, handleAction],
-  );
-
-  const secondaryActivation = useMemo<INavActivation>(
-    () => ({
-      id: `${cmd.id}-split`,
-      label: "Copy link",
-      icon: SplitIcon,
-      action: { type: "call", handler: () => { void handleSplitAction(); } },
-    }),
-    [cmd.id, SplitIcon, handleSplitAction],
-  );
-
   const stopEvent = useCallback((e: React.SyntheticEvent) => {
     e.preventDefault();
     e.stopPropagation();
   }, []);
 
+  const currentIcon = actionOk ? (cmd.successIcon ?? cmd.icon) : cmd.icon;
+
   if (!cmd.onSplitClick) {
-    const currentIcon = actionOk ? (cmd.successIcon ?? cmd.icon) : cmd.icon;
     return (
       <Button
-        variant={cmd.primary ? "default" : "secondary"}
+        variant={cmd.primary ? "default" : "outline"}
         className={cn(
-          "pointer-events-auto scroll-mt-20",
+          "pointer-events-auto scroll-mt-20 h-7 max-lg:h-11 max-lg:min-h-[44px] py-0 rounded-[6px] text-xs font-medium shadow-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
           cmd.iconOnly
-            ? "h-8 max-lg:min-h-[44px] min-w-[34px] max-lg:min-w-[44px] rounded-[5px] px-2 py-0.5 text-[11px] font-medium shadow-none"
-            : "h-8 max-lg:min-h-[44px] rounded-[5px] px-2.5 max-lg:px-3 py-0.5 text-[11px] font-medium shadow-none gap-1.5",
+            ? "w-7 max-lg:w-11 max-lg:min-w-[44px] px-0"
+            : "px-2.5 max-lg:px-3.5 gap-1.5",
           cmd.primary
-            ? "bg-foreground text-background hover:bg-foreground/90 border border-foreground"
-            : "bg-card text-foreground hover:bg-muted border border-border",
+            ? "bg-primary text-primary-foreground hover:bg-primary/90 border border-primary/90"
+            : "bg-card/85 text-muted-foreground hover:bg-card hover:text-foreground border border-border/80",
           actionOk &&
             "text-success bg-success/15 border-success/30",
         )}
@@ -143,30 +96,92 @@ const CommandPill: React.FC<{
         onMouseDown={stopEvent}
         onPointerDown={stopEvent}
       >
-        <span className="flex items-center justify-center size-3.5">{currentIcon}</span>
+        <span className="flex items-center justify-center size-3.5 shrink-0">{currentIcon}</span>
         {!cmd.iconOnly && <span>{cmd.label}</span>}
       </Button>
     );
   }
 
+  const currentSplitIcon = splitOk
+    ? (cmd.splitSuccessIcon ?? cmd.splitIcon)
+    : cmd.splitIcon;
+
   return (
     <div
-      className="pointer-events-auto scroll-mt-20"
-      onClick={stopEvent}
+      className={cn(
+        "pointer-events-auto scroll-mt-20 inline-flex items-stretch overflow-hidden rounded-[6px] border shadow-none",
+        cmd.primary
+          ? "border-primary/90 bg-primary"
+          : "border-border/80 bg-card/85",
+      )}
       onMouseDown={stopEvent}
       onPointerDown={stopEvent}
     >
-      <ButtonGroup
-        primary={primaryActivation}
-        secondary={secondaryActivation}
-        size="xs"
-        variant={cmd.primary ? "primary" : "default"}
-        className="rounded-[5px] shadow-none"
-        labelClassName="sr-only sm:not-sr-only sm:inline"
+      <button
+        type="button"
+        title={cmd.label}
+        aria-label={cmd.label}
+        onClick={(e) => {
+          stopEvent(e);
+          void handleAction();
+        }}
+        className={cn(
+          "h-7 max-lg:h-11 max-lg:min-h-[44px] inline-flex items-center gap-1.5 px-2.5 max-lg:px-3 text-xs font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+          cmd.primary
+            ? "text-primary-foreground hover:bg-primary/90"
+            : "text-muted-foreground hover:bg-card hover:text-foreground",
+          actionOk && "text-success bg-success/10",
+        )}
+      >
+        <span className="flex items-center justify-center size-3.5 shrink-0">{currentIcon}</span>
+        <span className="sr-only sm:not-sr-only sm:inline">{cmd.label}</span>
+      </button>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "w-px self-stretch",
+          cmd.primary ? "bg-primary-foreground/25" : "bg-border/70",
+        )}
       />
+      <button
+        type="button"
+        title="Copy link"
+        aria-label="Copy link"
+        onClick={(e) => {
+          stopEvent(e);
+          void handleSplitAction();
+        }}
+        className={cn(
+          "h-7 w-7 max-lg:h-11 max-lg:w-11 max-lg:min-h-[44px] max-lg:min-w-[44px] inline-flex items-center justify-center transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+          cmd.primary
+            ? "text-primary-foreground hover:bg-primary/90"
+            : "text-muted-foreground hover:bg-card hover:text-foreground",
+          splitOk && "text-success bg-success/10",
+        )}
+      >
+        <span className="flex items-center justify-center size-3.5 shrink-0">{currentSplitIcon}</span>
+      </button>
     </div>
   );
 };
+
+function areSectionRectsEqual(a: SectionRect[], b: SectionRect[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (
+      x.sectionId !== y.sectionId ||
+      x.top !== y.top ||
+      x.height !== y.height ||
+      x.firstLineHeight !== y.firstLineHeight ||
+      x.type !== y.type
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
 
 interface InlineCommandBarProps {
   view: EditorView | null;
@@ -221,10 +236,20 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
     const plugin = view.plugin(sectionGeometryPlugin);
     if (!plugin) return;
 
-    setRects([...plugin.rects]);
-    return plugin.addListener((newRects: SectionRect[]) =>
-      setRects([...newRects]),
-    );
+    const commitRects = (nextRects: SectionRect[]) => {
+      const hasWorkoutRects = nextRects.some((r) => r.type === "time" || r.type === "log");
+      if (!hasWorkoutRects) {
+        const hasWorkoutSections =
+          view.state.field(sectionField, false)?.sections.some(
+            (s) => s.type === "time" || s.type === "log",
+          ) ?? false;
+        if (hasWorkoutSections) return;
+      }
+      setRects((prev) => (areSectionRectsEqual(prev, nextRects) ? prev : [...nextRects]));
+    };
+
+    commitRects(plugin.rects);
+    return plugin.addListener((newRects: SectionRect[]) => commitRects(newRects));
   }, [view]);
 
   useEffect(() => {
@@ -284,10 +309,10 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
         return (
           <div
             key={rect.sectionId}
-            className="absolute right-1.5 z-20 flex items-center gap-1 pointer-events-none"
+            className="absolute right-2.5 z-20 flex items-center gap-1.5 pointer-events-none"
             style={{
               top: contentOffsetTop + rect.top - scrollTop,
-              minHeight: Math.max(30, Math.min(rect.firstLineHeight, 36)),
+              height: Math.max(36, Math.min(rect.firstLineHeight ?? 40, 64)),
             }}
           >
             {!isNarrow || !primaryCmd ? (
@@ -300,12 +325,12 @@ export const InlineCommandBar: React.FC<InlineCommandBarProps> = ({
                 {overflowCmds.length > 0 && (
                   <div className="relative pointer-events-auto" data-inline-cmd-overflow-root="true">
                     <Button
-                      variant="secondary"
+                      variant="outline"
                       type="button"
                       data-testid={TEST_IDS.EDITOR_OVERFLOW_ACTIONS_BTN}
                       aria-label="More block actions"
                       aria-expanded={isOverflowOpen}
-                      className="h-8 max-lg:min-h-[44px] min-w-[36px] max-lg:min-w-[44px] rounded-[5px] px-2 text-foreground bg-card hover:bg-muted border border-border shadow-none"
+                      className="h-7 w-7 max-lg:h-11 max-lg:w-11 max-lg:min-h-[44px] max-lg:min-w-[44px] rounded-[6px] px-0 py-0 text-muted-foreground hover:text-foreground bg-card/85 hover:bg-card border border-border/80 shadow-none"
                       onMouseDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();

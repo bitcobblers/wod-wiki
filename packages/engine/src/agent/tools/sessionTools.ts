@@ -2,8 +2,10 @@ import { z } from 'zod';
 import {
   KNOWN_SECTION_WIDGETS,
   parseDocumentSections,
+  toNotebookId,
   type EventRecord,
   type IOutputStatement,
+  type NotebookLink,
   type Session,
 } from '@bitcobblers/wod-wiki-core';
 import {
@@ -21,7 +23,9 @@ import {
 } from '@bitcobblers/wod-wiki-lang';
 import { toEventRows, toSummaryEventRows } from '@bitcobblers/wod-wiki-wql';
 import { setSessionPublic } from '../../feed/ingestor';
+import { makeNotebookLinkId } from '../../notebook/membership';
 import { resolveScopedPropertyCatalog } from '../../notebook/propertyInheritance';
+import { attributeSession, localCivilDateKey } from '../../notebook/schedule';
 import { prepareJournalSessionRun } from '../../notebook/sessionIntake';
 import {
   deleteSessionFromStorage,
@@ -58,7 +62,7 @@ const sessionRunHeadlessInputSchema = z.strictObject({
   noteId: z
     .string()
     .optional()
-    .describe('Existing Note ID to execute (read-only Seed/Feed Notes are automatically cloned to notebook/journal).'),
+    .describe('Existing Note ID to execute (read-only Seed/Feed Notes pin one immutable copy on first run).'),
   blockId: z.string().optional().describe('Optional workout block ID on `noteId` (defaults to first wod block).'),
   source: z
     .string()
@@ -66,7 +70,8 @@ const sessionRunHeadlessInputSchema = z.strictObject({
     .describe('Inline Whiteboard Script or Markdown to persist & run when `noteId` is not supplied.'),
   title: z.string().optional().describe('Optional Note title when running inline `source`.'),
   sport: z.string().optional().describe('Optional sport dialect override.'),
-  journalDate: z.string().optional().describe('Optional YYYY-MM-DD or "today" Journal calendar date.'),
+  journalDate: z.string().optional().describe('Optional YYYY-MM-DD or "today" attributed Session calendar date.'),
+  scheduleItemId: z.string().optional().describe('Optional ScheduleItem ID that triggered this workout run.'),
   collectibles: z
     .record(z.string(), z.union([z.string(), z.number()]))
     .optional()
@@ -119,6 +124,7 @@ export const wodSessionRunHeadlessTool = defineAgentTool({
       noteId: targetNoteId,
       blockId: args.blockId,
       journalDate: args.journalDate,
+      ...(args.scheduleItemId ? { scheduleItemId: args.scheduleItemId } : {}),
       startedAt,
     });
 
@@ -210,6 +216,7 @@ export const wodSessionRunHeadlessTool = defineAgentTool({
 
     const finalizedSession: Session = {
       ...intake.session,
+      sessionDate: intake.session.sessionDate ?? localCivilDateKey(startedAt),
       status: completed ? 'completed' : 'in-progress',
       endTime,
       duration: Math.max(0, endTime - startedAt),
@@ -217,8 +224,34 @@ export const wodSessionRunHeadlessTool = defineAgentTool({
       ...(args.public !== undefined ? { public: args.public } : {}),
     };
 
-    await ctx.storage.transaction(['sessions', 'events'], 'readwrite', async (tx) => {
+    await ctx.storage.transaction(
+      ['sessions', 'events', 'notebook_links', 'schedule_items'],
+      'readwrite',
+      async (tx) => {
       await tx.readwrite('sessions').put(finalizedSession);
+      const nbIds = finalizedSession.notebookIds ?? [];
+      const links: NotebookLink[] = nbIds.map((nbId) => ({
+        id: makeNotebookLinkId(toNotebookId(nbId), 'session', finalizedSession.id),
+        notebookId: toNotebookId(nbId),
+        targetKind: 'session',
+        targetId: finalizedSession.id,
+        noteId: finalizedSession.noteId,
+        createdAt: finalizedSession.createdAt,
+      }));
+      if (links.length > 0) {
+        await tx.readwrite('notebook_links').putMany(links);
+      }
+      if (finalizedSession.scheduleItemId) {
+        try {
+          const schedStore = tx.readwrite('schedule_items');
+          const item = await schedStore.get(finalizedSession.scheduleItemId);
+          if (item && item.status !== 'completed') {
+            await schedStore.put({ ...item, status: 'completed', updatedAt: endTime });
+          }
+        } catch {
+          // Optional schedule_items store
+        }
+      }
       if (allEvents.length > 0) {
         await tx.readwrite('events').putMany(allEvents);
       }
@@ -236,6 +269,7 @@ export const wodSessionRunHeadlessTool = defineAgentTool({
       blockId: finalizedSession.blockId,
       blockVersion: finalizedSession.blockVersion,
       clonedFromReadOnly: intake.clonedFromReadOnly,
+      pinnedExternalWorkout: intake.pinnedExternalWorkout,
       ...(intake.upstreamNoteId ? { upstreamNoteId: intake.upstreamNoteId } : {}),
       completed,
       stepsExecuted: steps,
@@ -406,9 +440,47 @@ export const wodSessionDeleteTool = defineAgentTool({
   },
 });
 
+const sessionAttributeInputSchema = z.strictObject({
+  sessionId: z.string().min(1).describe('Session ID to attribute to a calendar date or ScheduleItem.'),
+  sessionDate: z.string().optional().describe('Attributed Journal date (YYYY-MM-DD).'),
+  scheduleItemId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe('ScheduleItem ID to link this Session with, or null to unlink into an ad-hoc Session.'),
+});
+
+export const wodSessionAttributeTool = defineAgentTool({
+  name: 'wod_session_attribute',
+  title: 'Attribute Session to Day or Plan',
+  description:
+    'Associate a recorded workout Session with a specific Journal civil date and/or pair or unlink it with a planned ScheduleItem.',
+  tier: 1,
+  domain: 'session',
+  annotations: {
+    title: 'Attribute Session',
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  inputSchema: sessionAttributeInputSchema,
+  cliEquivalent: 'wod session attribute <sessionId> --json',
+  async execute(args, ctx) {
+    const updated = await attributeSession(ctx.storage, {
+      sessionId: args.sessionId,
+      ...(args.sessionDate !== undefined ? { sessionDate: args.sessionDate } : {}),
+      ...(args.scheduleItemId !== undefined ? { scheduleItemId: args.scheduleItemId } : {}),
+    });
+    await ctx.onMutated?.(['sessions', 'schedule_items']);
+    return { session: updated };
+  },
+});
+
 export const SESSION_AGENT_TOOLS = [
   wodSessionRunHeadlessTool,
   wodSessionListTool,
   wodSessionGetTool,
+  wodSessionAttributeTool,
   wodSessionDeleteTool,
 ] as const;

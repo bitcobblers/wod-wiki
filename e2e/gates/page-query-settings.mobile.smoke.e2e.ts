@@ -14,9 +14,10 @@ test('the query settings sheet fits 375px without horizontal overflow', async ({
   await waitForFeedReady(page);
   await expect(page.getByRole('main').first()).toBeVisible();
 
-  // The page options drawer carries the trigger on phones.
-  await page.getByRole('button', { name: 'Open page options' }).click();
-  await page.locator('[data-testid="query-settings-trigger"]:visible').click();
+  // On mobile, the View popover lives inside the thumb-dock overflow sheet.
+  await page.getByTestId('actions-overflow').click();
+  await page.getByTestId('stream-view-popover-trigger').click();
+  await page.getByRole('button', { name: /Configure view defaults/i }).click();
 
   const panel = page.getByTestId('query-settings-panel');
   await expect(panel).toBeVisible();

@@ -1,23 +1,83 @@
 import { blockContentId, parseDocumentSections, validateNoteBlocks } from '@bitcobblers/wod-wiki-core';
-import { SEED_REGISTERED_WIDGETS, SEED_SCHEMA, type NotebookIndex, type SeedManifest, type SeedRow } from './contract';
+import { SEED_REGISTERED_WIDGETS, SEED_SCHEMA, type NotebookIndex, type NotebookIndexSummary, type SeedManifest, type SeedRecordRef, type SeedRow } from './contract';
 
 function object(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function positive(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value > 0; }
 function nonnegative(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0; }
 function finite(value: unknown): value is number { return typeof value === 'number' && Number.isFinite(value); }
+
+function isSafeRelativePath(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && !value.startsWith('/') && !value.split('/').includes('..');
+}
+
+function isSafeRawUrlOrPath(value: unknown): value is string {
+  if (typeof value !== 'string' || !value.trim()) return false;
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const parsed = new URL(value);
+      return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && !parsed.username && !parsed.password;
+    } catch {
+      return false;
+    }
+  }
+  return isSafeRelativePath(value);
+}
+
 export function assertSeedManifest(value: unknown): SeedManifest {
-  if (!object(value) || value.schema !== SEED_SCHEMA) throw new Error('Incompatible seed schema; rebuild seed artifacts');
-  if (!nonnegative(value.version) || typeof value.builtAt !== 'string' || !Number.isFinite(Date.parse(value.builtAt)) || !Array.isArray(value.chunks)) throw new Error('seed manifest failed shape validation');
-  for (const key of ['versionLabel', 'commit', 'name', 'description']) if (value[key] !== undefined && typeof value[key] !== 'string') throw new Error('invalid seed manifest metadata');
-  if (value.repositoryUrl !== undefined && (typeof value.repositoryUrl !== 'string' || !/^https:\/\//.test(value.repositoryUrl) || new URL(value.repositoryUrl).username || new URL(value.repositoryUrl).password)) throw new Error('invalid seed repository URL');
+  if (!object(value)) throw new Error('Incompatible seed schema; rebuild seed artifacts');
+  const hasNotebooks = Array.isArray(value.notebooks);
+  if (value.schema === undefined) {
+    if (!hasNotebooks) throw new Error('Incompatible seed schema; rebuild seed artifacts');
+  } else if (!positive(value.schema) || (value.schema !== SEED_SCHEMA && !hasNotebooks)) {
+    throw new Error('Incompatible seed schema; rebuild seed artifacts');
+  }
+
+  const normalizedSchema = value.schema === undefined ? SEED_SCHEMA : (value.schema as number);
+  const normalizedVersion =
+    value.version === undefined && hasNotebooks
+      ? 1
+      : value.version;
+  const normalizedBuiltAt =
+    value.builtAt === undefined && hasNotebooks
+      ? new Date(0).toISOString()
+      : value.builtAt;
+  const normalizedChunks =
+    value.chunks === undefined && hasNotebooks
+      ? []
+      : value.chunks;
+
+  if (
+    !nonnegative(normalizedVersion) ||
+    typeof normalizedBuiltAt !== 'string' ||
+    !Number.isFinite(Date.parse(normalizedBuiltAt)) ||
+    !Array.isArray(normalizedChunks)
+  ) {
+    throw new Error('seed manifest failed shape validation');
+  }
+
+  for (const key of ['versionLabel', 'commit', 'name', 'description']) {
+    if (value[key] !== undefined && typeof value[key] !== 'string') throw new Error('invalid seed manifest metadata');
+  }
+  if (value.repositoryUrl !== undefined && (typeof value.repositoryUrl !== 'string' || !/^https:\/\//.test(value.repositoryUrl) || new URL(value.repositoryUrl).username || new URL(value.repositoryUrl).password)) {
+    throw new Error('invalid seed repository URL');
+  }
   if (value.dirty !== undefined && typeof value.dirty !== 'boolean') throw new Error('invalid seed manifest metadata');
+  for (const key of ['indexBytes', 'chunkBytes']) {
+    if (value[key] !== undefined && !nonnegative(value[key])) throw new Error('invalid seed manifest metadata');
+  }
+
   const ids = new Set<string>(), paths = new Set<string>();
-  for (const chunk of value.chunks) {
-    if (!object(chunk) || typeof chunk.id !== 'string' || !chunk.id || typeof chunk.path !== 'string' || !/^chunks\/[a-zA-Z0-9._-]+\.json$/.test(chunk.path) || typeof chunk.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(chunk.sha256) || !nonnegative(chunk.bytes) || !nonnegative(chunk.count) || (chunk.kind !== undefined && chunk.kind !== 'notes') || ids.has(chunk.id) || paths.has(chunk.path)) throw new Error('seed manifest failed shape validation');
+  for (const chunk of normalizedChunks) {
+    if (!object(chunk) || typeof chunk.id !== 'string' || !chunk.id || typeof chunk.path !== 'string' || !/^chunks\/[a-zA-Z0-9._-]+\.json$/.test(chunk.path) || typeof chunk.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(chunk.sha256) || !nonnegative(chunk.bytes) || !nonnegative(chunk.count) || (chunk.kind !== undefined && chunk.kind !== 'notes') || ids.has(chunk.id) || paths.has(chunk.path)) {
+      throw new Error('seed manifest failed shape validation');
+    }
     ids.add(chunk.id); paths.add(chunk.path);
   }
+
+  let normalizedNotebooks: NotebookIndexSummary[] | undefined;
   if (value.notebooks !== undefined) {
     if (!Array.isArray(value.notebooks)) throw new Error('seed manifest failed shape validation');
+    normalizedNotebooks = [];
     for (const nb of value.notebooks) {
       if (
         !object(nb) ||
@@ -25,23 +85,42 @@ export function assertSeedManifest(value: unknown): SeedManifest {
         !nb.notebookId ||
         typeof nb.label !== 'string' ||
         !nonnegative(nb.count) ||
-        typeof nb.indexPath !== 'string' ||
-        !nb.indexPath ||
-        !nonnegative(nb.version) ||
-        typeof nb.commit !== 'string' ||
-        typeof nb.builtAt !== 'string' ||
-        typeof nb.sha256 !== 'string' ||
-        !nonnegative(nb.bytes)
+        !isSafeRawUrlOrPath(nb.indexPath)
       ) {
         throw new Error('seed manifest failed shape validation');
       }
       if ('records' in nb && Array.isArray((nb as Record<string, unknown>).records)) {
         throw new Error('seed manifest failed shape validation: manifest.notebooks must not contain inline records');
       }
+      if (nb.version !== undefined && !nonnegative(nb.version)) throw new Error('seed manifest failed shape validation');
+      if (nb.commit !== undefined && typeof nb.commit !== 'string') throw new Error('seed manifest failed shape validation');
+      if (nb.builtAt !== undefined && typeof nb.builtAt !== 'string') throw new Error('seed manifest failed shape validation');
+      if (nb.sha256 !== undefined && typeof nb.sha256 !== 'string') throw new Error('seed manifest failed shape validation');
+      if (nb.bytes !== undefined && !nonnegative(nb.bytes)) throw new Error('seed manifest failed shape validation');
+      if (nb.indexBytes !== undefined && !nonnegative(nb.indexBytes)) throw new Error('seed manifest failed shape validation');
+      if (nb.chunkBytes !== undefined && !nonnegative(nb.chunkBytes)) throw new Error('seed manifest failed shape validation');
+
+      normalizedNotebooks.push({
+        ...(nb as unknown as NotebookIndexSummary),
+        version: (nb.version as number | undefined) ?? normalizedVersion,
+        commit: (nb.commit as string | undefined) ?? '',
+        builtAt: (nb.builtAt as string | undefined) ?? normalizedBuiltAt,
+        sha256: (nb.sha256 as string | undefined) ?? '',
+        bytes: (nb.bytes as number | undefined) ?? (nb.indexBytes as number | undefined) ?? 0,
+      });
     }
   }
-  return value as unknown as SeedManifest;
+
+  return {
+    ...(value as unknown as SeedManifest),
+    schema: normalizedSchema,
+    version: normalizedVersion,
+    builtAt: normalizedBuiltAt,
+    chunks: normalizedChunks as SeedManifest['chunks'],
+    ...(normalizedNotebooks !== undefined ? { notebooks: normalizedNotebooks } : {}),
+  };
 }
+
 export function assertNotebookIndex(value: unknown): NotebookIndex {
   if (!object(value)) throw new Error('notebook index failed shape validation');
   if (
@@ -49,32 +128,73 @@ export function assertNotebookIndex(value: unknown): NotebookIndex {
     !value.notebookId ||
     typeof value.label !== 'string' ||
     !value.label ||
-    typeof value.indexPath !== 'string' ||
-    !value.indexPath ||
-    !nonnegative(value.version) ||
-    typeof value.commit !== 'string' ||
-    typeof value.builtAt !== 'string' ||
-    typeof value.sha256 !== 'string' ||
-    !nonnegative(value.bytes) ||
+    !isSafeRawUrlOrPath(value.indexPath) ||
     !nonnegative(value.count) ||
     !Array.isArray(value.records)
   ) {
     throw new Error('notebook index failed shape validation: missing required index summary or records');
   }
+  if (value.version !== undefined && !nonnegative(value.version)) throw new Error('notebook index failed shape validation: missing required index summary or records');
+  if (value.commit !== undefined && typeof value.commit !== 'string') throw new Error('notebook index failed shape validation: missing required index summary or records');
+  if (value.builtAt !== undefined && typeof value.builtAt !== 'string') throw new Error('notebook index failed shape validation: missing required index summary or records');
+  if (value.sha256 !== undefined && typeof value.sha256 !== 'string') throw new Error('notebook index failed shape validation: missing required index summary or records');
+  if (value.bytes !== undefined && !nonnegative(value.bytes)) throw new Error('notebook index failed shape validation: missing required index summary or records');
+
+  const normalizedRecords: SeedRecordRef[] = [];
   for (const r of value.records) {
     if (
       !object(r) ||
       typeof r.uuid !== 'string' ||
-      typeof r.path !== 'string' ||
-      typeof r.recordPath !== 'string' ||
-      typeof r.commit !== 'string' ||
-      !nonnegative(r.version) ||
-      typeof r.sha256 !== 'string'
+      !r.uuid ||
+      !isSafeRelativePath(r.path)
     ) {
       throw new Error('notebook index failed shape validation: invalid record ref');
     }
+    const hasRecordPath = r.recordPath !== undefined;
+    const hasRawUrl = r.rawUrl !== undefined;
+    const hasMdPath = /\.md$/i.test(r.path);
+    if (hasRecordPath && !isSafeRelativePath(r.recordPath)) {
+      throw new Error('notebook index failed shape validation: invalid record ref');
+    }
+    if (hasRawUrl && !isSafeRawUrlOrPath(r.rawUrl)) {
+      throw new Error('notebook index failed shape validation: invalid record ref');
+    }
+    if (!hasRecordPath && !hasRawUrl && !hasMdPath) {
+      throw new Error('notebook index failed shape validation: invalid record ref');
+    }
+    if (r.commit !== undefined && typeof r.commit !== 'string') {
+      throw new Error('notebook index failed shape validation: invalid record ref');
+    }
+    if (r.version !== undefined && !nonnegative(r.version)) {
+      throw new Error('notebook index failed shape validation: invalid record ref');
+    }
+    if (r.sha256 !== undefined && typeof r.sha256 !== 'string') {
+      throw new Error('notebook index failed shape validation: invalid record ref');
+    }
+    if (r.title !== undefined && typeof r.title !== 'string') {
+      throw new Error('notebook index failed shape validation: invalid record ref');
+    }
+    if (r.date !== undefined && !finite(r.date)) {
+      throw new Error('notebook index failed shape validation: invalid record ref');
+    }
+
+    normalizedRecords.push({
+      ...(r as unknown as SeedRecordRef),
+      commit: (r.commit as string | undefined) ?? '',
+      version: (r.version as number | undefined) ?? 1,
+      sha256: (r.sha256 as string | undefined) ?? '',
+    });
   }
-  return value as unknown as NotebookIndex;
+
+  return {
+    ...(value as unknown as NotebookIndex),
+    version: (value.version as number | undefined) ?? 1,
+    commit: (value.commit as string | undefined) ?? '',
+    builtAt: (value.builtAt as string | undefined) ?? new Date(0).toISOString(),
+    sha256: (value.sha256 as string | undefined) ?? '',
+    bytes: (value.bytes as number | undefined) ?? 0,
+    records: normalizedRecords,
+  };
 }
 
 function assertTelemetry(row: Record<string, unknown>, blockIndex: unknown[]): void {

@@ -148,9 +148,46 @@ describe('MenuList', () => {
     const filterBtn = screen.getByTestId('menu-filter-effort:grace');
     expect(filterBtn.className).toContain('max-lg:min-h-11');
     expect(filterBtn.className).toContain('max-lg:min-w-11');
+    expect(filterBtn.className).toContain('text-foreground/75');
+    expect(filterBtn.className).not.toContain('text-muted-foreground/55');
 
     const runBtn = screen.getByTitle('Start workout');
     expect(runBtn.className).toContain('max-lg:min-h-11');
     expect(runBtn.className).toContain('max-lg:min-w-11');
+    expect(runBtn.className).toContain('focus-visible:opacity-100');
+    expect(runBtn.className).toContain('group-focus-within:opacity-100');
+  });
+
+  it('supports fallback onSelect peek callbacks without navigating away and keeps muted text >=12px', () => {
+    const onPeek = mock(() => {});
+    render(
+      <MemoryRouter initialEntries={['/note/1']}>
+        <LocProbe />
+        <MenuList
+          entries={[
+            {
+              kind: 'link',
+              id: 'effort:fran',
+              label: 'Fran',
+              to: '/effort/fran',
+              muted: true,
+              timestamp: '08:30',
+              badge: 'PR',
+            },
+          ]}
+          onSelect={onPeek}
+        />
+      </MemoryRouter>,
+    );
+
+    const rowBtn = screen.getByText('Fran').closest('button')!;
+    expect(rowBtn.className).toContain('text-xs');
+    expect(rowBtn.className).not.toContain('text-[11.5px]');
+    expect(screen.getByText('08:30').className).toContain('text-xs');
+    expect(screen.getByText('PR').className).toContain('text-xs');
+
+    fireEvent.click(rowBtn);
+    expect(onPeek).toHaveBeenCalledTimes(1);
+    expect(currentLoc?.pathname).toBe('/note/1');
   });
 });

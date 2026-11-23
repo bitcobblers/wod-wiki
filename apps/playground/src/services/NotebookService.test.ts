@@ -165,16 +165,15 @@ describe('NotebookService (notes-store backed)', () => {
         expect(await store.getNote(survivor.id)).toBeDefined();
     });
 
-    it('supports many-to-many promoteNote across multiple user notebooks while preserving journal membership', async () => {
+    it('supports many-to-many promoteNote across multiple user notebooks without forcing journal membership', async () => {
         const nbA = await service.create('Open Prep');
         const nbB = await service.create('Garage Gym');
         await saved({ id: 'w-multi', title: 'Murph' });
 
         const promoted = await service.promoteNote('w-multi', [nbA.id, nbB.id]);
-        expect(promoted.notebookIds).toEqual(['notebook/journal', nbA.notebookId, nbB.notebookId]);
+        expect(promoted.notebookIds).toEqual([nbA.notebookId, nbB.notebookId]);
         expect((await service.listNotes(nbA.id)).map((n) => n.id)).toEqual(['w-multi']);
         expect((await service.listNotes(nbB.id)).map((n) => n.id)).toEqual(['w-multi']);
-        expect((await service.listNotes('notebook/journal')).map((n) => n.id)).toContain('w-multi');
     });
 
     it('cloneNote copies content into a user notebook, editable, with source lineage', async () => {
@@ -208,5 +207,68 @@ describe('NotebookService (notes-store backed)', () => {
 
         const members = await service.listNotes(nb.id);
         expect(members.map((n) => n.id)).toEqual([clone.id]);
+    });
+
+    it('getAll excludes cached/pinned/indexed/seed/feed notes and feed notebook slugs', async () => {
+        const feedNb = service.getFeedNotebooks()[0]!;
+        await saved({
+            id: 'cached-remote-1',
+            title: 'Cached Remote',
+            notebookId: 'notebook/some-remote-prog',
+            retention: 'cached',
+        });
+        await saved({
+            id: 'pinned-feed-1',
+            title: 'Pinned Feed',
+            notebookId: 'notebook/pinned-external',
+            retention: 'session-pinned',
+            seedOrigin: 'seed',
+            feedOrigin: 'feed',
+            feedSourceId: 'seed-crossfit',
+        });
+        await saved({
+            id: 'indexed-1',
+            title: 'Indexed Feed',
+            notebookId: 'notebook/indexed-external',
+            retention: 'indexed',
+        });
+        await saved({
+            id: 'seed-1',
+            title: 'Seed Note',
+            notebookId: 'notebook/seed-external',
+            seedOrigin: 'seed',
+        });
+        await saved({
+            id: 'feed-slug-leak',
+            title: 'Same Slug As Feed Notebook',
+            notebookId: feedNb.notebookId,
+        });
+        await service.create('User Custom Log');
+
+        const all = await service.getAll();
+        expect(all.map((n) => n.id)).toEqual(['notebook/user-custom-log']);
+    });
+
+    it('WW-020 / WW-107 / WW-115: stamps user landing seedOrigin, mints starter deterministically once, and never resurrects after delete or move', async () => {
+        const nb = await service.create('Published Shelf', 'User notebook', '📚');
+        const landing = await store.getNote(nb.id);
+        expect(landing?.seedOrigin).toBe('user');
+        expect(landing?.notebookId).toBe(nb.id);
+
+        await service.ensureNotebooks();
+        const firstStarters = await service.listNotes(CUSTOM_NOTEBOOK_ID);
+        expect(firstStarters).toHaveLength(1);
+        const starterId = firstStarters[0]!.id;
+
+        // Moving starter out of Custom + running ensureNotebooks() again must not re-mint.
+        await service.moveNote(starterId, nb.id);
+        await service.ensureNotebooks();
+        expect(await service.listNotes(CUSTOM_NOTEBOOK_ID)).toEqual([]);
+
+        // Deleting starter completely + running ensureNotebooks() again must not resurrect it.
+        await store.deleteNote(starterId);
+        await service.ensureNotebooks();
+        expect(await service.listNotes(CUSTOM_NOTEBOOK_ID)).toEqual([]);
+        expect(await store.getNote(starterId)).toBeUndefined();
     });
 });

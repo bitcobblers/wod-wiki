@@ -1,13 +1,15 @@
 /**
+ * NavSidebar — shell zone 2: steady Zone Places & Saved Views sidebar.
  *
  * Rendering layers (top → bottom):
  *   1. Context heading (active L1 label)
- *   2. L2 panel (children list or custom component for the active L1)
+ *   2. Steady L2 panel (children list or custom zone panel for the active L1)
+ *   3. Optional route-declared navSpec links (if any)
  *
+ * L2 stays anchored to the active L1 zone on every route — detail pages publish
+ * their entity relationships into L3 (`l3Connections`) instead of wiping L2.
  * L1 destinations live in AppRail (icon ribbon), shared by desktop and the
- * mobile drawer. "On this page" (L3) section links are intentionally
- * excluded here — they appear only in the "…" ActionsMenu so they don't
- * duplicate the right TOC.
+ * mobile drawer.
  */
 
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -86,7 +88,8 @@ function L2ChildrenList({ items }: { items: NavItem[] }) {
               count={child.children.length}
               defaultOpen={child.children.some(gc => isItemActive(gc, navState, location))}
               collapsible={child.id !== 'syntax-group'}
-            >              
+              buttonClassName="text-xs font-bold tracking-[0.14em] text-muted-foreground"
+            >
               {child.children.map(gc => {
                 const gcActive = isItemActive(gc, navState, location)
                 return (
@@ -141,25 +144,18 @@ function L2ChildrenList({ items }: { items: NavItem[] }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function NavSidebar({ navSpec }: { navSpec?: MenuSpec }) {
-  const { tree, navState, dispatch, contextNav } = useNav()
-  const location = useLocation()
+  const { tree, navState, dispatch } = useNav()
   const resolvedNav = useResolvedMenu(navSpec)
 
   // Find which L1 is currently active
   const activeL1 = (tree ?? []).find(item => item?.id === navState.activeL1Id) ?? null
 
-  // Route-scoped context nav (e.g. note relationships): while its pathname
-  // matches, it replaces both the L1 listing panel and the route navSpec —
-  // even when its spec is empty.
-  const contextPanel = contextNav?.pathname === location.pathname ? contextNav : null
-
-  // Render the L2 zone for the active L1 — same on desktop and in the
-  // mobile drawer (the drawer wraps it beside the shared icon rail).
+  // Render the steady L2 zone for the active L1 — never replaced by route
+  // context links (detail relationships publish to L3 `l3Connections` instead).
   const renderL2 = () => {
-    if (contextPanel) return null
     if (!activeL1) return null
 
-    // Custom panel (Journal, Collections, Search)
+    // Custom panel (Journal, Notebooks, Pages, Efforts, Equipment, Tags, Dashboards, Sessions)
     if (activeL1.panel) {
       const Panel = activeL1.panel
       return (
@@ -169,7 +165,7 @@ export function NavSidebar({ navSpec }: { navSpec?: MenuSpec }) {
       )
     }
 
-    // Children list (Home docs/syntax)
+    // Children list (Home docs/guides, Settings)
     if (activeL1.children && activeL1.children.length > 0) {
       return (
         <div className="border-b border-border/40 pb-2 mb-2">
@@ -182,7 +178,7 @@ export function NavSidebar({ navSpec }: { navSpec?: MenuSpec }) {
   }
 
   return (
-    <Sidebar>
+    <Sidebar aria-label={activeL1 ? `${activeL1.label} places` : 'Workspace'}>
       {/* ── Context heading ───────────────────────────────────────────────── */}
       {/* Names the active section above its L2 panel; the L1 icon rail
           (AppRail) carries destinations on both desktop and mobile drawer. */}
@@ -194,22 +190,12 @@ export function NavSidebar({ navSpec }: { navSpec?: MenuSpec }) {
 
       {/* ── Body ─────────────────────────────────────────────────────────── */}
       <SidebarBody>
-        {/* L2 — context-specific panel or doc children */}
+        {/* Steady L2 — active zone panel or static children */}
         {renderL2()}
-        {contextPanel ? (
-          /* Route-scoped context nav (zone 2 contract) — replaces the
-             listing panel and route navSpec for its pathname. */
+        {resolvedNav.length > 0 && (
           <div className="pt-1">
-            <MenuList entries={contextPanel.spec} />
+            <MenuList entries={resolvedNav} />
           </div>
-        ) : (
-          /* Route-declared nav panel (zone 2 contract) — same standardized
-              rendering as the secondary rail. */
-          resolvedNav.length > 0 && (
-            <div className="pt-1">
-              <MenuList entries={resolvedNav} />
-            </div>
-          )
         )}
       </SidebarBody>
     </Sidebar>

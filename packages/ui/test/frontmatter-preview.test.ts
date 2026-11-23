@@ -7,6 +7,7 @@ import {
   frontmatterSuggestions,
   frontmatterVisibility,
   frontmatterDebugMode,
+  frontmatterReferenceIndex,
 } from '../src/extensions';
 
 const SAMPLE_NOTE = `---
@@ -848,7 +849,8 @@ summaries.totalWork: sum(work)
       const summary = container.querySelector('[data-frontmatter-summary]');
       expect(summary?.textContent).toContain('#strength');
       expect(summary?.textContent).toContain('#crossfit');
-      expect(summary?.textContent).toContain('#kettlebell');
+      expect(summary?.textContent).toContain('Equipment');
+      expect(summary?.textContent).toContain('kettlebell');
       expect(summary?.textContent).toContain('KB Complex');
       expect(summary?.textContent).toContain('3 more properties');
       expect(summary?.textContent).toContain('1 custom metric');
@@ -1087,6 +1089,62 @@ summaries.totalWork: sum(work)
       expect(container.querySelector('[data-frontmatter-row="id"]')).not.toBeNull();
       expect(container.querySelector('[data-frontmatter-row="registrySource"]')).not.toBeNull();
       expect(container.querySelector('[data-frontmatter-row="registry-source"]')).not.toBeNull();
+    } finally {
+      view.destroy();
+      container.remove();
+    }
+  });
+
+  it('WW-104: separates Tags, Equipment, and Effort summary rows and passes typed tag category to openHref', () => {
+    const doc = [
+      '---',
+      'tags: [benchmark]',
+      'discipline: strength',
+      'equipment: [barbell]',
+      'effort: [back-squat]',
+      'aliases: [BS]',
+      '---',
+      '# Squat',
+    ].join('\n');
+    const calls: Array<{ kind: string; slug: string; tagType?: string }> = [];
+    const mockProvider = {
+      resolve: () => ({ matched: 'none' as const, refs: [], diagnostics: [] }),
+      resolveEffort: (token: string) =>
+        token === 'back-squat' || token === 'BS' ? { slug: 'back-squat', label: 'Back Squat' } : null,
+      resolveEquipment: (token: string) =>
+        token === 'barbell' ? { slug: 'barbell', label: 'Barbell' } : null,
+      openHref: (kind: 'effort' | 'equipment' | 'tag', slug: string, tagType?: string) => {
+        calls.push({ kind, slug, tagType });
+        return kind === 'tag' ? `/t/${tagType ?? 'general'}/${slug}` : `/${kind}/${slug}`;
+      },
+      createHref: (kind: 'effort' | 'equipment' | 'tag') => `/${kind}/new`,
+    };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({
+        doc,
+        extensions: [sectionField, frontmatterPreview, frontmatterReferenceIndex.of(() => mockProvider)],
+      }),
+    });
+
+    try {
+      const summary = container.querySelector('[data-frontmatter-summary]')!;
+      expect(summary.textContent).toContain('Tags');
+      expect(summary.textContent).toContain('Equipment');
+      expect(summary.textContent).toContain('Effort');
+      expect(summary.textContent).toContain('Aliases');
+
+      const anchors = Array.from(summary.querySelectorAll('a')).map((a) => ({
+        text: a.textContent,
+        href: a.getAttribute('href'),
+      }));
+      expect(anchors).toContainEqual({ text: '#benchmark', href: '/t/tags/benchmark' });
+      expect(anchors).toContainEqual({ text: '#strength', href: '/t/discipline/strength' });
+      expect(anchors).toContainEqual({ text: 'Barbell', href: '/equipment/barbell' });
+      expect(anchors).toContainEqual({ text: 'Back Squat', href: '/effort/back-squat' });
+      expect(calls.some((c) => c.kind === 'tag' && c.tagType === 'discipline')).toBe(true);
     } finally {
       view.destroy();
       container.remove();

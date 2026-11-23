@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
-import { parseQuery, isFindQuery } from '@bitcobblers/wod-wiki-engine';
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
+import { useIsMobile } from '../../../app/hooks/useIsMobile';
 import { useNav } from '../../../app/nav/NavContext';
+import { hasVisibleMenuEntries } from '../../../app/nav/SecondaryNav';
 
 const DESKTOP_2XL_QUERY = '(min-width: 1520px)';
 
@@ -50,40 +51,37 @@ export function L3DrawerStateProvider({
 
 export function useL3DrawerState(): L3DrawerState {
   const ctx = useContext(L3DrawerStateContext);
-  const { dispatch, streamControls, analyticsControls, l3Items, l3Actions = [], secondarySpec } = useNav();
-
-  const fallbackHasAppliedFilters = useMemo(() => {
-    const parsed = parseQuery(streamControls?.query ?? '');
-    return !parsed.error && isFindQuery(parsed) && parsed.filters.length > 0;
-  }, [streamControls?.query]);
+  const { dispatch, analyticsControls, l3Items, l3Connections, l3Actions = [], secondarySpec } = useNav();
 
   if (ctx) return ctx;
 
   const railHasContent = Boolean(
-    (secondarySpec && secondarySpec.length > 0) ||
+    hasVisibleMenuEntries(secondarySpec) ||
       (l3Items && l3Items.length > 0) ||
+      hasVisibleMenuEntries(l3Connections) ||
       (l3Actions && l3Actions.length > 0) ||
-      streamControls ||
       analyticsControls,
   );
 
   return {
     railHasContent,
-    hasAppliedFilters: fallbackHasAppliedFilters,
+    hasAppliedFilters: false,
     openRightDrawer: () => dispatch({ type: 'SET_RIGHT_DRAWER', open: true }),
   };
 }
 
 /**
- * L3DrawerTrigger — header trigger for the L3 slide-over drawer at laptop/desktop
- * widths (`lg` through `< 2xl`, i.e. 1024px–1519px) where the inline 240px right
- * rail is folded away. Below `lg` the mobile navbar owns "Open page options";
- * at `2xl+` the inline `<aside>` rail is visible directly.
+ * L3DrawerTrigger — header trigger for the L3 slide-over drawer at tablet/medium
+ * desktop widths (`lg` through `< 2xl`, i.e. 1024px–1519px) where the inline
+ * 240px right rail is folded away. Below `lg` mobile, `ResponsiveActionsDock`
+ * owns the unified thumb-zone L3 bottom sheet (never a top-right header
+ * button); at `2xl+` the inline `<aside>` rail is visible directly.
  */
 export function L3DrawerTrigger() {
   const { railHasContent, hasAppliedFilters, openRightDrawer } = useL3DrawerState();
   const is2xl = useIs2xlViewport();
-  if (!railHasContent || is2xl) return null;
+  const isMobile = useIsMobile();
+  if (!railHasContent || is2xl || isMobile) return null;
 
   return (
     <Button

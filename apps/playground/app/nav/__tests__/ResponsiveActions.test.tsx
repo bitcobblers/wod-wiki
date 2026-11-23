@@ -1,8 +1,11 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { memo } from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
+import { TEST_IDS } from '@/lib/testIds';
 import { setFabAlignment } from '../../lib/fabAlignment';
+import { NavContext, initialNavState, type NavContextValue } from '../NavContext';
 import { ResponsiveActions, ResponsiveActionsProvider, NavbarActions } from '../ResponsiveActions';
 
 let isMobile = true;
@@ -196,7 +199,7 @@ describe('ResponsiveActions mobile fixed thumb dock', () => {
 
     const dock = screen.getByTestId('actions-dock');
     expect(dock.className).toContain('fixed');
-    expect(dock.className).toContain('z-30');
+    expect(dock.className).toContain('z-40');
     expect(dock.className).toContain('lg:hidden');
     expect(dock.className).toContain('w-auto');
     expect(dock.className).toContain('right-4');
@@ -367,5 +370,91 @@ describe('ResponsiveActions mobile fixed thumb dock', () => {
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: origInnerHeight });
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: origInnerWidth });
     }
+  });
+
+  it('unifies detail/board SecondaryNav L3 lazily inside the mobile dock sheet with honest Done/Reset and yields on peek', async () => {
+    const onRun = mock(() => {});
+    const onReset = mock(() => {});
+    const baseNav = (over: Partial<NavContextValue> = {}): NavContextValue => ({
+      tree: [],
+      navState: initialNavState,
+      dispatch: () => {},
+      peekTarget: null,
+      openPeek: () => {},
+      closePeek: () => {},
+      l3Items: [{ id: 'intro', label: 'Intro', level: 3, action: { type: 'scroll', sectionId: 'intro' } }],
+      setL3Items: () => {},
+      l3Connections: [
+        {
+          kind: 'section',
+          id: 'efforts',
+          label: 'Efforts',
+          entries: [{ kind: 'link', id: 'fran', label: 'Fran', to: '/effort/fran' }],
+        },
+      ],
+      setL3Connections: () => {},
+      l3Actions: [{ id: 'run', label: 'Run Workout', group: 'primary', onRun }],
+      setL3Actions: () => {},
+      analyticsControls: { weeks: 8, onWeeksChange: () => {}, onReset },
+      setAnalyticsControls: () => {},
+      secondarySpec: undefined,
+      setSecondarySpec: () => {},
+      streamControls: null,
+      setStreamControls: () => {},
+      scrollToSection: () => {},
+      registerScrollFn: () => {},
+      openCreateJournal: () => {},
+      registerCreateJournal: () => {},
+      setContextNav: () => {},
+      ...over,
+    });
+
+    function L3Harness({ peekActive = false }: { peekActive?: boolean }) {
+      const target = peekActive ? ({ kind: 'effort', slug: 'fran', label: 'Fran' } as const) : null;
+      return (
+        <MemoryRouter initialEntries={['/note/1']}>
+          <NuqsAdapter>
+            <NavContext.Provider
+              value={baseNav({
+                navState: { ...initialNavState, inspectorDrawerOpen: peekActive, peekTarget: target },
+                peekTarget: target,
+              })}
+            >
+              <ResponsiveActionsProvider onSearch={() => {}}>
+                <div>Note</div>
+              </ResponsiveActionsProvider>
+            </NavContext.Provider>
+          </NuqsAdapter>
+        </MemoryRouter>
+      );
+    }
+
+    const { rerender } = render(<L3Harness />);
+
+    // Overflow trigger appears because L3 has content; SecondaryNav is NOT mounted while closed
+    const trigger = screen.getByTestId(TEST_IDS.ACTIONS_OVERFLOW);
+    expect(screen.queryByTestId(TEST_IDS.ACTIONS_SHEET_L3)).toBeNull();
+
+    // Opening the bottom sheet mounts SecondaryNav ONCE with honest Done & Reset controls
+    fireEvent.click(trigger);
+    const l3Sheet = screen.getByTestId(TEST_IDS.ACTIONS_SHEET_L3);
+    expect(within(l3Sheet).getByText('On this page')).toBeTruthy();
+    expect(within(l3Sheet).getByTestId(TEST_IDS.L3_CONNECTIONS)).toBeTruthy();
+    expect(within(l3Sheet).getByTestId(TEST_IDS.L3_ACTIONS_PRIMARY)).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId(TEST_IDS.L3_DRAWER_RESET_BTN));
+    expect(onReset).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(within(l3Sheet).getByRole('button', { name: 'Run Workout' }));
+    expect(onRun).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId(TEST_IDS.ACTIONS_SHEET_L3)).toBeNull();
+
+    // Auto-yields when a mobile peek drawer is active
+    rerender(<L3Harness peekActive />);
+    const dock = screen.getByTestId(TEST_IDS.ACTIONS_DOCK);
+    await waitFor(() => {
+      expect(dock.className).toContain('invisible');
+      expect(dock.className).toContain('pointer-events-none');
+    });
   });
 });

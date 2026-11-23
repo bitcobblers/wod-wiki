@@ -192,5 +192,25 @@ for (const backend of ['memory', 'indexeddb'] as const) {
         expect((await service.getBlockIndexByNote(entry.id))[0]?.from).toBe(Object.values(blocks)[0]?.from);
       } finally { await storage.close(); }
     });
+
+    it('WW-020 / ADR-0009: stamps seedOrigin=user without forcing notebook/journal and syncs explicit notebook_links atomically', async () => {
+      const { storage, service, provider, entry } = await setup();
+      try {
+        const note = await service.getNote(entry.id);
+        expect(note?.seedOrigin).toBe('user');
+        expect(note?.notebookIds).toEqual([]);
+        const explicitlyFiled = await provider.saveRecord({
+          id: 'n-filed',
+          title: 'Filed Workout',
+          rawContent: SOURCE,
+          tags: ['manual'],
+          targetDate: 1,
+          notebookIds: ['notebook/benchmarks'],
+        });
+        expect(explicitlyFiled.notebookIds).toEqual(['notebook/benchmarks']);
+        const links = await storage.readonly('notebook_links').getAllFromIndex('by-note', 'n-filed');
+        expect(links.some((l) => l.notebookId === 'notebook/benchmarks' && l.targetKind === 'note')).toBe(true);
+      } finally { await storage.close(); }
+    });
   });
 }

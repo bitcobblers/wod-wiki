@@ -11,6 +11,8 @@ export { affiliateTagFacet, applyAmazonAffiliateTag, isAmazonRetailHost } from '
 export { wodLinter, findWorkoutErrors, workoutLintSource } from './whiteboard-linter';
 export {
   wodAutocompletion,
+  wodBackspaceCompletion,
+  shouldTriggerBackspaceCompletion,
   wodCompletionKeymap,
   wodCompletionIconOption,
   acceptCompletionOrFirst,
@@ -30,6 +32,11 @@ export {
   type CustomCompletionSource,
   type NestedCompletionOptions,
 } from './whiteboard-autocomplete';
+export {
+  isWhiteboardScriptBody,
+  insertWhiteboardNewline,
+  wodIndentKeymap,
+} from './whiteboard-indent';
 export { autocompleteTooltipTheme } from './autocomplete-theme';
 export {
   sectionField,

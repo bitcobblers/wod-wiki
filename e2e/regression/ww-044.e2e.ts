@@ -61,12 +61,12 @@ test.describe('WW-044 — feed export → import round-trip', () => {
       if (!archivePath) throw new Error('Playwright download path unavailable');
       const zipBuffer = readFileSync(archivePath);
 
-      // Sanity: the export really is the repository layout (the defect's
-      // export half prefixes every artifact with 'dist/').
+      // Sanity: the export really is the repository layout (markdown sources at root + compiled feed artifacts under 'dist/').
       const exported = await JSZip.loadAsync(zipBuffer);
       const exportedFiles = Object.keys(exported.files).filter((name) => !exported.files[name]!.dir);
       expect(exportedFiles.length).toBeGreaterThan(0);
-      expect(exportedFiles.every((name) => name.startsWith('dist/'))).toBe(true);
+      expect(exportedFiles.some((name) => name.startsWith('dist/'))).toBe(true);
+      expect(exportedFiles.some((name) => name.startsWith('markdown/') && name.endsWith('.md'))).toBe(true);
 
       // Purge the note so the import has to restore it from zero.
       await deleteNoteByRouteId(page, NOTE_ID);

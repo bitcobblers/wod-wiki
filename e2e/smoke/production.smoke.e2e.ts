@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openL3Action } from '../fixtures/playgroundActor';
 import { appBaseURL } from '../utils/url-helpers';
 import { waitForFeedReady } from '../helpers/feedReadiness';
 import { seedNote } from '../helpers/wodwikiDb';
@@ -44,10 +45,11 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
     await page.goto(`/day/${today}`, { waitUntil: 'domcontentloaded' });
 
     await waitForFeedReady(page);
-    // Date-page contract (JournalDatePage always renders this action once the
-    // route settles): the page's own short "+ Add" control, plus the inline
-    // editor when the date already has a note.
-    await expect(page.getByRole('button', { name: '+ Add note', exact: true })).toBeVisible({ timeout: 10_000 });
+    // Date-page contract (JournalDatePage exposes "Add note" in grouped L3
+    // actions once the route settles).
+    const addNoteBtn = page.getByRole('button', { name: 'Add note', exact: true });
+    await openL3Action(page, addNoteBtn);
+    await expect(addNoteBtn).toBeVisible({ timeout: 10_000 });
 
     await page.screenshot({ path: 'e2e/screenshots/smoke-journal.png', fullPage: false });
   });
@@ -115,8 +117,8 @@ test.describe(`App Smoketests — ${appBaseURL()}`, () => {
     await expect(play).toBeVisible({ timeout: 15_000 });
     await play.click();
 
-    await expect(page).toHaveURL(/\/day\/\d{4}-\d{2}-\d{2}/, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Stop Session', exact: true }).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/\/run\/[^/]+/, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /Stop/i }).first()).toBeVisible({ timeout: 15_000 });
     await page.screenshot({ path: 'e2e/screenshots/smoke-fran-timer.png', fullPage: false });
   });
 

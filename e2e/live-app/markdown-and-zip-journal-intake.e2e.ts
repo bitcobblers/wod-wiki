@@ -93,7 +93,7 @@ test.describe('JRN-05 — Markdown & Zip Journal Intake', () => {
 
       await app.wql.queryStream(
         '/journal',
-        ':note{notebook:journal,text:"JRN05 Harbor Sprint"} from 2099-08-01 to 2099-08-31',
+        ':note{text:"JRN05 Harbor Sprint"} from 2099-08-01 to 2099-08-31',
       );
       await expect(page.getByRole('heading', { name: JOURNAL_TARGET_DATE })).toBeVisible();
 

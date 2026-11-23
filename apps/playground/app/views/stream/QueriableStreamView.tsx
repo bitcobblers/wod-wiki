@@ -15,26 +15,49 @@ import {
   ChevronRightIcon,
   CloudDownload,
   RefreshCw,
-  Save,
+  Rss,
   Settings2,
   TriangleAlertIcon,
 } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
+import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+  Button,
+  Dialog,
+  DialogBackdrop,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+} from "@bitcobblers/wod-wiki-ui/primitives";
+import { BUILTIN_NOTEBOOKS, isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
+import { listWritableNotebooks, type WritableNotebookTarget } from '@/components/molecules/PublicationPill'
+import { createUserNotebookLanding } from '@bitcobblers/wod-wiki-engine'
+import { FolderPlus, Loader2 } from 'lucide-react'
 import { queryService } from '@/services/queryService'
 import { onResultSaved } from '@/services/resultRecorder'
 import { useFeedImportPending, useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'
 import { subscribeAppEffortRegistry } from '@/services/effortRegistry'
-import { defaultFeedSources, syncFeedSource, type FeedSyncProgress } from '@/services/feed/feedSync'
+import { defaultFeedSources, subscribeFeed, syncFeedSource, type FeedSyncProgress } from '@/services/feed/feedSync'
 import { listFeedSources, feedSourceById } from '@/services/feed/feedSources'
-import { isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
+import { flushFeedStatePersistence, isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
 import { toast } from '@/hooks/use-toast'
+import { TEST_IDS } from '@/lib/testIds'
 import { getSyncActivity, subscribeSyncActivity } from '@/services/syncActivity'
 import { CreateNotebookDialog } from '@/components/organisms/notebook/CreateNotebookDialog'
 import type { Notebook } from '@/types/notebook'
 import { notebookService } from '@/hooks/useBrowserServices'
+import { subscribeNotebooks } from '@/services/NotebookService'
+import { removeRecentVisit } from '../../nav/panels/ConditionsNavPanel'
 import { ProgressBar } from '../../components/atoms/ProgressBar'
-import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, serialize, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
+import { parseQuery, isFindQuery, isPipelineQuery, notebookSlugFromId, serialize, type NoteUsageCounts, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine'
 import { suggestWqlSyntaxHint, wqlFilterKeys, wqlGroupingDimensions } from '@bitcobblers/wod-wiki-wql'
 import type { WqlExecutor } from '@bitcobblers/wod-wiki-ui'
 import { toggleGroupDimension } from '../../nav/panels/conditionsFacets'
@@ -61,19 +84,17 @@ import { QuerySettingsDialog } from '../../components/organisms/wql/QuerySetting
 import { defaultStreamQueryEngine, StreamQueryEngine } from '../../lib/entrySearch'
 import { publishStreamResults } from './streamResults'
 import { useNav } from '../../nav/NavContext'
-import type { NavItemL3 } from '../../nav/navTypes'
 import { ResponsiveActions } from '../../nav/ResponsiveActions'
 import { cloneRemotePreviewNoteToNotebook, playgroundFeedCatalogStore } from '@/services/feed/feedCatalog'
 import { toggleNotebookSubscription, unsubscribeFeedSource } from '@/services/feed/feedSync'
-import { setFeedSubscribed } from '@/services/feed/feedSubscriptions'
 import { setNotebookPublic } from '@bitcobblers/wod-wiki-engine'
 import { storage, storageBackend } from '@/services/storage'
 import { exportFeedRepositoryZip, publishSelfHostedFeed } from '@/services/ExportImportService'
 import { FeedIntakeBanner } from '../notebook-gallery/FeedIntakeBanner'
 import { OUTCOME_LABEL } from '../../pages/SyncSection'
-import { ROUTE_PATTERNS } from '../../lib/routes'
-import { MobileNewEntryCombo, routeSupportsCreation } from '../../pages/shared/NewEntryCombo'
-import { useComposerQueryState } from '../../hooks/useComposerQueryState'
+import { notebookPath, ROUTE_PATTERNS } from '../../lib/routes'
+import { MobileNewEntryCombo, resolveNewEntryRoute, routeSupportsCreation } from '../../pages/shared/NewEntryCombo'
+import { salvagePlainTextQuery, useComposerQueryState } from '../../hooks/useComposerQueryState'
 import { useViewSettings, LAYOUT_MODES, type LayoutMode } from '../../lib/viewSettingsStorage'
 import { LIBRARY_BATCH_SIZE, useBatchedItems, type BatchedItems } from '../../hooks/useBatchedItems'
 import { todayKey } from '@/lib/dateFormat'
@@ -85,10 +106,18 @@ import { CreateJournalNoteDialog } from '../../components/organisms/journal/Crea
 import { CalendarAgendaView } from './CalendarAgendaView'
 import { CalendarPlannerView } from './CalendarPlannerView'
 import { journalNotes } from '../../services/journalNotes'
+import { journalSchedule, subscribeSchedule } from '../../services/journalSchedule'
+import { createJournalNoteFromWorkout } from '../../services/journalWorkout'
 import { ensurePlaygroundEntry } from '../../services/createPlaygroundPage'
 import { addEntryToTodayInput } from '../../lib/addToToday'
 import { startEntryRun } from '../../lib/entryRun'
 import { playgroundPath } from '../../lib/routes'
+import { StreamViewPopover } from './StreamViewPopover'
+import { SchedulePeekDrawer } from './SchedulePeekDrawer'
+import { type OverlayFilterMode } from './CalendarChrome'
+import type { Note as StoredNote, Session as StoredSession, ScheduleItem } from '@/types/storage'
+import { storageService } from '@/services/storage'
+import { toEntry } from '../../lib/entryMapper'
 import type { StreamProfile } from './streamProfile'
 import { splitReadmeQueries, hasReadmeQuery } from './readmeWql'
 import { ReadmeQueryBlock } from './ReadmeQueryBlock'
@@ -120,7 +149,7 @@ function BatchingSentinel({
           observer on this same div. */}
       <button
         type="button"
-        className="text-xs text-muted-foreground/60 hover:text-foreground hover:underline underline-offset-2"
+        className="text-xs text-muted-foreground hover:text-foreground hover:underline underline-offset-2"
         data-testid={`${testId}-button`}
         onClick={() => batch.growTo(batch.visible.length + LIBRARY_BATCH_SIZE)}
       >
@@ -134,14 +163,7 @@ function BatchingSentinel({
  *  `{`) into a `:${target}{text:...}` query so typing e.g. `kettlebell` in
  *  the WQL bar works smoothly instead of failing as invalid syntax. */
 export function plainTextFallbackQuery(rawInput: string, target: string): string | null {
-  const trimmed = rawInput.trim()
-  if (!trimmed || /[:{}|]/.test(trimmed)) return null
-  if (!parseQuery(trimmed).error) return null
-  const escaped = /\s/.test(trimmed)
-    ? `"${trimmed.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
-    : trimmed
-  const candidate = `:${target}{text:${escaped}}`
-  return parseQuery(candidate).error ? null : candidate
+  return salvagePlainTextQuery(rawInput, target)
 }
 
 /** Host-owned execution debounce for stream queries — the composer resolves
@@ -195,11 +217,24 @@ function userAuthoredFilters(
   })
 }
 
-/** Compact query truth strip beneath the composer (desktop) / top of the
- *  stream (mobile): validity, target, matched of total, applied vs ignored
- *  filters, ignored advisories, the grouping dimensions and their
- *  precedence source. Fed from the run's own stage callback — no extra
- *  scans. */
+const TARGET_NOUNS: Record<string, { singular: string; plural: string }> = {
+  note: { singular: 'note', plural: 'notes' },
+  block: { singular: 'block', plural: 'blocks' },
+  effort: { singular: 'effort', plural: 'efforts' },
+  session: { singular: 'session', plural: 'sessions' },
+  segment: { singular: 'segment', plural: 'segments' },
+  event: { singular: 'event', plural: 'events' },
+  notebook: { singular: 'notebook', plural: 'notebooks' },
+  page: { singular: 'page', plural: 'pages' },
+  tag: { singular: 'tag', plural: 'tags' },
+  equipment: { singular: 'equipment item', plural: 'equipment items' },
+  feed: { singular: 'feed', plural: 'feeds' },
+}
+
+/** Compact query status strip beneath the composer (desktop) / top of the
+ *  stream (mobile): calm athlete counts at rest, escalating to full query
+ *  diagnostics (`:target`, `matched of total`, `applied/ignored`, advisories,
+ *  and syntax hints) when custom filters, advisories, or errors are active. */
 function StreamQueryStatus({
   error,
   syntaxHint,
@@ -212,6 +247,9 @@ function StreamQueryStatus({
   advisories,
   groupDims,
   groupingSource,
+  hasAppliedFilters,
+  isCustomQuery,
+  itemNoun,
 }: {
   error: string | null
   /** WW-034 — parse-failure guidance rendered under the invalid-query line. */
@@ -225,12 +263,46 @@ function StreamQueryStatus({
   advisories: readonly string[]
   groupDims: string[]
   groupingSource: string
+  hasAppliedFilters: boolean
+  isCustomQuery: boolean
+  itemNoun: { singular: string; plural: string }
 }) {
+  const showDiagnostics =
+    Boolean(error) ||
+    hasAppliedFilters ||
+    isCustomQuery ||
+    ignored > 0 ||
+    advisories.length > 0
+
+  if (!showDiagnostics) {
+    return (
+      <div
+        role="status"
+        data-testid="stream-query-status"
+        className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground"
+      >
+        <span data-testid="stream-query-counts">
+          {countsPending
+            ? 'Searching…'
+            : `${matched.toLocaleString()} ${matched === 1 ? itemNoun.singular : itemNoun.plural}`}
+        </span>
+        {groupDims.length > 0 && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span data-grouping-source={groupingSource}>
+              by {groupDims.join(', ')}
+            </span>
+          </>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div
       role="status"
       data-testid="stream-query-status"
-      className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground"
+      className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground"
     >
       {error ? (
         <span className="font-semibold text-destructive">Invalid query — showing previous results</span>
@@ -245,12 +317,16 @@ function StreamQueryStatus({
       <span data-testid="stream-query-filters">
         {applied} applied{ignored > 0 ? `, ${ignored} ignored` : ''}
       </span>
-      <span aria-hidden="true">·</span>
-      {/* WW-004/#5: the internal precedence enum never renders — it rides the
-          data attribute for tests and diagnostics only. */}
-      <span data-grouping-source={groupingSource}>
-        by {groupDims.join(', ')}
-      </span>
+      {groupDims.length > 0 && (
+        <>
+          <span aria-hidden="true">·</span>
+          {/* WW-004/#5: the internal precedence enum never renders — it rides the
+              data attribute for tests and diagnostics only. */}
+          <span data-grouping-source={groupingSource}>
+            by {groupDims.join(', ')}
+          </span>
+        </>
+      )}
       {advisories.map(advisory => (
         <p key={advisory} className="w-full break-words text-amber-700 dark:text-amber-400">
           {advisory}
@@ -385,6 +461,40 @@ export function QueriableStreamView({
   // The calendar layouts start a new entry on a given day; the dialog lives
   // here so the calendar never owns a creation flow of its own.
   const [createOnDate, setCreateOnDate] = useState<string | null>(null)
+  const [overlayMode, setOverlayMode] = useState<OverlayFilterMode>('all')
+  const [inspectedEntry, setInspectedEntry] = useState<Entry | null>(null)
+  const [inspectedDay, setInspectedDay] = useState<string | null>(null)
+  const handleInspectEntry = useCallback((entry: Entry) => {
+    setInspectedDay(null)
+    setInspectedEntry(entry)
+  }, [])
+  const handleInspectDay = useCallback((dateKey: string) => {
+    setInspectedEntry(null)
+    setInspectedDay(dateKey)
+  }, [])
+  const handleClosePeek = useCallback(() => {
+    setInspectedEntry(null)
+    setInspectedDay(null)
+  }, [])
+  const [selectedBatchNoteIds, setSelectedBatchNoteIds] = useState<Set<string>>(() => new Set())
+  const [batchScheduleDate, setBatchScheduleDate] = useState(() => todayKey())
+  const [batchScheduling, setBatchScheduling] = useState(false)
+  const urlMonthParam = useMemo(() => {
+    const raw = new URLSearchParams(location.search).get('month')
+    return raw && /^\d{4}-\d{2}$/.test(raw) ? raw : undefined
+  }, [location.search])
+  const handleMonthChange = useCallback(
+    (nextMonth: string) => {
+      const params = new URLSearchParams(location.search)
+      params.set('month', nextMonth)
+      const nextSearch = params.toString()
+      void navigate(
+        { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
+        { replace: true },
+      )
+    },
+    [location.pathname, location.search, navigate],
+  )
   // The run's own stage counts (scope population vs matches) — captured from
   // the engine's stage callback, never a second scan.
   const [stages, setStages] = useState<{ selected: number; matched: number } | undefined>(undefined)
@@ -409,6 +519,8 @@ export function QueriableStreamView({
       layout,
       availableLayouts,
       groupBy: settings.groupBy,
+      month: urlMonthParam,
+      overlayMode,
       setQuery,
       setLayout: (nextLayout) => {
         if (availableLayouts.includes(nextLayout as LayoutMode)) {
@@ -416,8 +528,10 @@ export function QueriableStreamView({
         }
       },
       setGroupBy,
+      setMonth: handleMonthChange,
+      setOverlayMode,
     })
-  }, [profile.route, profile.defaultWql, query, streamBusy, layout, availableLayouts, settings.groupBy, setQuery, setLayout, setGroupBy])
+  }, [profile.route, profile.defaultWql, query, streamBusy, layout, availableLayouts, settings.groupBy, urlMonthParam, overlayMode, setQuery, setLayout, setGroupBy, handleMonthChange, setOverlayMode])
   const [actionError, setActionError] = useState<string | null>(null)
   // Mobile: the query bar portals into the app navbar (no page header).
   const isMobile = useIsMobile()
@@ -453,8 +567,11 @@ export function QueriableStreamView({
   const handleCreateNotebook = useCallback(async (name: string, description: string, icon: string) => {
     const created = await notebookService.create(name, description, icon)
     setSavedTick(t => t + 1)
+    if (created?.slug) {
+      navigate(notebookPath(created.slug))
+    }
     return created
-  }, [])
+  }, [navigate])
   const handleSaveEditedNotebook = useCallback(async (nb: Notebook, name: string, description: string, icon: string) => {
     try {
       const updated = await notebookService.update(nb.id, { name, description, icon })
@@ -474,16 +591,30 @@ export function QueriableStreamView({
       setCreateNotebookOpen(true)
     }
   }, [])
-  const handleDeleteNotebookEntry = useCallback(async (entry: Entry) => {
-    const targetId = entry.notebookId ?? entry.id
+  const [pendingDeleteNotebook, setPendingDeleteNotebook] = useState<Entry | null>(null)
+  const [deletingNotebook, setDeletingNotebook] = useState(false)
+  const handleDeleteNotebookEntry = useCallback((entry: Entry) => {
     setActionError(null)
+    setPendingDeleteNotebook(entry)
+  }, [])
+  const handleConfirmDeleteNotebook = useCallback(async () => {
+    if (!pendingDeleteNotebook || deletingNotebook) return
+    const targetId = pendingDeleteNotebook.notebookId ?? pendingDeleteNotebook.id
+    const slug = pendingDeleteNotebook.sourceNotebook
+    setActionError(null)
+    setDeletingNotebook(true)
     try {
       await notebookService.delete(targetId)
+      if (slug) removeRecentVisit(notebookPath(slug))
+      setPendingDeleteNotebook(null)
       setSavedTick(t => t + 1)
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err))
+      setPendingDeleteNotebook(null)
+    } finally {
+      setDeletingNotebook(false)
     }
-  }, [])
+  }, [pendingDeleteNotebook, deletingNotebook])
   const createNotebookDialog = isNotebooksRoute ? (
     <CreateNotebookDialog
       open={createNotebookOpen}
@@ -510,7 +641,7 @@ export function QueriableStreamView({
   const notebookStreamSlug = useMemo(() => {
     if (profile.notebookSlug) return profile.notebookSlug
     if (profile.route.startsWith('/notebook/')) {
-      const slug = profile.route.slice(3)
+      const slug = profile.route.slice('/notebook/'.length)
       if (slug && !slug.includes('/')) return slug
     }
     if (!parsed.error && isFindQuery(parsed)) {
@@ -567,7 +698,7 @@ export function QueriableStreamView({
   const activeEngine = useMemo<StreamQueryEngine>(() => {
     const base = queryEngine ?? defaultStreamQueryEngine
     return layout === 'feed' ? base.withNoteBlockInfo() : base
-  }, [queryEngine, settings.layout])
+  }, [queryEngine, layout])
 
   const defaultAddToToday = useCallback(async (entry: Entry) => {
     const today = todayKey()
@@ -576,8 +707,27 @@ export function QueriableStreamView({
       entry.kind === 'result' || entry.kind === 'segment'
         ? entry.execution?.noteId
         : entry.kind === 'note'
-          ? entry.sourceNote
+          ? (entry.id || entry.sourceNote)
           : entry.id
+
+    // Link-first scheduling for real stored Notes & remote feed previews
+    if (targetNoteId && (entry.kind === 'note' || entry.kind === 'result' || entry.kind === 'segment')) {
+      const existingNote = await storageService.getNote(targetNoteId).catch(() => undefined)
+      if (existingNote || entry.isRemotePreview) {
+        await createJournalNoteFromWorkout({
+          workoutName: existingNote?.title || entry.title,
+          category: entry.sourceNotebook || 'journal',
+          sourceNoteId: existingNote?.id ?? targetNoteId,
+          sourceNotePath: entry.sourcePath,
+          wodContent: rawContent,
+        })
+        toast({
+          title: `Scheduled "${existingNote?.title || entry.title || 'Workout'}"`,
+          description: `Linked onto ${today}.`,
+        })
+        return
+      }
+    }
 
     if (targetNoteId) {
       // 1. If segment has a specific blockContentId, resolve that block first
@@ -667,8 +817,10 @@ export function QueriableStreamView({
   // is debounced (host-owned 150ms, coalescing per-keystroke composer
   // emissions). Invalid drafts never execute — previous results stay visible
   // (stale, flagged by the query error banner), and loading never wedges.
-  // A committed result bumps savedTick so the mounted listing re-queries.
+  // A committed result or notebook mutation bumps savedTick so the mounted listing re-queries.
   const [savedTick, setSavedTick] = useState(0)
+  useEffect(() => subscribeNotebooks(() => setSavedTick(t => t + 1)), [])
+  useEffect(() => subscribeSchedule(() => setSavedTick(t => t + 1)), [])
 
   // Notebook-plane management (ticket 05): the /notebooks list plus the move
   // targets the stream rows offer (user-owned notebooks only — feed
@@ -680,7 +832,7 @@ export function QueriableStreamView({
       if (cancelled) return
       setMoveNotebookTargets(all
         .filter(nb => nb.origin === 'user' || nb.origin === 'default')
-        .filter(nb => nb.slug !== 'guides' && nb.slug !== 'playground')
+        .filter(nb => nb.slug !== 'playground' && !isSystemReadOnlyNotebook(nb.notebookId) && !isSystemReadOnlyNotebook(nb.slug))
         .map(nb => ({ id: nb.notebookId, name: nb.name, icon: nb.icon })))
     }).catch(() => undefined)
     return () => {
@@ -698,33 +850,53 @@ export function QueriableStreamView({
   }, [])
   const subscribingIdsRef = useRef<Set<string>>(new Set())
   const [subscribingIds, setSubscribingIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [pendingUnsubscribeFeed, setPendingUnsubscribeFeed] = useState<{ feedId: string; label: string } | null>(null)
+  const [pendingCloneEntry, setPendingCloneEntry] = useState<Entry | null>(null)
+  const [cloneTargetNotebooks, setCloneTargetNotebooks] = useState<WritableNotebookTarget[]>([])
+  const [cloneTargetId, setCloneTargetId] = useState<string>('notebook/journal')
+  const [cloneCreateNew, setCloneCreateNew] = useState(false)
+  const [cloneNewName, setCloneNewName] = useState('')
+  const [cloningRemote, setCloningRemote] = useState(false)
+  const [pullingRemotePreview, setPullingRemotePreview] = useState(false)
+
+  const handleConfirmUnsubscribe = useCallback(async () => {
+    if (!pendingUnsubscribeFeed) return
+    const { feedId } = pendingUnsubscribeFeed
+    if (subscribingIdsRef.current.has(feedId)) return
+    setActionError(null)
+    subscribingIdsRef.current.add(feedId)
+    setSubscribingIds(new Set(subscribingIdsRef.current))
+    try {
+      await unsubscribeFeedSource(feedId)
+      setPendingUnsubscribeFeed(null)
+      setSavedTick(t => t + 1)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      subscribingIdsRef.current.delete(feedId)
+      setSubscribingIds(new Set(subscribingIdsRef.current))
+    }
+  }, [pendingUnsubscribeFeed])
+
   const handleToggleSubscribeEntry = useCallback(async (entry: Entry) => {
     const subKey = entry.feedId ?? entry.id
     if (subscribingIdsRef.current.has(subKey)) return
     setActionError(null)
+    const nextSub = !entry.subscribed
+    if (entry.kind === 'feed' && entry.feedId && !nextSub) {
+      const label = entry.title || feedSourceById(entry.feedId)?.label || entry.feedId
+      setPendingUnsubscribeFeed({ feedId: entry.feedId, label })
+      return
+    }
     subscribingIdsRef.current.add(subKey)
     setSubscribingIds(new Set(subscribingIdsRef.current))
     try {
-      const nextSub = !entry.subscribed
-      if (entry.kind === 'feed' && entry.feedId) {
-        if (nextSub) {
-          const outcome = await syncFeedSource(entry.feedId)
-          if (outcome === 'imported' || outcome === 'current' || outcome === 'server-stale') {
-            setFeedSubscribed(entry.feedId, true)
-          } else {
-            setActionError(outcome === 'busy' ? 'Another tab is already syncing.' : 'Feed sync failed.')
-            return
-          }
-        } else {
-          const label = entry.title || feedSourceById(entry.feedId)?.label || entry.feedId
-          if (
-            !window.confirm(
-              `Unsubscribe from "${label}"? Imported content for this feed's content is removed from your library; the source stays listed so you can subscribe again. Your own notes are never touched.`,
-            )
-          ) {
-            return
-          }
-          await unsubscribeFeedSource(entry.feedId)
+      if (entry.kind === 'feed' && entry.feedId && nextSub) {
+        const outcome = await subscribeFeed(entry.feedId, { offlinePolicy: entry.feedId === 'core' ? 'offline-full' : 'index-only' })
+        await flushFeedStatePersistence()
+        if (outcome !== 'imported' && outcome !== 'current' && outcome !== 'server-stale') {
+          setActionError(outcome === 'busy' ? 'Another tab is already syncing.' : 'Feed sync failed.')
+          return
         }
       } else if (entry.kind === 'notebook' && entry.feedId && entry.seedChunkId) {
         await toggleNotebookSubscription(entry.feedId, entry.seedChunkId, nextSub)
@@ -771,20 +943,58 @@ export function QueriableStreamView({
     }
   }, [])
 
-  const handleCloneRemoteEntry = useCallback(async (entry: Entry) => {
+  const handleCloneRemoteEntry = useCallback((entry: Entry) => {
+    setActionError(null)
+    setCloneCreateNew(false)
+    setCloneNewName('')
+    setPendingCloneEntry(entry)
+    void listWritableNotebooks(storage).then((targets) => {
+      setCloneTargetNotebooks(targets)
+      setCloneTargetId((prev) =>
+        targets.some((nb) => nb.id === prev) ? prev : (targets[0]?.id ?? 'notebook/journal'),
+      )
+    })
+  }, [])
+
+  const handleConfirmCloneRemote = useCallback(async () => {
+    if (!pendingCloneEntry || cloningRemote) return
+    setCloningRemote(true)
     setActionError(null)
     try {
-      const targetNb = moveNotebookTargets[0]?.id ?? 'notebook/defaults'
-      const cloned = await cloneRemotePreviewNoteToNotebook(entry.id, targetNb)
+      let targetNb = cloneTargetId
+      if (cloneCreateNew && cloneNewName.trim()) {
+        const cleanName = cloneNewName.trim()
+        const slug = cleanName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '') || 'custom'
+        const candidateId = `notebook/${slug}` as Notebook['id']
+        if (isSystemReadOnlyNotebook(candidateId)) {
+          setActionError(`"${cleanName}" is reserved for a read-only system notebook. Choose another name.`)
+          return
+        }
+        targetNb = await createUserNotebookLanding(storage, cleanName)
+      }
+      if (isSystemReadOnlyNotebook(targetNb)) {
+        setActionError('Cannot clone into a read-only system notebook.')
+        return
+      }
+      const cloned = await cloneRemotePreviewNoteToNotebook(pendingCloneEntry.id, targetNb)
+      const destLabel = cloneTargetNotebooks.find((n) => n.id === targetNb)?.name || targetNb.replace(/^notebook\//, '')
       toast({
         title: `Cloned "${cloned.title}"`,
-        description: `Saved to ${targetNb.replace(/^notebook\//, '')}. You own this copy and can edit or publish it.`,
+        description: `Saved to ${destLabel}. You own this copy and can edit or publish it.`,
       })
+      setPendingCloneEntry(null)
+      setCloneNewName('')
+      setCloneCreateNew(false)
       setSavedTick(t => t + 1)
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCloningRemote(false)
     }
-  }, [moveNotebookTargets])
+  }, [pendingCloneEntry, cloningRemote, cloneTargetId, cloneCreateNew, cloneNewName, cloneTargetNotebooks])
   useEffect(() => onResultSaved(() => setSavedTick((t) => t + 1)), [])
   // The effort corpus keeps importing after the readiness gate flips (the
   // gate ungates on first paint; the effort chunk lands later). When the
@@ -917,6 +1127,7 @@ export function QueriableStreamView({
             // One full execution per query change — nav facet panels read
             // this snapshot instead of re-running the query.
             publishStreamResults({ pathname: location.pathname, query: effectiveQuery, entries: results })
+            setSavedTick((prev) => prev) // keep reference clean
           }
         })
         .catch(() => {
@@ -938,7 +1149,158 @@ export function QueriableStreamView({
       clearTimeout(timer)
       setQueryPending(false)
     }
-  }, [effectiveQuery, activeEngine, parsed, location.pathname, profile.route, feedReadiness, feedImportPending, savedTick])
+  }, [effectiveQuery, activeEngine, parsed, location.pathname, profile.route, isNotebooksRoute, feedReadiness, feedImportPending, savedTick])
+
+  // Usage counts & M:N schedule enrichment for Note rows + Calendar Overlay projection
+  const [usageCounts, setUsageCounts] = useState<ReadonlyMap<string, NoteUsageCounts>>(
+    () => new Map(),
+  )
+  const [allScheduleItems, setAllScheduleItems] = useState<ScheduleItem[]>([])
+  const [overlaySessions, setOverlaySessions] = useState<StoredSession[]>([])
+  const [overlayNotesById, setOverlayNotesById] = useState<ReadonlyMap<string, StoredNote>>(() => new Map())
+
+  useEffect(() => {
+    let cancelled = false
+    const needsCounts =
+      profile.route === '/notes' ||
+      Boolean(profile.notebookSlug) ||
+      location.pathname.startsWith('/notebook/')
+    const needsCalendarOverlay =
+      Boolean(profile.calendarCapable) && (layout === 'planner' || layout === 'agenda')
+
+    if (needsCounts) {
+      journalSchedule
+        .getUsageCountsByNote()
+        .then((map) => {
+          if (!cancelled) setUsageCounts(map)
+        })
+        .catch(() => {})
+    }
+    if (needsCalendarOverlay) {
+      void Promise.all([
+        journalSchedule.listAll().catch(() => [] as ScheduleItem[]),
+        storage.readonly('sessions').getAll().catch(() => [] as StoredSession[]),
+        storageService.getAllNotes().catch(() => [] as StoredNote[]),
+      ]).then(([sched, sess, notes]) => {
+        if (cancelled) return
+        setAllScheduleItems(sched)
+        setOverlaySessions(sess)
+        setOverlayNotesById(new Map(notes.map((n) => [n.id, n])))
+      })
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [profile.route, profile.notebookSlug, profile.calendarCapable, location.pathname, layout, savedTick])
+
+  const enrichedEntries = useMemo(() => {
+    const schedDatesByNote = new Map<string, string[]>()
+    for (const item of allScheduleItems) {
+      const list = schedDatesByNote.get(item.noteId) ?? []
+      if (!list.includes(item.date)) list.push(item.date)
+      schedDatesByNote.set(item.noteId, list)
+    }
+    if (usageCounts.size === 0 && schedDatesByNote.size === 0) return entries
+    return entries.map((entry) => {
+      const counts = usageCounts.get(entry.id)
+      const schedDates = schedDatesByNote.get(entry.id)
+      if (!counts && !schedDates) return entry
+      return {
+        ...entry,
+        ...(counts ? { scheduleCount: counts.scheduleCount, sessionCount: counts.sessionCount } : {}),
+        ...(schedDates ? { scheduledDates: schedDates } : {}),
+      }
+    })
+  }, [entries, usageCounts, allScheduleItems])
+
+  const calendarOverlayEntries = useMemo(() => {
+    if (!profile.calendarCapable || (layout !== 'planner' && layout !== 'agenda')) {
+      return enrichedEntries
+    }
+    if (allScheduleItems.length === 0 && overlaySessions.length === 0) {
+      return overlayMode === 'all' ? enrichedEntries : overlayMode === 'planned' ? enrichedEntries : []
+    }
+    const matchingNoteIds = new Set(enrichedEntries.map((e) => e.id))
+    const enforceNoteFilter =
+      profile.route !== '/journal' || effectiveQuery.trim() !== profile.defaultWql.trim()
+    const pairedByScheduleId = new Map<string, StoredSession[]>()
+    const adhocSessions: StoredSession[] = []
+    for (const sess of overlaySessions) {
+      if (sess.origin === 'playground') continue
+      if (enforceNoteFilter && !matchingNoteIds.has(sess.noteId)) continue
+      if (sess.scheduleItemId) {
+        const list = pairedByScheduleId.get(sess.scheduleItemId) ?? []
+        list.push(sess)
+        pairedByScheduleId.set(sess.scheduleItemId, list)
+      } else {
+        adhocSessions.push(sess)
+      }
+    }
+
+    const overlay: Entry[] = []
+    const coveredNoteDates = new Set<string>()
+    for (const item of allScheduleItems) {
+      if (enforceNoteFilter && !matchingNoteIds.has(item.noteId)) continue
+      const note = overlayNotesById.get(item.noteId)
+      const base = note ? toEntry(note) : enrichedEntries.find((e) => e.id === item.noteId)
+      if (!base) continue
+      const paired = pairedByScheduleId.get(item.id) ?? []
+      coveredNoteDates.add(`${item.noteId}:${item.date}`)
+      const itemEntry: Entry = {
+        ...base,
+        date: item.date,
+        scheduledDates: [item.date],
+        overlayKind: paired.length > 0 ? 'logged' : item.status === 'skipped' ? 'skipped' : 'planned',
+        scheduleItemId: item.id,
+        scheduleSlot: item.slot,
+        scheduleNotes: item.notes,
+        scheduleStatus: paired.length > 0 ? 'completed' : item.status,
+        pairedSessions: paired.map((s) => ({
+          sessionId: s.id,
+          duration: s.duration,
+          completed: s.completed,
+          startTime: s.startTime,
+        })),
+      }
+      if (overlayMode === 'all' || (overlayMode === 'planned' && paired.length === 0) || (overlayMode === 'logged' && paired.length > 0)) {
+        overlay.push(itemEntry)
+      }
+    }
+
+    if (overlayMode === 'all' || overlayMode === 'logged') {
+      for (const sess of adhocSessions) {
+        const sessDate = sess.sessionDate ?? journalSchedule.todayKey(sess.startTime || sess.createdAt)
+        const note = overlayNotesById.get(sess.noteId)
+        const base = note ? toEntry(note) : enrichedEntries.find((e) => e.id === sess.noteId)
+        if (!base) continue
+        overlay.push({
+          ...base,
+          id: base.id,
+          date: sessDate,
+          scheduledDates: [sessDate],
+          overlayKind: 'logged',
+          adHocSessionId: sess.id,
+          adHocSessionDate: sessDate,
+          noteSourceRevision: sess.noteSourceRevision,
+          pairedSessions: [{
+            sessionId: sess.id,
+            duration: sess.duration,
+            completed: sess.completed,
+            startTime: sess.startTime,
+          }],
+        })
+      }
+    }
+
+    // Preserve any legacy dated or undated entries that didn't map through ScheduleItems yet
+    if (overlayMode === 'all') {
+      for (const entry of enrichedEntries) {
+        if (entry.date && coveredNoteDates.has(`${entry.id}:${entry.date}`)) continue
+        if (!entry.date) overlay.push(entry)
+      }
+    }
+    return overlay
+  }, [profile.calendarCapable, profile.route, profile.defaultWql, effectiveQuery, layout, enrichedEntries, allScheduleItems, overlaySessions, overlayNotesById, overlayMode])
 
   // Grouping: the committed run's query `by {}` dimensions win; otherwise
   // the view setting, then the surface's Group-By favorite, then the level
@@ -978,8 +1340,39 @@ export function QueriableStreamView({
     }
   }, [location.pathname])
   const [notebookNotFound, setNotebookNotFound] = useState(false)
+  const [resolvedNotebookTitle, setResolvedNotebookTitle] = useState<string | null>(null)
   useEffect(() => {
-    if (!notebookSlugParam || entries.length > 0 || !hasSettledRun) {
+    if (!notebookSlugParam) {
+      setResolvedNotebookTitle(null)
+      return
+    }
+    let cancelled = false
+    const builtinSpec = BUILTIN_NOTEBOOKS.find(b => b.slug === notebookSlugParam)
+    void Promise.all([
+      notebookService.getAllNotebooks().catch(() => [] as Notebook[]),
+      playgroundFeedCatalogStore.getAllNotebooks().catch(() => []),
+      storage.readonly('notes').get(`notebook/${notebookSlugParam}`).catch(() => undefined),
+    ]).then(([registered, catalog, landing]) => {
+      if (cancelled) return
+      const regMatch = registered.find(nb => nb.slug === notebookSlugParam)
+      const catMatch = catalog.find(row => row.slug === notebookSlugParam)
+      const name = regMatch?.name || landing?.title || catMatch?.label || builtinSpec?.name || null
+      setResolvedNotebookTitle(name)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [notebookSlugParam, savedTick])
+  useEffect(() => {
+    if (!notebookSlugParam || !resolvedNotebookTitle) return
+    const prevTitle = document.title
+    document.title = `Wod.Wiki - ${resolvedNotebookTitle}`
+    return () => {
+      document.title = prevTitle
+    }
+  }, [notebookSlugParam, resolvedNotebookTitle])
+  useEffect(() => {
+    if (!notebookSlugParam || entries.length > 0 || !hasSettledRun || feedImportPending || feedReadiness === 'preparing') {
       setNotebookNotFound(false)
       return
     }
@@ -996,7 +1389,7 @@ export function QueriableStreamView({
     return () => {
       cancelled = true
     }
-  }, [notebookSlugParam, entries.length, hasSettledRun])
+  }, [notebookSlugParam, entries.length, hasSettledRun, feedImportPending, feedReadiness])
   // Filter truth vs the target's own vocabulary: the executor IGNORES
   // unsupported keys (advisory) — the strip says applied vs ignored instead
   // of implying every requested filter ran.
@@ -1007,16 +1400,51 @@ export function QueriableStreamView({
   const appliedFilters = parsed.error || isPipelineQuery(parsed) ? 0 : parsed.filters.filter(f => supportedFilterKeys.has(f.key)).length
   const ignoredFilters = (parsed.error || isPipelineQuery(parsed) ? 0 : parsed.filters.length) - appliedFilters
 
+  const handleToggleBatchSelect = useCallback((entry: Entry) => {
+    setSelectedBatchNoteIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(entry.id)) next.delete(entry.id)
+      else next.add(entry.id)
+      return next
+    })
+  }, [])
+
+  const handleConfirmBatchSchedule = useCallback(async () => {
+    if (selectedBatchNoteIds.size === 0 || !batchScheduleDate || batchScheduling) return
+    setBatchScheduling(true)
+    setActionError(null)
+    try {
+      const sourceNbId = notebookStreamSlug ? `notebook/${notebookStreamSlug}` : undefined
+      await journalSchedule.batchSchedule(
+        [...selectedBatchNoteIds].map((noteId) => ({
+          noteId,
+          date: batchScheduleDate,
+          ...(sourceNbId ? { sourceNotebookId: sourceNbId } : {}),
+        })),
+      )
+      toast({
+        title: `Scheduled ${selectedBatchNoteIds.size} workout${selectedBatchNoteIds.size === 1 ? '' : 's'}`,
+        description: `Linked onto ${batchScheduleDate}.`,
+      })
+      setSelectedBatchNoteIds(new Set())
+      setSavedTick((t) => t + 1)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Batch scheduling failed.')
+    } finally {
+      setBatchScheduling(false)
+    }
+  }, [selectedBatchNoteIds, batchScheduleDate, batchScheduling, notebookStreamSlug])
+
   // Full dataset grouped by dimension
   const shelfVisible = profile.shelfVisible && !isPlaygroundScope
   const allGroups = useMemo(
-    () => groupEntriesByDimension(entries, groupDims, { shelfVisible }),
-    [entries, groupDims, shelfVisible],
+    () => groupEntriesByDimension(enrichedEntries, groupDims, { shelfVisible }),
+    [enrichedEntries, groupDims, shelfVisible],
   )
 
   // Progressive DOM batching — destructure members (growTo is a stable
   // callback) so effects/memos depend on values, not the per-render object.
-  const entriesBatch = useBatchedItems(entries)
+  const entriesBatch = useBatchedItems(enrichedEntries)
   const { visible: batchedVisible, growTo: growBatchTo } = entriesBatch
   const visibleGroups = useMemo(
     () => groupEntriesByDimension(batchedVisible, groupDims, { shelfVisible }),
@@ -1024,22 +1452,18 @@ export function QueriableStreamView({
   )
   const groupCountMap = useMemo(() => new Map(allGroups.map(g => [g.id, g.entries.length])), [allGroups])
 
-  // Publish dynamic section links and L3 stream controls to NavContext
-  const { setL3Items, setL3Actions, scrollToSection, navState, setStreamControls } = useNav()
+  // Streams retire resting L3 (0px right rail) — filters live inside
+  // StreamQueryBar's `+ Filter` popover and layout/fields/group-by/actions
+  // live inside StreamViewPopover.
+  const { setL3Items, setL3Actions, scrollToSection, navState, openCreateJournal } = useNav()
   useEffect(() => {
-    if (allGroups.length === 0) {
+    setL3Items([])
+    setL3Actions?.([])
+    return () => {
       setL3Items([])
-      return
+      setL3Actions?.([])
     }
-    const sectionLinks: NavItemL3[] = allGroups.map(g => ({
-      id: g.id,
-      label: g.label,
-      level: 3,
-      action: { type: 'scroll', sectionId: g.id },
-    }))
-    setL3Items(sectionLinks)
-    return () => setL3Items([])
-  }, [allGroups, setL3Items])
+  }, [setL3Items, setL3Actions])
 
   const availableGroupDims = useMemo(() => {
     const target = parsed.error || !isFindQuery(parsed) ? (profile.level === 'effort' ? 'effort' : 'note') : parsed.target
@@ -1070,39 +1494,6 @@ export function QueriableStreamView({
   )
 
   const saveDisabled = Boolean(parsed.error) || query.trim() === ''
-  useEffect(() => {
-    if (!profile.dashboardEnabled) {
-      setL3Actions?.([])
-      return
-    }
-    setL3Actions?.([
-      {
-        id: 'stream-save-to-dashboard',
-        label: 'Add to dashboard',
-        icon: Save,
-        disabled: saveDisabled,
-        onRun: () => setDashboardOpen(true),
-      },
-    ])
-    return () => setL3Actions?.([])
-  }, [profile.dashboardEnabled, saveDisabled, setL3Actions])
-
-  useEffect(() => {
-    setStreamControls?.({
-      query,
-      onQueryChange: setQuery,
-      groupDims,
-      onToggleGroupDim: handleToggleGroupDim,
-      availableGroupDims,
-      settings,
-      onLayoutChange: setLayout,
-      onToggleField: toggleField,
-      level: profile.level,
-      availableLayouts,
-      ...(querySettingsSurface ? { onOpenQuerySettings: () => setQuerySettingsOpen(true) } : {}),
-    })
-    return () => setStreamControls?.(null)
-  }, [query, setQuery, groupDims, handleToggleGroupDim, availableGroupDims, setStreamControls, settings, setLayout, toggleField, profile.level, availableLayouts, querySettingsSurface])
 
   // Progressive anchor reachability: the L3 index covers ALL groups, but only
   // the rendered prefix has DOM anchors (progressive batching). A click on a
@@ -1160,6 +1551,30 @@ export function QueriableStreamView({
     }
     return out
   }, [profile.defaultWql, profile.scopeOptions, query])
+
+  const authoredFilters = useMemo(() => {
+    if (parsed.error || !isFindQuery(parsed)) return []
+    return userAuthoredFilters(parsed.filters, defaultImpliedFilters)
+  }, [parsed, defaultImpliedFilters])
+  const hasAppliedFilters = authoredFilters.length > 0
+  const isCustomQuery = hasAppliedFilters || effectiveQuery.trim() !== profile.defaultWql.trim()
+  const statusTarget = parsed.error ? null : isFindQuery(parsed) ? parsed.target : parsed.family
+  const statusNoun = TARGET_NOUNS[statusTarget ?? profile.target] ?? { singular: 'item', plural: 'items' }
+
+  const canCreateOnRoute = routeSupportsCreation(profile.route) && !notebookNotFound
+  const handleStreamAddAction = useCallback(() => {
+    if (isNotebooksRoute) {
+      setEditingNotebook(null)
+      setCreateNotebookOpen(true)
+      return
+    }
+    const routeCtx = resolveNewEntryRoute(location.pathname)
+    openCreateJournal({
+      kind: routeCtx.defaultKind,
+      notebookSlug: routeCtx.notebookSlug,
+      date: routeCtx.defaultDate,
+    })
+  }, [isNotebooksRoute, location.pathname, openCreateJournal])
 
   // Nothing imported on a seed-library route: the emptiness is the missing
   // corpus, not the query — the empty state points at the import action and
@@ -1293,8 +1708,16 @@ export function QueriableStreamView({
     )
   }
 
+  const visibleHeaderTitle = notebookSlugParam ? (resolvedNotebookTitle ?? undefined) : undefined
+  const streamHeading = resolvedNotebookTitle ?? profile.title ?? 'Stream'
+
   return (
     <div className="bg-card flex flex-col flex-1" data-testid="queriable-stream-view">
+      {!visibleHeaderTitle && (
+        <h1 className="sr-only" data-testid={TEST_IDS.STREAM_PAGE_HEADING}>
+          {streamHeading}
+        </h1>
+      )}
       {createNotebookDialog}
       {querySettingsSurface && (
         <QuerySettingsDialog
@@ -1322,24 +1745,30 @@ export function QueriableStreamView({
           WQL composer lives in the thumb-control zone. */}
       <StickyPageHeader
         className="max-lg:hidden"
+        title={visibleHeaderTitle}
         actions={
           <ResponsiveActions
-            primary={routeSupportsCreation(profile.route) && !notebookNotFound ? <MobileNewEntryCombo /> : undefined}
+            primary={canCreateOnRoute ? <MobileNewEntryCombo /> : undefined}
             label="Stream actions"
           >
-            {profile.dashboardEnabled && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                data-testid="save-stream-query"
-                disabled={saveDisabled}
-                onClick={() => setDashboardOpen(true)}
-              >
-                <Save className="size-3.5" aria-hidden="true" />
-                Add to dashboard
-              </Button>
-            )}
+            <StreamViewPopover
+              level={profile.level}
+              settings={settings}
+              availableLayouts={availableLayouts}
+              availableGroupDims={availableGroupDims.map((opt) => opt.id)}
+              groupDims={groupDims}
+              onLayoutChange={setLayout}
+              onToggleGroupDim={handleToggleGroupDim}
+              onToggleField={toggleField}
+              calendarCapable={Boolean(profile.calendarCapable)}
+              query={query}
+              onQueryChange={setQuery}
+              addActionLabel={isNotebooksRoute ? '+ New notebook' : '+ Add'}
+              onAddAction={canCreateOnRoute ? handleStreamAddAction : undefined}
+              onAddToDashboard={profile.dashboardEnabled ? () => setDashboardOpen(true) : undefined}
+              addToDashboardDisabled={saveDisabled}
+              onOpenQuerySettings={querySettingsSurface ? () => setQuerySettingsOpen(true) : undefined}
+            />
             {actions}
           </ResponsiveActions>
         }
@@ -1352,19 +1781,20 @@ export function QueriableStreamView({
               execute={execute}
               defaultQuery={profile.defaultWql}
               route={profile.route}
+              hasAppliedFilters={hasAppliedFilters}
+              activeFilterCount={authoredFilters.length}
             />
           ) : undefined
         }
       />
 
-      {/* Query truth strip — one instance under the header: beneath the
-          composer on desktop, top-of-page status on mobile (the header is
-          max-lg:hidden). Never duplicated in the page body. */}
+      {/* Query status strip — one instance under the header: calm athlete
+          counts at rest, full query diagnostics when custom/advisory/error. */}
       <div className="px-4 pt-2 sm:px-6 lg:px-8" data-testid="stream-query-status-row">
         <StreamQueryStatus
           error={queryError}
           syntaxHint={queryError ? suggestWqlSyntaxHint(query, profile.target) : null}
-          target={parsed.error ? null : isFindQuery(parsed) ? parsed.target : parsed.family}
+          target={statusTarget}
           matched={entries.length}
           total={Math.max(stages?.selected ?? 0, entries.length)}
           countsPending={!parsed.error && (!hasSettledRun || (loading && !stages))}
@@ -1373,6 +1803,9 @@ export function QueriableStreamView({
           advisories={parsed.error ? [] : parsed.advisories ?? []}
           groupDims={groupDims}
           groupingSource={groupingSource}
+          hasAppliedFilters={hasAppliedFilters}
+          isCustomQuery={isCustomQuery}
+          itemNoun={statusNoun}
         />
       </div>
 
@@ -1465,6 +1898,8 @@ export function QueriableStreamView({
             execute={execute}
             defaultQuery={profile.defaultWql}
             route={profile.route}
+            hasAppliedFilters={hasAppliedFilters}
+            activeFilterCount={authoredFilters.length}
             compact
           />,
           mobileSlot,
@@ -1552,29 +1987,41 @@ export function QueriableStreamView({
 
       {/* Zero-import remote preview banner when viewing an unsubscribed remote Notebook */}
       {entries.length > 0 && entries.every(e => e.isRemotePreview) && notebookStreamSlug && (
-        <div className="mx-6 mt-4 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs" data-testid="remote-notebook-preview-banner">
+        <div className="mx-6 mt-4 rounded-xl border border-sky-700/30 dark:border-sky-400/30 bg-sky-500/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs" data-testid="remote-notebook-preview-banner">
           <div>
             <p className="font-semibold text-foreground">
-              Zero-import Remote Preview · {entries.length} note{entries.length === 1 ? '' : 's'}
+              Index Preview · {entries.length} workout{entries.length === 1 ? '' : 's'} — loaded on demand
             </p>
             <p className="text-muted-foreground mt-0.5">
-              Browsing directly from published Feed index without importing into your vault. Clone individual workouts or subscribe to pull the notebook locally.
+              Browsing directly from the feed index without downloading everything upfront. Open any workout on demand, clone a copy to My Notes, or subscribe for offline access.
             </p>
           </div>
           {entries[0]?.feedId && (
             <Button
               size="sm"
-              onClick={() => void toggleNotebookSubscription(entries[0]!.feedId!, `notebook.${notebookStreamSlug}`, true).then(() => setSavedTick(t => t + 1))}
+              disabled={pullingRemotePreview}
+              aria-busy={pullingRemotePreview}
+              onClick={() => {
+                const feedId = entries[0]!.feedId!
+                const chunkId = entries[0]!.seedChunkId ?? `notebook.${notebookStreamSlug}`
+                setPullingRemotePreview(true)
+                void toggleNotebookSubscription(feedId, chunkId, true)
+                  .then(() => { setSavedTick(t => t + 1) })
+                  .catch((err) => { setActionError(err instanceof Error ? err.message : String(err)) })
+                  .finally(() => { setPullingRemotePreview(false) })
+              }}
               data-testid="remote-preview-subscribe-btn"
+              className="gap-1.5"
             >
-              + Subscribe &amp; Pull Notebook
+              {pullingRemotePreview ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
+              {pullingRemotePreview ? 'Downloading offline…' : '+ Subscribe & Download Offline'}
             </Button>
           )}
         </div>
       )}
       {/* Unified Stream Content across all Library routes (/feeds, /notebooks, /notes, /journal, /sessions, /efforts, /tags) */}
       {readmeOverride ? null : (layout === 'rows' || layout === 'agenda' || layout === 'planner') && entries.length === 0 && (!hasSettledRun || loading) ? (
-        <div className="py-16 text-center text-xs text-muted-foreground/60" data-testid="stream-loading">
+        <div className="py-16 text-center text-xs text-muted-foreground" data-testid="stream-loading">
           Loading…
         </div>
       ) : layout === 'rows' ? (
@@ -1590,7 +2037,7 @@ export function QueriableStreamView({
       ) : layout === 'agenda' ? (
         <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
           <CalendarAgendaView
-            entries={entries}
+            entries={calendarOverlayEntries}
             stickyOffset={stickyOffset}
             visibleFieldIds={settings.visibleFields}
             onAddToToday={handleAddToToday}
@@ -1598,18 +2045,30 @@ export function QueriableStreamView({
             moveNotebookTargets={moveNotebookTargets}
             onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.id, notebookId)}
             onCreateOnDay={setCreateOnDate}
+            monthParam={urlMonthParam}
+            onMonthChange={handleMonthChange}
+            overlayMode={overlayMode}
+            onOverlayModeChange={setOverlayMode}
+            onInspectEntry={handleInspectEntry}
+            onInspectDay={handleInspectDay}
           />
         </div>
       ) : layout === 'planner' ? (
         <div className={stale ? 'flex-1 opacity-50 transition-opacity' : 'flex-1'}>
           <CalendarPlannerView
-            entries={entries}
+            entries={calendarOverlayEntries}
             visibleFieldIds={settings.visibleFields}
             onAddToToday={handleAddToToday}
             onRunStart={handleRunEntry}
             moveNotebookTargets={moveNotebookTargets}
             onMoveNotebook={(entry, notebookId) => void handleMoveNotebook(entry.id, notebookId)}
             onCreateOnDay={setCreateOnDate}
+            monthParam={urlMonthParam}
+            onMonthChange={handleMonthChange}
+            overlayMode={overlayMode}
+            onOverlayModeChange={setOverlayMode}
+            onInspectEntry={handleInspectEntry}
+            onInspectDay={handleInspectDay}
           />
         </div>
       ) : layout === 'feed' ? (
@@ -1627,7 +2086,7 @@ export function QueriableStreamView({
             onDeleteNotebook={e => void handleDeleteNotebookEntry(e)}
           />
         ) : loading && entries.length === 0 ? (
-          <div className="py-16 text-center text-xs text-muted-foreground/60" data-testid="stream-loading">
+          <div className="py-16 text-center text-xs text-muted-foreground" data-testid="stream-loading">
             Loading…
           </div>
         ) : entries.length === 0 && !loading ? (
@@ -1659,7 +2118,7 @@ export function QueriableStreamView({
                           )}
                           <Rss className="size-3.5 text-amber-500" />
                           <span className="text-xs font-bold text-foreground">{group.label}</span>
-                          <span className="text-[10px] font-bold text-muted-foreground/60 bg-muted px-1.5 py-0.5 rounded-full">
+                          <span className="text-[11px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                             {totalInGroup}
                           </span>
                         </div>
@@ -1697,7 +2156,7 @@ export function QueriableStreamView({
                       icon={<CalendarIcon className="size-3.5 shrink-0 text-muted-foreground" />}
                       label={group.label}
                       badge={group.isToday ? (
-                        <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                        <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                           Today
                         </span>
                       ) : undefined}
@@ -1710,6 +2169,8 @@ export function QueriableStreamView({
                           entry={entry}
                           visibleFieldIds={settings.visibleFields}
                           tone={group.isToday ? 'primary' : 'secondary'}
+                          selected={Boolean(notebookStreamSlug) && selectedBatchNoteIds.has(entry.id)}
+                          onToggleSelect={notebookStreamSlug ? handleToggleBatchSelect : undefined}
                           onAddToToday={handleAddToToday}
                           onRunStart={handleRunEntry}
                           moveNotebookTargets={moveNotebookTargets}
@@ -1731,7 +2192,7 @@ export function QueriableStreamView({
             </div>
           ) : loading && entries.length === 0 ? (
             /* Initial loading state */
-            <div className="py-16 text-center text-xs text-muted-foreground/60" data-testid="stream-loading">
+            <div className="py-16 text-center text-xs text-muted-foreground" data-testid="stream-loading">
               Loading…
             </div>
           ) : entries.length === 0 && !loading ? (
@@ -1739,6 +2200,61 @@ export function QueriableStreamView({
           ) : null}
         </div>
       )}
+
+      {notebookStreamSlug && selectedBatchNoteIds.size > 0 && (
+        <div
+          data-testid={TEST_IDS.NOTEBOOK_BATCH_SCHEDULE_BAR}
+          className="sticky bottom-4 z-30 mx-auto my-2 flex flex-wrap items-center gap-2.5 rounded-full border border-border bg-background/95 px-4 py-2 text-xs shadow-lg backdrop-blur-md"
+        >
+          <span className="font-semibold text-foreground">
+            {selectedBatchNoteIds.size} selected
+          </span>
+          <input
+            type="date"
+            aria-label="Schedule selected workouts onto date"
+            value={batchScheduleDate}
+            onChange={(e) => setBatchScheduleDate(e.target.value)}
+            disabled={batchScheduling}
+            className="h-8 rounded border border-input bg-background px-2 text-xs"
+          />
+          <Button
+            type="button"
+            size="sm"
+            disabled={batchScheduling || !batchScheduleDate}
+            onClick={() => void handleConfirmBatchSchedule()}
+            data-testid={TEST_IDS.NOTEBOOK_BATCH_SCHEDULE_SUBMIT}
+          >
+            {batchScheduling ? 'Scheduling…' : 'Schedule Selected'}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={batchScheduling}
+            onClick={() => setSelectedBatchNoteIds(new Set())}
+          >
+            Clear
+          </Button>
+        </div>
+      )}
+
+      <SchedulePeekDrawer
+        entry={inspectedEntry}
+        dayDate={inspectedDay}
+        dayEntries={
+          inspectedDay
+            ? calendarOverlayEntries.filter(
+                (item) =>
+                  item.date === inspectedDay || item.scheduledDates?.includes(inspectedDay),
+              )
+            : undefined
+        }
+        onClose={handleClosePeek}
+        onRunEntry={(entry) => void handleRunEntry(entry)}
+        onPlanForDate={(dateKey) => setCreateOnDate(dateKey)}
+        onSelectEntry={handleInspectEntry}
+        onMutated={() => setSavedTick((t) => t + 1)}
+      />
 
       {/* The calendar layouts start a new entry on a day — the dialog opens
           with that date, and the user picks the notebook it lands in. */}
@@ -1756,6 +2272,151 @@ export function QueriableStreamView({
           setSavedTick(t => t + 1)
         }}
       />
+
+      {/* Safe User Notebook Delete Confirmation Dialog */}
+      <AlertDialog
+        open={pendingDeleteNotebook !== null}
+        onOpenChange={(open) => { if (!open && !deletingNotebook) setPendingDeleteNotebook(null) }}
+      >
+        <AlertDialogBackdrop />
+        <AlertDialogContent className="max-w-sm" data-testid={TEST_IDS.NOTEBOOK_DELETE_DIALOG}>
+          <DialogHeader>
+            <AlertDialogTitle>
+              Delete &ldquo;{pendingDeleteNotebook?.title || pendingDeleteNotebook?.sourceNotebook}&rdquo;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Any links pointing to this deleted notebook are detached; member notes remain intact (and become unfiled if no other notebook links remain).
+            </AlertDialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <AlertDialogClose disabled={deletingNotebook}>
+              Cancel
+            </AlertDialogClose>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletingNotebook}
+              data-testid={
+                pendingDeleteNotebook?.sourceNotebook
+                  ? `notebook-delete-confirm-${pendingDeleteNotebook.sourceNotebook}`
+                  : 'notebook-delete-confirm'
+              }
+              onClick={() => void handleConfirmDeleteNotebook()}
+            >
+              {deletingNotebook ? 'Deleting…' : 'Delete notebook'}
+            </Button>
+          </DialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Safe Unsubscribe Confirmation Dialog */}
+      <AlertDialog
+        open={pendingUnsubscribeFeed !== null}
+        onOpenChange={(open) => { if (!open) setPendingUnsubscribeFeed(null) }}
+      >
+        <AlertDialogBackdrop />
+        <AlertDialogContent className="max-w-sm">
+          <DialogHeader>
+            <AlertDialogTitle>
+              Unsubscribe from &ldquo;{pendingUnsubscribeFeed?.label}&rdquo;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Index entries from this feed will leave your feed browser, while the feed stays listed so you can subscribe again later. Any personal notes and workouts where you&apos;ve logged sessions remain pinned locally.
+            </AlertDialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <AlertDialogClose disabled={pendingUnsubscribeFeed ? subscribingIds.has(pendingUnsubscribeFeed.feedId) : false}>
+              Cancel
+            </AlertDialogClose>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={pendingUnsubscribeFeed ? subscribingIds.has(pendingUnsubscribeFeed.feedId) : false}
+              onClick={() => void handleConfirmUnsubscribe()}
+            >
+              {pendingUnsubscribeFeed && subscribingIds.has(pendingUnsubscribeFeed.feedId) ? 'Unsubscribing…' : 'Unsubscribe'}
+            </Button>
+          </DialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Safe Remote Clone Target Notebook Picker Dialog */}
+      <Dialog
+        open={pendingCloneEntry !== null}
+        onOpenChange={(open) => { if (!open && !cloningRemote) setPendingCloneEntry(null) }}
+      >
+        <DialogBackdrop />
+        <DialogContent className="max-w-md bg-popover text-popover-foreground border border-border">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Clone to My Notes</DialogTitle>
+            <DialogDescription>
+              Choose one of your writable notebooks for &ldquo;{pendingCloneEntry?.title}&rdquo;. You will own this personal copy and can edit or publish it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1.5">
+              <label htmlFor="clone-target-notebook" className="block text-xs font-medium text-foreground">
+                Destination notebook
+              </label>
+              <select
+                id="clone-target-notebook"
+                value={cloneTargetId}
+                onChange={(e) => {
+                  setCloneTargetId(e.target.value)
+                  setCloneCreateNew(false)
+                }}
+                disabled={cloneCreateNew || cloningRemote}
+                className="w-full min-h-10 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {cloneTargetNotebooks.map((nb) => (
+                  <option key={nb.id} value={nb.id}>
+                    {nb.name || nb.slug}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setCloneCreateNew(v => !v)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline underline-offset-2"
+              >
+                <FolderPlus className="size-3.5" aria-hidden="true" />
+                {cloneCreateNew ? 'Use existing notebook instead' : 'Or create a new notebook'}
+              </button>
+              {cloneCreateNew && (
+                <Input
+                  type="text"
+                  value={cloneNewName}
+                  onValueChange={setCloneNewName}
+                  placeholder="e.g., Kettlebell Block"
+                  aria-label="New notebook name"
+                  className="min-h-10"
+                />
+              )}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={cloningRemote}
+              onClick={() => setPendingCloneEntry(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={cloningRemote || (cloneCreateNew && !cloneNewName.trim())}
+              onClick={() => void handleConfirmCloneRemote()}
+            >
+              {cloningRemote ? 'Cloning…' : 'Clone to Notebook'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ponytail: L3 controls (filters, layout, visible fields, grouping) live in L3 (SecondaryNav) */}
     </div>

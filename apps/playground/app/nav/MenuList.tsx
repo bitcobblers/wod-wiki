@@ -1,7 +1,7 @@
 /**
  * MenuList — the standardized renderer for shell-menu content.
  *
- * Every menu zone (context sidebar panels, the secondary nav rail, route-
+ * Every menu zone (L2 sidebar panels, L3 connections & outline rail, route-
  * declared menus) renders through this component so navigation looks the same
  * everywhere. WQL entries resolve asynchronously via `searchEntries`; a query
  * that fails or returns nothing simply renders no children.
@@ -82,6 +82,10 @@ export function useResolvedMenu(spec: MenuSpec | undefined): MenuEntry[] {
     }
   }, [signature])
 
+  if (!spec || !spec.some(e => e.kind === 'wql')) {
+    return spec ?? []
+  }
+
   return resolved
 }
 
@@ -100,11 +104,13 @@ function MenuRow({
   entry,
   active,
   onActivate,
+  onRunAction,
   onFilter,
 }: {
   entry: MenuLink
   active: boolean
   onActivate: (entry: MenuLink) => void
+  onRunAction: (entry: MenuLink) => void
   onFilter: (to: string) => void
 }) {
   const run = entry.onRun
@@ -124,26 +130,23 @@ function MenuRow({
       type="button"
       onClick={() => onActivate(entry)}
       className={cn(
-        'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 max-lg:min-h-11 text-left transition-colors',
+        'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 max-lg:min-h-11 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary',
         !run && !filterTo && 'w-full',
-        entry.muted ? 'text-[11.5px]' : 'text-[13px]',
+        entry.muted ? 'text-xs' : 'text-[13px]',
         active
           ? 'bg-primary/10 font-semibold text-primary'
-          : cn(
-              'hover:bg-muted/60 hover:text-foreground',
-              entry.muted ? 'text-muted-foreground/70' : 'text-muted-foreground',
-            ),
+          : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
       )}
     >
-      {entry.icon && <entry.icon className="size-4 shrink-0" />}
+      {entry.icon && <entry.icon aria-hidden="true" className="size-4 shrink-0" />}
       {entry.timestamp && (
-        <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground/60">
+        <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
           {entry.timestamp}
         </span>
       )}
       <span className="min-w-0 flex-1 line-clamp-2 break-words" title={entry.label}>{entry.label}</span>
       {entry.badge && (
-        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-wide text-muted-foreground/80">
+        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs uppercase tracking-wide text-muted-foreground">
           {entry.badge}
         </span>
       )}
@@ -164,9 +167,9 @@ function MenuRow({
           title={filterAria}
           data-testid={`menu-filter-${entry.id}`}
           onClick={() => onFilter(filterTo)}
-          className="flex size-7 max-lg:min-h-11 max-lg:min-w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground/55 transition-colors hover:bg-muted hover:text-foreground"
+          className="flex size-7 max-lg:min-h-11 max-lg:min-w-11 shrink-0 items-center justify-center rounded-md text-foreground/75 transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
         >
-          <ListFilter className="size-3.5" />
+          <ListFilter aria-hidden="true" className="size-3.5" />
         </button>
       )}
       {run && (
@@ -174,17 +177,17 @@ function MenuRow({
           type="button"
           aria-label={runTitle}
           title={runTitle}
-          onClick={() => entry.onRun?.()}
-          className="flex size-6 max-lg:min-h-11 max-lg:min-w-11 shrink-0 items-center justify-center rounded text-primary opacity-70 lg:opacity-0 transition-all group-hover:opacity-100 hover:bg-primary/10"
+          onClick={() => onRunAction(entry)}
+          className="flex size-7 max-lg:min-h-11 max-lg:min-w-11 shrink-0 items-center justify-center rounded text-primary opacity-70 lg:opacity-0 transition-all group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
         >
           {entry.runIcon === 'link' ? (
-            <ArrowTopRightOnSquareIcon className="size-3.5" />
+            <ArrowTopRightOnSquareIcon aria-hidden="true" className="size-3.5" />
           ) : entry.runIcon === 'stop' ? (
-            <StopIcon className="size-3.5" />
+            <StopIcon aria-hidden="true" className="size-3.5" />
           ) : entry.runIcon === 'edit' ? (
-            <PencilSquareIcon className="size-3.5" />
+            <PencilSquareIcon aria-hidden="true" className="size-3.5" />
           ) : (
-            <PlayIcon className="size-3.5" />
+            <PlayIcon aria-hidden="true" className="size-3.5" />
           )}
         </button>
       )}
@@ -196,11 +199,14 @@ export function MenuList({
   entries,
   activeId,
   onSection,
+  onSelect,
 }: {
   entries: MenuEntry[]
   activeId?: string
   /** Override for section clicks (defaults to shell scroll + navigate). */
   onSection?: (entry: MenuLink) => void
+  /** Optional fallback click handler (e.g. entity peek) invoked when `entry.onSelect` is absent. */
+  onSelect?: (entry: MenuLink) => void
 }) {
   const navigate = useNavigate()
   const { scrollToSection } = useNav()
@@ -210,15 +216,22 @@ export function MenuList({
     closeDrawer()
     if (onSection) return onSection(entry)
     if (entry.onSelect) return entry.onSelect()
+    if (onSelect) return onSelect(entry)
     if (entry.onRun) return entry.onRun()
     if (entry.to) return navigate(entry.to)
     if (entry.sectionId) return scrollToSection(entry.sectionId)
+  }
+
+  const runAction = (entry: MenuLink) => {
+    closeDrawer()
+    entry.onRun?.()
   }
 
   const activateFilter = (to: string) => {
     closeDrawer()
     void navigate(to)
   }
+
   return (
     <div className="flex flex-col gap-0.5">
       {entries.map(entry => {
@@ -229,7 +242,12 @@ export function MenuList({
               <div className="px-2 pb-1 pt-3 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
                 {entry.label}
               </div>
-              <MenuList entries={entry.entries} activeId={activeId} onSection={onSection} />
+              <MenuList
+                entries={entry.entries}
+                activeId={activeId}
+                onSection={onSection}
+                onSelect={onSelect}
+              />
             </div>
           )
         }
@@ -247,6 +265,7 @@ export function MenuList({
             entry={entry}
             active={activeId != null && entry.sectionId === activeId}
             onActivate={activate}
+            onRunAction={runAction}
             onFilter={activateFilter}
           />
         )

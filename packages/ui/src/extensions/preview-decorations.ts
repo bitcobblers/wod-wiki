@@ -9,17 +9,16 @@ import type { Extension, Range } from "@codemirror/state";
 import { sectionField } from "./section-state";
 import { isEditorFocused, setEditorFocused } from "./editor-focus";
 
-const fenceOpenDeco = Decoration.line({
-  attributes: { class: "cm-wod-fence cm-wod-fence-open" },
-});
+const lineDecoCache = new Map<string, Decoration>();
 
-const fenceCloseDeco = Decoration.line({
-  attributes: { class: "cm-wod-fence cm-wod-fence-close" },
-});
-
-const workoutInnerDeco = Decoration.line({
-  attributes: { class: "cm-wod-inner" },
-});
+function lineDeco(className: string): Decoration {
+  let cached = lineDecoCache.get(className);
+  if (!cached) {
+    cached = Decoration.line({ attributes: { class: className } });
+    lineDecoCache.set(className, cached);
+  }
+  return cached;
+}
 
 class DialectBadgeWidget extends WidgetType {
   constructor(
@@ -34,8 +33,6 @@ class DialectBadgeWidget extends WidgetType {
   eq(other: DialectBadgeWidget): boolean {
     return (
       this.dialect === other.dialect &&
-      this.lineFrom === other.lineFrom &&
-      this.lineTo === other.lineTo &&
       this.readOnly === other.readOnly
     );
   }
@@ -70,7 +67,15 @@ class DialectBadgeWidget extends WidgetType {
         e.preventDefault();
         e.stopPropagation();
         if (view.state.readOnly) return;
-        const currentLine = view.state.doc.lineAt(this.lineFrom);
+        let targetPos = Math.max(0, Math.min(this.lineFrom, view.state.doc.length));
+        try {
+          if (view.dom.contains(badge)) {
+            targetPos = Math.max(0, Math.min(view.posAtDOM(badge), view.state.doc.length));
+          }
+        } catch {
+          // Fall back to captured lineFrom
+        }
+        const currentLine = view.state.doc.lineAt(targetPos);
         const match = currentLine.text.match(/^(\s*`{3,})(time|log|wod|whiteboard)(.*)$/i);
         if (!match) return;
         const nextTag = isTime ? "log" : "time";
@@ -101,8 +106,8 @@ class AppendLineAfterFenceWidget extends WidgetType {
     super();
   }
 
-  eq(other: AppendLineAfterFenceWidget): boolean {
-    return this.closeLineTo === other.closeLineTo;
+  eq(): boolean {
+    return true;
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -121,7 +126,15 @@ class AppendLineAfterFenceWidget extends WidgetType {
       e.preventDefault();
       e.stopPropagation();
       if (view.state.readOnly) return;
-      const pos = Math.min(this.closeLineTo, view.state.doc.length);
+      let pos = Math.min(this.closeLineTo, view.state.doc.length);
+      try {
+        if (view.dom.contains(btn)) {
+          const domPos = Math.max(0, Math.min(view.posAtDOM(btn), view.state.doc.length));
+          pos = view.state.doc.lineAt(domPos).to;
+        }
+      } catch {
+        // Fall back to captured closeLineTo
+      }
       const hasTrailingNewline =
         pos < view.state.doc.length &&
         view.state.doc.sliceString(pos, pos + 1) === "\n";
@@ -160,13 +173,26 @@ function buildWorkoutDecorations(state: EditorState): DecorationSet {
     if (section.type !== "time" && section.type !== "log") continue;
     const startLine = state.doc.line(section.startLine);
     const endLine = state.doc.line(section.endLine);
+    const dialectClass = `cm-wod-block-${section.type}`;
+    const isActive =
+      !state.readOnly && focused && cursor >= section.from && cursor <= section.to;
+    const activeClass = isActive ? " cm-wod-block-active" : "";
 
     if (section.endLine <= section.startLine) {
-      decos.push(fenceOpenDeco.range(startLine.from));
+      decos.push(
+        lineDeco(`cm-wod-fence cm-wod-fence-open ${dialectClass}${activeClass}`).range(
+          startLine.from,
+        ),
+      );
       continue;
     }
 
-    decos.push(fenceOpenDeco.range(startLine.from));
+    const isEmptyBody = section.endLine === section.startLine + 1;
+    decos.push(
+      lineDeco(`cm-wod-fence cm-wod-fence-open ${dialectClass}${activeClass}`).range(
+        startLine.from,
+      ),
+    );
     decos.push(
       Decoration.widget({
         widget: new DialectBadgeWidget(
@@ -175,20 +201,29 @@ function buildWorkoutDecorations(state: EditorState): DecorationSet {
           startLine.to,
           state.readOnly,
         ),
-        side: 1,
-      }).range(startLine.to),
+        side: -1,
+      }).range(startLine.from),
     );
 
     for (let l = section.startLine + 1; l < section.endLine; l++) {
       const line = state.doc.line(l);
-      decos.push(workoutInnerDeco.range(line.from));
+      const isFirst = l === section.startLine + 1 ? " cm-wod-inner-first" : "";
+      const isLast = l === section.endLine - 1 ? " cm-wod-inner-last" : "";
+      decos.push(
+        lineDeco(`cm-wod-inner ${dialectClass}${activeClass}${isFirst}${isLast}`).range(
+          line.from,
+        ),
+      );
     }
 
-    decos.push(fenceCloseDeco.range(endLine.from));
+    const emptyCloseClass = isEmptyBody ? " cm-wod-fence-close-empty" : "";
+    decos.push(
+      lineDeco(
+        `cm-wod-fence cm-wod-fence-close ${dialectClass}${activeClass}${emptyCloseClass}`,
+      ).range(endLine.from),
+    );
 
-    const cursorInsideSection =
-      !state.readOnly && focused && cursor >= section.from && cursor <= section.to;
-    if (cursorInsideSection) {
+    if (isActive) {
       decos.push(
         Decoration.widget({
           widget: new AppendLineAfterFenceWidget(endLine.to),
@@ -228,56 +263,154 @@ const scriptBlockBaseTheme = EditorView.baseTheme({
     fontFamily: 'var(--font-mono, "JetBrains Mono", ui-monospace, SFMono-Regular, monospace)',
     fontSize: "11.5px",
     color: "hsl(var(--muted-foreground))",
-    paddingLeft: "7px",
-    paddingRight: "8px",
-    backgroundColor: "hsl(var(--card))",
-    borderLeft: "1px solid hsl(var(--border))",
-    borderRight: "1px solid hsl(var(--border))",
+    paddingLeft: "14px",
+    paddingRight: "14px",
+    backgroundColor: "color-mix(in srgb, hsl(var(--muted)) 48%, hsl(var(--card)) 52%)",
+    borderLeft: "1px solid hsl(var(--border) / 0.9)",
+    borderRight: "1px solid hsl(var(--border) / 0.9)",
     boxSizing: "border-box",
   },
+  "&dark .cm-wod-fence": {
+    backgroundColor: "hsl(var(--muted) / 0.92)",
+  },
+  ".cm-wod-block-time": {
+    borderLeftColor: "color-mix(in srgb, hsl(var(--metric-time)) 24%, hsl(var(--border)))",
+    borderRightColor: "color-mix(in srgb, hsl(var(--metric-time)) 24%, hsl(var(--border)))",
+  },
+  ".cm-wod-block-log": {
+    borderLeftColor: "color-mix(in srgb, hsl(var(--metric-effort)) 24%, hsl(var(--border)))",
+    borderRightColor: "color-mix(in srgb, hsl(var(--metric-effort)) 24%, hsl(var(--border)))",
+  },
   ".cm-wod-fence-open": {
-    borderTop: "1px solid hsl(var(--border))",
-    borderRadius: "8px 8px 0 0",
-    // Reserve header clearance so dialect badge & InlineCommandBar controls
-    // stay crisp and never collide with preceding prose or the first workout line.
-    paddingTop: "32px",
-    paddingRight: "112px",
-    backgroundColor: "transparent",
-    backgroundImage:
-      "linear-gradient(to bottom, transparent 30px, hsl(var(--border)) 30px, hsl(var(--border)) 31px, hsl(var(--card)) 31px)",
+    borderTop: "1px solid hsl(var(--border) / 0.9)",
+    borderBottom: "1px solid hsl(var(--border) / 0.75)",
+    borderRadius: "10px 10px 0 0",
+    paddingTop: "7px",
+    paddingBottom: "7px",
+    paddingLeft: "12px",
+    // Reserve right clearance for InlineCommandBar controls inside the unified header bar.
+    paddingRight: "228px",
+    lineHeight: "24px",
+  },
+  ".cm-wod-fence-open.cm-wod-block-time": {
+    borderTopColor: "color-mix(in srgb, hsl(var(--metric-time)) 24%, hsl(var(--border)))",
+    backgroundColor:
+      "color-mix(in srgb, hsl(var(--metric-time)) 5%, color-mix(in srgb, hsl(var(--muted)) 80%, hsl(var(--card)) 20%))",
+  },
+  ".cm-wod-fence-open.cm-wod-block-log": {
+    borderTopColor: "color-mix(in srgb, hsl(var(--metric-effort)) 24%, hsl(var(--border)))",
+    backgroundColor:
+      "color-mix(in srgb, hsl(var(--metric-effort)) 5%, color-mix(in srgb, hsl(var(--muted)) 80%, hsl(var(--card)) 20%))",
+  },
+  "&dark .cm-wod-fence-open.cm-wod-block-time": {
+    borderTopColor: "color-mix(in srgb, hsl(var(--metric-time)) 28%, hsl(var(--border)))",
+    backgroundColor: "color-mix(in srgb, hsl(var(--metric-time)) 10%, hsl(var(--muted)))",
+  },
+  "&dark .cm-wod-fence-open.cm-wod-block-log": {
+    borderTopColor: "color-mix(in srgb, hsl(var(--metric-effort)) 28%, hsl(var(--border)))",
+    backgroundColor: "color-mix(in srgb, hsl(var(--metric-effort)) 10%, hsl(var(--muted)))",
   },
   ".cm-wod-fence-close": {
-    borderBottom: "1px solid hsl(var(--border))",
-    borderRadius: "0 0 8px 8px",
+    fontSize: "11px",
+    color: "hsl(var(--muted-foreground) / 0.55)",
+    paddingTop: "3px",
+    paddingBottom: "7px",
+    borderBottom: "1px solid hsl(var(--border) / 0.9)",
+    borderRadius: "0 0 10px 10px",
+  },
+  ".cm-wod-fence-close.cm-wod-block-time": {
+    borderBottomColor: "color-mix(in srgb, hsl(var(--metric-time)) 24%, hsl(var(--border)))",
+  },
+  ".cm-wod-fence-close.cm-wod-block-log": {
+    borderBottomColor: "color-mix(in srgb, hsl(var(--metric-effort)) 24%, hsl(var(--border)))",
+  },
+  ".cm-wod-fence-close.cm-wod-fence-close-empty": {
+    paddingTop: "8px",
+    paddingBottom: "8px",
   },
   ".cm-wod-inner": {
     fontFamily: 'var(--font-mono, "JetBrains Mono", ui-monospace, SFMono-Regular, monospace)',
+    fontSize: "13.5px",
+    lineHeight: "24px",
     fontVariantNumeric: "tabular-nums",
-    paddingLeft: "7px",
-    paddingRight: "8px",
-    backgroundColor: "hsl(var(--card))",
-    borderLeft: "1px solid hsl(var(--border))",
-    borderRight: "1px solid hsl(var(--border))",
+    paddingLeft: "14px",
+    paddingRight: "14px",
+    backgroundColor: "color-mix(in srgb, hsl(var(--muted)) 48%, hsl(var(--card)) 52%)",
+    borderLeft: "1px solid hsl(var(--border) / 0.9)",
+    borderRight: "1px solid hsl(var(--border) / 0.9)",
     boxSizing: "border-box",
+  },
+  "&dark .cm-wod-inner": {
+    backgroundColor: "hsl(var(--muted) / 0.92)",
+  },
+  ".cm-wod-inner.cm-wod-block-time": {
+    borderLeftColor: "color-mix(in srgb, hsl(var(--metric-time)) 24%, hsl(var(--border)))",
+    borderRightColor: "color-mix(in srgb, hsl(var(--metric-time)) 24%, hsl(var(--border)))",
+  },
+  ".cm-wod-inner.cm-wod-block-log": {
+    borderLeftColor: "color-mix(in srgb, hsl(var(--metric-effort)) 24%, hsl(var(--border)))",
+    borderRightColor: "color-mix(in srgb, hsl(var(--metric-effort)) 24%, hsl(var(--border)))",
+  },
+  ".cm-wod-inner-first": {
+    paddingTop: "8px",
+  },
+  ".cm-wod-inner-last": {
+    paddingBottom: "4px",
+  },
+  ".cm-wod-block-active.cm-wod-block-time": {
+    borderLeftColor: "hsl(var(--metric-time) / 0.58)",
+    borderRightColor: "hsl(var(--metric-time) / 0.58)",
+  },
+  ".cm-wod-fence-open.cm-wod-block-active.cm-wod-block-time": {
+    borderTopColor: "hsl(var(--metric-time) / 0.58)",
+  },
+  ".cm-wod-fence-close.cm-wod-block-active.cm-wod-block-time": {
+    borderBottomColor: "hsl(var(--metric-time) / 0.58)",
+  },
+  ".cm-wod-block-active.cm-wod-block-log": {
+    borderLeftColor: "hsl(var(--metric-effort) / 0.58)",
+    borderRightColor: "hsl(var(--metric-effort) / 0.58)",
+  },
+  ".cm-wod-fence-open.cm-wod-block-active.cm-wod-block-log": {
+    borderTopColor: "hsl(var(--metric-effort) / 0.58)",
+  },
+  ".cm-wod-fence-close.cm-wod-block-active.cm-wod-block-log": {
+    borderBottomColor: "hsl(var(--metric-effort) / 0.58)",
   },
   ".cm-wod-dialect-badge": {
     display: "inline-flex",
     alignItems: "center",
-    minHeight: "22px",
+    gap: "5px",
+    height: "22px",
     padding: "0 8px",
-    marginLeft: "8px",
+    marginRight: "8px",
     borderRadius: "9999px",
-    fontSize: "11.5px",
+    fontSize: "11px",
     fontWeight: "700",
-    letterSpacing: "0.04em",
+    letterSpacing: "0.05em",
+    lineHeight: "1",
     fontFamily: 'var(--font-sans, "Geist Sans", system-ui, sans-serif)',
     border: "1px solid transparent",
     cursor: "pointer",
     verticalAlign: "middle",
+    transition: "background-color 150ms ease, border-color 150ms ease",
+  },
+  ".cm-wod-dialect-badge::before": {
+    content: '""',
+    width: "6px",
+    height: "6px",
+    borderRadius: "9999px",
+    backgroundColor: "currentColor",
+    opacity: "0.85",
+    flexShrink: "0",
+  },
+  ".cm-wod-dialect-badge:focus-visible": {
+    outline: "2px solid hsl(var(--ring))",
+    outlineOffset: "1px",
   },
   "@media (pointer: coarse)": {
     ".cm-wod-dialect-badge": {
-      minHeight: "34px",
+      minHeight: "32px",
       padding: "0 10px",
     },
   },
@@ -285,44 +418,66 @@ const scriptBlockBaseTheme = EditorView.baseTheme({
     cursor: "default",
   },
   ".cm-wod-dialect-time": {
-    backgroundColor: "#E1F3FE",
-    color: "#1F6C9F",
-    borderColor: "rgba(31, 108, 159, 0.2)",
+    backgroundColor: "color-mix(in srgb, hsl(var(--metric-time)) 12%, hsl(var(--card)))",
+    color: "hsl(var(--secondary-foreground))",
+    borderColor: "hsl(var(--metric-time) / 0.28)",
+  },
+  ".cm-wod-dialect-time:hover:not(:disabled)": {
+    backgroundColor: "color-mix(in srgb, hsl(var(--metric-time)) 18%, hsl(var(--card)))",
+    borderColor: "hsl(var(--metric-time) / 0.45)",
   },
   "&dark .cm-wod-dialect-time": {
     backgroundColor: "hsl(var(--metric-time) / 0.16)",
-    color: "hsl(var(--metric-time))",
-    borderColor: "hsl(var(--metric-time) / 0.3)",
+    color: "color-mix(in srgb, hsl(var(--metric-time)) 78%, hsl(var(--foreground)))",
+    borderColor: "hsl(var(--metric-time) / 0.34)",
+  },
+  "&dark .cm-wod-dialect-time:hover:not(:disabled)": {
+    backgroundColor: "hsl(var(--metric-time) / 0.24)",
+    borderColor: "hsl(var(--metric-time) / 0.52)",
   },
   ".cm-wod-dialect-log": {
-    backgroundColor: "#EDF3EC",
-    color: "#346538",
-    borderColor: "rgba(52, 101, 56, 0.2)",
+    backgroundColor: "color-mix(in srgb, hsl(var(--metric-effort)) 11%, hsl(var(--card)))",
+    color: "color-mix(in srgb, hsl(var(--metric-effort)) 78%, hsl(var(--foreground)))",
+    borderColor: "hsl(var(--metric-effort) / 0.28)",
+  },
+  ".cm-wod-dialect-log:hover:not(:disabled)": {
+    backgroundColor: "color-mix(in srgb, hsl(var(--metric-effort)) 17%, hsl(var(--card)))",
+    borderColor: "hsl(var(--metric-effort) / 0.45)",
   },
   "&dark .cm-wod-dialect-log": {
     backgroundColor: "hsl(var(--metric-effort) / 0.16)",
-    color: "hsl(var(--metric-effort))",
-    borderColor: "hsl(var(--metric-effort) / 0.3)",
+    color: "color-mix(in srgb, hsl(var(--metric-effort)) 78%, hsl(var(--foreground)))",
+    borderColor: "hsl(var(--metric-effort) / 0.34)",
+  },
+  "&dark .cm-wod-dialect-log:hover:not(:disabled)": {
+    backgroundColor: "hsl(var(--metric-effort) / 0.24)",
+    borderColor: "hsl(var(--metric-effort) / 0.52)",
   },
   ".cm-wod-exit-block-btn": {
     marginLeft: "10px",
     display: "inline-flex",
     alignItems: "center",
-    height: "18px",
-    padding: "0 6px",
-    borderRadius: "4px",
-    fontSize: "10px",
+    height: "20px",
+    padding: "0 7px",
+    borderRadius: "5px",
+    fontSize: "11px",
     fontFamily: 'var(--font-sans, "Geist Sans", system-ui, sans-serif)',
     fontWeight: "500",
     color: "hsl(var(--muted-foreground))",
-    backgroundColor: "hsl(var(--muted) / 0.6)",
-    border: "1px solid hsl(var(--border))",
+    backgroundColor: "transparent",
+    border: "1px dashed hsl(var(--border))",
     cursor: "pointer",
     verticalAlign: "middle",
+    transition: "background-color 150ms ease, color 150ms ease, border-color 150ms ease",
   },
   ".cm-wod-exit-block-btn:hover": {
     color: "hsl(var(--foreground))",
-    backgroundColor: "hsl(var(--muted))",
+    backgroundColor: "hsl(var(--card))",
+    borderStyle: "solid",
+  },
+  ".cm-wod-exit-block-btn:focus-visible": {
+    outline: "2px solid hsl(var(--ring))",
+    outlineOffset: "1px",
   },
 });
 

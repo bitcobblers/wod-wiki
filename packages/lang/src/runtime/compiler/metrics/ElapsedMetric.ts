@@ -22,6 +22,7 @@ import { formatDuration } from "../../time/calculateElapsed";
 export class ElapsedMetric implements IMetric {
   readonly type = MetricType.Elapsed;
   readonly origin: MetricOrigin = 'analyzed';
+  readonly unit = 'ms';
 
   /**
    * @param value Elapsed time in milliseconds

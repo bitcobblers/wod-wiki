@@ -39,13 +39,14 @@ printf "(21-15-9)\n  Thrusters @95lb\n  Pull-ups\n" | wod parse - --no-save --js
 
 ### 2. Author, Read, Clone, and Delete Notes
 ```bash
-# List notes (optional filters: --notebook, --tag, --search, --limit)
+# List notes (optional filters: --notebook, --tag, --search, --orphaned-only, --limit)
 wod note list --limit 20 --json
+wod note list --orphaned-only --json
 
-# Create a note from inline Markdown or stdin
+# Create a note from inline Markdown or stdin (no notebook required)
 wod note create --title "Fran" --tags "benchmark,girl" --markdown $'# Fran\n\n```time\n(21-15-9)\n  Thrusters @95lb\n  Pull-ups\n```' --json
 
-# Read full note Markdown, blocks, and recent sessions
+# Read full note Markdown, blocks, schedules, revisions, and recent sessions
 wod note get <noteId> --json
 
 # Clone a template note onto a calendar date
@@ -55,13 +56,22 @@ wod note clone <sourceNoteId> --date 2026-11-11 --notebook journal --json
 wod note delete <noteId> --yes <noteId> --json
 ```
 
-### 3. Schedule & Inspect the Daily Journal
+### 3. Schedule & Inspect the Daily Journal Overlay
 ```bash
-# Read scheduled workouts + logged sessions for a date (YYYY-MM-DD or today)
+# Read planned workouts + ad-hoc/paired logged sessions for a date (YYYY-MM-DD or today)
 wod journal day today --json
 
-# Schedule a new workout or clone a template onto a date
-wod journal add today --source-note <templateNoteId> --json
+# Link-first schedule an existing Note onto any date without cloning it
+wod schedule add <noteId> --date 2026-11-23 --slot AM --position 0 --json
+wod journal add today --source-note <existingNoteId> --json
+
+# List, batch-schedule, update/reschedule, or unschedule ScheduleItems
+wod schedule list --from 2026-11-23 --to 2026-11-29 --json
+wod schedule batch --items '[{"noteId":"n1","date":"2026-11-23"},{"noteId":"n1","date":"2026-11-27"}]' --json
+wod schedule update <scheduleItemId> --date 2026-11-25 --status planned --json
+wod schedule remove <scheduleItemId> --json
+
+# Author a new quick-log note directly onto a date
 wod journal add 2026-11-12 --title "Morning 5K" --markdown $'```time\n5000m Run :?\n```' --json
 ```
 
@@ -72,12 +82,16 @@ wod notebook save strength-cycle --title "Strength Cycle" --description "8-week 
 wod notebook delete strength-cycle --yes strength-cycle --json
 ```
 
-### 5. Execute Headless Sessions & Inspect Ledgers
+### 5. Execute Headless Sessions, Attribute Days & Inspect Ledgers
 ```bash
-# Run a saved note's workout block headlessly and record session + events
-wod session run --note <noteId> --json
+# Run a saved note's workout block headlessly (optionally pairing to a ScheduleItem)
+wod session run --note <noteId> --schedule-item <scheduleItemId> --json
 # Equivalent shorthand on legacy verb:
 wod run --note <noteId> --json
+
+# Attribute or re-link a recorded session to a date or ScheduleItem (or --unlink)
+wod session attribute <sessionId> --date 2026-11-23 --schedule-item <scheduleItemId> --json
+wod session attribute <sessionId> --unlink --json
 
 # List and inspect recorded sessions
 wod session list --limit 10 --json

@@ -8,7 +8,7 @@
  * cross-index backlinks, and unknown-slug recovery.
  */
 
-import { test, expect, TEST_IDS } from '../fixtures/playgroundActor';
+import { test, expect, TEST_IDS, openL3Action, openL3Surface } from '../fixtures/playgroundActor';
 import { USAGE_NOTE_TITLE } from '../helpers/seedEquipment';
 import { getNoteContentByRouteId } from '../helpers/wodwikiDb';
 
@@ -36,9 +36,9 @@ test.describe('PRP-02 — Equipment catalog & backlinks', () => {
       if (viewport.width === 1280) {
         await expect(app.page.getByText('All Equipment').first()).toBeVisible();
         await expect(app.page.getByTestId('equipment-create-equipment')).toHaveCount(0);
-        const addPrimary = app.page.getByTestId(TEST_IDS.NEW_ENTRY_PRIMARY);
-        await expect(addPrimary).toHaveText('+ Add');
-        await expect(addPrimary).toHaveAttribute('aria-label', '+ Add Equipment');
+        await app.page.getByTestId(TEST_IDS.STREAM_VIEW_POPOVER_TRIGGER).click();
+        await expect(app.page.getByTestId(TEST_IDS.STREAM_VIEW_ADD_ACTION)).toHaveText('+ Add');
+        await app.page.keyboard.press('Escape');
       }
 
       if (viewport.width === 375) {
@@ -81,6 +81,7 @@ test.describe('PRP-02 — Equipment catalog & backlinks', () => {
     expect(editorLines.join('\n').length, 'the editor mounts the authored Markdown').toBeGreaterThan(0);
 
     // 2. Clone-to-custom: identity flips to Custom, source lines preserved verbatim.
+    await openL3Action(app.page, equipment.cloneButton());
     await equipment.cloneButton().click();
     await expect(equipment.detailLabel()).toHaveText('Dumbbell (Custom)');
     await expect(equipment.detailSource()).toContainText('Custom');
@@ -116,6 +117,7 @@ test.describe('PRP-02 — Equipment catalog & backlinks', () => {
     const equipment = await app.properties.openEquipment('dumbbell');
     await equipment.waitForDetailLoaded();
 
+    await openL3Surface(app.page);
     const relatedEffort = equipment.contextLink('Dumbbell Snatch');
     await expect(relatedEffort).toBeVisible();
     await relatedEffort.click();
@@ -123,6 +125,7 @@ test.describe('PRP-02 — Equipment catalog & backlinks', () => {
 
     await app.page.goBack();
     await equipment.waitForDetailLoaded();
+    await openL3Surface(app.page);
     const usage = equipment.contextLink(USAGE_NOTE_TITLE);
     await expect(usage).toBeVisible();
     await usage.click();

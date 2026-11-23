@@ -89,8 +89,11 @@ let tagTypesByLabel: Map<string, string> | undefined;
 /** Route href for a tag — its own direct route, `/t/:type/:tag`. The type
  *  segment comes from the hydrated tag record; until the first load the
  *  link names 'general' (the editor resolves the tag by label either way). */
-function tagOpenHref(slug: string): string {
-  const type = tagTypesByLabel?.get(slug) ?? 'general';
+function tagOpenHref(slug: string, explicitType?: string): string {
+  const normalized = explicitType?.trim().toLowerCase();
+  const isWrapperKey =
+    !normalized || normalized === 'tag' || normalized === 'tags' || normalized === 'category';
+  const type = (!isWrapperKey ? normalized : undefined) ?? tagTypesByLabel?.get(slug) ?? 'general';
   return `/t/${encodeURIComponent(type)}/${encodeURIComponent(slug)}`;
 }
 
@@ -99,7 +102,8 @@ function buildProvider(index: ReferenceIndex): FrontmatterReferenceProvider {
     resolve: (label, defaults) => index.resolve(label, defaults),
     resolveEffort: (slugOrAlias) => index.resolveEffort(slugOrAlias),
     resolveEquipment: (slugOrAlias) => index.resolveEquipment(slugOrAlias),
-    openHref: (kind, slug) => (kind === 'tag' ? tagOpenHref(slug) : referenceOpenHref(kind, slug, slug)),
+    openHref: (kind, slug, tagType) =>
+      kind === 'tag' ? tagOpenHref(slug, tagType) : referenceOpenHref(kind, slug, slug),
     createHref: (kind) => (kind === 'effort'
       ? '/effort/new?mode=create'
       : kind === 'equipment'
@@ -287,11 +291,13 @@ export function buildNestedCompletionOptions(sources?: NoteCompletionSources): N
         return catalog.efforts.map((effort) => {
           const score = scoreCatalogEffort(effort, scope, keywords);
           const discipline = effort.baseAttributes?.discipline;
+          const equipmentFields = effort.equipment?.length ? { equipment: effort.equipment } : {};
           if (score > 0) {
             return {
               value: effort.slug,
               label: effort.label,
               aliases: effort.aliases,
+              ...equipmentFields,
               detail: discipline ? `In notebook · ${discipline}` : 'In this notebook',
               section: 'In this notebook',
               boost: Math.min(25, 10 + Math.round(score / 10)),
@@ -301,6 +307,7 @@ export function buildNestedCompletionOptions(sources?: NoteCompletionSources): N
             value: effort.slug,
             label: effort.label,
             aliases: effort.aliases,
+            ...equipmentFields,
             detail: discipline ?? effort.slug,
             section: 'Movements',
           };
@@ -458,25 +465,39 @@ export function createMarkdownProseCompletionSource(): CustomCompletionSource {
       const from = line.from + tagStart;
       const tags = getTagIndex().list().filter((d) => !d.isCategory);
       if (tags.length === 0) return null;
+      const options = tags.map((tag) => {
+        const first = tag.contributions[0];
+        const detail =
+          first?.kind === 'metric'
+            ? first.type
+            : first?.kind === 'function'
+              ? first.name
+              : first?.kind === 'tag'
+                ? `#${first.slug}`
+                : 'Tag';
+        return {
+          label: `#${tag.slug}`,
+          detail,
+          type: 'keyword',
+          apply: `#${tag.slug} `,
+        };
+      });
+      const restTag = /^[a-zA-Z0-9-]*/.exec(line.text.slice(context.pos - line.from))![0];
+      if (restTag.length > 0) {
+        const typedLower = (tagMatch[1] ?? tagMatch[2] ?? '').toLowerCase();
+        const filtered = options.filter((opt) => opt.label.toLowerCase().includes(`#${typedLower}`));
+        return filtered.length > 0
+          ? {
+              from,
+              to: context.pos + restTag.length,
+              options: filtered,
+              filter: false,
+            }
+          : null;
+      }
       return {
         from,
-        options: tags.map((tag) => {
-          const first = tag.contributions[0];
-          const detail =
-            first?.kind === 'metric'
-              ? first.type
-              : first?.kind === 'function'
-                ? first.name
-                : first?.kind === 'tag'
-                  ? `#${first.slug}`
-                  : 'Tag';
-          return {
-            label: `#${tag.slug}`,
-            detail,
-            type: 'keyword',
-            apply: `#${tag.slug} `,
-          };
-        }),
+        options,
         validFor: /^#[a-zA-Z0-9-]*$/,
       };
     }

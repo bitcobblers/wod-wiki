@@ -8,13 +8,15 @@ import {
   DocumentTextIcon,
   PlusIcon,
   RectangleStackIcon,
-  SparklesIcon,
   TagIcon,
-  WrenchScrewdriverIcon,
 } from '@heroicons/react/20/solid'
+import { Dumbbell, Flame } from 'lucide-react'
 
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { notebookService } from '@/hooks/useBrowserServices'
+import { isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
+import { playgroundFeedCatalogStore } from '@/services/feed/feedCatalog'
+import { canonicalNotebookSlug } from '@/services/feed/feedSources'
 import { cn } from '@/lib/utils'
 
 import { useNav } from '../../nav/NavContext'
@@ -40,8 +42,8 @@ const ENTRY_TYPES: Record<NewEntryKind, EntryType> = {
   playground: { kind: 'playground', label: 'Playground', icon: BeakerIcon },
   notebook: { kind: 'notebook', label: 'Notebook', icon: BookOpenIcon },
   note: { kind: 'note', label: 'Note', icon: DocumentTextIcon },
-  effort: { kind: 'effort', label: 'Effort', icon: SparklesIcon },
-  equipment: { kind: 'equipment', label: 'Equipment', icon: WrenchScrewdriverIcon },
+  effort: { kind: 'effort', label: 'Effort', icon: Flame },
+  equipment: { kind: 'equipment', label: 'Equipment', icon: Dumbbell },
   tag: { kind: 'tag', label: 'Tag', icon: TagIcon },
   page: { kind: 'page', label: 'Page', icon: RectangleStackIcon },
 }
@@ -87,6 +89,16 @@ export function resolveNewEntryRoute(pathname: string): NewEntryRouteContext {
   return { defaultKind: 'journal' }
 }
 
+export function isReadOnlyNotebookOrigin(
+  slug: string | undefined,
+  origin: 'user' | 'default' | 'feed' | null,
+): boolean {
+  if (!slug) return false
+  if (origin === 'feed') return true
+  if (isSystemReadOnlyNotebook(slug)) return true
+  return false
+}
+
 export function NewEntryCombo() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -96,7 +108,9 @@ export function NewEntryCombo() {
   const [notebookOrigin, setNotebookOrigin] = useState<'user' | 'default' | 'feed' | null>(null)
   const context = resolveNewEntryRoute(location.pathname)
   const defaultType = ENTRY_TYPES[context.defaultKind]
-  const readOnlyNotebook = context.defaultKind === 'note' && notebookOrigin === 'feed'
+  const readOnlyNotebook =
+    context.defaultKind === 'note'
+    && isReadOnlyNotebookOrigin(context.notebookSlug, notebookOrigin)
   const DefaultIcon = readOnlyNotebook ? DocumentDuplicateIcon : defaultType.icon
   const defaultLabel = readOnlyNotebook ? 'Clone notebook' : `New ${defaultType.label}`
   /** Sticky headers keep the button short: "+ Add" (the icon and the
@@ -108,14 +122,30 @@ export function NewEntryCombo() {
     let cancelled = false
     setNotebookOrigin(null)
     if (!context.notebookSlug) return
-    void notebookService.getAllNotebooks().then(notebooks => {
-      if (!cancelled) {
-        const found = notebooks.find(notebook => notebook.slug === context.notebookSlug)
-        setNotebookOrigin(found ? found.origin : 'user')
+    const targetSlug = context.notebookSlug
+    if (isSystemReadOnlyNotebook(targetSlug)) {
+      setNotebookOrigin('default')
+      return
+    }
+    void (async () => {
+      try {
+        const notebooks = await notebookService.getAllNotebooks()
+        if (cancelled) return
+        const found = notebooks.find(notebook => notebook.slug === targetSlug)
+        if (found) {
+          setNotebookOrigin(found.origin)
+          return
+        }
+        const remoteNotebooks = await playgroundFeedCatalogStore.getAllNotebooks().catch(() => [])
+        if (cancelled) return
+        const inRemoteFeed = remoteNotebooks.some(
+          nb => nb.slug === targetSlug || canonicalNotebookSlug(nb.slug) === canonicalNotebookSlug(targetSlug),
+        )
+        setNotebookOrigin(inRemoteFeed ? 'feed' : 'user')
+      } catch {
+        if (!cancelled) setNotebookOrigin('user')
       }
-    }).catch(() => {
-      if (!cancelled) setNotebookOrigin('user')
-    })
+    })()
     return () => { cancelled = true }
   }, [context.notebookSlug])
 

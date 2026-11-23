@@ -22,6 +22,8 @@ import {
   linkOpen,
   navigationFacet,
   editorTheme,
+  editorFocusTracker,
+  setEditorFocused,
   previewDecorations,
   smartIncrement,
   autocompleteTooltipTheme,
@@ -34,6 +36,7 @@ import {
   wodAutoWrap,
   handleFenceAutoWrap,
   wodEditorKeymap,
+  findWorkoutErrors,
 } from '../src/extensions';
 import { EditorView, runScopeHandlers } from '@codemirror/view';
 
@@ -125,25 +128,44 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
   });
 
   it('previewDecorations styles fence and inner lines without layout-shifting spacers', () => {
-    const doc = '# Workout\n\n```time\n(21-15-9)\nThrusters\nPull-ups\n```\n';
+    const doc = '# Workout\n\n```time\n(21-15-9)\nThrusters\nPull-ups\n```\n\n```log\n5x5 Back Squat\n```\n\n```time\n```\n';
     const state = EditorState.create({
       doc,
-      extensions: [sectionField, previewDecorations],
+      extensions: [sectionField, editorFocusTracker, previewDecorations],
     });
 
     const container = document.createElement('div');
     document.body.appendChild(container);
     const view = new EditorView({ state, parent: container });
 
-    expect(container.querySelector('.cm-wod-fence-open')).not.toBeNull();
-    expect(container.querySelector('.cm-wod-inner')).not.toBeNull();
-    expect(container.querySelector('.cm-wod-fence-close')).not.toBeNull();
+    const openFences = container.querySelectorAll('.cm-wod-fence-open');
+    expect(openFences).toHaveLength(3);
+    expect(openFences[0].classList.contains('cm-wod-block-time')).toBe(true);
+    expect(openFences[1].classList.contains('cm-wod-block-log')).toBe(true);
+
+    const innerLines = container.querySelectorAll('.cm-wod-inner');
+    expect(innerLines).toHaveLength(4);
+    expect(innerLines[0].classList.contains('cm-wod-inner-first')).toBe(true);
+    expect(innerLines[2].classList.contains('cm-wod-inner-last')).toBe(true);
+    expect(innerLines[3].classList.contains('cm-wod-block-log')).toBe(true);
+    expect(innerLines[3].classList.contains('cm-wod-inner-first')).toBe(true);
+    expect(innerLines[3].classList.contains('cm-wod-inner-last')).toBe(true);
+
+    const closeFences = container.querySelectorAll('.cm-wod-fence-close');
+    expect(closeFences).toHaveLength(3);
+    expect(closeFences[2].classList.contains('cm-wod-fence-close-empty')).toBe(true);
+    expect(container.querySelector('.cm-wod-dialect-log')?.textContent).toBe('LOG');
     expect(container.querySelector('.cm-wod-insert-spacer')).toBeNull();
 
-    // Moving cursor inside workout section does not inject inter-line block spacers
+    // Moving cursor inside focused workout section marks block active without inter-line spacers
     const thrustersPos = doc.indexOf('Thrusters');
-    view.dispatch({ selection: { anchor: thrustersPos, head: thrustersPos } });
+    view.dispatch({
+      selection: { anchor: thrustersPos, head: thrustersPos },
+      effects: setEditorFocused.of(true),
+    });
     expect(container.querySelector('.cm-wod-insert-spacer')).toBeNull();
+    expect(container.querySelectorAll('.cm-wod-fence-open.cm-wod-block-active')).toHaveLength(1);
+    expect(container.querySelectorAll('.cm-wod-inner.cm-wod-block-active')).toHaveLength(3);
 
     view.destroy();
     container.remove();
@@ -317,9 +339,14 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
     expect(efforts?.options.map((option) => option.apply)).toContain('fran');
     const equipment = await at(nested('equipment:bar'), 'equipment:bar');
     expect(equipment?.options.map((option) => option.apply)).toContain('barbell');
-    // Units after a number.
-    const units = await at(nested('10 cal'), '10 cal');
-    expect(units?.options.map((option) => option.label)).toContain('km');
+    // Units on a glued number and partial unit word after space.
+    const gluedUnits = await at(nested('10'), '10');
+    expect(gluedUnits?.options.map((option) => option.label)).toEqual(
+      expect.arrayContaining(['km', 'kg', 'reps', 'rounds']),
+    );
+    const partialUnits = await at(nested('10 cal'), '10 cal');
+    expect(partialUnits?.options.map((option) => option.label)).toContain('cal');
+    expect(partialUnits?.options.map((option) => option.label)).not.toContain('km');
   });
 
   it('nested log bodies add climb vocabulary from the fence sport', async () => {
@@ -349,16 +376,21 @@ describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
   });
 
   it('keeps dialect-extended unit sets inside their own editor configuration', async () => {
-    const doc = '```time\n10 \n```';
-    const labels = async (options: NestedCompletionOptions) => {
+    const gluedDoc = '```time\n10\n```';
+    const spacedDoc = '```time\n10 \n```';
+    const labels = async (options: NestedCompletionOptions, doc = gluedDoc) => {
+      const needle = doc === gluedDoc ? '10' : '10 ';
       const state = EditorState.create({ doc, extensions: [sectionField, nestedCompletionOptions.of(options)] });
-      return (await nestedCompletion(new CompletionContext(state, doc.indexOf('10 ') + 3, true)))?.options.map((option) => option.label) ?? [];
+      return (await nestedCompletion(new CompletionContext(state, doc.indexOf(needle) + needle.length, true)))
+        ?.options.map((option) => option.label) ?? [];
     };
     const units = UnitRegistry.standard().extend({ canonical: 'pood', dimension: 'mass', aliases: ['poods'] });
 
     expect(await labels({ whiteboardScript: { units } })).toContain('pood');
     expect(await labels({ whiteboardScript: {} })).not.toContain('pood');
     expect(await labels({})).toContain('kg');
+    expect(await labels({ whiteboardScript: { units } }, spacedDoc)).not.toContain('pood');
+    expect(await labels({}, spacedDoc)).not.toContain('kg');
   });
 
   it('keeps fence and nested suggestions inside their own sections', async () => {
@@ -711,5 +743,23 @@ describe('editor occurrence lineage', () => {
 
     view.destroy();
     container.remove();
+  });
+
+  it('WW-077: emits unindented-body warning with Indent workout body quick-fix action', () => {
+    const doc = '20:00 AMRAP\n10 Burpees\n15 Squats';
+    const diagnostics = findWorkoutErrors(doc, 0);
+    const warning = diagnostics.find((d) => d.severity === 'warning');
+    expect(warning).toBeDefined();
+    expect(warning?.message).toContain('Indent lines below header');
+    const action = warning?.actions?.find((a) => a.name === 'Indent workout body');
+    expect(action).toBeDefined();
+
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const view = new EditorView({ state: EditorState.create({ doc }), parent: host });
+    action!.apply(view, warning!.from, warning!.to);
+    expect(view.state.doc.toString()).toBe('20:00 AMRAP\n  10 Burpees\n  15 Squats');
+    view.destroy();
+    host.remove();
   });
 });

@@ -61,4 +61,36 @@ describe('WW-059 — /day/:date offers full Page options parity with /note/:id',
       expect(latestLabels).toContain(label);
     }
   });
+
+  it('publishes consistent day-level Page options on an empty /day/:date without note-only actions', async () => {
+    let latestLabels: string[] = [];
+    function NavObserver() {
+      const { l3Actions } = useNav();
+      latestLabels = l3Actions.map((a) => a.label);
+      return null;
+    }
+
+    host = await renderWithPlaygroundHost(
+      <>
+        <JournalDatePage journalDate="2099-07-08" theme="light" />
+        <NavObserver />
+      </>,
+      {
+        route: '/day/2099-07-08',
+        routePath: '/day/:date',
+      },
+    );
+
+    await waitFor(() => {
+      expect(latestLabels).toContain('Add note');
+    });
+
+    expect(latestLabels).toContain('Pick / Log workout');
+    expect(latestLabels).toContain('Copy day link');
+    expect(latestLabels).toContain('Jump to today');
+    expect(latestLabels).toContain('Open Journal');
+    for (const noteOnly of ['Delete note', 'Clone', 'Export Note (.md)', 'Notebooks & Promotion']) {
+      expect(latestLabels).not.toContain(noteOnly);
+    }
+  });
 });

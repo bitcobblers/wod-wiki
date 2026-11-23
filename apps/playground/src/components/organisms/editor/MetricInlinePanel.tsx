@@ -28,11 +28,13 @@ import {
 } from "@phosphor-icons/react";
 import { MetricType } from "@bitcobblers/wod-wiki-engine";
 import type { IMetric } from "@bitcobblers/wod-wiki-engine";
+import { slugifyRefLabel } from "@bitcobblers/wod-wiki-lang";
 import {
   getReferenceMetadata,
   getTagReference,
   type TagReferenceMetadata,
 } from "@bitcobblers/wod-wiki-core";
+import type { EntityPeekTarget } from "../../../../app/components/organisms/EntityPeekDrawer";
 import {
   frontmatterReferenceIndex,
 } from "@bitcobblers/wod-wiki-ui/extensions";
@@ -227,7 +229,7 @@ const MetricChip: React.FC<{
 
   const sharedClass = cn(
     "inline-flex items-center gap-1 px-2 py-0.5 min-h-[24px] rounded-full border text-[11px] leading-tight font-medium whitespace-nowrap tabular-nums",
-    "pointer-events-auto transition-all",
+    "pointer-events-auto transition-colors",
     style?.bgClass ?? "bg-muted/40",
     style?.textClass ?? "text-muted-foreground",
     style?.borderClass ?? "border-border",
@@ -290,6 +292,7 @@ interface PanelPosition {
 function computePosition(
   view: EditorView,
   focus: CursorFocusState,
+  prevBelowLine?: boolean,
 ): PanelPosition | null {
   try {
     const lineCoords = view.coordsAtPos(focus.lineFrom);
@@ -306,7 +309,9 @@ function computePosition(
     const endLeft = endCoords.left - editorRect.left + 12;
     const roomAtEnd = contentRight - endLeft;
 
-    if (roomAtEnd >= 180) {
+    // Hysteresis prevents inline <-> below-line thrashing near the boundary while typing.
+    const stayInline = prevBelowLine ? roomAtEnd > 210 : roomAtEnd >= 160;
+    if (stayInline) {
       const rowTop = typeof endCoords.top === "number" ? endCoords.top : endCoords.bottom - 20;
       return {
         top: Math.max(0, rowTop - editorRect.top - 1),
@@ -344,6 +349,8 @@ export interface MetricInlinePanelProps {
   drawerOpen?: boolean;
   onOpenInspector?: (request: OpenInspectorRequest) => void;
   onToggleDrawer?: () => void;
+  onPeekEntity?: (target: EntityPeekTarget) => void;
+  onClosePeek?: () => void;
 }
 
 export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
@@ -356,6 +363,8 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
   drawerOpen = false,
   onOpenInspector,
   onToggleDrawer,
+  onPeekEntity,
+  onClosePeek,
 }) => {
   const [pos, setPos] = useState<PanelPosition | null>(null);
   const [focus, setFocus] = useState<CursorFocusState | null>(null);
@@ -367,9 +376,11 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     anchorRect: DOMRect | null;
   } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const prevBelowLineRef = useRef<boolean | undefined>(undefined);
 
   const update = useCallback(() => {
     if (!view || hidden) {
+      prevBelowLineRef.current = undefined;
       setFocus(null);
       setPos(null);
       return;
@@ -377,7 +388,9 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
 
     const nextFocus = (getCursorFocusStateProp ?? getCursorFocusState)(view.state);
     setFocus(nextFocus);
-    setPos(nextFocus ? computePosition(view, nextFocus) : null);
+    const nextPos = nextFocus ? computePosition(view, nextFocus, prevBelowLineRef.current) : null;
+    prevBelowLineRef.current = nextPos?.belowLine;
+    setPos(nextPos);
   }, [view, getCursorFocusStateProp, hidden]);
 
   useEffect(() => {
@@ -446,6 +459,217 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     }
   }, [view, focus]);
 
+  const rawLine = useMemo(() => {
+    if (!focus?.section) {
+      return {
+        lineKey: null as string | null,
+        lineText: "",
+        lineRefs: null as ReturnType<typeof parseLineRefs> | null,
+        visibleMetrics: [] as IMetric[],
+        tokens: [] as ReturnType<typeof presentThemedGroup>,
+        refs: [] as ReferenceRefShape[],
+        tagRefs: [] as TagReferenceMetadata[],
+        diagnostics: [] as DiagnosticShape[],
+        unresolvedTagSlugs: [] as string[],
+        lintFixes: [] as LineInspection["lintFixes"],
+        malformed: false,
+      };
+    }
+
+    const lineKey = `${focus.section.id}:${focus.cursorLine}`;
+    const lineText =
+      typeof view?.state?.doc?.sliceString === "function"
+        ? view.state.doc.sliceString(focus.lineFrom, focus.lineTo)
+        : (inspection.lineText ?? "");
+
+    const lineStatements =
+      focus.allStatements?.filter(
+        (s) => s.meta?.line === focus.cursorLine - focus.section.startLine,
+      ) ?? (focus.statement ? [focus.statement] : []);
+
+    const visibleMetrics = lineStatements
+      .flatMap((s) => s.metrics.toArray())
+      .filter((m) => {
+        if (m.type === MetricType.Sound || m.type === MetricType.System) return false;
+        if (m.type === MetricType.Hint && !m.icon) return false;
+        if (
+          m.type === MetricType.Custom &&
+          typeof m.value === "string" &&
+          /^#[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(m.value.trim())
+        ) {
+          return false;
+        }
+        if (m.type === MetricType.Effort || m.type === MetricType.Equipment) {
+          const meta = metricMetadata(m);
+          if (meta.refs.length > 0 || meta.diagnostics.length > 0) return false;
+        }
+        return true;
+      });
+    const tokens = presentThemedGroup(visibleMetrics, "runtime-badge");
+
+    const lineMetrics = lineStatements.flatMap((s) => s.metrics.toArray());
+    const seenRefKeys: string[] = [];
+    const refs: ReferenceRefShape[] = [];
+    const diagnostics: DiagnosticShape[] = [];
+    for (const metric of lineMetrics) {
+      const metadata = metricMetadata(metric);
+      for (const ref of metadata.refs) {
+        const refKey = `${ref.kind}:${ref.slug}`;
+        if (!seenRefKeys.includes(refKey)) {
+          seenRefKeys.push(refKey);
+          refs.push(ref);
+        }
+      }
+      diagnostics.push(...metadata.diagnostics);
+    }
+
+    const tagRefs: TagReferenceMetadata[] = [];
+    const unresolvedTagSlugs: string[] = [];
+    for (const metric of lineMetrics) {
+      const reference = getTagReference(metric.metadata);
+      if (reference) {
+        if (!tagRefs.some((existing) => existing.slug === reference.slug)) {
+          tagRefs.push(reference);
+        }
+        continue;
+      }
+      if (
+        metric.type === MetricType.Custom &&
+        typeof metric.value === "string" &&
+        /^#[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(metric.value.trim())
+      ) {
+        const slug = metric.value.trim().slice(1);
+        if (!unresolvedTagSlugs.includes(slug)) unresolvedTagSlugs.push(slug);
+      }
+    }
+
+    const lineRefs =
+      typeof view?.state?.doc?.sliceString === "function"
+        ? parseLineRefs(view.state.doc.sliceString(focus.lineFrom, focus.lineTo))
+        : null;
+
+    return {
+      lineKey,
+      lineText,
+      lineRefs,
+      visibleMetrics,
+      tokens,
+      refs,
+      tagRefs,
+      diagnostics,
+      unresolvedTagSlugs,
+      lintFixes: inspection.lintFixes,
+      malformed: Boolean(lineRefs?.malformed),
+    };
+  }, [focus, view, inspection.lineText, inspection.lintFixes]);
+
+  const [settledNeg, setSettledNeg] = useState<{
+    lineKey: string | null;
+    lineText: string;
+    diagKeys: string[];
+    tagSlugs: string[];
+    lintIds: string[];
+    malformed: boolean;
+  }>({
+    lineKey: null,
+    lineText: "",
+    diagKeys: [],
+    tagSlugs: [],
+    lintIds: [],
+    malformed: false,
+  });
+
+  const [heldPositive, setHeldPositive] = useState<{
+    lineKey: string;
+    visibleMetrics: IMetric[];
+    tokens: ReturnType<typeof presentThemedGroup>;
+    refs: ReferenceRefShape[];
+    tagRefs: TagReferenceMetadata[];
+  } | null>(null);
+  const lastPositiveRef = useRef<{
+    lineKey: string;
+    visibleMetrics: IMetric[];
+    tokens: ReturnType<typeof presentThemedGroup>;
+    refs: ReferenceRefShape[];
+    tagRefs: TagReferenceMetadata[];
+  } | null>(null);
+
+  const rawDiagKeys = useMemo(
+    () => rawLine.diagnostics.map((d, i) => `${d.reason}-${d.token?.trim() ?? i}`),
+    [rawLine.diagnostics],
+  );
+  const rawLintIds = useMemo(() => rawLine.lintFixes.map((f) => f.id), [rawLine.lintFixes]);
+  const rawNegSig = `${rawLine.lineKey ?? ""}\u0000${rawLine.lineText}\u0000${rawDiagKeys.join(",")}\u0000${rawLine.unresolvedTagSlugs.join(",")}\u0000${rawLintIds.join(",")}\u0000${rawLine.malformed ? "1" : "0"}`;
+
+  // Commit diagnostics immediately on initial focus / line change, and debounce
+  // newly appearing negative diagnostics (~320ms) while editing text on the same line.
+  useEffect(() => {
+    if (!rawLine.lineKey) return;
+    const isSameLineEdit =
+      settledNeg.lineKey === rawLine.lineKey && settledNeg.lineText !== rawLine.lineText;
+
+    if (!isSameLineEdit) {
+      setSettledNeg({
+        lineKey: rawLine.lineKey,
+        lineText: rawLine.lineText,
+        diagKeys: rawDiagKeys,
+        tagSlugs: rawLine.unresolvedTagSlugs,
+        lintIds: rawLintIds,
+        malformed: rawLine.malformed,
+      });
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setSettledNeg({
+        lineKey: rawLine.lineKey,
+        lineText: rawLine.lineText,
+        diagKeys: rawDiagKeys,
+        tagSlugs: rawLine.unresolvedTagSlugs,
+        lintIds: rawLintIds,
+        malformed: rawLine.malformed,
+      });
+    }, 320);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rawNegSig captures exact diagnostic inputs for this line
+  }, [rawNegSig]);
+
+  // Briefly hold previous positive chips (~220ms) if same-line editing transiently
+  // leaves a non-blank line without parsed metrics before retyping finishes.
+  const rawHasPositive =
+    rawLine.visibleMetrics.length > 0 || rawLine.refs.length > 0 || rawLine.tagRefs.length > 0;
+  useEffect(() => {
+    if (!rawLine.lineKey || rawHasPositive || rawLine.lineText.trim() === "") {
+      if (rawLine.lineKey && rawHasPositive) {
+        lastPositiveRef.current = {
+          lineKey: rawLine.lineKey,
+          visibleMetrics: rawLine.visibleMetrics,
+          tokens: rawLine.tokens,
+          refs: rawLine.refs,
+          tagRefs: rawLine.tagRefs,
+        };
+      } else if (!rawLine.lineKey || rawLine.lineText.trim() === "") {
+        lastPositiveRef.current = null;
+      }
+      setHeldPositive(null);
+      return;
+    }
+
+    const prevPos = lastPositiveRef.current;
+    if (!prevPos || prevPos.lineKey !== rawLine.lineKey) {
+      setHeldPositive(null);
+      return;
+    }
+
+    setHeldPositive(prevPos);
+    const timer = setTimeout(() => {
+      lastPositiveRef.current = null;
+      setHeldPositive(null);
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [rawLine.lineKey, rawLine.lineText, rawHasPositive, rawLine.visibleMetrics, rawLine.tokens, rawLine.refs, rawLine.tagRefs]);
+
   const compStatus =
     view?.state && typeof view.state.field === "function"
       ? completionStatus(view.state)
@@ -454,74 +678,40 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
   const isCompletionBusy = compStatus !== null;
   if (hidden || !pos || !focus?.section || isAutocompleteOpen) return null;
 
-  const lineStatements =
-    focus.allStatements?.filter(
-      (s) => s.meta?.line === focus.cursorLine - focus.section.startLine,
-    ) ?? (focus.statement ? [focus.statement] : []);
+  const useHeldPositive =
+    !rawHasPositive && heldPositive !== null && heldPositive.lineKey === rawLine.lineKey && rawLine.lineText.trim() !== "";
+  const visibleMetrics = useHeldPositive ? heldPositive.visibleMetrics : rawLine.visibleMetrics;
+  const tokens = useHeldPositive ? heldPositive.tokens : rawLine.tokens;
+  const refs = useHeldPositive ? heldPositive.refs : rawLine.refs;
+  const tagRefs = useHeldPositive ? heldPositive.tagRefs : rawLine.tagRefs;
 
-  const visibleMetrics = lineStatements
-    .flatMap((s) => s.metrics.toArray())
-    .filter((m) => {
-      if (m.type === MetricType.Sound || m.type === MetricType.System) return false;
-      if (m.type === MetricType.Hint && !m.icon) return false;
-      if (
-        m.type === MetricType.Custom &&
-        typeof m.value === "string" &&
-        /^#[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(m.value.trim())
-      ) {
-        return false;
-      }
-      if (m.type === MetricType.Effort || m.type === MetricType.Equipment) {
-        const meta = metricMetadata(m);
-        if (meta.refs.length > 0 || meta.diagnostics.length > 0) return false;
-      }
-      return true;
-    });
-  const tokens = presentThemedGroup(visibleMetrics, "runtime-badge");
+  const isTypingSameLine =
+    settledNeg.lineKey !== null &&
+    settledNeg.lineKey === rawLine.lineKey &&
+    settledNeg.lineText !== rawLine.lineText;
 
-  const lineMetrics = lineStatements.flatMap((s) => s.metrics.toArray());
-  const seenRefKeys: string[] = [];
-  const refs: ReferenceRefShape[] = [];
-  const diagnostics: DiagnosticShape[] = [];
-  for (const metric of lineMetrics) {
-    const metadata = metricMetadata(metric);
-    for (const ref of metadata.refs) {
-      const refKey = `${ref.kind}:${ref.slug}`;
-      if (!seenRefKeys.includes(refKey)) {
-        seenRefKeys.push(refKey);
-        refs.push(ref);
-      }
-    }
-    diagnostics.push(...metadata.diagnostics);
-  }
+  const allowedDiagKeys = isTypingSameLine ? new Set(settledNeg.diagKeys) : null;
+  const allowedTagSlugs = isTypingSameLine ? new Set(settledNeg.tagSlugs) : null;
+  const allowedLintIds = isTypingSameLine ? new Set(settledNeg.lintIds) : null;
 
-  const tagRefs: TagReferenceMetadata[] = [];
-  const unresolvedTagSlugs: string[] = [];
-  for (const metric of lineMetrics) {
-    const reference = getTagReference(metric.metadata);
-    if (reference) {
-      if (!tagRefs.some((existing) => existing.slug === reference.slug)) {
-        tagRefs.push(reference);
-      }
-      continue;
-    }
-    if (
-      metric.type === MetricType.Custom &&
-      typeof metric.value === "string" &&
-      /^#[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(metric.value.trim())
-    ) {
-      const slug = metric.value.trim().slice(1);
-      if (!unresolvedTagSlugs.includes(slug)) unresolvedTagSlugs.push(slug);
-    }
-  }
+  const diagnostics = allowedDiagKeys
+    ? rawLine.diagnostics.filter((d, i) => allowedDiagKeys.has(`${d.reason}-${d.token?.trim() ?? i}`))
+    : rawLine.diagnostics;
+  const unresolvedTagSlugs = allowedTagSlugs
+    ? rawLine.unresolvedTagSlugs.filter((slug) => allowedTagSlugs.has(slug))
+    : rawLine.unresolvedTagSlugs;
+  const visibleLintFixes = allowedLintIds
+    ? rawLine.lintFixes.filter((fix) => allowedLintIds.has(fix.id))
+    : rawLine.lintFixes;
+  const showMalformed = isTypingSameLine
+    ? settledNeg.malformed && rawLine.malformed
+    : rawLine.malformed;
+
+  const lineRefs = rawLine.lineRefs;
 
   const referenceProvider =
     typeof view?.state?.facet === "function"
       ? (view.state.facet(frontmatterReferenceIndex)?.() ?? null)
-      : null;
-  const lineRefs =
-    typeof view?.state?.doc?.sliceString === "function"
-      ? parseLineRefs(view.state.doc.sliceString(focus.lineFrom, focus.lineTo))
       : null;
 
   const diagnosticKind = (diag: DiagnosticShape): "effort" | "equipment" => {
@@ -697,6 +887,14 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
         : metric.type === MetricType.Equipment
           ? "equipment"
           : null;
+    if (kind && onPeekEntity) {
+      const rawLabel = String(metric.name ?? metric.image ?? metric.value ?? "").trim();
+      const slug = slugifyRefLabel(rawLabel) || rawLabel;
+      if (slug) {
+        onPeekEntity({ kind, slug, label: rawLabel || slug });
+        return;
+      }
+    }
     if (kind && lineRefs?.jsonFrom !== undefined && lineRefs.jsonFrom >= 0) {
       void changeRefSource(kind);
       return;
@@ -710,6 +908,10 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     ref: ReferenceRefShape,
     event: React.MouseEvent<HTMLButtonElement>,
   ) => {
+    if (onPeekEntity) {
+      onPeekEntity({ kind: ref.kind, slug: ref.slug, label: ref.label });
+      return;
+    }
     if (lineRefs?.jsonFrom !== undefined && lineRefs.jsonFrom >= 0) {
       void changeRefSource(ref.kind);
       return;
@@ -739,7 +941,8 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
     tagRefs.length > 0 ||
     diagnostics.length > 0 ||
     unresolvedTagSlugs.length > 0 ||
-    inspection.lintFixes.length > 0;
+    visibleLintFixes.length > 0 ||
+    showMalformed;
 
   const isRealDoc = Boolean(view?.state?.doc && typeof view.state.doc.lineAt === "function");
   const isWorkoutSection =
@@ -876,7 +1079,11 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                       ? `Tag ${ref.label} · names the ${ref.soundProfileId} sound profile`
                       : `Tag ${ref.label}`
                   }
-                  onClick={(e) =>
+                  onClick={(e) => {
+                    if (onPeekEntity) {
+                      onPeekEntity({ kind: "tag", label: ref.slug || ref.label });
+                      return;
+                    }
                     openUnifiedInspector(
                       "token",
                       inspection.tokens.find((t) => t.isTag && t.raw.includes(ref.slug)) ?? {
@@ -891,8 +1098,8 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                         isTag: true,
                       },
                       e.currentTarget,
-                    )
-                  }
+                    );
+                  }}
                   className="inline-flex items-center gap-0.5 cursor-pointer hover:opacity-80"
                 >
                   <span>#</span>
@@ -912,7 +1119,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
               </div>
             ))}
 
-            {inspection.lintFixes.map((fix) => (
+            {visibleLintFixes.map((fix) => (
               <span
                 key={fix.id}
                 className="pointer-events-auto inline-flex items-center gap-1 px-1.5 py-0.5 min-h-[22px] rounded-full border border-dashed text-[11px] leading-tight font-medium bg-destructive/10 text-destructive border-destructive/30 whitespace-nowrap"
@@ -937,7 +1144,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
               </span>
             ))}
 
-            {lineRefs?.malformed && (
+            {showMalformed && (
               <span
                 data-testid="editor-ref-unknown"
                 title="Reference JSON on this line does not parse — fix it in the raw text."
@@ -952,15 +1159,32 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
               <span
                 key={`unresolved-tag:${slug}`}
                 data-testid="editor-tag-unknown"
-                title={`Unknown tag #${slug} — click to create`}
+                title={`Unknown tag #${slug} — click to define`}
                 className="pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 min-h-[22px] rounded-full border border-dashed text-[11px] leading-tight font-medium bg-warning/10 text-warning border-warning/40 whitespace-nowrap"
               >
-                <span className="font-mono font-semibold">#{slug}</span>
+                {onPeekEntity ? (
+                  <button
+                    type="button"
+                    onClick={() => onPeekEntity({ kind: "unrecognized", term: `#${slug}` })}
+                    className="font-mono font-semibold cursor-pointer hover:text-foreground"
+                  >
+                    #{slug}
+                  </button>
+                ) : (
+                  <span className="font-mono font-semibold">#{slug}</span>
+                )}
                 <button
                   type="button"
                   data-testid="editor-create-tag-inline"
                   className="underline cursor-pointer hover:text-foreground font-semibold ml-0.5"
-                  onClick={() => void handleCreateTag(slug)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onPeekEntity) {
+                      onPeekEntity({ kind: "unrecognized", term: `#${slug}` });
+                    } else {
+                      void handleCreateTag(slug);
+                    }
+                  }}
                 >
                   + Tag
                 </button>
@@ -972,13 +1196,17 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
               const tokenText = diag.token?.trim() ?? "";
               const isUnknownEffort = diag.reason === "unknown-effort";
               const diagKey = `${diag.reason}-${tokenText || i}`;
-              const isExpanded = openDiagKey === diagKey || openDiagKey === "all";
+              const isExpanded = !onPeekEntity && (openDiagKey === diagKey || openDiagKey === "all");
               return (
                 <span
                   key={diagKey}
                   data-testid="editor-ref-unknown"
                   title={diag.message}
                   onClick={() => {
+                    if (onPeekEntity && tokenText) {
+                      onPeekEntity({ kind: "unrecognized", term: tokenText });
+                      return;
+                    }
                     if (!isExpanded) setOpenDiagKey(diagKey);
                   }}
                   className={cn(
@@ -995,6 +1223,10 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                       className="underline cursor-pointer hover:text-foreground font-semibold"
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (onPeekEntity && tokenText) {
+                          onPeekEntity({ kind: "unrecognized", term: tokenText });
+                          return;
+                        }
                         setOpenDiagKey(diagKey);
                       }}
                     >
@@ -1099,7 +1331,10 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                 data-testid={TEST_IDS.EDITOR_INSPECTOR_DRAWER_TOGGLE}
                 aria-pressed={drawerOpen}
                 title="Toggle Right Inspector Drawer (Ctrl+Alt+I / Cmd+Alt+I)"
-                onClick={onToggleDrawer}
+                onClick={() => {
+                  if (!drawerOpen) onClosePeek?.();
+                  onToggleDrawer();
+                }}
                 className={cn(
                   "pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 min-h-[22px] rounded-full border text-[11px] leading-tight font-medium cursor-pointer whitespace-nowrap transition-colors",
                   drawerOpen
@@ -1123,7 +1358,7 @@ export const MetricInlinePanel: React.FC<MetricInlinePanelProps> = ({
                 data-inspector-trigger="true"
                 data-testid={TEST_IDS.EDITOR_BLOCK_SETTINGS_BTN}
                 onClick={(e) => openUnifiedInspector("add", null, e.currentTarget)}
-                className="pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 min-h-[22px] rounded-full border border-dashed border-border text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                className="pointer-events-auto inline-flex items-center gap-1 px-2 py-0.5 min-h-[22px] rounded-full border border-dashed border-border bg-card/70 text-[11px] text-muted-foreground hover:bg-card hover:text-foreground hover:border-foreground/40 transition-colors cursor-pointer"
               >
                 + Token
               </button>

@@ -90,7 +90,6 @@ describe('NotePromotionSheet', () => {
 
     const savedNote = await storage.readonly('notes').get('note-isabel-1');
     expect(savedNote?.notebookIds).toEqual([
-      'notebook/journal',
       'notebook/barbell-club',
       'notebook/pr-vault',
     ]);

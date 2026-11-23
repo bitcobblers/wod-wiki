@@ -7,7 +7,7 @@
  */
 
 import { MetricType, type ICodeStatement } from '@bitcobblers/wod-wiki-core';
-import { CONSUMED_HINTS, hasHint, metricPresentation } from '../../metrics';
+import { CONSUMED_HINTS, dedupePresentedLabels, hasHint, metricPresentation } from '../../metrics';
 import type { IScript } from '../../parser/WhiteboardScript';
 import type { IScriptRuntime } from '../contracts/IScriptRuntime';
 
@@ -31,14 +31,7 @@ function formatStatementLabel(statement: ICodeStatement): string {
     .filter(Boolean);
 
   // Deduplicate repeated effort/action labels (WW-079, e.g. "5 Pullups Pullups").
-  const deduped: string[] = [];
-  for (const label of labels) {
-    const lower = label.toLowerCase();
-    const prev = deduped[deduped.length - 1]?.toLowerCase();
-    if (prev && (prev === lower || prev.endsWith(` ${lower}`))) continue;
-    deduped.push(label);
-  }
-  const presented = deduped.join(' ').trim();
+  const presented = dedupePresentedLabels(labels).join(' ').trim();
   return presented || statement.text?.trim() || 'Step';
 }
 

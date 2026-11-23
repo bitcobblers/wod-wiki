@@ -128,17 +128,17 @@ test.describe('WebKit Cross-Browser Smoke Gate', () => {
     await expect(navDrawer).toBeVisible();
     await navDrawer.getByTestId('nav-l1-efforts').click();
     await expect(page).toHaveURL(/\/efforts$/, { timeout: 15_000 });
-    await expect(navDrawer.getByTestId(TEST_IDS.DRAWER_APPLY_BTN)).toBeVisible();
-    await navDrawer.getByTestId(TEST_IDS.DRAWER_APPLY_BTN).click();
+    await navDrawer.getByTestId(TEST_IDS.MOBILE_NAV_CLOSE).click();
     await expect(navDrawer).toBeHidden();
     await expect(page.getByTestId(TEST_IDS.STREAM_VIEW)).toBeVisible();
     await expectNoHorizontalOverflow('/efforts');
 
-    // Open and dismiss right L3 page-options drawer cleanly at 375x812
-    await page.getByRole('button', { name: 'Open page options' }).click();
-    const rightDrawer = page.getByTestId('l3-right-drawer');
-    await expect(rightDrawer).toBeVisible();
-    await rightDrawer.getByRole('button', { name: 'Close page options' }).click();
-    await expect(rightDrawer).toBeHidden();
+    // Open and dismiss thumb-dock L3 page-options sheet on a detail/board route cleanly at 375x812
+    await app.goto('/dashboard/recovery-readiness');
+    await page.getByTestId(TEST_IDS.ACTIONS_OVERFLOW).click();
+    const dockSheet = page.getByTestId(TEST_IDS.ACTIONS_SHEET_L3);
+    await expect(dockSheet).toBeVisible();
+    await page.getByTestId(TEST_IDS.L3_DRAWER_DONE_BTN).click();
+    await expect(dockSheet).toBeHidden();
   });
 });

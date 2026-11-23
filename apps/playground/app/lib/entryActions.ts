@@ -32,6 +32,30 @@ function encodePath(path: string): string {
   return path.split('/').map(encodeURIComponent).join('/')
 }
 
+function parseRemoteEntryId(id: string): { feedId: string; uuid: string } | undefined {
+  if (!id.startsWith('remote:')) return undefined
+  const rest = id.slice('remote:'.length)
+  const sep = rest.indexOf(':')
+  if (sep <= 0) return undefined
+  const feedId = rest.slice(0, sep)
+  const uuid = rest.slice(sep + 1)
+  return uuid ? { feedId, uuid } : undefined
+}
+
+function appendRemotePreviewQuery(href: string, entry: Entry): string {
+  if (!entry.isRemotePreview && !entry.id.startsWith('remote:')) return href
+  const parsed = parseRemoteEntryId(entry.id)
+  const feedId = entry.feedId ?? entry.ownership?.feedSourceId ?? parsed?.feedId
+  const remoteUuid = parsed?.uuid
+  if (!feedId && !remoteUuid) return href
+  const params = new URLSearchParams()
+  if (feedId) params.set('feed', feedId)
+  if (remoteUuid) params.set('remote', remoteUuid)
+  const qs = params.toString()
+  if (!qs) return href
+  return href.includes('?') ? `${href}&${qs}` : `${href}?${qs}`
+}
+
 /** Open: the Entry's deep-link per its kind; block Entries anchor to their
  *  section within the parent note (#855 — honored wherever the target
  *  surface exposes section DOM ids; degrades to the plain note elsewhere).
@@ -123,7 +147,11 @@ export function entryOpenHref(entry: Entry): string {
         return '/'
     }
   })()
-  return entry.block ? `${href}#${encodeURIComponent(entry.block.blockId)}` : href
+  const withRemoteQuery =
+    entry.kind === 'note' || entry.kind === 'dashboard' || entry.kind === 'effort' || entry.kind === 'equipment'
+      ? appendRemotePreviewQuery(href, entry)
+      : href
+  return entry.block ? `${withRemoteQuery}#${encodeURIComponent(entry.block.blockId)}` : withRemoteQuery
 }
 
 /** True when the entry already lives in the playground (Open is the playground

@@ -8,7 +8,7 @@
  * storage projections without waiting for an IndexedDB write.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   extractTypedFrontmatterTags,
   getReferenceMetadata,
@@ -439,7 +439,7 @@ export function useLiveNoteFacets(
   options?: { enabled?: boolean; debounceMs?: number },
 ): LiveNoteFacets {
   const enabled = options?.enabled !== false;
-  const debounceMs = options?.debounceMs ?? 120;
+  const debounceMs = options?.debounceMs ?? 350;
   const effortCtx = useOptionalEffortRegistry();
   const equipmentCtx = useOptionalEquipmentRegistry();
   const effortsReady = effortCtx ? effortCtx.isReady : true;
@@ -514,7 +514,9 @@ export function useLiveNoteFacets(
     };
   }, [effortsReady, effortRegistry, equipmentReady, equipmentRegistry, storedCatalog, tagIndex]);
 
-  return useMemo(() => {
+  const prevFacetsRef = useRef<{ sig: string; value: LiveNoteFacets } | null>(null);
+
+  const nextFacets = useMemo(() => {
     if (!enabled || !effortsReady || !equipmentReady || !storedCatalog.loaded) {
       return EMPTY_LIVE_NOTE_FACETS;
     }
@@ -534,4 +536,21 @@ export function useLiveNoteFacets(
     equipmentRevision,
     catalogBump,
   ]);
+
+  const sig = useMemo(
+    () =>
+      JSON.stringify([
+        nextFacets.ready,
+        nextFacets.tags,
+        nextFacets.efforts,
+        nextFacets.equipment,
+        nextFacets.unrecognized,
+      ]),
+    [nextFacets],
+  );
+  if (prevFacetsRef.current && prevFacetsRef.current.sig === sig) {
+    return prevFacetsRef.current.value;
+  }
+  prevFacetsRef.current = { sig, value: nextFacets };
+  return nextFacets;
 }

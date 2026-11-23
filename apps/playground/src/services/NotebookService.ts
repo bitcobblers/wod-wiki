@@ -16,15 +16,19 @@ import { v7 as uuidv7 } from 'uuid';
 import type { Note, NotebookId } from '@bitcobblers/wod-wiki-core';
 import {
     BUILTIN_NOTEBOOKS,
+    isNotebookLanding,
     isSystemReadOnlyNotebook,
     reconcileNoteBlocks,
 } from '@bitcobblers/wod-wiki-core';
 import {
     buildNoteProvenance,
+    deleteUserNotebook,
     getNoteNotebooks as engineGetNoteNotebooks,
+    makeNotebookLinkId,
     notebooksOfItem,
     promoteNoteToNotebooks as enginePromoteNote,
     removeNoteFromNotebook as engineRemoveFromNotebook,
+    seedNoteId,
     setNoteNotebooks as engineSetNoteNotebooks,
     type PromoteNoteResult,
 } from '@bitcobblers/wod-wiki-engine';
@@ -44,14 +48,36 @@ export class NotebookService {
 
     // Invariant: mutations are serialized — an op reads committed state only after the previous op's save landed.
     private tail: Promise<unknown> = Promise.resolve();
+    private readonly listeners = new Set<() => void>();
 
-    private enqueue<T>(op: () => Promise<T>): Promise<T> {
+    subscribe(listener: () => void): () => void {
+        this.listeners.add(listener);
+        return () => {
+            this.listeners.delete(listener);
+        };
+    }
+
+    notify(): void {
+        for (const listener of [...this.listeners]) {
+            try {
+                listener();
+            } catch {
+                // Listeners must not break mutation delivery
+            }
+        }
+    }
+
+    private enqueue<T>(op: () => Promise<T>, notifyAfter = false): Promise<T> {
         const run = this.tail.then(op, op);
         this.tail = run.then(
             () => undefined,
             () => undefined,
         );
-        return run;
+        if (!notifyAfter) return run;
+        return run.then((value) => {
+            this.notify();
+            return value;
+        });
     }
 
     /** All notebooks the feeds publish (registry + custom feed entries). */
@@ -111,11 +137,21 @@ export class NotebookService {
         const landings = notes.filter(isNotebookLanding);
         const landingSlugs = new Set(landings.map((n) => n.id.slice('notebook/'.length)));
         const userNotebooks = landings.map(landingToNotebook);
+        const feedSlugs = new Set(this.getFeedNotebooks().map((n) => n.slug));
 
         for (const note of notes) {
+            if (
+                note.feedOrigin === 'feed' ||
+                note.seedOrigin === 'seed' ||
+                note.retention === 'cached' ||
+                note.retention === 'session-pinned' ||
+                note.retention === 'indexed'
+            ) {
+                continue;
+            }
             if (note.notebookId?.startsWith('notebook/')) {
                 const slug = note.notebookId.slice('notebook/'.length);
-                if (slug && !RESERVED_SLUGS.has(slug) && !landingSlugs.has(slug)) {
+                if (slug && !RESERVED_SLUGS.has(slug) && !feedSlugs.has(slug) && !landingSlugs.has(slug)) {
                     landingSlugs.add(slug);
                     userNotebooks.push({
                         id: note.notebookId,
@@ -142,7 +178,7 @@ export class NotebookService {
 
     /** Creates the notebook and its landing note. */
     create(name: string, description = '', icon = '📓'): Promise<Notebook> {
-        return this.enqueue(() => this.createNow(name, description, icon));
+        return this.enqueue(() => this.createNow(name, description, icon), true);
     }
 
     private async createNow(name: string, description: string, icon: string): Promise<Notebook> {
@@ -160,19 +196,38 @@ export class NotebookService {
 
     /** Writes a landing note's content through the guarded source save (block
      *  pins + index) and stamps the notebook's own fields on the row. */
-    private async saveLanding(notebookId: string, name: string, description: string, icon: string, expectedSourceRevision?: number): Promise<Note> {
-        const rawContent = landingRawContent(name, description, icon);
-        const saved = await this.store.saveNoteSource({
-            noteId: notebookId,
-            rawContent,
-            blocks: reconcileNoteBlocks(rawContent, { sourceRevision: expectedSourceRevision || 1 }),
-            expectedSourceRevision: expectedSourceRevision ?? 0,
-            metadata: { title: name },
-        });
-        const stamped: Note = { ...saved, notebookId, type: 'note' };
-        if (expectedSourceRevision === undefined) stamped.createdAt = Date.now();
-        await this.store.saveNote(stamped);
-        return stamped;
+    private async saveLanding(
+        notebookId: string,
+        name: string,
+        description: string,
+        icon: string,
+        expectedSourceRevision?: number,
+        scopedStore?: StorageService,
+    ): Promise<Note> {
+        const write = async (txStore: StorageService): Promise<Note> => {
+            const rawContent = landingRawContent(name, description, icon);
+            const saved = await txStore.saveNoteSource({
+                noteId: notebookId,
+                rawContent,
+                blocks: reconcileNoteBlocks(rawContent, { sourceRevision: expectedSourceRevision || 1 }),
+                expectedSourceRevision: expectedSourceRevision ?? 0,
+                metadata: { title: name },
+            });
+            const stamped: Note = {
+                ...saved,
+                notebookId,
+                type: 'note',
+                seedOrigin: saved.seedOrigin ?? 'user',
+            };
+            if (expectedSourceRevision === undefined) stamped.createdAt = Date.now();
+            await txStore.saveNote(stamped);
+            return stamped;
+        };
+        if (scopedStore) return write(scopedStore);
+        return this.store.withTransaction(
+            ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment'],
+            write,
+        );
     }
 
     /** Renames / redescribes / re-icons a user notebook via its landing note.
@@ -192,48 +247,25 @@ export class NotebookService {
                 note.sourceRevision,
             );
             return landingToNotebook(next);
-        });
+        }, true);
     }
 
-    /** Deletes a user notebook. Member notes detach from this notebook while
+    /** Deletes a user notebook atomically. Member notes detach from this notebook while
      *  retaining `notebook/journal` and any other linked user notebooks.
      *  Reserved always-present slugs are refused at the service boundary. */
     delete(id: string): Promise<void> {
         return this.enqueue(async () => {
-            const notebookId = toNotebookId(id);
-            assertUserNotebook(notebookId);
-            const members = await this.listNotes(notebookId);
-            for (const note of members) {
-                const remaining = (note.notebookIds ?? (note.notebookId ? [note.notebookId] : []))
-                    .map((nb) => toNotebookId(nb))
-                    .filter((nb) => nb !== notebookId);
-                const primaryUser = remaining.find((nb) => nb !== 'notebook/journal' && nb !== 'notebook/playground');
-                const { notebookId: _dropped, notebookIds: _droppedIds, ...rest } = note;
-                await this.store.saveNote({
-                    ...rest,
-                    ...(remaining.length > 0 ? { notebookIds: remaining } : {}),
-                    ...(primaryUser ? { notebookId: primaryUser } : {}),
-                });
-            }
-            try {
-                const links = await this.store.storage.readonly('notebook_links').getAllFromIndex('by-notebook', notebookId);
-                for (const link of links) {
-                    await this.store.storage.readwrite('notebook_links').delete(link.id);
-                }
-            } catch {
-                // Optional index on mocks
-            }
-            await this.store.deleteNote(notebookId);
-        });
+            await deleteUserNotebook(this.store.storage, id);
+        }, true);
     }
 
     /** Notes currently linked to a notebook (many-to-many). */
-    async listNotes(notebookId: string): Promise<Note[]> {
+    async listNotes(notebookId: string, store: StorageService = this.store): Promise<Note[]> {
         const wanted = toNotebookId(notebookId);
-        const notes = await this.store.getAllNotes();
+        const notes = await store.getAllNotes();
         let linkedIds = new Set<string>();
         try {
-            const links = await this.store.storage.readonly('notebook_links').getAllFromIndex('by-notebook', wanted);
+            const links = await store.storage.readonly('notebook_links').getAllFromIndex('by-notebook', wanted);
             linkedIds = new Set(links.filter((l) => l.targetKind === 'note').map((l) => l.noteId));
         } catch {
             // Optional index on mocks
@@ -262,7 +294,7 @@ export class NotebookService {
                 sessionIds: options.sessionIds,
                 shareSessionsPublicly: options.shareSessionsPublicly,
             });
-        });
+        }, true);
     }
 
     /** Replaces the set of promoted user notebooks for a note while keeping `notebook/journal`. */
@@ -276,11 +308,11 @@ export class NotebookService {
                 }
             }
             return engineSetNoteNotebooks(this.store.storage, { noteId, notebookIds });
-        });
+        }, true);
     }
 
     removeNoteFromNotebook(noteId: string, notebookId: string): Promise<NotebookId[]> {
-        return this.enqueue(() => engineRemoveFromNotebook(this.store.storage, noteId, notebookId));
+        return this.enqueue(() => engineRemoveFromNotebook(this.store.storage, noteId, notebookId), true);
     }
 
     getNoteNotebooks(noteId: string): Promise<NotebookId[]> {
@@ -301,7 +333,7 @@ export class NotebookService {
                 throw new Error(`Notebook ${target} is feed-delivered or system read-only.`);
             }
             await engineSetNoteNotebooks(this.store.storage, { noteId, notebookIds: [target] });
-        });
+        }, true);
     }
 
     /** Clones a note into a user-owned notebook with full structured `provenance` back to the original Note. */
@@ -324,20 +356,21 @@ export class NotebookService {
                 createdAt: now,
                 metadata: { title: title ?? source.title, type: 'note', sourceId: source.id, ...(source.tags?.length ? { tags: [...source.tags] } : {}) },
             });
+            const membership: NotebookId[] = target === 'notebook/journal' ? ['notebook/journal'] : [target];
             const stamped: Note = {
                 ...clone,
                 notebookId: target,
-                notebookIds: target === 'notebook/journal' ? ['notebook/journal'] : ['notebook/journal', target],
+                notebookIds: membership,
                 seedOrigin: 'user',
                 provenance: buildNoteProvenance(source, sourceNb, now),
             };
             await this.store.saveNote(stamped);
             await enginePromoteNote(this.store.storage, {
                 noteId: stamped.id,
-                notebookIds: target === 'notebook/journal' ? ['notebook/journal'] : [target],
+                notebookIds: membership,
             });
             return (await this.store.getNote(stamped.id)) ?? stamped;
-        });
+        }, true);
     }
 
     /**
@@ -348,40 +381,77 @@ export class NotebookService {
      */
     ensureNotebooks(): Promise<void> {
         return this.enqueue(async () => {
-            const notes = await this.store.getAllNotes();
-            if (!notes.some((n) => isNotebookLanding(n) && n.id === CUSTOM_NOTEBOOK_ID)) {
-                await this.saveLanding(CUSTOM_NOTEBOOK_ID, 'Custom', 'User overrides and custom Tags, Efforts, Equipment, and starter workouts.', 'C');
-            }
-            for (const note of notes) {
-                if (note.type === 'template') {
-                    await this.store.saveNote({ ...note, type: 'note', notebookId: note.notebookId ?? CUSTOM_NOTEBOOK_ID });
-                }
-            }
-            const customNotes = await this.listNotes(CUSTOM_NOTEBOOK_ID);
-            if (customNotes.length === 0) {
-                const rawContent = '# My Workout\n\n```time\n10 Push-ups\n```\n';
-                const starter = await this.store.saveNoteSource({
-                    noteId: uuidv7(),
-                    rawContent,
-                    blocks: reconcileNoteBlocks(rawContent, { sourceRevision: 1 }),
-                    expectedSourceRevision: 0,
-                    createdAt: Date.now(),
-                    metadata: { title: 'My Workout', type: 'note' },
-                });
-                await this.store.saveNote({
-                    ...starter,
-                    notebookId: CUSTOM_NOTEBOOK_ID,
-                    notebookIds: ['notebook/journal', CUSTOM_NOTEBOOK_ID],
-                    seedOrigin: 'user',
-                });
-            }
+            // Compute deterministic starter ID before opening IDB transaction so
+            // native IndexedDB never auto-commits across WebCrypto microtasks.
+            const starterId = await seedNoteId('onboarding/my-workout');
+            await this.store.withTransaction(
+                ['notes', 'block_revisions', 'block_index', 'block_efforts', 'block_equipment', 'efforts', 'equipment', 'notebook_links', 'meta'],
+                async (scoped) => {
+                    const notes = await scoped.getAllNotes();
+                    if (!notes.some((n) => isNotebookLanding(n) && n.id === CUSTOM_NOTEBOOK_ID)) {
+                        await this.saveLanding(
+                            CUSTOM_NOTEBOOK_ID,
+                            'Custom',
+                            'User overrides and custom Tags, Efforts, Equipment, and starter workouts.',
+                            'C',
+                            undefined,
+                            scoped,
+                        );
+                    }
+                    for (const note of notes) {
+                        if (note.type === 'template') {
+                            await scoped.saveNote({
+                                ...note,
+                                type: 'note',
+                                notebookId: note.notebookId ?? CUSTOM_NOTEBOOK_ID,
+                                seedOrigin: note.seedOrigin ?? 'user',
+                            });
+                        }
+                    }
+
+                    const seededMeta = await scoped.storage.readonly('meta').get('onboarding:starterSeeded');
+                    if ((seededMeta as { value?: unknown } | undefined)?.value) return;
+
+                    const customNotes = await this.listNotes(CUSTOM_NOTEBOOK_ID, scoped);
+                    const existingStarter = notes.some((n) => n.id === starterId);
+                    if (!existingStarter && customNotes.length === 0) {
+                        const now = Date.now();
+                        const rawContent = '# My Workout\n\n```time\n10 Push-ups\n```\n';
+                        const starter = await scoped.saveNoteSource({
+                            noteId: starterId,
+                            rawContent,
+                            blocks: reconcileNoteBlocks(rawContent, { sourceRevision: 1 }),
+                            expectedSourceRevision: 0,
+                            createdAt: now,
+                            metadata: { title: 'My Workout', type: 'note' },
+                        });
+                        const memberships: NotebookId[] = ['notebook/journal', CUSTOM_NOTEBOOK_ID];
+                        await scoped.saveNote({
+                            ...starter,
+                            notebookId: CUSTOM_NOTEBOOK_ID,
+                            notebookIds: memberships,
+                            seedOrigin: 'user',
+                        });
+                        try {
+                            await scoped.storage.readwrite('notebook_links').putMany(
+                                memberships.map((nbId) => ({
+                                    id: makeNotebookLinkId(nbId, 'note', starterId),
+                                    notebookId: nbId,
+                                    targetKind: 'note' as const,
+                                    targetId: starterId,
+                                    noteId: starterId,
+                                    createdAt: now,
+                                })),
+                            );
+                        } catch {
+                            // Optional store on minimal mocks
+                        }
+                    }
+                    await scoped.storage.readwrite('meta').put({ key: 'onboarding:starterSeeded', value: true });
+                },
+            );
         });
     }
-}
-
-/** A user notebook's landing note: id `notebook/{slug}`, notebookId set. */
-function isNotebookLanding(note: Note): boolean {
-    return note.id.startsWith('notebook/') && note.notebookId === note.id;
 }
 
 /** The always-present notebooks are app-owned: user CRUD must not touch them,
@@ -437,3 +507,8 @@ function landingToNotebook(note: Note): Notebook {
 
 /** Singleton instance */
 export const notebookService = new NotebookService();
+
+/** Subscribe to user notebook mutations (create, update, delete, membership moves). */
+export function subscribeNotebooks(listener: () => void): () => void {
+    return notebookService.subscribe(listener);
+}

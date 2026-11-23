@@ -38,12 +38,14 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     expect(offered).not.toContain('Ladder');
   });
 
-  it('offers catalog efforts on an empty statement and in effort slots', async () => {
+  it('offers catalog efforts on an empty statement and filters effort slots accurately', async () => {
     const options: WhiteboardScriptCompletionOptions = {
       efforts: () => [{ value: 'Back Squat', label: 'Back Squat' }],
     };
     expect(await labels('', options)).toContain('Back Squat');
-    expect(await labels('10 Push', options)).toContain('Back Squat');
+    expect(await labels('10 ', options)).toContain('Back Squat');
+    expect(await labels('10 Back', options)).toContain('Back Squat');
+    expect(await labels('10 Push', options)).not.toContain('Back Squat');
   });
 
   it('suppresses a second effort after a completed effort but allows a new statement', async () => {
@@ -80,9 +82,9 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     expect(offered).toContain('Circuit');
   });
 
-  it('uses dialect-extended units and limits resistance quantities to mass', async () => {
+  it('uses dialect-extended units on glued numbers and limits resistance quantities to mass', async () => {
     const units = UnitRegistry.standard().extend({ canonical: 'pood', dimension: 'mass', aliases: ['poods'] });
-    const offered = await labels('10 ', { units });
+    const offered = await labels('10', { units });
     expect(offered).toContain('pood');
     expect(offered).toContain('poods');
 
@@ -91,6 +93,8 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     expect(resistance).toContain('pood');
     expect(resistance).not.toContain('km');
     expect(resistance).not.toContain('cal');
+    expect(resistance).not.toContain('reps');
+    expect(resistance).not.toContain('rounds');
   });
 
   it('offers no second unit after a number already has one', async () => {
@@ -102,8 +106,10 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     expect(offered).toContain('Back Squat');
   });
 
-  it('offers STANDARD_UNITS canonical spellings and aliases after a number', async () => {
-    const offered = await labels('100 ');
+  it('offers STANDARD_UNITS canonical spellings and aliases when typing a number', async () => {
+    const offered = await labels('100');
+    expect(offered).toContain('reps');
+    expect(offered).toContain('rounds');
     expect(offered).toContain('kg');
     expect(offered).toContain('lbs');
     expect(offered).toContain('mile');
@@ -111,8 +117,8 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     expect(kg).toBeGreaterThanOrEqual(0);
   });
 
-  it('allows units after compose quantities but not inside action syntax', async () => {
-    expect(await labels('+ 5 ')).toContain('kg');
+  it('allows units after glued compose quantities but not inside action syntax', async () => {
+    expect(await labels('+ 5')).toContain('kg');
     expect(await labels('[10 ')).not.toContain('kg');
   });
 
@@ -221,25 +227,41 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     expect(await labels('# Warmup', options)).toEqual([]);
   });
 
-  it('excludes structure keywords after quantities and boosts preferred canonical units above efforts', async () => {
+  it('excludes structure keywords on quantities, boosts preferred units above efforts, and transitions after space', async () => {
     const options: WhiteboardScriptCompletionOptions = {
       efforts: () => [{ value: 'Kettlebell Swing' }],
       preferredUnits: () => ['lb'],
     };
-    const state = EditorState.create({ doc: '20 ', extensions: whiteboardScript(options) });
-    const result = await whiteboardScriptCompletionSource(options)(new CompletionContext(state, state.doc.length, true));
-    const opts = result?.options ?? [];
-    const offered = opts.map(o => o.label);
-    expect(offered).not.toContain('AMRAP');
-    expect(offered).not.toContain('EMOM');
-    expect(offered).not.toContain('FOR TIME');
-    const lbOpt = opts.find(o => o.label === 'lb');
-    const kgOpt = opts.find(o => o.label === 'kg');
-    const bwOpt = opts.find(o => o.label === 'bw');
-    const secRank = (s: typeof opts[number]['section']) => (typeof s === 'object' ? (s?.rank ?? 999) : 999);
+    const gluedState = EditorState.create({ doc: '20', extensions: whiteboardScript(options) });
+    const gluedResult = await whiteboardScriptCompletionSource(options)(
+      new CompletionContext(gluedState, gluedState.doc.length, true),
+    );
+    const gluedOpts = gluedResult?.options ?? [];
+    const gluedOffered = gluedOpts.map(o => o.label);
+    expect(gluedOffered).not.toContain('AMRAP');
+    expect(gluedOffered).not.toContain('EMOM');
+    expect(gluedOffered).not.toContain('FOR TIME');
+    expect(gluedOffered).toContain('reps');
+    expect(gluedOffered).toContain('rounds');
+    const lbOpt = gluedOpts.find(o => o.label === 'lb');
+    const kgOpt = gluedOpts.find(o => o.label === 'kg');
+    const bwOpt = gluedOpts.find(o => o.label === 'bw');
+    const secRank = (s: typeof gluedOpts[number]['section']) => (typeof s === 'object' ? (s?.rank ?? 999) : 999);
     expect((lbOpt?.boost ?? 0)).toBeGreaterThan(kgOpt?.boost ?? 0);
     expect((kgOpt?.boost ?? 0)).toBeGreaterThan(bwOpt?.boost ?? 0);
-    expect(secRank(kgOpt?.section)).toBeLessThan(secRank(opts.find(o => o.label === 'Kettlebell Swing')?.section));
+
+    const spacedState = EditorState.create({ doc: '20 ', extensions: whiteboardScript(options) });
+    const spacedResult = await whiteboardScriptCompletionSource(options)(
+      new CompletionContext(spacedState, spacedState.doc.length, true),
+    );
+    const spacedOpts = spacedResult?.options ?? [];
+    const spacedOffered = spacedOpts.map(o => o.label);
+    expect(spacedOffered).toContain('Kettlebell Swing');
+    expect(spacedOffered).not.toContain('kg');
+    expect(spacedOffered).not.toContain('lb');
+    expect(spacedOffered).not.toContain('reps');
+    expect(spacedOffered).not.toContain('rounds');
+    expect(secRank(kgOpt?.section)).toBeLessThan(secRank(spacedOpts.find(o => o.label === 'Kettlebell Swing')?.section));
   });
 
   it('deduplicates EMOM/AMRAP at line start and demotes property keys with trailing colon', async () => {
@@ -299,6 +321,206 @@ describe('whiteboardScriptCompletionSource — syntax slots', () => {
     expect(await labels('10 kbs', options)).toContain('Kettlebell Swing');
     expect(await labels('kbs', options)).toContain('Kettlebell Swing');
   });
+
+  it('offers syntax-aware reps and rounds on glued numbers, decimals, wildcard, parens, and rep ladders', async () => {
+    const withCatalog: WhiteboardScriptCompletionOptions = {
+      efforts: () => [{ value: 'Back Squat', label: 'Back Squat' }],
+      equipment: () => [{ value: 'kettlebell', label: 'Kettlebell' }],
+    };
+
+    // Glued whole integers offer both `reps` and `rounds` alongside units.
+    for (const doc of ['10', '3', '10r']) {
+      const offered = await labels(doc, withCatalog);
+      expect(offered).toContain('reps');
+      expect(offered).toContain('rounds');
+    }
+    expect(await labels('3ro', withCatalog)).toContain('rounds');
+
+    // Decimals do not offer integer count qualifiers `reps`/`rounds`.
+    const decimalOffered = await labels('42.5', withCatalog);
+    expect(decimalOffered).toContain('kg');
+    expect(decimalOffered).not.toContain('reps');
+    expect(decimalOffered).not.toContain('rounds');
+
+    // Wildcard `?` offers `reps` and units, not `rounds`.
+    const wildcardOffered = await labels('?', withCatalog);
+    expect(wildcardOffered).toContain('reps');
+    expect(wildcardOffered).toContain('kg');
+    expect(wildcardOffered).not.toContain('rounds');
+
+    // Already has rounds on the line -> suppresses redundant `rounds`.
+    for (const doc of ['3 rounds 10', '(3) 10']) {
+      const offered = await labels(doc, withCatalog);
+      expect(offered).toContain('reps');
+      expect(offered).toContain('kg');
+      expect(offered).not.toContain('rounds');
+    }
+
+    // Parenthesized single-number rounds offer `rounds` & `reps`; ladders stay empty.
+    for (const doc of ['(3', '(3 ', '(3 r']) {
+      const offered = await labels(doc, withCatalog);
+      expect(offered).toContain('rounds');
+      if (!doc.endsWith('r')) {
+        expect(offered).toContain('reps');
+      }
+    }
+    expect(await labels('(21-15', withCatalog)).toEqual([]);
+
+    // Rep ladders (`9-7`, `9-7-5`) offer `reps` with rep-scheme detail, never `rounds` or physical units.
+    for (const ladderDoc of ['9-7', '9-7-5', '9-7-5r']) {
+      const state = EditorState.create({ doc: ladderDoc, extensions: whiteboardScript(withCatalog) });
+      const res = await whiteboardScriptCompletionSource(withCatalog)(
+        new CompletionContext(state, ladderDoc.length, true),
+      );
+      const opts = res?.options ?? [];
+      const repsOpt = opts.find(o => o.label === 'reps');
+      expect(repsOpt).toBeDefined();
+      expect(repsOpt?.detail).toContain('rep scheme');
+      const offered = opts.map(o => o.label);
+      expect(offered).not.toContain('rounds');
+      expect(offered).not.toContain('kg');
+      expect(offered).not.toContain('lb');
+      expect(offered).not.toContain('m');
+    }
+
+    // Trailing space after rep ladder transitions to missing efforts/equipment + FOR TIME without units.
+    const afterLadder = await labels('9-7-5 ', withCatalog);
+    expect(afterLadder).toContain('Back Squat');
+    expect(afterLadder).toContain('Kettlebell');
+    expect(afterLadder).toContain('FOR TIME');
+    expect(afterLadder).not.toContain('reps');
+    expect(afterLadder).not.toContain('rounds');
+    expect(afterLadder).not.toContain('kg');
+  });
+
+  it('transitions from units to missing elements after space while still matching explicit partial units', async () => {
+    const withCatalog: WhiteboardScriptCompletionOptions = {
+      efforts: () => [
+        { value: 'snatch', label: 'Snatch' },
+        { value: 'back-squat', label: 'Back Squat' },
+      ],
+      equipment: () => [
+        { value: 'kettlebell', label: 'Kettlebell' },
+        { value: 'weight-vest', label: 'Weight Vest' },
+      ],
+    };
+
+    for (const spacedDoc of ['10 ', '20 ', '10 reps ', '3 rounds ']) {
+      const offered = await labels(spacedDoc, withCatalog);
+      expect(offered).toContain('Snatch');
+      expect(offered).toContain('Back Squat');
+      expect(offered).toContain('Kettlebell');
+      expect(offered).not.toContain('kg');
+      expect(offered).not.toContain('lb');
+      expect(offered).not.toContain('reps');
+      expect(offered).not.toContain('rounds');
+    }
+
+    // Effort already on line (`Snatch 10 `) -> offers missing equipment, not duplicate efforts.
+    const afterEffortQty = await labels('Snatch 10 ', withCatalog);
+    expect(afterEffortQty).toContain('Kettlebell');
+    expect(afterEffortQty).toContain('Weight Vest');
+    expect(afterEffortQty).not.toContain('Back Squat');
+    expect(afterEffortQty).not.toContain('kg');
+
+    // Explicit partial unit/qualifier word after space still matches that unit/qualifier.
+    expect(await labels('100 k', withCatalog)).toContain('kg');
+    expect(await labels('10 rep', withCatalog)).toContain('reps');
+    expect(await labels('3 rou', withCatalog)).toContain('rounds');
+  });
+
+  it('supports fuzzy typo matching and compositional effort/equipment upgrading', async () => {
+    const richCatalog: WhiteboardScriptCompletionOptions = {
+      efforts: () => [
+        { value: 'snatch', label: 'Snatch', detail: 'weightlifting', equipment: ['dumbbell'] },
+        { value: 'kettlebell-snatch', label: 'Kettlebell Snatch', detail: 'weightlifting', aliases: ['kb snatch'], equipment: ['kettlebell'] },
+        { value: 'walking-3-mph', label: 'Walking', detail: 'cardio', aliases: ['walk'] },
+        { value: 'back-squat', label: 'Back Squat', detail: 'strength', aliases: ['bs'] },
+        { value: 'kettlebell-swing', label: 'Kettlebell Swing', detail: 'kettlebell', aliases: ['swing', 'kbs'], equipment: ['kettlebell'] },
+      ],
+      equipment: () => [
+        { value: 'kettlebell', label: 'Kettlebell', aliases: ['kb'] },
+        { value: 'weight-vest', label: 'Weight Vest', aliases: ['vest'] },
+      ],
+    };
+
+    // Fuzzy typos in both standalone and post-quantity slots.
+    expect(await labels('10 snacth', richCatalog)).toContain('Snatch');
+    expect(await labels('snacth', richCatalog)).toContain('Snatch');
+    expect(await labels('10 sqaut', richCatalog)).toContain('Back Squat');
+    expect(await labels('10 wlak', richCatalog)).toContain('Walking');
+
+    // Multi-element composition & trailing-space upgrades.
+    expect(await labels('10 Walking weight v', richCatalog)).toContain('Weight Vest');
+    expect(await labels('10 Weight Vest wal', richCatalog)).toContain('Walking');
+
+    const afterSnatch = await labels('10 Snatch ', richCatalog);
+    expect(afterSnatch).toContain('Kettlebell Snatch');
+    expect(afterSnatch).toContain('Kettlebell');
+    expect(afterSnatch).toContain('Weight Vest');
+    expect(afterSnatch).not.toContain('Back Squat');
+
+    // Live upgrading after effort selection: `10 Snatch KB` offers both equipment and dedicated effort.
+    const kbState = EditorState.create({ doc: '10 Snatch KB', extensions: whiteboardScript(richCatalog) });
+    const kbRes = await whiteboardScriptCompletionSource(richCatalog)(
+      new CompletionContext(kbState, kbState.doc.length, true),
+    );
+    const kbOpts = kbRes?.options ?? [];
+    expect(kbOpts.map(o => o.label)).toContain('Kettlebell');
+    const kbSnatchOpt = kbOpts.find(o => o.label === 'Kettlebell Snatch');
+    expect(kbSnatchOpt).toBeDefined();
+    expect(kbSnatchOpt?.detail).toContain('Kettlebell');
+
+    // No self-prefixed equipment duplicates (`Kettlebell Kettlebell Swing`).
+    const kbSw = await labels('10 Kettlebell Sw', richCatalog);
+    expect(kbSw.filter(l => l === 'Kettlebell Swing')).toHaveLength(1);
+
+    // Completed effort + explicit equipment pairs close trailing-space prompts.
+    expect(await labels('10 Snatch Kettlebell ', richCatalog)).toEqual([]);
+    expect(await labels('10 Walking Weight Vest ', richCatalog)).toEqual([]);
+    expect(await labels('10 Frog Jumps Weight Vest ', richCatalog)).toEqual([]);
+  });
+
+  it('anchors mid-token completions from token/effort start and covers trailing characters', async () => {
+    const catalog: WhiteboardScriptCompletionOptions = {
+      efforts: () => [
+        { value: 'back-squat', label: 'Back Squat' },
+        { value: 'snatch', label: 'Snatch' },
+      ],
+      tags: () => [{ value: 'heavy' }, { value: 'hero' }],
+    };
+
+    const queryAtCaret = async (docWithCaret: string) => {
+      const pos = docWithCaret.indexOf('|');
+      const doc = docWithCaret.slice(0, pos) + docWithCaret.slice(pos + 1);
+      const state = EditorState.create({ doc, extensions: whiteboardScript(catalog) });
+      return whiteboardScriptCompletionSource(catalog)(new CompletionContext(state, pos, true));
+    };
+
+    const midEffort = await queryAtCaret('10 Back Sq|at');
+    expect(midEffort?.from).toBe('10 '.length);
+    expect(midEffort?.to).toBe('10 Back Sqat'.length);
+    expect(midEffort?.options.map(o => o.label)).toContain('Back Squat');
+
+    const midStart = await queryAtCaret('Sn|tch');
+    expect(midStart?.from).toBe(0);
+    expect(midStart?.to).toBe('Sntch'.length);
+    expect(midStart?.options.map(o => o.label)).toContain('Snatch');
+
+    const midTag = await queryAtCaret('10 Back Squat #he|vy');
+    expect(midTag?.from).toBe('10 Back Squat #'.length);
+    expect(midTag?.to).toBe('10 Back Squat #hevy'.length);
+    expect(midTag?.options.map(o => o.label)).toEqual(expect.arrayContaining(['heavy', 'hero']));
+
+    const midUnit = await queryAtCaret('10k|g');
+    expect(midUnit?.from).toBe('10'.length);
+    expect(midUnit?.to).toBe('10kg'.length);
+    expect(midUnit?.options.map(o => o.label)).toContain('kg');
+
+    const preEffortNum = await queryAtCaret('100| Run');
+    expect(preEffortNum?.from).toBe('100'.length);
+    expect(preEffortNum?.options.map(o => o.label)).toEqual(expect.arrayContaining(['m', 'reps', 'rounds']));
+  });
 });
 
 describe('whiteboardScriptCompletionSource — dialect options by sport', () => {
@@ -331,7 +553,7 @@ describe('standalone whiteboardScript()', () => {
     const support = whiteboardScript();
     expect(support).toBeInstanceOf(LanguageSupport);
 
-    const state = EditorState.create({ doc: '100 ', extensions: [support] });
+    const state = EditorState.create({ doc: '100', extensions: [support] });
     const context = new CompletionContext(state, state.doc.length, true);
     const result = await whiteboardScriptCompletionSource()(context);
     expect(result?.options.map(option => option.label)).toContain('kg');

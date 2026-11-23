@@ -468,4 +468,15 @@ describe('resolveRouteView — canonical direct routes (/notebook, /effort, /das
     expect(resolveRouteView('/p/my-custom-note', NO_PARAMS, makeDeps({ canvasPage: null })).namedPageSlug).toBeUndefined()
     expect(resolveRouteView(`/note/${UUID}/extra`, NO_PARAMS, makeDeps()).isNoteRoute).toBe(false)
   })
+
+  it('resolves human-readable feed label for known feed detail routes and clears PLAYGROUND_CONTENT on unbundled notebook items', () => {
+    const crossfitFeed = resolveRouteView('/feed/sport-crossfit', NO_PARAMS, makeDeps())
+    expect(crossfitFeed.page).toBe('feedDetail')
+    expect(crossfitFeed.workout.name).toBe('CrossFit')
+
+    const ghostNotebook = resolveRouteView('/notebook/girls/Ghost', { slug: 'girls', target: 'Ghost' }, makeDeps())
+    expect(ghostNotebook.workout.name).toBe('Ghost')
+    expect(ghostNotebook.workout.category).toBe('girls')
+    expect(ghostNotebook.workout.content).toBe('')
+  })
 })

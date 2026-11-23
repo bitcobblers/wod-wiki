@@ -525,9 +525,32 @@ export const CompletionChoiceDeduplication: Story = {
     const host = canvasElement.querySelector<HTMLElement>('[data-testid="note-editor-host"]') ?? canvasElement;
     const view = getCmView(host);
 
-    // 1. Duplicate effort rejection
+    // 1a. After effort without explicit equipment, offer equipment & specialized variants (no unrelated efforts/directives)
     openBodyLine(LINE.timeBodyRest, host);
     await userEvent.keyboard('10 Push Ups ');
+    await requestCompletion(view);
+    await waitFor(async () => {
+      const menu = autocompleteMenu();
+      await expect(menu).toBeVisible();
+      const labels = Array.from(menu!.querySelectorAll('.cm-completionLabel')).map((l) =>
+        l.textContent?.trim(),
+      );
+      await expect(labels).toContain('Weight Vest');
+      await expect(labels).toContain('Handstand Push-ups');
+      await expect(labels).not.toContain('Thrusters');
+      await expect(labels).not.toContain('Back Squat');
+      await expect(labels).not.toContain('Pull-ups');
+      await expect(labels).not.toContain('AMRAP');
+      await expect(labels).not.toContain('EMOM');
+    });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(async () => {
+      await expect(autocompleteMenu()).toBeNull();
+    });
+
+    // 1b. After effort + explicit equipment, no further effort/equipment suggestions open
+    openBodyLine(LINE.timeBodyRest, host);
+    await userEvent.keyboard('10 Push Ups Weight Vest ');
     await requestCompletion(view);
     await settleCompletion();
     await expect(autocompleteMenu()).toBeNull();

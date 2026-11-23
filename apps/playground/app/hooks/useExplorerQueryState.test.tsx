@@ -210,10 +210,34 @@ describe('useExplorerQueryState', () => {
     expect(search()).toBe(searchBefore)
   })
 
-  it('an unparseable q still lands in submitted (the composer owns the draft fallback)', () => {
+  it('preserves an unparseable ?q= in draft and invalidUrlQuery while keeping submitted valid, and revertDraft restores cleanly', () => {
     renderAt([`/analytics/explorer?q=${encodeURIComponent('sum:tis{} )))garbage((((')}`])
+    expect(draft()).toBe('sum:tis{} )))garbage((((')
+    expect(captured.invalidUrlQuery).toBe('sum:tis{} )))garbage((((')
+    expect(submitted()).toBe('')
+
+    act(() => captured.revertDraft())
     expect(draft()).toBe(DEFAULT_EXPLORER_QUERY)
-    expect(submitted()).toBe('sum:tis{} )))garbage((((')
+    expect(captured.invalidUrlQuery).toBeNull()
+    expect(qParam()).toBe('')
+  })
+
+  it('revertDraft restores the last valid submitted query after editing into an invalid draft', async () => {
+    renderAt(['/analytics/explorer'])
+    act(() => {
+      captured.setDraft('sum:tis{}')
+      captured.submit('sum:tis{}')
+    })
+    await waitFor(() => expect(submitted()).toBe('sum:tis{}'))
+
+    act(() => captured.setDraft('sum:'))
+    expect(draft()).toBe('sum:')
+    expect(submitted()).toBe('sum:tis{}')
+
+    act(() => captured.revertDraft())
+    expect(draft()).toBe('sum:tis{}')
+    expect(submitted()).toBe('sum:tis{}')
+    expect(qParam()).toBe('sum:tis{}')
   })
 
   it('re-seeds a bare landing when the landing default changes', async () => {

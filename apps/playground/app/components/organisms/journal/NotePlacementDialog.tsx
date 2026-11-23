@@ -20,8 +20,9 @@ import { TEST_IDS } from '@/lib/testIds'
 import { cn } from '@/lib/utils'
 import type { HistoryRecord } from '@/types/history';
 import type { IContentProvider } from '@/types/content-provider';
-import type { NotePlacement } from '@bitcobblers/wod-wiki-core';
+import type { NotePlacement, ScheduleItem } from '@bitcobblers/wod-wiki-core';
 import { journalNotes } from '../../../services/journalNotes'
+import { journalSchedule } from '../../../services/journalSchedule'
 import { parseJournalDate } from '../../../services/parseJournalDate'
 import { getTodayDateKey } from '../../../services/dateUtils'
 import { slugifyRoute } from './CreateJournalNoteDialog'
@@ -348,6 +349,10 @@ export function NotePlacementDialog({
           </div>
         )}
 
+        {!isClone && (
+          <NoteSchedulesSection entryId={entry.id} disabled={saving} />
+        )}
+
         <div className="flex flex-col gap-1.5">
           <label htmlFor="note-placement-date" className="text-sm font-medium">
             Journal date
@@ -451,5 +456,116 @@ export function NotePlacementDialog({
         )}
       </form>
     </EditorDialog>
+  )
+}
+
+function NoteSchedulesSection({ entryId, disabled }: { entryId: string; disabled: boolean }) {
+  const [items, setItems] = useState<ScheduleItem[]>([])
+  const [newDate, setNewDate] = useState('')
+  const [newSlot, setNewSlot] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [schedError, setSchedError] = useState<string | null>(null)
+
+  const reload = () => {
+    journalSchedule.listForNote(entryId).then(setItems).catch(() => {})
+  }
+  useEffect(() => {
+    reload()
+  }, [entryId])
+
+  const handleSchedule = async () => {
+    if (!newDate.trim() || !parseJournalDate(newDate.trim())) {
+      setSchedError('Enter a valid date (YYYY-MM-DD) to schedule.')
+      return
+    }
+    setBusy(true)
+    setSchedError(null)
+    try {
+      await journalSchedule.scheduleNote({
+        noteId: entryId,
+        date: newDate.trim(),
+        ...(newSlot.trim() ? { slot: newSlot.trim() } : {}),
+      })
+      setNewDate('')
+      setNewSlot('')
+      reload()
+    } catch (err) {
+      setSchedError(err instanceof Error ? err.message : 'Could not add schedule date.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleRemove = async (scheduleId: string) => {
+    setBusy(true)
+    setSchedError(null)
+    try {
+      await journalSchedule.removeItem(scheduleId)
+      reload()
+    } catch {
+      setSchedError('Could not remove scheduled date.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div data-testid={TEST_IDS.NOTE_SCHEDULES_TAB} className="flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">Schedules ({items.length})</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Not scheduled onto any calendar days yet.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {items.map((item) => (
+            <li key={item.id} className="flex items-center justify-between gap-2 rounded border border-border/50 bg-background px-2.5 py-1.5 text-xs">
+              <span className="font-mono">
+                {item.date}
+                {item.slot ? ` · ${item.slot}` : ''}
+                {item.status !== 'planned' ? ` (${item.status})` : ''}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={disabled || busy}
+                onClick={() => void handleRemove(item.id)}
+              >
+                Unschedule
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+        <input
+          type="date"
+          aria-label="Add scheduled date"
+          value={newDate}
+          onChange={(e) => setNewDate(e.target.value)}
+          disabled={disabled || busy}
+          className="h-9 flex-1 min-w-[130px] rounded-md border border-input bg-background px-2.5 text-xs"
+        />
+        <input
+          type="text"
+          aria-label="Optional slot"
+          placeholder="Slot (e.g. AM)"
+          value={newSlot}
+          onChange={(e) => setNewSlot(e.target.value)}
+          disabled={disabled || busy}
+          className="h-9 w-28 rounded-md border border-input bg-background px-2.5 text-xs"
+        />
+        <Button
+          type="button"
+          size="sm"
+          disabled={disabled || busy || !newDate}
+          onClick={() => void handleSchedule()}
+        >
+          Schedule
+        </Button>
+      </div>
+      {schedError && <p className="text-xs text-destructive">{schedError}</p>}
+    </div>
   )
 }

@@ -4,15 +4,22 @@ import type { ScriptBlock } from '@/components/Editor/types';
 import type { HistoryRecord } from '@/types/history';
 import type { Session } from '@/types/storage';
 import { journalNotes } from '../services/journalNotes';
+import { journalSchedule, subscribeSchedule } from '../services/journalSchedule';
+import { TEST_IDS } from '@/lib/testIds';
+import type { JournalDayOverlay } from '@bitcobblers/wod-wiki-engine';
+import { formatDurationMMSS } from '@bitcobblers/wod-wiki-core';
 import { playgroundRecorder, onResultSaved } from '@/services/resultRecorder';
 import { storageService } from '@/services/storage';
 import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer';
 import { useSearchParams, Link, Navigate, useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, Copy, CalendarDays, BookOpen, Dumbbell, GitFork, Save } from 'lucide-react';
 import { v7 as uuidv7 } from 'uuid';
 import { dayPath, notePath, runPath } from '../lib/routes';
 import { formatDateKey } from '../services/dateUtils';
 import { CreateJournalNoteDialog } from '../components/organisms/journal/CreateJournalNoteDialog';
+import { CalendarCard } from '@/components/atoms/CalendarCard';
+import { NoteContextNav, useJournalEntryDates } from './shared/noteContextLinks';
+import { useNoteL1Zone, useNav, type L3ActionItem } from '../nav/NavContext';
 import { clearParkedRun, findParkedRunByDate, parkRun, pendingRuntimes, takeParkedRun } from '../runtimeStore';
 import { ResponsiveActions } from '../nav/ResponsiveActions'
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
@@ -24,7 +31,6 @@ import { PublicationPill } from '@/components/molecules/PublicationPill';
 import { IndexedDBContentProvider } from '@/services/content/IndexedDBContentProvider';
 import { canGoBack, extractPageIndex, mapIndexToL3, appendTimerBlock } from './shared/pageUtils';
 import type { NavItemL3 } from '../nav/navTypes';
-import { useNav } from '../nav/NavContext';
 import { SavedNoteEditor } from './shared/SavedNoteEditor';
 import { captureRun, captureStoredRun, type CapturedRun } from '@/services/runCapture';
 import type { ParkedRun, PendingRuntime } from '../runtimeStore';
@@ -32,8 +38,189 @@ import { reconcileNoteBlocks, KNOWN_SECTION_WIDGETS } from '@bitcobblers/wod-wik
 import { setSurfaceBusy } from '@/agent/surfaceBridges';
 import { feedProgressLabel } from '@/services/feed/feedProgress';
 import { useFeedSyncProgress } from '@/services/feed/feedReadiness';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { forkScheduleItemForDay } from '../views/stream/SchedulePeekDrawer';
 
 import { JournalPageShell } from '@/panels/page-shells';
+
+function ScheduledPlanCard({
+  plannedEntry,
+  journalDate,
+  onForked,
+}: {
+  plannedEntry: JournalDayOverlay['planned'][number];
+  journalDate: string;
+  onForked: (forkedNoteId: string) => void;
+}) {
+  const { item, note: planNote, pairedSessions } = plannedEntry;
+  const done = item.status === 'completed' || pairedSessions.length > 0;
+  const skipped = item.status === 'skipped';
+  const [cueDraft, setCueDraft] = useState(item.notes ?? '');
+  const [savedCue, setSavedCue] = useState(item.notes ?? '');
+  const [cueSaved, setCueSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const next = item.notes ?? '';
+    setCueDraft(next);
+    setSavedCue(next);
+  }, [item.id, item.notes]);
+
+  const cueDirty = cueDraft.trim() !== savedCue.trim();
+
+  const handleSaveCue = async () => {
+    setBusy(true);
+    setCardError(null);
+    setCueSaved(false);
+    try {
+      const trimmed = cueDraft.trim();
+      await journalSchedule.updateItem(item.id, { notes: trimmed });
+      setSavedCue(trimmed);
+      setCueDraft(trimmed);
+      setCueSaved(true);
+    } catch (err) {
+      setCardError(err instanceof Error ? err.message : 'Could not save day cue.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleFork = async () => {
+    setBusy(true);
+    setCardError(null);
+    try {
+      const forked = await forkScheduleItemForDay({
+        scheduleItemId: item.id,
+        sourceNoteId: item.noteId,
+        date: journalDate,
+        fallbackTitle: planNote?.title || item.fallbackTitle,
+      });
+      onForked(forked.id);
+    } catch (err) {
+      setCardError(err instanceof Error ? err.message : 'Could not fork copy for this day.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <li className="space-y-2.5 rounded-md border border-border/60 bg-background px-3 py-2.5 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Link to={notePath(item.noteId)} className="truncate font-semibold text-foreground hover:underline">
+              {planNote?.title || item.fallbackTitle || 'Untitled workout'}
+            </Link>
+            {item.slot && (
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-bold uppercase text-muted-foreground">
+                {item.slot}
+              </span>
+            )}
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                done
+                  ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                  : skipped
+                    ? 'bg-muted text-muted-foreground line-through'
+                    : 'bg-primary/10 text-primary'
+              }`}
+            >
+              {done ? 'Completed' : skipped ? 'Skipped' : 'Planned'}
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => void handleFork()}
+            data-testid={TEST_IDS.DAY_PLAN_FORK_BTN}
+            className="h-7 max-lg:min-h-11 gap-1 px-2 text-[11px]"
+          >
+            <GitFork className="size-3" aria-hidden="true" />
+            <span>Fork for this day</span>
+          </Button>
+          {!skipped && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void journalSchedule.updateItem(item.id, { status: 'skipped' })}
+              className="h-7 max-lg:min-h-11 px-2 text-[11px]"
+            >
+              Skip
+            </Button>
+          )}
+          {skipped && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void journalSchedule.updateItem(item.id, { status: 'planned' })}
+              className="h-7 max-lg:min-h-11 px-2 text-[11px]"
+            >
+              Restore
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => void journalSchedule.removeItem(item.id)}
+            className="h-7 max-lg:min-h-11 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+          >
+            Unschedule
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <input
+          type="text"
+          value={cueDraft}
+          onChange={(e) => {
+            setCueDraft(e.target.value);
+            if (cueSaved) setCueSaved(false);
+          }}
+          disabled={busy}
+          placeholder="Add day cue (keeps canonical Note unchanged)…"
+          aria-label={`Day cue for ${planNote?.title || item.fallbackTitle || 'workout'}`}
+          data-testid={TEST_IDS.DAY_PLAN_CUE_INPUT}
+          className="h-8 max-lg:min-h-11 min-w-0 flex-1 rounded-md border border-input bg-card px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={busy || !cueDirty}
+          onClick={() => void handleSaveCue()}
+          data-testid={TEST_IDS.DAY_PLAN_CUE_SAVE}
+          className="h-8 max-lg:min-h-11 gap-1 px-2.5 text-[11px]"
+        >
+          <Save className="size-3" aria-hidden="true" />
+          <span>Save</span>
+        </Button>
+        {cueSaved && !cueDirty && (
+          <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+            Saved
+          </span>
+        )}
+      </div>
+
+      {cardError && (
+        <p role="alert" className="text-xs text-destructive">
+          {cardError}
+        </p>
+      )}
+    </li>
+  );
+}
 
 interface JournalDatePageProps {
   journalDate: string;
@@ -44,9 +231,19 @@ interface JournalDatePageProps {
 
 export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDatePageProps) {
   const [notes, setNotes] = useState<HistoryRecord[] | null>(null);
+  const [dayOverlay, setDayOverlay] = useState<JournalDayOverlay | null>(null);
+  const [overlayTick, setOverlayTick] = useState(0);
+  useEffect(() => subscribeSchedule(() => setOverlayTick((t) => t + 1)), []);
+  useEffect(() => onResultSaved(() => setOverlayTick((t) => t + 1)), []);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [createOpen, setCreateOpen] = useState(false);
+  const [createNoteMode, setCreateNoteMode] = useState<'write' | 'pick'>('write');
+  const openCreateDialog = useCallback((mode: 'write' | 'pick' = 'write') => {
+    setCreateNoteMode(mode);
+    setCreateOpen(true);
+  }, []);
   const [isTimerOpen, setIsTimerOpen] = useState(false);
   const [timerBlock, setTimerBlock] = useState<ScriptBlock | null>(null);
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
@@ -76,8 +273,16 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (!pending || !activeRuntimeId) throw new Error('The pending workout is unavailable.');
     if (pending.captured) { capturedRunRef.current = pending.captured; return pending.captured.block; }
     if (!capturedRunRef.current) capturedRunRef.current = pending.snapshot
-      ? await captureRun(pending.snapshot, pending.block, activeRuntimeId, pending.origin)
-      : await captureStoredRun(pending.noteId, pending.block, activeRuntimeId, pending.origin);
+      ? await captureRun(pending.snapshot, pending.block, activeRuntimeId, pending.origin, undefined, {
+          deferPersist: true,
+          ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+          ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
+        })
+      : await captureStoredRun(pending.noteId, pending.block, activeRuntimeId, pending.origin, {
+          deferPersist: true,
+          ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+          ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
+        });
     return capturedRunRef.current.block;
   }, [activeRuntimeId]);
 
@@ -176,18 +381,30 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
 
   const feedProgress = useFeedSyncProgress();
   const [slowLoad, setSlowLoad] = useState(false);
-
+  const loadedDateRef = useRef<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    setNotes(null);
-    journalNotes.listByDate(journalDate).then((entries) => {
+    if (loadedDateRef.current !== journalDate) {
+      loadedDateRef.current = journalDate;
+      setNotes(null);
+    }
+    Promise.all([
+      journalNotes.listByDate(journalDate),
+      journalSchedule.getDayOverlay(journalDate).catch(() => null),
+    ]).then(([entries, overlay]) => {
       if (cancelled) return;
+      loadedDateRef.current = journalDate;
       setNotes(entries);
+      setDayOverlay(overlay);
     }).catch(() => {
-      if (!cancelled) setNotes([]);
+      if (!cancelled) {
+        loadedDateRef.current = journalDate;
+        setNotes([]);
+        setDayOverlay(null);
+      }
     });
     return () => { cancelled = true; };
-  }, [journalDate]);
+  }, [journalDate, overlayTick]);
 
   useEffect(() => setSurfaceBusy(notes === null), [notes]);
 
@@ -290,19 +507,50 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     ],
   );
 
-  const startOutlineRun = useCallback(async (noteId: string, block: ScriptBlock) => {
+  const startOutlineRun = useCallback(async (noteId: string, block: ScriptBlock, explicitScheduleItemId?: string) => {
     try {
       const start = noteRunStarts.current.get(noteId);
       if (!start) throw new Error('The saved note editor is unavailable.');
       const runtimeId = uuidv7();
+      const matchedScheduleId =
+        explicitScheduleItemId ??
+        dayOverlay?.planned.find((p) => p.item.noteId === noteId && p.item.status === 'planned')?.item.id;
       const captured = await start(block, runtimeId);
-      pendingRuntimes.set(runtimeId, { noteId, block: captured.block, captured, returnTo: dayPath(journalDate) });
+      pendingRuntimes.set(runtimeId, {
+        noteId,
+        block: captured.block,
+        captured,
+        returnTo: dayPath(journalDate),
+        ...(matchedScheduleId ? { scheduleItemId: matchedScheduleId } : {}),
+        sessionDate: journalDate,
+      });
       void navigate(runPath(runtimeId));
     } catch (error) { setRunError(error instanceof Error ? error.message : String(error)); }
-  }, [journalDate, navigate]);
+  }, [journalDate, navigate, dayOverlay]);
   const handleOutlineRun = useCallback((block: ScriptBlock) => {
     if (singleNote) void startOutlineRun(singleNote.id, block);
   }, [singleNote, startOutlineRun]);
+
+  const singleNoteHelpfulActions = useMemo<NoteHelpfulAction[]>(() => {
+    if (!singleNote) return [];
+    return [
+      {
+        id: 'day-add-note',
+        label: 'Add note',
+        icon: Plus,
+        group: 'primary' as const,
+        onRun: () => openCreateDialog('write'),
+      },
+      {
+        id: 'day-pick-workout',
+        label: 'Pick / Log workout',
+        icon: Dumbbell,
+        group: 'author' as const,
+        onRun: () => openCreateDialog('pick'),
+      },
+      ...noteActions.helpfulActions,
+    ];
+  }, [singleNote, openCreateDialog, noteActions.helpfulActions]);
 
   useNotePageNav({
     content: singleNote?.rawContent ?? '',
@@ -310,7 +558,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     onStartWorkout: handleOutlineRun,
     results,
     noteId: singleNote?.id,
-    helpfulActions: singleNote ? noteActions.helpfulActions : [],
+    helpfulActions: singleNoteHelpfulActions,
     enabled: Boolean(singleNote),
   });
 
@@ -347,13 +595,29 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     if (!multiNoteFirst) return;
     publishedGroupedRef.current = true;
     setL3Items(groupedL3);
-    setL3Actions?.([
+    const multiActions: L3ActionItem[] = [
+      {
+        id: 'day-add-note',
+        label: 'Add note',
+        icon: Plus,
+        group: 'primary',
+        onRun: () => openCreateDialog('write'),
+      },
+      {
+        id: 'day-pick-workout',
+        label: 'Pick / Log workout',
+        icon: Dumbbell,
+        group: 'author',
+        onRun: () => openCreateDialog('pick'),
+      },
       {
         id: 'helpful-add-timer',
         label: 'Add timer',
+        group: 'author',
         onRun: () => handleNoteContentChange(multiNoteFirst.id, appendTimerBlock(multiNoteFirst.rawContent)),
       },
-    ]);
+    ];
+    setL3Actions?.(multiActions);
     return () => {
       if (publishedGroupedRef.current) {
         publishedGroupedRef.current = false;
@@ -361,7 +625,82 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
         setL3Actions?.([]);
       }
     };
-  }, [groupedL3, multiNoteFirst, handleNoteContentChange, setL3Items, setL3Actions]);
+  }, [groupedL3, multiNoteFirst, handleNoteContentChange, openCreateDialog, setL3Items, setL3Actions]);
+
+  // Always publish L1 journal zone and L2 calendar context on /day/:date (even when empty).
+  useNoteL1Zone('notebooks');
+  const journalDates = useJournalEntryDates();
+  const dayCalendar = useMemo(
+    () =>
+      isDateKey ? (
+        <CalendarCard
+          selectedDate={new Date(`${journalDate}T12:00:00`)}
+          onDateSelect={(d) => navigate(dayPath(formatDateKey(d)))}
+          entryDates={journalDates}
+        />
+      ) : undefined,
+    [isDateKey, journalDate, journalDates, navigate],
+  );
+
+  // Day-level L3 Page Options when the date has 0 notes (note-level Delete/Clone/Export/Notebooks
+  // stay on note cards and /note/:id).
+  const isEmptyDay = notes !== null && notes.length === 0;
+  const publishedEmptyDayRef = useRef(false);
+  useEffect(() => {
+    if (!isEmptyDay) return;
+    publishedEmptyDayRef.current = true;
+    setL3Items([]);
+    const emptyDayActions: L3ActionItem[] = [
+      {
+        id: 'day-add-note',
+        label: 'Add note',
+        icon: Plus,
+        group: 'primary',
+        onRun: () => openCreateDialog('write'),
+      },
+      {
+        id: 'day-pick-workout',
+        label: 'Pick / Log workout',
+        icon: Dumbbell,
+        group: 'author',
+        onRun: () => openCreateDialog('pick'),
+      },
+      {
+        id: 'day-copy-link',
+        label: 'Copy day link',
+        icon: Copy,
+        group: 'share',
+        onRun: () => {
+          const href = typeof window !== 'undefined'
+            ? `${window.location.origin}${dayPath(journalDate)}`
+            : dayPath(journalDate);
+          void navigator.clipboard?.writeText(href).catch(() => undefined);
+        },
+      },
+      {
+        id: 'day-jump-today',
+        label: 'Jump to today',
+        icon: CalendarDays,
+        group: 'organize',
+        onRun: () => navigate(dayPath(formatDateKey(new Date()))),
+      },
+      {
+        id: 'day-open-journal',
+        label: 'Open Journal',
+        icon: BookOpen,
+        group: 'organize',
+        onRun: () => navigate('/journal'),
+      },
+    ];
+    setL3Actions?.(emptyDayActions);
+    return () => {
+      if (publishedEmptyDayRef.current) {
+        publishedEmptyDayRef.current = false;
+        setL3Items([]);
+        setL3Actions?.([]);
+      }
+    };
+  }, [isEmptyDay, journalDate, navigate, openCreateDialog, setL3Actions, setL3Items]);
 
   if (!notes) {
     return (
@@ -395,23 +734,30 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
 
   return (
     <>
+      <NoteContextNav
+        data={{ efforts: [], related: [], backlinks: [] }}
+        up={{ id: 'journal', title: 'Journal', to: '/journal' }}
+        calendar={dayCalendar}
+      />
       <JournalPageShell
           title={journalDate}
           subtitle={`${notes.length} ${notes.length === 1 ? 'note' : 'notes'}`}
           actions={
-            <ResponsiveActions
-              primary={
-                <Button
-                  type="button"
-                  onClick={() => setCreateOpen(true)}
-                  aria-label="+ Add note"
-                  title="New note"
-                >
-                  <Plus className="size-4 mr-1.5" aria-hidden="true" />
-                  + Add
-                </Button>
-              }
-            />
+            isMobile ? (
+              <ResponsiveActions
+                primary={
+                  <Button
+                    type="button"
+                    onClick={() => openCreateDialog('write')}
+                    aria-label="+ Add note"
+                    title="New note"
+                  >
+                    <Plus className="size-4 mr-1.5" aria-hidden="true" />
+                    + Add
+                  </Button>
+                }
+              />
+            ) : undefined
           }
           editor={
         <div className="flex flex-col gap-8 px-4 py-6 sm:px-6">
@@ -436,6 +782,116 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
               </span>
             )}
           </nav>
+          {dayOverlay && (dayOverlay.planned.length > 0 || dayOverlay.adhocSessions.length > 0) && (
+            <div className="grid gap-4 md:grid-cols-2">
+              {dayOverlay.planned.length > 0 && (
+                <section
+                  data-testid={TEST_IDS.DAY_SCHEDULED_SECTION}
+                  aria-label="Scheduled workouts"
+                  className="rounded-lg border border-border/60 bg-muted/20 p-3.5 space-y-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Scheduled Plans ({dayOverlay.planned.length})
+                    </h2>
+                  </div>
+                  <ul className="space-y-2">
+                    {dayOverlay.planned.map((plannedEntry) => (
+                      <ScheduledPlanCard
+                        key={plannedEntry.item.id}
+                        plannedEntry={plannedEntry}
+                        journalDate={journalDate}
+                        onForked={(forkedNoteId) => {
+                          setOverlayTick((t) => t + 1);
+                          void navigate(`${notePath(forkedNoteId)}?edit=1`);
+                        }}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {(dayOverlay.planned.some((p) => p.pairedSessions.length > 0) || dayOverlay.adhocSessions.length > 0) && (
+                <section
+                  data-testid={TEST_IDS.DAY_LOGGED_SECTION}
+                  aria-label="Logged sessions"
+                  className="rounded-lg border border-border/60 bg-muted/20 p-3.5 space-y-2.5"
+                >
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Logged Sessions
+                  </h2>
+                  <ul className="space-y-2">
+                    {dayOverlay.planned.flatMap(({ item, note: planNote, pairedSessions }) =>
+                      pairedSessions.map((sess) => (
+                        <li
+                          key={sess.id}
+                          className="flex items-center justify-between gap-2 rounded-md border border-emerald-500/30 bg-background px-3 py-2 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <Link to={`/results/${encodeURIComponent(sess.id)}`} className="font-semibold text-foreground hover:underline">
+                              {planNote?.title || 'Session'}
+                            </Link>
+                            <div className="text-[11px] text-muted-foreground">
+                              Paired with {item.slot ? `${item.slot} plan` : 'scheduled plan'}
+                              {sess.noteSourceRevision ? ` · v${sess.noteSourceRevision}` : ''}
+                            </div>
+                          </div>
+                          {typeof sess.duration === 'number' && sess.duration > 0 && (
+                            <span className="font-mono text-[11px] text-emerald-700 dark:text-emerald-300">
+                              {formatDurationMMSS(sess.duration)}
+                            </span>
+                          )}
+                        </li>
+                      )),
+                    )}
+                    {dayOverlay.adhocSessions.map(({ session: sess, note: sessNote }) => (
+                      <li
+                        key={sess.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-500/30 bg-background px-3 py-2 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <Link to={`/results/${encodeURIComponent(sess.id)}`} className="font-semibold text-foreground hover:underline">
+                            {sessNote?.title || 'Ad-hoc workout'}
+                          </Link>
+                          <div className="text-[11px] text-muted-foreground">
+                            Ad-hoc log{sess.noteSourceRevision ? ` · v${sess.noteSourceRevision}` : ''}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {dayOverlay.planned
+                            .filter((p) => p.item.noteId === sess.noteId && p.pairedSessions.length === 0)
+                            .slice(0, 1)
+                            .map((match) => (
+                              <Button
+                                key={match.item.id}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  void journalSchedule.attributeSession({
+                                    sessionId: sess.id,
+                                    sessionDate: journalDate,
+                                    scheduleItemId: match.item.id,
+                                  })
+                                }
+                                className="h-7 px-2 text-[11px]"
+                              >
+                                Pair with plan
+                              </Button>
+                            ))}
+                          {typeof sess.duration === 'number' && sess.duration > 0 && (
+                            <span className="font-mono text-[11px] text-sky-700 dark:text-sky-300">
+                              {formatDurationMMSS(sess.duration)}
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </div>
+          )}
           {notes.length > 1 && (
             <nav aria-label="Notes on this date" className="flex flex-wrap gap-2">
               {notes.map((note) => (
@@ -452,10 +908,16 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
           {notes.length === 0 ? (
             <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border p-6">
               <p className="text-sm text-muted-foreground">No Notes on this date yet.</p>
-              <Button type="button" size="lg" onClick={() => setCreateOpen(true)}>
-                <Plus className="size-4 mr-1.5" aria-hidden="true" />
-                Create a note
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="lg" onClick={() => openCreateDialog('write')}>
+                  <Plus className="size-4 mr-1.5" aria-hidden="true" />
+                  Create a note
+                </Button>
+                <Button type="button" variant="outline" size="lg" onClick={() => openCreateDialog('pick')}>
+                  <Dumbbell className="size-4 mr-1.5" aria-hidden="true" />
+                  Pick / Log workout
+                </Button>
+              </div>
             </div>
           ) : notes.length === 1 ? (
             <div className="space-y-2">
@@ -482,6 +944,9 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
                       setActionTargetNote(notes[0]);
                       noteActions.setPlacement('clone');
                     }}
+                    onChanged={() => {
+                      journalNotes.listByDate(journalDate).then(setNotes).catch(() => {});
+                    }}
                   />
                   <NoteCardActions
                     noteId={notes[0].id}
@@ -506,7 +971,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
           ) : (
             <div className="space-y-6">
               {notes.map((note, index) => (
-                <div key={note.id} id={`note-${note.id}`} className="rounded-lg border border-border/60 p-4 space-y-2">
+                <div key={note.id} id={`note-${note.id}`} className="border-t border-border/60 pt-6 first:border-t-0 first:pt-0 space-y-2">
                   <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
                     <Link
                       to={notePath(note.id)}
@@ -528,6 +993,9 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
                         onCloneRequest={() => {
                           setActionTargetNote(note);
                           noteActions.setPlacement('clone');
+                        }}
+                        onChanged={() => {
+                          journalNotes.listByDate(journalDate).then(setNotes).catch(() => {});
                         }}
                       />
                       <NoteCardActions
@@ -560,6 +1028,7 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
         open={createOpen}
         onOpenChange={setCreateOpen}
         defaultDate={journalDate}
+        defaultNoteMode={createNoteMode}
         onCreated={handleCreated}
       />
       {isTimerOpen && timerBlock && (

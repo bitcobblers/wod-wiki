@@ -1,4 +1,4 @@
-import { type IMetric, MetricType } from '@bitcobblers/wod-wiki-core';
+import { type IMetric, MetricType, REFERENCE_METADATA_KEY } from '@bitcobblers/wod-wiki-core';
 import type {
   IMetricPresentationPolicy,
   MetricPresentationSurface,
@@ -64,6 +64,19 @@ function createPolicy(): IMetricPresentationPolicy {
       // machinery behind a tag, not a metric the reader needs. What the tag
       // contributes is what shows.
       if (t.startsWith(TAG_MARKER_PREFIX) && surface !== 'debug') return true;
+      // Hide runtime internals and compiler-implied equipment chips on athlete-facing surfaces
+      if (surface !== 'debug') {
+        if (t === MetricType.SystemTime || t === 'system-time' || t === MetricType.Spans || t === 'spans') {
+          return true;
+        }
+        if (t === MetricType.Equipment || t === 'equipment') {
+          const refMeta = metric.metadata?.[REFERENCE_METADATA_KEY] as { matched?: string } | undefined;
+          const directMatched = (metric.metadata as { matched?: string } | undefined)?.matched;
+          if (metric.origin === 'compiler' || refMeta?.matched === 'whole' || directMatched === 'whole') {
+            return true;
+          }
+        }
+      }
       // review-grid-column suppresses combined time columns and system metrics
       if (surface === 'review-grid-column') {
         if (
@@ -103,7 +116,7 @@ function createPolicy(): IMetricPresentationPolicy {
       return {
         metric,
         label: computeLabel(metric, surface),
-        tooltip: buildTooltip(metric),
+        tooltip: buildTooltip(metric, surface),
         renderKind,
         tone: computeTone(metric, rest),
         iconKey: rest ? 'rest' : (metric.type as string),

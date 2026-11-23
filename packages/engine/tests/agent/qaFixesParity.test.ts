@@ -118,4 +118,37 @@ describe('QA Agent Parity & Lifecycle Fixes (WW-045, WW-046, WW-061, WW-082)', (
       expect(got.id).toBe(item.id);
     }
   });
+
+  it('WW-107: wod_note_list includes seed/feed notes by default and honors origin filters', async () => {
+    const storage = makeTestStorage();
+    const ctx = { storage };
+    await wodNoteUpsertTool.execute(
+      { title: 'My User Note', content: '# My User Note\n\n```time\n10 Burpees\n```' },
+      ctx,
+    );
+    await storage.transaction(['notes'], 'readwrite', async (tx) => {
+      await tx.readwrite('notes').put({
+        id: 'seed-fran-1',
+        title: 'Fran',
+        rawContent: '# Fran',
+        tags: [],
+        createdAt: Date.now(),
+        sourceRevision: 1,
+        blocks: {},
+        seedOrigin: 'seed',
+        feedOrigin: 'feed',
+        feedSourceId: 'core',
+      });
+    });
+
+    const defaultList = await wodNoteListTool.execute({}, ctx);
+    expect(defaultList.totalCount).toBe(2);
+
+    const userOnly = await wodNoteListTool.execute({ origin: 'user' }, ctx);
+    expect(userOnly.totalCount).toBe(1);
+    expect(userOnly.notes[0]?.title).toBe('My User Note');
+
+    const excludedSeed = await wodNoteListTool.execute({ includeSeed: false }, ctx);
+    expect(excludedSeed.totalCount).toBe(1);
+  });
 });

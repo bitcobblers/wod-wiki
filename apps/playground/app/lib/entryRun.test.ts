@@ -5,13 +5,16 @@
  * route. Playground entries retain the entry's Note UUID; catalog entries
  * adopt into today's journal (existing behavior).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const createFromWorkoutMock = vi.fn(() =>
   Promise.resolve({ id: 'journal-note-1', journalDate: '2026-09-05', blocks: { 'journal-workout': { id: 'journal-workout', kind: 'wod', version: 1, sourceRevision: 1, from: 0, to: 30 } } } as never),
 )
 
 import type { NavigateFunction } from 'react-router-dom'
+import { reconcileNoteBlocks, type Note } from '@bitcobblers/wod-wiki-core'
+import { InMemoryStorage } from '@/services/storage/InMemoryStorage'
+import { resetStorageForTesting, setStorageForTesting, storageService } from '@/services/storage'
 import { pendingRuntimes } from '../runtimeStore'
 import { journalNotes } from '../services/journalNotes'
 import { entryCanRun, startEntryRun } from './entryRun'
@@ -39,8 +42,13 @@ function makeNavigate() {
 }
 
 beforeEach(() => {
+  setStorageForTesting(new InMemoryStorage())
   pendingRuntimes.clear()
   createFromWorkoutMock.mockClear()
+})
+
+afterEach(() => {
+  resetStorageForTesting()
 })
 
 describe('entryCanRun', () => {
@@ -117,6 +125,195 @@ describe('startEntryRun — catalog adoption', () => {
     } finally {
       journalNotes.resolve = originalResolve
     }
+  })
+
+  it('extracts runnable workouts from wod, whiteboard, and time:sport-slug fences', async () => {
+    const originalResolve = journalNotes.resolve
+    try {
+      for (const fence of ['wod', 'whiteboard', 'time:crossfit-open'] as const) {
+        pendingRuntimes.clear()
+        journalNotes.resolve = vi.fn(async () => ({
+          id: 'crossfit-girls/grace',
+          rawContent: `# Grace (${fence})\n\n\`\`\`${fence}\n30 Clean & Jerks\n\`\`\`\n`,
+        }) as never)
+        const { navigate } = makeNavigate()
+        await startEntryRun(makeEntry(), navigate, { createJournalNoteFromWorkout: createFromWorkoutMock })
+        const [, pending] = [...pendingRuntimes.entries()][0]!
+        expect(pending?.block.content.trim()).toBe('30 Clean & Jerks')
+      }
+    } finally {
+      journalNotes.resolve = originalResolve
+    }
+  })
+})
+
+describe('startEntryRun — external & remote pin-and-log', () => {
+  it('lazily resolves remote:<feedId>:<uuid> indexed entries via resolveRemoteWorkout and pins one archival copy', async () => {
+    const raw = '# Fran\n\n```time\n21-15-9\nThrusters\nPull-ups\n```\n'
+    const entry = makeEntry({
+      id: 'remote:daily-feed:uuid-fran-1',
+      sourceNotebook: 'daily-feed',
+      sourceNote: '2026-11-10/fran',
+      title: 'Fran',
+      sourceId: 'notebook:daily-feed/2026-11-10/fran',
+      feedId: 'daily-feed',
+      isRemotePreview: true,
+      ownership: {
+        kind: 'feed',
+        editable: false,
+        canPublish: false,
+        feedSourceId: 'daily-feed',
+        sourceNotebookId: 'notebook/daily-feed',
+      },
+    })
+    const { navigate, calls } = makeNavigate()
+
+    await startEntryRun(entry, navigate, {
+      resolveRemoteWorkout: async () => ({
+        id: 'uuid-fran-1',
+        title: 'Fran',
+        rawContent: raw,
+        feedSourceId: 'daily-feed',
+        sourceNotebookId: 'notebook/daily-feed',
+        sourcePath: '2026-11-10/fran.md',
+        version: 2,
+      }),
+    })
+
+    expect(pendingRuntimes.size).toBe(1)
+    const [runtimeId, pending] = [...pendingRuntimes.entries()][0]!
+    expect(pending?.noteId).toBe('uuid-fran-1')
+    expect(pending?.block.content).toContain('21-15-9')
+    expect(pending?.returnTo).toBe('/notebook/daily-feed/2026-11-10/fran?feed=daily-feed&remote=uuid-fran-1')
+    expect(calls[0]).toContain(`autoStart=${runtimeId}`)
+
+    const stored = await storageService.getNote('uuid-fran-1')
+    expect(stored?.retention).toBe('session-pinned')
+    expect(stored?.feedOrigin).toBe('feed')
+    expect(stored?.feedSourceId).toBe('daily-feed')
+    expect(await storageService.getAllNotes()).toHaveLength(1)
+  })
+
+  it('pins an existing subscribed feed entry as one archival copy instead of spawning duplicates', async () => {
+    const raw = '# Karen\n\n```time\n150 Wall Balls\n```\n'
+    const blocks = reconcileNoteBlocks(raw, { sourceRevision: 1 })
+    const wodBlock = Object.values(blocks).find(b => b.kind === 'wod')!
+    await storageService.saveNoteSource({
+      noteId: 'feed-karen-id',
+      rawContent: raw,
+      blocks,
+      expectedSourceRevision: 0,
+      metadata: { title: 'Karen', type: 'note', sourceId: 'notebook:daily-feed/karen' },
+    })
+    const base = await storageService.getNote('feed-karen-id')
+    await storageService.saveNote({
+      ...base!,
+      seedOrigin: 'seed',
+      feedOrigin: 'feed',
+      feedSourceId: 'daily-feed',
+      notebookId: 'notebook/daily-feed',
+      notebookIds: ['notebook/daily-feed'],
+      retention: 'cached',
+    } as Note)
+
+    const entry = makeEntry({
+      id: 'feed-karen-id',
+      sourceNotebook: 'daily-feed',
+      sourceNote: 'karen',
+      title: 'Karen',
+      sourceId: 'notebook:daily-feed/karen',
+      wodBlock: { blockId: wodBlock.id, blockVersion: 1, blockContentId: 'wod-karen', content: '150 Wall Balls' },
+      ownership: {
+        kind: 'feed',
+        editable: false,
+        canPublish: false,
+        feedSourceId: 'daily-feed',
+        sourceNotebookId: 'notebook/daily-feed',
+      },
+    })
+    const { navigate } = makeNavigate()
+
+    await startEntryRun(entry, navigate)
+
+    const [, pending] = [...pendingRuntimes.entries()][0]!
+    expect(pending?.noteId).toBe('feed-karen-id')
+    const stored = await storageService.getNote('feed-karen-id')
+    expect(stored?.retention).toBe('session-pinned')
+    expect(await storageService.getAllNotes()).toHaveLength(1)
+  })
+
+  it('runs user-owned non-playground notes directly on their canonical Note UUID', async () => {
+    const raw = '# User Session WOD\n\n```time\n100 Burpees\n```\n'
+    const blocks = reconcileNoteBlocks(raw, { sourceRevision: 1 })
+    const wodBlock = Object.values(blocks).find(b => b.kind === 'wod')!
+    await storageService.saveNoteSource({
+      noteId: 'user-note-1',
+      rawContent: raw,
+      blocks,
+      expectedSourceRevision: 0,
+      metadata: { title: 'User Session WOD', type: 'journal', journalDate: '2026-11-10' },
+    })
+    const savedUserNote = await storageService.getNote('user-note-1')
+    await storageService.saveNote({
+      ...savedUserNote!,
+      notebookId: 'notebook/journal',
+      notebookIds: ['notebook/journal'],
+    } as Note)
+
+    const entry = makeEntry({
+      id: 'user-note-1',
+      sourceNotebook: 'journal',
+      sourceNote: '2026-11-10',
+      title: 'User Session WOD',
+      sourceId: 'journal:2026-11-10',
+      wodBlock: { blockId: wodBlock.id, blockVersion: 1, blockContentId: 'wod-user-1', content: '100 Burpees' },
+      ownership: {
+        kind: 'user',
+        editable: true,
+        canPublish: true,
+      },
+    })
+    const { navigate, calls } = makeNavigate()
+
+    await startEntryRun(entry, navigate)
+
+    const [runtimeId, pending] = [...pendingRuntimes.entries()][0]!
+    expect(pending?.noteId).toBe('user-note-1')
+    expect(calls).toEqual([`/run/${runtimeId}`])
+    expect(await storageService.getAllNotes()).toHaveLength(1)
+  })
+
+  it('runs a local user note directly on its canonical Note UUID even when entry.ownership is omitted', async () => {
+    const raw = '# Local WOD Note\n\n```wod\n10:00 AMRAP\n  10 Kettlebell Swings\n```\n'
+    const blocks = reconcileNoteBlocks(raw, { sourceRevision: 1 })
+    const wodBlock = Object.values(blocks).find(b => b.kind === 'wod')!
+    await storageService.saveNoteSource({
+      noteId: 'local-user-no-ownership-1',
+      rawContent: raw,
+      blocks,
+      expectedSourceRevision: 0,
+      metadata: { title: 'Local WOD Note', type: 'journal', journalDate: '2026-11-11' },
+    })
+
+    const entry = makeEntry({
+      id: 'local-user-no-ownership-1',
+      sourceNotebook: 'journal',
+      sourceNote: '2026-11-11',
+      title: 'Local WOD Note',
+      sourceId: 'journal:2026-11-11',
+      wodBlock: { blockId: wodBlock.id, blockVersion: 1, blockContentId: 'wod-local-1', content: '10:00 AMRAP\n  10 Kettlebell Swings' },
+      ownership: undefined,
+      editable: undefined,
+    })
+    const { navigate, calls } = makeNavigate()
+
+    await startEntryRun(entry, navigate)
+
+    const [runtimeId, pending] = [...pendingRuntimes.entries()][0]!
+    expect(pending?.noteId).toBe('local-user-no-ownership-1')
+    expect(pending?.block.id).toBe(wodBlock.id)
+    expect(calls).toEqual([`/run/${runtimeId}`])
+    expect(await storageService.getAllNotes()).toHaveLength(1)
   })
 })
 

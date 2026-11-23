@@ -294,9 +294,11 @@ class ApiStore<T> implements IReadWriteStore<T> {
     const userId = this.getUserId?.();
     const stored = userId ? (stampUserOwned(this.store, value, userId) as T) : value;
     const key = keyFromValue(this.def, stored);
-    if (this.store === 'block_revisions') {
+    if (this.store === 'block_revisions' || this.store === 'note_revisions') {
       const previous = this.buffer?.get(bufferSlot(this.store, key));
-      if (previous?.kind === 'put' && !rowsEqual(previous.value, stored)) throw new Error('immutable block revision collision');
+      if (previous?.kind === 'put' && !rowsEqual(previous.value, stored)) {
+        throw new Error(this.store === 'note_revisions' ? 'immutable note revision collision' : 'immutable block revision collision');
+      }
     }
     if (this.buffer) {
       this.buffer.set(bufferSlot(this.store, key), { kind: 'put', value: stored });
@@ -321,7 +323,7 @@ class ApiStore<T> implements IReadWriteStore<T> {
 
   async delete(key: IDBValidKey | IDBKeyRange | RangeDTO): Promise<void> {
     if (!this.mutable) throw new Error('read-only store');
-    if (this.store === 'block_revisions') throw new Error('block history requires explicit wipe');
+    if (this.store === 'block_revisions' || this.store === 'note_revisions') throw new Error('block history requires explicit wipe');
     const range = isRange(key) ? key : undefined;
     if (range) {
       if (this.buffer) {
@@ -346,7 +348,7 @@ class ApiStore<T> implements IReadWriteStore<T> {
 
   async clear(): Promise<void> {
     if (!this.mutable) throw new Error('read-only store');
-    if (this.store === 'block_revisions') throw new Error('block history requires explicit wipe');
+    if (this.store === 'block_revisions' || this.store === 'note_revisions') throw new Error('block history requires explicit wipe');
     if (this.buffer) {
       this.cleared?.add(this.store);
       const prefix = `${this.store}\u0000`;

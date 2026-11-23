@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { EditorView } from '@codemirror/view';
 import type { ScriptBlock } from '@/components/Editor/types';
+import type { EntityPeekTarget } from '../../app/nav/navTypes';
 
 export interface EditorInspectorSnapshot {
   drawerOpen: boolean;
@@ -11,6 +12,14 @@ export interface EditorInspectorSnapshot {
   selectedTokenId: string | null;
   tokens: Array<{ id: string; kind: string; raw: string; from: number; to: number }>;
   lintFixes: Array<{ id: string; raw: string; fixes: string[] }>;
+}
+
+export type PeekBridgeTarget = EntityPeekTarget;
+
+export interface ActivePeekBridge {
+  getTarget: () => PeekBridgeTarget | null;
+  openPeek: (target: PeekBridgeTarget) => void;
+  closePeek: () => void;
 }
 
 export interface ActiveEditorBridge {
@@ -31,6 +40,8 @@ export interface ActiveEditorBridge {
   setInspectorDrawer?: (open: boolean) => void;
   openTokenInspector?: (options?: { mode?: string; tokenIndex?: number }) => void;
   closeTokenInspector?: () => void;
+  peekEntity?: (target: PeekBridgeTarget) => void;
+  closePeek?: () => void;
 }
 
 export interface ActiveStreamBridge {
@@ -41,9 +52,13 @@ export interface ActiveStreamBridge {
   layout: string;
   availableLayouts: readonly string[];
   groupBy?: string;
+  month?: string;
+  overlayMode?: 'all' | 'planned' | 'logged';
   setQuery: (nextQuery: string) => void;
   setLayout: (layout: string) => void;
   setGroupBy: (groupBy?: string) => void;
+  setMonth?: (month: string) => void;
+  setOverlayMode?: (mode: 'all' | 'planned' | 'logged') => void;
 }
 
 export interface ActiveExplorerBridge {
@@ -186,6 +201,80 @@ export function subscribeActiveResultsBridge(listener: () => void): () => void {
 
 export function useActiveResultsBridge(): ActiveResultsBridge | null {
   return useSyncExternalStore(subscribeActiveResultsBridge, getActiveResultsBridge, () => null);
+}
+
+const peekHostStack: ActivePeekBridge[] = [];
+let renderedPeekTarget: PeekBridgeTarget | null = null;
+let renderedPeekClose: (() => void) | null = null;
+let cachedPeekBridge: ActivePeekBridge | null = null;
+const peekListeners = new Set<() => void>();
+
+function recomputePeekBridge(): void {
+  const host = peekHostStack.length > 0 ? peekHostStack[peekHostStack.length - 1]! : null;
+  if (!host && !renderedPeekTarget && !renderedPeekClose) {
+    cachedPeekBridge = null;
+  } else {
+    const liveTarget = renderedPeekTarget;
+    const liveClose = renderedPeekClose;
+    cachedPeekBridge = {
+      getTarget: () => (host ? host.getTarget() : liveTarget) ?? null,
+      openPeek: (target: PeekBridgeTarget) => {
+        if (host) {
+          host.openPeek(target);
+        } else {
+          throw new Error('No Entity Peek host is registered to open new targets.');
+        }
+      },
+      closePeek: () => {
+        liveClose?.();
+        host?.closePeek();
+      },
+    };
+  }
+  for (const l of peekListeners) l();
+}
+
+export function registerActivePeekBridge(bridge: ActivePeekBridge): () => void {
+  peekHostStack.push(bridge);
+  recomputePeekBridge();
+  return () => {
+    const idx = peekHostStack.lastIndexOf(bridge);
+    if (idx !== -1) {
+      peekHostStack.splice(idx, 1);
+      recomputePeekBridge();
+    }
+  };
+}
+
+export function registerRenderedPeekState(
+  target: PeekBridgeTarget | null,
+  onClose: () => void,
+): () => void {
+  renderedPeekTarget = target;
+  renderedPeekClose = target ? onClose : null;
+  recomputePeekBridge();
+  return () => {
+    if (renderedPeekTarget === target) {
+      renderedPeekTarget = null;
+      renderedPeekClose = null;
+      recomputePeekBridge();
+    }
+  };
+}
+
+export function getActivePeekBridge(): ActivePeekBridge | null {
+  return cachedPeekBridge;
+}
+
+export function subscribeActivePeekBridge(listener: () => void): () => void {
+  peekListeners.add(listener);
+  return () => {
+    peekListeners.delete(listener);
+  };
+}
+
+export function useActivePeekBridge(): ActivePeekBridge | null {
+  return useSyncExternalStore(subscribeActivePeekBridge, getActivePeekBridge, () => null);
 }
 
 let busyCounter = 0;

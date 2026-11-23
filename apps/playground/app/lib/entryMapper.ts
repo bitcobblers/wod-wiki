@@ -11,7 +11,15 @@
 import type { BlockIndexRow, Note } from '@/types/storage'
 import type { IEffort, RowsRun, RowsQueryResult } from '@bitcobblers/wod-wiki-wql'
 import { isNoteEditable, notebookOfItem, notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql'
-import type { EventRecord, NotePlacement, StoredOutputStatement } from '@bitcobblers/wod-wiki-core'
+import {
+  formatDurationMMSS,
+  getNotebookCapabilities,
+  resolveNoteOwnership,
+  type EventRecord,
+  type NotePlacement,
+  type ResolvedNoteOwnership,
+  type StoredOutputStatement,
+} from '@bitcobblers/wod-wiki-core'
 import { UnitRegistry } from '@bitcobblers/wod-wiki-lang'
 import { formatDateKey } from '../services/dateUtils'
 import { parseNoteId } from '@/lib/noteIdentity'
@@ -113,6 +121,22 @@ export interface Entry {
   noteType?: string
   /** Canonical `notebook/{slug}` identifier ('notebook/journal', 'notebook/playground', 'notebook/guides', etc.). */
   notebookId?: string
+  /** M:N user Notebook memberships (`[]` for unfiled/orphaned Notes). */
+  notebookIds?: string[]
+  /** Scheduled civil dates from V35 schedule_items (`YYYY-MM-DD[]`) for multi-date Calendar/Planner projection. */
+  scheduledDates?: string[]
+  /** Day-overlay presentation status on Planner / Agenda / Day views. */
+  overlayKind?: 'planned' | 'logged' | 'skipped'
+  scheduleItemId?: string
+  scheduleSlot?: string
+  scheduleNotes?: string
+  scheduleStatus?: 'planned' | 'completed' | 'moved' | 'skipped'
+  pairedSessions?: Array<{ sessionId: string; duration?: number; completed?: boolean; startTime: number }>
+  adHocSessionId?: string
+  adHocSessionDate?: string
+  noteSourceRevision?: number
+  scheduleCount?: number
+  sessionCount?: number
   /** Application-level editability flag — follows notebook ownership:
    *  feed-delivered notebooks are read-only; user-owned notebooks
    *  (including `notebook/defaults`) are editable. */
@@ -132,6 +156,8 @@ export interface Entry {
   updateAvailable?: boolean
   /** True when this Note entry is a zero-import remote preview (`remote:<feedId>:<uuid>`). */
   isRemotePreview?: boolean
+  /** Resolved 3-state authorship & upstream lifecycle metadata. */
+  ownership?: ResolvedNoteOwnership
   /** Seed chunk id for notebook rows (`notebook.<slug>`). */
   seedChunkId?: string
 }
@@ -230,19 +256,37 @@ export function playgroundRouteName(note: { id: string; slug?: string }): string
   return raw.startsWith('playground/') ? raw.slice('playground/'.length) : raw
 }
 
+function parseRemoteFeedId(noteId: string): string | undefined {
+  if (!noteId.startsWith('remote:')) return undefined
+  const rest = noteId.slice('remote:'.length)
+  const sep = rest.indexOf(':')
+  return sep > 0 ? rest.slice(0, sep) : undefined
+}
+
 export function toEntry(note: Note): Entry {
   // Executor-exact metadata (the fields WQL note-plane filters match) rides
   // on every mapped entry so facet consumers never re-derive presentation
   // approximations. One wrap — the branch logic below stays untouched.
   const base = toEntryBase(note)
+  const nbOrigin = notebookOriginOfItem(note)
+  const resolvedNb = base.notebookId ?? notebookOfItem(note)
+  const isRemotePreview = note.id.startsWith('remote:') || note.retention === 'indexed'
+  const remoteFeedId = isRemotePreview ? parseRemoteFeedId(note.id) : undefined
+  const ownership = resolveNoteOwnership(note, nbOrigin, resolvedNb)
+  const editable = isRemotePreview
+    ? false
+    : (base.editable ?? (ownership.editable && isNoteEditable(note, nbOrigin, resolvedNb)))
+
   return {
     ...base,
     noteType: note.type,
-    notebookId: base.notebookId ?? notebookOfItem(note),
-    feedId: base.feedId ?? note.feedSourceId ?? (notebookOriginOfItem(note) === 'user' ? 'local' : 'core'),
-    editable: base.editable ?? isNoteEditable(note, notebookOriginOfItem(note)),
+    notebookId: resolvedNb,
+    ...(note.notebookIds !== undefined ? { notebookIds: note.notebookIds } : {}),
+    feedId: base.feedId ?? note.feedSourceId ?? remoteFeedId ?? (nbOrigin === 'user' ? 'local' : 'core'),
+    editable,
+    ownership,
     ...(note.public !== undefined ? { isPublic: note.public } : {}),
-    ...(note.id.startsWith('remote:') ? { isRemotePreview: true, editable: false } : {}),
+    ...(isRemotePreview ? { isRemotePreview: true, editable: false } : {}),
     ...(note.seedChunkId ? { seedChunkId: note.seedChunkId } : {}),
   }
 }
@@ -282,6 +326,11 @@ function toEntryBase(note: Note): Entry {
     const countTag = tagList.find((t) => t.startsWith('count:'))
     const count = countTag ? Number(countTag.slice('count:'.length)) : 0
     const feedSlug = note.feedSourceId ?? 'local'
+    const caps = getNotebookCapabilities({
+      slug,
+      notebookId: note.notebookId ?? `notebook/${slug}`,
+      feedId: feedSlug,
+    })
     return {
       id,
       kind: 'notebook',
@@ -299,7 +348,7 @@ function toEntryBase(note: Note): Entry {
       subscribed: tagList.includes('subscribed:true'),
       isPublic: note.public === true || tagList.includes('visibility:public'),
       seedChunkId: note.seedChunkId ?? `notebook.${slug}`,
-      editable: feedSlug === 'local',
+      editable: caps.canEdit,
       ...(tags ? { tags } : {}),
     }
   }
@@ -544,16 +593,7 @@ export function formatEffortName(slug: string): string {
 }
 
 export function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) return '00:00'
-  const totalSeconds = Math.floor(ms / 1000)
-  const mins = Math.floor(totalSeconds / 60)
-  const secs = totalSeconds % 60
-  if (mins >= 60) {
-    const hours = Math.floor(mins / 60)
-    const remMins = mins % 60
-    return `${hours}:${String(remMins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-  }
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  return formatDurationMMSS(ms)
 }
 
 

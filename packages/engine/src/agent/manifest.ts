@@ -27,9 +27,18 @@ import {
   wodNoteListTool,
   wodNoteUpsertTool,
 } from './tools/noteTools';
+import {
+  SCHEDULE_AGENT_TOOLS,
+  wodScheduleAddTool,
+  wodScheduleBatchTool,
+  wodScheduleListTool,
+  wodScheduleRemoveTool,
+  wodScheduleUpdateTool,
+} from './tools/scheduleTools';
 import { SCRIPT_AGENT_TOOLS, wodParseScriptTool } from './tools/scriptTools';
 import {
   SESSION_AGENT_TOOLS,
+  wodSessionAttributeTool,
   wodSessionDeleteTool,
   wodSessionGetTool,
   wodSessionListTool,
@@ -52,6 +61,7 @@ export const DOMAIN_AGENT_TOOLS: readonly AnyAgentToolSpec[] = [
   ...WQL_AGENT_TOOLS,
   ...NOTE_AGENT_TOOLS,
   ...JOURNAL_AGENT_TOOLS,
+  ...SCHEDULE_AGENT_TOOLS,
   ...NOTEBOOK_AGENT_TOOLS,
   ...SESSION_AGENT_TOOLS,
   ...CATALOG_AGENT_TOOLS,
@@ -491,6 +501,12 @@ export {
   wodParseScriptTool,
   wodQueryWqlTool,
   wodResetStorageTool,
+  wodScheduleAddTool,
+  wodScheduleBatchTool,
+  wodScheduleListTool,
+  wodScheduleRemoveTool,
+  wodScheduleUpdateTool,
+  wodSessionAttributeTool,
   wodSessionDeleteTool,
   wodSessionGetTool,
   wodSessionListTool,

@@ -46,9 +46,11 @@ describe('Domain — Notebook membership, Publication Visibility & Feed → Seed
     // 1. Default notebook is Private.
     expect(await publisher.publicationSummary('note-cindy')).toMatchObject({ visibility: 'Private', publicSessions: 0 });
 
-    // 2. N:M membership: the runs anchored the Note in `notebook/journal` alongside `notebook/benchmarks`.
+    // 2. ADR 0009 Plane Separation: running `note-cindy` keeps its canonical Notebook
+    // membership strictly in `notebook/benchmarks` without polluting `notebook/journal`,
+    // while its recorded Sessions carry civil `sessionDate` + `pageId` for Journal overlays.
     const links = await publisher.storage.readonly('notebook_links').getAllFromIndex('by-note', 'note-cindy');
-    expect(new Set(links.map((l) => l.notebookId))).toEqual(new Set(['notebook/journal', 'notebook/benchmarks']));
+    expect(new Set(links.map((l) => l.notebookId))).toEqual(new Set(['notebook/benchmarks']));
 
     // 3. Making the Notebook public promotes visibility to Published Note.
     await publisher.setNotebookPublic('notebook/benchmarks', true);
@@ -102,7 +104,7 @@ describe('Domain — Notebook membership, Publication Visibility & Feed → Seed
     expect(importedEvents.some((e) => e.resultId === 'sess-cindy-2')).toBe(false);
   });
 
-  it('re-runs the imported read-only Seed through the journal intake, cloning it into notebook/journal', async () => {
+  it('re-runs the imported read-only Seed through journal intake by pinning one archival copy in place without spawning duplicate Journal clones', async () => {
     publisher = await DomainScenarioHarness.create();
     await publisher.authorNote({
       id: 'note-cindy',
@@ -119,16 +121,19 @@ describe('Domain — Notebook membership, Publication Visibility & Feed → Seed
     const imported = await subscriber.queryWql<NoteFindResult>(':note{}');
     const seedCindy = imported.notes.find((n) => n.title === 'Cindy')!;
 
-    // Running the read-only Seed clones it into the subscriber's Journal — never mutating the Feed Note.
+    // Running the read-only Seed pins it in place (retention: 'session-pinned') and links the Session to notebook/journal.
     const run = await subscriber.prepareAndRunSession({
       noteId: seedCindy.id,
       sessionId: 'sess-subscribed-cindy',
       journalDate: '2026-11-12',
     });
-    expect(run.clonedFromReadOnly).toBe(true);
-    expect(run.noteId).not.toBe(seedCindy.id);
-    const clone = await subscriber.storage.readonly('notes').get(run.noteId);
-    expect(clone?.notebookIds).toContain('notebook/journal');
+    expect(run.clonedFromReadOnly).toBe(false);
+    expect(run.pinnedExternalWorkout).toBe(true);
+    expect(run.noteId).toBe(seedCindy.id);
+    const pinned = await subscriber.storage.readonly('notes').get(run.noteId);
+    expect(pinned?.retention).toBe('session-pinned');
+    expect(pinned?.seedOrigin).toBe('seed');
+    expect(run.session.notebookIds).toContain('notebook/journal');
     expect(run.provenance?.sourceNoteId).toBe(seedCindy.id);
   });
 });

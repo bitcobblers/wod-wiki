@@ -160,4 +160,55 @@ describe('WW-051: split TimeSpans & OutputEmitter span preservation', () => {
     expect(emitted[1]!.timeSpan.started).toBe(3_000);
     expect(emitted[1]!.timeSpan.ended).toBe(7_000);
   });
+
+  it('WW-105: ReportOutputBehavior records completed rounds honestly on user-abort or timer-expired', () => {
+    const t0 = 1_700_000_000_000;
+    const { nowProvider, advanceBy } = createSteppedNowProvider(t0);
+    const content = '3 Rounds\n  10 Burpees';
+    const parsed = new MdTimerRuntime().read(content);
+    const factory = new RuntimeFactory(createCompiler(), nowProvider);
+    const blockInput: ScriptBlock = {
+      id: 'ww105-rounds',
+      content,
+      statements: parsed.statements,
+      startLine: 0,
+      endLine: 2,
+      state: 'idle',
+      version: 1,
+      createdAt: t0,
+    };
+    const runtime = factory.createRuntime(blockInput);
+    if (!runtime) throw new Error('Expected runtime');
+
+    try {
+      // Pop gate -> starts Round 1 of 3
+      runtime.handle(new NextEvent(undefined, nowProvider));
+      advanceBy(5_000);
+      // Finish Round 1 -> starts Round 2 of 3
+      runtime.handle(new NextEvent(undefined, nowProvider));
+      advanceBy(3_000);
+      // Abort while in Round 2 (only 1 round completed, not 3 and not 2)
+      runtime.handle({ name: 'abort', timestamp: nowProvider.now(), data: {} });
+
+      const outputs = runtime.getOutputStatements();
+      const roundSegments = outputs.filter(
+        (o) =>
+          o.outputType === 'segment' &&
+          o.metrics.toArray().some((m) => m.type === MetricType.CurrentRound),
+      );
+      // The enclosing Loop/Rounds block emits honest completedRounds (1 completed when aborted mid-Round 2).
+      const roundsBlockSeg = roundSegments.find(
+        (o) =>
+          o.completionReason === 'user-abort' &&
+          !o.metrics.toArray().some((m) => m.type === MetricType.Effort),
+      );
+      expect(roundsBlockSeg).toBeDefined();
+      const roundMetric = roundsBlockSeg!.metrics
+        .toArray()
+        .find((m) => m.type === MetricType.CurrentRound);
+      expect(roundMetric?.value).toBe(1);
+    } finally {
+      runtime.dispose();
+    }
+  });
 });
