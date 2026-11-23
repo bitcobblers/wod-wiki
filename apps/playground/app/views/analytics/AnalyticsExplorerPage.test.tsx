@@ -593,11 +593,22 @@ describe('AnalyticsExplorerPage', () => {
 
     const stale = await waitFor(() => screen.getByTestId('explorer-results-stale'));
     expect(stale.textContent).toContain('Stale');
-    // Previous result remains visible underneath the stale banner.
+    expect(stale.getAttribute('role')).toBe('alert');
+    // Previous result remains visible (dimmed) underneath the stale banner.
     expect(screen.getByText('42')).toBeDefined();
+    expect(document.querySelector('[data-stale="true"]')).not.toBeNull();
 
     fireEvent.click(within(stale).getByRole('button', { name: /Restore last valid query/i }));
     await waitFor(() => expect(screen.queryByTestId('explorer-results-stale')).toBeNull());
+    expect(document.querySelector('[data-stale="true"]')).toBeNull();
+
+    // Explicitly running a valid query that returns 0 rows clears the prior chart.
+    runQueryImpl = async (raw: string) => resultOf(raw);
+    act(() => {
+      cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: 'sum:totalVolume{effort:nonexistent}' } });
+    });
+    fireEvent.click(screen.getByTestId(TEST_IDS.EXPLORER_RUN_BTN));
+    await waitFor(() => expect(screen.queryByText('42')).toBeNull());
 
     cleanup();
     renderPage('sum:tis{} )))garbage((((');

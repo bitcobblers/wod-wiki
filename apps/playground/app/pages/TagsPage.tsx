@@ -80,6 +80,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
   const [newKind, setNewKind] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const newLabelInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -228,8 +229,10 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
     return true;
   };
 
-  const create = async (): Promise<void> => {
-    const trimmed = newLabel.trim();
+  const create = async (overrideLabel?: string, overrideKind?: string): Promise<void> => {
+    if (creating) return;
+    const trimmed = (overrideLabel ?? newLabel).trim();
+    const targetKind = overrideKind !== undefined ? overrideKind : newKind;
     if (trimmed.length === 0) {
       setError('A tag needs a name.');
       return;
@@ -238,19 +241,24 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
       setError(`A tag called "${trimmed}" already exists.`);
       return;
     }
-    const tag: Tag = {
-      id: `tag-${trimmed}-${Date.now().toString(36)}`,
-      label: trimmed,
-      type: newKind || undefined,
-      contributions: [],
-      createdAt: Date.now(),
-    };
-    await storageService.putTag(tag);
-    await refreshTagIndex();
-    await load();
-    setSelectedId(tag.id);
-    setNewLabel('');
-    setError(null);
+    setCreating(true);
+    try {
+      const tag: Tag = {
+        id: `tag-${trimmed}-${Date.now().toString(36)}`,
+        label: trimmed,
+        type: targetKind || undefined,
+        contributions: [],
+        createdAt: Date.now(),
+      };
+      await storageService.putTag(tag);
+      await refreshTagIndex();
+      await load();
+      setSelectedId(tag.id);
+      setNewLabel('');
+      setError(null);
+    } finally {
+      setCreating(false);
+    }
   };
 
   const remove = async (): Promise<void> => {
@@ -486,13 +494,14 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
             <Button
               type="button"
               size="sm"
+              disabled={creating}
               data-testid={TEST_IDS.TAG_NOT_FOUND_CREATE_BTN}
               onClick={() => {
-                setNewLabel(requestedTag);
-                if (activeCategory && activeCategory !== 'general' && activeCategory !== 'tag') {
-                  setNewKind(activeCategory);
-                }
-                newLabelInputRef.current?.focus();
+                const inferredKind =
+                  activeCategory && activeCategory !== 'general' && activeCategory !== 'tag'
+                    ? activeCategory
+                    : '';
+                void create(requestedTag, inferredKind);
               }}
             >
               <Plus className="size-3.5 mr-1" /> Create #{requestedTag}

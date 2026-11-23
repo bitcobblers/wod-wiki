@@ -153,7 +153,7 @@ export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): 
   const setDraft = useCallback(
     (next: string) => {
       if (next === draftRef.current) return
-      if (!parseQuery(next).error) {
+      if (next.trim().length > 0 && !parseQuery(next).error) {
         setInvalidUrlQuery(null)
         const params = new URLSearchParams(searchParamsRef.current)
         params.set('q', next)
@@ -185,7 +185,7 @@ export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): 
   const submit = useCallback(
     (wql?: string) => {
       const next = wql ?? draftRef.current
-      if (parseQuery(next).error) return
+      if (next.trim().length === 0 || parseQuery(next).error) return
       setInvalidUrlQuery(null)
       if (urlIsCheckpoint.current && qRef.current === next) {
         setSubmitted(next)

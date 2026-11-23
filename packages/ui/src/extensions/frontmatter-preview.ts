@@ -969,6 +969,45 @@ function isAliasProperty(key: string): boolean {
   return ["alias", "aliases"].includes(key.trim().toLowerCase());
 }
 
+/**
+ * True when an alias chip's resolved destination points back to the current
+ * definition document itself (a self-linking no-op, WW-071).
+ */
+function isSelfReferenceHref(
+  docKind: DefinitionKind | undefined,
+  meta: ParsedFrontmatter['meta'] | undefined,
+  matchSlug: string,
+  href: string,
+  referenceProvider: FrontmatterReferenceProvider,
+): boolean {
+  const normMatch = matchSlug.trim().toLowerCase();
+  if (meta) {
+    const metaSlug = typeof meta.slug === "string" ? meta.slug.trim().toLowerCase() : "";
+    if (metaSlug && metaSlug === normMatch) return true;
+
+    if (docKind === "effort" || docKind === "equipment") {
+      const ownName =
+        (typeof meta.label === "string" && meta.label.trim()) ||
+        (typeof meta.title === "string" && meta.title.trim()) ||
+        "";
+      if (ownName) {
+        const ownMatch = docKind === "effort"
+          ? referenceProvider.resolveEffort(ownName)
+          : referenceProvider.resolveEquipment(ownName);
+        if (ownMatch && ownMatch.slug.trim().toLowerCase() === normMatch) return true;
+      }
+    }
+  }
+
+  if (typeof window !== "undefined" && window.location?.pathname) {
+    const currentPath = window.location.pathname.replace(/\/+$/, "");
+    const targetPath = href.split(/[?#]/)[0].replace(/\/+$/, "");
+    if (currentPath && targetPath && currentPath === targetPath) return true;
+  }
+
+  return false;
+}
+
 function createSummaryPill(value: string, hash: boolean, href?: string): HTMLElement {
   const pill = document.createElement("span");
   pill.className = "inline-flex max-w-full items-center rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-xs text-foreground";
@@ -993,6 +1032,7 @@ function createFrontmatterSummary(
   onShowDetails: () => void,
   docKind?: DefinitionKind | null,
   referenceProvider?: FrontmatterReferenceProvider | null,
+  meta?: ParsedFrontmatter['meta'],
 ): HTMLElement {
   const summary = document.createElement("div");
   summary.dataset.frontmatterSummary = "true";
@@ -1075,7 +1115,8 @@ function createFrontmatterSummary(
   }
   appendSummaryGroupRow("Effort", effortItems);
 
-  // 4. Aliases (WW-071 — preserve definition alias anchor links)
+  // 4. Aliases (WW-071 — render self-referencing aliases as non-link pills;
+  // only link when an alias resolves to a distinct effort/equipment destination)
   const seenAliases = new Set<string>();
   const aliasItems: Array<{ text: string; hash: boolean; href?: string }> = [];
   for (const [key, value] of entries) {
@@ -1089,7 +1130,12 @@ function createFrontmatterSummary(
         const match = docKind === "effort"
           ? referenceProvider.resolveEffort(val)
           : referenceProvider.resolveEquipment(val);
-        if (match) href = referenceProvider.openHref(docKind, match.slug);
+        if (match) {
+          const candidateHref = referenceProvider.openHref(docKind, match.slug);
+          if (!isSelfReferenceHref(docKind, meta, match.slug, candidateHref, referenceProvider)) {
+            href = candidateHref;
+          }
+        }
       }
       aliasItems.push({ text: val, hash: false, href });
     }
@@ -1239,7 +1285,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
         persistedDetailed.set(view.dom, true);
         view.dispatch({ effects: setFrontmatterDetailed.of(true) });
         view.dom.querySelector<HTMLButtonElement>('[aria-label="Show property summary"]')?.focus();
-      }, docKind, referenceProvider));
+      }, docKind, referenceProvider, meta));
     } else {
     // The table always carries its Key/Value labels — a field never has to
     // rely on its placeholder to say what it is.
@@ -1431,12 +1477,19 @@ export class DefaultFrontmatterWidget extends WidgetType {
 
           const pillText = document.createElement("span");
           // Aliases are the note's own alternate names, not durable
-          // references: display the authored token (resolution still routes
-          // navigation), or every self-aliasing pill collapses to the
-          // canonical label and becomes indistinguishable.
-          if (isAliasRow && match && referenceProvider) {
+          // references: display the authored token, and avoid self-linking
+          // back to the current definition's canonical URL (WW-071).
+          const aliasHref =
+            isAliasRow && match && referenceProvider
+              ? referenceProvider.openHref(valueKind as "effort" | "equipment", match.slug)
+              : undefined;
+          const isSelfAlias =
+            isAliasRow && match && referenceProvider && aliasHref
+              ? isSelfReferenceHref(docKind, meta, match.slug, aliasHref, referenceProvider)
+              : false;
+          if (isAliasRow && match && referenceProvider && aliasHref && !isSelfAlias) {
             const aliasLink = document.createElement("a");
-            aliasLink.href = referenceProvider.openHref(valueKind as "effort" | "equipment", match.slug);
+            aliasLink.href = aliasHref;
             aliasLink.textContent = chip;
             aliasLink.className = "hover:underline cursor-pointer";
             pillText.appendChild(aliasLink);
@@ -1445,7 +1498,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
           }
           pill.appendChild(pillText);
 
-          if (match && referenceProvider && (!isAliasRow || idx === 0)) {
+          if (match && referenceProvider && (!isAliasRow || (idx === 0 && !isSelfAlias))) {
             const openLink = document.createElement("a");
             openLink.href = referenceProvider.openHref(valueKind as "effort" | "equipment", match.slug);
             openLink.title = `Open ${match.label} page`;
