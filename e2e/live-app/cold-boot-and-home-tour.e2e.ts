@@ -65,11 +65,19 @@ test.describe('JRN-01 — Cold Boot & Home Tour', () => {
 
       await expect(page.getByTestId('tour-hero')).toBeVisible();
       await expect(page.getByTestId('tour-why-video')).toBeVisible();
+      await expect(page.getByTestId('tour-why-video').locator('img')).toHaveAttribute(
+        'src',
+        'https://i.ytimg.com/vi/SE1nlszA9Vw/hqdefault.jpg',
+      );
       await expect(page.locator('[data-gate-id="editor-pane"] .cm-content').first()).toContainText('0:03 Count Down');
 
       // Open pitch video lightbox -> collapses to Watch again -> re-expands
       await page.getByTestId('tour-why-video').click();
       await expect(page.getByTestId('youtube-lightbox')).toBeVisible();
+      await expect(page.getByTestId('youtube-lightbox').locator('iframe')).toHaveAttribute(
+        'src',
+        /SE1nlszA9Vw/,
+      );
       await page.getByTestId('youtube-lightbox-close').click();
       await expect(page.getByTestId('tour-why-watch-again')).toBeVisible();
       await expect(page.getByTestId('tour-why-video')).toBeHidden();

@@ -8,9 +8,7 @@ import { memo, useState } from 'react'
 import { ChevronDown, Play, X } from 'lucide-react'
 import { YouTubeLightbox } from './YouTubeLightbox'
 
-// ponytail: rickroll stand-in — swap WHY_VIDEO_ID for the real
-// "Why Wod Wiki?" cut when it ships (same component, no other change).
-const WHY_VIDEO_ID = 'dQw4w9WgXcQ'
+const WHY_VIDEO_ID = 'SE1nlszA9Vw'
 
 export const TourWhyVideo = memo(function TourWhyVideo({ onWatched }: { onWatched?: () => void }) {
   const [playing, setPlaying] = useState(false)
