@@ -11,6 +11,7 @@ function formatWithUnit(formattedNumber: string, unit?: string): string {
  * + a separating space before `unit` when present (e.g. `5,000 kg`, `62 ms`).
  */
 export function formatAxisTick(value: number | string, unit?: string): string {
+  if (typeof value === 'string' && value.trim() === '') return '';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
     return formatWithUnit(String(value), unit);
@@ -26,6 +27,7 @@ export function formatAxisTick(value: number | string, unit?: string): string {
  * automatically) + spaced unit (`11,362.5 kg`).
  */
 export function formatMetricValue(value: number | string, unit?: string): string {
+  if (typeof value === 'string' && value.trim() === '') return '';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
     return formatWithUnit(String(value), unit);
@@ -39,6 +41,7 @@ export function formatMetricValue(value: number | string, unit?: string): string
  * separating space before `unit` (e.g. `12.5k kg`, `480 kg`).
  */
 export function formatCompactMetricValue(value: number | string, unit?: string): string {
+  if (typeof value === 'string' && value.trim() === '') return '';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
     return formatWithUnit(String(value), unit);

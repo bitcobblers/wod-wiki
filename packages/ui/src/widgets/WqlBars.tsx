@@ -63,11 +63,22 @@ export function WqlBars({ result, unit: unitProp }: WqlBarsProps) {
     [result.series, unit],
   );
 
-  if (shape.kind === 'error' || shape.kind === 'empty') {
+  const hasDataPoints = useMemo(
+    () =>
+      result.series.some((s) =>
+        s.points.some((p) => !(p as { missing?: boolean }).missing),
+      ),
+    [result.series],
+  );
+
+  if (shape.kind === 'error' || shape.kind === 'empty' || !hasDataPoints) {
     return <WqlEmptyState result={result} fallbackMessage="No bar data available for this query." />;
   }
 
   if (isTimeOrOrdinal) {
+    if (seriesData.length === 0) {
+      return <WqlEmptyState result={result} fallbackMessage="No bar data available for this query." />;
+    }
     return (
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={seriesData as Array<Record<string, number | string | undefined>>} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>

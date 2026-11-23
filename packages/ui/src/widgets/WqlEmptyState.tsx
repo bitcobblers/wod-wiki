@@ -13,7 +13,10 @@ export function WqlEmptyState({ result, className, actions, fallbackMessage }: W
   const message = useMemo(() => {
     if (!result) return 'Loading…';
     if (result.parsed.error) return `Query error: ${result.parsed.error}`;
-    if (result.series.length === 0) return 'No data for this range.';
+    const hasDataPoints = result.series.some((s) =>
+      s.points.some((p) => !(p as { missing?: boolean }).missing),
+    );
+    if (result.series.length === 0 || !hasDataPoints) return 'No data for this range.';
     return fallbackMessage ?? null;
   }, [result, fallbackMessage]);
 
