@@ -46,7 +46,7 @@ import { onResultSaved } from '@/services/resultRecorder'
 import { useFeedImportPending, useFeedLibraryMissing, useFeedReadiness } from '@/services/feed/feedReadiness'
 import { subscribeAppEffortRegistry } from '@/services/effortRegistry'
 import { defaultFeedSources, subscribeFeed, syncFeedSource, type FeedSyncProgress } from '@/services/feed/feedSync'
-import { listFeedSources, feedSourceById } from '@/services/feed/feedSources'
+import { canonicalNotebookSlug, listFeedSources, feedSourceById } from '@/services/feed/feedSources'
 import { flushFeedStatePersistence, isFeedSubscribed, subscribeFeedSubscriptions } from '@/services/feed/feedSubscriptions'
 import { toast } from '@/hooks/use-toast'
 import { TEST_IDS } from '@/lib/testIds'
@@ -118,7 +118,7 @@ import { type OverlayFilterMode } from './CalendarChrome'
 import type { Note as StoredNote, Session as StoredSession, ScheduleItem } from '@/types/storage'
 import { storageService } from '@/services/storage'
 import { toEntry } from '../../lib/entryMapper'
-import type { StreamProfile } from './streamProfile'
+import { registerNotebookTitle, type StreamProfile } from './streamProfile'
 import { splitReadmeQueries, hasReadmeQuery } from './readmeWql'
 import { ReadmeQueryBlock } from './ReadmeQueryBlock'
 import { QueryToDashboardDialog } from '../analytics/QueryToDashboardDialog'
@@ -1359,16 +1359,22 @@ export function QueriableStreamView({
       return
     }
     let cancelled = false
-    const builtinSpec = BUILTIN_NOTEBOOKS.find(b => b.slug === notebookSlugParam)
+    const cleanSlug = canonicalNotebookSlug(notebookSlugParam)
+    const builtinSpec = BUILTIN_NOTEBOOKS.find(b => b.slug === notebookSlugParam || b.slug === cleanSlug)
     void Promise.all([
       notebookService.getAllNotebooks().catch(() => [] as Notebook[]),
       playgroundFeedCatalogStore.getAllNotebooks().catch(() => []),
-      storage.readonly('notes').get(`notebook/${notebookSlugParam}`).catch(() => undefined),
-    ]).then(([registered, catalog, landing]) => {
+      storage.readonly('notes').get(`notebook/${cleanSlug}`).catch(() => undefined),
+      cleanSlug !== notebookSlugParam
+        ? storage.readonly('notes').get(`notebook/${notebookSlugParam}`).catch(() => undefined)
+        : Promise.resolve(undefined),
+    ]).then(([registered, catalog, landingClean, landingRaw]) => {
       if (cancelled) return
-      const regMatch = registered.find(nb => nb.slug === notebookSlugParam)
-      const catMatch = catalog.find(row => row.slug === notebookSlugParam)
+      const landing = landingClean ?? landingRaw
+      const regMatch = registered.find(nb => nb.slug === notebookSlugParam || nb.slug === cleanSlug)
+      const catMatch = catalog.find(row => row.slug === notebookSlugParam || row.slug === cleanSlug)
       const name = regMatch?.name || landing?.title || catMatch?.label || builtinSpec?.name || null
+      registerNotebookTitle(notebookSlugParam, name)
       setResolvedNotebookTitle(name)
     })
     return () => {
@@ -1699,7 +1705,7 @@ export function QueriableStreamView({
   const feedSyncing = feedImportPending || feedReadiness === 'preparing'
   const awaitingFeedEntries = entries.length === 0 && feedSyncing
 
-  const visibleHeaderTitle = notebookSlugParam ? (resolvedNotebookTitle ?? undefined) : undefined
+  const visibleHeaderTitle = notebookSlugParam ? (resolvedNotebookTitle ?? profile.title ?? undefined) : undefined
   const streamHeading = resolvedNotebookTitle ?? profile.title ?? 'Stream'
 
   const desktopCreateTestId = isNotebooksRoute
@@ -1747,13 +1753,28 @@ export function QueriableStreamView({
           WQL composer lives in the thumb-control zone. */}
       <StickyPageHeader
         className="max-lg:hidden"
+        parent={notebookSlugParam ? { label: 'Notebooks', to: ROUTE_PATTERNS.notebooks } : undefined}
         title={visibleHeaderTitle}
         actions={
           <ResponsiveActions
             primary={
               canCreateOnRoute ? (
                 isMobile ? (
-                  <MobileNewEntryCombo />
+                  isNotebooksRoute ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleStreamAddAction}
+                      aria-label="New notebook"
+                      title="New notebook"
+                      data-testid={TEST_IDS.NOTEBOOKS_CREATE_BUTTON}
+                      className="h-11 rounded-full px-3.5 gap-1.5 shadow-lg text-xs font-semibold whitespace-nowrap"
+                    >
+                      <span>{addActionLabel}</span>
+                    </Button>
+                  ) : (
+                    <MobileNewEntryCombo />
+                  )
                 ) : (
                   <Button
                     type="button"

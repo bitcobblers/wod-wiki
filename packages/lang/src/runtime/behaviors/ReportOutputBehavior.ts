@@ -118,7 +118,9 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
                     ctx,
                     timer,
                     displayGroups.map(loc => loc.metrics),
-                    completionLabel
+                    completionLabel,
+                    effectiveRound,
+                    earlyTermination,
                 );
                 this.writeResultGroups(ctx, resultGroups);
                 return [];
@@ -126,7 +128,7 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
         }
 
         const resultFragments = shouldComputeTimeResults
-            ? this.computeTimeResults(ctx, timer, completionLabel)
+            ? this.computeTimeResults(ctx, timer, completionLabel, effectiveRound, earlyTermination)
             : MetricContainer.from(
                 [new SystemTimeMetric(this._now.now(), ctx.block.key.toString())],
                 ctx.block.key.toString()
@@ -208,18 +210,14 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
     private computeTimeResults(
         ctx: IBehaviorContext,
         timer: TimerState | undefined,
-        customRoundLabel?: string
+        customRoundLabel?: string,
+        effectiveRound?: RoundState,
+        earlyTermination = false,
     ): MetricContainer {
         const now = ctx.clock.currentDate;
         const nowMs = now.getTime();
         const blockKey = ctx.block.key.toString();
-        const round = ctx.getMemoryByTag('round')[0]?.metrics[0] as unknown as RoundState | undefined;
-
-        const reason = ctx.block.completionReason;
-        const earlyTermination = reason === 'user-abort' || reason === 'forced-pop' || reason === 'timer-expired';
-        const reportedRound = round && earlyTermination
-            ? { current: Math.max(0, round.current - 1), total: round.total }
-            : round;
+        const shouldEmitRound = effectiveRound !== undefined && (effectiveRound.current > 0 || earlyTermination);
 
         if (timer && timer.spans.length > 0) {
             const elapsed = calculateElapsed(timer, nowMs);
@@ -237,8 +235,8 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
                 new SpansMetric(closedSpans, blockKey, now),
                 new SystemTimeMetric(this._now.now(), blockKey),
             );
-            if (reportedRound && reportedRound.current > 0) {
-                metrics.add(new CurrentRoundMetric(reportedRound.current, reportedRound.total, blockKey, now, customRoundLabel));
+            if (shouldEmitRound) {
+                metrics.add(new CurrentRoundMetric(effectiveRound.current, effectiveRound.total, blockKey, now, customRoundLabel));
             }
             return metrics;
         }
@@ -252,8 +250,8 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
             new SpansMetric([span], blockKey, now),
             new SystemTimeMetric(this._now.now(), blockKey),
         );
-        if (reportedRound && reportedRound.current > 0) {
-            metrics.add(new CurrentRoundMetric(reportedRound.current, reportedRound.total, blockKey, now, customRoundLabel));
+        if (shouldEmitRound) {
+            metrics.add(new CurrentRoundMetric(effectiveRound.current, effectiveRound.total, blockKey, now, customRoundLabel));
         }
         return metrics;
     }
@@ -267,6 +265,7 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
         round: RoundState | undefined,
         groups: MetricContainer[],
         customRoundLabel?: string,
+        earlyTermination = false,
     ): MetricContainer[] {
         const weights = groups.map(group => {
             const reps = group
@@ -275,6 +274,7 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
             return reps > 0 ? reps : 1;
         });
         const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+        const shouldEmitRound = round !== undefined && (round.current > 0 || earlyTermination);
 
         let currentOffsetMs = 0;
         return groups.map((group, i) => {
@@ -293,7 +293,7 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
                 new SpansMetric([new TimeSpan(groupStart, groupEnd)], blockKey, now),
                 new SystemTimeMetric(this._now.now(), blockKey),
             );
-            if (round) {
+            if (shouldEmitRound) {
                 groupFragments.add(new CurrentRoundMetric(round.current, round.total, blockKey, now, customRoundLabel));
             }
             return groupFragments;
@@ -304,12 +304,14 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
         ctx: IBehaviorContext,
         timer: TimerState | undefined,
         groups: MetricContainer[],
-        customRoundLabel?: string
+        customRoundLabel?: string,
+        effectiveRound?: RoundState,
+        earlyTermination = false,
     ): MetricContainer[] {
         const now = ctx.clock.currentDate;
         const nowMs = now.getTime();
         const blockKey = ctx.block.key.toString();
-        const round = ctx.getMemoryByTag('round')[0]?.metrics[0] as unknown as RoundState | undefined;
+        const shouldEmitRound = effectiveRound !== undefined && (effectiveRound.current > 0 || earlyTermination);
 
         if (!timer || timer.spans.length === 0) {
             const fallback = this.resolveFallbackTiming(ctx, nowMs);
@@ -320,9 +322,10 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
                     fallback.elapsedMs,
                     now,
                     blockKey,
-                    round,
+                    effectiveRound,
                     groups,
                     customRoundLabel,
+                    earlyTermination,
                 );
             }
             return groups.map((group) => {
@@ -332,8 +335,8 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
                     new SpansMetric([new TimeSpan(nowMs, nowMs)], blockKey, now),
                     new SystemTimeMetric(this._now.now(), blockKey),
                 );
-                if (round) {
-                    groupFragments.add(new CurrentRoundMetric(round.current, round.total, blockKey, now, customRoundLabel));
+                if (shouldEmitRound) {
+                    groupFragments.add(new CurrentRoundMetric(effectiveRound.current, effectiveRound.total, blockKey, now, customRoundLabel));
                 }
                 return groupFragments;
             });
@@ -350,9 +353,10 @@ export class ReportOutputBehavior implements IRuntimeBehavior {
             totalDuration,
             now,
             blockKey,
-            round,
+            effectiveRound,
             groups,
             customRoundLabel,
+            earlyTermination,
         );
     }
 

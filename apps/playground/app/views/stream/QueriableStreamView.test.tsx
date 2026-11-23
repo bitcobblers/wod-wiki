@@ -29,6 +29,8 @@ import {
   TAGS_STREAM_PROFILE,
   createResultDetailProfile,
   createNotebookProfile,
+  streamRouteTitle,
+  clearResolvedNotebookTitles,
 } from './streamProfile'
 import { TEST_IDS } from '@/lib/testIds'
 import { journalNotes } from '../../services/journalNotes'
@@ -37,6 +39,7 @@ import { markFeedSyncSettled, markFeedSyncStarted, resetFeedReadinessForTest } f
 import { reportSyncResult, resetSyncActivityForTest } from '@/services/syncActivity'
 import { resetFeedSubscriptionsForTest, setFeedSubscribed } from '@/services/feed/feedSubscriptions'
 import { NavContext, initialNavState, type StreamNavControls } from '../../nav/NavContext'
+import { ResponsiveActionsProvider } from '../../nav/ResponsiveActions'
 import type { NavItemL3 } from '../../nav/navTypes'
 import { getActiveStreamBridge, getSurfaceBusy } from '@/agent/surfaceBridges'
 
@@ -2318,5 +2321,72 @@ describe('QueriableStreamView — query truth and retained state', () => {
     await waitFor(() => {
       expect(usageSpy).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('WW-109: renders a reachable + New notebook primary button in the mobile dock on /notebooks at 375x812', async () => {
+    const originalMatchMedia = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('max-width'),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia
+    try {
+      const { engine } = stubEngine(() => [])
+      render(
+        <MemoryRouter initialEntries={['/notebooks']}>
+          <ResponsiveActionsProvider>
+            <QueriableStreamView profile={NOTEBOOKS_STREAM_PROFILE} queryEngine={engine} />
+          </ResponsiveActionsProvider>
+        </MemoryRouter>,
+      )
+
+      const dock = await waitFor(() => screen.getByTestId(TEST_IDS.ACTIONS_DOCK))
+      const createBtn = within(dock).getByTestId(TEST_IDS.NOTEBOOKS_CREATE_BUTTON)
+      expect(createBtn.textContent).toBe('+ New notebook')
+      fireEvent.click(createBtn)
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeDefined()
+      })
+    } finally {
+      window.matchMedia = originalMatchMedia
+    }
+  })
+
+  it('WW-101: drives StickyPageHeader H1, parent breadcrumb, and streamRouteTitle from stored acronym & renamed notebook titles', async () => {
+    const mem = new InMemoryStorage()
+    setStorageForTesting(mem)
+    clearResolvedNotebookTitles()
+    try {
+      await storageService.saveNote({
+        id: 'notebook/hiit-cycle',
+        title: 'HIIT Conditioning (Renamed)',
+        rawContent: '# HIIT Conditioning (Renamed)\n',
+        blocks: {},
+        sourceRevision: 1,
+        createdAt: 1000,
+        notebookId: 'notebook/hiit-cycle',
+        seedOrigin: 'user',
+      })
+      const { engine } = stubEngine(() => [])
+      render(
+        <MemoryRouter initialEntries={['/notebook/hiit-cycle']}>
+          <QueriableStreamView profile={createNotebookProfile('hiit-cycle')} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'HIIT Conditioning (Renamed)' })).toBeDefined()
+      })
+      expect(streamRouteTitle('/notebook/hiit-cycle')).toBe('HIIT Conditioning (Renamed)')
+      const parentBreadcrumb = screen.getByTestId(TEST_IDS.PAGE_HEADER_PARENT_BREADCRUMB)
+      expect(parentBreadcrumb.getAttribute('href')).toBe('/notebooks')
+      expect(parentBreadcrumb.textContent).toContain('Notebooks')
+    } finally {
+      clearResolvedNotebookTitles()
+      resetStorageForTesting()
+    }
   })
 })

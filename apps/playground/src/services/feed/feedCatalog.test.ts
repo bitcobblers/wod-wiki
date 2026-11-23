@@ -160,4 +160,68 @@ describe('feedCatalog display label precedence (WW-015)', () => {
     // No curated copy, no manifest copy → undefined.
     expect(resolveFeedDisplayDescription(custom)).toBeUndefined();
   });
+
+  it('counts distinct non-landing member notes across notebookId, notebookIds, notebook_links, and sourceId/tags consistently with /notebook/:slug (WW-047)', async () => {
+    const db = host!.storage;
+    await db.transaction(['notes', 'notebook_links'], 'readwrite', async (tx) => {
+      // User notebook landing note (excluded from count consistently with /notebook/:slug)
+      await tx.readwrite('notes').put({
+        id: 'notebook/hyrox-prep',
+        title: 'HYROX Prep',
+        rawContent: '# HYROX Prep\n\nOverview notes.\n',
+        sourceRevision: 1,
+        blocks: {},
+        createdAt: 1000,
+        notebookId: 'notebook/hyrox-prep',
+        seedOrigin: 'user',
+      });
+      // Member 1: legacy notebookId + notebook_links (should count once, deduplicated)
+      await tx.readwrite('notes').put({
+        id: 'note-1',
+        title: 'Sled Push Intervals',
+        rawContent: '# Sled Push Intervals\n',
+        sourceRevision: 1,
+        blocks: {},
+        createdAt: 1001,
+        notebookId: 'notebook/hyrox-prep',
+        notebookIds: ['notebook/hyrox-prep'],
+        seedOrigin: 'user',
+      });
+      await tx.readwrite('notebook_links').put({
+        id: 'notebook/hyrox-prep:note:note-1',
+        notebookId: 'notebook/hyrox-prep',
+        targetKind: 'note',
+        targetId: 'note-1',
+        noteId: 'note-1',
+        createdAt: 1001,
+      });
+      // Member 2: linked via N:M notebookIds only
+      await tx.readwrite('notes').put({
+        id: 'note-2',
+        title: 'Wall Balls & Erg',
+        rawContent: '# Wall Balls & Erg\n',
+        sourceRevision: 1,
+        blocks: {},
+        createdAt: 1002,
+        notebookIds: ['notebook/journal', 'notebook/hyrox-prep'],
+        seedOrigin: 'user',
+      });
+      // Member 3: linked via notebook: tag (resolved by notebooksOfItem on /notebook/:slug)
+      await tx.readwrite('notes').put({
+        id: 'note-3',
+        title: 'Burpee Broad Jumps',
+        rawContent: '# Burpee Broad Jumps\n',
+        sourceRevision: 1,
+        blocks: {},
+        createdAt: 1003,
+        tags: ['notebook:hyrox-prep'],
+        seedOrigin: 'user',
+      });
+    });
+
+    const notebooks = await playgroundFeedCatalogStore.getAllNotebooks();
+    const hyroxPrep = notebooks.find((nb) => nb.slug === 'hyrox-prep' && nb.origin === 'user');
+    expect(hyroxPrep).toBeDefined();
+    expect(hyroxPrep?.count).toBe(3);
+  });
 });

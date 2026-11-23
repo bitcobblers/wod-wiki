@@ -54,7 +54,7 @@ const INTRINSIC_METRIC_UNITS: Record<string, string> = {
 };
 
 function resolveTimeseriesUnit(result: QueryResult, unitProp?: string): string | undefined {
-  const seriesUnit = result.series[0]?.unit;
+  const seriesUnit = result.series[0]?.unit?.trim();
   if (seriesUnit) return seriesUnit;
 
   const seriesKey = result.series[0]?.key?.toLowerCase();
@@ -93,8 +93,8 @@ export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
     [result.series, unit],
   );
 
-  if (shape.kind !== 'timeseries' && shape.kind !== 'scalar') {
-    return <WqlEmptyState result={result} />;
+  if ((shape.kind !== 'timeseries' && shape.kind !== 'scalar') || data.length === 0) {
+    return <WqlEmptyState result={result} fallbackMessage="No timeseries data available for this query." />;
   }
 
   return (

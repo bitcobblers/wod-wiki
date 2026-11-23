@@ -636,4 +636,90 @@ describe('AnalyticsExplorerPage', () => {
     await waitFor(() => expect(screen.getByText('July 2026')).toBeDefined());
     expect(screen.getByTestId('library-row-note').textContent).toContain('StrongLifts 5×5');
   });
+
+  it('WW-094: groups :note{} by {week} into distinct week sections with headers and counts', async () => {
+    runFindImpl = async (raw: string) => ({
+      ...findResultOf(raw),
+      notes: [
+        {
+          id: 'journal/2026-07-01',
+          title: 'Wednesday Squat',
+          createdAt: Date.parse('2026-07-01T10:00:00Z'),
+          targetDate: Date.parse('2026-07-01T10:00:00Z'),
+          type: 'note',
+          sourceId: 'journal',
+        },
+        {
+          id: 'journal/2026-07-02',
+          title: 'Thursday Press',
+          createdAt: Date.parse('2026-07-02T10:00:00Z'),
+          targetDate: Date.parse('2026-07-02T10:00:00Z'),
+          type: 'note',
+          sourceId: 'journal',
+        },
+        {
+          id: 'journal/2026-06-24',
+          title: 'Prior Week Deadlift',
+          createdAt: Date.parse('2026-06-24T10:00:00Z'),
+          targetDate: Date.parse('2026-06-24T10:00:00Z'),
+          type: 'note',
+          sourceId: 'journal',
+        },
+      ] as unknown as FindQueryResult['notes'],
+      stages: { selected: 3, matched: 3 },
+    });
+
+    renderPage(':note{} by {week}');
+
+    await waitFor(() => expect(screen.getByText('Week of Jun 29, 2026')).toBeDefined());
+    expect(screen.getByText('Week of Jun 22, 2026')).toBeDefined();
+    expect(screen.getByText(/by week/i)).toBeDefined();
+
+    const groupCounts = screen.getAllByTestId('library-group-count').map((el) => el.textContent);
+    expect(groupCounts).toEqual(['2', '1']);
+
+    const rows = screen.getAllByTestId('library-row-note').map((el) => el.textContent ?? '');
+    expect(rows.some((r) => r.includes('Wednesday Squat'))).toBe(true);
+    expect(rows.some((r) => r.includes('Thursday Press'))).toBe(true);
+    expect(rows.some((r) => r.includes('Prior Week Deadlift'))).toBe(true);
+  });
+
+  it('WW-094: groups :note{} by {notebook} and by {tag} into labeled sections', async () => {
+    runFindImpl = async (raw: string) => ({
+      ...findResultOf(raw),
+      notes: [
+        {
+          id: 'journal/2026-07-01',
+          title: 'Journal Note',
+          createdAt: Date.parse('2026-07-01T10:00:00Z'),
+          targetDate: Date.parse('2026-07-01T10:00:00Z'),
+          type: 'note',
+          sourceId: 'journal',
+          tags: ['strength'],
+        },
+        {
+          id: 'feeds/stronglifts/2026-07-01--5x5',
+          title: 'StrongLifts 5×5',
+          createdAt: Date.parse('2026-07-01T10:00:00Z'),
+          targetDate: Date.parse('2026-07-01T10:00:00Z'),
+          type: 'note',
+          sourceId: 'notebook:stronglifts',
+          tags: [],
+        },
+      ] as unknown as FindQueryResult['notes'],
+      stages: { selected: 2, matched: 2 },
+    });
+
+    renderPage(':note{} by {notebook}');
+    await waitFor(() => expect(screen.getByText('Journal')).toBeDefined());
+    expect(screen.getByText('Stronglifts')).toBeDefined();
+    expect(screen.getByText(/by notebook/i)).toBeDefined();
+
+    cleanup();
+
+    renderPage(':note{} by {tag}');
+    await waitFor(() => expect(screen.getByText('#strength')).toBeDefined());
+    expect(screen.getByText('Untagged')).toBeDefined();
+    expect(screen.getByText(/by tag/i)).toBeDefined();
+  });
 });

@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { seedNoteId } from '../../src/index';
+import { wodNoteGetTool, wodNoteListTool } from '../../src/agent';
 import {
   DomainScenarioHarness,
   HARNESS_EPOCH,
@@ -120,5 +122,38 @@ describe('Domain — Note authoring, occurrence pinning & Metric parsing', () =>
 
     const untagged = await harness.queryWql<NoteFindResult>(':note{text:Musing}', options);
     expect(untagged.notes.map((n) => n.title)).toEqual(['Training Musing']);
+  });
+
+  it('WW-107: repeated wod_note_list calls return stable, deterministic IDs that all resolve via wod_note_get', async () => {
+    harness = await DomainScenarioHarness.create();
+    const starterId = await seedNoteId('onboarding/my-workout');
+    await harness.authorNote({
+      id: starterId,
+      title: 'My Workout',
+      rawContent: '# My Workout\n\n```time\n10 Push-ups\n```\n',
+      notebookIds: ['notebook/journal', 'notebook/custom'],
+    });
+    await harness.authorNote({
+      id: 'note-fran',
+      title: 'Fran',
+      rawContent: franRaw,
+      notebookId: 'notebook/girls',
+    });
+
+    const ctx = { storage: harness.storage };
+    const first = await wodNoteListTool.execute({}, ctx);
+    const second = await wodNoteListTool.execute({}, ctx);
+    const thirdUserOnly = await wodNoteListTool.execute({ includeSeed: false, origin: 'user' }, ctx);
+
+    expect(first.notes.map((n) => n.id)).toEqual(second.notes.map((n) => n.id));
+    expect(first.notes.map((n) => n.id)).toEqual(thirdUserOnly.notes.map((n) => n.id));
+    expect(first.notes.map((n) => n.id)).toContain(starterId);
+
+    // Every listed ID resolves cleanly via wod_note_get with no synthetic/404 IDs.
+    for (const listed of first.notes) {
+      const got = await wodNoteGetTool.execute({ noteId: listed.id }, ctx);
+      expect(got.id).toBe(listed.id);
+      expect(got.title).toBe(listed.title);
+    }
   });
 });

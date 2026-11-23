@@ -18,6 +18,8 @@ import {
   resolveStreamProfile,
   isStreamRoute,
   streamRouteTitle,
+  registerNotebookTitle,
+  clearResolvedNotebookTitles,
 } from './streamProfile'
 
 describe('streamProfile', () => {
@@ -127,7 +129,7 @@ describe('streamProfile', () => {
     const profile = getStreamProfile('/notebook/dan-john')
     expect(profile).toBeDefined()
     expect(profile?.route).toBe('/notebook/dan-john')
-    expect(profile?.title).toBe('Dan John')
+    expect(profile?.title).toBe('Dan John Kettlebell')
     expect(profile?.defaultWql).toBe(':note{notebook:dan-john} by {date}')
     expect(profile?.notebookSlug).toBe('dan-john')
     expect(profile?.defaultLayout).toBe('cards')
@@ -137,9 +139,29 @@ describe('streamProfile', () => {
   it('normalizes community- prefixed notebook slug in profile query and slug', () => {
     const profile = getStreamProfile('/notebook/community-crossfit-girls')
     expect(profile).toBeDefined()
-    expect(profile?.title).toBe('Crossfit Girls')
+    expect(profile?.title).toBe('CrossFit Girls')
     expect(profile?.defaultWql).toBe(':note{notebook:crossfit-girls} by {date}')
     expect(profile?.notebookSlug).toBe('crossfit-girls')
+  })
+
+  it('WW-101: preserves catalog acronyms and registered renamed titles in profile and breadcrumb title', () => {
+    clearResolvedNotebookTitles()
+    try {
+      // Built-in feed catalog acronym survives without slug mangling ("HYROX", not "Hyrox")
+      expect(createNotebookProfile('hyrox').title).toBe('HYROX')
+      expect(streamRouteTitle('/notebook/hyrox')).toBe('HYROX')
+
+      // Registered renamed / acronym user notebook titles override humanized slug
+      registerNotebookTitle('hiit-conditioning', 'HIIT & Conditioning — Phase 2')
+      expect(createNotebookProfile('hiit-conditioning').title).toBe('HIIT & Conditioning — Phase 2')
+      expect(streamRouteTitle('/notebook/hiit-conditioning')).toBe('HIIT & Conditioning — Phase 2')
+
+      // Unknown slug falls back to humanized display name
+      expect(createNotebookProfile('unregistered-custom-plan').title).toBe('Unregistered Custom Plan')
+      expect(streamRouteTitle('/notebook/unregistered-custom-plan')).toBe('Unregistered Custom Plan')
+    } finally {
+      clearResolvedNotebookTitles()
+    }
   })
 
 

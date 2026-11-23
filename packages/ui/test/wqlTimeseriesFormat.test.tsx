@@ -4,11 +4,13 @@
  * table cells round to at most 1 fraction digit exactly like chart tooltips
  * (`11,362.5 kg`, never `11,362.489 kg`).
  */
-import { describe, expect, it, afterEach } from 'vitest';
+import React from 'react';
+import { describe, expect, it, afterEach, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { QueryResult } from '@bitcobblers/wod-wiki-wql';
 import { WqlTable } from '../src/widgets/WqlTable';
 import {
+  WqlTimeseries,
   formatTimeseriesTick,
   formatTimeseriesTooltipValue,
 } from '../src/widgets/WqlTimeseries';
@@ -20,6 +22,21 @@ import {
 import { StackedBar } from '../src/widgets/StackedBar';
 import { WqlBars } from '../src/widgets/WqlBars';
 import { WqlEmptyState } from '../src/widgets/WqlEmptyState';
+
+vi.mock('recharts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('recharts')>();
+  return {
+    ...actual,
+    ResponsiveContainer: ({ children }: { children: React.ReactElement }) => (
+      <div className="recharts-responsive-container">
+        {React.cloneElement(children, { width: 640, height: 320 } as Record<string, unknown>)}
+      </div>
+    ),
+  };
+});
+
+const Y_AXIS_TICK_SELECTOR =
+  '.recharts-yAxis-tick-labels text, .recharts-yAxis .recharts-cartesian-axis-tick text';
 
 afterEach(cleanup);
 
@@ -116,5 +133,205 @@ describe('WW-106 unified chartFormat, WqlEmptyState fallback, and WqlBars', () =
       </div>,
     );
     expect(container.querySelector('.recharts-responsive-container')).not.toBeNull();
+  });
+
+  it('WW-106: renders real bars and units for Recovery & Readiness Sleep and Soreness daily queries', () => {
+    const sleepResult = {
+      parsed: { family: 'aggregate', raw: 'avg:calc.sleep{} by {day}', agg: 'avg', metric: 'calc.sleep', filters: [], groupBy: ['day'] },
+      series: [
+        {
+          key: 'calc.sleep',
+          label: 'calc.sleep',
+          unit: 'h',
+          points: [
+            { ts: Date.UTC(2026, 5, 1), value: 7.2 },
+            { ts: Date.UTC(2026, 5, 2), value: 7.8 },
+            { ts: Date.UTC(2026, 5, 3), value: 8.1 },
+          ],
+        },
+      ],
+      stages: { selected: 3, buckets: 3, aggregated: 3, groups: 1 },
+      matched: [],
+      unit: 'h',
+    } as unknown as QueryResult;
+
+    const sorenessResult = {
+      parsed: { family: 'aggregate', raw: 'avg:calc.soreness{} by {day}', agg: 'avg', metric: 'calc.soreness', filters: [], groupBy: ['day'] },
+      series: [
+        {
+          key: 'calc.soreness',
+          label: 'calc.soreness',
+          unit: 'rating',
+          points: [
+            { ts: Date.UTC(2026, 5, 1), value: 3 },
+            { ts: Date.UTC(2026, 5, 2), value: 5 },
+            { ts: Date.UTC(2026, 5, 3), value: 4 },
+          ],
+        },
+      ],
+      stages: { selected: 3, buckets: 3, aggregated: 3, groups: 1 },
+      matched: [],
+      unit: 'rating',
+    } as unknown as QueryResult;
+
+    const sleepRender = render(<WqlBars result={sleepResult} />);
+    expect(sleepRender.container.querySelectorAll('.recharts-bar-rectangle').length).toBeGreaterThanOrEqual(3);
+    const sleepTicks = Array.from(sleepRender.container.querySelectorAll(Y_AXIS_TICK_SELECTOR))
+      .map((el) => (el.textContent ?? '').trim())
+      .filter(Boolean);
+    expect(sleepTicks.length).toBeGreaterThanOrEqual(2);
+    for (const tick of sleepTicks) {
+      expect(tick).toMatch(/^\d+(?:\.\d)? h$/);
+    }
+
+    cleanup();
+
+    const sorenessRender = render(<WqlBars result={sorenessResult} />);
+    expect(sorenessRender.container.querySelectorAll('.recharts-bar-rectangle').length).toBeGreaterThanOrEqual(3);
+    const sorenessTicks = Array.from(sorenessRender.container.querySelectorAll(Y_AXIS_TICK_SELECTOR))
+      .map((el) => (el.textContent ?? '').trim())
+      .filter(Boolean);
+    expect(sorenessTicks.length).toBeGreaterThanOrEqual(2);
+    for (const tick of sorenessTicks) {
+      expect(tick).toMatch(/^\d+(?:\.\d)? rating$/);
+    }
+  });
+
+  it('WW-106: always renders WqlEmptyState (never a silent blank box) when series are empty or all-missing', () => {
+    const emptySeries = {
+      parsed: { family: 'aggregate', raw: 'avg:calc.sleep{} by {day}', agg: 'avg', metric: 'calc.sleep', filters: [], groupBy: ['day'] },
+      series: [],
+      stages: { selected: 0, buckets: 0, aggregated: 0, groups: 0 },
+      matched: [],
+    } as unknown as QueryResult;
+
+    const zeroPointSeries = {
+      parsed: { family: 'aggregate', raw: 'avg:calc.soreness{} by {day}', agg: 'avg', metric: 'calc.soreness', filters: [], groupBy: ['day'] },
+      series: [{ key: 'calc.soreness', label: 'calc.soreness', unit: 'rating', points: [] }],
+      stages: { selected: 0, buckets: 0, aggregated: 0, groups: 1 },
+      matched: [],
+    } as unknown as QueryResult;
+
+    const allMissingSeries = {
+      parsed: { family: 'aggregate', raw: 'avg:calc.soreness{} by {day}', agg: 'avg', metric: 'calc.soreness', filters: [], groupBy: ['day'] },
+      series: [
+        {
+          key: 'calc.soreness',
+          label: 'calc.soreness',
+          unit: 'rating',
+          points: [
+            { ts: 1000, value: 0, missing: true },
+            { ts: 2000, value: 0, missing: true },
+          ],
+        },
+      ],
+      stages: { selected: 0, buckets: 2, aggregated: 0, groups: 1 },
+      matched: [],
+    } as unknown as QueryResult;
+
+    for (const emptyResult of [emptySeries, zeroPointSeries, allMissingSeries]) {
+      const { unmount } = render(<WqlBars result={emptyResult} />);
+      expect(screen.getByText('No data for this range.')).toBeDefined();
+      unmount();
+
+      const emptyStateRender = render(<WqlEmptyState result={emptyResult} />);
+      expect(screen.getByText('No data for this range.')).toBeDefined();
+      emptyStateRender.unmount();
+
+      const tsRender = render(<WqlTimeseries result={emptyResult} />);
+      expect(screen.getByText('No data for this range.')).toBeDefined();
+      tsRender.unmount();
+
+      const stackedRender = render(<StackedBar result={emptyResult} />);
+      expect(screen.getByText('No data for this range.')).toBeDefined();
+      stackedRender.unmount();
+    }
+  });
+});
+
+describe('WW-030 consistent chart tick unit spacing across kg, pts, and ratio', () => {
+  it('spaces ratio, kg, and pts consistently across zero, fractional, and grouped ticks', () => {
+    expect(formatAxisTick(0, 'kg')).toBe('0 kg');
+    expect(formatAxisTick(6500, 'kg')).toBe('6,500 kg');
+    expect(formatAxisTick(0.5, 'ratio')).toBe('0.5 ratio');
+    expect(formatAxisTick(0, 'ratio')).toBe('0 ratio');
+    expect(formatAxisTick(20, 'pts')).toBe('20 pts');
+    expect(formatAxisTick(0, 'pts')).toBe('0 pts');
+    expect(formatAxisTick('', 'kg')).toBe('');
+    expect(formatMetricValue(0.5, 'ratio')).toBe('0.5 ratio');
+    expect(formatMetricValue(6500, 'kg')).toBe('6,500 kg');
+  });
+
+  it('renders WqlTimeseries ACWR ratio ticks with a separating space (never 0.5ratio)', () => {
+    const acwrResult = {
+      parsed: { family: 'aggregate', raw: 'avg:calc.acwr{} by {day}', agg: 'avg', metric: 'calc.acwr', filters: [], groupBy: ['day'] },
+      series: [
+        {
+          key: 'calc.acwr',
+          label: 'calc.acwr',
+          unit: 'ratio',
+          points: [
+            { ts: Date.UTC(2026, 5, 1), value: 0.5 },
+            { ts: Date.UTC(2026, 5, 2), value: 1.0 },
+            { ts: Date.UTC(2026, 5, 3), value: 1.3 },
+          ],
+        },
+      ],
+      stages: { selected: 3, buckets: 3, aggregated: 3, groups: 1 },
+      matched: [],
+      unit: 'ratio',
+    } as unknown as QueryResult;
+
+    const { container } = render(<WqlTimeseries result={acwrResult} />);
+    const ticks = Array.from(container.querySelectorAll(Y_AXIS_TICK_SELECTOR))
+      .map((el) => (el.textContent ?? '').trim())
+      .filter(Boolean);
+
+    expect(ticks.length).toBeGreaterThanOrEqual(2);
+    for (const tick of ticks) {
+      expect(tick).toMatch(/^\d+(?:\.\d)? ratio$/);
+      expect(tick).not.toMatch(/\dratio$/);
+    }
+  });
+
+  it('renders WqlTimeseries and StackedBar kg ticks with uniform space across 0 and thousands', () => {
+    const volumeResult = {
+      parsed: { family: 'aggregate', raw: 'sum:totalVolume{} by {week}', agg: 'sum', metric: 'totalVolume', filters: [], groupBy: ['week'] },
+      series: [
+        {
+          key: 'totalVolume',
+          label: 'Total volume',
+          unit: 'kg',
+          points: [
+            { ts: Date.UTC(2026, 5, 1), value: 0 },
+            { ts: Date.UTC(2026, 5, 8), value: 6500 },
+          ],
+        },
+      ],
+      stages: { selected: 2, buckets: 2, aggregated: 2, groups: 1 },
+      matched: [],
+      unit: 'kg',
+    } as unknown as QueryResult;
+
+    const ts = render(<WqlTimeseries result={volumeResult} />);
+    const tsTicks = Array.from(ts.container.querySelectorAll(Y_AXIS_TICK_SELECTOR))
+      .map((el) => (el.textContent ?? '').trim())
+      .filter(Boolean);
+    expect(tsTicks.length).toBeGreaterThanOrEqual(2);
+    for (const tick of tsTicks) {
+      expect(tick).toMatch(/^\d{1,3}(?:,\d{3})*(?:\.\d)? kg$/);
+      expect(tick).not.toMatch(/\dkg$/);
+    }
+    ts.unmount();
+
+    const stacked = render(<StackedBar result={volumeResult} />);
+    const stackedTicks = Array.from(stacked.container.querySelectorAll(Y_AXIS_TICK_SELECTOR))
+      .map((el) => (el.textContent ?? '').trim())
+      .filter(Boolean);
+    expect(stackedTicks.length).toBeGreaterThanOrEqual(2);
+    for (const tick of stackedTicks) {
+      expect(tick).toMatch(/^\d{1,3}(?:,\d{3})*(?:\.\d)? kg$/);
+      expect(tick).not.toMatch(/\dkg$/);
+    }
   });
 });

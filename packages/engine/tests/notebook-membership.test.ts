@@ -7,6 +7,7 @@ import {
   publishFeedFromStorage,
   reconcileNoteBlocks,
   removeNoteFromNotebook,
+  setNoteNotebooks,
   setNotebookPublic,
   setSessionPublic,
   type Note,
@@ -200,6 +201,50 @@ describe('Candidate 02 — Many-to-many Notebook Membership & Private Journal', 
     expect(report.notebooks.sort()).toEqual(['barbell-club', 'pr-log']);
     expect(report.totalNotes).toBe(2);
     expect(report.totalPublicSessions).toBe(2);
+
+    await storage.close();
+  });
+
+  it('WW-111: setNoteNotebooks moves a Note from source notebook A to target notebook B, stripping stale links and notebook: tags with 0 duplicates', async () => {
+    const storage = createRealSqlStorage();
+    const raw = '# Starter Workout\n\n```time\n10 Push-ups\n```\n';
+    const blocks = reconcileNoteBlocks(raw, { sourceRevision: 1 });
+    const note: Note = {
+      id: '01950000-0000-7000-8000-000000000199',
+      title: 'Starter Workout',
+      rawContent: raw,
+      sourceRevision: 1,
+      blocks,
+      createdAt: 1000,
+      type: 'note',
+      notebookId: 'notebook/source-a',
+      notebookIds: ['notebook/source-a'],
+      tags: ['notebook:source-a', 'strength'],
+      seedOrigin: 'user',
+    };
+    await storage.readwrite('notes').put(note);
+    await promoteNoteToNotebooks(storage, {
+      noteId: note.id,
+      notebookIds: ['notebook/source-a'],
+    });
+
+    const moved = await setNoteNotebooks(storage, {
+      noteId: note.id,
+      notebookIds: ['notebook/target-b'],
+    });
+    expect(moved).toEqual(['notebook/target-b']);
+    expect(await getNoteNotebooks(storage, note.id)).toEqual(['notebook/target-b']);
+
+    const stored = await storage.readonly('notes').get(note.id);
+    expect(stored?.notebookId).toBe('notebook/target-b');
+    expect(stored?.notebookIds).toEqual(['notebook/target-b']);
+    expect(stored?.tags).toEqual(['strength']);
+
+    const sourceLinks = await storage.readonly('notebook_links').getAllFromIndex('by-notebook', 'notebook/source-a');
+    expect(sourceLinks.filter((l) => l.noteId === note.id)).toEqual([]);
+
+    const allNotes = await storage.readonly('notes').getAll();
+    expect(allNotes.filter((n) => n.title === 'Starter Workout')).toHaveLength(1);
 
     await storage.close();
   });

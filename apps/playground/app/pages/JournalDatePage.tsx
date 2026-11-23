@@ -12,7 +12,7 @@ import { playgroundRecorder, onResultSaved } from '@/services/resultRecorder';
 import { storageService } from '@/services/storage';
 import { FullscreenTimer } from '@/components/organisms/review/FullscreenTimer';
 import { useSearchParams, Link, Navigate, useNavigate } from 'react-router-dom';
-import { Plus, Copy, CalendarDays, BookOpen, Dumbbell, GitFork, Save } from 'lucide-react';
+import { Plus, Copy, CalendarDays, BookOpen, Dumbbell, GitFork, Save, Trash2 } from 'lucide-react';
 import { v7 as uuidv7 } from 'uuid';
 import { dayPath, notePath, runPath } from '../lib/routes';
 import { formatDateKey } from '../services/dateUtils';
@@ -642,8 +642,9 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
     [isDateKey, journalDate, journalDates, navigate],
   );
 
-  // Day-level L3 Page Options when the date has 0 notes (note-level Delete/Clone/Export/Notebooks
-  // stay on note cards and /note/:id).
+  // Day-level L3 Page Options when the date has 0 notes: date-level actions are
+  // enabled while note-specific actions (Notebooks, Clone, Export, Delete) remain
+  // visible in the panel but disabled until a note exists on this date (WW-059).
   const isEmptyDay = notes !== null && notes.length === 0;
   const publishedEmptyDayRef = useRef(false);
   useEffect(() => {
@@ -666,18 +667,6 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
         onRun: () => openCreateDialog('pick'),
       },
       {
-        id: 'day-copy-link',
-        label: 'Copy day link',
-        icon: Copy,
-        group: 'share',
-        onRun: () => {
-          const href = typeof window !== 'undefined'
-            ? `${window.location.origin}${dayPath(journalDate)}`
-            : dayPath(journalDate);
-          void navigator.clipboard?.writeText(href).catch(() => undefined);
-        },
-      },
-      {
         id: 'day-jump-today',
         label: 'Jump to today',
         icon: CalendarDays,
@@ -690,6 +679,48 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
         icon: BookOpen,
         group: 'organize',
         onRun: () => navigate('/journal'),
+      },
+      {
+        id: 'day-empty-notebooks',
+        label: 'Notebooks & Promotion',
+        group: 'organize',
+        disabled: true,
+        onRun: () => {},
+      },
+      {
+        id: 'day-empty-clone',
+        label: 'Clone',
+        group: 'organize',
+        disabled: true,
+        onRun: () => {},
+      },
+      {
+        id: 'day-copy-link',
+        label: 'Copy day link',
+        icon: Copy,
+        group: 'share',
+        onRun: () => {
+          const href = typeof window !== 'undefined'
+            ? `${window.location.origin}${dayPath(journalDate)}`
+            : dayPath(journalDate);
+          void navigator.clipboard?.writeText(href).catch(() => undefined);
+        },
+      },
+      {
+        id: 'day-empty-export',
+        label: 'Export Note (.md)',
+        group: 'share',
+        disabled: true,
+        onRun: () => {},
+      },
+      {
+        id: 'day-empty-delete',
+        label: 'Delete note',
+        icon: Trash2,
+        group: 'danger',
+        disabled: true,
+        testId: 'l3-delete-note',
+        onRun: () => {},
       },
     ];
     setL3Actions?.(emptyDayActions);

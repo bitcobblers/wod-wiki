@@ -10,9 +10,42 @@ import type { EntityLevel } from '../../lib/fieldProjection'
 import type { LayoutMode } from '../../lib/viewSettingsStorage'
 import { EFFORTS_LEGACY_CONFIG } from '../../hooks/useEffortsComposerState'
 import { salvagePlainTextQuery, type ComposerLegacyConfig } from '../../hooks/useComposerQueryState'
+import { BUILTIN_NOTEBOOKS } from '@bitcobblers/wod-wiki-core'
 import type { WqlFindTarget, WqlSourceValue } from '@bitcobblers/wod-wiki-engine'
 import { toDisplayName } from '@/repositories/groupings'
-import { canonicalNotebookSlug } from '@/services/feed/feedSources'
+import { canonicalNotebookSlug, listNotebooks } from '@/services/feed/feedSources'
+
+const resolvedNotebookTitles = new Map<string, string>()
+
+/** Cache a resolved stored/catalog notebook title so breadcrumbs & stream
+ *  profiles preserve acronyms and renamed titles verbatim (WW-101). */
+export function registerNotebookTitle(slug: string, title: string | null | undefined): void {
+  const clean = canonicalNotebookSlug(slug)
+  if (!clean) return
+  const trimmed = title?.trim()
+  if (trimmed) {
+    resolvedNotebookTitles.set(clean, trimmed)
+  } else {
+    resolvedNotebookTitles.delete(clean)
+  }
+}
+
+export function clearResolvedNotebookTitles(): void {
+  resolvedNotebookTitles.clear()
+}
+
+/** Resolve the display title for a notebook slug: registered stored title ->
+ *  built-in notebook name -> feed catalog label -> humanized slug fallback. */
+export function resolveNotebookDisplayTitle(slug: string): string {
+  const clean = canonicalNotebookSlug(slug)
+  const registered = resolvedNotebookTitles.get(clean)
+  if (registered) return registered
+  const builtin = BUILTIN_NOTEBOOKS.find(b => b.slug === clean)
+  if (builtin?.name) return builtin.name
+  const feedDef = listNotebooks().find(def => canonicalNotebookSlug(def.chunkId || def.id) === clean)
+  if (feedDef?.label) return feedDef.label
+  return toDisplayName(clean)
+}
 
 export function cleanRoutePath(route: string): string {
   return route.endsWith('/') && route.length > 1 ? route.slice(0, -1) : route
@@ -289,7 +322,7 @@ export function createNotebookProfile(notebookSlug: string): StreamProfile {
   const cleanSlug = canonicalNotebookSlug(notebookSlug);
   return {
     route: `/notebook/${notebookSlug}`,
-    title: toDisplayName(cleanSlug),
+    title: resolveNotebookDisplayTitle(cleanSlug),
     defaultWql: `:note{notebook:${cleanSlug}} by {date}`,
     level: 'note',
     target: 'note',
@@ -360,7 +393,7 @@ export function streamRouteTitle(pathname: string): string | undefined {
   if (cleanRoutePath(pathname).startsWith('/notebook/')) {
     const slug = cleanRoutePath(pathname).slice('/notebook/'.length)
     if (slug && !slug.includes('/')) {
-      return toDisplayName(slug)
+      return resolveNotebookDisplayTitle(slug)
     }
   }
   return undefined

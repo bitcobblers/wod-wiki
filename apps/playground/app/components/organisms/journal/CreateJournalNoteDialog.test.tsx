@@ -353,4 +353,38 @@ describe('CreateJournalNoteDialog unified wizard', () => {
     expect(curatedPick.filter((i) => i.notebookSlug === 'heroes')).toHaveLength(4)
     expect(curatedPick.some((i) => i.id === 'mine-1')).toBe(true)
   })
+
+  it('WW-108: prioritizes user/template notes, excludes dated race-result logs from default shortlist, and keeps them searchable when filtering', () => {
+    const options = [
+      { key: '', label: 'Blank note', group: 'Default' },
+      { key: 'src:athletics-results::2025/boston.md', label: 'Boston Marathon — 2025-04-21', group: 'Athletics Results', groupKey: 'athletics-results', categories: ['results'], date: '2025-04-21' },
+      { key: 'src:race-logs::2025/10k.md', label: 'Spring 10K Race — 2025-05-10', group: 'Race Logs', groupKey: 'race-logs', date: '2025-05-10' },
+      { key: 'nb:user-1', label: 'My Pull Day', group: 'Your Notebook Notes', groupKey: 'user', isTemplateTagged: true },
+      { key: 'src:girls::fran.md', label: 'Fran', group: 'CrossFit Girls', groupKey: 'girls', categories: ['benchmarks'] },
+      { key: 'src:girls::grace.md', label: 'Grace', group: 'CrossFit Girls', groupKey: 'girls', categories: ['benchmarks'] },
+    ]
+
+    // Default unsearched shortlist: Blank first, then user/template notes, then curated workouts;
+    // dated historical race-result log notes are excluded.
+    const defaultShortlist = curateTemplateOptions(options, '')
+    expect(defaultShortlist.visibleTemplateOptions.map((o) => o.key)).toEqual([
+      '',
+      'nb:user-1',
+      'src:girls::fran.md',
+      'src:girls::grace.md',
+    ])
+    expect(defaultShortlist.visibleTemplateOptions.some((o) => o.key.includes('boston'))).toBe(false)
+    expect(defaultShortlist.visibleTemplateOptions.some((o) => o.key.includes('10k'))).toBe(false)
+
+    // Typing a filter surfaces historical race-result logs cleanly.
+    const searchedMarathon = curateTemplateOptions(options, 'Boston Marathon')
+    expect(searchedMarathon.visibleTemplateOptions.map((o) => o.key)).toEqual([
+      'src:athletics-results::2025/boston.md',
+    ])
+
+    const searchedDated = curateTemplateOptions(options, 'Spring 10K')
+    expect(searchedDated.visibleTemplateOptions.map((o) => o.key)).toEqual([
+      'src:race-logs::2025/10k.md',
+    ])
+  })
 })

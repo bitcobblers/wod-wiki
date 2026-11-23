@@ -161,7 +161,11 @@ export interface NoteOwnership {
  * Resolves L1 zone, owning-list "Up" link, and provenance stamps
  * across journal, playground, notebook, and page entities.
  */
-export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'sourceId' | 'journalDate' | 'slug' | 'pageId' | 'notebookId'>): NoteOwnership {
+export function noteOwnership(
+  entry: Pick<HistoryRecord, 'id' | 'type' | 'sourceId' | 'journalDate' | 'slug' | 'pageId' | 'notebookId'> & {
+    notebookIds?: readonly string[]
+  },
+): NoteOwnership {
   const id = entry.id
   const isPlayground = entry.type === 'playground' || entry.sourceId === 'playground' || entry.notebookId === 'notebook/playground' || id.startsWith('playground/')
   const ref = parseNoteId(id)
@@ -204,8 +208,12 @@ export function noteOwnership(entry: Pick<HistoryRecord, 'id' | 'type' | 'source
       }
     }
   }
-  if (entry.notebookId?.startsWith('notebook/')) {
-    const slug = entry.notebookId.slice('notebook/'.length)
+  const candidateNotebookIds = [
+    ...(entry.notebookId ? [entry.notebookId] : []),
+    ...(entry.notebookIds ?? []),
+  ]
+  for (const nbId of candidateNotebookIds) {
+    const slug = notebookSlugFromId(nbId)
     if (slug && slug !== 'journal' && slug !== 'playground' && slug !== 'guides') {
       return {
         zone: 'notebooks',
@@ -273,15 +281,13 @@ export function collectionLinks(
     if (!slugs.includes(clean)) slugs.push(clean)
   }
 
-  if (note?.notebookId?.startsWith('notebook/')) {
-    pushSlug(note.notebookId.slice('notebook/'.length))
-  }
-  if (note?.notebookIds) {
+  if (note?.notebookIds?.length) {
     for (const nbId of note.notebookIds) {
-      if (nbId.startsWith('notebook/')) {
-        pushSlug(nbId.slice('notebook/'.length))
-      }
+      pushSlug(notebookSlugFromId(nbId))
     }
+  }
+  if (note?.notebookId) {
+    pushSlug(notebookSlugFromId(note.notebookId))
   }
   if (extraLinks) {
     for (const link of extraLinks) {
@@ -603,7 +609,20 @@ export function useNoteContextLinks({
       storageService.getNotePages(noteId).catch(() => [] as PageNote[]),
       journalSchedule.listForNote(noteId).catch(() => [] as ScheduleItem[]),
       storageService.getTagsForNote(noteId).catch(() => [] as Tag[]),
-      storage.readonly('notebook_links').getAllFromIndex('by-note', noteId).catch(() => [] as NotebookLink[]),
+      Promise.all([
+        storage.readonly('notebook_links').getAllFromIndex('by-note', noteId).catch(() => [] as NotebookLink[]),
+        storage.readonly('notebook_links').getAllFromIndex('by-target', ['note', noteId]).catch(() => [] as NotebookLink[]),
+      ]).then(([byNote, byTarget]) => {
+        const seen = new Set<string>()
+        const merged: NotebookLink[] = []
+        for (const link of [...byNote, ...byTarget]) {
+          const key = link.id || `${link.notebookId}:${link.targetId ?? link.noteId ?? ''}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          merged.push(link)
+        }
+        return merged
+      }),
       storageService.getAllFromIndex('block_efforts', 'by-note', noteId) as Promise<BlockEffort[]>,
       (storageService.getAllFromIndex('block_equipment', 'by-note', noteId) as Promise<BlockEquipment[]>).catch(
         () => [] as BlockEquipment[],
@@ -1063,7 +1082,7 @@ function noteDates(notes: Note[], notebookSlug?: string): Set<string> {
   for (const note of notes) {
     if (note.date === undefined) continue
     const wanted = notebookSlug === undefined ? 'notebook/journal' : `notebook/${notebookSlug}`
-    if (note.notebookId !== wanted) continue
+    if (note.notebookId !== wanted && !note.notebookIds?.includes(wanted)) continue
     keys.add(formatDateKey(new Date(note.date)))
   }
   return keys

@@ -49,8 +49,8 @@ export function StackedBar({ result, unit: unitProp }: StackedBarProps) {
     });
   }, [result]);
 
-  if (shape.kind !== 'timeseries' && shape.kind !== 'bars') {
-    return <WqlEmptyState result={result} />;
+  if ((shape.kind !== 'timeseries' && shape.kind !== 'bars') || data.length === 0) {
+    return <WqlEmptyState result={result} fallbackMessage="No stacked bar data available for this query." />;
   }
 
   return (

@@ -98,28 +98,34 @@ export interface TemplateOption {
   group: string
   groupKey?: string
   categories?: readonly string[]
+  date?: string
   isTemplateTagged?: boolean
 }
 
 function isResultsCategory(categories?: readonly string[], slug?: string, path?: string): boolean {
   if (categories?.some((c) => c.toLowerCase() === 'results')) return true
-  if (slug && (slug === 'results' || slug === 'athletics-results')) return true
+  if (slug && (slug === 'results' || slug === 'athletics-results' || slug.endsWith('-results'))) return true
   if (path && (path.startsWith('markdown/results/') || path.includes('/athletics-results/'))) return true
   return false
 }
 
-/** Curate template dropdown options: exclude results notebooks, cap unsearched items per group, and keep full search intact. */
+function isHistoricalLogTemplate(opt: TemplateOption): boolean {
+  if (opt.key === '' || opt.group === 'Your Notebook Notes' || opt.isTemplateTagged) return false
+  if (isResultsCategory(opt.categories, opt.groupKey, opt.key)) return true
+  if (opt.date && /^\d{4}-\d{2}-\d{2}$/.test(opt.date.trim())) return true
+  return false
+}
+
+/** Curate template dropdown options: prioritize user/template notes and exclude dated historical race-result logs from the default shortlist while keeping them searchable when filtering (WW-108 / WW-109). */
 export function curateTemplateOptions(
   allOptions: readonly TemplateOption[],
   rawQuery: string,
   maxPerGroup = 3,
   maxUnsearched = 30,
 ): { visibleTemplateOptions: TemplateOption[]; truncatedMatches: number } {
-  const curated = allOptions.filter(
-    (opt) => !isResultsCategory(opt.categories, opt.groupKey, opt.key),
-  )
   const q = rawQuery.trim().toLowerCase()
   if (!q) {
+    const curated = allOptions.filter((opt) => !isHistoricalLogTemplate(opt))
     const blank = curated.find((o) => o.key === '') ?? curated[0]
     const rest = curated.filter((o) => o !== blank)
     const userAndTagged = rest
@@ -141,16 +147,23 @@ export function curateTemplateOptions(
     const visible = [...(blank ? [blank] : []), ...userAndTagged, ...featured]
     return {
       visibleTemplateOptions: visible,
-      truncatedMatches: Math.max(0, curated.length - visible.length),
+      truncatedMatches: Math.max(0, allOptions.length - visible.length),
     }
   }
-  const matches = curated.filter(
+  const matches = allOptions.filter(
     (opt) => opt.label.toLowerCase().includes(q) || opt.group.toLowerCase().includes(q),
   )
+  const rank = (opt: TemplateOption): number => {
+    if (opt.key === '') return 0
+    if (opt.group === 'Your Notebook Notes' || opt.isTemplateTagged) return 1
+    if (!isHistoricalLogTemplate(opt)) return 2
+    return 3
+  }
+  const ranked = [...matches].sort((a, b) => rank(a) - rank(b))
   const MAX_RESULTS = 50
   return {
-    visibleTemplateOptions: matches.slice(0, MAX_RESULTS),
-    truncatedMatches: Math.max(0, matches.length - MAX_RESULTS),
+    visibleTemplateOptions: ranked.slice(0, MAX_RESULTS),
+    truncatedMatches: Math.max(0, ranked.length - MAX_RESULTS),
   }
 }
 
@@ -482,6 +495,7 @@ export function CreateJournalNoteDialog({
           group: group.name,
           groupKey: group.id,
           categories: group.categories,
+          ...(item.date ? { date: item.date } : {}),
         })
       }
     }

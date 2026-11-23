@@ -7,6 +7,8 @@ import { NextEvent } from '../../src/runtime/events/NextEvent';
 import { OutputEmitter } from '../../src/runtime/OutputEmitter';
 import { TimeSpan } from '../../src/runtime/models/TimeSpan';
 import { SpansMetric } from '../../src/runtime/compiler/metrics/SpansMetric';
+import { ReportOutputBehavior } from '../../src/runtime/behaviors/ReportOutputBehavior';
+import type { IBehaviorContext } from '../../src/runtime/contracts/IBehaviorContext';
 import type { IRuntimeBlock } from '../../src/runtime/contracts/IRuntimeBlock';
 import type { IRuntimeClock } from '../../src/runtime/contracts/IRuntimeClock';
 import type { IRuntimeStack } from '../../src/runtime/contracts/IRuntimeStack';
@@ -207,8 +209,158 @@ describe('WW-051: split TimeSpans & OutputEmitter span preservation', () => {
         .toArray()
         .find((m) => m.type === MetricType.CurrentRound);
       expect(roundMetric?.value).toBe(1);
+      expect(roundMetric?.image).toBe('Completed 1 Round(s)');
     } finally {
       runtime.dispose();
+    }
+  });
+
+  it('WW-105: aborting mid-Round 1 emits Completed 0 Round(s) and mid-Round 3 emits Completed 2 Round(s)', () => {
+    const runAndAbortDuringRound = (abortDuringRound: 1 | 3 | 'complete') => {
+      const t0 = 1_700_000_000_000;
+      const { nowProvider, advanceBy } = createSteppedNowProvider(t0);
+      const content = '3 Rounds\n  10 Burpees';
+      const parsed = new MdTimerRuntime().read(content);
+      const factory = new RuntimeFactory(createCompiler(), nowProvider);
+      const blockInput: ScriptBlock = {
+        id: `ww105-round-${abortDuringRound}`,
+        content,
+        statements: parsed.statements,
+        startLine: 0,
+        endLine: 2,
+        state: 'idle',
+        version: 1,
+        createdAt: t0,
+      };
+      const runtime = factory.createRuntime(blockInput);
+      if (!runtime) throw new Error('Expected runtime');
+
+      try {
+        // Pop WaitingToStart gate -> starts Round 1 of 3
+        runtime.handle(new NextEvent(undefined, nowProvider));
+        advanceBy(2_000);
+
+        if (abortDuringRound === 1) {
+          runtime.handle({ name: 'abort', timestamp: nowProvider.now(), data: {} });
+        } else if (abortDuringRound === 3) {
+          // Finish Round 1 -> Round 2
+          runtime.handle(new NextEvent(undefined, nowProvider));
+          advanceBy(2_000);
+          // Finish Round 2 -> Round 3
+          runtime.handle(new NextEvent(undefined, nowProvider));
+          advanceBy(2_000);
+          // Abort mid-Round 3 (2 rounds completed)
+          runtime.handle({ name: 'abort', timestamp: nowProvider.now(), data: {} });
+        } else {
+          // Complete all 3 rounds normally
+          runtime.handle(new NextEvent(undefined, nowProvider));
+          advanceBy(2_000);
+          runtime.handle(new NextEvent(undefined, nowProvider));
+          advanceBy(2_000);
+          runtime.handle(new NextEvent(undefined, nowProvider));
+        }
+
+        const outputs = runtime.getOutputStatements();
+        const roundsBlockSeg = outputs.find(
+          (o) =>
+            o.outputType === 'segment' &&
+            o.metrics.toArray().some((m) => m.type === MetricType.CurrentRound) &&
+            !o.metrics.toArray().some((m) => m.type === MetricType.Effort),
+        );
+        expect(roundsBlockSeg).toBeDefined();
+        return roundsBlockSeg!.metrics
+          .toArray()
+          .find((m) => m.type === MetricType.CurrentRound);
+      } finally {
+        runtime.dispose();
+      }
+    };
+
+    const midRound1 = runAndAbortDuringRound(1);
+    expect(midRound1?.value).toBe(0);
+    expect(midRound1?.image).toBe('Completed 0 Round(s)');
+
+    const midRound3 = runAndAbortDuringRound(3);
+    expect(midRound3?.value).toBe(2);
+    expect(midRound3?.image).toBe('Completed 2 Round(s)');
+
+    const fullComplete = runAndAbortDuringRound('complete');
+    expect(fullComplete?.value).toBe(3);
+    expect(fullComplete?.image).toBe('Completed 3 Round(s)');
+  });
+
+  it('WW-105: split-group blocks apply earlyTermination to CurrentRoundMetric on user-abort and timer-expired', () => {
+    const runSplitUnmount = (
+      currentRound: number,
+      totalRounds: number | undefined,
+      completionReason: string,
+    ) => {
+      const pushedResults: Array<readonly unknown[]> = [];
+      const group1 = MetricContainer.empty('split-rounds').add({
+        type: MetricType.Rep,
+        value: 10,
+        origin: 'parser',
+        image: '10',
+      });
+      const group2 = MetricContainer.empty('split-rounds').add({
+        type: MetricType.Rep,
+        value: 10,
+        origin: 'parser',
+        image: '10',
+      });
+      const now = new Date(10_000);
+      const block = {
+        key: { toString: () => 'split-rounds' },
+        blockType: 'Rounds',
+        label: '3 Rounds',
+        completionReason,
+        executionTiming: { startTime: new Date(5_000) },
+        getMemoryByTag: (tag: string) => {
+          if (tag === 'metric:display') return [{ metrics: group1 }, { metrics: group2 }];
+          if (tag === 'metric:result') return [];
+          return [];
+        },
+      } as unknown as IRuntimeBlock;
+
+      const ctx = {
+        block,
+        clock: { currentDate: now },
+        getMemoryByTag: (tag: string) => {
+          if (tag === 'round') {
+            return [{ metrics: [{ current: currentRound, total: totalRounds }] }];
+          }
+          if (tag === 'time') return [];
+          return [];
+        },
+        pushMemory: (_tag: string, metrics: unknown[]) => {
+          pushedResults.push(metrics);
+        },
+        updateMemory: () => {},
+      } as unknown as IBehaviorContext;
+
+      const behavior = new ReportOutputBehavior();
+      behavior.onUnmount(ctx);
+      return pushedResults;
+    };
+
+    const abortedR1 = runSplitUnmount(1, 3, 'user-abort');
+    expect(abortedR1).toHaveLength(2);
+    for (const group of abortedR1) {
+      const roundMetric = (group as Array<{ type: string; value: number; image: string }>).find(
+        (m) => m.type === MetricType.CurrentRound,
+      );
+      expect(roundMetric?.value).toBe(0);
+      expect(roundMetric?.image).toBe('Completed 0 Round(s)');
+    }
+
+    const expiredR3 = runSplitUnmount(3, undefined, 'timer-expired');
+    expect(expiredR3).toHaveLength(2);
+    for (const group of expiredR3) {
+      const roundMetric = (group as Array<{ type: string; value: number; image: string }>).find(
+        (m) => m.type === MetricType.CurrentRound,
+      );
+      expect(roundMetric?.value).toBe(2);
+      expect(roundMetric?.image).toBe('Completed 2 Round(s)');
     }
   });
 });
