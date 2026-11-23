@@ -867,10 +867,21 @@ export async function clickStreamAdd(page: Page): Promise<void> {
 
 export async function openL3Surface(page: Page): Promise<Locator> {
   const inlineRail = page.getByTestId(TEST_IDS.L3_INLINE_RAIL);
+  const desktopTrigger = page.getByTestId('l3-drawer-trigger');
+  const mobileOverflow = page.getByTestId(TEST_IDS.ACTIONS_OVERFLOW);
+
+  // Wait for an L3 surface or trigger to mount after client-side navigation/hydration
+  // before falling back to document body.
+  await inlineRail
+    .or(desktopTrigger)
+    .or(mobileOverflow)
+    .first()
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .catch(() => {});
+
   if (await inlineRail.isVisible().catch(() => false)) {
     return inlineRail;
   }
-  const desktopTrigger = page.getByTestId('l3-drawer-trigger');
   if (await desktopTrigger.isVisible().catch(() => false)) {
     const drawer = page.getByTestId(TEST_IDS.L3_RIGHT_DRAWER);
     if (!(await drawer.isVisible().catch(() => false))) {
@@ -879,7 +890,6 @@ export async function openL3Surface(page: Page): Promise<Locator> {
     await expect(drawer).toBeVisible({ timeout: 5_000 });
     return drawer;
   }
-  const mobileOverflow = page.getByTestId(TEST_IDS.ACTIONS_OVERFLOW);
   if (await mobileOverflow.isVisible().catch(() => false)) {
     const sheet = page.getByTestId(TEST_IDS.ACTIONS_SHEET_L3);
     if (!(await sheet.isVisible().catch(() => false))) {
