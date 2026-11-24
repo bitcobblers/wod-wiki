@@ -148,11 +148,12 @@ When any E2E suite fails:
 
 ## Helios external-agent operational notes
 
-The reference implementation runs on the Helios workstation (`itsme@helios`), nightly plus per staged build:
+The reference implementation is orchestrated by **n8n** (`n8n.golos.casa`) with containerized E2E workers on the Helios/Belter-2 Docker Swarm:
 
-- Env: `bun` at `~/.bun/bin/bun` (not on default PATH), repo clone `/srv/nfs/helios/docker-shared/repos/wod-wiki`, Playwright browsers via `bun x playwright install chromium webkit` **and** `bun x playwright install-deps webkit`, workspace packages via `bun run build:packages:runtime`.
-- Scripts (`/srv/nfs/helios/dogfood/wod-wiki/qa-gate/`): `qa-gate.sh` (nightly advisory E2E + ledger check) and `qa-readiness.sh` (promotion verdict: the four suites above plus a quick dogfood on the domains touched since the last release tag, and a critical-findings check). On PASS it writes `e2e/main-staging=success` and **moves the `prod` tag**; on FAIL it writes `failure` and opens a labeled issue. Verdicts are append-only in `history.jsonl`.
-- Suite strategy: smoke + storybook + webkit run on every assessment (~6 min on an SBC); the full journal suite runs nightly through the same agent or on demand — CI `preview-e2e.yml` shards remain the reference full-journal run.
-- Quick dogfood: domains derived from `git log <last release tag>..<SHA>` path matching (journal/notebooks/runtime/properties/analytics/feeds), smoke missions against `main.preview.wod.wiki`. Any `severity: Critical` finding blocks promotion; deploy/CI-only diffs skip the dogfood phase.
-- `deploy-prod.yml` additionally requires the `e2e/main-staging=success` status before publishing (defense in depth against a manual `prod` tag); `workflow_dispatch` with `force: true` bypasses the check for emergencies.
-- Reports are served read-only at `https://qa.forest-adhara.ts.net/qa-gate/` (`qa-report.md`, `readiness-report.md`, `history.jsonl`).
+- **Webhook-driven orchestration**: `Handle WOD GitHub Webhook` + `Finalize WOD Release Readiness` in n8n receive native GitHub `workflow_run` webhooks (no Tailscale, MQTT, or S3 build-summary push from GitHub Actions).
+- **Parallel containerized E2E suites**: `smoke`, `storybook`, and `webkit` run concurrently as Docker Swarm jobs (`10.1.0.30:5000/wodwiki-e2e:latest`) on Helios/Belter-2, uploading suite logs and JUnit XML artifacts to `https://s3.golos.casa/qa-runs/`.
+- **PASS verdict**: `Finalize WOD Release Readiness` writes `e2e/main-staging=success` and **moves `refs/tags/prod`** to `$SHA`, triggering `deploy-prod.yml`.
+- **FAIL verdict & RCA**: On failure, `Finalize WOD Release Readiness` writes `e2e/main-staging=failure` (blocking promotion), and the `WOD Release Failure Analyst` n8n Agent analyzes the suite logs and commit diff (fetched via the GitHub API) and uploads a structured research brief to `https://s3.golos.casa/to-muse/`.
+- **Nightly dogfooding**: Runs via n8n Agents (`WOD QA Lead` + `WOD Defect Triager`) backed by n8n Data Tables (`qa_issues`, `qa_runs`, `qa_focus_requests`) instead of Helios Hermes crons and flat `known-issues.json`.
+- **Lab LED telemetry**: Status events (`qa/wod-wiki/events`) for `main.yml`, readiness E2E, dogfood, and `deploy-prod.yml` are emitted directly by n8n's native MQTT sub-workflow (`Emit QA LED Status`).
+- **Defense in depth**: `deploy-prod.yml` still requires the `e2e/main-staging=success` commit status before publishing (protecting against a manual `prod` tag); `workflow_dispatch` with `force: true` remains available as an emergency bypass.

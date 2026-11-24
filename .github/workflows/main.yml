@@ -1,11 +1,12 @@
 name: Build & Stage – Main
 
 # Merge To Main pipeline (step 1 of 2):
-#   Slug (main + version) → [ Build Verify | Build Deploy Playground -> s3 | Build Deploy Storybook -> s3 ]
+#   Slug (main + version) → [ Build Verify | Build Deploy Playground -> s3 | Build Deploy Storybook -> s3 | Build Deploy Ontology -> s3 ]
 #
-# E2E testing against S3 staging (main.preview.wod.wiki + main.story.wod.wiki)
-# is executed externally. Once E2E passes, tagging the commit `prod` triggers
-# deploy-prod.yml (step 2) to publish the staged artifacts to wod.wiki and npm.
+# Upon completion, GitHub's native `workflow_run` webhook notifies external n8n QA
+# readiness, which runs parallel staging E2E suites against S3 staging
+# (main.preview.wod.wiki + main.story.wod.wiki) and moves the `prod` tag on PASS,
+# triggering deploy-prod.yml (step 2) to publish staged artifacts to wod.wiki and npm.
 
 on:
   push:
@@ -19,26 +20,6 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  notify-ha-start:
-    name: Notify Home Assistant (build started)
-    runs-on: ubuntu-22.04
-    if: always()
-    steps:
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          authkey: ${{ secrets.TS_AUTHKEY }}
-      - name: Publish ci/running QA event
-        env:
-          TAILNET_MQTT_PASSWORD: ${{ secrets.TAILNET_MQTT_PASSWORD }}
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq >/dev/null 2>&1 || true
-          sudo apt-get install -y -qq mosquitto-clients >/dev/null 2>&1 || true
-          export SHORT=${GITHUB_SHA:0:7} STATUS=running
-          PAYLOAD=$(node -e 'console.log(JSON.stringify({kind:"ci",status:process.env.STATUS,title:`main.yml build #${process.env.GITHUB_RUN_ID} started @ ${process.env.SHORT}`,sha:process.env.GITHUB_SHA,run_id:process.env.GITHUB_RUN_ID,url:`https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,source:"github-actions",ts:new Date().toISOString()}))')
-          timeout 20 mosquitto_pub -h mqtt.forest-adhara.ts.net -u qa -P "${TAILNET_MQTT_PASSWORD}" -t qa/wod-wiki/events -m "$PAYLOAD" || echo "::warning::HA event emit failed (non-fatal)"
-
   slug:
     name: Slug
     runs-on: ubuntu-22.04
@@ -137,44 +118,37 @@ jobs:
     with:
       slug: ${{ needs.slug.outputs.slug }}
 
-  push-build-diff:
-    name: Push Build Summary -> Tailscale S3
-    if: always()
-    needs: [slug, build-verify, deploy-playground, deploy-storybook, deploy-ontology]
-    uses: ./.github/workflows/_push-build-diff.yml
-    secrets: inherit
-    with:
-      version: ${{ needs.slug.outputs.version }}
-      tag: ${{ needs.slug.outputs.tag }}
-      slug: ${{ needs.slug.outputs.slug || 'main' }}
-      bundle-hash: ${{ needs.deploy-playground.outputs.bundle-hash }}
-      slug-result: ${{ needs.slug.result }}
-      build-verify-result: ${{ needs.build-verify.result }}
-      packages-status: ${{ needs.build-verify.outputs.packages-status }}
-      playground-status: ${{ needs.build-verify.outputs.playground-status }}
-      storybook-status: ${{ needs.build-verify.outputs.storybook-status }}
-      deploy-playground-result: ${{ needs.deploy-playground.result }}
-      deploy-storybook-result: ${{ needs.deploy-storybook.result }}
-      deploy-ontology-result: ${{ needs.deploy-ontology.result }}
-
   summary:
     name: Staging Summary
     if: always()
     runs-on: ubuntu-22.04
-    needs: [slug, build-verify, deploy-playground, deploy-storybook, deploy-ontology, push-build-diff]
+    needs: [slug, build-verify, deploy-playground, deploy-storybook, deploy-ontology]
     steps:
       - name: Write staging summary
+        env:
+          SLUG_RESULT: ${{ needs.slug.result }}
+          BUILD_VERIFY_RESULT: ${{ needs.build-verify.result }}
+          DEPLOY_PLAYGROUND_RESULT: ${{ needs.deploy-playground.result }}
+          DEPLOY_STORYBOOK_RESULT: ${{ needs.deploy-storybook.result }}
+          DEPLOY_ONTOLOGY_RESULT: ${{ needs.deploy-ontology.result }}
         run: |
+          OVERALL_STATUS="failed"
+          if [ "$SLUG_RESULT" = "success" ] && \
+             [ "$BUILD_VERIFY_RESULT" = "success" ] && \
+             [ "$DEPLOY_PLAYGROUND_RESULT" = "success" ] && \
+             [ "$DEPLOY_STORYBOOK_RESULT" = "success" ] && \
+             [ "$DEPLOY_ONTOLOGY_RESULT" = "success" ]; then
+            OVERALL_STATUS="passed"
+          fi
+
           cat <<EOF >> "$GITHUB_STEP_SUMMARY"
-          ## Main staging build (${{ needs.push-build-diff.outputs.overall-status || 'unknown' }})
+          ## Main staging build (${OVERALL_STATUS})
 
           - Version: \`${{ needs.slug.outputs.version }}\` (\`${{ needs.slug.outputs.tag }}\`)
           - Commit: \`${{ github.sha }}\`
           - Playground S3 staging: https://main.preview.wod.wiki
           - Storybook S3 staging: https://main.story.wod.wiki
           - Bundle hash: \`${{ needs.deploy-playground.outputs.bundle-hash }}\`
-          - Build summary (Markdown): \`${{ needs.push-build-diff.outputs.summary-path }}\`
-          - Build summary (JSON): \`${{ needs.push-build-diff.outputs.summary-json-path }}\`
           - Artifacts uploaded: \`packages-dist\`, \`playground-dist\`
 
           ### Job Results
