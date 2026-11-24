@@ -1,0 +1,257 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-23T18:26:00-05:00",
+  "title": "Design System: WOD Wiki",
+  "extensions": {
+    "colorMeta": {
+      "mineral-primary": {
+        "role": "primary",
+        "displayName": "Mineral Slate",
+        "canonical": "hsl(212 32% 42%)",
+        "tonalRamp": [
+          "hsl(212 36% 18%)",
+          "hsl(212 35% 26%)",
+          "hsl(212 34% 34%)",
+          "hsl(212 32% 42%)",
+          "hsl(212 30% 54%)",
+          "hsl(212 28% 68%)",
+          "hsl(212 24% 82%)",
+          "hsl(212 22% 94%)"
+        ]
+      },
+      "mineral-background": {
+        "role": "neutral",
+        "displayName": "Mineral Cream Canvas",
+        "canonical": "hsl(40 20% 96%)",
+        "tonalRamp": [
+          "hsl(30 16% 15%)",
+          "hsl(30 14% 28%)",
+          "hsl(30 13% 42%)",
+          "hsl(34 14% 58%)",
+          "hsl(36 14% 76%)",
+          "hsl(38 18% 90%)",
+          "hsl(40 20% 96%)",
+          "hsl(40 38% 98%)"
+        ]
+      },
+      "frost-background": {
+        "role": "neutral",
+        "displayName": "Arctic Frost Polar Night",
+        "canonical": "hsl(222 16% 21%)",
+        "tonalRamp": [
+          "hsl(222 18% 12%)",
+          "hsl(222 18% 18%)",
+          "hsl(222 16% 21%)",
+          "hsl(222 17% 28%)",
+          "hsl(218 17% 36%)",
+          "hsl(219 14% 54%)",
+          "hsl(219 14% 66%)",
+          "hsl(218 22% 86%)"
+        ]
+      },
+      "mineral-accent": {
+        "role": "secondary",
+        "displayName": "Ochre Highlight",
+        "canonical": "hsl(46 42% 85%)",
+        "tonalRamp": [
+          "hsl(46 54% 20%)",
+          "hsl(46 52% 28%)",
+          "hsl(46 52% 37%)",
+          "hsl(46 48% 50%)",
+          "hsl(46 44% 64%)",
+          "hsl(46 42% 76%)",
+          "hsl(46 42% 85%)",
+          "hsl(46 38% 94%)"
+        ]
+      },
+      "metric-effort": {
+        "role": "tertiary",
+        "displayName": "Moss Green (Effort)",
+        "canonical": "hsl(140 32% 36%)",
+        "tonalRamp": [
+          "hsl(140 34% 16%)",
+          "hsl(140 34% 24%)",
+          "hsl(140 32% 36%)",
+          "hsl(140 28% 46%)",
+          "hsl(140 26% 58%)",
+          "hsl(140 24% 72%)",
+          "hsl(140 22% 84%)",
+          "hsl(140 20% 94%)"
+        ]
+      },
+      "metric-rep": {
+        "role": "tertiary",
+        "displayName": "Raw Sienna (Rep)",
+        "canonical": "hsl(30 48% 38%)",
+        "tonalRamp": [
+          "hsl(30 50% 18%)",
+          "hsl(30 48% 28%)",
+          "hsl(30 48% 38%)",
+          "hsl(30 44% 50%)",
+          "hsl(30 40% 62%)",
+          "hsl(30 36% 74%)",
+          "hsl(30 32% 86%)",
+          "hsl(30 28% 94%)"
+        ]
+      },
+      "metric-resistance": {
+        "role": "tertiary",
+        "displayName": "Terracotta (Resistance)",
+        "canonical": "hsl(0 36% 43%)",
+        "tonalRamp": [
+          "hsl(0 38% 18%)",
+          "hsl(0 36% 30%)",
+          "hsl(0 36% 43%)",
+          "hsl(0 34% 54%)",
+          "hsl(0 32% 66%)",
+          "hsl(0 28% 78%)",
+          "hsl(0 24% 88%)",
+          "hsl(0 20% 95%)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page hero titles and brand headers." },
+      "headline": { "displayName": "Headline", "purpose": "View and section headers." },
+      "title": { "displayName": "Title", "purpose": "Card titles, dialog headers, notebook titles." },
+      "body": { "displayName": "Body", "purpose": "Primary UI prose and note previews (65-75ch)." },
+      "label": { "displayName": "Label", "purpose": "Compact metadata labels, uppercase triggers, badges (>=12px)." },
+      "mono": { "displayName": "Mono / Timer", "purpose": "Whiteboard Language scripts, WQL queries, and tabular-nums clocks." },
+      "editorial": { "displayName": "Editorial Serif", "purpose": "Long-form guides and narrative canvas prose." }
+    },
+    "shadows": [
+      {
+        "name": "card-hairline",
+        "value": "0 1px 2px rgba(0, 0, 0, 0.04)",
+        "purpose": "Subtle micro-separation on token swatches or interactive pills."
+      },
+      {
+        "name": "tv-focus-halo",
+        "value": "0 0 0 3px hsl(var(--card) / 0.9), 0 0 0 6px hsl(var(--primary) / 0.7), 0 0 20px 4px hsl(var(--primary) / 0.35)",
+        "purpose": "10-foot Chromecast D-pad spatial navigation focus ring."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-transition",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Default hover, focus, and tonal pill transitions."
+      },
+      {
+        "name": "tv-activate-pulse",
+        "value": "250ms ease-out",
+        "purpose": "Element-level confirmation pulse on TV D-pad select."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "2xl", "value": "1520px" },
+      { "name": "3xl", "value": "1800px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary operational action button using Mineral Slate / Nord Frost Blue.",
+      "html": "<button type=\"button\" class=\"ds-btn-primary\">Start Workout</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid hsl(var(--primary, 212 32% 42%)); background: hsl(var(--primary, 212 32% 42%)); color: hsl(var(--primary-foreground, 40 38% 98%)); font-family: var(--font-sans, system-ui, sans-serif); font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity 150ms ease, background-color 150ms ease; } .ds-btn-primary:hover { opacity: 0.9; } .ds-btn-primary:focus-visible { outline: 2px solid hsl(var(--ring, 212 32% 50%)); outline-offset: 2px; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary framed action with WCAG 3:1 accessible field border.",
+      "html": "<button type=\"button\" class=\"ds-btn-outline\">Add to Today</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid hsl(var(--field-border, 30 12% 50%)); background: hsl(var(--card, 40 38% 98%)); color: hsl(var(--foreground, 30 16% 15%)); font-family: var(--font-sans, system-ui, sans-serif); font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color 150ms ease; } .ds-btn-outline:hover { background: hsl(var(--muted, 38 18% 90%)); } .ds-btn-outline:focus-visible { outline: 2px solid hsl(var(--ring, 212 32% 50%)); outline-offset: 2px; }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "High-consequence destructive action gated by confirmation dialogs.",
+      "html": "<button type=\"button\" class=\"ds-btn-destructive\">Delete Note</button>",
+      "css": ".ds-btn-destructive { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid hsl(var(--destructive, 0 34% 48%)); background: hsl(var(--destructive, 0 34% 48%)); color: #ffffff; font-family: var(--font-sans, system-ui, sans-serif); font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity 150ms ease; } .ds-btn-destructive:hover { opacity: 0.9; } .ds-btn-destructive:focus-visible { outline: 2px solid hsl(var(--ring, 212 32% 50%)); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Accessible text field with 3:1 border and 4.5:1 placeholder contrast.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Fran — 21-15-9\" value=\"\" aria-label=\"Workout title\" />",
+      "css": ".ds-input { width: 100%; height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid hsl(var(--field-border, 30 12% 50%)); background: hsl(var(--card, 40 38% 98%)); color: hsl(var(--foreground, 30 16% 15%)); font-family: var(--font-sans, system-ui, sans-serif); font-size: 14px; } .ds-input::placeholder { color: hsl(var(--field-placeholder, 30 12% 42%)); } .ds-input:focus-visible { outline: 2px solid hsl(var(--ring, 212 32% 50%)); outline-offset: 2px; }"
+    },
+    {
+      "name": "Whiteboard Metric Pill",
+      "kind": "chip",
+      "refersTo": "badge-default",
+      "description": "Deterministic semantic metric fragment pill for parsed workout tokens.",
+      "html": "<div class=\"ds-metric-row\"><span class=\"ds-metric-pill ds-metric-effort\">Thrusters</span><span class=\"ds-metric-pill ds-metric-rep\">21 Reps</span><span class=\"ds-metric-pill ds-metric-resistance\">@95lb</span></div>",
+      "css": ".ds-metric-row { display: inline-flex; flex-wrap: wrap; gap: 6px; } .ds-metric-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 6px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-metric-effort { color: hsl(var(--metric-effort, 140 32% 36%)); background: hsl(var(--metric-effort, 140 32% 36%) / 0.14); border: 1px solid hsl(var(--metric-effort, 140 32% 36%) / 0.4); } .ds-metric-rep { color: hsl(var(--metric-rep, 30 48% 38%)); background: hsl(var(--metric-rep, 30 48% 38%) / 0.14); border: 1px solid hsl(var(--metric-rep, 30 48% 38%) / 0.4); } .ds-metric-resistance { color: hsl(var(--metric-resistance, 0 36% 43%)); background: hsl(var(--metric-resistance, 0 36% 43%) / 0.14); border: 1px solid hsl(var(--metric-resistance, 0 36% 43%) / 0.4); }"
+    },
+    {
+      "name": "Workout Card Surface",
+      "kind": "card",
+      "refersTo": "card-surface",
+      "description": "Flat, tonally lifted card container with 1px hairline border.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Fran</div><div class=\"ds-card-meta\">21-15-9 Thrusters @95lb &amp; Pull-ups</div></div>",
+      "css": ".ds-card { border-radius: 16px; border: 1px solid hsl(var(--border, 36 14% 76%)); background: hsl(var(--card, 40 38% 98%)); color: hsl(var(--foreground, 30 16% 15%)); padding: 16px 20px; font-family: var(--font-sans, system-ui, sans-serif); } .ds-card-title { font-size: 16px; font-weight: 600; letter-spacing: -0.015em; } .ds-card-meta { margin-top: 4px; font-size: 13px; color: hsl(var(--muted-foreground, 30 13% 37%)); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Geological Field Notebook",
+    "overview": "WOD Wiki is an operational training workspace that bridges two demanding environments: calm, focused plain-text authoring and WQL analysis at a desk, and high-legibility, sweaty-hand-proof live workout execution on a phone or gym-wall TV. The visual system draws from geological survey palettes and technical field notebooks—warm, paper-like cream surfaces in light mode (Mineral) and low-glare polar night surfaces in dark mode (Arctic Frost)—so color is reserved for meaning rather than decoration.\n\nEvery parsed workout fragment (Time, Rep, Effort, Rounds, Distance, Resistance, Action, Rest, Equipment) maps deterministically to one of nine calibrated semantic metric hues. Surfaces stay quiet and flat by default; interaction state, live clock polarity, and metric origin carry the visual signal. All design tokens live in a single canonical stylesheet (packages/ui/src/styles.css) consumed identically by Playground, Storybook, and the @bitcobblers/wod-wiki-ui package.",
+    "keyCharacteristics": [
+      "Dual calibrated palettes: warm geological Mineral (light) and Nord-inspired Arctic Frost (dark), flipped exclusively via <html class=\"dark\">",
+      "Nine WCAG AA-calibrated Whiteboard Language metric tokens shared across CodeMirror syntax, inline previews, live timers, and WQL analytics",
+      "Tactile, touch-safe @ui-sdk/react primitives (40px default, 44px icon/mobile targets) with browser top-layer overlays",
+      "Tabular monospace numerals (tabular-nums) for all timers, splits, loads, and telemetry tables",
+      "Three container-driven timer tiers (Minimal phone, General 16:9 TV, Detail desktop workbench) backed by one SessionClockProjection"
+    ],
+    "rules": [
+      {
+        "name": "The Root-Host Dark Mode Rule",
+        "body": "The .dark class lives strictly on <html> (document.documentElement), never on an inner wrapper <div>. Because @theme inline emits hsl(var(--token)) per element, root toggling guarantees portals, top-layer dialogs, and Storybook canvases flip atomically.",
+        "section": "colors"
+      },
+      {
+        "name": "The Semantic Token Only Rule",
+        "body": "Never hardcode hex values or raw Tailwind grays (bg-slate-900, text-zinc-400, rgba(128,128,128,...)) in components or stylesheets. Every surface, text, border, and metric badge resolves through semantic CSS custom properties.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Numerals Rule",
+        "body": "Every live clock, split time, rep count, load value, and numeric table column must apply tabular-nums so digits never jitter horizontally during workout execution.",
+        "section": "typography"
+      },
+      {
+        "name": "The 16px Mobile Input Floor",
+        "body": "On viewports below 1024px, CodeMirror editors and text inputs render at a minimum 16px font size to prevent iOS Safari auto-zoom mid-workout.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Rest-state containers use tonal contrast and 1px borders—never combine heavy drop shadows with borders on standard cards.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do toggle dark mode strictly on <html> (document.documentElement.classList.toggle('dark')) so @theme inline tokens and top-layer overlays stay synchronized.",
+      "Do use @bitcobblers/wod-wiki-ui/primitives for all buttons, fields, selects, switches, tabs, dialogs, drawers, popovers, menus, and toasts.",
+      "Do apply tabular-nums to all clocks, durations, rep counts, weights, and analytics KPIs.",
+      "Do keep packages/ui state-free and storage-agnostic (inject QueryExecutor and callbacks via props).",
+      "Do respect prefers-reduced-motion: reduce (and [data-reduced-motion=\"true\"] in Storybook) for all non-essential animations."
+    ],
+    "donts": [
+      "Don't place .dark on an inner wrapper <div>—it breaks top-layer portals and @theme inline inheritance.",
+      "Don't hardcode raw Tailwind grays (bg-slate-900, text-zinc-400), hex colors, or font-family: \"Inter\" in components or app CSS.",
+      "Don't invent ad-hoc badge colors for workout fragments—always map through the 9 --metric-* semantic tokens.",
+      "Don't drop interactive touch targets below 44x44px on mobile or active workout timer surfaces.",
+      "Don't render modal dialogs for tasks that can be handled inline or via progressive disclosure."
+    ]
+  }
+}

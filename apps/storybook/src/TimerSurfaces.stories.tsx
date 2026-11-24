@@ -1,16 +1,9 @@
 /**
- * Timer Surface Gallery — the two new timer tiers side by side:
+ * Track / Timer Surfaces — Minimal (Phone) & General (Chromecast TV 16:9) tiers.
  *
- * - Minimal (Tier 1): mobile fullscreen timer. Status strip + hero clock +
- *   control triad; no chips, no history.
- * - General (Tier 2): Chromecast receiver default. Adds the top bar
- *   (session, workout title, receiver indicators) and secondary chips.
- *
- * Both render the shared TimerCore (hero clock, Stop/Pause/Next, up-next
- * caption on Next) over static fixture models — no runtime needed. The
- * Detail tier (TimerStackView) keeps its own stories.
- *
- * Design: Kimi_Agent_WOD Timer UI Prototypes/app/index.html.
+ * Uses Storybook's real Viewport presets (`mobilePortrait` 375x812 and
+ * `chromecastTv` 1920x1080) instead of inner double-framed device bezels so
+ * responsive layout and 10-foot legibility can be tested accurately.
  */
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MinimalTimerSurface } from '@/components/organisms/workout/MinimalTimerSurface';
@@ -18,8 +11,7 @@ import { GeneralTimerSurface } from '@/components/organisms/workout/GeneralTimer
 import type { TimerSurfaceModel } from '@/components/organisms/workout/useTimerSurfaceModel';
 
 const meta: Meta<TimerSurfaceModel & { workoutTitle?: string; showPrompts?: boolean }> = {
-  id: 'gallery-timer-surfaces',
-  title: 'Playground/Organisms/Workout/Timer Surfaces',
+  title: 'Track/Timer Surfaces',
   parameters: { layout: 'fullscreen', domainState: 'activeSession' },
   args: {
     mainLabel: 'Rest',
@@ -73,7 +65,6 @@ const workModel: TimerSurfaceModel = {
   upNext: 'Pull-ups',
 };
 
-// Display-only handlers: the surfaces are the subject, not the actions.
 const handlers = {
   onStart: () => {},
   onPause: () => {},
@@ -82,24 +73,33 @@ const handlers = {
 };
 
 export const MinimalRest: StoryObj<typeof meta> = {
+  parameters: {
+    viewport: { defaultViewport: 'mobilePortrait' },
+  },
   args: { ...restModel },
   render: (args) => (
-    <div className="mx-auto h-[780px] w-[min(390px,100%)] overflow-hidden rounded-[2rem] border border-border bg-background">
+    <div className="h-screen w-full overflow-hidden bg-background">
       <MinimalTimerSurface model={{ ...restModel, ...args }} {...handlers} />
     </div>
   ),
 };
 
 export const MinimalWork: StoryObj<typeof meta> = {
+  parameters: {
+    viewport: { defaultViewport: 'mobilePortrait' },
+  },
   args: { ...workModel },
   render: (args) => (
-    <div className="mx-auto h-[780px] w-[min(390px,100%)] overflow-hidden rounded-[2rem] border border-border bg-background">
+    <div className="h-screen w-full overflow-hidden bg-background">
       <MinimalTimerSurface model={{ ...workModel, ...args }} {...handlers} />
     </div>
   ),
 };
 
 export const GeneralTv: StoryObj<typeof meta> = {
+  parameters: {
+    viewport: { defaultViewport: 'chromecastTv' },
+  },
   args: { ...restModel, workoutTitle: 'Helen' },
   render: (args) => (
     <div className="aspect-video w-full overflow-hidden bg-background">
@@ -109,6 +109,9 @@ export const GeneralTv: StoryObj<typeof meta> = {
 };
 
 export const GeneralTvWork: StoryObj<typeof meta> = {
+  parameters: {
+    viewport: { defaultViewport: 'chromecastTv' },
+  },
   args: { ...workModel, workoutTitle: 'Helen' },
   render: (args) => (
     <div className="aspect-video w-full overflow-hidden bg-background">
@@ -127,15 +130,21 @@ const promptRow = (
 );
 
 export const MinimalPrompts: StoryObj<typeof meta> = {
+  parameters: {
+    viewport: { defaultViewport: 'mobilePortrait' },
+  },
   args: { ...restModel },
   render: (args) => (
-    <div className="mx-auto h-[780px] w-[min(390px,100%)] overflow-hidden rounded-[2rem] border border-border bg-background">
+    <div className="h-screen w-full overflow-hidden bg-background">
       <MinimalTimerSurface model={{ ...restModel, ...args }} promptRow={promptRow} {...handlers} />
     </div>
   ),
 };
 
 export const GeneralPrompts: StoryObj<typeof meta> = {
+  parameters: {
+    viewport: { defaultViewport: 'chromecastTv' },
+  },
   args: { ...restModel, workoutTitle: 'Helen' },
   render: (args) => (
     <div className="aspect-video w-full overflow-hidden bg-background">

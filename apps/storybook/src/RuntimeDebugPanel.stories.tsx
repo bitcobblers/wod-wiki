@@ -71,7 +71,7 @@ function RuntimeDebugHarness({ script, mountRuntime }: DebugPanelStoryArgs) {
 }
 
 const meta: Meta<DebugPanelStoryArgs> = {
-  title: 'Playground/Organisms/Workout/RuntimeDebugPanel',
+  title: 'Track/Runtime Debug Panel',
   component: RuntimeDebugHarness,
   args: {
     script: DEFAULT_SCRIPT,

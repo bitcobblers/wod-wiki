@@ -1,10 +1,10 @@
 import { Meta } from '@storybook/addon-docs/blocks';
 
-<Meta title="Shared Resources/Fixtures & Gallery" />
+<Meta title="Workbench/Resources/Fixtures & Gallery" />
 
 # Shared Fixtures & Gallery Architecture
 
-Component stories in **Packages / UI** and **Playground** run in-memory without IndexedDB overhead. They share three deterministic fixture layers colocated in `apps/storybook/src/` and guarded by unit tests in `apps/storybook/test/`.
+Component stories in **Plan**, **Track**, and **Analyze** run in-memory without IndexedDB overhead. They share three deterministic fixture layers colocated in `apps/storybook/src/` and guarded by unit tests in `apps/storybook/test/`.
 
 ---
 
@@ -49,7 +49,7 @@ The WQL and analytics stories (`WqlComposer`, `DashboardView`, `QueryBlockView`,
 - **`buildServiceForJournal(journal)`** (`apps/storybook/src/gallery/journals.ts`): Returns a ready-to-query `QueryService` backed by `inMemoryEventStore`, `deriveBlockIndex(journal)`, and `bundledEfforts`.
 - **`GALLERY_CARDS` & `SECTION_META`** (`apps/storybook/src/gallery/galleryManifest.ts`): Typed manifest of curated WQL cards covering every `DASHBOARD_WIDGET_TYPE`, all 7 aggregators, `by {day}` / `by {week}` rollups, unit conversions (`kg`/`lb`), `:rows`, `:find`, and error/loading edge states.
 - **Mechanical Guard**: `apps/storybook/test/galleryManifest.test.ts` fails if any widget type, aggregator, journal, or query family loses coverage.
-- **Interactive Story**: <a href="?path=/story/gallery-wql-example-gallery--auto-inference"><code>Packages / UI / Blocks / WQL Example Gallery</code></a>.
+- **Interactive Story**: <a href="?path=/story/analyze-wql-wql-example-gallery--auto-inference"><code>Analyze / WQL / WQL Example Gallery</code></a>.
 
 ---
 

@@ -1,6 +1,6 @@
 import { Meta } from '@storybook/addon-docs/blocks';
 
-<Meta title="Playground/Overview" />
+<Meta title="Plan/Overview" />
 
 # Playground Overview — Content Types, Views & Navigation
 
@@ -22,54 +22,74 @@ Every Playground surface in Storybook maps directly to its source tier in `apps/
   </thead>
   <tbody>
     <tr>
-      <td><strong>Molecules · Result List Item</strong></td>
-      <td><a href="?path=/story/playground-molecules-resultlistitem--single-result-row"><code>Playground / Molecules / ResultListItem</code></a></td>
-      <td><code>apps/playground/src/components/molecules/ResultListItem.tsx</code></td>
-    </tr>
-    <tr>
-      <td><strong>Molecules · Record Type Icons</strong></td>
-      <td><a href="?path=/story/gallery-record-type-icons--all-record-types"><code>Playground / Molecules / Record Type Icons</code></a></td>
-      <td><code>apps/playground/src/components/molecules/DefaultListItem.tsx</code></td>
-    </tr>
-    <tr>
-      <td><strong>Organisms · Editor · NoteEditor</strong></td>
-      <td><a href="?path=/story/screens--universal-note-editor"><code>Playground / Organisms / Editor / NoteEditor</code></a></td>
+      <td><strong>Editor · NoteEditor</strong></td>
+      <td><a href="?path=/story/plan-editor-noteeditor--universal-note-editor"><code>Plan / Editor / NoteEditor</code></a></td>
       <td><code>apps/playground/src/components/organisms/editor/NoteEditor.tsx</code></td>
     </tr>
     <tr>
-      <td><strong>Organisms · Workout · RuntimeDebugPanel</strong></td>
-      <td><a href="?path=/story/playground-organisms-workout-runtimedebugpanel--embedded-debugger"><code>Playground / Organisms / Workout / RuntimeDebugPanel</code></a></td>
-      <td><code>apps/playground/src/components/organisms/workout/RuntimeDebugPanel.tsx</code></td>
+      <td><strong>Editor · WhiteboardSyntaxEditor</strong></td>
+      <td><a href="?path=/story/plan-editor-whiteboardsyntaxeditor--option-a-anchored-inspector"><code>Plan / Editor / WhiteboardSyntaxEditor</code></a></td>
+      <td><code>apps/playground/src/components/organisms/editor/NoteEditor.tsx</code>, <code>whiteboard-inspector/</code></td>
     </tr>
     <tr>
-      <td><strong>Organisms · Workout · Timer Surfaces</strong></td>
-      <td><a href="?path=/story/gallery-timer-surfaces--minimal-rest"><code>Playground / Organisms / Workout / Timer Surfaces</code></a></td>
-      <td><code>apps/playground/src/components/organisms/workout/MinimalTimerSurface.tsx</code>, <code>GeneralTimerSurface.tsx</code></td>
-    </tr>
-    <tr>
-      <td><strong>Organisms · Workout · Fullscreen Timer</strong></td>
-      <td><a href="?path=/story/gallery-timer-screen--countdown"><code>Playground / Organisms / Workout / Fullscreen Timer</code></a></td>
-      <td><code>apps/playground/src/components/organisms/review/FullscreenTimer.tsx</code></td>
-    </tr>
-    <tr>
-      <td><strong>Views · LibraryRow &amp; Entry Types</strong></td>
-      <td><a href="?path=/story/playground-views-libraryrow-entry-types--interactive-entry-row"><code>Playground / Views / LibraryRow &amp; Entry Types</code></a></td>
+      <td><strong>Library · LibraryRow &amp; Entry Types</strong></td>
+      <td><a href="?path=/story/plan-library-libraryrow-entry-types--interactive-entry-row"><code>Plan / Library / LibraryRow &amp; Entry Types</code></a></td>
       <td><code>apps/playground/app/views/library/LibraryRow.tsx</code>, <code>apps/playground/app/lib/entryMapper.ts</code></td>
     </tr>
     <tr>
-      <td><strong>Views · Stream, Table &amp; Feed Cards</strong></td>
-      <td><a href="?path=/story/playground-views-stream-table-feed-cards--rich-stream-feed-layout"><code>Playground / Views / Stream, Table &amp; Feed Cards</code></a></td>
+      <td><strong>Library · Stream, Table &amp; Feed Cards</strong></td>
+      <td><a href="?path=/story/plan-library-stream-table-feed-cards--rich-stream-feed-layout"><code>Plan / Library / Stream, Table &amp; Feed Cards</code></a></td>
       <td><code>apps/playground/app/views/stream/StreamFeed.tsx</code>, <code>PropertyTable.tsx</code>, <code>NotebookGalleryView.tsx</code></td>
     </tr>
     <tr>
-      <td><strong>Views · Calendar Agenda &amp; Planner</strong></td>
-      <td><a href="?path=/story/playground-views-calendar-agenda-planner--month-agenda-layout"><code>Playground / Views / Calendar Agenda &amp; Planner</code></a></td>
+      <td><strong>Library · Record Type Icons</strong></td>
+      <td><a href="?path=/story/plan-library-record-type-icons--all-record-types"><code>Plan / Library / Record Type Icons</code></a></td>
+      <td><code>apps/playground/src/components/molecules/DefaultListItem.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Calendar · Agenda &amp; Planner</strong></td>
+      <td><a href="?path=/story/plan-calendar-calendar-agenda-planner--month-agenda-layout"><code>Plan / Calendar / Calendar Agenda &amp; Planner</code></a></td>
       <td><code>apps/playground/app/views/stream/CalendarAgendaView.tsx</code>, <code>CalendarPlannerView.tsx</code></td>
     </tr>
     <tr>
+      <td><strong>Dialogs &amp; Sheets · Playground Dialogs</strong></td>
+      <td><a href="?path=/story/plan-dialogs-sheets-playground-dialogs--create-notebook"><code>Plan / Dialogs &amp; Sheets / Playground Dialogs</code></a></td>
+      <td><code>CreateNotebookDialog.tsx</code>, <code>BackdateConfirmModal.tsx</code>, <code>AgentConfirmHost.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Dialogs &amp; Sheets · NotePromotionSheet</strong></td>
+      <td><a href="?path=/story/plan-dialogs-sheets-notepromotionsheet--private-journal-note"><code>Plan / Dialogs &amp; Sheets / NotePromotionSheet</code></a></td>
+      <td><code>apps/playground/src/components/organisms/notebook/NotePromotionSheet.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Dialogs &amp; Sheets · PropertyOverrideSheet</strong></td>
+      <td><a href="?path=/story/plan-dialogs-sheets-propertyoverridesheet--personal-runtime-scope"><code>Plan / Dialogs &amp; Sheets / PropertyOverrideSheet</code></a></td>
+      <td><code>apps/playground/src/components/organisms/notebook/PropertyOverrideSheet.tsx</code></td>
+    </tr>
+    <tr>
       <td><strong>Navigation · 4-Zone Shell &amp; Menus</strong></td>
-      <td><a href="?path=/story/playground-navigation-navigation-menus--full-playground-shell-layout"><code>Playground / Navigation / Navigation &amp; Menus</code></a></td>
+      <td><a href="?path=/story/plan-navigation-navigation-menus--full-playground-shell-layout"><code>Plan / Navigation / Navigation &amp; Menus</code></a></td>
       <td><code>apps/playground/app/nav/AppRail.tsx</code>, <code>NavSidebar.tsx</code>, <code>SecondaryNav.tsx</code>, <code>PageActions.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Track · Timer Surfaces</strong></td>
+      <td><a href="?path=/story/track-timer-surfaces--minimal-rest"><code>Track / Timer Surfaces</code></a></td>
+      <td><code>MinimalTimerSurface.tsx</code>, <code>GeneralTimerSurface.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Track · Fullscreen Timer</strong></td>
+      <td><a href="?path=/story/track-fullscreen-timer--countdown"><code>Track / Fullscreen Timer</code></a></td>
+      <td><code>apps/playground/src/components/organisms/review/FullscreenTimer.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Track · Runtime Debug Panel</strong></td>
+      <td><a href="?path=/story/track-runtime-debug-panel--embedded-debugger"><code>Track / Runtime Debug Panel</code></a></td>
+      <td><code>apps/playground/src/components/organisms/workout/RuntimeDebugPanel.tsx</code></td>
+    </tr>
+    <tr>
+      <td><strong>Analyze · Sessions &amp; Results</strong></td>
+      <td><a href="?path=/story/analyze-sessions-resultlistitem--single-result-row"><code>Analyze / Sessions / ResultListItem</code></a> · <a href="?path=/story/analyze-sessions-session-detail-diagnostics--completed-hero-session"><code>Session Detail</code></a> · <a href="?path=/story/analyze-sessions-sessionresultspage--populated-murph-results"><code>SessionResultsPage</code></a></td>
+      <td><code>ResultListItem.tsx</code>, <code>SessionResultsPage.tsx</code></td>
     </tr>
   </tbody>
 </table>

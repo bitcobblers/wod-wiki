@@ -71,9 +71,9 @@ export function AppRoutes({ searchHandlerRef, canvasRouteList = [], rootUnavaila
       <Route path={ROUTE_PATTERNS.pages} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
       <Route path={ROUTE_PATTERNS.page} element={pageSettlingFallback ?? <AppContent searchHandlerRef={searchHandlerRef} />} />
       <Route path="/guide/:slug" element={<GuideLegacyRedirect />} />
-      <Route path={ROUTE_PATTERNS.load} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><LoadZipPage /></Suspense>} />
-      <Route path={ROUTE_PATTERNS.loadJournal} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><JournalZipLoadPage /></Suspense>} />
-      <Route path={ROUTE_PATTERNS.loadJournalDate} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><JournalZipLoadPage /></Suspense>} />
+      <Route path={ROUTE_PATTERNS.load} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-muted-foreground">Loading…</div>}><LoadZipPage /></Suspense>} />
+      <Route path={ROUTE_PATTERNS.loadJournal} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-muted-foreground">Loading…</div>}><JournalZipLoadPage /></Suspense>} />
+      <Route path={ROUTE_PATTERNS.loadJournalDate} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-muted-foreground">Loading…</div>}><JournalZipLoadPage /></Suspense>} />
       <Route path={ROUTE_PATTERNS.playgroundRoot} element={<PlaygroundRedirect />} />
       <Route path={ROUTE_PATTERNS.playground} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
       <Route path={ROUTE_PATTERNS.playgrounds} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
@@ -81,7 +81,7 @@ export function AppRoutes({ searchHandlerRef, canvasRouteList = [], rootUnavaila
       <Route path={ROUTE_PATTERNS.note} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
       <Route path={ROUTE_PATTERNS.journal} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
       <Route path={ROUTE_PATTERNS.day} element={<AppContent searchHandlerRef={searchHandlerRef} />} />
-      <Route path={ROUTE_PATTERNS.run} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-zinc-400">Loading…</div>}><WallClockPage /></Suspense>} />
+      <Route path={ROUTE_PATTERNS.run} element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-muted-foreground">Loading…</div>}><WallClockPage /></Suspense>} />
       <Route path={ROUTE_PATTERNS.tracker} element={<TrackerRedirect />} />
       <Route path="/results/segments" element={<SegmentsRedirect />} />
       <Route path={ROUTE_PATTERNS.sessionDetail} element={<AppContent searchHandlerRef={searchHandlerRef} />} />

@@ -160,7 +160,7 @@ function StoredSessionDetail({ sessionId }: { sessionId: string }) {
 }
 
 const meta: Meta<typeof SessionDetailCard> = {
-  title: 'Playground/Views/Session Detail & Diagnostics',
+  title: 'Analyze/Sessions/Session Detail & Diagnostics',
   component: SessionDetailCard,
   parameters: { layout: 'padded' },
 };

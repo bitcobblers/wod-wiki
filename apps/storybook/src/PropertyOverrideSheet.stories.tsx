@@ -40,7 +40,7 @@ const openSnatchOverrideSheet = () => (
 );
 
 const meta: Meta<typeof PropertyOverrideSheet> = {
-  title: 'Playground/Organisms/PropertyOverrideSheet',
+  title: 'Plan/Dialogs & Sheets/PropertyOverrideSheet',
   component: PropertyOverrideSheet,
   parameters: { layout: 'fullscreen' },
 };

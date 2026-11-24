@@ -95,8 +95,7 @@ interface FullscreenTimerStoryArgs {
 }
 
 const meta: Meta<FullscreenTimerStoryArgs> = {
-  id: 'gallery-timer-screen',
-  title: 'Playground/Organisms/Workout/Fullscreen Timer',
+  title: 'Track/Fullscreen Timer',
   parameters: { layout: 'fullscreen', domainState: 'activeSession' },
   args: {
     script: COUNTDOWN_SCRIPT,

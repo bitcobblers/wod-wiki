@@ -64,7 +64,7 @@ interface LibraryRowStoryArgs {
 }
 
 const meta: Meta<LibraryRowStoryArgs> = {
-  title: 'Playground/Views/LibraryRow & Entry Types',
+  title: 'Plan/Library/LibraryRow & Entry Types',
   decorators: [
     (Story) => (
       <MemoryRouter>

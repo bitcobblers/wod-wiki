@@ -66,11 +66,7 @@ function StoryEditorHarness({
   return (
     <div
       data-testid={testId}
-      className={
-        theme === 'dark'
-          ? 'dark rounded-xl border border-border bg-background p-4 text-foreground max-w-5xl mx-auto'
-          : 'rounded-xl border border-border bg-background p-4 text-foreground max-w-5xl mx-auto'
-      }
+      className="rounded-xl border border-border bg-background p-4 text-foreground max-w-5xl mx-auto"
     >
       <NoteEditor
         value={doc}
@@ -137,7 +133,7 @@ function getEditorView(root: HTMLElement): EditorView {
 }
 
 const meta: Meta<typeof NoteEditor> = {
-  title: 'Organisms/WhiteboardSyntaxEditor',
+  title: 'Plan/Editor/WhiteboardSyntaxEditor',
   component: NoteEditor,
   parameters: {
     layout: 'padded',
@@ -150,10 +146,11 @@ type Story = StoryObj<typeof NoteEditor>;
 
 export const OptionAAnchoredInspector: Story = {
   name: 'Option A: Anchored Token Strip & Popover',
-  render: () => (
+  render: (_args, { globals }) => (
     <StoryEditorHarness
       testId="wb-option-a-story"
       initialDoc={WORKOUT_DOC}
+      theme={globals?.theme === 'dark' ? 'dark' : 'light'}
     />
   ),
   play: async ({ canvasElement }) => {
@@ -183,10 +180,11 @@ export const OptionAAnchoredInspector: Story = {
 
 export const OptionBInspectorDrawer: Story = {
   name: 'Option B: Docked Right Inspector Drawer & Block Timeline',
-  render: () => (
+  render: (_args, { globals }) => (
     <StoryEditorHarness
       testId="wb-option-b-story"
       initialDoc={WORKOUT_DOC}
+      theme={globals?.theme === 'dark' ? 'dark' : 'light'}
       defaultDrawerOpen
       drawerLayout="inline"
     />
@@ -210,10 +208,11 @@ export const OptionBInspectorDrawer: Story = {
 
 export const InlineRepairAndFuzzyCatalog: Story = {
   name: 'Inline Syntax Lint Repair (:rest & Ladder)',
-  render: () => (
+  render: (_args, { globals }) => (
     <StoryEditorHarness
       testId="wb-repair-story"
       initialDoc={REPAIR_DOC}
+      theme={globals?.theme === 'dark' ? 'dark' : 'light'}
     />
   ),
   play: async ({ canvasElement }) => {
@@ -236,10 +235,11 @@ export const InlineRepairAndFuzzyCatalog: Story = {
 
 export const ProseWikiAndAutocomplete: Story = {
   name: 'Markdown Prose [[Wiki Links]], #tags & [:Cue] Completions',
-  render: () => (
+  render: (_args, { globals }) => (
     <StoryEditorHarness
       testId="wb-prose-autocomplete-story"
       initialDoc={PROSE_DOC}
+      theme={globals?.theme === 'dark' ? 'dark' : 'light'}
     />
   ),
   play: async ({ canvasElement }) => {
@@ -261,11 +261,12 @@ export const ProseWikiAndAutocomplete: Story = {
 
 export const MobileThumbDeck: Story = {
   name: 'Mobile 3-Region Thumb Deck (390px)',
-  render: () => (
+  render: (_args, { globals }) => (
     <MobileFrame>
       <StoryEditorHarness
         testId="wb-mobile-deck-story"
         initialDoc={WORKOUT_DOC}
+        theme={globals?.theme === 'dark' ? 'dark' : 'light'}
       />
     </MobileFrame>
   ),
@@ -288,6 +289,9 @@ export const MobileThumbDeck: Story = {
 
 export const DarkModeArcticFrost: Story = {
   name: 'Dark Mode (Arctic Frost) Inspector & Drawer',
+  globals: {
+    theme: 'dark',
+  },
   render: () => (
     <StoryEditorHarness
       testId="wb-dark-frost-story"

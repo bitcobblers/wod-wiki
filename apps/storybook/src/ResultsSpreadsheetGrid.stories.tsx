@@ -216,7 +216,7 @@ function WorkbookHarness({
 }
 
 const meta: Meta<typeof ResultsSpreadsheetGrid> = {
-  title: 'Packages/UI/Widgets/ResultsSpreadsheetGrid',
+  title: 'Analyze/Sessions/ResultsSpreadsheetGrid',
   component: ResultsSpreadsheetGrid,
   parameters: { layout: 'padded' },
 };

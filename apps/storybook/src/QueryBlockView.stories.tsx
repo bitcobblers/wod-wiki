@@ -16,7 +16,7 @@ const executor: QueryExecutor = {
 };
 
 const meta: Meta<typeof QueryBlockView> = {
-  title: 'Packages/UI/Blocks/QueryBlockView',
+  title: 'Analyze/WQL/QueryBlockView',
   component: QueryBlockView,
   parameters: { domainState: 'populatedJournal' },
   args: {

@@ -80,7 +80,7 @@ function DashboardHarness({ markdown, editMode, preferredUnit }: DashboardStoryA
 }
 
 const meta: Meta<DashboardStoryArgs> = {
-  title: 'Packages/UI/Widgets/DashboardView',
+  title: 'Analyze/Dashboards/DashboardView',
   component: DashboardHarness,
   parameters: { domainState: 'populatedJournal' },
   args: {

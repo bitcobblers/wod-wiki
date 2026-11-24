@@ -165,7 +165,7 @@ function InteractiveSummaryHarness({ readOnly = false }: { readOnly?: boolean })
 }
 
 const meta: Meta<typeof SessionSummaryCard> = {
-  title: 'Packages/UI/Blocks/SessionSummaryCard',
+  title: 'Analyze/Sessions/SessionSummaryCard',
   component: SessionSummaryCard,
   parameters: { layout: 'padded' },
 };

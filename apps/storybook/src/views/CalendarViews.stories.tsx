@@ -31,7 +31,7 @@ interface CalendarStoryArgs {
 }
 
 const meta: Meta<CalendarStoryArgs> = {
-  title: 'Playground/Views/Calendar Agenda & Planner',
+  title: 'Plan/Calendar/Calendar Agenda & Planner',
   parameters: { domainState: 'populatedJournal' },
   args: {
     includeUndatedShelf: true,

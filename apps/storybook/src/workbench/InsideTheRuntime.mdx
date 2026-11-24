@@ -1,0 +1,64 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Workbench/Inside the Runtime" />
+
+# Inside the WOD Wiki Runtime
+
+The **Workbench** section opens up WOD Wiki's internals so engineers, coaches, and contributors can trace how plain-text Markdown turns into a live workout clock and queryable analytics.
+
+---
+
+## The 4-Stage Execution Pipeline
+
+Every workout `Note` flows through four deterministic, inspectable stages:
+
+1. **Parse (`packages/lang`)**: `whiteboardscript.grammar` (Lezer) → `syntax-parser.ts` → `semantic-classifier.ts` → dialect stack → `ICodeStatement[]` carrying typed `IMetric` values (`time`, `rep`, `effort`, `rounds`, `distance`, `resistance`, `action`, `rest`, `equipment`).
+2. **Compile & Shake-Out (`packages/engine`)**: The JIT compiler resolves `Property Note` definitions, `Scoped Property Override`s, and the `Metric Shake-Out Queue` (`parser → dialect → compiler → runtime → user → analyzed` origin precedence) without overwriting earlier layers.
+3. **Execute (`RuntimeStack` & `SessionClockProjection`)**: Blocks initialize in constructors, push onto `RuntimeStack` lazily, emit immutable `OutputStatement` / `EventRecord` entries as time and reps advance, and clean up via consumer-managed `dispose()`.
+4. **Persist & Query (`packages/storage` & `packages/wql`)**: Finished runs persist as `Session` records in IndexedDB (or SQL/API), immediately queryable via WQL pipelines and `Dashboard Widget`s.
+
+---
+
+## Interactive Runtime Inspectors
+
+<table>
+  <thead>
+    <tr>
+      <th>Stage</th>
+      <th>Workbench Story</th>
+      <th>What You Can Inspect</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Full Pipeline</strong></td>
+      <td><a href="?path=/story/workbench-language-workbench--runtime-pipeline-tour"><code>Workbench / Language Workbench / 1. Runtime Pipeline Tour (Fran)</code></a></td>
+      <td>Edit Markdown live and watch the 2×2 Diagnostics Grid (Parser AST, <code>RuntimeStack</code>, Block Memory, Event Logs) update in real time.</td>
+    </tr>
+    <tr>
+      <td><strong>Stack Lifecycle</strong></td>
+      <td><a href="?path=/story/workbench-language-workbench--emom-interval-lifecycle"><code>Workbench / Language Workbench / 2. Interval &amp; EMOM Stack Lifecycle</code></a></td>
+      <td>Step through interval/EMOM blocks to observe constructor init, work/rest polarity flips, round counters, and <code>dispose()</code> pops.</td>
+    </tr>
+    <tr>
+      <td><strong>Metric Layering</strong></td>
+      <td><a href="?path=/story/workbench-language-workbench--metric-origin-and-equations"><code>Workbench / Language Workbench / 3. Metric Origins, #tonnage &amp; Equations</code></a></td>
+      <td>Inspect how <code>Property Note</code> formulas, <code>#tonnage</code>, and <code>Summary Metric</code> equations resolve through the <code>Metric Shake-Out Queue</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>Parser &amp; Dialects</strong></td>
+      <td><a href="?path=/story/workbench-parser-tests-test-builder--from-scratch"><code>Workbench / Parser Tests / Test Builder</code></a> &amp; <a href="?path=/story/workbench-parser-tests-runner--golden-catalog"><code>Runner</code></a></td>
+      <td>Author golden grammar fixtures, inspect CST → <code>IMetric</code> classification diffs, and run dialect spot-checks.</td>
+    </tr>
+    <tr>
+      <td><strong>Live Stack Panel</strong></td>
+      <td><a href="?path=/story/track-runtime-debug-panel--embedded-debugger"><code>Track / Runtime Debug Panel</code></a></td>
+      <td>Inspect the embedded <code>RuntimeDebugPanel</code> (Parser AST tab + live Stack &amp; Memory table) used inside the Playground wall clock.</td>
+    </tr>
+    <tr>
+      <td><strong>Storage &amp; WQL</strong></td>
+      <td><a href="?path=/story/workbench-database-storage-indexeddb-selection--indexed-db-selection"><code>IndexedDB Selection</code></a> · <a href="?path=/story/workbench-database-storage-data-explorer--wql-library-search"><code>Data Explorer</code></a> · <a href="?path=/story/workbench-database-storage-session-explorer--session-explorer"><code>Session Explorer</code></a></td>
+      <td>Switch active IndexedDB databases, run live WQL queries over synced feeds, and inspect persisted <code>Session</code> telemetry streams.</td>
+    </tr>
+  </tbody>
+</table>
