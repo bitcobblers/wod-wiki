@@ -84,6 +84,9 @@ export interface FinishSessionFallback {
   blockId: string;
   blockVersion?: number;
   blockContentId?: string;
+  blockContent?: string;
+  blockDialect?: string;
+  blockSport?: string;
   origin?: ResultOrigin;
   scheduleItemId?: string;
   sessionDate?: string;

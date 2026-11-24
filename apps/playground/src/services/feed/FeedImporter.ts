@@ -115,8 +115,6 @@ export class FeedImporter {
     };
     const buildChunkMeta = (chunk: SeedManifestChunk, notebook: SeedManifestNotebook | undefined, noteIds: string[]): SeedMetaRecord => ({
       ...meta,
-      seedVersion: manifest.version,
-      builtAt: manifest.builtAt,
       chunks: {
         ...meta.chunks,
         [chunk.id]: {

@@ -376,7 +376,21 @@ export function JournalDatePage({ journalDate, theme, onViewCreated }: JournalDa
       const insert = sessionQueryInsert(view.state, captured.session.blockId, resultId);
       if (insert) view.dispatch({ changes: insert });
     }
-    return playgroundRecorder.record({ blockId: captured.session.blockId, noteId: captured.session.noteId, resultId, data: results, createdAt: results.endTime });
+    return playgroundRecorder.record({
+      blockId: captured.session.blockId,
+      noteId: captured.session.noteId,
+      resultId,
+      blockVersion: captured.revision.version,
+      blockContentId: captured.session.blockContentId,
+      blockContent: captured.block.content,
+      ...(captured.block.dialect ? { blockDialect: captured.block.dialect } : {}),
+      ...(captured.block.sport ? { blockSport: captured.block.sport } : {}),
+      ...(captured.session.origin ? { origin: captured.session.origin } : {}),
+      ...(captured.session.scheduleItemId ? { scheduleItemId: captured.session.scheduleItemId } : {}),
+      ...(captured.session.sessionDate ? { sessionDate: captured.session.sessionDate } : {}),
+      data: results,
+      createdAt: results.endTime,
+    });
   }, []);
 
   const feedProgress = useFeedSyncProgress();

@@ -368,7 +368,9 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
     }
     savingRef.current = false;
     setSaveState('idle');
-    setSavedConfirmed(true);
+    if (onCompleteWorkout) {
+      setSavedConfirmed(true);
+    }
     const { results } = report;
     if (resultId) {
       try {

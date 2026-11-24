@@ -64,27 +64,33 @@ ctx.onmessage = (event: MessageEvent<RunMessage>): void => {
       ...(msg.userId ? { getUserId: (): string => msg.userId as string } : {}),
     }));
     const outcomes: FeedSyncOutcome[] = [];
-    for (const spec of msg.sources) {
-      const result = await runSourceSyncCore(
-        {
-          id: spec.id,
-          label: spec.label,
-          source: new HttpFeedSource(spec.url),
-          embeddedVersion: spec.embeddedVersion,
-          autoSyncOn: spec.autoSyncOn,
-          ...(spec.tier ? { tier: spec.tier } : {}),
-          notebookIds: spec.notebookIds,
-          granularRecords: spec.granularRecords ?? true,
-          ...(spec.offlinePolicy ? { offlinePolicy: spec.offlinePolicy } : {}),
-        },
-        { storage, owner: msg.owner, now: Date.now, force: msg.force, probeManifests: msg.probeManifests, background: msg.background },
-        {
-          onProgress: (progress) => ctx.postMessage({ type: 'progress', sourceId: spec.id, progress }),
-          onFirstPaint: () => ctx.postMessage({ type: 'first-paint', sourceId: spec.id }),
-        },
-      );
-      ctx.postMessage({ type: 'source-result', sourceId: spec.id, result });
-      outcomes.push(result.outcome);
+    try {
+      for (const spec of msg.sources) {
+        const result = await runSourceSyncCore(
+          {
+            id: spec.id,
+            label: spec.label,
+            source: new HttpFeedSource(spec.url),
+            embeddedVersion: spec.embeddedVersion,
+            autoSyncOn: spec.autoSyncOn,
+            ...(spec.tier ? { tier: spec.tier } : {}),
+            notebookIds: spec.notebookIds,
+            granularRecords: spec.granularRecords ?? true,
+            ...(spec.offlinePolicy ? { offlinePolicy: spec.offlinePolicy } : {}),
+          },
+          { storage, owner: msg.owner, now: Date.now, force: msg.force, probeManifests: msg.probeManifests, background: msg.background },
+          {
+            onProgress: (progress) => ctx.postMessage({ type: 'progress', sourceId: spec.id, progress }),
+            onFirstPaint: () => ctx.postMessage({ type: 'first-paint', sourceId: spec.id }),
+          },
+        );
+        ctx.postMessage({ type: 'source-result', sourceId: spec.id, result });
+        outcomes.push(result.outcome);
+      }
+    } finally {
+      // Close the worker's IndexedDB handle before signaling completion so
+      // main-thread worker.terminate() never severs a pending commit.
+      await storage.storageInstance.close().catch(() => undefined);
     }
     ctx.postMessage({ type: 'done', outcomes });
   })();
