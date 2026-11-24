@@ -498,7 +498,17 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
           (await scoped.getNote(lookupId)) ??
           (lookupId !== fallback.noteId ? await scoped.getNote(fallback.noteId) : undefined);
         const targetNoteId = note?.id ?? lookupId;
-        const block = note?.blocks[fallback.blockId];
+        const wodBlocks = note ? Object.values(note.blocks).filter((b) => b.kind === 'wod') : [];
+        const block =
+          note?.blocks[fallback.blockId] ??
+          (fallback.blockContentId
+            ? wodBlocks.find((b) => {
+                const slice = note?.rawContent.slice(b.from, b.to) ?? '';
+                const sec = parseDocumentSections(slice, BLOCK_OPTIONS).find((s) => s.scriptBlock);
+                return sec?.scriptBlock?.contentId === fallback.blockContentId;
+              })
+            : undefined) ??
+          (wodBlocks.length === 1 ? wodBlocks[0] : undefined);
         const targetBlockId = block?.id ?? fallback.blockId;
         const targetVersion = fallback.blockVersion ?? block?.version;
 
@@ -513,12 +523,33 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
             undefined,
           );
         }
-        if (!revision && note) {
-          const wodBlocks = Object.values(note.blocks).filter((b) => b.kind === 'wod');
-          if (wodBlocks.length === 1) {
-            const singleBlock = wodBlocks[0]!;
-            revision = await scoped.getBlockRevision(note.id, singleBlock.id, singleBlock.version);
-          }
+        if (!revision && block && note) {
+          revision = await scoped.getBlockRevision(note.id, block.id, block.version);
+        }
+        // WW-051 / WW-120: If a run completed or was halted after a reload where
+        // startSession deferred persistence and no block_revision row was minted
+        // yet, synthesize and persist the revision inside this transaction so
+        // the completed workout session is never dropped with RESULT_NOT_FOUND.
+        if (!revision && (block || fallback.blockContent !== undefined)) {
+          const rawSlice =
+            block && note && typeof block.from === 'number' && typeof block.to === 'number'
+              ? note.rawContent.slice(block.from, block.to)
+              : (fallback.blockContent ?? '');
+          const rawDialect = block?.dialect ?? fallback.blockDialect;
+          const narrowedDialect: BlockRevision['dialect'] | undefined =
+            rawDialect === 'log' ? 'log' : rawDialect === 'time' ? 'time' : undefined;
+          const synthesized: BlockRevision = {
+            noteId: targetNoteId,
+            blockId: targetBlockId,
+            version: targetVersion ?? 1,
+            kind: 'wod',
+            rawContent: rawSlice,
+            savedAt: createdAt ?? data.endTime ?? Date.now(),
+            ...(narrowedDialect ? { dialect: narrowedDialect } : {}),
+            ...(block?.sport ?? fallback.blockSport ? { sport: block?.sport ?? fallback.blockSport } : {}),
+          };
+          await scoped.storage.readwrite('block_revisions').put(synthesized);
+          revision = synthesized;
         }
 
         if (revision) {
@@ -546,7 +577,27 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
         }
       }
       if (!previous) throw new NotePersistenceError('RESULT_NOT_FOUND', `Session not found: ${sessionId}`);
-      const revision = await scoped.getBlockRevision(previous.noteId, previous.blockId, previous.blockVersion);
+      let revision = await scoped.getBlockRevision(previous.noteId, previous.blockId, previous.blockVersion);
+      if (!revision && fallback?.blockContent !== undefined) {
+        const narrowedDialect: BlockRevision['dialect'] | undefined =
+          fallback.blockDialect === 'log'
+            ? 'log'
+            : fallback.blockDialect === 'time'
+              ? 'time'
+              : undefined;
+        const synthesized: BlockRevision = {
+          noteId: previous.noteId,
+          blockId: previous.blockId,
+          version: previous.blockVersion,
+          kind: 'wod',
+          rawContent: fallback.blockContent,
+          savedAt: createdAt ?? data.endTime ?? Date.now(),
+          ...(narrowedDialect ? { dialect: narrowedDialect } : {}),
+          ...(fallback.blockSport ? { sport: fallback.blockSport } : {}),
+        };
+        await scoped.storage.readwrite('block_revisions').put(synthesized);
+        revision = synthesized;
+      }
       if (!revision) throw new NotePersistenceError('BLOCK_REVISION_NOT_FOUND', 'Pinned workout revision is missing');
       const civilDate = previous.sessionDate ?? localDateKey(new Date(data.endTime || data.startTime || previous.createdAt || Date.now()));
       const session: Session = {

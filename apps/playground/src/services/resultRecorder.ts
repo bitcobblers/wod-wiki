@@ -1,4 +1,5 @@
 import { notePersistence, type INotePersistence } from '@/services/persistence';
+import { whenStorageReady } from '@/services/storage';
 import type { ResultOrigin, Session } from '@/types/storage';
 import type { Sessions, ScriptBlock } from '@/components/Editor/types';
 import { appError } from '@/lib/log';
@@ -12,6 +13,9 @@ export interface RecordResultInput {
   resultId: string;
   blockVersion?: number;
   blockContentId?: string;
+  blockContent?: string;
+  blockDialect?: string;
+  blockSport?: string;
   data: Sessions;
   createdAt: number;
   origin?: ResultOrigin;
@@ -43,17 +47,29 @@ export function notifyResultSaved(result: Session): void {
 
 export function createResultRecorder(writer: ResultWriter): ResultRecorder {
   return {
-    async record({ resultId, noteId, blockId, runBlock, blockVersion, blockContentId, data, createdAt, origin, scheduleItemId, sessionDate }) {
+    async record({ resultId, noteId, blockId, runBlock, blockVersion, blockContentId, blockContent, blockDialect, blockSport, data, createdAt, origin, scheduleItemId, sessionDate }) {
       const resolvedBlockVersion =
         blockVersion ??
         (runBlock && 'version' in runBlock && typeof runBlock.version === 'number' ? runBlock.version : undefined);
       const resolvedBlockContentId = blockContentId ?? runBlock?.contentId;
+      const resolvedBlockContent =
+        blockContent ??
+        (runBlock && 'content' in runBlock && typeof runBlock.content === 'string' ? runBlock.content : undefined);
+      const resolvedBlockDialect =
+        blockDialect ??
+        (runBlock && 'dialect' in runBlock && typeof runBlock.dialect === 'string' ? runBlock.dialect : undefined);
+      const resolvedBlockSport =
+        blockSport ??
+        (runBlock && 'sport' in runBlock && typeof runBlock.sport === 'string' ? runBlock.sport : undefined);
       const fallback = noteId && blockId
         ? {
             noteId,
             blockId,
             ...(resolvedBlockVersion !== undefined ? { blockVersion: resolvedBlockVersion } : {}),
             ...(resolvedBlockContentId ? { blockContentId: resolvedBlockContentId } : {}),
+            ...(resolvedBlockContent !== undefined ? { blockContent: resolvedBlockContent } : {}),
+            ...(resolvedBlockDialect ? { blockDialect: resolvedBlockDialect } : {}),
+            ...(resolvedBlockSport ? { blockSport: resolvedBlockSport } : {}),
             ...(origin ? { origin } : {}),
             ...(scheduleItemId ? { scheduleItemId } : {}),
             ...(sessionDate ? { sessionDate } : {}),
@@ -82,6 +98,9 @@ export interface PendingUnloadResult {
   blockId?: string;
   blockVersion?: number;
   blockContentId?: string;
+  blockContent?: string;
+  blockDialect?: string;
+  blockSport?: string;
   data: Sessions;
   createdAt: number;
   origin?: ResultOrigin;
@@ -233,6 +252,10 @@ let flushUnloadPromise: Promise<void> | null = null;
 export function flushPendingUnloadResults(recorder: ResultRecorder = playgroundRecorder): Promise<void> {
   flushUnloadPromise ??= (async () => {
     const pending = readPendingUnloadResults();
+    if (Object.keys(pending).length === 0) return;
+    if (recorder === playgroundRecorder) {
+      await whenStorageReady().catch(() => undefined);
+    }
     for (const entry of Object.values(pending)) {
       setPendingUnloadState(entry.resultId, { status: 'flushing' });
       try {
@@ -242,6 +265,9 @@ export function flushPendingUnloadResults(recorder: ResultRecorder = playgroundR
           blockId: entry.blockId ?? '',
           ...(entry.blockVersion !== undefined ? { blockVersion: entry.blockVersion } : {}),
           ...(entry.blockContentId ? { blockContentId: entry.blockContentId } : {}),
+          ...(entry.blockContent !== undefined ? { blockContent: entry.blockContent } : {}),
+          ...(entry.blockDialect ? { blockDialect: entry.blockDialect } : {}),
+          ...(entry.blockSport ? { blockSport: entry.blockSport } : {}),
           data: entry.data,
           createdAt: entry.createdAt,
           ...(entry.origin ? { origin: entry.origin } : {}),

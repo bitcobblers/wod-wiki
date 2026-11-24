@@ -266,8 +266,12 @@ export async function runSourceSyncCore(
       return result;
     }
     const hasStoredChunks = Boolean(stored && Object.keys(stored.chunks).length > 0);
+    const knownManifestIds = new Set([
+      ...manifest.chunks.map((c) => c.id),
+      ...(manifest.notebooks ?? []).map((n) => n.notebookId),
+    ]);
     const allTargetChunksCurrent = !hasStoredChunks || targetChunks.every((c) => stored?.chunks[c.id]?.sha256 === c.sha256);
-    const hasVanishedChunks = hasStoredChunks && Object.keys(stored!.chunks).some((id) => !manifest.chunks.some((c) => c.id === id));
+    const hasVanishedChunks = hasStoredChunks && Object.keys(stored!.chunks).some((id) => !knownManifestIds.has(id));
     if (!deps.force && decision === 'current' && stored?.schema === SEED_SCHEMA && stored.builtAt === manifest.builtAt && allTargetChunksCurrent && !hasVanishedChunks) {
       result.outcome = 'current';
       return result;
@@ -305,9 +309,13 @@ export async function runSourceSyncCore(
         if (applied.preservedPinned) result.preservedPinned = applied.preservedPinned;
       }
     } finally {
-      const after = await storage.getSeedMeta(metaKey);
-      if (after?.claim?.owner === owner) {
-        await storage.putSeedMeta({ ...after, claim: null }, after);
+      try {
+        const after = await storage.getSeedMeta(metaKey);
+        if (after?.claim?.owner === owner) {
+          await storage.putSeedMeta({ ...after, claim: null }, after);
+        }
+      } catch (releaseErr) {
+        console.warn(`[feedSync] ${input.id} claim release skipped after concurrent update`, releaseErr);
       }
     }
     return result;

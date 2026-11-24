@@ -1028,7 +1028,21 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       if (!isRetry) lastReportRef.current = { results, resultId, runBlock };
       let save: void | Promise<unknown>;
       try {
-        save = createResultRecorder(notePersistence).record({ resultId, noteId: capture.session.noteId, blockId: capture.session.blockId, data: results, createdAt: results.endTime }).then(() => onCompleteWorkout?.(blockId, results, resultId, runBlock));
+        save = createResultRecorder(notePersistence).record({
+          resultId,
+          noteId: capture.session.noteId,
+          blockId: capture.session.blockId,
+          blockVersion: capture.revision.version,
+          blockContentId: capture.session.blockContentId,
+          blockContent: capture.block.content,
+          ...(capture.block.dialect ? { blockDialect: capture.block.dialect } : {}),
+          ...(capture.block.sport ? { blockSport: capture.block.sport } : {}),
+          ...(capture.session.origin ? { origin: capture.session.origin } : {}),
+          ...(capture.session.scheduleItemId ? { scheduleItemId: capture.session.scheduleItemId } : {}),
+          ...(capture.session.sessionDate ? { sessionDate: capture.session.sessionDate } : {}),
+          data: results,
+          createdAt: results.endTime,
+        }).then(() => onCompleteWorkout?.(blockId, results, resultId, runBlock));
       } catch (err) {
         return Promise.reject(err instanceof Error ? err : new Error(String(err)));
       }

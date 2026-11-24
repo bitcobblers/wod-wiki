@@ -776,10 +776,13 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
       blockId: block.id,
       ...(typeof block.version === 'number' ? { blockVersion: block.version } : {}),
       ...(block.contentId ? { blockContentId: block.contentId } : {}),
+      ...(block.content ? { blockContent: block.content } : {}),
+      ...(block.dialect ? { blockDialect: block.dialect } : {}),
+      ...(block.sport ? { blockSport: block.sport } : {}),
       data: results,
       createdAt: Date.now(),
     });
-  }, [runtime, execution, block.id, block.version, block.contentId, resolvedSessionId, resolvedNoteId]);
+  }, [runtime, execution, block.id, block.version, block.contentId, block.content, block.dialect, block.sport, resolvedSessionId, resolvedNoteId]);
   const unloadStateRef = useRef({
     isLive: isLiveRun,
     sessionId: resolvedSessionId,

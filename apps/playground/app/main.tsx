@@ -16,6 +16,7 @@ import '@fontsource/jetbrains-mono/latin-500.css';
 import '../src/index.css';
 import { remotePrefsMode, hydrateMetaPrefs } from '@/services/storage/metaStore';
 import { storageService, whenStorageReady, startBackgroundStorageSync } from '@/services/storage';
+import { flushPendingUnloadResults } from '@/services/resultRecorder';
 import { hydrateFeedStateFromStorage } from '@/services/feed/feedRegistryStore';
 import { notebookService } from '@/services/NotebookService';
 import { appWarn } from '@/lib/log';
@@ -39,6 +40,9 @@ function BootGate() {
       // Notebook plane setup is optional at boot — a failure here must not
       // block the app; surfaces retry on next boot.
       .then(() => notebookService.ensureNotebooks().catch((err: unknown) => appWarn('NotebookService', 'ensureNotebooks failed', err)))
+      // Commit any partial workout sessions staged synchronously on hard unload
+      // (WW-120 / WW-051) after IndexedDB is open and before routes read sessions.
+      .then(() => flushPendingUnloadResults().catch((err: unknown) => appWarn('resultRecorder', 'boot unload flush failed', err)))
       .then(() => {
         if (!cancelled) {
           cleanupSync = startBackgroundStorageSync();
