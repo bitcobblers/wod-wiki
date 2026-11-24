@@ -11,7 +11,6 @@ import { SessionExplorerPage } from './SessionExplorerPage';
 import { storyActions } from '../testing/storyActions';
 
 const meta: Meta<typeof SessionExplorerPage> = {
-  id: 'sessions',
   title: 'Workbench/Database & Storage/Session Explorer',
   component: SessionExplorerPage,
   parameters: { layout: 'padded', database: true },

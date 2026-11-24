@@ -35,7 +35,7 @@ async function gotoStory(page: Page, storyId: string) {
 
 test.describe('database-driven Storybook stories', () => {
   test('the landing page lists the default database with the core corpus imported', async ({ page }) => {
-    await gotoStory(page, 'database--indexed-db-selection');
+    await gotoStory(page, 'workbench-database-storage-indexeddb-selection--indexed-db-selection');
 
     // The default database is created and activated on first use.
     await expect(page.getByTestId('database-row-wodwiki-db')).toBeVisible({ timeout: SEED_TIMEOUT });
@@ -46,7 +46,7 @@ test.describe('database-driven Storybook stories', () => {
   });
 
   test('a second database can be created and selected', async ({ page }) => {
-    await gotoStory(page, 'database--indexed-db-selection');
+    await gotoStory(page, 'workbench-database-storage-indexeddb-selection--indexed-db-selection');
     await expect(page.getByTestId('database-row-wodwiki-db')).toBeVisible({ timeout: SEED_TIMEOUT });
 
     const name = 'wodwiki-e2e-scratch';
@@ -66,7 +66,7 @@ test.describe('database-driven Storybook stories', () => {
   });
 
   test('an invalid database name is rejected inline', async ({ page }) => {
-    await gotoStory(page, 'database--indexed-db-selection');
+    await gotoStory(page, 'workbench-database-storage-indexeddb-selection--indexed-db-selection');
     await expect(page.getByTestId('database-row-wodwiki-db')).toBeVisible({ timeout: SEED_TIMEOUT });
 
     await page.getByTestId('database-create-input').fill('not a valid name');
@@ -76,7 +76,7 @@ test.describe('database-driven Storybook stories', () => {
   });
 
   test('a workout run is stored as a session in the active database', async ({ page }) => {
-    await gotoStory(page, 'playground--library-page');
+    await gotoStory(page, 'workbench-language-workbench--library-page');
     await expect(page.getByTestId('playground-library-page')).toBeVisible({ timeout: SEED_TIMEOUT });
     await expect(page.getByTestId('playground-library-find')).toBeEnabled({ timeout: SEED_TIMEOUT });
 
@@ -101,18 +101,18 @@ test.describe('database-driven Storybook stories', () => {
     await expect(page.getByTestId('workbench-persist-error')).toHaveCount(0);
 
     // The stored session is visible in the Session Explorer.
-    await gotoStory(page, 'sessions--session-explorer');
+    await gotoStory(page, 'workbench-database-storage-session-explorer--session-explorer');
     await expect(page.getByTestId('session-row').first()).toBeVisible({ timeout: SEED_TIMEOUT });
   });
 
   test('the WQL library search returns notes from the active database', async ({ page }) => {
-    await gotoStory(page, 'data--wql-library-search');
+    await gotoStory(page, 'workbench-database-storage-data-explorer--wql-library-search');
     await expect(page.getByTestId('library-search-results')).toBeVisible({ timeout: SEED_TIMEOUT });
     await expect(page.getByTestId('library-search-row').first()).toBeVisible({ timeout: SEED_TIMEOUT });
   });
 
   test('the dashboard generator writes a dashboard into the active database', async ({ page }) => {
-    await gotoStory(page, 'data--dashboard-generator');
+    await gotoStory(page, 'workbench-database-storage-data-explorer--dashboard-generator');
     await expect(page.getByTestId('dashboard-title-input')).toBeVisible({ timeout: SEED_TIMEOUT });
 
     const title = `E2E Board ${Date.now()}`;

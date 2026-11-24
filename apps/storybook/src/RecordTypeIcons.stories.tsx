@@ -18,8 +18,7 @@ import { DefaultListItem } from '@/components/molecules/DefaultListItem';
 import type { ListItemContext } from '@/components/molecules/types';
 
 const meta: Meta = {
-  id: 'gallery-record-type-icons',
-  title: 'Playground/Molecules/Record Type Icons',
+  title: 'Plan/Library/Record Type Icons',
   parameters: { layout: 'padded' },
 };
 export default meta;

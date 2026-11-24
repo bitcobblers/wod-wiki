@@ -27,7 +27,7 @@ const config: StorybookConfig = {
     },
   },
   typescript: {
-    reactDocgen: false,
+    reactDocgen: 'react-docgen',
   },
   viteFinal: async (config) => {
     config.build = config.build || {};

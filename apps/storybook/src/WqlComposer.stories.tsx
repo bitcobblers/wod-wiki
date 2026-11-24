@@ -49,8 +49,7 @@ import { isFindQuery } from '@bitcobblers/wod-wiki-engine';
 import { JOURNALS, buildServiceForJournal } from './gallery/journals';
 
 const meta: Meta<typeof WqlComposer> = {
-  id: 'gallery-wql-composer',
-  title: 'Packages/UI/Composer/WQL Composer',
+  title: 'Analyze/WQL/WQL Composer',
   component: WqlComposer,
   parameters: { layout: 'padded', domainState: 'populatedJournal' },
   args: {

@@ -67,7 +67,7 @@ interface StreamViewsStoryArgs {
 }
 
 const meta: Meta<StreamViewsStoryArgs> = {
-  title: 'Playground/Views/Stream, Table & Feed Cards',
+  title: 'Plan/Library/Stream, Table & Feed Cards',
   parameters: { domainState: 'populatedJournal' },
   args: {
     level: 'note',

@@ -16,28 +16,28 @@ async function renderedContent(page: Page) {
 
 
 const STORIES = [
-  'gallery-wql-composer--default',
-  'gallery-wql-example-gallery--bar-section',
-  'gallery-wql-example-gallery--table-section',
-  'gallery-wql-example-gallery--value-section',
+  'analyze-wql-wql-composer--default',
+  'analyze-wql-wql-example-gallery--bar-section',
+  'analyze-wql-wql-example-gallery--table-section',
+  'analyze-wql-wql-example-gallery--value-section',
   // Workbench story — covered since #997: the Session Outputs Table renders
   // its Card List below sm, so this previously-overflowing story holds.
-  'playground--for-time-starter',
-  'screens--universal-note-editor',
+  'workbench-language-workbench--runtime-pipeline-tour',
+  'plan-editor-noteeditor--universal-note-editor',
   // rows cards (inventory 008 measured 815px cards / 472px overflow here),
   // and GalleryCardView roots carry min-w-0 against grid blowout.
-  'gallery-wql-example-gallery--rows-find-section',
-  // Timer surfaces — Minimal tier is the 375px-first surface; the phone
-  // frame wrapper clamps to the viewport so it holds zero overflow.
-  'gallery-timer-surfaces--minimal-rest',
-  'gallery-timer-surfaces--minimal-prompts',
+  'analyze-wql-wql-example-gallery--rows-find-section',
+  // Timer surfaces — Minimal tier is the 375px-first surface; the viewport
+  // fills cleanly without overflow.
+  'track-timer-surfaces--minimal-rest',
+  'track-timer-surfaces--minimal-prompts',
   // Database-driven stories — the landing page and the pages that read the
   // active database.
-  'database--indexed-db-selection',
-  'playground--library-page',
-  'data--wql-library-search',
-  'data--dashboard-generator',
-  'sessions--session-explorer',
+  'workbench-database-storage-indexeddb-selection--indexed-db-selection',
+  'workbench-language-workbench--library-page',
+  'workbench-database-storage-data-explorer--wql-library-search',
+  'workbench-database-storage-data-explorer--dashboard-generator',
+  'workbench-database-storage-session-explorer--session-explorer',
 ];
 
 for (const storyId of STORIES) {
@@ -53,8 +53,8 @@ for (const storyId of STORIES) {
   });
 }
 
-test('screens--universal-note-editor completion menu uses 48px coarse-pointer touch targets at 375px', async ({ page }) => {
-  await page.goto('/iframe.html?id=screens--universal-note-editor&viewMode=story', { waitUntil: 'networkidle' });
+test('plan-editor-noteeditor--universal-note-editor completion menu uses 48px coarse-pointer touch targets at 375px', async ({ page }) => {
+  await page.goto('/iframe.html?id=plan-editor-noteeditor--universal-note-editor&viewMode=story', { waitUntil: 'networkidle' });
   const host = page.getByTestId('note-editor-host');
   await expect(host.locator('.cm-content')).toBeVisible({ timeout: 15_000 });
 

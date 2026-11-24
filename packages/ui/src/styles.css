@@ -48,7 +48,7 @@
     /* Semantic states */
     --destructive: 0 34% 48%;          /* #a05858 terracotta */
     --destructive-foreground: 0 0% 100%;
-    --success: 140 28% 42%;            /* #508860 moss green */
+    --success: 140 34% 34%;            /* #39744d moss green — clears 4.5:1 on --background & with white fg */
     --success-foreground: 0 0% 100%;
     --warning: 46 52% 37%;             /* #948030 ochre */
     --warning-foreground: 0 0% 100%;
@@ -105,7 +105,7 @@
 
     /* Muted */
     --muted: 222 18% 18%;              /* #262c38 polar night 0 */
-    --muted-foreground: 219 14% 66%;   /* #9ca5b4 */
+    --muted-foreground: 219 14% 72%;   /* #aeb6c4 — clears 4.5:1 on --card */
 
     /* Accent — Nord aurora yellow */
     --accent: 40 55% 28%;

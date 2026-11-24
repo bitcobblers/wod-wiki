@@ -100,7 +100,7 @@ const visibilityHeader = (visibility: PublicationVisibilitySummary['visibility']
   `${visibility} · Journal stays private`;
 
 const meta: Meta<typeof NotePromotionSheet> = {
-  title: 'Playground/Organisms/NotePromotionSheet',
+  title: 'Plan/Dialogs & Sheets/NotePromotionSheet',
   component: NotePromotionSheet,
   parameters: { layout: 'fullscreen' },
 };

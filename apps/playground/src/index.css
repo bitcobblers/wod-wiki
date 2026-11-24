@@ -250,7 +250,7 @@
 }
 
 .rich-md-blockquote {
-  background-color: rgba(128, 128, 128, 0.1);
+  background-color: hsl(var(--muted) / 0.45);
   border-left: 4px solid hsl(var(--primary));
 }
 
@@ -260,7 +260,7 @@
 }
 
 .clickable-heading:hover {
-  background-color: rgba(128, 128, 128, 0.05);
+  background-color: hsl(var(--muted) / 0.25);
 }
 
 /* Add a subtle indicator */
@@ -326,13 +326,13 @@
 
 /* Blockquote line style */
 .inline-card-blockquote {
-  background-color: rgba(128, 128, 128, 0.1);
+  background-color: hsl(var(--muted) / 0.45);
   border-left: 4px solid hsl(var(--primary));
 }
 
 /* View zone containers */
 .inline-widget-card-zone {
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   width: 100%;
   box-sizing: border-box;
@@ -462,7 +462,7 @@
   .frontmatter-card-source,
   .wod-card-source {
     border-right: none;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid hsl(var(--border));
   }
 }
 
@@ -512,7 +512,6 @@
 .no-focus-ring:focus-within {
   outline: none !important;
   box-shadow: none !important;
-  ring: 0 !important;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */

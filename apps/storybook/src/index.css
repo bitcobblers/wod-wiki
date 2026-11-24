@@ -1,7 +1,6 @@
 @layer ui-sdk;
 @import "tailwindcss";
 @import "@ui-sdk/core/web.css" layer(components);
-@import "@bitcobblers/wod-wiki-ui/styles.css";
 @import "../../playground/src/index.css";
 @config "../../../tailwind.config.cjs";
 @source "./**";
@@ -15,4 +14,14 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
+}
+
+/* Deterministic reduced-motion override for Storybook toolbar testing */
+html[data-reduced-motion="true"] *,
+html[data-reduced-motion="true"] *::before,
+html[data-reduced-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }

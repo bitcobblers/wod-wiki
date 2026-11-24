@@ -7,7 +7,6 @@ import { DashboardGeneratorPage } from './DashboardGeneratorPage';
 import { WqlLibrarySearchPage } from './WqlLibrarySearchPage';
 
 const meta: Meta = {
-  id: 'data',
   title: 'Workbench/Database & Storage/Data Explorer',
   parameters: { layout: 'padded', database: true },
 };

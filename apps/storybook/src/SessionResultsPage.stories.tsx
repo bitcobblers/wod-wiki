@@ -7,7 +7,7 @@ import sessionDetailFixture from './screens/data/session-detail';
 import { storyActions } from './testing/storyActions';
 
 const meta: Meta = {
-  title: 'Playground/Pages/SessionResultsPage',
+  title: 'Analyze/Sessions/SessionResultsPage',
   component: SessionResultsPage,
   parameters: { layout: 'fullscreen' },
   decorators: [

@@ -273,8 +273,7 @@ async function requestCompletion(view: CodeMirrorTarget) {
 }
 
 const meta: Meta<NoteEditorStoryArgs> = {
-  id: 'screens',
-  title: 'Playground/Organisms/Editor/NoteEditor',
+  title: 'Plan/Editor/NoteEditor',
   component: UniversalNoteEditorHarness,
   parameters: {
     domainState: 'populatedJournal',

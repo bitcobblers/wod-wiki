@@ -81,7 +81,7 @@ function AddToDashboardSheetHarness() {
 }
 
 const meta: Meta = {
-  title: 'Playground/Views/AddToDashboardSheet',
+  title: 'Analyze/Dashboards/AddToDashboardSheet',
   component: AddToDashboardSheetHarness,
   parameters: {
     domainState: 'populatedJournal',

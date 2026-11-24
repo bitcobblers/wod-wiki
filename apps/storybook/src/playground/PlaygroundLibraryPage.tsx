@@ -13,7 +13,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp, Play, RotateCw, Search } from 'lucide-react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useInRouterContext } from 'react-router-dom';
 import {
   isFindQuery,
   notebookOfItem,
@@ -74,6 +74,7 @@ export function sortNotesRunnableFirst<T extends { title: string; rawContent?: s
 }
 
 export function PlaygroundLibraryPage({ persistence = notePersistence }: PlaygroundLibraryPageProps) {
+  const inRouter = useInRouterContext();
   const { activeName, dataVersion, feed, feedSources, importFeedSource } = useDatabase();
   const [selected, setSelected] = useState<HistoryRecord | null>(null);
   /** Bumped on reload so an unchanged note still re-applies to the workbench. */
@@ -299,8 +300,7 @@ export function PlaygroundLibraryPage({ persistence = notePersistence }: Playgro
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [openSearchPalette]);
 
-  return (
-    <MemoryRouter>
+  const content = (
       <div className="flex flex-col gap-4" data-testid="playground-library-page">
         {/* Command palette overlay host */}
         <PaletteShell />
@@ -582,6 +582,7 @@ export function PlaygroundLibraryPage({ persistence = notePersistence }: Playgro
           runNote={selected ? { id: selected.id, title: selected.title, persistRuns: true } : undefined}
         />
       </div>
-    </MemoryRouter>
   );
+
+  return inRouter ? content : <MemoryRouter>{content}</MemoryRouter>;
 }

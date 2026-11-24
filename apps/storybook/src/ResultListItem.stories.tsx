@@ -5,7 +5,7 @@ import { WorkoutActionButton } from '@/components/molecules/WorkoutActionButton'
 import { Button, Badge } from "@bitcobblers/wod-wiki-ui/primitives";
 
 const meta: Meta<typeof ResultListItem> = {
-  title: 'Playground/Molecules/ResultListItem',
+  title: 'Analyze/Sessions/ResultListItem',
   component: ResultListItem,
   args: {
     timeLabel: '10:30 AM',

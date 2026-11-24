@@ -2,59 +2,58 @@ import { Meta } from '@storybook/addon-docs/blocks';
 
 <Meta title="Design System/Introduction" />
 
-# WOD.wiki Living Design System & Component Workbench
+# WOD Wiki Living Design System & Testing Workbench
 
-Welcome to the **WOD.wiki Storybook**. This workspace is the single source of truth for UI components, interactive state controls, accessibility verification, and the Whiteboard Language / WQL workbench.
+Welcome to the **WOD Wiki Storybook**. This workspace is organized around how WOD Wiki actually works—**Design System → Plan → Track → Analyze → Workbench**—rather than internal package boundaries.
 
 ---
 
-## 📂 Information Architecture
-
-Stories mirror the monorepo's package and directory boundaries so you can jump directly between a story and its source file:
+## Information Architecture
 
 <table>
   <thead>
     <tr>
       <th>Section</th>
-      <th>Source Path</th>
-      <th>Purpose</th>
+      <th>What Lives Here</th>
+      <th>Primary Purpose</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td><strong>1. Design System</strong></td>
-      <td><code>packages/ui/src/styles.css</code></td>
-      <td>Mineral (Light) &amp; Arctic Frost (Dark) color tokens, metric semantic palette, typography, and component usage guidelines.</td>
+      <td><strong>Design System</strong></td>
+      <td><a href="?path=/story/design-system-design-tokens--palette-and-typography"><code>Design Tokens</code></a> · <a href="?path=/story/design-system-ui-sdk-primitives--default"><code>UI-SDK Primitives</code></a> · <a href="?path=/story/design-system-brand-identity--brand-mark-and-wordmark"><code>Brand &amp; Identity</code></a> · <a href="?path=/docs/design-system-component-guidelines--docs"><code>Component Guidelines</code></a></td>
+      <td>Mineral (Light) &amp; Arctic Frost (Dark) color tokens, 9 Whiteboard metric hues, typography, accessible <code>@ui-sdk/react</code> primitives, and usage guardrails.</td>
     </tr>
     <tr>
-      <td><strong>2. Packages / UI</strong></td>
-      <td><code>packages/ui/src/&#123;composer,widgets,blocks,dialog&#125;/</code></td>
-      <td>Shared, state-free components exported by <code>@bitcobblers/wod-wiki-ui</code> grouped by source directory: <strong>Composer</strong> (<code>WqlComposer</code>), <strong>Widgets</strong> (<code>DashboardView</code>), <strong>Blocks</strong> (<code>QueryBlockView</code>, <code>OutputStatementsTable</code>, <code>WQL Example Gallery</code>), and <strong>Dialog</strong>.</td>
+      <td><strong>Plan</strong></td>
+      <td><a href="?path=/docs/plan-overview--docs"><code>Overview</code></a> · <code>Editor</code> · <code>Library</code> · <code>Calendar</code> · <code>Dialogs &amp; Sheets</code> · <code>Navigation</code></td>
+      <td>Authoring workouts in CodeMirror 6 (<code>NoteEditor</code>, <code>WhiteboardSyntaxEditor</code>), organizing notebooks and streams, calendar planning, sheets/dialogs, and the 4-zone shell.</td>
     </tr>
     <tr>
-      <td><strong>3. Playground</strong></td>
-      <td><code>apps/playground/&#123;src/components,app/views,app/nav&#125;/</code></td>
-      <td>Starts at <a href="?path=/docs/playground-overview--docs"><strong>Playground / Overview</strong></a> (content types, views &amp; navigation map), followed by source-mirrored tiers: <strong>Atoms</strong>, <strong>Molecules</strong>, <strong>Organisms</strong> (<code>Editor</code>, <code>Workout</code>), <strong>Views</strong>, and <strong>Navigation</strong>.</td>
+      <td><strong>Track</strong></td>
+      <td><a href="?path=/story/track-timer-surfaces--minimal-rest"><code>Timer Surfaces</code></a> · <a href="?path=/story/track-fullscreen-timer--countdown"><code>Fullscreen Timer</code></a> · <a href="?path=/story/track-runtime-debug-panel--embedded-debugger"><code>Runtime Debug Panel</code></a></td>
+      <td>Active workout execution across Phone Portrait (<code>375×812</code>), Chromecast TV 16:9 (<code>1920×1080</code>), and desktop runtime stack views.</td>
     </tr>
     <tr>
-      <td><strong>4. Shared Resources</strong></td>
-      <td><code>apps/storybook/src/&#123;database,gallery,screens/data,views&#125;/</code></td>
-      <td>Foundational data planes shared across stories: <a href="?path=/docs/shared-resources-seed-database--docs"><strong>Seed &amp; Database</strong></a> (how <code>parameters: &#123; database: true &#125;</code> and IndexedDB seed sync work) and <a href="?path=/docs/shared-resources-fixtures-gallery--docs"><strong>Fixtures &amp; Gallery</strong></a> (the in-memory corpus journals, gallery manifest, and screen/entry fixture builders).</td>
+      <td><strong>Analyze</strong></td>
+      <td><code>WQL</code> (<code>WQL Composer</code>, <code>QueryBlockView</code>, <code>Gallery</code>) · <code>Dashboards</code> · <code>Sessions</code></td>
+      <td>Querying immutable execution streams with WQL, inspecting dashboard widgets, session reviews, diagnostics, and movement history.</td>
     </tr>
     <tr>
-      <td><strong>5. Workbench</strong></td>
-      <td><code>apps/storybook/src/&#123;workbench,parser-tests,data,sessions&#125;/</code></td>
-      <td>Interactive developer tools and harnesses: <strong>Language Workbench</strong>, <strong>Parser Tests</strong> (Test Builder &amp; Runner), and <strong>Database &amp; Storage</strong> explorers (IndexedDB Selection, Data Explorer, Session Explorer).</td>
+      <td><strong>Workbench</strong></td>
+      <td><a href="?path=/docs/workbench-inside-the-runtime--docs"><code>Inside the Runtime</code></a> · <a href="?path=/story/workbench-language-workbench--runtime-pipeline-tour"><code>Language Workbench</code></a> · <code>Parser Tests</code> · <code>Database &amp; Storage</code> · <code>Resources</code></td>
+      <td>Under-the-hood runtime exploration: Parse → Compile &amp; Metric Shake-Out → Execute (<code>RuntimeStack</code>) → Persist &amp; Query (IndexedDB / WQL).</td>
     </tr>
   </tbody>
 </table>
 
 ---
 
-## 🧪 Testing & Verification Model
+## Testing & Verification Model
 
-1. **Fast In-Memory Isolation by Default**: Component stories mount with synchronous in-memory fixtures (`inMemoryEventStore`, `MockContentProvider`, or static `QueryExecutor`s) with zero IndexedDB overhead.
-2. **Opt-In Database Plane**: Stories that specifically test browser IndexedDB persistence and feed syncing opt in via `parameters: { database: true }`.
-3. **Interactive Controls (`args`)**: Use the **Controls** panel at the bottom of any component story to toggle states, props, workout scripts, and layouts dynamically.
-4. **Accessibility (`@storybook/addon-a11y`)**: Every story is checked against WCAG 2.1 AA contrast and ARIA rules in the **Accessibility** addon tab.
-5. **Automated Interaction (`play()`)**: Key organisms and molecules carry `play()` functions executed in headless Chromium via `bun run test:storybook`.
+1. **Fast In-Memory Isolation by Default**: Component stories mount with synchronous in-memory fixtures (`parameters.domainState`, `inMemoryEventStore`, or static `QueryExecutor`s) with zero IndexedDB overhead.
+2. **Toolbar Property Overrides**: Use the Storybook toolbar to switch **Theme** (Mineral Light / Arctic Frost Dark on `<html>`), **Viewport** (Phone Portrait `375×812`, Phone Landscape, Tablet, Desktop, Wide 4-Zone Shell, Chromecast TV `1920×1080`), **Domain State** presets (stories without `parameters.domainState` display an explicit status pill), and **Motion** (`prefers-reduced-motion` simulation).
+3. **Opt-In Database Plane**: Stories that specifically test browser IndexedDB persistence and feed syncing opt in via `parameters: { database: true }` (see <a href="?path=/docs/workbench-resources-seed-database--docs"><code>Workbench / Resources / Seed &amp; Database</code></a>).
+4. **Interactive Controls (`args` + `react-docgen`)**: Use the **Controls** panel at the bottom of any component story to toggle states, props, workout scripts, and layouts dynamically.
+5. **Accessibility (`@storybook/addon-a11y`)**: Every story is checked against WCAG 2.1 AA contrast and ARIA rules; Design System, Primitives, Dialogs, and Analytics Widget stories enforce `a11y: { test: 'error' }`.
+6. **Automated Interaction (`play()`)**: Key organisms, dialogs, widgets, and molecules carry `play()` functions executed in headless Chromium via `bun run test:storybook`.

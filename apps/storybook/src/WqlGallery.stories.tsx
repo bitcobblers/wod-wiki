@@ -15,8 +15,7 @@ import { GallerySectionView } from './gallery/GalleryCard';
 import type { GallerySection } from './gallery/galleryManifest';
 
 const meta: Meta = {
-  id: 'gallery-wql-example-gallery',
-  title: 'Packages/UI/Blocks/WQL Example Gallery',
+  title: 'Analyze/WQL/WQL Example Gallery',
   parameters: { layout: 'padded' },
 };
 export default meta;

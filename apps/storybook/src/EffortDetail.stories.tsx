@@ -18,7 +18,7 @@ import { TEST_IDS } from '@/lib/testIds';
 import { storyActions } from './testing/storyActions';
 
 const meta: Meta = {
-  title: 'Playground/Views/Effort Detail',
+  title: 'Analyze/Sessions/Effort Detail',
   component: EffortDetailPage,
   parameters: { layout: 'fullscreen' },
 };
