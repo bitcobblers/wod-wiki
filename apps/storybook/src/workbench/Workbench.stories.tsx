@@ -180,10 +180,12 @@ export const InteractiveScratchpad: Story = {
 /**
  * Feed-Library Backed Workbench:
  * Searches notes synced from the core/community feeds into IndexedDB (`Ctrl+/`)
- * and persists finished runs as real Sessions.
+ * and persists finished runs as real Sessions. Covered end-to-end against real
+ * IndexedDB in `e2e/storybook.database.e2e.ts` (`SEED_TIMEOUT = 60_000`).
  */
 export const LibraryPage: Story = {
   name: '5. Feed Library Explorer (IndexedDB)',
-  parameters: { domainState: 'populatedJournal' },
+  tags: ['!test'],
+  parameters: { database: true },
   render: () => <PlaygroundLibraryPage />,
 };

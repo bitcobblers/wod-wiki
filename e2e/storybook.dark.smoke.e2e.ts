@@ -11,15 +11,15 @@ import { test, expect, type Page } from '@playwright/test';
  */
 
 const STORIES = [
-  'gallery-wql-composer--default',
-  'gallery-wql-example-gallery--value-section',
-  'playground--for-time-starter',
-  'screens--universal-note-editor',
+  'analyze-wql-wql-composer--default',
+  'analyze-wql-wql-example-gallery--value-section',
+  'workbench-language-workbench--runtime-pipeline-tour',
+  'plan-editor-noteeditor--universal-note-editor',
   // Database-driven stories — the landing page and the pages that read the
   // active database.
-  'database--indexed-db-selection',
-  'data--wql-library-search',
-  'sessions--session-explorer',
+  'workbench-database-storage-indexeddb-selection--indexed-db-selection',
+  'workbench-database-storage-data-explorer--wql-library-search',
+  'workbench-database-storage-session-explorer--session-explorer',
 ];
 
 const DARK_BG_RAW = '222 16% 21%';
@@ -59,8 +59,8 @@ for (const storyId of STORIES) {
   });
 }
 
-test('dark note editor completion tooltip maintains WCAG AA contrast on screens--universal-note-editor', async ({ page }) => {
-  await page.goto('/iframe.html?id=screens--universal-note-editor&viewMode=story&globals=theme:dark', {
+test('dark note editor completion tooltip maintains WCAG AA contrast on plan-editor-noteeditor--universal-note-editor', async ({ page }) => {
+  await page.goto('/iframe.html?id=plan-editor-noteeditor--universal-note-editor&viewMode=story&globals=theme:dark', {
     waitUntil: 'networkidle',
   });
   const host = page.getByTestId('note-editor-host');

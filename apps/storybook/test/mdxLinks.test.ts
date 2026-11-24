@@ -81,4 +81,26 @@ describe('Storybook MDX deep-link integrity', () => {
 
     expect(broken).toEqual([]);
   });
+
+  it('resolves every Storybook story ID referenced in e2e/storybook*.e2e.ts', () => {
+    const validIds = collectValidIds();
+    const e2eRoot = path.resolve(SRC_ROOT, '../../../e2e');
+    const e2eFiles = readdirSync(e2eRoot)
+      .filter((name) => /^storybook.*\.e2e\.ts$/.test(name))
+      .map((name) => path.join(e2eRoot, name));
+    const broken: string[] = [];
+
+    for (const file of e2eFiles) {
+      const txt = readFileSync(file, 'utf8');
+      for (const m of txt.matchAll(/['"`]([a-z0-9-]+--[a-z0-9-]+)['"`]|id=([a-z0-9-]+--[a-z0-9-]+)/g)) {
+        const storyId = m[1] ?? m[2];
+        if (!storyId) continue;
+        if (!validIds.has(`/story/${storyId}`)) {
+          broken.push(`${path.basename(file)} -> ${storyId}`);
+        }
+      }
+    }
+
+    expect(broken).toEqual([]);
+  });
 });
