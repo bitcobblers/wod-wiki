@@ -1,5 +1,7 @@
 # QA Gate scripts (helios ops)
 
+> **Deprecated (rollback-only during n8n cutover):** External QA readiness and nightly dogfooding have migrated to webhook-driven **n8n** workflows (`Handle WOD GitHub Webhook`, `Finalize WOD Release Readiness`, `WOD QA Lead`, `WOD Defect Triager`, `WOD Release Failure Analyst`; see [`docs/e2e-promotion-agent.md`](../../docs/e2e-promotion-agent.md)). These legacy Helios bash scripts are retained temporarily for rollback during the n8n cutover and will be removed in a follow-up cleanup PR once n8n readiness has passed 2–3 production releases.
+
 Canonical copy of the release-readiness gate scripts that run on helios
 (`10.1.0.30`) under `/srv/nfs/helios/dogfood/wod-wiki/qa-gate/` and
 `/usr/local/bin/wod-wiki-dogfood`. These scripts are not built, shipped, or

@@ -4,7 +4,7 @@
 
 Pull requests deploy isolated previews and run full E2E verification.
 A push to `main` builds, verifies, generates release artifacts (`packages-dist` and `playground-dist`), and stages Playground + Storybook to S3 (`https://main.preview.wod.wiki` and `https://main.story.wod.wiki`).
-E2E testing on `main` is executed externally against the S3 staging environment. Once external E2E passes, tagging the commit `prod` triggers `deploy-prod.yml`, which promotes the staged artifacts to GitHub Pages (`https://wod.wiki`) and npm (`@bitcobblers/*`) and creates the version tag and GitHub release.
+E2E testing on `main` is executed externally against the S3 staging environment, triggered via GitHub's native `workflow_run` webhook (no Tailscale, MQTT, or S3 build-summary push from GitHub Actions). Once external E2E passes, tagging the commit `prod` triggers `deploy-prod.yml`, which promotes the staged artifacts to GitHub Pages (`https://wod.wiki`) and npm (`@bitcobblers/*`) and creates the version tag and GitHub release.
 
 ## Flow
 
