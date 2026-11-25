@@ -486,7 +486,7 @@ export const TimerStackView: React.FC<TimerStackViewProps> = ({
                         {upNext && !dense && (
                             <p
                                 data-testid={TEST_IDS.TIMER_UP_NEXT_CAPTION}
-                                className="max-w-full sm:max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs text-muted-foreground"
+                                className="block w-full max-w-full sm:max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-center text-xs text-muted-foreground"
                             >
                                 Up next: <b className="font-semibold text-foreground">{upNext}</b>
                             </p>

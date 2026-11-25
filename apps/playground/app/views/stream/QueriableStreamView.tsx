@@ -462,6 +462,7 @@ export function QueriableStreamView({
   const [dashboardOpen, setDashboardOpen] = useState(false)
 
   const [entries, setEntries] = useState<Entry[]>([])
+  const [runtimeQueryError, setRuntimeQueryError] = useState<string | null>(null)
 
   // The calendar layouts start a new entry on a given day; the dialog lives
   // here so the calendar never owns a creation flow of its own.
@@ -1107,6 +1108,7 @@ export function QueriableStreamView({
     const timer = setTimeout(() => {
       setLoading(true)
       setStages(undefined)
+      setRuntimeQueryError(null)
       activeEngine
         .query(
           effectiveQuery,
@@ -1141,9 +1143,10 @@ export function QueriableStreamView({
             setSavedTick((prev) => prev) // keep reference clean
           }
         })
-        .catch(() => {
+        .catch((err: unknown) => {
           if (!cancelled) {
             setEntries([])
+            setRuntimeQueryError(err instanceof Error ? err.message : 'Query execution failed')
             setSettledRoute(profile.route)
             publishStreamResults({ pathname: location.pathname, query: effectiveQuery, entries: [] })
           }
@@ -1546,7 +1549,7 @@ export function QueriableStreamView({
 
   // Query error detection (composed query is the default fallback and has nothing to flag unless edited or invalid from URL)
   const composedError = parsed.error && query !== profile.defaultWql ? parsed.error : null
-  const queryError = urlQueryError ?? composedError
+  const queryError = urlQueryError ?? composedError ?? runtimeQueryError
 
   // The route default's own filters — exactly what its head injects (scope +
   // plane type). Subtracted from a user query to find authorship.
@@ -1853,7 +1856,7 @@ export function QueriableStreamView({
           scopeOptions list is a deliberate Route WQL Config state, shown only
           when a settled query returns zero entries so populated planes
           (/tags, /efforts, /sessions, /pages) never show a dead-end warning. */}
-      {profile.scopeOptions.length === 0 && hasSettledRun && !loading && !awaitingFeedEntries && entries.length === 0 && !hasAppliedFilters && (
+      {profile.scopeOptions.length === 0 && profile.target !== 'session' && hasSettledRun && !loading && !awaitingFeedEntries && entries.length === 0 && !hasAppliedFilters && !queryError && (
         <p
           data-testid="route-wql-empty-options"
           className="px-4 pt-3 text-xs text-muted-foreground sm:px-6 lg:px-8"

@@ -354,7 +354,7 @@ function ResponsiveActionsDock({
     }
     const hasEditorOverlay = Boolean(
       document.querySelector(
-        `${testIdSelector(TEST_IDS.MOBILE_WHEEL_COMPOSER)}, ${testIdSelector(TEST_IDS.MOBILE_TYPING_BAR)}`,
+        `${testIdSelector(TEST_IDS.MOBILE_WHEEL_COMPOSER)}, ${testIdSelector(TEST_IDS.MOBILE_TYPING_BAR)}, ${testIdSelector(TEST_IDS.TIMER_FULLSCREEN_OVERLAY)}, ${testIdSelector(TEST_IDS.CLOCK_COMMAND_BOARD)}`,
       ),
     )
     if (hasEditorOverlay) {

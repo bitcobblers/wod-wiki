@@ -38,6 +38,7 @@ import {
   wodEditorKeymap,
   findWorkoutErrors,
 } from '../src/extensions';
+import { workoutLintSource } from '../src/extensions/whiteboard-linter';
 import { EditorView, runScopeHandlers } from '@codemirror/view';
 
 describe('@bitcobblers/wod-wiki-ui/extensions and editorPreset suite', () => {
@@ -761,5 +762,32 @@ describe('editor occurrence lineage', () => {
     expect(view.state.doc.toString()).toBe('20:00 AMRAP\n  10 Burpees\n  15 Squats');
     view.destroy();
     host.remove();
+  });
+
+  it('WW-137: warns on demoted workout fences with trailing info tokens and offers a one-click fix', () => {
+    const doc = '# Part B\n\n```wod 3 rounds\n12 Wall Balls (20 lb)\n9 Toes to Bar\n```\n';
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const view = new EditorView({
+      state: EditorState.create({ doc, extensions: [sectionField] }),
+      parent: host,
+    });
+    try {
+      const diagnostics = workoutLintSource(view);
+      const warning = diagnostics.find((d) => d.severity === 'warning' && d.message.includes('Timer block not recognised'));
+      expect(warning).toBeDefined();
+      expect(warning?.message).toContain('```wod');
+      expect(warning?.message).toContain('3 rounds');
+      const action = warning?.actions?.find((a) => a.name === 'Move text into workout block');
+      expect(action).toBeDefined();
+
+      action!.apply(view, warning!.from, warning!.to);
+      expect(view.state.doc.toString()).toBe('# Part B\n\n```wod\n3 rounds\n12 Wall Balls (20 lb)\n9 Toes to Bar\n```\n');
+      const after = view.state.field(sectionField).sections.find((s) => s.type === 'time');
+      expect(after).toBeDefined();
+    } finally {
+      view.destroy();
+      host.remove();
+    }
   });
 });

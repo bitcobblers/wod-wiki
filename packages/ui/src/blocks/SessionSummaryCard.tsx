@@ -274,7 +274,8 @@ export function SessionSummaryCard({
   }, [prMap, run.events]);
 
   const prCount = Math.max(summary.prCount ?? 0, prMap.size);
-  const title = noteTitleProp ?? summary.noteTitle ?? 'Completed Workout';
+  const defaultTitle = summary.completed === false ? 'Partial Workout' : 'Completed Workout';
+  const title = noteTitleProp ?? summary.noteTitle ?? defaultTitle;
   const dateLabel = new Date(run.timestamp).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',

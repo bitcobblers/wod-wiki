@@ -73,6 +73,19 @@ describe('MinimalTimerSurface', () => {
     expect(caption.textContent).toContain('Run 400 m');
   });
 
+  it('WW-127: spans the mobile up-next caption full width with truncation above the control row', () => {
+    renderSurface({ upNext: '15 Thrusters 40 kg' });
+
+    const caption = screen.getByTestId(TEST_IDS.TIMER_UP_NEXT_CAPTION);
+    expect(caption.textContent).toContain('15 Thrusters 40 kg');
+    expect(caption.className).toContain('w-full');
+    expect(caption.className).toContain('truncate');
+    expect(caption.className).toContain('min-w-0');
+    // Caption sits outside the narrow Next button flex-1 wrapper so it gets the full footer width.
+    const nextBtn = screen.getByTestId(TEST_IDS.TIMER_NEXT_BLOCK);
+    expect(caption.parentElement).not.toBe(nextBtn.parentElement);
+  });
+
   it('dispatches stop / pause / next from the control triad', () => {
     const { handlers } = renderSurface();
 

@@ -16,7 +16,7 @@ import { useDebugMode } from "@/contexts/DebugModeContext";
 import { getAnalyticsFromLogs } from "@/hooks/useWorkbenchServices";
 import type { IScriptRuntime } from "@/hooks/useRuntimeTimer";
 import { type Segment, MetricType, OutputStatement, type EventRecord } from '@bitcobblers/wod-wiki-engine';
-import { eventsToStoredLogs, type RowsQueryResult, type RowsRun } from '@bitcobblers/wod-wiki-wql';
+import { computeRowsRunSummary, eventsToStoredLogs, type RowsQueryResult, type RowsRun } from '@bitcobblers/wod-wiki-wql';
 import { storageService, telemetry, engagementMs, captureMetricCorrection, clearMetricCorrection, captureSessionRpe } from '@/hooks/useBrowserServices';
 import { queryService } from "@/hooks/useCastSignaling";
 import { FocusedDialog } from "@/components/molecules/FocusedDialog";
@@ -477,6 +477,18 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
           });
     const timestamp = events[0]?.timeSpan?.started ?? Date.now();
     const durationMs = lastReportRef.current?.results.duration;
+    const completedFlag = lastReportRef.current?.results.completed;
+    const baseRun = {
+      resultId: effectiveId,
+      noteId: '',
+      timestamp,
+      ...(typeof durationMs === 'number' ? { durationMs } : {}),
+      events,
+    };
+    const summary = computeRowsRunSummary(baseRun, {
+      ...(resolvedWorkoutTitle ? { noteTitle: resolvedWorkoutTitle } : {}),
+      ...(completedFlag !== undefined ? { completed: completedFlag } : {}),
+    });
     return {
       parsed: {
         family: 'find',
@@ -486,15 +498,12 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
       },
       runs: [
         {
-          resultId: effectiveId,
-          noteId: '',
-          timestamp,
-          ...(typeof durationMs === 'number' ? { durationMs } : {}),
-          events,
+          ...baseRun,
+          summary,
         },
       ],
     } as unknown as RowsQueryResult;
-  }, [completedSegments, reviewEvents, resultId]);
+  }, [completedSegments, reviewEvents, resultId, resolvedWorkoutTitle]);
 
   const reviewRun = useMemo<RowsRun | undefined>(() => reviewResult?.runs?.[0], [reviewResult]);
   const reviewBlockContentId = reviewRun?.summary?.blockContentId;

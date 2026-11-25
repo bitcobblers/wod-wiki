@@ -291,6 +291,42 @@ describe('ResponsiveActions mobile fixed thumb dock', () => {
     });
   });
 
+  it('WW-141: auto-yields when the live timer overlay or clock command board is mounted', async () => {
+    function TimerHarness({ showOverlay, showBoard }: { showOverlay?: boolean; showBoard?: boolean }) {
+      return (
+        <Shell>
+          <ResponsiveActions fallback label="Page options">
+            <button type="button">Download</button>
+          </ResponsiveActions>
+          {showOverlay && <div data-testid={TEST_IDS.TIMER_FULLSCREEN_OVERLAY}>Timer</div>}
+          {showBoard && <div data-testid={TEST_IDS.CLOCK_COMMAND_BOARD}>Keypad</div>}
+        </Shell>
+      );
+    }
+
+    const { rerender } = render(<TimerHarness />);
+    const dock = screen.getByTestId(TEST_IDS.ACTIONS_DOCK);
+    expect(dock.className).not.toContain('invisible');
+
+    rerender(<TimerHarness showOverlay />);
+    await waitFor(() => {
+      expect(dock.className).toContain('invisible');
+      expect(dock.className).toContain('pointer-events-none');
+      expect(dock.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    rerender(<TimerHarness />);
+    await waitFor(() => {
+      expect(dock.className).not.toContain('invisible');
+    });
+
+    rerender(<TimerHarness showBoard />);
+    await waitFor(() => {
+      expect(dock.className).toContain('invisible');
+      expect(dock.className).toContain('pointer-events-none');
+    });
+  });
+
   it('auto-yields when results-mobile-bar is visible in the DOM', async () => {
     function Harness({ showResultsBar, hidden }: { showResultsBar: boolean; hidden?: boolean }) {
       return (

@@ -289,11 +289,12 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
     </button>
   );
 
-  // Up-next caption — fixed-height line above the Next button; empty content
-  // reserves the space so the control zone never shifts.
+  // Up-next caption — fixed-height line above the controls; on mobile it spans
+  // the full footer width (right-aligned over Next) so longer movement labels
+  // fit without clipping inside the narrow Next column (WW-127).
   const caption = (
     <p
-      className={`truncate text-muted-foreground ${isTv ? 'pl-[0.4cqw] text-[1.8cqw]' : 'pl-1 text-xs'}`}
+      className={`block w-full min-w-0 truncate text-muted-foreground ${isTv ? 'pl-[0.4cqw] text-[1.8cqw]' : 'text-right text-xs'}`}
       data-testid={TEST_IDS.TIMER_UP_NEXT_CAPTION}
     >
       {model.upNext && (
@@ -304,17 +305,25 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
     </p>
   );
 
-  return (
-    <div className={isTv ? 'flex items-end justify-center gap-[2cqw]' : 'flex items-end gap-3'}>
-      {stopButton}
-      {!isTv && pauseButton}
-      <div className={`flex min-w-0 flex-col ${isTv ? 'items-start gap-[1cqw]' : 'flex-1 items-stretch gap-2'}`}>
+  if (!isTv) {
+    return (
+      <div className="flex min-w-0 flex-col gap-2">
         {caption}
-        {isTv ? (
-          <div className="flex items-center gap-[1.6cqw]">{pauseButton}{nextButton}</div>
-        ) : (
-          nextButton
-        )}
+        <div className="flex min-w-0 items-end gap-3">
+          {stopButton}
+          {pauseButton}
+          <div className="min-w-0 flex-1">{nextButton}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-end justify-center gap-[2cqw]">
+      {stopButton}
+      <div className="flex min-w-0 flex-col items-start gap-[1cqw]">
+        {caption}
+        <div className="flex items-center gap-[1.6cqw]">{pauseButton}{nextButton}</div>
       </div>
     </div>
   );

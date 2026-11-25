@@ -1188,6 +1188,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
   readonly readOnly: boolean;
   readonly detailed: boolean;
   readonly debugMode: boolean;
+  readonly reloadVersion: number;
 
   constructor(
     sectionId: string,
@@ -1195,6 +1196,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
     readOnly: boolean = false,
     detailed: boolean = false,
     debugMode: boolean = false,
+    reloadVersion: number = 0,
   ) {
     super();
     this.sectionId = sectionId;
@@ -1202,6 +1204,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
     this.readOnly = readOnly;
     this.detailed = detailed;
     this.debugMode = debugMode;
+    this.reloadVersion = reloadVersion;
   }
 
   eq(other: DefaultFrontmatterWidget): boolean {
@@ -1210,7 +1213,8 @@ export class DefaultFrontmatterWidget extends WidgetType {
       this.rawContent === other.rawContent &&
       this.readOnly === other.readOnly &&
       this.detailed === other.detailed &&
-      this.debugMode === other.debugMode
+      this.debugMode === other.debugMode &&
+      this.reloadVersion === other.reloadVersion
     );
   }
   ignoreEvent(): boolean {
@@ -1343,6 +1347,14 @@ export class DefaultFrontmatterWidget extends WidgetType {
         );
 
         let currentKey = key;
+        const readPendingScalarValue = (): string | number | string[] => {
+          if (isChipList || nested) return value as string | number | string[];
+          const siblingVal = row.querySelector<HTMLInputElement>('input[data-frontmatter-field="value"]');
+          if (!siblingVal) return value as string | number | string[];
+          const cur = siblingVal.value.trim();
+          const num = Number(cur);
+          return cur !== "" && !isNaN(num) ? num : cur;
+        };
         const commitKey = (andFocusValue = false) => {
           const nextKey = keyInput.value.trim();
           if (!nextKey || nextKey === currentKey) {
@@ -1359,9 +1371,12 @@ export class DefaultFrontmatterWidget extends WidgetType {
           if (andFocusValue) {
             pendingFocus.set(view, { kind: "value", key: nextKey });
           }
-          renamePropertyInView(view, this.sectionId, currentKey, nextKey, value as string | number | readonly string[]);
+          // Preserve any text already typed into the sibling value input before
+          // renaming re-renders the row and detaches the old inputs (WW-138).
+          const effectiveValue = readPendingScalarValue();
+          renamePropertyInView(view, this.sectionId, currentKey, nextKey, effectiveValue);
           delete meta[currentKey];
-          meta[nextKey] = value;
+          meta[nextKey] = effectiveValue;
           currentKey = nextKey;
         };
 
@@ -1607,7 +1622,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
                 const nextKey = entryKeys[idxInEntries + 1];
                 box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${nextKey}"] input[data-frontmatter-field="key"]`)?.focus();
               } else {
-                root.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')?.click();
+                root.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')?.focus();
               }
               return;
             }
@@ -1705,17 +1720,30 @@ export class DefaultFrontmatterWidget extends WidgetType {
           let committedVal = strVal;
           const commitVal = (pendingNextKey?: string | boolean) => {
             const cur = valInput.value.trim();
-            if (cur !== committedVal) {
+            const siblingKeyInput = row.querySelector<HTMLInputElement>('input[data-frontmatter-field="key"]');
+            const rawSiblingKey = siblingKeyInput?.value.trim() ?? key;
+            const hasPendingRename =
+              rawSiblingKey !== key &&
+              /^[A-Za-z_][\w.-]*$/.test(rawSiblingKey) &&
+              !(rawSiblingKey in meta);
+            if (cur !== committedVal || hasPendingRename) {
               committedVal = cur;
               const num = Number(cur);
               const next = cur !== "" && !isNaN(num) ? num : cur;
-              meta[key] = next;
+              const targetKey = hasPendingRename ? rawSiblingKey : key;
               if (typeof pendingNextKey === "string") {
                 pendingFocus.set(view, { kind: "key", key: pendingNextKey });
               } else if (pendingNextKey === true) {
-                pendingFocus.set(view, { kind: "value", key });
+                pendingFocus.set(view, { kind: "value", key: targetKey });
               }
-              patchPropertyInView(view, this.sectionId, [key], next);
+              if (hasPendingRename) {
+                delete meta[key];
+                meta[targetKey] = next;
+                renamePropertyInView(view, this.sectionId, key, targetKey, next);
+              } else {
+                meta[key] = next;
+                patchPropertyInView(view, this.sectionId, [key], next);
+              }
             }
           };
 
@@ -1766,7 +1794,7 @@ export class DefaultFrontmatterWidget extends WidgetType {
                 box.querySelector<HTMLInputElement>(`[data-frontmatter-row="${nextKey}"] input[data-frontmatter-field="key"]`)?.focus();
               } else {
                 commitVal();
-                root.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')?.click();
+                root.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')?.focus();
               }
               return;
             }
@@ -2277,11 +2305,19 @@ class EmptyFrontmatterWidget extends WidgetType {
   }
 }
 
+const referenceReloadVersion = StateField.define<number>({
+  create: () => 0,
+  update(version, tr) {
+    return tr.effects.some((e) => e.is(referenceIndexReload)) ? version + 1 : version;
+  },
+});
+
 function buildFrontmatterDecos(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const { sections } = state.field(sectionField);
 
   const visible = state.facet(frontmatterVisibility);
+  const reloadVersion = state.field(referenceReloadVersion, false) ?? 0;
   let hasFrontmatter = false;
   for (const section of sections) {
     if (section.type !== "frontmatter") continue;
@@ -2303,7 +2339,7 @@ function buildFrontmatterDecos(state: EditorState): DecorationSet {
       section.from,
       section.to,
       Decoration.replace({
-        widget: new DefaultFrontmatterWidget(section.id, rawContent, state.readOnly, detailed, debugMode),
+        widget: new DefaultFrontmatterWidget(section.id, rawContent, state.readOnly, detailed, debugMode, reloadVersion),
         block: true,
       }),
     );
@@ -2446,6 +2482,7 @@ export const frontmatterKeymap = Prec.highest(
 );
 
 export const frontmatterPreview: Extension = [
+  referenceReloadVersion,
   frontmatterDetailed,
   frontmatterSource,
   frontmatterPreviewField,
