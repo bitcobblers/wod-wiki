@@ -876,6 +876,77 @@ describe('the notebook plane (ticket 08)', () => {
     expect(summary.totalReps).toBe(30);
     expect(summary.elapsedMs).toBe(18_000);
   });
+
+  it('WW-105: computeRowsRunSummary does not report prescribed target rounds as completed on a partial stop', () => {
+    const t0 = 1_700_000_000_000;
+    const summary = computeRowsRunSummary(
+      {
+        resultId: 'run-ww105-partial',
+        noteId: 'n-ww105',
+        timestamp: t0 + 45_000,
+        durationMs: 45_000,
+        events: [
+          {
+            id: 'run-ww105:1',
+            resultId: 'run-ww105-partial',
+            noteId: 'n-ww105',
+            timestamp: t0,
+            grain: 'event',
+            outputType: 'segment',
+            effortSlug: 'thrusters',
+            sourceBlockKey: 'stmt-1',
+            stackLevel: 2,
+            completionReason: 'user-advance',
+            timeSpan: { started: t0, ended: t0 + 25_000 },
+            metrics: [
+              { type: 'effort', value: 'thrusters', origin: 'parser' },
+              { type: 'rep', value: 21, origin: 'user' },
+              { type: 'resistance', value: 40, unit: 'kg', origin: 'parser' },
+            ],
+          },
+          {
+            id: 'run-ww105:2',
+            resultId: 'run-ww105-partial',
+            noteId: 'n-ww105',
+            timestamp: t0 + 25_000,
+            grain: 'event',
+            outputType: 'segment',
+            effortSlug: 'pull-ups',
+            sourceBlockKey: 'stmt-2',
+            stackLevel: 2,
+            completionReason: 'user-abort',
+            timeSpan: { started: t0 + 25_000, ended: t0 + 45_000 },
+            metrics: [
+              { type: 'effort', value: 'pull-ups', origin: 'parser' },
+              { type: 'rep', value: 21, origin: 'user' },
+              { type: 'current-round', value: 1, origin: 'runtime' },
+            ],
+          },
+          {
+            id: 'run-ww105:3',
+            resultId: 'run-ww105-partial',
+            noteId: 'n-ww105',
+            timestamp: t0,
+            grain: 'event',
+            outputType: 'segment',
+            sourceBlockKey: 'rounds-container',
+            stackLevel: 1,
+            completionReason: 'user-abort',
+            timeSpan: { started: t0, ended: t0 + 45_000 },
+            metrics: [
+              { type: 'rounds', value: 3, origin: 'parser' },
+              { type: 'current-round', value: 0, origin: 'runtime' },
+            ],
+          },
+        ],
+      },
+      { completed: false },
+    );
+
+    expect(summary.completed).toBe(false);
+    expect(summary.roundsCompleted).toBe(0);
+    expect(summary.totalVolume).toBe(840);
+  });
 });
 
 describe('WW-036: :note{} N+1-free execution and queryDomain fast path', () => {

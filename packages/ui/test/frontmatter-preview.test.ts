@@ -8,6 +8,7 @@ import {
   frontmatterVisibility,
   frontmatterDebugMode,
   frontmatterReferenceIndex,
+  referenceIndexReload,
 } from '../src/extensions';
 
 const SAMPLE_NOTE = `---
@@ -1241,6 +1242,93 @@ summaries.totalWork: sum(work)
       expect(summary.textContent).toContain('#rowing');
       expect(summary.textContent).toContain('#high');
       expect(summary.querySelectorAll('a').length).toBe(0);
+    } finally {
+      view.destroy();
+      container.remove();
+    }
+  });
+
+  it('WW-124: re-renders summary tag chips as links when referenceIndexReload fires after async tag hydration', () => {
+    const doc = [
+      '---',
+      'discipline: rowing',
+      '---',
+      '# Row',
+    ].join('\n');
+    let hydrated = false;
+    const mockProvider = {
+      resolve: () => ({ matched: 'none' as const, effortRef: null, equipment: [], diagnostics: [] }),
+      resolveEffort: () => null,
+      resolveEquipment: () => null,
+      resolveTag: (val: string, tagType?: string) =>
+        hydrated && val.toLowerCase() === 'rowing' ? { slug: 'rowing', type: tagType ?? 'discipline' } : null,
+      openHref: (kind: 'effort' | 'equipment' | 'tag', slug: string, tagType?: string) =>
+        kind === 'tag' ? `/t/${tagType ?? 'general'}/${slug}` : `/${kind}/${slug}`,
+      createHref: (kind: 'effort' | 'equipment' | 'tag') => `/${kind}/new`,
+    };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({
+        doc,
+        extensions: [sectionField, frontmatterPreview, frontmatterReferenceIndex.of(() => mockProvider)],
+      }),
+    });
+
+    try {
+      expect(container.querySelector('[data-frontmatter-summary] a')).toBeNull();
+
+      hydrated = true;
+      view.dispatch({ effects: referenceIndexReload.of(null) });
+
+      const link = container.querySelector<HTMLAnchorElement>('[data-frontmatter-summary] a');
+      expect(link).not.toBeNull();
+      expect(link?.textContent).toBe('#rowing');
+      expect(link?.getAttribute('href')).toBe('/t/discipline/rowing');
+    } finally {
+      view.destroy();
+      container.remove();
+    }
+  });
+
+  it('WW-138: preserves typed property value across key rename in both entry orders and does not append junk property rows on Enter', async () => {
+    const doc = '---\nslug: kb-swing\n---\n# Body\n';
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView({
+      parent: container,
+      state: EditorState.create({ doc, extensions: [sectionField, frontmatterPreview] }),
+    });
+
+    try {
+      // Order 1: Add property -> type key + value without intermediate commit -> press Enter on value
+      container.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')?.click();
+      const row1 = container.querySelector('[data-frontmatter-row="property"]')!;
+      const key1 = row1.querySelector<HTMLInputElement>('input[data-frontmatter-field="key"]')!;
+      const val1 = row1.querySelector<HTMLInputElement>('input[data-frontmatter-field="value"]')!;
+      key1.value = 'qa_review';
+      val1.value = 'QA 2099 scope-test';
+      val1.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await Promise.resolve();
+
+      const afterFirst = view.state.doc.toString();
+      expect(afterFirst).toContain('qa_review: QA 2099 scope-test');
+      expect(afterFirst).not.toMatch(/^\s*property(_\d+)?:/m);
+
+      // Order 2: Add property -> type value first -> type key -> press Enter on key
+      container.querySelector<HTMLButtonElement>('button[aria-label="Add property"]')?.click();
+      const row2 = container.querySelector('[data-frontmatter-row="property"]')!;
+      const key2 = row2.querySelector<HTMLInputElement>('input[data-frontmatter-field="key"]')!;
+      const val2 = row2.querySelector<HTMLInputElement>('input[data-frontmatter-field="value"]')!;
+      val2.value = 'Movement standard notes';
+      key2.value = 'qa_order2';
+      key2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await Promise.resolve();
+
+      const afterSecond = view.state.doc.toString();
+      expect(afterSecond).toContain('qa_order2: Movement standard notes');
+      expect(afterSecond).not.toMatch(/^\s*property(_\d+)?:/m);
     } finally {
       view.destroy();
       container.remove();

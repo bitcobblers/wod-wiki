@@ -1015,17 +1015,36 @@ export function computeRowsRunSummary(
   let roundsCompleted = 0;
   let blockContentId = events.find((e) => e.blockContentId)?.blockContentId;
 
+  const hasEarlyAbort = events.some(
+    (e) =>
+      e.completionReason === 'user-abort' ||
+      e.completionReason === 'forced-pop' ||
+      e.completionReason === 'timer-expired',
+  );
+  const resolvedCompleted = opts.completed ?? (hasEarlyAbort ? false : undefined);
+
   // Preserve roundsCompleted reported on enclosing container segments (e.g. rounds blocks)
   // without inflating splitCount or double-counting leaf work metrics.
   for (const row of allSegmentRows) {
     if (splitRowSet.has(row)) continue;
     const key = String(row.sourceBlockKey ?? '').toLowerCase();
     if (key.startsWith('waiting-to-start')) continue;
+    const rowEarlyTermination =
+      row.completionReason === 'user-abort' ||
+      row.completionReason === 'forced-pop' ||
+      row.completionReason === 'timer-expired';
+    const isPartialRow = rowEarlyTermination || resolvedCompleted === false;
     for (const m of visibleRowMetrics(row.metrics)) {
       if (typeof m.value !== 'number' || !Number.isFinite(m.value)) continue;
       const mType = m.type ?? '';
       const canon = typeof m.metadata?.canonicalKey === 'string' ? m.metadata.canonicalKey : mType;
-      if (canon === 'rounds' || mType === 'rounds' || mType === 'current-round' || canon === 'currentRound') {
+      if (canon === 'rounds' || mType === 'rounds') {
+        // On a partial/early-stopped run, prescribed `rounds` is the workout target,
+        // never the number of completed rounds (WW-105).
+        if (isPartialRow) continue;
+        roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
+      } else if (mType === 'current-round' || canon === 'currentRound') {
+        if (isPartialRow && m.origin === 'parser') continue;
         roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
       }
     }
@@ -1092,6 +1111,9 @@ export function computeRowsRunSummary(
           row.completionReason === 'user-abort' ||
           row.completionReason === 'forced-pop' ||
           row.completionReason === 'timer-expired';
+        if ((earlyTermination || resolvedCompleted === false) && (canon === 'rounds' || mType === 'rounds')) {
+          continue;
+        }
         const isLeafEffortRow =
           Boolean(rowEffortSlug) ||
           vis.some((x) => x.type === MetricType.Effort || x.type === 'effort');
@@ -1218,6 +1240,7 @@ export function computeRowsRunSummary(
         const ms = metricToMs(m) ?? 0;
         summaryElapsedMs = Math.max(summaryElapsedMs ?? 0, ms);
       } else if (canon === 'rounds' || canon === 'currentRound') {
+        if (resolvedCompleted === false && canon === 'rounds') continue;
         roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
       }
     }
@@ -1272,7 +1295,7 @@ export function computeRowsRunSummary(
     ...(blockContentId ? { blockContentId } : {}),
     ...(opts.noteTitle ? { noteTitle: opts.noteTitle } : {}),
     ...(opts.notebooks?.length ? { notebooks: [...opts.notebooks] } : {}),
-    ...(opts.completed !== undefined ? { completed: opts.completed } : {}),
+    ...(resolvedCompleted !== undefined ? { completed: resolvedCompleted } : {}),
     ...(opts.prCount !== undefined ? { prCount: opts.prCount } : {}),
     movementRollup: [...rollupMap.values()],
   };

@@ -9,6 +9,9 @@ import { sectionField } from "./section-state";
 const BLOCK_HEADER_LINE_RE =
   /^[ \t]*(?:\d+:\d+(?::\d+)?\s+)?(?:AMRAP|EMOM|TABATA|FOR TIME)\b|^[ \t]*\(\s*\d+(?:\s*-\s*\d+)*\s*(?:rounds?|rds?)?\s*\)/i;
 
+const DEMOTED_DIALECT_FENCE_RE =
+  /^([ \t]*`{3,})(time|wod|whiteboard|log)(?::([\w-]+))?\s+(.+?)\s*$/i;
+
 function leadingIndentWidth(line: string): number {
   let w = 0;
   for (let i = 0; i < line.length; i++) {
@@ -111,6 +114,37 @@ export function workoutLintSource(view: EditorView): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
   for (const section of sections) {
+    if (section.type === "code") {
+      // Warn when an author writes trailing words on a workout fence line
+      // (e.g. "```wod 3 rounds"), which demotes the block to plain code (WW-137).
+      const openLine = view.state.doc.lineAt(section.from);
+      const demoted = DEMOTED_DIALECT_FENCE_RE.exec(openLine.text);
+      if (demoted) {
+        const [, fencePrefix, alias, sport, trailing] = demoted;
+        const cleanHeader = `${fencePrefix}${alias}${sport ? `:${sport}` : ""}`;
+        diagnostics.push({
+          from: openLine.from,
+          to: openLine.to,
+          severity: "warning",
+          message: `Timer block not recognised — fence line must be ${cleanHeader.trim()} (move "${trailing}" inside the block).`,
+          actions: [
+            {
+              name: "Move text into workout block",
+              apply(targetView) {
+                targetView.dispatch({
+                  changes: {
+                    from: openLine.from,
+                    to: openLine.to,
+                    insert: `${cleanHeader}\n${trailing}`,
+                  },
+                });
+              },
+            },
+          ],
+        });
+      }
+      continue;
+    }
     if (section.type !== "time" && section.type !== "log") continue;
     if (section.contentFrom === undefined || section.contentTo === undefined) continue;
 

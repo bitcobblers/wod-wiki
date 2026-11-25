@@ -19,6 +19,7 @@ import {
 } from './entryMapper'
 import { entryOpenHref } from './entryActions'
 import { groupEntriesByDimension } from './entryGrouping'
+import { createNoteFromMarkdown } from '@/services/ExportImportService'
 
 function makeNote(overrides: Partial<Note> & { slug?: string; pageId?: string } = {}): Note {
   return {
@@ -141,6 +142,22 @@ describe('toEntry — journal post dates', () => {
       createdAt: new Date(2026, 9, 9).getTime(),
     }))
     expect(entry.date).toBe('2026-10-09')
+  })
+
+  it('WW-135: imported dated journal notes stamp type=journal and group under their authored date, not Today', () => {
+    const imported = createNoteFromMarkdown(
+      '---\ntitle: QA Restore Note 2099\ndate: 2099-08-05\n---\n# QA Restore Note 2099\n\nRestored body\n',
+      { nowMs: () => new Date(2026, 10, 25, 12, 0, 0).getTime(), now: () => new Date(2026, 10, 25, 12, 0, 0) },
+    )
+    expect(imported.type).toBe('journal')
+    const entry = toEntry(makeNote({
+      id: 'restored-2099',
+      title: imported.title,
+      type: imported.type,
+      date: imported.targetDate,
+      createdAt: new Date(2026, 10, 25, 12, 0, 0).getTime(),
+    }))
+    expect(entry.date).toBe('2099-08-05')
   })
 })
 

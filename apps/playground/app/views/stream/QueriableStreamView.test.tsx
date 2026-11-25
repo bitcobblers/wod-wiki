@@ -2389,4 +2389,32 @@ describe('QueriableStreamView — query truth and retained state', () => {
       resetStorageForTesting()
     }
   })
+
+  it('WW-136: suppresses misleading route-wql-empty-options on /sessions and surfaces runtime query errors instead of silent zero counts', async () => {
+    const { engine: emptyEngine } = stubEngine(() => [])
+    render(
+      <MemoryRouter initialEntries={['/sessions']}>
+        <QueriableStreamView profile={SESSIONS_STREAM_PROFILE} queryEngine={emptyEngine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('stream-query-counts').textContent).toBe('0 sessions')
+    })
+    expect(screen.queryByTestId('route-wql-empty-options')).toBeNull()
+    expect(screen.getByText('No completed session results recorded in this period.')).toBeDefined()
+
+    cleanup()
+    const { engine: failingEngine } = stubEngine(() => Promise.reject(new Error('IDB transaction aborted')))
+    render(
+      <MemoryRouter initialEntries={['/sessions']}>
+        <QueriableStreamView profile={SESSIONS_STREAM_PROFILE} queryEngine={failingEngine} />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/IDB transaction aborted/)).toBeDefined()
+    })
+    expect(screen.queryByTestId('route-wql-empty-options')).toBeNull()
+  })
 })

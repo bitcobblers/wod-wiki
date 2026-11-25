@@ -85,6 +85,7 @@ export type ParsedNoteEntry = Omit<HistoryRecord, 'id' | 'createdAt' | 'updatedA
   id?: string;
   createdAt?: number;
   updatedAt?: number;
+  type?: Note['type'];
 };
 
 /**
@@ -203,6 +204,9 @@ export function createNoteFromMarkdown(
   clock: INowProvider = wallClockNow,
 ): ParsedNoteEntry {
   const parsed = parseNoteMarkdown(markdown, { defaultDate: clock.nowMs() });
+  const isJournalDated =
+    parsed.date !== undefined &&
+    (!parsed.notebookId || parsed.notebookId === 'notebook/journal');
   return {
     ...(parsed.id ? { id: parsed.id } : {}),
     title: parsed.title,
@@ -212,6 +216,7 @@ export function createNoteFromMarkdown(
     sections: [],
     blocks: parsed.blocks,
     sourceRevision: 1,
+    ...(isJournalDated ? { type: 'journal' as const } : {}),
     ...(parsed.notebookId ? { notebookId: parsed.notebookId } : {}),
   };
 }
@@ -433,6 +438,7 @@ export async function importFromMarkdown(
     const existing = entry.id ? await provider.getRecord(entry.id) : null;
     await provider.saveRecord({
       ...entry,
+      ...(existing?.type ?? entry.type ? { type: existing?.type ?? entry.type } : {}),
       sourceRevision: existing?.sourceRevision ?? entry.sourceRevision,
       blocks: existing?.rawContent === entry.rawContent ? existing.blocks : entry.blocks,
     });
@@ -566,6 +572,7 @@ export async function importFromZip(file: File, provider: IContentProvider): Pro
       const existing = entry.id ? await provider.getRecord(entry.id) : null;
       const saved = await provider.saveRecord({
         ...entry,
+        ...(existing?.type ?? entry.type ? { type: existing?.type ?? entry.type } : {}),
         seedOrigin: existing?.seedOrigin ?? 'user',
         sourceRevision: existing?.sourceRevision ?? entry.sourceRevision,
         blocks: existing?.rawContent === entry.rawContent ? existing.blocks : entry.blocks,
