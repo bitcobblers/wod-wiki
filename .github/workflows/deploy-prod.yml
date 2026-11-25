@@ -31,6 +31,10 @@ permissions:
   id-token: write
   actions: read
 
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -48,6 +52,7 @@ jobs:
         id: find-run
         uses: actions/github-script@v9
         with:
+          retries: 3
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -118,7 +123,24 @@ jobs:
           echo "::error::No readiness verdict after 10 minutes - run the E2E promotion agent before tagging prod"
           exit 1
 
-      - name: Download packages-dist to verify availability & read version
+      - name: Download packages-dist to verify availability & read version (attempt 1)
+        id: download-packages-1
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          name: packages-dist
+          path: packages/
+          run-id: ${{ steps.find-run.outputs.run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait before packages-dist retry
+        if: steps.download-packages-1.outcome == 'failure'
+        run: |
+          echo "::warning::packages-dist download failed on attempt 1; retrying in 5s..."
+          sleep 5
+
+      - name: Download packages-dist to verify availability & read version (attempt 2)
+        if: steps.download-packages-1.outcome == 'failure'
         uses: actions/download-artifact@v7
         with:
           name: packages-dist
@@ -157,6 +179,7 @@ jobs:
       - name: Create or update GitHub release and tag
         uses: actions/github-script@v9
         with:
+          retries: 3
           script: |
             const tag = '${{ needs.resolve-artifacts.outputs.tag }}';
             const sha = '${{ needs.resolve-artifacts.outputs.target-sha }}';

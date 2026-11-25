@@ -133,6 +133,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Post PR summary
+        continue-on-error: true
         uses: actions/github-script@v9
         env:
           SLUG: ${{ needs.slug.outputs.slug }}
@@ -147,6 +148,7 @@ jobs:
           STORYBOOK_E2E_RESULT: ${{ needs.e2e.outputs.storybook-outcome }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          retries: 3
           script: |
             const slug = process.env.SLUG;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
@@ -253,9 +255,11 @@ jobs:
           fi
 
       - name: Post destroy comment
+        continue-on-error: true
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          retries: 3
           script: |
             const merged = context.payload.pull_request?.merged;
             const action = merged ? 'merged' : 'closed';
