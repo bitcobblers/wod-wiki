@@ -1,8 +1,9 @@
 name: Publish
 
 # Production publication leg on main (docs/build-process.canvas):
-#   - publish-npm:   publishes @bitcobblers/* from packages-dist to npmjs.org
-#   - publish-pages: deploys playground-dist to GitHub Pages (https://wod.wiki)
+#   - publish-npm:   idempotently publishes @bitcobblers/* from packages-dist to npmjs.org
+#   - prepare-pages: downloads playground-dist and uploads a run-attempt-scoped Pages artifact
+#   - publish-pages: waits for artifact indexing and deploys to GitHub Pages (https://wod.wiki)
 
 on:
   workflow_call:
@@ -41,8 +42,25 @@ jobs:
           name: packages-dist
           path: packages/
 
-      - name: Download packages-dist (from main build run)
+      - name: Download packages-dist (from main build run, attempt 1)
+        id: download-npm-1
         if: inputs.run-id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          name: packages-dist
+          path: packages/
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retry download packages-dist (attempt 2)
+        if: inputs.run-id != '' && steps.download-npm-1.outcome == 'failure'
+        run: |
+          echo "::warning::packages-dist download failed on attempt 1; retrying in 5s..."
+          sleep 5
+
+      - name: Download packages-dist (from main build run, attempt 2)
+        if: inputs.run-id != '' && steps.download-npm-1.outcome == 'failure'
         uses: actions/download-artifact@v7
         with:
           name: packages-dist
@@ -57,24 +75,47 @@ jobs:
           set -euo pipefail
           for pkg in packages/*/; do
             if [ -f "$pkg/package.json" ]; then
-              echo "Publishing $pkg"
-              (cd "$pkg" && npm publish --access public)
+              NAME=$(node -e "console.log(require(process.argv[1]).name)" "./${pkg}package.json")
+              VERSION=$(node -e "console.log(require(process.argv[1]).version)" "./${pkg}package.json")
+              if [ "$(npm view "${NAME}@${VERSION}" version 2>/dev/null || true)" = "$VERSION" ]; then
+                echo "Already published ${NAME}@${VERSION} — skipping"
+                continue
+              fi
+
+              echo "Publishing ${NAME}@${VERSION} ($pkg)"
+              PUBLISHED=false
+              for attempt in 1 2 3; do
+                if (cd "$pkg" && npm publish --access public); then
+                  PUBLISHED=true
+                  break
+                fi
+                if [ "$(npm view "${NAME}@${VERSION}" version 2>/dev/null || true)" = "$VERSION" ]; then
+                  echo "${NAME}@${VERSION} is already published on npm — continuing"
+                  PUBLISHED=true
+                  break
+                fi
+                if [ "$attempt" -lt 3 ]; then
+                  echo "::warning::npm publish failed for ${NAME}@${VERSION} (attempt ${attempt}/3); retrying in $((attempt * 5))s..."
+                  sleep $((attempt * 5))
+                fi
+              done
+
+              if [ "$PUBLISHED" != "true" ]; then
+                echo "::error::Failed to publish ${NAME}@${VERSION} after 3 attempts"
+                exit 1
+              fi
             fi
           done
 
-  publish-pages:
-    name: Publish wod.wiki (GitHub Pages)
+  prepare-pages:
+    name: Prepare wod.wiki Pages artifact
     runs-on: ubuntu-22.04
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     outputs:
-      page-url: ${{ steps.deployment.outputs.page_url }}
+      artifact-name: ${{ steps.artifact.outputs.name }}
     permissions:
       contents: read
       actions: read
       pages: write
-      id-token: write
     steps:
       - name: Download playground-dist (current run)
         if: inputs.run-id == ''
@@ -83,8 +124,25 @@ jobs:
           name: playground-dist
           path: ./dist/
 
-      - name: Download playground-dist (from main build run)
+      - name: Download playground-dist (from main build run, attempt 1)
+        id: download-pages-1
         if: inputs.run-id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          name: playground-dist
+          path: ./dist/
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait before playground-dist retry
+        if: inputs.run-id != '' && steps.download-pages-1.outcome == 'failure'
+        run: |
+          echo "::warning::playground-dist download failed on attempt 1; retrying in 5s..."
+          sleep 5
+
+      - name: Download playground-dist (from main build run, attempt 2)
+        if: inputs.run-id != '' && steps.download-pages-1.outcome == 'failure'
         uses: actions/download-artifact@v7
         with:
           name: playground-dist
@@ -98,13 +156,78 @@ jobs:
           test -f ./dist/.nojekyll
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: ./dist/
+          include-hidden-files: true
 
-      - name: Deploy Pages
+      - name: Record Pages artifact name
+        id: artifact
+        run: echo "name=github-pages-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+  publish-pages:
+    name: Publish wod.wiki (GitHub Pages)
+    needs: [prepare-pages]
+    runs-on: ubuntu-22.04
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page-url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Wait for Pages artifact to be indexed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT_NAME: ${{ needs.prepare-pages.outputs.artifact-name }}
+        run: |
+          set -euo pipefail
+          echo "Waiting for artifact '${ARTIFACT_NAME}' in run ${GITHUB_RUN_ID}..."
+          for i in $(seq 1 12); do
+            COUNT=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?name=${ARTIFACT_NAME}" \
+              --jq '[.artifacts[]? | select(.expired == false)] | length' 2>/dev/null || echo 0)
+            if [ "${COUNT:-0}" -ge 1 ]; then
+              echo "Artifact '${ARTIFACT_NAME}' is indexed (count=${COUNT})."
+              exit 0
+            fi
+            echo "Artifact '${ARTIFACT_NAME}' not indexed yet (${i}/12); retrying in 5s..."
+            sleep 5
+          done
+          echo "::warning::Artifact '${ARTIFACT_NAME}' not yet returned by REST API after 60s; proceeding to deploy-pages."
+
+      - name: Deploy Pages (attempt 1)
+        id: deployment-1
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: ${{ needs.prepare-pages.outputs.artifact-name }}
+
+      - name: Wait before Pages deploy retry
+        if: steps.deployment-1.outcome == 'failure'
+        run: |
+          echo "::warning::Pages deployment attempt 1 failed; retrying in 15s..."
+          sleep 15
+
+      - name: Deploy Pages (attempt 2)
+        id: deployment-2
+        if: steps.deployment-1.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: ${{ needs.prepare-pages.outputs.artifact-name }}
+
+      - name: Record Pages URL
         id: deployment
-        uses: actions/deploy-pages@v4
+        env:
+          PAGE_URL: ${{ steps.deployment-2.outputs.page_url || steps.deployment-1.outputs.page_url }}
+        run: echo "page_url=${PAGE_URL}" >> "$GITHUB_OUTPUT"
