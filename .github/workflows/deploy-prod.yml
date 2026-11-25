@@ -52,6 +52,7 @@ jobs:
         id: find-run
         uses: actions/github-script@v9
         with:
+          retries: 3
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -178,6 +179,7 @@ jobs:
       - name: Create or update GitHub release and tag
         uses: actions/github-script@v9
         with:
+          retries: 3
           script: |
             const tag = '${{ needs.resolve-artifacts.outputs.tag }}';
             const sha = '${{ needs.resolve-artifacts.outputs.target-sha }}';

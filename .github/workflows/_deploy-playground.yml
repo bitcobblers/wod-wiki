@@ -130,9 +130,11 @@ jobs:
 
       - name: Post PR preview links
         if: inputs.pr-number != ''
+        continue-on-error: true
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          retries: 3
           script: |
             const slug = process.env.BRANCH_SLUG;
             const pr = process.env.PR_NUMBER;
