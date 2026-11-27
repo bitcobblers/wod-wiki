@@ -792,7 +792,7 @@ export function ResultsSpreadsheetGrid({
   const [colChooserOpen, setColChooserOpen] = useState(false);
   const [sorts, setSorts] = useState<SortSpec[]>([]);
   const [copiedCsv, setCopiedCsv] = useState(false);
-  const [rawFilter, setRawFilter] = useState('');
+  const [rawFilter, setRawFilter] = useState('type:segment');
   const [editingCell, setEditingCell] = useState<{
     row: SpreadsheetSplitRow;
     field: EditableMetricField;
@@ -1666,18 +1666,13 @@ export function ResultsSpreadsheetGrid({
       {/* Tab 4: Raw Events OutputStatementsTable */}
       {activeTab === 'raw' && (() => {
         const events = run.events ?? [];
-        let activeMinStart: number | undefined;
         let anyMinStart: number | undefined;
         for (const e of events) {
           const s = e.timeSpan?.started;
           if (typeof s !== 'number' || !Number.isFinite(s)) continue;
           anyMinStart = anyMinStart === undefined ? s : Math.min(anyMinStart, s);
-          const key = String(e.sourceBlockKey ?? '').toLowerCase();
-          if (e.outputType === 'segment' && !key.startsWith('waiting-to-start')) {
-            activeMinStart = activeMinStart === undefined ? s : Math.min(activeMinStart, s);
-          }
         }
-        const rawTimeOrigin = activeMinStart ?? anyMinStart ?? run.timestamp;
+        const rawTimeOrigin = anyMinStart ?? run.timestamp;
         return (
           <div data-testid="results-tab-panel-raw" className="space-y-2.5">
             <OutputFilterPills

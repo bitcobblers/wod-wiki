@@ -13,10 +13,11 @@ export interface ExplorerVocabulary {
  *  shipped set and are enriched by scanning the analytics store for the last
  *  year. Tag values are not enumerated yet (the store has no cheap tag-value
  *  index), so only tag keys are surfaced. */
-export function useExplorerVocabulary(): ExplorerVocabulary {
+export function useExplorerVocabulary(defer = false): ExplorerVocabulary {
   const [metricKeys, setMetricKeys] = useState<string[]>(KNOWN_METRIC_KEYS);
 
   useEffect(() => {
+    if (defer) return;
     let cancelled = false;
 
     async function load() {
@@ -34,12 +35,15 @@ export function useExplorerVocabulary(): ExplorerVocabulary {
       }
     }
 
-    void load();
+    const timer = setTimeout(() => {
+      if (!cancelled) void load();
+    }, 150);
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, []);
+  }, [defer]);
 
   return { metricKeys, tagKeys: KNOWN_TAG_KEYS };
 }

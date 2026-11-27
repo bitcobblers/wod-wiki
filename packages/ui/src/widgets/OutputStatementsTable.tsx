@@ -380,21 +380,19 @@ function formatOutputRowTitle(out: OutputStatementRow, elapsedStr: string): stri
   return elapsedStr ? `${label} (${elapsedStr})` : label;
 }
 
-/** Resolve a consistent time origin across outputs; ignore completion timestamps that post-date all rows (WW-092). */
+/** Resolve a consistent time origin across outputs; never allow an origin after the earliest row so offsets stay non-negative (WW-092). */
 export function resolveTimeOrigin(
   outputs: readonly OutputStatementRow[],
   timeOrigin?: number,
 ): number | undefined {
   let minStarted: number | undefined;
-  let maxStarted: number | undefined;
   for (const o of outputs) {
     const s = o.timeSpan?.started;
     if (typeof s !== 'number' || !Number.isFinite(s)) continue;
     minStarted = minStarted === undefined ? s : Math.min(minStarted, s);
-    maxStarted = maxStarted === undefined ? s : Math.max(maxStarted, s);
   }
   if (typeof timeOrigin === 'number' && Number.isFinite(timeOrigin)) {
-    if (minStarted !== undefined && timeOrigin > minStarted && (maxStarted === undefined || timeOrigin >= maxStarted)) {
+    if (minStarted !== undefined && timeOrigin > minStarted) {
       return minStarted;
     }
     return timeOrigin;
@@ -531,6 +529,7 @@ export const DEFAULT_OUTPUT_FILTERS: OutputFilterPreset[] = [
   { label: 'All', query: '' },
   { label: 'Segments', query: 'type:segment' },
   { label: 'Events', query: 'type:event' },
+  { label: 'Analytics', query: 'type:analytics' },
 ];
 
 export function normalizeOutputFilter(filter: OutputFilterInput): OutputFilterPreset {
@@ -547,6 +546,9 @@ export function normalizeOutputFilter(filter: OutputFilterInput): OutputFilterPr
   }
   if (lower === 'events' || lower === 'event' || lower === 'type:event') {
     return { label: 'Events', query: 'type:event' };
+  }
+  if (lower === 'analytics' || lower === 'type:analytics') {
+    return { label: 'Analytics', query: 'type:analytics' };
   }
   if (lower === 'milestones' || lower === 'milestone' || lower === 'type:milestone') {
     return { label: 'Milestones', query: 'type:milestone' };
@@ -627,7 +629,6 @@ function matchesOutputFilter(out: OutputStatementRow, filter: string): boolean {
   const outType = String(out.outputType || '').toLowerCase();
   if (lower.startsWith('type:')) {
     const wanted = lower.slice(5).trim();
-    if (wanted === 'segment' && outType === 'analytics') return true;
     return outType.includes(wanted);
   }
 
@@ -647,6 +648,7 @@ function matchesOutputFilter(out: OutputStatementRow, filter: string): boolean {
 
 type BuiltinColKind =
   | 'type'
+  | 'offset'
   | 'time'
   | 'effort'
   | 'reps'
@@ -671,7 +673,8 @@ interface SessionColumnDef {
 
 const BASE_COLUMNS: readonly SessionColumnDef[] = [
   { id: 'type', kind: 'type', header: 'Type', className: 'p-2 w-12 text-center' },
-  { id: 'time', kind: 'time', header: 'Time', className: 'p-2 min-w-[110px]' },
+  { id: 'offset', kind: 'offset', header: 'Offset', className: 'p-2 min-w-[68px]' },
+  { id: 'time', kind: 'time', header: 'Time', className: 'p-2 min-w-[68px]' },
   { id: 'effort', kind: 'effort', header: '🏃 Movement', className: 'p-2 font-sans min-w-[140px]' },
   { id: 'reps', kind: 'reps', header: '🔢 Reps', className: 'p-2 font-sans min-w-[60px]', editableType: 'rep' },
   { id: 'loads', kind: 'loads', header: '💪 Load', className: 'p-2 font-sans min-w-[70px]', editableType: 'resistance' },
@@ -683,6 +686,8 @@ const BASE_COLUMNS: readonly SessionColumnDef[] = [
 
 const COLUMN_ALIAS_MAP: Record<string, string> = {
   type: 'type',
+  offset: 'offset',
+  start: 'offset',
   time: 'time',
   elapsed: 'time',
   effort: 'effort',
@@ -884,10 +889,10 @@ function extractSortComparable(
   dynamicLowerTypes: ReadonlySet<string>,
 ): number | string | undefined {
   if (col.kind === 'type') return String(out.outputType ?? '');
+  if (col.kind === 'offset') return out.timeSpan?.started;
   if (col.kind === 'time') {
-    if (out.timeSpan?.started !== undefined && out.timeSpan?.ended !== undefined) {
-      return out.timeSpan.ended - out.timeSpan.started;
-    }
+    const duration = resolveRowDurationMs(out);
+    if (duration !== undefined) return duration;
     return out.timeSpan?.started;
   }
   const list = extractMetricsForColumn(out, col, dynamicLowerTypes);
@@ -1196,9 +1201,19 @@ export function OutputStatementsTable({
 
   const activeSort = controlledSort ?? internalSort;
 
+  const filteredUnordered = useMemo(() => {
+    const hasEventAnalytics = outputs.some(
+      (out) => out.grain !== 'summary' && String(out.outputType ?? '').toLowerCase() === 'analytics',
+    );
+    const deduped = hasEventAnalytics ? outputs.filter((out) => out.grain !== 'summary') : outputs;
+    return !filter.trim()
+      ? [...deduped]
+      : deduped.filter((out) => matchesOutputFilter(out, filter));
+  }, [outputs, filter]);
+
   const activeColumns = useMemo(
-    () => buildActiveColumns(outputs, explicitColumns),
-    [outputs, explicitColumns],
+    () => buildActiveColumns(filteredUnordered, explicitColumns),
+    [filteredUnordered, explicitColumns],
   );
 
   const dynamicLowerTypes = useMemo(() => {
@@ -1234,13 +1249,7 @@ export function OutputStatementsTable({
   );
 
   const rows = useMemo(() => {
-    const hasEventAnalytics = outputs.some(
-      (out) => out.grain !== 'summary' && String(out.outputType ?? '').toLowerCase() === 'analytics',
-    );
-    const deduped = hasEventAnalytics ? outputs.filter((out) => out.grain !== 'summary') : outputs;
-    const filtered = !filter.trim()
-      ? [...deduped]
-      : deduped.filter((out) => matchesOutputFilter(out, filter));
+    const filtered = [...filteredUnordered];
     if (activeSort.length > 0) {
       filtered.sort((a, b) => compareRowsBySpecs(a, b, activeSort, activeColumns, dynamicLowerTypes));
     }
@@ -1248,7 +1257,7 @@ export function OutputStatementsTable({
       return filtered.slice(0, limit);
     }
     return filtered;
-  }, [outputs, filter, activeSort, activeColumns, dynamicLowerTypes, limit]);
+  }, [filteredUnordered, activeSort, activeColumns, dynamicLowerTypes, limit]);
 
   // Inline actuals editor state
   const [editingCell, setEditingCell] = useState<{
@@ -1442,18 +1451,26 @@ export function OutputStatementsTable({
                         );
                       }
 
+                      if (col.kind === 'offset') {
+                        return (
+                          <td
+                            key={col.id}
+                            title={wallTimeStr !== '—' ? `Recorded at ${wallTimeStr}` : undefined}
+                            className="p-2 whitespace-nowrap leading-tight font-mono text-[11px] font-bold text-primary tabular-nums"
+                          >
+                            {offsetStr}
+                          </td>
+                        );
+                      }
+
                       if (col.kind === 'time') {
                         return (
                           <td
                             key={col.id}
                             title={wallTimeStr !== '—' ? `Recorded at ${wallTimeStr}` : undefined}
-                            className="p-2 whitespace-nowrap leading-tight"
+                            className="p-2 whitespace-nowrap leading-tight font-mono text-[11px] text-foreground tabular-nums"
                           >
-                            <div className="flex items-center gap-1.5 font-mono text-[11px]">
-                              <span className="font-bold text-primary tabular-nums">{offsetStr}</span>
-                              {' '}
-                              <span className="text-[10px] text-muted-foreground/80 tabular-nums">({elapsedStr})</span>
-                            </div>
+                            {elapsedStr}
                           </td>
                         );
                       }

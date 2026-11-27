@@ -1227,4 +1227,38 @@ describe('WW-009: structural segment titles vs real round numbers', () => {
     expect(entry.subtitle).not.toContain('7 splits')
     expect(entry.subtitle).not.toContain('5 splits')
   })
+
+  it('uses singular "1 split" and "1 rep" for single-split sessions', () => {
+    const t0 = 1_735_689_600_000
+    const run: RowsRun = {
+      resultId: 'res-single-split',
+      noteId: 'note-1',
+      timestamp: t0 + 10_000,
+      durationMs: 10_000,
+      events: [
+        {
+          id: 'ev-1',
+          resultId: 'res-single-split',
+          noteId: 'note-1',
+          timestamp: t0,
+          grain: 'event',
+          outputType: 'segment',
+          effortSlug: 'burpees',
+          sourceBlockKey: 'stmt-1',
+          stackLevel: 1,
+          timeSpan: { started: t0, ended: t0 + 10_000 },
+          metrics: [
+            { type: 'effort', value: 'burpees', image: 'Burpees', origin: 'parser' },
+            { type: 'rep', value: 1, origin: 'parser' },
+          ],
+        } as unknown as EventRecord,
+      ],
+    }
+
+    const entry = rowsRunToEntry(run)
+    expect(entry.subtitle).toContain('1 split')
+    expect(entry.subtitle).not.toContain('1 splits')
+    expect(entry.subtitle).toContain('1 rep')
+    expect(entry.subtitle).not.toContain('1 reps')
+  })
 })

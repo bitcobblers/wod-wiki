@@ -560,14 +560,57 @@ describe('Results Experience Phase 2 UI components', () => {
     expect(rows[2]!.textContent).toContain('2 Rounds');
     expect(rows[3]!.textContent).toContain('Session');
 
-    // Consistent offsets (not clamped to +00:00 by completion timestamp) and duration fallback (00:04)
+    // Consistent offsets (not clamped to +00:00 by completion timestamp) and split Offset/Time columns (no composite '+00:00 (00:13)')
     expect(rows[0]!.textContent).toContain('+00:00');
-    expect(rows[0]!.textContent).toContain('(00:13)');
+    expect(rows[0]!.textContent).toContain('00:13');
+    expect(rows[0]!.textContent).not.toContain('(00:13)');
     expect(rows[1]!.textContent).toContain('+00:13');
-    expect(rows[1]!.textContent).toContain('(00:04)');
+    expect(rows[1]!.textContent).toContain('00:04');
     expect(rows[1]!.textContent).not.toContain('(00:00)');
     expect(rows[2]!.textContent).toContain('+00:13');
-    expect(rows[2]!.textContent).toContain('(00:17)');
+    expect(rows[2]!.textContent).toContain('00:17');
+  });
+
+  it('WW-092: OutputStatementsTable clamps mid-stream timeOrigin to earliest row (no negative offsets) and excludes analytics from type:segment', () => {
+    const t0 = 1_735_689_600_000;
+    const { container } = render(
+      <OutputStatementsTable
+        // Passing active start (86s after waiting-to-start) must never produce -01:26
+        timeOrigin={t0 + 86_000}
+        filter="type:segment"
+        outputs={[
+          {
+            id: 'r0',
+            outputType: 'segment',
+            sourceBlockKey: 'waiting-to-start',
+            timeSpan: { started: t0, ended: t0 + 86_000 },
+            metrics: [],
+          },
+          {
+            id: 'r1',
+            outputType: 'segment',
+            effortSlug: 'pull-ups',
+            sourceBlockKey: 'stmt-1',
+            timeSpan: { started: t0 + 86_000, ended: t0 + 116_000 },
+            metrics: [{ type: 'effort', value: 'pull-ups', image: 'Pull-ups', origin: 'parser' }],
+          },
+          {
+            id: 'r-analytics',
+            outputType: 'analytics',
+            sourceBlockKey: 'analytics-1',
+            timeSpan: { started: t0 + 86_000, ended: t0 + 116_000 },
+            metrics: [{ type: 'calculated', value: 14.73, unit: 'MET-min', origin: 'runtime', metadata: { canonicalKey: 'calc.metMinutes' } }],
+          },
+        ]}
+      />,
+    );
+
+    const rows = Array.from(container.querySelectorAll('tbody tr'));
+    expect(rows).toHaveLength(2);
+    expect(container.textContent).not.toContain('-01:26');
+    expect(container.textContent).not.toContain('MET Minutes');
+    expect(rows[0]!.textContent).toContain('+00:00');
+    expect(rows[1]!.textContent).toContain('+01:26');
   });
 
   it('WW-092: OutputStatementsTable humanizes analytics keys, separates Load from MET-min, omits elapsed from Target, and formats Pace cleanly', () => {

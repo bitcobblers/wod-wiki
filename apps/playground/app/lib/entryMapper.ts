@@ -892,10 +892,10 @@ export function rowsRunToEntry(run: RowsRun, options?: { noteTitle?: string }): 
     subtitleParts.push(`Load: ${formatMetricAmount(metrics.sessionLoadAu)} AU`)
   }
   if (metrics.reps != null) {
-    subtitleParts.push(`${metrics.reps} reps`)
+    subtitleParts.push(`${metrics.reps} ${metrics.reps === 1 ? 'rep' : 'reps'}`)
   }
   if (metrics.segmentCount != null) {
-    subtitleParts.push(`${metrics.segmentCount} splits`)
+    subtitleParts.push(`${metrics.segmentCount} ${metrics.segmentCount === 1 ? 'split' : 'splits'}`)
   }
   if (metrics.rpe != null) {
     subtitleParts.push(`RPE ${metrics.rpe}/10`)
