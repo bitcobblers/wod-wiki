@@ -22,13 +22,11 @@ import { adoptFeedProvenance, adoptLegacyFeedCheckpoints, adoptNotebookVocabular
 import { mainThreadFeedImportStorage } from './feedStorageDefault';
 import {
   getFeedOfflinePolicy,
-  getFeedSubscriptionMode,
   hydrateFeedStateFromStorage,
   isFeedAutoSync,
   isFeedSubscribed,
   migrateFeedSubscriptions,
 } from './feedSubscriptions';
-import { getFeedCheckedAtFromStore } from './feedRegistryStore';
 import { ensurePlaygroundDefaultSubscriptions } from './playgroundFeedBootstrap';
 export type FeedReadiness = 'preparing' | 'ready' | 'error';
 
@@ -451,20 +449,11 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
   }
   // Returning visitor: if a newly subscribed auto-sync feed was pending,
   // hold the gate until it finishes; otherwise background refreshes keep the
-  // settled gate untouched. Skip redundant remote manifest probes on rapid
-  // consecutive reloads when every active feed was already checked recently.
-  const isReturningBackgroundOnly = !freshBootImporting && !deps.storage && !deps.now && !deps.force;
-  if (isReturningBackgroundOnly) {
-    const nowMs = Date.now();
-    const BACKGROUND_RECHECK_TTL_MS = 60_000;
-    const activeSources = all.filter((s) => s.id === 'core' || getFeedSubscriptionMode(s.id) !== 'unsubscribed');
-    const recentlyChecked = activeSources.every((s) => {
-      const checkedAt = getFeedCheckedAtFromStore(s.id);
-      return checkedAt !== null && nowMs - checkedAt < BACKGROUND_RECHECK_TTL_MS;
-    });
-    if (recentlyChecked) return;
-    // Yield a macrotask so the active route's initial readonly IDB reads settle
-    // before spawning the background feed worker (WW-036 / WW-154).
+  // settled gate untouched while yielding a macrotask so the active route's
+  // initial readonly IDB reads settle before spawning the background feed
+  // worker (WW-036 / WW-154). Every page load still runs its subscribed-feed
+  // update check (FED-01 auto-sync & Update available detection).
+  if (!freshBootImporting && !deps.storage && !deps.now && !deps.force) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
   let bgOutcome: FeedSyncOutcome = 'current';

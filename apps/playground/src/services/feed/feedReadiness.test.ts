@@ -439,4 +439,42 @@ describe('feedReadiness', () => {
     markFeedSyncSettled('imported');
     expect(getFeedImportEpoch()).toBe(2);
   });
+
+  it('FED-01: returning visitor still checks subscribed auto-sync feeds on consecutive reloads and applies updates', async () => {
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    const storage = new InMemoryFeedStorage();
+    await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('core')), seedVersion: 1, builtAt: new Date(1).toISOString() });
+    await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('manage-library')), seedVersion: 42, builtAt: new Date(1).toISOString() });
+    setFeedSubscribed('manage-library', true);
+    setFeedAutoSync('manage-library', true);
+
+    let remoteVersion = 42;
+    const makeSource = (): FeedSourceSpec[] => [
+      { source: fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas'), id: 'core', label: 'Core', url: 'https://feed.test/core/', embeddedVersion: 1 },
+      {
+        source: fixture([compileSeedRow('markdown/notebooks/demo/w1.md', `# W ${remoteVersion}`)], remoteVersion, 'notebook.demo'),
+        id: 'manage-library',
+        label: 'Manage Library',
+        url: 'https://feed.test/manage/',
+        embeddedVersion: 0,
+      },
+    ];
+
+    // Initial sync establishes v42 checkpoint + chunks.
+    await startFeedBootstrap({ sources: makeSource(), storage, isEnabled: () => true });
+    expect((await storage.getSeedMeta(seedMetaKey('manage-library')))?.seedVersion).toBe(42);
+
+    // First returning boot at v42 — stays current, epoch unchanged
+    resetFeedReadinessForTest();
+    await startFeedBootstrap({ sources: makeSource(), storage, isEnabled: () => true });
+    expect(getFeedImportEpoch()).toBe(0);
+
+    // Immediate reload after remote bumps to v43 — must re-check and import v43
+    resetFeedReadinessForTest();
+    remoteVersion = 43;
+    await startFeedBootstrap({ sources: makeSource(), storage, isEnabled: () => true });
+    expect((await storage.getSeedMeta(seedMetaKey('manage-library')))?.seedVersion).toBe(43);
+    expect(getFeedImportEpoch()).toBe(1);
+  });
 });
