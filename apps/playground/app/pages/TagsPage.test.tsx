@@ -246,4 +246,32 @@ describe('TagsPage — the tag editor at /t/:type/:tag', () => {
             { timeout: 5000 },
         );
     });
+
+    it('WW-148: renders tag detail heading and tagged entries drill-down for /t/quality/:tag and /t/domain/:tag instead of generic Tags hub', async () => {
+        await storageService.putTag({ id: 'tag-strength', label: 'strength', type: 'quality', createdAt: 1000 });
+        await storageService.saveNoteSource({
+            noteId: 'note-strength-1',
+            rawContent: '---\ntitle: Heavy Back Squat\nquality: strength\n---\n5x5 Back Squat\n',
+            blocks: {},
+            expectedSourceRevision: 0,
+            metadata: { title: 'Heavy Back Squat', type: 'note', tags: ['strength'] },
+        });
+        await storageService.storage.transaction(['note_tags'], 'readwrite', async (tx) => {
+            await tx.readwrite('note_tags').put({
+                id: 'note-strength-1:tag-strength',
+                noteId: 'note-strength-1',
+                tagId: 'tag-strength',
+            });
+        });
+
+        renderTagRoute('/t/quality/strength');
+
+        await waitFor(
+            () => expect(screen.getByRole('heading', { level: 1, name: '#strength' })).toBeTruthy(),
+            { timeout: 5000 },
+        );
+        expect(screen.queryByText(/A tag is a named bundle/)).toBeNull();
+        const drilldown = await waitFor(() => screen.getByTestId('tag-detail-notes-list'), { timeout: 5000 });
+        expect(drilldown.textContent).toContain('Heavy Back Squat');
+    });
 });

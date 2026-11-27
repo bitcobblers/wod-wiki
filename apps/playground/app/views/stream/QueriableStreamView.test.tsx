@@ -799,9 +799,8 @@ describe('QueriableStreamView component', () => {
       expect(screen.getByTestId('stream-feed')).toBeDefined()
     }, { timeout: 5000 })
 
-    // The feed row exposes the real move control (and Add-to-today), then
-    // moving through it lands the note in the target notebook in storage.
-    // The move is async and re-renders on completion — flush it inside act.
+    // WW-146: the feed row's Add-to-notebook menu promotes N:M into the target
+    // notebook while preserving the note's original notebook membership.
     await act(async () => {
       fireEvent.click(screen.getByTestId('stream-feed-move'))
       await delay(30)
@@ -809,12 +808,14 @@ describe('QueriableStreamView component', () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId('stream-feed-move-notebook/trip-2026'))
       for (let i = 0; i < 100; i++) {
-        if ((await storageService.getNote('user-note-1'))?.notebookId === 'notebook/trip-2026') break
+        if ((await storageService.getNote('user-note-1'))?.notebookIds?.includes('notebook/trip-2026')) break
         await delay(10)
       }
       await delay(50)
     })
-    expect((await storageService.getNote('user-note-1'))?.notebookId).toBe('notebook/trip-2026')
+    const updatedNote = await storageService.getNote('user-note-1')
+    expect(updatedNote?.notebookIds).toContain('notebook/custom')
+    expect(updatedNote?.notebookIds).toContain('notebook/trip-2026')
     expect(screen.getByTestId('stream-feed-add')).toBeDefined()
     } finally {
       resetStorageForTesting()
@@ -2456,6 +2457,65 @@ describe('QueriableStreamView — query truth and retained state', () => {
       })
       expect(screen.queryByText('No entries match your search.')).toBeNull()
     } finally {
+      resetStorageForTesting()
+    }
+  })
+
+  it('WW-114 & WW-128: missing /notebook/:slug hides full stream chrome, while user /notebook/:slug exposes Make Public / Edit / Delete', async () => {
+    setStorageForTesting(new InMemoryStorage())
+    try {
+      // 1. Missing notebook renders clean not-found shell without stream chrome (WW-114)
+      const { engine: emptyEngine } = stubEngine(() => [])
+      render(
+        <MemoryRouter initialEntries={['/notebook/does-not-exist-ww114']}>
+          <QueriableStreamView profile={createNotebookProfile('does-not-exist-ww114')} queryEngine={emptyEngine} />
+        </MemoryRouter>,
+      )
+
+      await waitFor(() => {
+        expect(screen.getByTestId('notebook-not-found')).toBeDefined()
+      })
+      expect(screen.queryByTestId('stream-query-status-row')).toBeNull()
+      expect(screen.queryByTestId(TEST_IDS.STREAM_VIEW_POPOVER_TRIGGER)).toBeNull()
+      cleanup()
+
+      // 2. Existing user notebook exposes Make Public, Edit notebook, Delete notebook (WW-128)
+      await storageService.storage.readwrite('notes').put({
+        id: 'notebook/qa-publish-ww128',
+        title: 'QA Publish WW128',
+        rawContent: '# QA Publish WW128\n',
+        blocks: {},
+        createdAt: Date.now(),
+        sourceRevision: 1,
+        type: 'notebook',
+        notebookId: 'notebook/qa-publish-ww128',
+        seedOrigin: 'user',
+        public: false,
+      })
+
+      render(
+        <MemoryRouter initialEntries={['/notebook/qa-publish-ww128']}>
+          <QueriableStreamView profile={createNotebookProfile('qa-publish-ww128')} queryEngine={emptyEngine} />
+        </MemoryRouter>,
+      )
+
+      const toggleBtn = await waitFor(() => screen.getByTestId(TEST_IDS.NOTEBOOK_DETAIL_TOGGLE_PUBLIC))
+      expect(toggleBtn.textContent).toContain('Make Public')
+      expect(screen.getByTestId(TEST_IDS.NOTEBOOK_DETAIL_EDIT)).toBeDefined()
+      expect(screen.getByTestId(TEST_IDS.NOTEBOOK_DETAIL_DELETE)).toBeDefined()
+
+      await act(async () => {
+        fireEvent.click(toggleBtn)
+      })
+      await waitFor(async () => {
+        const updated = await storageService.storage.readonly('notes').get('notebook/qa-publish-ww128')
+        expect(updated?.public).toBe(true)
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId(TEST_IDS.NOTEBOOK_DETAIL_TOGGLE_PUBLIC).textContent).toContain('Make Private')
+      })
+    } finally {
+      clearResolvedNotebookTitles()
       resetStorageForTesting()
     }
   })

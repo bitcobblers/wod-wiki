@@ -10,7 +10,7 @@
  */
 import type { BlockIndexRow, Note } from '@/types/storage'
 import type { IEffort, RowsRun, RowsQueryResult } from '@bitcobblers/wod-wiki-wql'
-import { isNoteEditable, notebookOfItem, notebookOriginOfItem, selectSplitSegmentEvents } from '@bitcobblers/wod-wiki-wql'
+import { isNoteEditable, notebookOfItem, notebookOriginOfItem, notebooksOfItem, selectSplitSegmentEvents } from '@bitcobblers/wod-wiki-wql'
 import {
   formatDurationMMSS,
   getNotebookCapabilities,
@@ -277,11 +277,12 @@ export function toEntry(note: Note): Entry {
     ? false
     : (base.editable ?? (ownership.editable && isNoteEditable(note, nbOrigin, resolvedNb)))
 
+  const resolvedNbIds = note.notebookIds !== undefined ? note.notebookIds : notebooksOfItem(note)
   return {
     ...base,
     noteType: note.type,
     notebookId: resolvedNb,
-    ...(note.notebookIds !== undefined ? { notebookIds: note.notebookIds } : {}),
+    ...(resolvedNbIds.length > 0 || note.notebookIds !== undefined ? { notebookIds: resolvedNbIds } : {}),
     feedId: base.feedId ?? note.feedSourceId ?? remoteFeedId ?? (nbOrigin === 'user' ? 'local' : 'core'),
     editable,
     ownership,

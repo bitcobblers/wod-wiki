@@ -30,7 +30,24 @@ export function DocumentTitleSync() {
       else if (pathname === '/notes') title = 'Wod.Wiki - Notes'
       else if (pathname.startsWith('/note/')) title = 'Wod.Wiki - Note'
       else if (pathname.startsWith('/pages') || pathname.startsWith('/page/')) title = 'Wod.Wiki - Pages'
-      else if (pathname.startsWith('/tags') || pathname.startsWith('/t/')) title = 'Wod.Wiki - Tags'
+      else if (pathname.startsWith('/t/')) {
+        const parts = pathname.slice('/t/'.length).split('/').filter(Boolean)
+        const rawTag = parts[1]
+        const rawType = parts[0]
+        const safeDecode = (s: string) => {
+          try {
+            return decodeURIComponent(s)
+          } catch {
+            return s
+          }
+        }
+        title = rawTag
+          ? `Wod.Wiki - #${safeDecode(rawTag)}`
+          : rawType
+            ? `Wod.Wiki - ${safeDecode(rawType)}`
+            : 'Wod.Wiki - Tags'
+      }
+      else if (pathname.startsWith('/tags')) title = 'Wod.Wiki - Tags'
       else if (pathname === '/feeds') title = 'Wod.Wiki - Feeds'
       else if (pathname.startsWith('/feed/')) title = 'Wod.Wiki - Feed'
       else if (pathname.startsWith('/efforts')) title = 'Wod.Wiki - Efforts'

@@ -118,6 +118,7 @@ export const AgentStateScript: React.FC = () => {
             availableLayouts: streamBridge.availableLayouts,
             groupBy: streamBridge.groupBy ?? null,
             loading: streamBridge.loading,
+            ...(streamBridge.notebookDetail ? { notebookDetail: streamBridge.notebookDetail } : {}),
             totalUnbatchedCount: matchedStream ? matchedStream.entries.length : null,
             sampleEntries: matchedStream
               ? matchedStream.entries.slice(0, 25).map((e) => ({

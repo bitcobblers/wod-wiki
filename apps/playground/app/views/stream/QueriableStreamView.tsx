@@ -14,9 +14,13 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CloudDownload,
+  Globe,
+  Lock,
+  Pencil,
   RefreshCw,
   Rss,
   Settings2,
+  Trash2,
   TriangleAlertIcon,
 } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -37,7 +41,14 @@ import {
   DialogTitle,
   Input,
 } from "@bitcobblers/wod-wiki-ui/primitives";
-import { BUILTIN_NOTEBOOKS, isSystemReadOnlyNotebook } from '@bitcobblers/wod-wiki-core'
+import {
+  BUILTIN_NOTEBOOKS,
+  getNotebookCapabilities,
+  isSystemReadOnlyNotebook,
+  toNotebookId,
+  type NotebookCapabilities,
+  type NotebookId,
+} from '@bitcobblers/wod-wiki-core'
 import { listWritableNotebooks, type WritableNotebookTarget } from '@/components/molecules/PublicationPill'
 import { createUserNotebookLanding } from '@bitcobblers/wod-wiki-engine'
 import { FolderPlus, Loader2 } from 'lucide-react'
@@ -512,9 +523,35 @@ export function QueriableStreamView({
   const [shelfOpen, setShelfOpen] = useState(true)
   const [loading, setLoading] = useState(false)
   const [queryPending, setQueryPending] = useState(false)
+  const notebookSlugParam = useMemo(() => {
+    const match = NOTEBOOK_PATH_RE.exec(location.pathname)
+    if (!match?.[1]) return null
+    try {
+      return decodeURIComponent(match[1])
+    } catch {
+      return match[1]
+    }
+  }, [location.pathname])
+  const [notebookProbeState, setNotebookProbeState] = useState<'idle' | 'probing' | 'found' | 'not-found'>('idle')
+  const [resolvedNotebookTitle, setResolvedNotebookTitle] = useState<string | null>(null)
+  const [activeNotebookMeta, setActiveNotebookMeta] = useState<{
+    notebookId: NotebookId
+    slug: string
+    title: string
+    isPublic: boolean
+    notebook: Notebook | null
+    caps: NotebookCapabilities
+  } | null>(null)
+  const [togglingActiveNotebookPublic, setTogglingActiveNotebookPublic] = useState(false)
+  const notebookNotFound = notebookProbeState === 'not-found'
+
   const effectiveQuery = useMemo(() => plainTextFallbackQuery(query, profile.target) ?? query, [query, profile.target])
   const parsed = useMemo(() => parseQuery(effectiveQuery), [effectiveQuery])
-  const streamBusy = loading || queryPending || (!hasSettledRun && !parsed.error)
+  const streamBusy =
+    loading ||
+    queryPending ||
+    (!hasSettledRun && !parsed.error) ||
+    Boolean(notebookSlugParam && notebookProbeState === 'probing')
   useEffect(() => setSurfaceBusy(streamBusy), [streamBusy])
   useEffect(() => {
     return registerActiveStreamBridge({
@@ -527,6 +564,17 @@ export function QueriableStreamView({
       groupBy: settings.groupBy,
       month: urlMonthParam,
       overlayMode,
+      ...(notebookSlugParam && activeNotebookMeta
+        ? {
+            notebookDetail: {
+              slug: activeNotebookMeta.slug,
+              isPublic: activeNotebookMeta.isPublic,
+              canTogglePublic: activeNotebookMeta.caps.canTogglePublic,
+              canEdit: activeNotebookMeta.caps.canEdit,
+              canDelete: activeNotebookMeta.caps.canDelete,
+            },
+          }
+        : {}),
       setQuery,
       setLayout: (nextLayout) => {
         if (availableLayouts.includes(nextLayout as LayoutMode)) {
@@ -537,7 +585,7 @@ export function QueriableStreamView({
       setMonth: handleMonthChange,
       setOverlayMode,
     })
-  }, [profile.route, profile.defaultWql, query, streamBusy, layout, availableLayouts, settings.groupBy, urlMonthParam, overlayMode, setQuery, setLayout, setGroupBy, handleMonthChange, setOverlayMode])
+  }, [profile.route, profile.defaultWql, query, streamBusy, layout, availableLayouts, settings.groupBy, urlMonthParam, overlayMode, notebookSlugParam, activeNotebookMeta, setQuery, setLayout, setGroupBy, handleMonthChange, setOverlayMode])
   const [actionError, setActionError] = useState<string | null>(null)
   // Mobile: the query bar portals into the app navbar (no page header).
   const isMobile = useIsMobile()
@@ -607,21 +655,37 @@ export function QueriableStreamView({
     if (!pendingDeleteNotebook || deletingNotebook) return
     const targetId = pendingDeleteNotebook.notebookId ?? pendingDeleteNotebook.id
     const slug = pendingDeleteNotebook.sourceNotebook
+    const deletedTitle = pendingDeleteNotebook.title
     setActionError(null)
     setDeletingNotebook(true)
     try {
       await notebookService.delete(targetId)
-      if (slug) removeRecentVisit(notebookPath(slug))
+      if (slug) {
+        registerNotebookTitle(slug, null)
+        removeRecentVisit(notebookPath(slug))
+      }
       setPendingDeleteNotebook(null)
       setSavedTick(t => t + 1)
+      toast({
+        title: 'Deleted notebook',
+        description: `Deleted “${deletedTitle}”. Member notes remain in your vault.`,
+      })
+      if (
+        notebookSlugParam &&
+        slug &&
+        (canonicalNotebookSlug(notebookSlugParam) === slug || notebookSlugParam === slug)
+      ) {
+        registerNotebookTitle(notebookSlugParam, null)
+        navigate(ROUTE_PATTERNS.notebooks, { replace: true })
+      }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err))
       setPendingDeleteNotebook(null)
     } finally {
       setDeletingNotebook(false)
     }
-  }, [pendingDeleteNotebook, deletingNotebook])
-  const createNotebookDialog = isNotebooksRoute ? (
+  }, [pendingDeleteNotebook, deletingNotebook, notebookSlugParam, navigate])
+  const createNotebookDialog = (isNotebooksRoute || Boolean(notebookSlugParam)) ? (
     <CreateNotebookDialog
       open={createNotebookOpen}
       onOpenChange={(open) => {
@@ -848,8 +912,14 @@ export function QueriableStreamView({
   const handleMoveNotebook = useCallback(async (noteId: string | undefined, notebookId: string) => {
     if (!noteId) return
     try {
-      await notebookService.moveNote(noteId, notebookId)
+      // Strictly additive N:M notebook promotion (WW-146): never evict existing
+      // notebook memberships when adding a note to another notebook from a card menu.
+      await notebookService.promoteNote(noteId, [notebookId])
       setSavedTick(t => t + 1)
+      toast({
+        title: 'Added to notebook',
+        description: `Added note to ${notebookSlugFromId(notebookId)}.`,
+      })
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err))
     }
@@ -920,12 +990,43 @@ export function QueriableStreamView({
     if (!entry.notebookId) return
     setActionError(null)
     try {
-      await setNotebookPublic(storage, entry.notebookId, !entry.isPublic)
+      const nextPublic = !entry.isPublic
+      await setNotebookPublic(storage, entry.notebookId, nextPublic)
+      notebookService.notify()
       setSavedTick(t => t + 1)
+      toast({
+        title: nextPublic ? 'Notebook is now Public' : 'Notebook is now Private',
+        description: nextPublic
+          ? `“${entry.title}” is eligible for feed publishing.`
+          : `“${entry.title}” is private to your vault.`,
+      })
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err))
     }
   }, [])
+
+  const handleToggleActiveNotebookPublic = useCallback(async () => {
+    if (!activeNotebookMeta || togglingActiveNotebookPublic) return
+    setActionError(null)
+    setTogglingActiveNotebookPublic(true)
+    try {
+      const nextPublic = !activeNotebookMeta.isPublic
+      await setNotebookPublic(storage, activeNotebookMeta.notebookId, nextPublic)
+      notebookService.notify()
+      setActiveNotebookMeta((prev) => (prev ? { ...prev, isPublic: nextPublic } : prev))
+      setSavedTick(t => t + 1)
+      toast({
+        title: nextPublic ? 'Notebook is now Public' : 'Notebook is now Private',
+        description: nextPublic
+          ? `“${activeNotebookMeta.title}” is eligible for feed publishing.`
+          : `“${activeNotebookMeta.title}” is private to your vault.`,
+      })
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setTogglingActiveNotebookPublic(false)
+    }
+  }, [activeNotebookMeta, togglingActiveNotebookPublic])
 
   const handlePublishOutboundFeed = useCallback(async () => {
     setActionError(null)
@@ -1359,29 +1460,23 @@ export function QueriableStreamView({
         ? 'favorite'
         : 'level'
 
-  // WW-032: a settled, EMPTY /notebook/:slug stream may mean the slug does
-  // not exist at all. One lightweight async existence probe (built-in slugs,
-  // registered notebooks, feed-catalog notebooks, or a stored landing note)
-  // decides between the generic empty state and the explicit not-found one.
-  const notebookSlugParam = useMemo(() => {
-    const match = NOTEBOOK_PATH_RE.exec(location.pathname)
-    if (!match?.[1]) return null
-    try {
-      return decodeURIComponent(match[1])
-    } catch {
-      return match[1]
-    }
-  }, [location.pathname])
-  const [notebookNotFound, setNotebookNotFound] = useState(false)
-  const [resolvedNotebookTitle, setResolvedNotebookTitle] = useState<string | null>(null)
+  // WW-032 / WW-114 / WW-128: single existence + metadata probe for /notebook/:slug.
+  // Drives resolved title, detail-page capabilities (Make Public / Edit / Delete),
+  // and clean not-found state without serving full stream chrome on missing slugs.
   useEffect(() => {
     if (!notebookSlugParam) {
       setResolvedNotebookTitle(null)
+      setActiveNotebookMeta(null)
+      setNotebookProbeState('idle')
       return
     }
     let cancelled = false
     const cleanSlug = canonicalNotebookSlug(notebookSlugParam)
     const builtinSpec = BUILTIN_NOTEBOOKS.find(b => b.slug === notebookSlugParam || b.slug === cleanSlug)
+    const isBuiltin = Boolean(builtinSpec) || BUILTIN_NOTEBOOK_SLUGS.includes(notebookSlugParam) || BUILTIN_NOTEBOOK_SLUGS.includes(cleanSlug)
+    if (entries.length === 0 && !isBuiltin) {
+      setNotebookProbeState('probing')
+    }
     void Promise.all([
       notebookService.getAllNotebooks().catch(() => [] as Notebook[]),
       playgroundFeedCatalogStore.getAllNotebooks().catch(() => []),
@@ -1394,14 +1489,42 @@ export function QueriableStreamView({
       const landing = landingClean ?? landingRaw
       const regMatch = registered.find(nb => nb.slug === notebookSlugParam || nb.slug === cleanSlug)
       const catMatch = catalog.find(row => row.slug === notebookSlugParam || row.slug === cleanSlug)
-      const name = regMatch?.name || landing?.title || catMatch?.label || builtinSpec?.name || null
+      const exists = Boolean(isBuiltin || regMatch || catMatch || landing || entries.length > 0)
+      if (!exists) {
+        registerNotebookTitle(notebookSlugParam, null)
+        setResolvedNotebookTitle(null)
+        setActiveNotebookMeta(null)
+        if (hasSettledRun && !feedImportPending && feedReadiness !== 'preparing') {
+          setNotebookProbeState('not-found')
+        } else {
+          setNotebookProbeState('idle')
+        }
+        return
+      }
+      const name = regMatch?.name || landing?.title || catMatch?.label || builtinSpec?.name || cleanSlug
       registerNotebookTitle(notebookSlugParam, name)
       setResolvedNotebookTitle(name)
+      const resolvedNbId = toNotebookId(regMatch?.notebookId ?? landing?.id ?? `notebook/${cleanSlug}`)
+      const caps = getNotebookCapabilities({
+        slug: cleanSlug,
+        notebookId: resolvedNbId,
+        origin: regMatch?.origin ?? (landing && !landing.feedOrigin && !landing.seedOrigin ? 'user' : undefined),
+        feedId: regMatch?.feedEntryId ?? landing?.feedSourceId ?? 'local',
+      })
+      setActiveNotebookMeta({
+        notebookId: resolvedNbId,
+        slug: cleanSlug,
+        title: name,
+        isPublic: landing?.public === true,
+        notebook: regMatch ?? null,
+        caps,
+      })
+      setNotebookProbeState('found')
     })
     return () => {
       cancelled = true
     }
-  }, [notebookSlugParam, savedTick])
+  }, [notebookSlugParam, savedTick, entries.length, hasSettledRun, feedImportPending, feedReadiness])
   useEffect(() => {
     if (!notebookSlugParam || !resolvedNotebookTitle) return
     const prevTitle = document.title
@@ -1410,25 +1533,6 @@ export function QueriableStreamView({
       document.title = prevTitle
     }
   }, [notebookSlugParam, resolvedNotebookTitle])
-  useEffect(() => {
-    if (!notebookSlugParam || entries.length > 0 || !hasSettledRun || feedImportPending || feedReadiness === 'preparing') {
-      setNotebookNotFound(false)
-      return
-    }
-    let cancelled = false
-    const builtin = BUILTIN_NOTEBOOK_SLUGS.includes(notebookSlugParam)
-    const landing = storage.readonly('notes').get(`notebook/${notebookSlugParam}`).catch(() => undefined)
-    void Promise.all([
-      notebookService.getAllNotebooks().then((nbs) => nbs.some((nb) => nb.slug === notebookSlugParam)).catch(() => false),
-      playgroundFeedCatalogStore.getAllNotebooks().then((rows) => rows.some((row) => row.slug === notebookSlugParam)).catch(() => false),
-      landing.then(Boolean),
-    ]).then(([registered, catalog, hasLanding]) => {
-      if (!cancelled) setNotebookNotFound(!builtin && !registered && !catalog && !hasLanding)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [notebookSlugParam, entries.length, hasSettledRun, feedImportPending, feedReadiness])
   // Filter truth vs the target's own vocabulary: the executor IGNORES
   // unsupported keys (advisory) — the strip says applied vs ignored instead
   // of implying every requested filter ran.
@@ -1736,6 +1840,116 @@ export function QueriableStreamView({
       : TEST_IDS.NEW_ENTRY_PRIMARY
   const addActionLabel = isNotebooksRoute ? '+ New notebook' : '+ Add'
 
+  // WW-114: deleted or never-existing /notebook/:slug renders a clean
+  // dedicated not-found state without full stream chrome (query bar, view
+  // controls, Cast to TV, or status strip).
+  if (notebookNotFound && notebookSlugParam) {
+    return (
+      <div
+        className="bg-card flex flex-col flex-1"
+        data-testid="queriable-stream-view"
+        data-feed-sync={feedSyncing ? 'syncing' : 'settled'}
+      >
+        <div
+          className="px-6 py-16 text-center text-muted-foreground flex flex-col items-center justify-center gap-3"
+          data-testid="stream-empty-state"
+        >
+          <div className="flex flex-col items-center gap-3" data-testid="notebook-not-found">
+            <h1 className="text-base font-semibold text-foreground" data-testid={TEST_IDS.STREAM_PAGE_HEADING}>
+              Notebook “{notebookSlugParam}” not found.
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              This notebook may have been deleted or does not exist.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => navigate('/notebooks')}
+              data-testid="notebook-not-found-back"
+            >
+              Back to Notebooks
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const notebookDetailControls =
+    notebookSlugParam && activeNotebookMeta ? (
+      <>
+        {activeNotebookMeta.caps.canTogglePublic && (
+          <Button
+            type="button"
+            variant={activeNotebookMeta.isPublic ? 'secondary' : 'outline'}
+            size="sm"
+            disabled={togglingActiveNotebookPublic}
+            aria-busy={togglingActiveNotebookPublic}
+            data-testid={TEST_IDS.NOTEBOOK_DETAIL_TOGGLE_PUBLIC}
+            onClick={() => void handleToggleActiveNotebookPublic()}
+            className="h-8 max-lg:min-h-11 gap-1.5 px-2.5 text-xs font-medium whitespace-nowrap"
+          >
+            {togglingActiveNotebookPublic ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+            ) : activeNotebookMeta.isPublic ? (
+              <Lock className="size-3.5" aria-hidden="true" />
+            ) : (
+              <Globe className="size-3.5" aria-hidden="true" />
+            )}
+            <span>{activeNotebookMeta.isPublic ? 'Make Private' : 'Make Public'}</span>
+          </Button>
+        )}
+        {activeNotebookMeta.caps.canEdit && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid={TEST_IDS.NOTEBOOK_DETAIL_EDIT}
+            onClick={() => {
+              void handleOpenEditNotebook({
+                id: activeNotebookMeta.notebookId,
+                kind: 'notebook',
+                sourceNotebook: activeNotebookMeta.slug,
+                sourceNote: activeNotebookMeta.slug,
+                notebookId: activeNotebookMeta.notebookId,
+                title: activeNotebookMeta.title,
+                date: null,
+              })
+            }}
+            className="h-8 max-lg:min-h-11 gap-1.5 px-2.5 text-xs font-medium whitespace-nowrap"
+          >
+            <Pencil className="size-3.5" aria-hidden="true" />
+            <span>Edit notebook</span>
+          </Button>
+        )}
+        {activeNotebookMeta.caps.canDelete && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid={TEST_IDS.NOTEBOOK_DETAIL_DELETE}
+            onClick={() =>
+              handleDeleteNotebookEntry({
+                id: activeNotebookMeta.notebookId,
+                kind: 'notebook',
+                sourceNotebook: activeNotebookMeta.slug,
+                sourceNote: activeNotebookMeta.slug,
+                notebookId: activeNotebookMeta.notebookId,
+                title: activeNotebookMeta.title,
+                date: null,
+              })
+            }
+            className="h-8 max-lg:min-h-11 gap-1.5 px-2.5 text-xs font-medium text-destructive hover:text-destructive whitespace-nowrap"
+          >
+            <Trash2 className="size-3.5" aria-hidden="true" />
+            <span>Delete notebook</span>
+          </Button>
+        )}
+      </>
+    ) : null
+
   return (
     <div
       className="bg-card flex flex-col flex-1"
@@ -1811,6 +2025,7 @@ export function QueriableStreamView({
             }
             label="Stream actions"
           >
+            {notebookDetailControls}
             <StreamViewPopover
               level={profile.level}
               settings={settings}

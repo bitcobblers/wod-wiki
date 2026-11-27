@@ -108,4 +108,60 @@ describe('NotePromotionSheet', () => {
 
     await storage.close();
   });
+
+  it('WW-147: promotes an unfiled note into an existing notebook via + Promote without looping onChanged on mount', async () => {
+    const storage = new SqlStorage(libsqlDatabase(createClient({ url: ':memory:' })));
+
+    await storage.readwrite('notes').put({
+      id: 'note-unfiled-1',
+      title: 'Unfiled WOD',
+      rawContent: '# Unfiled WOD\n',
+      blocks: {},
+      createdAt: 1_700_000_000_000,
+      sourceRevision: 1,
+      type: 'note',
+      seedOrigin: 'user',
+      notebookIds: [],
+    });
+    await storage.readwrite('notes').put({
+      id: 'notebook/qa-cf-scoring-2099',
+      title: 'QA CF Scoring 2099',
+      rawContent: '# QA CF Scoring 2099\n',
+      blocks: {},
+      createdAt: 1_700_000_000_000,
+      sourceRevision: 1,
+      type: 'notebook',
+      notebookId: 'notebook/qa-cf-scoring-2099',
+      seedOrigin: 'user',
+      public: false,
+    });
+
+    let onChangedCalls = 0;
+    render(
+      <MemoryRouter>
+        <PublicationPill
+          noteId="note-unfiled-1"
+          storageOverride={storage}
+          onChanged={() => {
+            onChangedCalls += 1;
+          }}
+        />
+      </MemoryRouter>,
+    );
+
+    const pill = screen.getByTestId('publication-pill');
+    fireEvent.click(pill);
+    const promoteBtn = await waitFor(() => screen.getByTestId('promotion-notebook-promote-qa-cf-scoring-2099'));
+    // Initial mount refresh must never invoke onChanged (prevents NoteByIdPage re-render storm)
+    expect(onChangedCalls).toBe(0);
+
+    fireEvent.click(promoteBtn);
+    await waitFor(async () => {
+      const updated = await storage.readonly('notes').get('note-unfiled-1');
+      expect(updated?.notebookIds).toContain('notebook/qa-cf-scoring-2099');
+    });
+    expect(onChangedCalls).toBe(1);
+
+    await storage.close();
+  });
 });

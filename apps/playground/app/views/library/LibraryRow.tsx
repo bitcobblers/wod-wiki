@@ -452,9 +452,13 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
   const notebookHref = entryNotebookHref(entry)
   const canAdd = entryCanAddToToday(entry) && !!onAddToToday
   const canRun = entryCanRun(entry) && !!onRunStart
-  // Notes can move between user-owned notebooks or in/out of Journal.
-  const currentNotebookId = entry.notebookId ?? 'notebook/journal'
-  const targets = moveNotebookTargets?.filter((target) => target.id !== currentNotebookId) ?? []
+  // Notes can be promoted (N:M) into any user-owned notebook they aren't already in (WW-146).
+  const currentNotebookIds = new Set(
+    entry.notebookIds && entry.notebookIds.length > 0
+      ? entry.notebookIds
+      : [entry.notebookId ?? 'notebook/journal'],
+  )
+  const targets = moveNotebookTargets?.filter((target) => !currentNotebookIds.has(target.id)) ?? []
   const moveable = !!onMoveNotebook
     && entry.kind === 'note'
     && (entry.editable ?? true)
@@ -636,7 +640,7 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
               <>
                 <MenuSeparator />
                 <MenuGroup>
-                  <MenuGroupLabel>Move to notebook</MenuGroupLabel>
+                  <MenuGroupLabel>Add to notebook</MenuGroupLabel>
                   {targets.map((target) => (
                     <MenuItem
                       key={target.id}
@@ -684,8 +688,8 @@ export function MoveToNotebookMenu({
     <div onClick={(e) => e.stopPropagation()}>
       <Menu>
         <MenuTrigger
-          aria-label="Move to notebook"
-          title="Move to notebook"
+          aria-label="Add to notebook"
+          title="Add to notebook"
           data-testid={triggerTestId}
           className={`${triggerClassName} border-0 bg-transparent p-0`}
         >
@@ -693,7 +697,7 @@ export function MoveToNotebookMenu({
         </MenuTrigger>
         <MenuContent align="end" sideOffset={6}>
           <MenuGroup>
-            <MenuGroupLabel>Move to notebook</MenuGroupLabel>
+            <MenuGroupLabel>Add to notebook</MenuGroupLabel>
             <MenuSeparator />
             {targets.map((target) => (
               <MenuItem

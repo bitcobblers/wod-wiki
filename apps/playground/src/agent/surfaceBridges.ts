@@ -54,6 +54,14 @@ export interface ActiveStreamBridge {
   groupBy?: string;
   month?: string;
   overlayMode?: 'all' | 'planned' | 'logged';
+  /** Active `/notebook/:slug` detail metadata & capabilities (WW-128). */
+  notebookDetail?: {
+    slug: string;
+    isPublic: boolean;
+    canTogglePublic: boolean;
+    canEdit: boolean;
+    canDelete: boolean;
+  };
   setQuery: (nextQuery: string) => void;
   setLayout: (layout: string) => void;
   setGroupBy: (groupBy?: string) => void;

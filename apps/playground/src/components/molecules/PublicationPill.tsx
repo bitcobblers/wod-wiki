@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   derivePublicationVisibility,
   getNotePublicationSummary,
@@ -636,8 +636,10 @@ export function PublicationPill({
 
   const parsedRemote = parseRemoteNoteId(noteId);
   const canonicalLookupId = parsedRemote.isRemote ? parsedRemote.uuid : noteId;
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (notifyParent = false) => {
     try {
       if (!storageOverride) {
         await whenStorageReady();
@@ -657,14 +659,18 @@ export function PublicationPill({
       setSummary(nextSummary);
       setNoteSessions(loadedSessions);
       setLoadedNote(fetchedNote ?? null);
-      onChanged?.();
+      if (notifyParent) {
+        onChangedRef.current?.();
+      }
     } catch {
       // Ignore transient uninitialized storage during cold mount
     }
-  }, [activeStorage, storageOverride, canonicalLookupId, noteId, externalSessions, onChanged]);
+  }, [activeStorage, storageOverride, canonicalLookupId, noteId, externalSessions]);
+
+  const handleMutationRefresh = useCallback(() => refresh(true), [refresh]);
 
   useEffect(() => {
-    void refresh();
+    void refresh(false);
   }, [refresh]);
 
   const effectiveNote = (noteProp ?? loadedNote ?? undefined) as
@@ -745,7 +751,7 @@ export function PublicationPill({
         note={effectiveNote}
         resolveFeedLabel={resolveFeedLabel}
         resolveRemoteWorkoutFn={resolveRemoteWorkoutFn}
-        onRefresh={refresh}
+        onRefresh={handleMutationRefresh}
         onCloneRequest={onCloneRequest}
         onForked={onForked}
       />

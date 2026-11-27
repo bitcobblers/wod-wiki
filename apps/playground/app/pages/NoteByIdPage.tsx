@@ -125,6 +125,18 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
   loadedEntryRef.current = entry
   const tentativeMissingRef = useRef(false)
   tentativeMissingRef.current = tentativeMissing
+  const handlePublicationChanged = useCallback(() => {
+    const lookupKey = remoteUuid ?? noteId
+    void Promise.all([
+      contentProvider.getRecord(lookupKey).catch(() => null),
+      storageService.getNote(lookupKey).catch(() => undefined),
+    ]).then(([loaded, fetchedRaw]) => {
+      if (loaded) setEntry(loaded)
+      if (fetchedRaw !== undefined) setRawNote(fetchedRaw ?? null)
+      setContextVersion((v) => v + 1)
+    })
+  }, [remoteUuid, noteId])
+
   useEffect(() => {
     void refreshPageSources().catch(() => {
       // Failure stays on the cached promise — child queries surface it.
@@ -651,7 +663,7 @@ export function NoteByIdPage({ noteId, theme }: NoteByIdPageProps) {
                   onOpenChange={noteActions.setPromotionOpen}
                   onCloneRequest={() => noteActions.setPlacement('clone')}
                   onForked={(forked) => { void navigate(`${notePath(forked.id)}?edit=1`) }}
-                  onChanged={() => setContextVersion((v) => v + 1)}
+                  onChanged={handlePublicationChanged}
                 />
                 {!isReadOnly && (noteSchedules.length > 0 || results.length > 0 || (entry.notebookIds?.length ?? 0) > 1 || (entry.notebookIds?.length ?? -1) === 0) && (
                   <div
