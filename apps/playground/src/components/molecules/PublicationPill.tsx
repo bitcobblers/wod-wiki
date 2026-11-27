@@ -543,12 +543,15 @@ export function WorkoutSessionsList({ sessions, className = '' }: WorkoutSession
               day: 'numeric',
               year: 'numeric',
             });
+            const isPartial = sess.completed === false;
             const statusText =
-              sess.status === 'completed' || sess.completed
-                ? 'Completed'
-                : sess.status === 'in-progress'
-                  ? 'In progress'
-                  : 'Logged';
+              sess.status === 'in-progress'
+                ? 'In progress'
+                : isPartial
+                  ? 'Partial'
+                  : sess.status === 'completed' || sess.completed
+                    ? 'Completed'
+                    : 'Logged';
             return (
               <li key={sess.id} className="flex items-center justify-between gap-3 py-1.5 text-xs">
                 <Link
@@ -558,12 +561,20 @@ export function WorkoutSessionsList({ sessions, className = '' }: WorkoutSession
                   {when} · {formatSessionDuration(sess.duration)}
                 </Link>
                 <div className="flex items-center gap-2 shrink-0">
-                  {typeof sess.roundsCompleted === 'number' && (
+                  {typeof sess.roundsCompleted === 'number' && !isPartial && (
                     <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
-                      {sess.roundsCompleted} rounds
+                      {sess.roundsCompleted} {sess.roundsCompleted === 1 ? 'round' : 'rounds'}
                     </span>
                   )}
-                  <span className="text-[11px] font-medium text-muted-foreground">{statusText}</span>
+                  <span
+                    className={
+                      isPartial
+                        ? 'text-[11px] font-medium text-amber-600 dark:text-amber-400'
+                        : 'text-[11px] font-medium text-muted-foreground'
+                    }
+                  >
+                    {statusText}
+                  </span>
                 </div>
               </li>
             );

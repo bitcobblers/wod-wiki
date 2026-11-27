@@ -244,6 +244,7 @@ export function DashboardViewPage() {
       await dashboardNotes.cloneDashboard(source.slug, source.rawContent, source.title);
       notifyDashboardsChanged();
       setRefreshKey((k) => k + 1); // re-resolve → vault clone shadows the seed
+      setEditMode(true);
       toast({
         title: 'Cloned to vault',
         description: `"${source.title}" is now an editable dashboard in your vault.`,

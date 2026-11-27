@@ -125,10 +125,10 @@ export function createDashboardNotes({ persistence, journal }: DashboardNotesDep
     },
     async cloneDashboard(slug, seedRawContent, title) {
       await deactivateOthersAndCollectSlugs();
-      // Stamp the slug into the seed's frontmatter so the clone is
-      // addressable; keep the seed's title unless overridden.
+      // Stamp dashboard: true and the slug into the seed's frontmatter so the
+      // clone is always recognized as an addressable vault dashboard.
       const { meta, body } = parseFrontmatter(seedRawContent);
-      const nextMeta: Record<string, string | number | string[]> = { ...meta, slug };
+      const nextMeta: Record<string, string | number | string[]> = { ...meta, dashboard: 'true', slug };
       if (title) nextMeta.title = title;
       const raw = `---\n${serializeFrontmatter(nextMeta)}\n---\n${body}`;
       const created = await journal.create({

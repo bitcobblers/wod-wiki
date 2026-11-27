@@ -27,7 +27,7 @@ import {
   type QueryResult,
   type RowsQueryResult,
 } from '@bitcobblers/wod-wiki-engine';
-import { blockContentId, projectPlacements, resolvePlacements, type Note, type NoteBlock } from '@bitcobblers/wod-wiki-core';
+import { blockContentId, parseFrontmatter, projectPlacements, resolvePlacements, type Note, type NoteBlock } from '@bitcobblers/wod-wiki-core';
 import {
   toEntry,
   blockToEntry,
@@ -447,7 +447,31 @@ export class StreamQueryEngine {
       }
 
       const primaryResult = await this.service.runFind(parsed, options?.notebookPlane ? { notebookPlane: options.notebookPlane } : undefined);
-      const entries = primaryResult.notes.map(toEntry);
+      // Vault dashboard clones shadow prebuilt seed dashboards with the same slug
+      // so `/dashboards` (`:dashboard{}`) never displays duplicate cards (WW-155).
+      const vaultDashboardSlugs = new Set<string>();
+      for (const note of primaryResult.notes) {
+        if (note.type === 'dashboard' && note.seedOrigin !== 'seed') {
+          const { meta } = parseFrontmatter(note.rawContent ?? '');
+          if (typeof meta.slug === 'string' && meta.slug.trim()) {
+            vaultDashboardSlugs.add(meta.slug.trim());
+          }
+        }
+      }
+      const dedupedNotes =
+        vaultDashboardSlugs.size === 0
+          ? primaryResult.notes
+          : primaryResult.notes.filter((note) => {
+              if (note.type !== 'dashboard' || note.seedOrigin !== 'seed') return true;
+              const { meta } = parseFrontmatter(note.rawContent ?? '');
+              const seedSlug =
+                (typeof meta.slug === 'string' && meta.slug.trim()) ||
+                (note.sourcePath?.startsWith('markdown/dashboards/')
+                  ? note.sourcePath.replace(/^markdown\/dashboards\//, '').replace(/\.md$/i, '')
+                  : '');
+              return !seedSlug || !vaultDashboardSlugs.has(seedSlug);
+            });
+      const entries = dedupedNotes.map(toEntry);
       if (this.noteTagsResolver) {
         // Session tag resolver keeps precedence; only page links batch here.
         await this.hydrateEntries(entries, false, primaryResult.placements, primaryResult.typedTags);
@@ -467,7 +491,7 @@ export class StreamQueryEngine {
       if (this.noteBlockInfo) {
         for (let index = 0; index < entries.length; index++) {
           const entry = entries[index]!;
-          const note = primaryResult.notes[index]!;
+          const note = dedupedNotes[index]!;
           entry.excerpt = fastExcerpt(note.rawContent);
           const wodBlock = extractFirstWodBlock(note);
           if (wodBlock) {

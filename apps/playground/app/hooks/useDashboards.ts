@@ -43,8 +43,9 @@ interface VaultDashboard {
   rawContent: string
 }
 
-function dashboardsFromNotes(raws: { id: string; rawContent: string }[]): VaultDashboard[] {
+function dashboardsFromNotes(raws: { id: string; rawContent: string; seedOrigin?: string }[]): VaultDashboard[] {
   return raws
+    .filter((n) => n.seedOrigin !== 'seed')
     .map((n) => {
       const { meta } = parseFrontmatter(n.rawContent)
       if (meta['dashboard'] !== 'true') return null

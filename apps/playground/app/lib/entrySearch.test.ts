@@ -704,4 +704,55 @@ describe('StreamQueryEngine — WW-036 avoids duplicate getDetailBatches for pre
     expect(entries[3]!.excerpt).toEqual(['Line 1 for 0', 'Line 2', 'Line 3'])
     expect(entries[3]!.wodBlock).toBeUndefined()
   })
+
+  it('WW-155: deduplicates shadowed prebuilt seed dashboards when a vault clone exists', async () => {
+    const prebuiltSeed: Note = {
+      id: 'seed-dash-1',
+      title: 'Recovery & Readiness',
+      type: 'dashboard',
+      seedOrigin: 'seed',
+      sourcePath: 'markdown/dashboards/recovery-readiness.md',
+      createdAt: 1000,
+      rawContent: '---\ndashboard: true\ntitle: Recovery & Readiness\n---\n# Recovery & Readiness',
+      sourceRevision: 1,
+      blocks: {},
+    }
+    const vaultClone: Note = {
+      id: 'vault-dash-1',
+      title: 'Recovery & Readiness',
+      type: 'dashboard',
+      seedOrigin: 'user',
+      sourceId: 'dashboards',
+      createdAt: 2000,
+      rawContent: '---\ndashboard: true\ntitle: Recovery & Readiness\nslug: recovery-readiness\n---\n# Recovery & Readiness',
+      sourceRevision: 1,
+      blocks: {},
+    }
+    const otherPrebuilt: Note = {
+      id: 'seed-dash-2',
+      title: 'Benchmark PR Board',
+      type: 'dashboard',
+      seedOrigin: 'seed',
+      sourcePath: 'markdown/dashboards/benchmark-pr-board.md',
+      createdAt: 1000,
+      rawContent: '---\ndashboard: true\ntitle: Benchmark PR Board\n---\n# Benchmark PR Board',
+      sourceRevision: 1,
+      blocks: {},
+    }
+
+    const engine = new StreamQueryEngine({
+      service: {
+        runFind: async parsed => ({
+          parsed,
+          notes: [prebuiltSeed, vaultClone, otherPrebuilt],
+          blocks: [],
+          placements: { 'seed-dash-1': [], 'vault-dash-1': [], 'seed-dash-2': [] },
+          stages: { selected: 3, matched: 3 },
+        }),
+      },
+    })
+
+    const entries = await engine.query(':dashboard{}')
+    expect(entries.map(e => e.id)).toEqual(['vault-dash-1', 'seed-dash-2'])
+  })
 })

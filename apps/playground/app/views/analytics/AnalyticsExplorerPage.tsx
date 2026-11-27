@@ -159,11 +159,6 @@ export interface AnalyticsExplorerPageProps {
 }
 
 export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
-  // Ticket 14/15: ensure the field catalog is populated (resumable no-op
-  // when complete) before discovery reads it.
-  useEffect(() => {
-    void startFieldCatalogBackfill();
-  }, []);
   // The /dashboards landing query — the annotation-9 dashboard search. A
   // stored Route WQL Config default (the page's own query settings, legacy
   // /dashboard key aliased) overrides it; deep links (?q=) still win.
@@ -226,7 +221,16 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   // honor both, not just a fresh parse of the draft text.
   const [composerValid, setComposerValid] = useState(true);
   const [segmentEditRequest, setSegmentEditRequest] = useState<WqlSegmentEditRequest | undefined>(undefined);
-  const vocabulary = useExplorerVocabulary();
+  const vocabulary = useExplorerVocabulary(loading);
+  // Defer field catalog backfill until the primary query settles so IDB
+  // read/write contention does not stall initial /dashboards or ?q= reload (WW-154).
+  useEffect(() => {
+    if (loading) return;
+    const timer = setTimeout(() => {
+      void startFieldCatalogBackfill();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [loading]);
   // Route-configured type favorites (the /dashboards surface) prioritize the
   // composer's picker rows without excluding anything.
   const preferredChoices = routeConfig.typeOptions;
