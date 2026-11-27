@@ -16,12 +16,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
-import { BUILTIN_CALCS, findTagContributionCycles } from '@bitcobblers/wod-wiki-engine';
-import type { Tag, TagContribution, TagTypeRecord } from '@bitcobblers/wod-wiki-core';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { BUILTIN_CALCS, findTagContributionCycles, parseQuery, type ParsedFindQuery } from '@bitcobblers/wod-wiki-engine';
+import type { Note, Tag, TagContribution, TagTypeRecord } from '@bitcobblers/wod-wiki-core';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from "@bitcobblers/wod-wiki-ui/primitives";
 import { storageService } from '@/services/storage';
+import { queryService } from '@/services/queryService';
 import { loadTagIndex, refreshTagIndex } from '@/services/tags/tagCatalogue';
 import { useTagIndex } from '@/hooks/useTagIndex';
 import { hydrateUserCalcs } from '@/stores/userCalcStore';
@@ -33,6 +34,8 @@ import { L3DrawerTrigger } from '@/panels/page-shells';
 import { useColdRouteResolution } from '../hooks/useColdRouteResolution';
 import { buildTagNoteDocument, usePropertyNote } from '../hooks/usePropertyNote';
 import { tagPath, tagCategoryPath, effortPath, equipmentPath, ROUTE_PATTERNS } from '../lib/routes';
+import { toEntry } from '../lib/entryMapper';
+import { entryOpenHref } from '../lib/entryActions';
 import { useNav } from '../nav/NavContext';
 import type { NavItemL3 } from '../nav/navTypes';
 import type { MenuSpec } from '../nav/menuModel';
@@ -82,6 +85,8 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
   const [saved, setSaved] = useState(false);
   const [creating, setCreating] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [taggedNotes, setTaggedNotes] = useState<Note[]>([]);
+  const [loadingTaggedNotes, setLoadingTaggedNotes] = useState(false);
   const newLabelInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
@@ -135,17 +140,102 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
     void load();
   }, [load]);
 
-  // A link from the editor points at a tag: open it.
-  useEffect(() => {
-    if (!requestedTag || tags.length === 0) return;
-    const match = tags.find(tag => tag.label === requestedTag);
-    setSelectedId(match ? match.id : null);
-  }, [requestedTag, tags]);
+  // A link from the editor or /tags catalogue points at a tag: resolve category-aware & case-insensitively (WW-148).
+  const matchedRequestedTag = useMemo(() => {
+    if (!requestedTag || tags.length === 0) return null;
+    const reqLower = requestedTag.toLowerCase();
+    const catLower = activeCategory.toLowerCase();
+    return (
+      (catLower && catLower !== 'general' && catLower !== 'tag'
+        ? tags.find((tag) => (tag.type ?? '').toLowerCase() === catLower && tag.label.toLowerCase() === reqLower)
+        : undefined) ??
+      tags.find((tag) => tag.label.toLowerCase() === reqLower) ??
+      null
+    );
+  }, [requestedTag, activeCategory, tags]);
 
-  const selected = tags.find(tag => tag.id === selectedId) ?? null;
+  useEffect(() => {
+    setSelectedId(matchedRequestedTag ? matchedRequestedTag.id : null);
+  }, [matchedRequestedTag]);
+
+  const selected = tags.find(tag => tag.id === selectedId) ?? matchedRequestedTag;
+  const detailTagLabel = selected?.label ?? requestedTag ?? '';
+  const detailCategory = (selected?.type || activeCategory || 'general').trim();
+
+  // Drill-down query: load all notes/workouts/dashboards/guides carrying this tag (WW-148).
+  useEffect(() => {
+    if (!requestedTag) {
+      setTaggedNotes([]);
+      setLoadingTaggedNotes(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingTaggedNotes(true);
+    const reqLower = requestedTag.toLowerCase();
+    const catLower = detailCategory.toLowerCase();
+    const scope = resolveEntityScope({
+      kind: 'tag',
+      category: detailCategory || 'general',
+      slug: detailTagLabel || requestedTag,
+      label: detailTagLabel || requestedTag,
+    });
+    const parsedWql = parseQuery(scope.notesWql);
+    void (async () => {
+      try {
+        const matchedById = new Map<string, Note>();
+        // 1. Direct tag-junction lookup (catches dashboards, guides, efforts, and user notes alike).
+        const allTags = await storageService.getAllTags().catch(() => [] as Tag[]);
+        const exactKindTagIds = allTags
+          .filter(
+            (t) =>
+              t.label.toLowerCase() === reqLower &&
+              (!catLower || catLower === 'general' || catLower === 'tag' || (t.type ?? '').toLowerCase() === catLower),
+          )
+          .map((t) => t.id);
+        const fallbackTagIds =
+          exactKindTagIds.length > 0
+            ? exactKindTagIds
+            : allTags.filter((t) => t.label.toLowerCase() === reqLower).map((t) => t.id);
+        if (fallbackTagIds.length > 0) {
+          const linkGroups = await storageService.storage
+            .readonly('note_tags')
+            .getAllFromIndexMany('by-tag', fallbackTagIds)
+            .catch(() => [] as Array<Array<{ noteId: string }>>);
+          const noteIds = [...new Set(linkGroups.flatMap((g) => g.map((l) => l.noteId)))];
+          if (noteIds.length > 0) {
+            const notes = await storageService.getNotesByIds(noteIds).catch(() => [] as Note[]);
+            for (const note of notes) {
+              if (note && note.type !== 'notebook') matchedById.set(note.id, note);
+            }
+          }
+        }
+        // 2. WQL entity-scope query (catches inline/unindexed note tags and respects WQL filters).
+        if (!parsedWql.error && parsedWql.family === 'find') {
+          const res = await queryService.runFind(parsedWql as ParsedFindQuery).catch(() => null);
+          if (res?.notes) {
+            for (const note of res.notes) {
+              if (note && note.type !== 'notebook') matchedById.set(note.id, note);
+            }
+          }
+        }
+        if (!cancelled) {
+          const sorted = [...matchedById.values()].sort(
+            (a, b) => (b.date ?? b.createdAt ?? 0) - (a.date ?? a.createdAt ?? 0),
+          );
+          setTaggedNotes(sorted);
+        }
+      } finally {
+        if (!cancelled) setLoadingTaggedNotes(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedTag, detailTagLabel, detailCategory, tags.length]);
+
   const { isSettling, settlementTick } = useColdRouteResolution({
-    loading: !hasLoaded,
-    missing: Boolean(requestedTag && !selected),
+    loading: !hasLoaded || loadingTaggedNotes,
+    missing: Boolean(requestedTag && !selected && taggedNotes.length === 0),
   });
 
   useEffect(() => {
@@ -237,7 +327,8 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
       setError('A tag needs a name.');
       return;
     }
-    if (tags.some(tag => tag.label.trim() === trimmed)) {
+    const existingTags = hasLoaded ? tags : await storageService.getAllTags();
+    if (existingTags.some(tag => tag.label.trim() === trimmed)) {
       setError(`A tag called "${trimmed}" already exists.`);
       return;
     }
@@ -403,19 +494,111 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
     <NoteContextNav data={EMPTY_NOTE_CONTEXT} up={up} sections={tagL2} />
   );
 
+  const tagMissing = Boolean(
+    requestedTag && hasLoaded && !loadingTaggedNotes && !isSettling && !selected && taggedNotes.length === 0,
+  );
+  const isTagDetailRoute = Boolean(requestedTag && !tagMissing);
+  const detailScopeNotesWql = useMemo(() => {
+    if (!requestedTag) return null;
+    return resolveEntityScope({
+      kind: 'tag',
+      category: detailCategory || 'general',
+      slug: detailTagLabel || requestedTag,
+      label: detailTagLabel || requestedTag,
+    }).notesWql;
+  }, [requestedTag, detailCategory, detailTagLabel]);
+
+  const newTagFormSection = (
+    <section id="tags-new" className="space-y-3">
+      <h2 className="text-base font-semibold text-foreground">New tag</h2>
+      <div className="p-4 sm:p-5 rounded-xl border border-border bg-card shadow-xs space-y-3">
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+            void create();
+          }}
+          className="flex flex-wrap items-end gap-3"
+        >
+          <div className="w-full sm:flex-1 min-w-0">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
+            <input
+              ref={newLabelInputRef}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs outline-none focus:border-primary"
+              placeholder="heavy"
+              value={newLabel}
+              onChange={event => setNewLabel(event.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-40 min-w-0">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Kind</label>
+            <select
+              className="w-full h-9 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
+              value={newKind}
+              onChange={event => setNewKind(event.target.value)}
+            >
+              <option value="">—</option>
+              {kindOptions.map(name => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button type="submit" size="sm" className="h-9">
+            <Plus className="size-3.5 mr-1" /> Add Tag
+          </Button>
+        </form>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </div>
+    </section>
+  );
+
   return (
     <div className="w-full max-w-4xl min-w-0 mx-auto px-4 py-6 sm:p-6 space-y-8 overflow-x-hidden">
       {tagContextNav}
       <section className="space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-lg font-semibold text-foreground">Tags</h1>
-            <p className="text-sm text-muted-foreground">
-              A tag is a named bundle a script can point at:{' '}
-              <code className="font-mono">5 reps @ 100 kg {'#heavy'}</code>. What the tag brings
-              applies to the line it sits on. A tag can contribute a metric (a typed value with a unit),
-              another tag, or a function — a named calculation that runs where the tag applies.
-            </p>
+            {isTagDetailRoute ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-1">
+                  <Link to={ROUTE_PATTERNS.tags} className="hover:text-foreground transition-colors">
+                    Tags
+                  </Link>
+                  {activeCategory && (
+                    <>
+                      <span aria-hidden="true">/</span>
+                      <Link to={tagCategoryPath(activeCategory)} className="hover:text-foreground transition-colors">
+                        {activeCategory}
+                      </Link>
+                    </>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-lg font-semibold text-foreground">#{detailTagLabel}</h1>
+                  {detailCategory && (
+                    <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {detailCategory}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {loadingTaggedNotes
+                    ? 'Searching tagged entries…'
+                    : `${taggedNotes.length} tagged ${taggedNotes.length === 1 ? 'entry' : 'entries'}`}
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-lg font-semibold text-foreground">Tags</h1>
+                <p className="text-sm text-muted-foreground">
+                  A tag is a named bundle a script can point at:{' '}
+                  <code className="font-mono">5 reps @ 100 kg {'#heavy'}</code>. What the tag brings
+                  applies to the line it sits on. A tag can contribute a metric (a typed value with a unit),
+                  another tag, or a function — a named calculation that runs where the tag applies.
+                </p>
+              </>
+            )}
           </div>
           {/* Cast + lg–2xl Page options: shared navbar on mobile, desktop header here. */}
           <div className="max-lg:hidden flex items-center gap-1.5">
@@ -431,55 +614,65 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
         )}
       </section>
 
-      <section id="tags-new" className="space-y-3">
-        <h2 className="text-base font-semibold text-foreground">New tag</h2>
-        <div className="p-4 sm:p-5 rounded-xl border border-border bg-card shadow-xs space-y-3">
-          <form
-            onSubmit={event => {
-              event.preventDefault();
-              void create();
-            }}
-            className="flex flex-wrap items-end gap-3"
-          >
-            <div className="w-full sm:flex-1 min-w-0">
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
-              <input
-                ref={newLabelInputRef}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs outline-none focus:border-primary"
-                placeholder="heavy"
-                value={newLabel}
-                onChange={event => setNewLabel(event.target.value)}
-              />
-            </div>
-            <div className="w-full sm:w-40 min-w-0">
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Kind</label>
-              <select
-                className="w-full h-9 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
-                value={newKind}
-                onChange={event => setNewKind(event.target.value)}
-              >
-                <option value="">—</option>
-                {kindOptions.map(name => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Button type="submit" size="sm" className="h-9">
-              <Plus className="size-3.5 mr-1" /> Add Tag
-            </Button>
-          </form>
-          {error && <p className="text-xs text-destructive">{error}</p>}
-        </div>
-      </section>
+      {!isTagDetailRoute && newTagFormSection}
 
-      {!hasLoaded || (requestedTag && !selected && isSettling) ? (
+      {isTagDetailRoute && (taggedNotes.length > 0 || selected) && (
+        <section id="tags-drilldown" data-testid={TEST_IDS.TAG_DETAIL_NOTES_LIST} className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold text-foreground">Tagged entries</h2>
+            {detailScopeNotesWql && (
+              <Link
+                to={`${ROUTE_PATTERNS.notes}?q=${encodeURIComponent(detailScopeNotesWql)}`}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Open in Notes →
+              </Link>
+            )}
+          </div>
+          {taggedNotes.length > 0 ? (
+            <ul className="divide-y divide-border rounded-xl border border-border bg-card shadow-xs">
+              {taggedNotes.map((note) => {
+                const entry = toEntry(note);
+                const href = entryOpenHref(entry) || noteLinkPath(note.id);
+                const badge =
+                  entry.kind === 'dashboard'
+                    ? 'Dashboard'
+                    : entry.sourceNotebook === 'guides'
+                      ? 'Guide'
+                      : entry.kind === 'effort'
+                        ? 'Effort'
+                        : entry.kind === 'equipment'
+                          ? 'Equipment'
+                          : 'Note';
+                return (
+                  <li key={note.id}>
+                    <Link
+                      to={href}
+                      className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-muted/40 transition-colors"
+                    >
+                      <span className="font-medium text-foreground truncate">{note.title || note.id}</span>
+                      <span className="shrink-0 rounded-full border border-border bg-muted/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {badge}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted-foreground rounded-xl border border-border bg-card px-4 py-3">
+              No notes carry #{detailTagLabel} yet.
+            </p>
+          )}
+        </section>
+      )}
+
+      {!hasLoaded || (requestedTag && !selected && taggedNotes.length === 0 && isSettling) ? (
         <p role="status" data-testid={TEST_IDS.TAG_LOADING_SETTLING} className="text-xs text-muted-foreground">
           Loading tag details…
         </p>
       ) : null}
-      {hasLoaded && requestedTag && !selected && !isSettling && (
+      {hasLoaded && requestedTag && !selected && taggedNotes.length === 0 && !isSettling && (
         <section
           data-testid={TEST_IDS.TAG_NOT_FOUND}
           className="rounded-xl border border-border bg-card p-5 space-y-3"
@@ -694,6 +887,7 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
           )}
         </section>
       )}
+      {isTagDetailRoute && newTagFormSection}
     </div>
   );
 }

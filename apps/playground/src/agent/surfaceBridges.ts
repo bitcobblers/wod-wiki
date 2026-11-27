@@ -54,6 +54,14 @@ export interface ActiveStreamBridge {
   groupBy?: string;
   month?: string;
   overlayMode?: 'all' | 'planned' | 'logged';
+  /** Active `/notebook/:slug` detail metadata & capabilities (WW-128). */
+  notebookDetail?: {
+    slug: string;
+    isPublic: boolean;
+    canTogglePublic: boolean;
+    canEdit: boolean;
+    canDelete: boolean;
+  };
   setQuery: (nextQuery: string) => void;
   setLayout: (layout: string) => void;
   setGroupBy: (groupBy?: string) => void;
@@ -64,12 +72,12 @@ export interface ActiveStreamBridge {
 export interface ActiveExplorerBridge {
   draft: string;
   submitted: string;
-  weeks: 4 | 8 | 16;
+  weeks: 4 | 8 | 16 | 'all';
   loading: boolean;
   saveReady: boolean;
   setDraft: (wql: string) => void;
   submit: (wql?: string) => void;
-  setWeeks: (weeks: 4 | 8 | 16) => void;
+  setWeeks: (weeks: 4 | 8 | 16 | 'all') => void;
   openSaveDialog: () => void;
   openQuerySettings: () => void;
 }

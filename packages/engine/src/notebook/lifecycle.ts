@@ -60,12 +60,17 @@ export async function deleteUserNotebook(
 
       let touchedMembers = 0;
       const noteWriter = tx.readwrite('notes');
+      const legacyColonTag = `notebook:${slug}`;
+      const legacySlashTag = `notebook/${slug}`;
       for (const note of allNotes) {
         if (isNotebookLanding(note)) continue;
         const hasSingle = note.notebookId === nbId;
         const hasMulti = (note.notebookIds ?? []).includes(nbId);
         const hasLink = linkedNoteIds.has(note.id);
-        if (!hasSingle && !hasMulti && !hasLink) continue;
+        const hasLegacyTag = (note.tags ?? []).some(
+          (t) => t === legacyColonTag || t === legacySlashTag,
+        );
+        if (!hasSingle && !hasMulti && !hasLink && !hasLegacyTag) continue;
 
         const baseIds =
           note.notebookIds !== undefined
@@ -77,9 +82,13 @@ export async function deleteUserNotebook(
         const primaryUser = remaining.find(
           (id) => id !== 'notebook/journal' && id !== 'notebook/playground',
         );
+        const nextTags = hasLegacyTag
+          ? (note.tags ?? []).filter((t) => t !== legacyColonTag && t !== legacySlashTag)
+          : note.tags;
         const { notebookId: _droppedSingle, notebookIds: _droppedMulti, ...rest } = note;
         await noteWriter.put({
           ...rest,
+          ...(nextTags !== undefined ? { tags: nextTags } : {}),
           notebookIds: remaining,
           ...(primaryUser ? { notebookId: primaryUser } : {}),
         });

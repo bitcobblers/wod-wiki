@@ -16,6 +16,7 @@
  */
 import { useMemo } from 'react'
 import { Plus } from 'lucide-react'
+import { Button } from '@bitcobblers/wod-wiki-ui/primitives'
 import { TEST_IDS } from '@/lib/testIds'
 import type { Entry } from '../../lib/entryMapper'
 import {
@@ -31,6 +32,7 @@ import { LibraryRow } from '../library/LibraryRow'
 import {
   CalendarMonthBar,
   CalendarUndatedShelf,
+  findNearestPopulatedMonth,
   useCalendarMonth,
   type OverlayFilterMode,
 } from './CalendarChrome'
@@ -213,6 +215,10 @@ export function CalendarAgendaView({
   const dated = entries.filter(
     (entry) => Boolean(entry.date) || Boolean(entry.scheduledDates?.length),
   ).length
+  const nearestPopulated = useMemo(
+    () => findNearestPopulatedMonth(monthPrefix, buckets.byDay.keys()),
+    [monthPrefix, buckets],
+  )
 
   if (entries.length === 0) {
     return (
@@ -238,9 +244,22 @@ export function CalendarAgendaView({
       <DensityRibbon days={grid.flatMap(week => week.days)} />
 
       {agenda.length === 0 ? (
-        <p className="px-4 py-16 text-center text-xs text-muted-foreground">
-          Nothing dated in {nav.label}. Step to another month, or widen the date window.
-        </p>
+        <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
+          <p className="text-xs text-muted-foreground">
+            Nothing dated in {nav.label}. Step to another month, jump with the month picker, or widen the date window.
+          </p>
+          {nearestPopulated && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid={TEST_IDS.CALENDAR_JUMP_POPULATED_MONTH}
+              onClick={() => nav.goToMonth(nearestPopulated.monthKey)}
+            >
+              Jump to {nearestPopulated.label}
+            </Button>
+          )}
+        </div>
       ) : (
         <div className="flex-1 pb-6">
           {agenda.map(day => (

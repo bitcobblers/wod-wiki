@@ -316,11 +316,23 @@ function RestoreSection() {
     setError(null)
     try {
       const filename = await exportSafeData()
-      setExportNote(`Exported ${filename} — unsent edits, a full local snapshot, and content-source settings. No tokens included.`)
+      const note = `Exported ${filename} — unsent edits, a full local snapshot, and content-source settings. No tokens included.`
+      setExportNote(note)
+      toast({
+        title: 'Safe export downloaded',
+        description: filename,
+      })
       const groups = await readUnsentEdits()
       setPendingCount(groups.length)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[DataSection] Safe export failed:', err)
+      setError(message)
+      toast({
+        title: 'Export failed',
+        description: message,
+        variant: 'destructive',
+      })
     } finally {
       setBusy(null)
     }
@@ -419,7 +431,7 @@ function RestoreSection() {
         </p>
       )}
       {exportNote && (
-        <p className="text-xs text-muted-foreground" data-testid="restore-export-note">
+        <p role="status" aria-live="polite" className="text-xs text-muted-foreground" data-testid="restore-export-note">
           {exportNote}
         </p>
       )}
@@ -441,14 +453,17 @@ function RestoreSection() {
           size="sm"
           onClick={() => void exportEdits()}
           disabled={busy !== null}
+          aria-busy={busy === 'export'}
           data-testid="restore-export-button"
           className="gap-2"
         >
           {busy === 'export' ? <RefreshCw className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
           <span>
-            {pendingCount === null || pendingCount === 0
-              ? 'Export data (safe file)'
-              : `Export data — ${pendingCount} unsent ${pendingCount === 1 ? 'edit' : 'edits'}`}
+            {busy === 'export'
+              ? 'Exporting…'
+              : pendingCount === null || pendingCount === 0
+                ? 'Export data (safe file)'
+                : `Export data — ${pendingCount} unsent ${pendingCount === 1 ? 'edit' : 'edits'}`}
           </span>
         </Button>
         {!confirming ? (

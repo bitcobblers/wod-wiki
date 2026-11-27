@@ -292,7 +292,7 @@ describe('RowsTable — the Unified Session Results Table', () => {
     const table = screen.getByTestId('output-statements-table');
     expect(screen.getByTestId('sort-col-power')).toBeDefined();
     expect(table.querySelectorAll('tbody tr')).toHaveLength(2);
-    expect(table.textContent).toContain('totalWork');
+    expect(table.textContent).toContain('Total Work');
     expect(table.textContent).toContain('500 kg');
   });
 });

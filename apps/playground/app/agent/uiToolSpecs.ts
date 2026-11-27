@@ -156,9 +156,9 @@ export const uiSetExplorerQuerySchema = z.strictObject({
     .optional()
     .describe('Execute/submit the query immediately (default true when `query` is provided).'),
   weeks: z
-    .union([z.literal(4), z.literal(8), z.literal(16)])
+    .union([z.literal(4), z.literal(8), z.literal(16), z.literal('all')])
     .optional()
-    .describe('Analytics lookback range in weeks (`4`, `8`, or `16`).'),
+    .describe('Analytics lookback range in weeks (`4`, `8`, `16`) or `"all"` for unbounded history.'),
   openSaveDialog: z
     .boolean()
     .optional()

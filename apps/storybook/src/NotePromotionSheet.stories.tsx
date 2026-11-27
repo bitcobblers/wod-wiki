@@ -168,7 +168,7 @@ export const PromoteToPublishedNoteWithData: Story = {
     // 1. Start private: no Notebook membership, session not opted in
     await expect(within(sheet).getByText(visibilityHeader('Private'))).toBeVisible();
     const chip = await body.findByTestId('promotion-notebook-chip-notebook/gym-wod');
-    await userEvent.click(within(chip).getByRole('button'));
+    await userEvent.click(within(chip).getByTestId('promotion-notebook-promote-gym-wod'));
 
     // Membership alone stays Private (the Notebook itself is still private)
     const publicToggle = await body.findByTestId('publication-notebook-public-toggle');

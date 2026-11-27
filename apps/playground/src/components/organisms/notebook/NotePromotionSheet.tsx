@@ -38,7 +38,7 @@ import {
 } from '@bitcobblers/wod-wiki-engine';
 import { notebookOfItem, notebookOriginOfItem } from '@bitcobblers/wod-wiki-wql';
 import type { IStorage } from '@bitcobblers/wod-wiki-storage';
-import { storageBackend } from '@/hooks/useBrowserServices';
+import { notebookService, storageBackend } from '@/hooks/useBrowserServices';
 import {
   listWritableNotebooks,
   resolveOwnershipPresentation,
@@ -188,19 +188,26 @@ export function NotePromotionSheet({
 
   const handleToggleMembership = async (nbId: NotebookId) => {
     if (busy || isReadOnlyFeedNote) return;
+    const wasMember = linkedIds.includes(nbId);
+    const nbTitle = userNotebooks.find((n) => n.id === nbId)?.title ?? notebookSlugFromId(nbId);
     setBusy(true);
     try {
-      if (linkedIds.includes(nbId)) {
-        await removeNoteFromNotebook(storageInstance, noteId, nbId);
+      if (wasMember) {
+        await removeNoteFromNotebook(storageInstance, canonicalNoteId, nbId);
       } else {
         await promoteNoteToNotebooks(storageInstance, {
-          noteId,
+          noteId: canonicalNoteId,
           notebookIds: [nbId],
           sessionIds: noteSessions.map((s) => s.id),
         });
       }
+      notebookService.notify();
       await onRefresh();
       await loadSheetState();
+      toast({
+        title: wasMember ? 'Removed from Notebook' : 'Added to Notebook',
+        description: wasMember ? `Removed from ${nbTitle}.` : `Promoted to ${nbTitle}.`,
+      });
     } catch (err) {
       toast({
         title: 'Could not update Notebook membership',
@@ -220,13 +227,18 @@ export function NotePromotionSheet({
     try {
       const nbId = await createUserNotebookLanding(storageInstance, trimmed);
       await promoteNoteToNotebooks(storageInstance, {
-        noteId,
+        noteId: canonicalNoteId,
         notebookIds: [nbId],
         sessionIds: noteSessions.map((s) => s.id),
       });
       setNewNotebookName('');
+      notebookService.notify();
       await onRefresh();
       await loadSheetState();
+      toast({
+        title: 'Added to Notebook',
+        description: `Promoted to ${trimmed}.`,
+      });
     } catch (err) {
       toast({
         title: 'Could not create Notebook',
@@ -256,6 +268,7 @@ export function NotePromotionSheet({
     setBusy(true);
     try {
       await setNotebookPublic(storageInstance, nbId, nextPublic);
+      notebookService.notify();
       await onRefresh();
       await loadSheetState();
     } catch (err) {
@@ -539,7 +552,7 @@ export function NotePromotionSheet({
                         </div>
                       </button>
 
-                      {isMember && (
+                      {isMember ? (
                         <label className="inline-flex items-center gap-1.5 cursor-pointer shrink-0 min-h-9 px-2 rounded-md border border-border bg-muted/30">
                           <input
                             type="checkbox"
@@ -557,6 +570,18 @@ export function NotePromotionSheet({
                             {nb.isPublic ? 'Public' : 'Private'}
                           </span>
                         </label>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => void handleToggleMembership(nb.id)}
+                          data-testid={`promotion-notebook-promote-${nb.slug}`}
+                          className="min-h-9 h-9 px-2.5 text-[11px] shrink-0"
+                        >
+                          + Promote
+                        </Button>
                       )}
                     </div>
                   );
@@ -597,7 +622,7 @@ export function NotePromotionSheet({
                 data-testid="promotion-new-notebook-submit"
                 className="min-h-11 px-3.5 text-xs"
               >
-                + Promote
+                + Create &amp; Promote
               </Button>
             </form>
           </div>

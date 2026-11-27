@@ -226,7 +226,21 @@ function deriveWorkout(
     }
   }
   if (pathname.startsWith('/t/')) {
-    return { name: 'Tags', content: '', category: 'tags' }
+    const parts = pathname.slice('/t/'.length).split('/').filter(Boolean)
+    const rawTag = parts[1]
+    const rawType = parts[0]
+    const safeDecode = (s: string) => {
+      try {
+        return decodeURIComponent(s)
+      } catch {
+        return s
+      }
+    }
+    return {
+      name: rawTag ? `#${safeDecode(rawTag)}` : rawType ? safeDecode(rawType) : 'Tags',
+      content: '',
+      category: 'tags',
+    }
   }
   if (pathname.startsWith('/dashboard/')) {
     return { name: decodeURIComponent(pathname.split('/')[2] ?? 'Dashboard'), content: '', category: 'dashboard' }

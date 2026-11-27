@@ -47,7 +47,7 @@ test.describe('WW-049 — wod_note_delete without confirmId', () => {
         title: 'WW049 Disposable Note',
         content: '# WW049 Disposable Note\n\n```time\n10 Burpees\n```',
       });
-      const parsed = JSON.parse(raw) as {
+      const parsed = (typeof raw === 'string' ? JSON.parse(raw) : raw) as {
         structuredContent?: { noteId?: string };
         noteId?: string;
         content?: Array<{ text?: string }>;

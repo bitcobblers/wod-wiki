@@ -275,9 +275,13 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
       });
     }
     const compatible = p.filters.filter(f => NOTE_FILTER_KEYS.has(f.key) && !f.negate);
+    const queryWindow = 'window' in p ? p.window : undefined;
+    const derivedWindow =
+      queryWindow ??
+      (activeWeeks === 'all' ? undefined : { kind: 'relative' as const, size: activeWeeks, unit: 'w' as const });
     return serialize({
       family: 'find', raw: '', target: 'note', filters: compatible,
-      window: { kind: 'relative', size: activeWeeks, unit: 'w' },
+      ...(derivedWindow ? { window: derivedWindow } : {}),
     });
   }, [submitted, activeWeeks]);
 
@@ -355,8 +359,11 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
       setEntries(undefined);
       setEfforts(undefined);
       const now = Date.now();
-      const rangeStart = now - activeWeeks * 7 * DAY;
-      queryService.runQuery(submitted, { rangeStart, rangeEnd: now, preferredUnit })
+      const rangeOptions =
+        activeWeeks === 'all'
+          ? { preferredUnit }
+          : { rangeStart: now - activeWeeks * 7 * DAY, rangeEnd: now, preferredUnit };
+      queryService.runQuery(submitted, rangeOptions)
         .then((r) => {
           if (cancelled) return;
           if (r.parsed.error) {
@@ -468,7 +475,15 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
         <div className="min-w-[280px]">
           <WqlComposer
             query={draft}
-            onQueryChange={setDraft}
+            onQueryChange={(next) => {
+              const prevHasWindow = !liveParsed.error && 'window' in liveParsed && Boolean(liveParsed.window);
+              const nextParsed = parseQuery(next);
+              const nextHasWindow = !nextParsed.error && 'window' in nextParsed && Boolean(nextParsed.window);
+              if (prevHasWindow && !nextHasWindow && activeWeeks !== 'all') {
+                setWeeks('all');
+              }
+              setDraft(next);
+            }}
             onValidationChange={(v) => setComposerValid(v.valid)}
             onSubmit={(wql) => submit(wql)}
             preferredChoices={preferredChoices}
@@ -535,6 +550,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
             </div>
 
             <RangeSelector
+              allowAll
               weeks={activeWeeks}
               onWeeksChange={(w) => setWeeks(w as ExplorerRangeWeeks)}
             />
@@ -908,8 +924,8 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
         onOpenChange={setDashOpen}
         initialQuery={draft}
         subsetQuery={subsetQuery}
-        rangeStart={Date.now() - activeWeeks * 7 * DAY}
-        rangeEnd={Date.now()}
+        rangeStart={activeWeeks === 'all' ? undefined : Date.now() - activeWeeks * 7 * DAY}
+        rangeEnd={activeWeeks === 'all' ? undefined : Date.now()}
         preferredUnit={preferredUnit}
       />
     </div>

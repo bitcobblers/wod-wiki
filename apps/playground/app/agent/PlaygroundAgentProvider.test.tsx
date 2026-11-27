@@ -37,7 +37,7 @@ interface FakeModelContext {
   __isBrowserMcpServer: boolean;
   registerTool: () => Promise<{ unregister(): void }>;
   getTools: () => Promise<FakeRegisteredTool[]>;
-  executeTool: (...args: unknown[]) => Promise<string>;
+  executeTool: (...args: unknown[]) => Promise<unknown>;
 }
 
 function makeFakeModelContext(tools: FakeRegisteredTool[]) {
@@ -57,14 +57,14 @@ function makeFakeModelContext(tools: FakeRegisteredTool[]) {
 }
 
 describe('installModelContextExecuteToolAdapter (WW-025)', () => {
-  it('passes canonical (descriptor, input) calls straight through', async () => {
+  it('passes canonical (descriptor, input) calls straight through and unwraps JSON results (WW-130)', async () => {
     const tools = [makeRegisteredTool('ui_preferences')];
     const { mc, calls } = makeFakeModelContext(tools);
     installModelContextExecuteToolAdapter(mc);
 
     const result = await mc.executeTool(tools[0], { action: 'set', theme: 'dark' });
 
-    expect(JSON.parse(result)).toEqual({ tool: 'ui_preferences', input: { action: 'set', theme: 'dark' } });
+    expect(result).toEqual({ tool: 'ui_preferences', input: { action: 'set', theme: 'dark' } });
     expect(calls).toHaveLength(1);
     expect(calls[0].thisArg).toBe(mc);
     expect(calls[0].args[0]).toBe(tools[0]);
@@ -78,7 +78,7 @@ describe('installModelContextExecuteToolAdapter (WW-025)', () => {
 
     const result = await mc.executeTool('ui_navigate', { path: '/journal' });
 
-    expect(JSON.parse(result)).toEqual({ tool: 'ui_navigate', input: { path: '/journal' } });
+    expect(result).toEqual({ tool: 'ui_navigate', input: { path: '/journal' } });
     expect(calls).toHaveLength(1);
     expect(calls[0].args[0]).toBe(tools[0]);
     expect(calls[0].args[1]).toEqual({ path: '/journal' });
@@ -94,7 +94,7 @@ describe('installModelContextExecuteToolAdapter (WW-025)', () => {
       arguments: { action: 'set', theme: 'dark' },
     });
 
-    expect(JSON.parse(result)).toEqual({ tool: 'ui_preferences', input: { action: 'set', theme: 'dark' } });
+    expect(result).toEqual({ tool: 'ui_preferences', input: { action: 'set', theme: 'dark' } });
     expect(calls).toHaveLength(1);
     expect(calls[0].args[0]).toBe(tools[0]);
     expect(calls[0].args[1]).toEqual({ action: 'set', theme: 'dark' });
@@ -151,7 +151,7 @@ describe('installModelContextExecuteToolAdapter (WW-025)', () => {
     const tools = [makeRegisteredTool('ui_navigate')];
     const { mc, calls } = makeFakeModelContext(tools);
     installModelContextExecuteToolAdapter(mc);
-    const mcWithCall = mc as typeof mc & { callTool?: (...args: unknown[]) => Promise<string> };
+    const mcWithCall = mc as typeof mc & { callTool?: (...args: unknown[]) => Promise<unknown> };
 
     expect(typeof mcWithCall.callTool).toBe('function');
     await mcWithCall.callTool!('ui_navigate', { path: '/notes' });
@@ -159,6 +159,29 @@ describe('installModelContextExecuteToolAdapter (WW-025)', () => {
     expect(calls).toHaveLength(2);
     expect(calls[0].args[1]).toEqual({ path: '/notes' });
     expect(calls[1].args[1]).toEqual({ path: '/efforts' });
+  });
+
+  it('unwraps double-encoded MCP CallToolResult strings from webmcp-polyfill on both executeTool and callTool (WW-130)', async () => {
+    const tools = [makeRegisteredTool('wod_notebook_list')];
+    const mcpEnvelope = {
+      content: [{ type: 'text', text: JSON.stringify({ notebooks: [{ slug: 'journal' }] }) }],
+      structuredContent: { notebooks: [{ slug: 'journal' }] },
+    };
+    const mc: FakeModelContext & { callTool?: (...args: unknown[]) => Promise<unknown> } = {
+      __isBrowserMcpServer: true,
+      registerTool: async () => ({ unregister() {} }),
+      getTools: async () => tools,
+      executeTool: async () => JSON.stringify(mcpEnvelope),
+    };
+    installModelContextExecuteToolAdapter(mc);
+
+    const viaExecute = await mc.executeTool('wod_notebook_list', {});
+    const viaCall = await mc.callTool!('wod_notebook_list', {});
+
+    expect(typeof viaExecute).toBe('object');
+    expect(viaExecute).toEqual(mcpEnvelope);
+    expect(typeof viaCall).toBe('object');
+    expect(viaCall).toEqual(mcpEnvelope);
   });
 });
 

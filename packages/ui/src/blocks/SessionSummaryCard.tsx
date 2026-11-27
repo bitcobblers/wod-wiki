@@ -430,7 +430,7 @@ export function SessionSummaryCard({
           </dd>
           {summary.roundsCompleted > 0 && (
             <dd className="text-[11px] text-muted-foreground tabular-nums">
-              {summary.roundsCompleted} rds completed
+              {summary.roundsCompleted} {summary.roundsCompleted === 1 ? 'rd' : 'rds'} completed
             </dd>
           )}
         </div>

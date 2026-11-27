@@ -75,12 +75,13 @@ function getSnapshot(): SeedContentFiles | null {
 }
 
 /** React binding — `null` until the corpus lands, then the stable file map. */
-export function useSeedContent(): SeedContentFiles | null {
+export function useSeedContent(enabled = true): SeedContentFiles | null {
   const files = useSyncExternalStore(subscribe, getSnapshot);
   useEffect(() => {
+    if (!enabled) return;
     void ensureSeedContent();
-  }, []);
-  return files;
+  }, [enabled]);
+  return enabled ? files : null;
 }
 
 let broadcastBound = false;

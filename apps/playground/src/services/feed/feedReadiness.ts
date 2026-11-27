@@ -21,6 +21,7 @@ import { markBootMilestone } from '@/services/bootDiagnostics';
 import { adoptFeedProvenance, adoptLegacyFeedCheckpoints, adoptNotebookVocabulary, defaultFeedSources, isFeedImportEnabled, readFeedCoverage, runBootFeedSync, SEED_CLAIM_TTL_MS, subscribeFeedUpdates, type FeedSyncDeps, type FeedSyncOutcome, type FeedSyncProgress } from './feedSync';
 import { mainThreadFeedImportStorage } from './feedStorageDefault';
 import {
+  getFeedOfflinePolicy,
   hydrateFeedStateFromStorage,
   isFeedAutoSync,
   isFeedSubscribed,
@@ -299,6 +300,14 @@ async function hasUnimportedAutoSyncFeed(
   for (const s of sources) {
     if (s.id === 'core' || !isFeedSubscribed(s.id) || !isFeedAutoSync(s.id)) continue;
     try {
+      // Index-only feeds (e.g. default samples-movement / samples-results)
+      // write `catalog:<id>` + `feed:index:<id>:<nb>` instead of `seed:<id>`
+      // (feedSyncCore.ts). Checking only `seed:<id>` permanently tripped
+      // `freshBootImporting` on every returning cold load (WW-036).
+      if (getFeedOfflinePolicy(s.id) === 'index-only' && storage.getMeta) {
+        const catalog = await storage.getMeta<{ manifest?: { version?: number } }>(`catalog:${s.id}`);
+        if (catalog && (catalog.manifest?.version ?? 0) > 0) continue;
+      }
       const meta = await storage.getSeedMeta(seedMetaKey(s.id));
       if (!meta || meta.seedVersion <= 0) return true;
     } catch {

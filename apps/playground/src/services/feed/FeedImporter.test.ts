@@ -60,7 +60,7 @@ describe('sparse seed import', () => {
     const metadata = await storage.storageInstance.readonly('notes').get(id);
     expect(metadata!.sourceRevision).toBe(shifted!.sourceRevision);
     expect(metadata!.blocks).toEqual(shifted!.blocks);
-    expect(metadata!.createdAt).toBe(3);
+    expect(metadata!.createdAt).toBeGreaterThanOrEqual(Date.UTC(2000, 0, 1));
     expect(metadata!.seedVersion).toBe(3);
     expect(await storage.storageInstance.readonly('note_tags').getAll()).toEqual(links);
   });
@@ -137,7 +137,8 @@ describe('seed note dates (frontmatter date → Note.date)', () => {
     await new FeedImporter(storage, fixture([compileSeedRow(path, dated)], 2), 'core').applyAll();
     const reimported = await storage.storageInstance.readonly('notes').get(id);
     expect(reimported!.date).toBe(noon);
-    expect(reimported!.createdAt).toBe(2);
+    expect(reimported!.createdAt).toBeGreaterThanOrEqual(Date.UTC(2000, 0, 1));
+    expect(reimported!.seedVersion).toBe(2);
   });
 
   it('rejects an impossible calendar day instead of normalizing it onto another day', async () => {

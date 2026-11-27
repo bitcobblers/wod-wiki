@@ -36,7 +36,7 @@ export interface PlaygroundLibraryPageProps {
   persistence?: INotePersistence;
 }
 
-const DEFAULT_WQL = ':note{}';
+const DEFAULT_WQL = ':note{source:journal|notebooks|guides|playground}';
 
 /** True when the note markdown contains at least one runnable `time` or `log` fence. */
 export function hasRunnableFence(rawContent?: string): boolean {

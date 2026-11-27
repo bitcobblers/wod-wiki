@@ -204,9 +204,13 @@ export function StreamFeed({ groups, batch, onRunEntry, onSendToPlayground, onAd
               const notebookHref = entryNotebookHref(entry)
               const sendToPlayground = !entryIsPlayground(entry) && entry.kind === 'note'
               const canAdd = entryCanAddToToday(entry) && !!onAddToToday
-              // Notes can move between user-owned notebooks or in/out of Journal.
-              const currentNotebookId = entry.notebookId ?? 'notebook/journal'
-              const moveTargets = moveNotebookTargets?.filter((target) => target.id !== currentNotebookId) ?? []
+              // Notes can be promoted (N:M) into any user-owned notebook they aren't already in (WW-146).
+              const currentNotebookIds = new Set(
+                entry.notebookIds && entry.notebookIds.length > 0
+                  ? entry.notebookIds
+                  : [entry.notebookId ?? 'notebook/journal'],
+              )
+              const moveTargets = moveNotebookTargets?.filter((target) => !currentNotebookIds.has(target.id)) ?? []
               const moveable = !!onMoveNotebook
                 && entry.kind === 'note'
                 && (entry.editable ?? true)

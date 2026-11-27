@@ -326,13 +326,22 @@ describe('AnalyticsExplorerPage', () => {
     expect(screen.queryByTestId('records-wql')).toBeNull();
     fireEvent.click(await waitFor(() => screen.getByTestId('records-toggle')));
     // Semantic, not spelling: the derived records query is a find over the
-    // chart's tags filter with a 16-week window (serialization may append
-    // an explicit scope clause).
+    // chart's tags filter with no clipped window when Explorer is on 'all' (WW-149).
     await waitFor(() => {
       const parsed = parseQuery(screen.getByTestId('records-wql').textContent ?? '');
       expect(isFindQuery(parsed)).toBe(true);
       if (isFindQuery(parsed)) {
         expect(parsed.filters.some((f) => f.key === 'tags' && f.values.some((v) => v.value === 'pr'))).toBe(true);
+        expect(parsed.window).toBeUndefined();
+      }
+    });
+    // Switching RangeSelector to 16w applies the 16-week window to recordsWql too.
+    const inlineBar = screen.getByTestId(TEST_IDS.EXPLORER_INLINE_BAR);
+    fireEvent.click(within(inlineBar).getByText('16w'));
+    await waitFor(() => {
+      const parsed = parseQuery(screen.getByTestId('records-wql').textContent ?? '');
+      expect(isFindQuery(parsed)).toBe(true);
+      if (isFindQuery(parsed)) {
         expect(parsed.window).toEqual({ kind: 'relative', size: 16, unit: 'w' });
       }
     });

@@ -13,7 +13,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarIcon, Plus } from 'lucide-react'
-import { Popover, PopoverContent, PopoverTrigger } from '@bitcobblers/wod-wiki-ui/primitives'
+import { Button, Popover, PopoverContent, PopoverTrigger } from '@bitcobblers/wod-wiki-ui/primitives'
 import { TEST_IDS } from '@/lib/testIds'
 import { dayPath } from '../../lib/routes'
 import type { Entry } from '../../lib/entryMapper'
@@ -33,6 +33,7 @@ import {
   CalendarEntryChip,
   CalendarMonthBar,
   CalendarUndatedShelf,
+  findNearestPopulatedMonth,
   useCalendarMonth,
   type OverlayFilterMode,
 } from './CalendarChrome'
@@ -383,6 +384,10 @@ export function CalendarPlannerView({
       entry.scheduledDates?.some((d) => d.startsWith(monthPrefix)) ||
       entry.date?.startsWith(monthPrefix),
   ).length
+  const nearestPopulated = useMemo(
+    () => findNearestPopulatedMonth(monthPrefix, buckets.byDay.keys()),
+    [monthPrefix, buckets],
+  )
 
   if (entries.length === 0) {
     return (
@@ -405,6 +410,20 @@ export function CalendarPlannerView({
         overlayMode={overlayMode}
         onOverlayModeChange={onOverlayModeChange}
       />
+      {inMonth === 0 && nearestPopulated && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+          <span>No dated entries in {nav.label}.</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid={TEST_IDS.CALENDAR_JUMP_POPULATED_MONTH}
+            onClick={() => nav.goToMonth(nearestPopulated.monthKey)}
+          >
+            Jump to {nearestPopulated.label}
+          </Button>
+        </div>
+      )}
 
       {isMobile ? (
         <PlannerPhone
