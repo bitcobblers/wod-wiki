@@ -141,22 +141,24 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
   }, [load]);
 
   // A link from the editor or /tags catalogue points at a tag: resolve category-aware & case-insensitively (WW-148).
-  useEffect(() => {
-    if (!requestedTag || tags.length === 0) {
-      setSelectedId(null);
-      return;
-    }
+  const matchedRequestedTag = useMemo(() => {
+    if (!requestedTag || tags.length === 0) return null;
     const reqLower = requestedTag.toLowerCase();
     const catLower = activeCategory.toLowerCase();
-    const match =
+    return (
       (catLower && catLower !== 'general' && catLower !== 'tag'
         ? tags.find((tag) => (tag.type ?? '').toLowerCase() === catLower && tag.label.toLowerCase() === reqLower)
         : undefined) ??
-      tags.find((tag) => tag.label.toLowerCase() === reqLower);
-    setSelectedId(match ? match.id : null);
+      tags.find((tag) => tag.label.toLowerCase() === reqLower) ??
+      null
+    );
   }, [requestedTag, activeCategory, tags]);
 
-  const selected = tags.find(tag => tag.id === selectedId) ?? null;
+  useEffect(() => {
+    setSelectedId(matchedRequestedTag ? matchedRequestedTag.id : null);
+  }, [matchedRequestedTag]);
+
+  const selected = tags.find(tag => tag.id === selectedId) ?? matchedRequestedTag;
   const detailTagLabel = selected?.label ?? requestedTag ?? '';
   const detailCategory = (selected?.type || activeCategory || 'general').trim();
 
@@ -325,7 +327,8 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
       setError('A tag needs a name.');
       return;
     }
-    if (tags.some(tag => tag.label.trim() === trimmed)) {
+    const existingTags = hasLoaded ? tags : await storageService.getAllTags();
+    if (existingTags.some(tag => tag.label.trim() === trimmed)) {
       setError(`A tag called "${trimmed}" already exists.`);
       return;
     }
@@ -491,7 +494,10 @@ export function TagsPage({ initialType, initialTag }: TagsPageProps = {}) {
     <NoteContextNav data={EMPTY_NOTE_CONTEXT} up={up} sections={tagL2} />
   );
 
-  const isTagDetailRoute = Boolean(requestedTag);
+  const tagMissing = Boolean(
+    requestedTag && hasLoaded && !loadingTaggedNotes && !isSettling && !selected && taggedNotes.length === 0,
+  );
+  const isTagDetailRoute = Boolean(requestedTag && !tagMissing);
   const detailScopeNotesWql = useMemo(() => {
     if (!requestedTag) return null;
     return resolveEntityScope({

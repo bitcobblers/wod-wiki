@@ -1759,7 +1759,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     const previousIO = scope.IntersectionObserver
     scope.IntersectionObserver = StubIO
     try {
-      const manyEntries: Entry[] = Array.from({ length: 70 }, (_, i) => ({
+      const manyEntries: Entry[] = Array.from({ length: 220 }, (_, i) => ({
         id: `note-${i}`,
         kind: 'note',
         sourceNotebook: 'journal',
@@ -1781,13 +1781,13 @@ describe('QueriableStreamView — query truth and retained state', () => {
       expect(sentinel.textContent).toContain('Show more')
       expect(sentinel.textContent).toContain('20 remaining')
       expect(sentinel.textContent?.toLowerCase()).not.toContain('loading')
-      expect(screen.getAllByTestId('library-row-note')).toHaveLength(50)
+      expect(screen.getAllByTestId('library-row-note')).toHaveLength(200)
 
       await act(async () => {
         fireEvent.click(within(sentinel).getByRole('button'))
       })
       await waitFor(() => {
-        expect(screen.getAllByTestId('library-row-note')).toHaveLength(70)
+        expect(screen.getAllByTestId('library-row-note')).toHaveLength(220)
       })
       // Fully materialized — the sentinel (and the button) go away.
       expect(screen.queryByTestId('stream-load-more')).toBeNull()

@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-export const LIBRARY_BATCH_SIZE = 50
+export const LIBRARY_BATCH_SIZE = 200
 
 export interface BatchedItems<T> {
   /** The first N items — render these. */
