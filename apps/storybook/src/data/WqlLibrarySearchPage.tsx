@@ -18,7 +18,7 @@ import { queryService } from '@/services/queryService';
 import { formatDateMedium } from '@/lib/dateFormat';
 import { useDatabase } from '../database/DatabaseContext';
 
-const SEED_QUERY = ':note{source:all}';
+const SEED_QUERY = ':note{source:journal|notebooks|guides|playground}';
 
 export function WqlLibrarySearchPage() {
   const { dataVersion } = useDatabase();
