@@ -180,6 +180,19 @@ async function policySnapshotOps(
   return ops;
 }
 
+const EMPTY_USER_SCOPE_CONTEXT: UserScopeContext = { seedNoteIds: new Set() };
+
+/** Only static projection stores inspect `ctx.seedNoteIds` in `isUserOwnedRow`. */
+function storeNeedsNotePolicyContext(name: StoreName): boolean {
+  return name === 'block_index' || name === 'block_efforts' || name === 'block_equipment';
+}
+
+function writeScopeForStore(name: StoreName): StoreName[] {
+  if (name === 'notes' || name === 'sessions') return [name, 'block_revisions', 'note_revisions'];
+  if (storeNeedsNotePolicyContext(name)) return [name, 'notes'];
+  return [name];
+}
+
 class IDBStore<T> implements IReadWriteStore<T> {
   constructor(
     private readonly owner: IndexedDBStorage,
@@ -265,8 +278,7 @@ class IDBStore<T> implements IReadWriteStore<T> {
   async put(value: T, _key?: IDBValidKey): Promise<IDBValidKey> {
     if (!this.mutable) throw new Error('read-only store');
     if (!this.tx) {
-      const scope = this.name === 'notes' ? [this.name, 'block_revisions', 'note_revisions'] as const : [this.name, 'block_revisions', 'note_revisions', 'notes'] as const;
-      return this.owner.transaction([...scope], 'readwrite', tx => tx.readwrite(this.name).put(value as StoreType<typeof this.name>));
+      return this.owner.transaction(writeScopeForStore(this.name), 'readwrite', tx => tx.readwrite(this.name).put(value as StoreType<typeof this.name>));
     }
     const stored = this.owner.stamp(this.name, value);
     validateStorageRow(this.name, stored);
@@ -287,11 +299,11 @@ class IDBStore<T> implements IReadWriteStore<T> {
       // seed→seed ships nothing (the remote re-imports seed data itself);
       // user→seed emits a tombstone for the former user record instead of
       // silently dropping it.
-      const ctx = this.name === 'notes'
-        ? undefined
-        : await (this.journal.ctx ??= this.owner.policyContext(this.tx!));
-      const wasUser = previous !== undefined && isUserOwnedRow(this.name, previous, ctx ?? collectUserScopeContext([]));
-      const isUser = isUserOwnedRow(this.name, stored, ctx ?? collectUserScopeContext([]));
+      const ctx = storeNeedsNotePolicyContext(this.name)
+        ? await (this.journal.ctx ??= this.owner.policyContext(this.tx!))
+        : EMPTY_USER_SCOPE_CONTEXT;
+      const wasUser = previous !== undefined && isUserOwnedRow(this.name, previous, ctx);
+      const isUser = isUserOwnedRow(this.name, stored, ctx);
       if (isUser) {
         if (this.name === 'notes' && stored !== null && typeof stored === 'object' && 'id' in stored) {
           for (const revision of await this.tx.objectStore('block_revisions').index('by-note').getAll(String(stored.id))) {
@@ -325,8 +337,7 @@ class IDBStore<T> implements IReadWriteStore<T> {
   async putMany(values: T[], keys?: IDBValidKey[]): Promise<IDBValidKey[]> {
     if (keys && keys.length !== values.length) throw new Error('putMany key count mismatch');
     if (!this.tx) {
-      const scope = this.name === 'notes' ? [this.name, 'block_revisions', 'note_revisions'] as const : [this.name, 'block_revisions', 'note_revisions', 'notes'] as const;
-      return this.owner.transaction([...scope], 'readwrite', tx => tx.readwrite(this.name).putMany(values as StoreType<typeof this.name>[], keys));
+      return this.owner.transaction(writeScopeForStore(this.name), 'readwrite', tx => tx.readwrite(this.name).putMany(values as StoreType<typeof this.name>[], keys));
     }
     const out: IDBValidKey[] = [];
     for (let i = 0; i < values.length; i++) out.push(await this.put(values[i], keys?.[i]));
@@ -337,9 +348,9 @@ class IDBStore<T> implements IReadWriteStore<T> {
     if (!this.mutable) throw new Error('read-only store');
     if (this.name === 'block_revisions' || this.name === 'note_revisions') throw new Error('block history requires explicit wipe');
     if (!this.tx) {
-      // Journal-time ownership classification reads notes in the same tx.
-      const scope = this.name === 'notes' ? [this.name] as const : [this.name, 'notes'] as const;
-      return this.owner.transaction([...scope], 'readwrite', tx => tx.readwrite(this.name).delete(key));
+      // Journal-time ownership classification only reads notes for projection stores.
+      const scope: StoreName[] = storeNeedsNotePolicyContext(this.name) ? [this.name, 'notes'] : [this.name];
+      return this.owner.transaction(scope, 'readwrite', tx => tx.readwrite(this.name).delete(key));
     }
     if (this.name === 'notes') {
       for (const note of await this.tx.objectStore('notes').getAll(key)) {
@@ -365,12 +376,12 @@ class IDBStore<T> implements IReadWriteStore<T> {
     if (!this.journal) return;
     const store = this.tx!.objectStore(this.name);
     const keys = isKeyRange(key) ? await store.getAllKeys(key) : [key as IDBValidKey];
-    const ctx = this.name === 'notes'
-      ? undefined
-      : await (this.journal.ctx ??= this.owner.policyContext(this.tx!));
+    const ctx = storeNeedsNotePolicyContext(this.name)
+      ? await (this.journal.ctx ??= this.owner.policyContext(this.tx!))
+      : EMPTY_USER_SCOPE_CONTEXT;
     for (const k of keys) {
       const previous = await store.get(k);
-      if (previous !== undefined && !isUserOwnedRow(this.name, previous, ctx ?? collectUserScopeContext([]))) continue;
+      if (previous !== undefined && !isUserOwnedRow(this.name, previous, ctx)) continue;
       this.journal.ops.push({ op: 'delete', store: this.name, key: k as KeyDTO });
     }
   }
@@ -387,13 +398,20 @@ class IDBStore<T> implements IReadWriteStore<T> {
     if (!this.mutable) throw new Error('read-only store');
     if (this.name === 'block_revisions' || this.name === 'note_revisions') throw new Error('block history requires explicit wipe');
     if (!this.tx) {
-      const scope = this.name === 'notes' ? ['notes', 'block_index', 'block_efforts'] as const : [this.name, 'notes'] as const;
-      return this.owner.transaction([...scope], 'readwrite', tx => tx.readwrite(this.name).clear());
+      const scope: StoreName[] = this.name === 'notes'
+        ? ['notes', 'block_index', 'block_efforts', 'block_equipment']
+        : storeNeedsNotePolicyContext(this.name)
+          ? [this.name, 'notes']
+          : [this.name];
+      return this.owner.transaction(scope, 'readwrite', tx => tx.readwrite(this.name).clear());
     }
     const store = this.tx.objectStore(this.name);
     const rows = await store.getAll() as unknown[];
-    const notes = this.name === 'notes' ? rows : await this.tx.objectStore('notes').getAll() as unknown[];
-    const ctx = collectUserScopeContext(notes);
+    const ctx = storeNeedsNotePolicyContext(this.name)
+      ? collectUserScopeContext(await this.tx.objectStore('notes').getAll() as unknown[])
+      : this.name === 'notes'
+        ? collectUserScopeContext(rows)
+        : EMPTY_USER_SCOPE_CONTEXT;
     for (const row of rows) {
       const key = keyFromValue(STORE_DEFS.find(def => def.name === this.name)!, row);
       if (!isUserOwnedRow(this.name, row, ctx)) continue;
@@ -557,11 +575,22 @@ export class IndexedDBStorage implements IStorage {
     const journal = mode === 'readwrite' ? new TxJournal() : undefined;
     const scope = new Set<string>(stores);
     if (mode === 'readwrite') {
-      scope.add('block_revisions');
-      scope.add('note_revisions');
       scope.add(OUTBOX_STORE);
-      scope.add('notes');
-      if (scope.has('notes')) {
+      const touchesNotes = scope.has('notes');
+      const touchesSessions = scope.has('sessions');
+      const needsPolicyNotes =
+        touchesNotes ||
+        scope.has('block_index') ||
+        scope.has('block_efforts') ||
+        scope.has('block_equipment');
+      if (touchesNotes || touchesSessions) {
+        scope.add('block_revisions');
+        scope.add('note_revisions');
+      }
+      if (needsPolicyNotes) {
+        scope.add('notes');
+      }
+      if (touchesNotes) {
         scope.add('block_index');
         scope.add('block_efforts');
         scope.add('block_equipment');
@@ -584,9 +613,11 @@ export class IndexedDBStorage implements IStorage {
     };
     try {
       const result = await fn(adapter);
-      const notes = (await Promise.all([...touched.notes].map(id => native.objectStore('notes').get(id)))).filter(Boolean) as Note[];
-      const sessions = (await Promise.all([...touched.sessions].map(id => native.objectStore('sessions').get(id)))).filter(Boolean) as Session[];
-      await validateStoredPins(notes, sessions, keys => Promise.all(keys.map(key => native.objectStore('block_revisions').get(key))) as Promise<(BlockRevision | undefined)[]>);
+      if (touched.notes.size > 0 || touched.sessions.size > 0) {
+        const notes = (await Promise.all([...touched.notes].map(id => native.objectStore('notes').get(id)))).filter(Boolean) as Note[];
+        const sessions = (await Promise.all([...touched.sessions].map(id => native.objectStore('sessions').get(id)))).filter(Boolean) as Session[];
+        await validateStoredPins(notes, sessions, keys => Promise.all(keys.map(key => native.objectStore('block_revisions').get(key))) as Promise<(BlockRevision | undefined)[]>);
+      }
       // Durable outbox: the journal entry lands in the SAME transaction as
       // the data writes — it commits with them and vanishes with them.
       if (journal && journal.ops.length > 0) {

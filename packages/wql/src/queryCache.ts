@@ -207,28 +207,43 @@ interface CoalescingEntry {
  */
 export function coalescingEventStore<S extends {
     getEventsByTimeRange(start: number, end: number): Promise<unknown>;
+    getEventsByMetricDates?(dates: readonly string[]): Promise<unknown>;
+    scanAll?(): Promise<unknown>;
 }>(inner: S): S & { invalidateInFlight(): void } {
     const inFlight = new Map<string, CoalescingEntry>();
 
-    return {
+    const coalesce = (key: string, run: () => Promise<unknown>): Promise<unknown> => {
+        const existing = inFlight.get(key);
+        if (existing) return existing.promise;
+        const entry: CoalescingEntry = {
+            promise: run().finally(() => {
+                // Identity check: invalidateInFlight may already have
+                // cleared the map and a REPLACEMENT fetch registered —
+                // the stale entry's completion must not delete it.
+                if (inFlight.get(key) === entry) inFlight.delete(key);
+            }),
+        };
+        inFlight.set(key, entry);
+        return entry.promise;
+    };
+
+    const wrapped: Record<string, unknown> = {
         ...inner,
         getEventsByTimeRange(start: number, end: number): Promise<unknown> {
-            const key = `${start}:${end}`;
-            const existing = inFlight.get(key);
-            if (existing) return existing.promise;
-            const entry: CoalescingEntry = {
-                promise: inner.getEventsByTimeRange(start, end).finally(() => {
-                    // Identity check: invalidateInFlight may already have
-                    // cleared the map and a REPLACEMENT fetch registered —
-                    // the stale entry's completion must not delete it.
-                    if (inFlight.get(key) === entry) inFlight.delete(key);
-                }),
-            };
-            inFlight.set(key, entry);
-            return entry.promise;
+            return coalesce(`range:${start}:${end}`, () => inner.getEventsByTimeRange(start, end));
         },
         invalidateInFlight(): void {
             inFlight.clear();
         },
-    } as S & { invalidateInFlight(): void };
+    };
+    if (typeof inner.getEventsByMetricDates === 'function') {
+        const orig = inner.getEventsByMetricDates.bind(inner);
+        wrapped.getEventsByMetricDates = (dates: readonly string[]): Promise<unknown> =>
+            coalesce(`dates:${dates.join(',')}`, () => orig(dates));
+    }
+    if (typeof inner.scanAll === 'function') {
+        const orig = inner.scanAll.bind(inner);
+        wrapped.scanAll = (): Promise<unknown> => coalesce('scanAll', () => orig());
+    }
+    return wrapped as S & { invalidateInFlight(): void };
 }

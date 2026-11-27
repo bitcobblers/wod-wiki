@@ -623,6 +623,23 @@ export async function getJournalDayOverlay(
  * Idempotently copy legacy dated `page_notes` rows into `schedule_items` (V35 backfill).
  */
 export async function migrateDatedPageNotesToSchedule(storage: IStorage): Promise<number> {
+  // Fast-path readonly check: avoid opening an exclusive 4+ store readwrite
+  // transaction when there are no dated page_notes to migrate (WW-036).
+  const hasDatedPageNotes = await storage.transaction(['page', 'page_notes'], 'readonly', async (tx) => {
+    const [pages, pageNotes] = await Promise.all([
+      tx.readonly('page').getAll(),
+      tx.readonly('page_notes').getAll(),
+    ]);
+    if (pageNotes.length === 0) return false;
+    const datedPageIds = new Set<string>();
+    for (const p of pages) {
+      if (p.date) datedPageIds.add(p.id);
+    }
+    if (datedPageIds.size === 0) return false;
+    return pageNotes.some((pn) => datedPageIds.has(pn.pageId));
+  });
+  if (!hasDatedPageNotes) return 0;
+
   return storage.transaction(['page', 'page_notes', 'schedule_items', 'notes'], 'readwrite', async (tx) => {
     const [pages, pageNotes, existingSchedules, notes] = await Promise.all([
       tx.readonly('page').getAll(),

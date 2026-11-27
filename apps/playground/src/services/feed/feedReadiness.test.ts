@@ -11,6 +11,7 @@ import {
   beginImportActivity,
   endImportActivity,
   getActiveImportLabel,
+  getFeedImportEpoch,
   getFeedReadiness,
   getFeedSyncProgress,
   isBootImportPending,
@@ -410,5 +411,32 @@ describe('feedReadiness', () => {
     // Reject the hanging probe so boot finishes cleanly.
     heldManifest.reject(new Error('abort test probe'));
     await boot;
+  });
+
+  it('WW-036/WW-154: feedImportEpoch stays stable on returning-visitor current settle and increments only on real commits', async () => {
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    const storage = new InMemoryFeedStorage();
+    await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('core')), seedVersion: 1, builtAt: new Date(1).toISOString() });
+    const coreSrc = fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas');
+    const sources: FeedSourceSpec[] = [
+      { source: coreSrc, id: 'core', label: 'Core', url: 'https://feed.test/core/', embeddedVersion: 1 },
+    ];
+
+    expect(getFeedImportEpoch()).toBe(0);
+    await startFeedBootstrap({ sources, storage, isEnabled: () => true });
+    // Returning visitor with 'current' outcome must NOT bump import epoch (prevents Explorer/Dashboard double-runs).
+    expect(getFeedImportEpoch()).toBe(0);
+
+    // Real non-boot sample import DOES bump epoch once it finishes.
+    beginImportActivity('Loading sample data…');
+    expect(getFeedImportEpoch()).toBe(0);
+    endImportActivity();
+    expect(getFeedImportEpoch()).toBe(1);
+
+    // Explicit 'imported' settlement ALSO bumps epoch.
+    markFeedSyncStarted();
+    markFeedSyncSettled('imported');
+    expect(getFeedImportEpoch()).toBe(2);
   });
 });

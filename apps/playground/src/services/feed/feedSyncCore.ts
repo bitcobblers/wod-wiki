@@ -171,12 +171,27 @@ export async function runSourceSyncCore(
     const manifest = assertManifest(await input.source.fetchManifest());
     result.manifestChecked = true;
     result.manifest = manifest;
-    await storage.putMeta?.({
-      key: `catalog:${input.id}`,
-      feedId: input.id,
-      manifest,
-      updatedAt: now(),
-    }).catch(() => undefined);
+    if (storage.putMeta) {
+      const catalogKey = `catalog:${input.id}`;
+      const existingCatalog = await storage.getMeta<{ manifest?: SeedManifest }>(catalogKey).catch(() => undefined);
+      const prev = existingCatalog?.manifest;
+      const manifestChanged =
+        !prev ||
+        prev.version !== manifest.version ||
+        prev.builtAt !== manifest.builtAt ||
+        prev.commit !== manifest.commit ||
+        prev.schema !== manifest.schema ||
+        (prev.notebooks?.length ?? 0) !== (manifest.notebooks?.length ?? 0) ||
+        prev.chunks.length !== manifest.chunks.length;
+      if (manifestChanged) {
+        await storage.putMeta({
+          key: catalogKey,
+          feedId: input.id,
+          manifest,
+          updatedAt: now(),
+        }).catch(() => undefined);
+      }
+    }
 
     const hasNotebookIndexes = Array.isArray(manifest.notebooks) && manifest.notebooks.length > 0;
     if (effectivePolicy === 'index-only' && hasNotebookIndexes) {

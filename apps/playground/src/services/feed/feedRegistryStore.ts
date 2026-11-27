@@ -897,15 +897,22 @@ export function setChecksCache(next: Record<string, number> | null): void {
   checksCache = next;
 }
 
+const CHECK_PERSIST_INTERVAL_MS = 60_000;
+
 export function markFeedCheckedInStore(id: string, at: number): void {
   const prev = checksCache ?? readLegacyNumberMap(LEGACY_CHECKS_KEY);
+  const prevAt = prev[id];
   const next = { ...prev, [id]: at };
   checksCache = next;
   if (subsEntriesCache?.[id]) {
     subsEntriesCache[id] = { ...subsEntriesCache[id]!, checkedAt: at };
   }
   writeLocalStorageJson(LEGACY_CHECKS_KEY, next);
-  schedulePersistSubscriptionsToStorage();
+  // Avoid churning `meta` readwrite transactions on rapid consecutive reloads
+  // while keeping in-memory + localStorage timestamps exact (WW-036).
+  if (prevAt === undefined || Math.abs(at - prevAt) >= CHECK_PERSIST_INTERVAL_MS) {
+    schedulePersistSubscriptionsToStorage();
+  }
 }
 
 export function getFeedCheckedAtFromStore(id: string): number | null {

@@ -85,6 +85,36 @@ describe('ticket 20 — scan coalescing', () => {
     ]);
     expect(calls).toBe(2);
   });
+
+  it('coalesces concurrent getEventsByMetricDates and scanAll calls across dashboard widgets (WW-036)', async () => {
+    let dateCalls = 0;
+    let scanCalls = 0;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    const inner = {
+      getEventsByTimeRange: async () => [],
+      getEventsByMetricDates: async () => {
+        dateCalls += 1;
+        await gate;
+        return [];
+      },
+      scanAll: async () => {
+        scanCalls += 1;
+        await gate;
+        return [];
+      },
+    };
+    const coalesced = coalescingEventStore(inner);
+    const dates = ['2026-11-01', '2026-11-02', '2026-11-03'];
+    const pendingDates = Array.from({ length: 6 }, () => coalesced.getEventsByMetricDates!(dates));
+    const pendingScans = Array.from({ length: 4 }, () => coalesced.scanAll!());
+    expect(dateCalls).toBe(1);
+    expect(scanCalls).toBe(1);
+    release();
+    await Promise.all([...pendingDates, ...pendingScans]);
+    expect(dateCalls).toBe(1);
+    expect(scanCalls).toBe(1);
+  });
 });
 
 describe('ticket 20 — invalidation bus and cache', () => {

@@ -68,6 +68,18 @@ function seedsFromDashboardNotes(
   return buildDashboardSeeds(files)
 }
 
+function sameDashboardSource(a: DashboardSource | null, b: DashboardSource | null): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.slug === b.slug &&
+    a.title === b.title &&
+    a.editable === b.editable &&
+    a.noteId === b.noteId &&
+    a.rawContent === b.rawContent
+  )
+}
+
 /** Resolve a single dashboard by slug — vault (editable) shadows prebuilt. */
 export function useDashboardSource(
   slug: string | undefined,
@@ -93,6 +105,9 @@ export function useDashboardSource(
       return
     }
     let cancelled = false
+    const commitSource = (next: DashboardSource | null) => {
+      setSource((prev) => (sameDashboardSource(prev, next) ? prev : next))
+    }
     setSource((prev) => (prev && prev.slug === slug ? prev : prebuilt))
     setLoading((prevLoading) => {
       if (refreshKey !== undefined && refreshKey > 0) return true
@@ -108,17 +123,17 @@ export function useDashboardSource(
         // Slug and title still come from authored frontmatter.
         const vault = dashboardsFromNotes(notes).find((d) => d.slug === slug)
         if (vault) {
-          setSource({ slug, title: vault.title, rawContent: vault.rawContent, editable: true, noteId: vault.noteId })
+          commitSource({ slug, title: vault.title, rawContent: vault.rawContent, editable: true, noteId: vault.noteId })
           return
         }
         if (prebuilt) {
-          setSource(prebuilt)
+          commitSource(prebuilt)
           return
         }
         if (rawDashboardNotes) {
           const indexedSeed = seedsFromDashboardNotes(rawDashboardNotes).find((s) => s.slug === slug)
           if (indexedSeed) {
-            setSource({
+            commitSource({
               slug: indexedSeed.slug,
               title: indexedSeed.title,
               rawContent: indexedSeed.rawContent,
@@ -127,10 +142,10 @@ export function useDashboardSource(
             return
           }
         }
-        setSource(null)
+        commitSource(null)
       })
       .catch(() => {
-        if (!cancelled) setSource(prebuilt)
+        if (!cancelled) commitSource(prebuilt)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)

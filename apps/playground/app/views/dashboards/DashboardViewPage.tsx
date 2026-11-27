@@ -51,7 +51,7 @@ import { onSampleDataChanged } from '@/services/analytics/sample';
 import { onResultSaved } from '@/services/resultRecorder';
 import { SEED_BROADCAST_CHANNEL } from '@/types/seed';
 import { feedProgressLabel } from '@/services/feed/feedProgress';
-import { useFeedImportPending, useFeedSyncProgress } from '@/services/feed/feedReadiness';
+import { useFeedImportEpoch, useFeedSyncProgress } from '@/services/feed/feedReadiness';
 import {
   StickyPageHeader,
   useMobileQuerySlot,
@@ -115,14 +115,14 @@ export function DashboardViewPage() {
   // (saved workout runs, sample data load/purge, or finished feed imports) without
   // reloading the underlying dashboard note definition.
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
-  const feedImportPending = useFeedImportPending();
-  const prevFeedImportPending = useRef(feedImportPending);
+  const feedImportEpoch = useFeedImportEpoch();
+  const prevFeedImportEpoch = useRef(feedImportEpoch);
   useEffect(() => {
-    if (prevFeedImportPending.current && !feedImportPending) {
+    if (feedImportEpoch !== prevFeedImportEpoch.current) {
+      prevFeedImportEpoch.current = feedImportEpoch;
       setDataRefreshKey((k) => k + 1);
     }
-    prevFeedImportPending.current = feedImportPending;
-  }, [feedImportPending]);
+  }, [feedImportEpoch]);
 
   useEffect(() => {
     const bump = () => setDataRefreshKey((k) => k + 1);

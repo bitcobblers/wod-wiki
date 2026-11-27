@@ -970,7 +970,28 @@ export async function readFeedCoverage(deps: Pick<FeedSyncDeps, 'sources' | 'sto
   const storage = deps.storage ?? mainThreadFeedImportStorage();
   let coreImported = false;
   let libraryImported = false;
-  await Promise.all((deps.sources ?? defaultFeedSources()).map(async (spec) => {
+  const sources = deps.sources ?? defaultFeedSources();
+  if (storage.getAllMeta) {
+    try {
+      const allMeta = await storage.getAllMeta();
+      const byKey = new Map<string, { seedVersion?: number }>();
+      for (const row of allMeta) {
+        if (row && typeof row === 'object' && 'key' in row && typeof (row as { key?: unknown }).key === 'string') {
+          byKey.set((row as { key: string }).key, row as { seedVersion?: number });
+        }
+      }
+      for (const spec of sources) {
+        const meta = byKey.get(seedMetaKey(spec.id));
+        if (!meta || (meta.seedVersion ?? 0) <= 0) continue;
+        if (spec.autoImport === false) libraryImported = true;
+        else coreImported = true;
+      }
+      return { coreImported, libraryImported };
+    } catch {
+      // Fall through to per-source probes on minimal mocks.
+    }
+  }
+  await Promise.all(sources.map(async (spec) => {
     try {
       const meta = await storage.getSeedMeta(seedMetaKey(spec.id));
       if (!meta || meta.seedVersion <= 0) return;
@@ -1139,16 +1160,35 @@ function feedNotebookStatuses(
  */
 export async function adoptLegacyFeedCheckpoints(deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<number> {
   const storage = deps.storage ?? mainThreadFeedImportStorage();
+  // Read all meta records once instead of ~47 sequential per-feed/per-notebook
+  // IndexedDB transactions on every cold boot and reload (WW-036).
+  let metaByKey: Map<string, SeedMetaRecord> | null = null;
+  if (storage.getAllMeta) {
+    try {
+      const allMeta = await storage.getAllMeta();
+      metaByKey = new Map<string, SeedMetaRecord>();
+      for (const row of allMeta) {
+        if (row && typeof row === 'object' && 'key' in row && typeof (row as { key?: unknown }).key === 'string') {
+          metaByKey.set((row as { key: string }).key, row as SeedMetaRecord);
+        }
+      }
+    } catch {
+      metaByKey = null;
+    }
+  }
+  const readSeedMeta = async (key: string): Promise<SeedMetaRecord | undefined> =>
+    metaByKey ? metaByKey.get(key) : storage.getSeedMeta(key);
+
   let adopted = 0;
   for (const seed of FEED_SOURCES) {
     const metaKey = seedMetaKey(seed.id);
     try {
-      const existing = await storage.getSeedMeta(metaKey);
+      const existing = await readSeedMeta(metaKey);
       if (existing && existing.seedVersion > 0) continue;
       const legacy: SeedMetaRecord[] = [];
       for (const notebook of notebooksOfFeed(seed.id)) {
         if (notebook.id === seed.id) continue;
-        const meta = await storage.getSeedMeta(seedMetaKey(notebook.id));
+        const meta = await readSeedMeta(seedMetaKey(notebook.id));
         if (meta && meta.seedVersion > 0) legacy.push(meta);
       }
       if (legacy.length === 0) continue;

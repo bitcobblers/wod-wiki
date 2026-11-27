@@ -54,12 +54,35 @@ export function buildQueryServiceStoresFromStorage(
     getEventsByTimeRange: async (start, end) =>
       storage.readonly('events').getAllFromIndex('by-timestamp', asRange(start, end) as unknown as IDBKeyRange),
     getEventsByMetricDates: async (dates) => {
+      if (dates.length === 0) return [];
       const store = storage.readonly('events');
       const byId = new Map<string, EventRecord>();
-      for (const date of dates) {
-        for (const row of await store.getAllFromIndex('by-metric-date', date)) {
+      if (dates.length === 1) {
+        for (const row of await store.getAllFromIndex('by-metric-date', dates[0]!)) {
           byId.set(row.id, row);
         }
+        return Array.from(byId.values());
+      }
+      // Single bounded index range scan over lexicographically ordered YYYY-MM-DD
+      // keys instead of N sequential IDB transactions (112+ per 16w dashboard widget).
+      let minDate = dates[0]!;
+      let maxDate = dates[0]!;
+      const wanted = new Set<string>();
+      for (const date of dates) {
+        wanted.add(date);
+        if (date < minDate) minDate = date;
+        if (date > maxDate) maxDate = date;
+      }
+      const rows = await store.getAllFromIndex(
+        'by-metric-date',
+        asRange(minDate, maxDate) as unknown as IDBKeyRange,
+      );
+      for (const row of rows) {
+        if (byId.has(row.id)) continue;
+        if (Array.isArray(row.metricDateKeys) && row.metricDateKeys.length > 0) {
+          if (!row.metricDateKeys.some((k) => wanted.has(k))) continue;
+        }
+        byId.set(row.id, row);
       }
       return Array.from(byId.values());
     },
