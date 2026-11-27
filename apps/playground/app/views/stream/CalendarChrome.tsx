@@ -34,6 +34,8 @@ export type OverlayFilterMode = 'all' | 'planned' | 'logged'
 export interface CalendarMonthNav {
   /** The month the views are showing. */
   anchor: Date
+  /** Canonical YYYY-MM key for the active month. */
+  monthKey: string
   /** Human label, e.g. `October 2026`. */
   label: string
   /** Step one month back. */
@@ -42,6 +44,8 @@ export interface CalendarMonthNav {
   next: () => void
   /** Jump back to the current month. */
   today: () => void
+  /** Jump directly to an arbitrary YYYY-MM month (WW-150). */
+  goToMonth: (monthKey: string) => void
 }
 
 function monthAnchorKey(anchor: Date): string {
@@ -51,6 +55,46 @@ function monthAnchorKey(anchor: Date): string {
 function parseMonthAnchorKey(value?: string): Date | null {
   if (!value || !/^\d{4}-\d{2}$/.test(value)) return null
   return parseDayKey(`${value}-01`)
+}
+
+function monthIndexFromKey(monthKey: string): number | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(monthKey)
+  if (!m) return null
+  const year = Number(m[1])
+  const month = Number(m[2])
+  if (month < 1 || month > 12) return null
+  return year * 12 + (month - 1)
+}
+
+/** Find the populated YYYY-MM month nearest to `currentMonthKey` (excluding it). */
+export function findNearestPopulatedMonth(
+  currentMonthKey: string,
+  dayKeys: Iterable<string>,
+): { monthKey: string; label: string } | null {
+  const currentIdx = monthIndexFromKey(currentMonthKey)
+  const seen = new Set<string>()
+  for (const dayKey of dayKeys) {
+    const mk = dayKey.slice(0, 7)
+    if (mk === currentMonthKey || !/^\d{4}-\d{2}$/.test(mk)) continue
+    seen.add(mk)
+  }
+  if (seen.size === 0) return null
+  const sorted = Array.from(seen).sort()
+  let bestKey = sorted[0]!
+  if (currentIdx !== null) {
+    let bestDist = Infinity
+    for (const candidate of sorted) {
+      const idx = monthIndexFromKey(candidate)
+      if (idx === null) continue
+      const dist = Math.abs(idx - currentIdx)
+      if (dist < bestDist || (dist === bestDist && idx > currentIdx)) {
+        bestDist = dist
+        bestKey = candidate
+      }
+    }
+  }
+  const date = parseMonthAnchorKey(bestKey)
+  return date ? { monthKey: bestKey, label: monthLabel(date) } : null
 }
 
 /** The month anchor the calendar layouts navigate with, optionally controlled via ?month=YYYY-MM. */
@@ -78,10 +122,19 @@ export function useCalendarMonth(
   )
   return {
     anchor,
+    monthKey: monthAnchorKey(anchor),
     label: monthLabel(anchor),
     previous: useCallback(() => setAnchorAndNotify((a) => shiftMonth(a, -1)), [setAnchorAndNotify]),
     next: useCallback(() => setAnchorAndNotify((a) => shiftMonth(a, 1)), [setAnchorAndNotify]),
     today: useCallback(() => setAnchorAndNotify(() => new Date()), [setAnchorAndNotify]),
+    goToMonth: useCallback(
+      (key: string) => {
+        const parsed = parseMonthAnchorKey(key)
+        if (!parsed) return
+        setAnchorAndNotify(() => parsed)
+      },
+      [setAnchorAndNotify],
+    ),
   }
 }
 
@@ -152,6 +205,16 @@ export function CalendarMonthBar({
         <Button variant="ghost" size="icon" onClick={nav.next} aria-label="Next month" className="size-11 shrink-0">
           <ChevronRight className="size-4" aria-hidden />
         </Button>
+        <input
+          type="month"
+          aria-label="Jump to month"
+          data-testid={TEST_IDS.CALENDAR_MONTH_PICKER}
+          value={nav.monthKey}
+          onChange={(e) => {
+            if (e.target.value) nav.goToMonth(e.target.value)
+          }}
+          className="h-9 max-lg:min-h-11 rounded-md border border-input bg-background px-2 text-xs font-medium text-foreground outline-none focus:border-primary shrink-0"
+        />
         <Button variant="outline" size="sm" onClick={nav.today} className="min-h-11 shrink-0">
           Today
         </Button>

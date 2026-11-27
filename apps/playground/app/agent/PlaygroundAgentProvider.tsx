@@ -75,8 +75,27 @@ const WRAPPED_EXECUTE_TOOL = Symbol('wodWrappedExecuteTool');
 interface ExecuteToolHost {
   getTools?: () => Promise<unknown[]>;
   listTools?: () => Promise<unknown[]>;
-  executeTool(...args: unknown[]): Promise<string>;
-  callTool?: (...args: unknown[]) => Promise<string>;
+  executeTool(...args: unknown[]): Promise<unknown>;
+  callTool?: (...args: unknown[]) => Promise<unknown>;
+}
+
+/**
+ * WW-130: `@mcp-b/webmcp-polyfill` JSON-stringifies the MCP `CallToolResult`
+ * produced by `@mcp-b/react-webmcp`, forcing callers to `JSON.parse` twice.
+ * Unwrap one layer whenever the underlying call returns a JSON-serialized
+ * object/array (such as `{ content: [...], structuredContent?, isError? }`)
+ * so both `executeTool` and `callTool` return structured objects directly.
+ */
+export function normalizeMcpToolResult(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw;
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return raw;
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    return typeof parsed === 'object' && parsed !== null ? parsed : raw;
+  } catch {
+    return raw;
+  }
 }
 
 type ExecuteToolFn = ExecuteToolHost['executeTool'];
@@ -181,26 +200,30 @@ export function installModelContextExecuteToolAdapter(mc: unknown): void {
       if (typeof host.listTools === 'function') return host.listTools();
       return [];
     };
-    const wrapped: ExecuteToolFn = async (...args: unknown[]): Promise<string> => {
+    const wrapped: ExecuteToolFn = async (...args: unknown[]): Promise<unknown> => {
       const [firstArg, secondArg] = args;
       if (args.length >= 2 && isRegisteredToolLike(firstArg)) {
-        return original.call(
-          host,
-          firstArg,
-          normalizeToolInput(firstArg.name, secondArg as object | undefined),
-          args[2],
+        return normalizeMcpToolResult(
+          await original.call(
+            host,
+            firstArg,
+            normalizeToolInput(firstArg.name, secondArg as object | undefined),
+            args[2],
+          ),
         );
       }
       if (typeof firstArg === 'string') {
         const descriptor = await resolveDescriptor(getTools, firstArg, undefined);
-        return original.call(host, descriptor, normalizeToolInput(firstArg, (secondArg ?? {}) as object), args[2]);
+        return normalizeMcpToolResult(
+          await original.call(host, descriptor, normalizeToolInput(firstArg, (secondArg ?? {}) as object), args[2]),
+        );
       }
       if (isToolCallEnvelope(firstArg)) {
         const input = normalizeToolInput(firstArg.name, unwrapEnvelopeInput(firstArg));
         const descriptor = await resolveDescriptor(getTools, firstArg.name, firstArg);
-        return original.call(host, descriptor, input);
+        return normalizeMcpToolResult(await original.call(host, descriptor, input));
       }
-      return original.apply(host, args);
+      return normalizeMcpToolResult(await original.apply(host, args));
     };
     (wrapped as WrappedExecuteTool)[WRAPPED_EXECUTE_TOOL] = true;
     Object.defineProperty(host, 'executeTool', { configurable: true, writable: true, value: wrapped });
@@ -209,7 +232,7 @@ export function installModelContextExecuteToolAdapter(mc: unknown): void {
 
   // WW-112: expose MCP `callTool` alias alongside `executeTool` so clients using either verb interoperate.
   if (typeof host.callTool !== 'function' || !(host.callTool as WrappedExecuteTool)[WRAPPED_EXECUTE_TOOL]) {
-    const wrappedCallTool: WrappedExecuteTool = async (...args: unknown[]): Promise<string> =>
+    const wrappedCallTool: WrappedExecuteTool = async (...args: unknown[]): Promise<unknown> =>
       dispatchExecute.apply(host, args);
     wrappedCallTool[WRAPPED_EXECUTE_TOOL] = true;
     Object.defineProperty(host, 'callTool', { configurable: true, writable: true, value: wrappedCallTool });

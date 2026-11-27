@@ -42,7 +42,7 @@ test.describe('WW-062 — wod_notebook_list advertises canonical notebook URLs',
       const listTool = tools.find((t) => t.name === 'wod_notebook_list');
       if (!listTool) throw new Error('wod_notebook_list missing from WebMCP tools');
       const raw = await mc.executeTool(listTool, {});
-      const parsed = JSON.parse(raw) as {
+      const parsed = (typeof raw === 'string' ? JSON.parse(raw) : raw) as {
         structuredContent?: NotebookListResult;
         content?: Array<{ text?: string }>;
         notebooks?: NotebookListEntry[];

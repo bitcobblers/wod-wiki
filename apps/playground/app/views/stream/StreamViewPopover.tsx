@@ -21,19 +21,13 @@ const LAYOUT_LABEL: Record<LayoutMode, string> = {
   planner: 'Planner',
 }
 
-const LAYOUT_SHORT: Record<LayoutMode, string> = {
-  cards: 'CRD',
-  rows: 'ROW',
-  feed: 'FED',
-  agenda: 'AGD',
-  planner: 'PLN',
-}
-
 const CALENDAR_GROUP_DIMS = new Set(['date', 'day', 'week', 'month', 'year'])
 
 export interface StreamViewPopoverProps {
   level: EntityLevel
   settings: ViewSettings
+  /** Effective URL/route-resolved layout; falls back to persisted `settings.layout`. */
+  layout?: LayoutMode
   availableLayouts: readonly LayoutMode[]
   availableGroupDims: readonly string[]
   groupDims: readonly string[]
@@ -57,6 +51,7 @@ export interface StreamViewPopoverProps {
 export function StreamViewPopover({
   level,
   settings,
+  layout,
   availableLayouts,
   availableGroupDims,
   groupDims,
@@ -72,6 +67,7 @@ export function StreamViewPopover({
   onAddToDashboard,
   addToDashboardDisabled = false,
 }: StreamViewPopoverProps) {
+  const activeLayout = layout ?? settings.layout
   const fields = getFieldsForLevel(level)
   const visibleSet = new Set(settings.visibleFields)
   const filteredGroupDims = calendarCapable
@@ -95,8 +91,8 @@ export function StreamViewPopover({
       >
         <SlidersHorizontal className="size-3.5" aria-hidden="true" />
         <span>View</span>
-        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-          {LAYOUT_SHORT[settings.layout]}
+        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+          {LAYOUT_LABEL[activeLayout]}
         </span>
       </PopoverTrigger>
 
@@ -112,7 +108,7 @@ export function StreamViewPopover({
           </p>
           <div className="flex flex-wrap gap-1" role="group" aria-label="Stream layout">
             {availableLayouts.map((mode) => {
-              const active = settings.layout === mode
+              const active = activeLayout === mode
               return (
                 <button
                   key={mode}

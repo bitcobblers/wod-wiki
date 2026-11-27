@@ -59,12 +59,12 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
     expect(journalTools).not.toContain('ui_editor_draft');
     expect(journalTools).not.toContain('ui_clock_control');
 
-    // Verify ui_preferences reads and toggles theme cleanly
+    // Verify ui_preferences reads and toggles theme cleanly (WW-130: returns unwrapped MCP object)
     const prefsOut = await page.evaluate(async () => {
       const mc = (document as unknown as {
         modelContext: {
           getTools(): Promise<Array<{ name: string }>>;
-          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<unknown>;
         };
       }).modelContext;
       const tools = await mc.getTools();
@@ -72,7 +72,8 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       if (!prefs) throw new Error('ui_preferences missing');
       return mc.executeTool(prefs, { action: 'set', theme: 'dark' });
     });
-    expect(prefsOut).toContain('dark');
+    expect(typeof prefsOut).toBe('object');
+    expect(JSON.stringify(prefsOut)).toContain('dark');
     await expect(page.locator('html')).toHaveClass(/dark/);
 
     // WW-025: single-envelope navigator.modelContext.executeTool({ name, arguments }) also delivers arguments
@@ -80,7 +81,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       const mc = (navigator as unknown as {
         modelContext: {
           listTools(): Array<{ name: string; description?: string }>;
-          executeTool(envelope: Record<string, unknown>): Promise<string>;
+          executeTool(envelope: Record<string, unknown>): Promise<unknown>;
         };
       }).modelContext;
       const prefs = mc.listTools().find((t) => t.name === 'ui_preferences');
@@ -93,25 +94,26 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
         arguments: { action: 'set', theme: 'light' },
       });
     });
-    expect(singleEnvelopeOut).toContain('light');
+    expect(typeof singleEnvelopeOut).toBe('object');
+    expect(JSON.stringify(singleEnvelopeOut)).toContain('light');
     await expect(page.locator('html')).toHaveClass(/(^|\s)light(\s|$)/);
 
     // Switch back to dark via name+args convenience form and WW-112 callTool / modelContextTesting alias
-    await page.evaluate(async () => {
+    const callToolOut = await page.evaluate(async () => {
       const mc = (navigator as unknown as {
         modelContext: {
-          executeTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<string>;
-          callTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<string>;
+          executeTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<unknown>;
+          callTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<unknown>;
         };
         modelContextTesting?: {
           listTools(): Promise<Array<{ name: string }>> | Array<{ name: string }>;
-          callTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<string>;
+          callTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<unknown>;
         };
       }).modelContext;
       const mct = (navigator as unknown as {
         modelContextTesting?: {
           listTools(): Promise<Array<{ name: string }>> | Array<{ name: string }>;
-          callTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<string>;
+          callTool(toolOrName: unknown, input?: Record<string, unknown>): Promise<unknown>;
         };
       }).modelContextTesting;
       if (!mct) throw new Error('navigator.modelContextTesting missing');
@@ -122,13 +124,14 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       await mc.callTool('ui_preferences', { action: 'set', theme: 'dark' });
       return mct.callTool('ui_preferences', { action: 'status' });
     });
+    expect(typeof callToolOut).toBe('object');
     await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
     // Create a workout Note via WebMCP domain tool
     const created = await page.evaluate(async () => {
       const mc = (document as unknown as {
         modelContext: {
           getTools(): Promise<Array<{ name: string }>>;
-          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<unknown>;
         };
       }).modelContext;
       const tools = await mc.getTools();
@@ -138,7 +141,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
         title: 'Agent WebMCP Workout',
         content: '# Agent WebMCP Workout\n\n```time\n3 Rounds\n  10 Push-ups\n  15 Air Squats\n```',
       });
-      return JSON.parse(raw);
+      return typeof raw === 'string' ? JSON.parse(raw) : raw;
     });
     const noteId: string =
       created?.structuredContent?.noteId ??
@@ -204,7 +207,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       const mc = (document as unknown as {
         modelContext: {
           getTools(): Promise<Array<{ name: string }>>;
-          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<unknown>;
         };
       }).modelContext;
       const tools = await mc.getTools();
@@ -212,7 +215,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       if (!clockTool) throw new Error('ui_clock_control missing');
       return mc.executeTool(clockTool, { command: 'status' });
     });
-    expect(clockStatusRaw).toContain('runId');
+    expect(JSON.stringify(clockStatusRaw)).toContain('runId');
     app.assertCleanConsole();
   });
 
@@ -228,7 +231,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       const mc = (document as unknown as {
         modelContext: {
           getTools(): Promise<Array<{ name: string }>>;
-          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<unknown>;
         };
       }).modelContext;
       const tools = await mc.getTools();
@@ -237,7 +240,11 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
         title: 'Disposable Tier 2 Note',
         content: '# Disposable Tier 2 Note\n\n```time\n10 Burpees\n```',
       });
-      const parsed = JSON.parse(raw);
+      const parsed = (typeof raw === 'string' ? JSON.parse(raw) : raw) as {
+        structuredContent?: { noteId?: string };
+        noteId?: string;
+        content?: Array<{ text?: string }>;
+      };
       return (
         parsed?.structuredContent?.noteId ??
         parsed?.noteId ??
@@ -251,7 +258,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       const mc = (document as unknown as {
         modelContext: {
           getTools(): Promise<Array<{ name: string }>>;
-          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<unknown>;
         };
       }).modelContext;
       const tools = await mc.getTools();
@@ -271,8 +278,9 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
     // Click Deny -> note stays intact
     await page.getByTestId(TEST_IDS.AGENT_CONFIRM_CANCEL).click();
     const deniedOutcome = await deniedPromise;
+    const deniedSerialized = JSON.stringify(deniedOutcome.res ?? '');
     expect(
-      !deniedOutcome.ok || String(deniedOutcome.res ?? '').includes('declined') || String(deniedOutcome.res ?? '').includes('isError'),
+      !deniedOutcome.ok || deniedSerialized.includes('declined') || deniedSerialized.includes('isError'),
     ).toBe(true);
 
     // 2. Trigger wod_note_delete again and click Approve Action
@@ -280,7 +288,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
       const mc = (document as unknown as {
         modelContext: {
           getTools(): Promise<Array<{ name: string }>>;
-          executeTool(tool: unknown, input: Record<string, unknown>): Promise<string>;
+          executeTool(tool: unknown, input: Record<string, unknown>): Promise<unknown>;
         };
       }).modelContext;
       const tools = await mc.getTools();
@@ -291,7 +299,7 @@ test.describe('Browser Agent Readiness & WebMCP Journeys', () => {
     await expect(dialog).toBeVisible();
     await page.getByTestId(TEST_IDS.AGENT_CONFIRM_APPROVE).click();
     const approvedRaw = await approvedPromise;
-    expect(approvedRaw).toContain('"deleted":true');
+    expect(JSON.stringify(approvedRaw)).toMatch(/\\?"deleted\\?":true/);
 
     // 3. Mobile 375x812 viewport + ?layout=rows URL state check
     await page.setViewportSize({ width: 375, height: 812 });

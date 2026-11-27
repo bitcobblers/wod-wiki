@@ -358,6 +358,8 @@ export const TEST_IDS = {
   STREAM_VIEW_POPOVER_TRIGGER: 'stream-view-popover-trigger',
   STREAM_VIEW_POPOVER_CONTENT: 'stream-view-popover-content',
   CALENDAR_OVERLAY_FILTER: 'calendar-overlay-filter',
+  CALENDAR_MONTH_PICKER: 'calendar-month-picker',
+  CALENDAR_JUMP_POPULATED_MONTH: 'calendar-jump-populated-month',
   CALENDAR_PEEK_DRAWER: 'calendar-peek-drawer',
   CALENDAR_PEEK_CLOSE: 'calendar-peek-close',
   CALENDAR_MORE_POPOVER: 'calendar-more-popover',

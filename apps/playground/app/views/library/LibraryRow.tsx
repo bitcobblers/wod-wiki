@@ -63,6 +63,8 @@ export interface LibraryRowProps {
   subscribing?: boolean
   onCloneRemote?: (entry: Entry) => void
   onPublishFeed?: (entry: Entry) => void
+  /** True while outbound feed publish / export is in flight (WW-132). */
+  publishing?: boolean
   onTogglePublicNotebook?: (entry: Entry) => void
   onEditNotebook?: (entry: Entry) => void
   onDeleteNotebook?: (entry: Entry) => void
@@ -125,6 +127,7 @@ export function LibraryRow({
   subscribing,
   onCloneRemote,
   onPublishFeed,
+  publishing,
   onTogglePublicNotebook,
   onEditNotebook,
   onDeleteNotebook,
@@ -418,6 +421,7 @@ export function LibraryRow({
           subscribing={subscribing}
           onCloneRemote={onCloneRemote}
           onPublishFeed={onPublishFeed}
+          publishing={publishing}
           onTogglePublicNotebook={onTogglePublicNotebook}
           onEditNotebook={onEditNotebook}
           onDeleteNotebook={onDeleteNotebook}
@@ -438,6 +442,8 @@ interface RowActionsProps {
   subscribing?: boolean
   onCloneRemote?: (entry: Entry) => void
   onPublishFeed?: (entry: Entry) => void
+  /** True while outbound feed publish / export is in flight (WW-132). */
+  publishing?: boolean
   onTogglePublicNotebook?: (entry: Entry) => void
   onEditNotebook?: (entry: Entry) => void
   onDeleteNotebook?: (entry: Entry) => void
@@ -446,7 +452,7 @@ interface RowActionsProps {
   onToggleSelect?: (entry: Entry) => void
 }
 
-function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook, onToggleSubscribe, subscribing, onCloneRemote, onPublishFeed, onTogglePublicNotebook, onEditNotebook, onDeleteNotebook }: RowActionsProps) {
+function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMoveNotebook, onToggleSubscribe, subscribing, onCloneRemote, onPublishFeed, publishing, onTogglePublicNotebook, onEditNotebook, onDeleteNotebook }: RowActionsProps) {
   const navigate = useNavigate()
   const compareHref = entryCompareHref(entry)
   const notebookHref = entryNotebookHref(entry)
@@ -514,12 +520,14 @@ function RowActions({ entry, onAddToToday, onRunStart, moveNotebookTargets, onMo
       {hasPublish && (
         <button
           type="button"
+          disabled={Boolean(publishing)}
+          aria-busy={Boolean(publishing)}
           onClick={() => onPublishFeed!(entry)}
           data-testid={TEST_IDS.LIBRARY_PUBLISH_LOCAL_FEED}
-          className="h-8 max-sm:min-h-11 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+          className="h-8 max-sm:min-h-11 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-60 disabled:cursor-wait"
         >
-          <Share2 className="size-3.5" aria-hidden="true" />
-          <span>Publish / Export</span>
+          {publishing ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Share2 className="size-3.5" aria-hidden="true" />}
+          <span>{publishing ? 'Exporting…' : 'Publish / Export'}</span>
         </button>
       )}
       {hasCloneRemote && (

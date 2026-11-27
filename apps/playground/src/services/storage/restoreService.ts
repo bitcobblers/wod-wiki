@@ -199,17 +199,50 @@ export interface SafeExportPayload {
   exportedAt: string;
 }
 
+/** Encode a single row for safe export: only `attachments` rows with binary
+ *  `ArrayBuffer` payloads need lossless base64 tagging via `encodeRowJson`;
+ *  plain JSON rows pass straight through without a costly parse/stringify loop. */
+function prepareSafeRow(store: string, row: unknown): unknown {
+  if (row === undefined) return null;
+  if (
+    store === 'attachments' &&
+    row !== null &&
+    typeof row === 'object' &&
+    !Array.isArray(row) &&
+    (row as Record<string, unknown>).data instanceof ArrayBuffer
+  ) {
+    return JSON.parse(encodeRowJson(row, 'data'));
+  }
+  return row;
+}
+
 /** Serialize the safe file. Credentials never enter it: no URL/token is
  *  passed in, seed-source URLs are credential-free by construction. */
 export function buildSafeExport(payload: SafeExportPayload): string {
-  const encode = (store: string, row: unknown): unknown => JSON.parse(encodeRowJson(row, store === 'attachments' ? 'data' : undefined));
   return JSON.stringify({
-    format: 'wod-wiki-safe-export', version: 1, ...payload,
-    rows: payload.rows.map(({ store, rows }) => ({ store, rows: rows.map(row => encode(store, row)) })),
-    pendingGroups: payload.pendingGroups.map(group => ({ ...group, ops: group.ops.map(op =>
-      op && typeof op === 'object' && 'op' in op && op.op === 'put' && 'store' in op && typeof op.store === 'string' && 'value' in op
-        ? { ...op, value: encode(op.store, op.value) } : op) })),
-  }, null, 2);
+    format: 'wod-wiki-safe-export',
+    version: 1,
+    ...payload,
+    rows: payload.rows.map(({ store, rows }) => ({
+      store,
+      rows: rows.map((row) => prepareSafeRow(store, row)),
+    })),
+    pendingGroups: payload.pendingGroups.map((group) => ({
+      ...group,
+      ops: group.ops.map((op) =>
+        op &&
+        typeof op === 'object' &&
+        'op' in op &&
+        op.op === 'put' &&
+        'store' in op &&
+        typeof op.store === 'string' &&
+        'value' in op &&
+        op.value !== undefined
+          ? { ...op, value: prepareSafeRow(op.store, op.value) }
+          : op,
+      ),
+    })),
+  });
 }
 
 /** Stop the uploader (so an in-flight ack can't drain entries mid-read),
@@ -229,8 +262,16 @@ async function downloadSafeData(): Promise<string> {
   const anchor = document.createElement('a');
   anchor.href = blobUrl;
   anchor.download = filename;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 1_000);
+  anchor.rel = 'noopener';
+  anchor.style.display = 'none';
+  if (document.body) {
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  } else {
+    anchor.click();
+  }
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
   return filename;
 }
 

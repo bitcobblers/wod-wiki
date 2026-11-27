@@ -1028,7 +1028,13 @@ export function QueriableStreamView({
     }
   }, [activeNotebookMeta, togglingActiveNotebookPublic])
 
+  const publishingFeedRef = useRef(false)
+  const [publishingFeed, setPublishingFeed] = useState(false)
+
   const handlePublishOutboundFeed = useCallback(async () => {
+    if (publishingFeedRef.current) return
+    publishingFeedRef.current = true
+    setPublishingFeed(true)
     setActionError(null)
     try {
       if (storageBackend === 'api') {
@@ -1046,7 +1052,16 @@ export function QueriableStreamView({
       }
       setSavedTick(t => t + 1)
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err))
+      const msg = err instanceof Error ? err.message : String(err)
+      setActionError(msg)
+      toast({
+        title: 'Publish / Export failed',
+        description: msg,
+        variant: 'destructive',
+      })
+    } finally {
+      publishingFeedRef.current = false
+      setPublishingFeed(false)
     }
   }, [])
 
@@ -2029,6 +2044,7 @@ export function QueriableStreamView({
             <StreamViewPopover
               level={profile.level}
               settings={settings}
+              layout={layout}
               availableLayouts={availableLayouts}
               availableGroupDims={availableGroupDims.map((opt) => opt.id)}
               groupDims={groupDims}
@@ -2413,6 +2429,7 @@ export function QueriableStreamView({
                               subscribing={subscribingIds.has(entry.feedId ?? entry.id)}
                               onTogglePublicNotebook={(e) => void handleTogglePublicNotebookEntry(e)}
                               onPublishFeed={() => void handlePublishOutboundFeed()}
+                              publishing={publishingFeed}
                               onCloneRemote={(e) => void handleCloneRemoteEntry(e)}
                               onEditNotebook={(e) => void handleOpenEditNotebook(e)}
                               onDeleteNotebook={(e) => void handleDeleteNotebookEntry(e)}
@@ -2454,6 +2471,7 @@ export function QueriableStreamView({
                           subscribing={subscribingIds.has(entry.feedId ?? entry.id)}
                           onTogglePublicNotebook={(e) => void handleTogglePublicNotebookEntry(e)}
                           onPublishFeed={() => void handlePublishOutboundFeed()}
+                          publishing={publishingFeed}
                           onCloneRemote={(e) => void handleCloneRemoteEntry(e)}
                           onEditNotebook={(e) => void handleOpenEditNotebook(e)}
                           onDeleteNotebook={(e) => void handleDeleteNotebookEntry(e)}
