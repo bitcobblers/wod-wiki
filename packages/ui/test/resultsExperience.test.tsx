@@ -569,4 +569,57 @@ describe('Results Experience Phase 2 UI components', () => {
     expect(rows[2]!.textContent).toContain('+00:13');
     expect(rows[2]!.textContent).toContain('(00:17)');
   });
+
+  it('WW-092: OutputStatementsTable humanizes analytics keys, separates Load from MET-min, omits elapsed from Target, and formats Pace cleanly', () => {
+    const t0 = 1_735_689_600_000;
+    const { container } = render(
+      <OutputStatementsTable
+        timeOrigin={t0}
+        defaultFilter="all"
+        outputs={[
+          {
+            id: 'ev-run',
+            outputType: 'segment',
+            effortSlug: 'run',
+            sourceBlockKey: 'stmt-run',
+            timeSpan: { started: t0, ended: t0 + 31_000 },
+            metrics: [
+              { type: 'effort', value: 'run', origin: 'parser' },
+              { type: 'resistance', value: 24, unit: 'kg', origin: 'parser' },
+              { type: 'work', value: 1.98, unit: 'MET-min', origin: 'runtime' },
+              { type: 'duration', value: 1_200_000, origin: 'parser' },
+              { type: 'elapsed', value: 51_000, origin: 'runtime' },
+              { type: 'pace', value: 15.45, unit: 'm/s', origin: 'runtime' },
+              { type: 'pace', value: 1.08, unit: 'min/km', origin: 'runtime' },
+            ],
+          },
+          {
+            id: 'ev-analytics',
+            outputType: 'analytics',
+            sourceBlockKey: 'analytics-1',
+            timeSpan: { started: t0, ended: t0 + 51_000 },
+            metrics: [
+              {
+                type: 'calculated',
+                value: 4.29,
+                unit: 'MET-min',
+                origin: 'runtime',
+                metadata: { canonicalKey: 'calc.metMinutes', originalKey: 'calc.metMinutes' },
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const text = container.textContent ?? '';
+    // Analytics key humanized via computeColumnLabel instead of raw 'calc.metMinutes'
+    expect(text).toContain('MET Minutes');
+    expect(text).not.toContain('calc.metMinutes');
+    // No mashed text composites
+    expect(text).not.toContain('24 kg1.98');
+    expect(text).not.toContain('15.45 m/s1.08');
+    expect(text).not.toContain('20:0000:51');
+    expect(text).toContain('1:05 /km');
+  });
 });

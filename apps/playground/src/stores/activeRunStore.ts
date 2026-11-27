@@ -7,7 +7,7 @@
  * `runtimeStore` maps with one lightweight store (~130 LOC).
  */
 import { create } from 'zustand';
-import { MetricContainer, type IMetric, type IScriptRuntime } from '@bitcobblers/wod-wiki-engine';
+import { MetricContainer, parseRemoteNoteId, type IMetric, type IScriptRuntime } from '@bitcobblers/wod-wiki-engine';
 import type { UseRuntimeExecutionReturn } from '@bitcobblers/wod-wiki-engine/react';
 import type { SubscriptionManager } from '@/hooks/useRuntimeTimer';
 import type { ScriptBlock } from '@/components/Editor/types';
@@ -86,7 +86,99 @@ export interface HaltedRunMarker {
   elapsedMs?: number;
 }
 
+export interface LiveRunCheckpoint {
+  sessionId: string;
+  noteId?: string;
+  blockId: string;
+  blockVersion?: number;
+  blockContentId?: string;
+  blockContent?: string;
+  blockDialect?: string;
+  blockSport?: string;
+  workoutTitle?: string;
+  startedAt: number;
+  lastCheckpointAt: number;
+  elapsedMs: number;
+  status: 'running' | 'paused';
+  stepCount: number;
+  returnTo?: string;
+}
+
 const HALTED_RUN_STORAGE_KEY = 'wodwiki:halted-run:v1';
+const LIVE_RUN_CHECKPOINT_KEY = 'wodwiki:active-run-checkpoint:v1';
+
+export function sameRunNoteId(a?: string | null, b?: string | null): boolean {
+  if (!a || !b) return true;
+  if (a === b) return true;
+  const pa = parseRemoteNoteId(a);
+  const pb = parseRemoteNoteId(b);
+  const ca = pa.isRemote ? pa.uuid : a;
+  const cb = pb.isRemote ? pb.uuid : b;
+  return ca === cb;
+}
+
+function getLocalStorageSafe(): Storage | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage;
+    }
+  } catch {
+    // Ignore storage access errors in restricted contexts
+  }
+  return null;
+}
+
+function readLiveCheckpointFromStorage(): LiveRunCheckpoint | null {
+  const storage = getLocalStorageSafe();
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(LIVE_RUN_CHECKPOINT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<LiveRunCheckpoint>;
+    if (typeof parsed.sessionId !== 'string' || !parsed.sessionId) return null;
+    if (typeof parsed.blockId !== 'string' || !parsed.blockId) return null;
+    if (typeof parsed.lastCheckpointAt !== 'number' || !Number.isFinite(parsed.lastCheckpointAt)) return null;
+    return {
+      sessionId: parsed.sessionId,
+      ...(typeof parsed.noteId === 'string' ? { noteId: parsed.noteId } : {}),
+      blockId: parsed.blockId,
+      ...(typeof parsed.blockVersion === 'number' ? { blockVersion: parsed.blockVersion } : {}),
+      ...(typeof parsed.blockContentId === 'string' ? { blockContentId: parsed.blockContentId } : {}),
+      ...(typeof parsed.blockContent === 'string' ? { blockContent: parsed.blockContent } : {}),
+      ...(typeof parsed.blockDialect === 'string' ? { blockDialect: parsed.blockDialect } : {}),
+      ...(typeof parsed.blockSport === 'string' ? { blockSport: parsed.blockSport } : {}),
+      ...(typeof parsed.workoutTitle === 'string' ? { workoutTitle: parsed.workoutTitle } : {}),
+      startedAt: typeof parsed.startedAt === 'number' && Number.isFinite(parsed.startedAt) ? parsed.startedAt : parsed.lastCheckpointAt,
+      lastCheckpointAt: parsed.lastCheckpointAt,
+      elapsedMs: typeof parsed.elapsedMs === 'number' && Number.isFinite(parsed.elapsedMs) ? parsed.elapsedMs : 0,
+      status: parsed.status === 'paused' ? 'paused' : 'running',
+      stepCount: typeof parsed.stepCount === 'number' && Number.isFinite(parsed.stepCount) ? parsed.stepCount : 0,
+      ...(typeof parsed.returnTo === 'string' ? { returnTo: parsed.returnTo } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeLiveCheckpointToStorage(checkpoint: LiveRunCheckpoint): void {
+  const storage = getLocalStorageSafe();
+  if (!storage) return;
+  try {
+    storage.setItem(LIVE_RUN_CHECKPOINT_KEY, JSON.stringify(checkpoint));
+  } catch {
+    // Ignore quota / security errors
+  }
+}
+
+function removeLiveCheckpointFromStorage(): void {
+  const storage = getLocalStorageSafe();
+  if (!storage) return;
+  try {
+    storage.removeItem(LIVE_RUN_CHECKPOINT_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 function getSessionStorageSafe(): Storage | null {
   try {
@@ -148,6 +240,7 @@ export interface ActiveRunState {
   activeNoteId: string | null;
   activeSessionId: string | null;
   haltedRun: HaltedRunMarker | null;
+  liveCheckpoint: LiveRunCheckpoint | null;
   subscriptionManager: SubscriptionManager | null;
   execution: ActiveExecutionSnapshot;
   userOutputOverrides: Map<string, MetricContainer>;
@@ -155,6 +248,7 @@ export interface ActiveRunState {
   setRuntime: (runtime: IScriptRuntime | null, activeNoteId?: string | null) => void;
   setActiveSessionMeta: (sessionId: string | null, noteId?: string | null) => void;
   setHaltedRun: (marker: HaltedRunMarker | null) => void;
+  setLiveCheckpoint: (checkpoint: LiveRunCheckpoint | null) => void;
   setSubscriptionManager: (manager: SubscriptionManager | null) => void;
   setExecution: (execution: Partial<ActiveExecutionSnapshot> & Pick<ActiveExecutionSnapshot, 'status'>) => void;
   resetExecution: () => void;
@@ -174,6 +268,7 @@ export const useActiveRunStore = create<ActiveRunState>((set) => ({
   activeNoteId: null,
   activeSessionId: null,
   haltedRun: readHaltedRunFromStorage(),
+  liveCheckpoint: readLiveCheckpointFromStorage(),
   subscriptionManager: null,
   execution: IDLE_EXECUTION,
   userOutputOverrides: new Map<string, MetricContainer>(),
@@ -192,6 +287,8 @@ export const useActiveRunStore = create<ActiveRunState>((set) => ({
     })),
 
   setHaltedRun: (haltedRun) => set({ haltedRun }),
+
+  setLiveCheckpoint: (liveCheckpoint) => set({ liveCheckpoint }),
 
   setSubscriptionManager: (subscriptionManager) => set({ subscriptionManager }),
 
@@ -233,7 +330,7 @@ export function recordHaltedRun(marker: HaltedRunMarker): void {
 export function getHaltedRun(noteId?: string | null): HaltedRunMarker | null {
   const stored = readHaltedRunFromStorage() ?? useActiveRunStore.getState().haltedRun;
   if (!stored) return null;
-  if (noteId && stored.noteId && stored.noteId !== noteId) {
+  if (!sameRunNoteId(noteId, stored.noteId)) {
     return null;
   }
   return stored;
@@ -246,4 +343,27 @@ export function clearHaltedRun(sessionId?: string): void {
   }
   removeHaltedRunFromStorage();
   useActiveRunStore.getState().setHaltedRun(null);
+}
+
+export function saveLiveRunCheckpoint(checkpoint: LiveRunCheckpoint): void {
+  writeLiveCheckpointToStorage(checkpoint);
+  useActiveRunStore.getState().setLiveCheckpoint(checkpoint);
+}
+
+export function getLiveRunCheckpoint(noteId?: string | null): LiveRunCheckpoint | null {
+  const stored = readLiveCheckpointFromStorage() ?? useActiveRunStore.getState().liveCheckpoint;
+  if (!stored) return null;
+  if (!sameRunNoteId(noteId, stored.noteId)) {
+    return null;
+  }
+  return stored;
+}
+
+export function clearLiveRunCheckpoint(sessionId?: string): void {
+  const current = readLiveCheckpointFromStorage() ?? useActiveRunStore.getState().liveCheckpoint;
+  if (sessionId && current && current.sessionId !== sessionId) {
+    return;
+  }
+  removeLiveCheckpointFromStorage();
+  useActiveRunStore.getState().setLiveCheckpoint(null);
 }

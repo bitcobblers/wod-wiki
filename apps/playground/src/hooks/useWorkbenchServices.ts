@@ -39,6 +39,7 @@ export {
   flushPendingUnloadResults,
   getPendingUnloadState,
   onPendingUnloadStateChange,
+  playgroundRecorder,
   stagePendingUnloadResult,
 } from '@/services/resultRecorder';
 

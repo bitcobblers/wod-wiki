@@ -62,7 +62,7 @@ describe('useExplorerQueryState', () => {
     renderAt(['/analytics/explorer'])
     expect(draft()).toBe(DEFAULT_EXPLORER_QUERY)
     expect(submitted()).toBe('')
-    expect(weeks()).toBe('16')
+    expect(weeks()).toBe('all')
   })
 
   it('hydrates the draft and the submitted snapshot from the q parameter on mount', () => {
@@ -191,12 +191,15 @@ describe('useExplorerQueryState', () => {
     await waitFor(() => expect(screen.getByTestId('pathname').textContent).toBe('/elsewhere'))
   })
 
-  it('parses weeks from the URL and falls back to 16 for invalid values', () => {
+  it('parses weeks from the URL and falls back to all for invalid values', () => {
     renderAt(['/analytics/explorer?weeks=4'])
     expect(weeks()).toBe('4')
     cleanup()
+    renderAt(['/analytics/explorer?weeks=all'])
+    expect(weeks()).toBe('all')
+    cleanup()
     renderAt(['/analytics/explorer?weeks=7'])
-    expect(weeks()).toBe('16')
+    expect(weeks()).toBe('all')
   })
 
   it('keeps a no-op edit without pushing a history entry', async () => {

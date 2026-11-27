@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { IMetric } from '@bitcobblers/wod-wiki-core';
 import {
   computeColumnLabel,
@@ -78,21 +78,39 @@ export function MetricBadge({ token }: { token: MetricPresentationToken }) {
   );
 }
 
+function formatDecimalPace(minutesPerUnit: number, unit: string): string {
+  const totalSec = Math.max(0, Math.round(minutesPerUnit * 60));
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  const suffix = unit.toLowerCase().includes('km') ? '/km' : '/mi';
+  return `${mins}:${String(secs).padStart(2, '0')} ${suffix}`;
+}
+
 function sanitizeMetricForDisplay(m: IMetric): IMetric {
   if (typeof m.value !== 'number' || !Number.isFinite(m.value) || m.image !== undefined) return m;
+  const unitLower = String(m.unit ?? '').trim().toLowerCase();
+  if (String(m.type ?? '').toLowerCase() === 'pace' && (unitLower === 'min/km' || unitLower === 'min/mi')) {
+    const formatted = formatDecimalPace(m.value, unitLower);
+    return { ...m, image: formatted };
+  }
   const rounded = Math.round(m.value * 100) / 100;
   return rounded === m.value ? m : { ...m, value: rounded };
 }
 
 /** Metric badges for a statement/output metric group. */
 export function presentBadges(metrics: Iterable<IMetric>): ReactNode {
+  const tokens = metricPresentation.presentGroup(
+    Array.from(metrics, sanitizeMetricForDisplay),
+    'runtime-badge',
+  );
   return (
     <>
-      {metricPresentation
-        .presentGroup(Array.from(metrics, sanitizeMetricForDisplay), 'runtime-badge')
-        .map((token, i) => (
-          <MetricBadge key={i} token={token} />
-        ))}
+      {tokens.map((token, i) => (
+        <Fragment key={i}>
+          {i > 0 ? ' ' : null}
+          <MetricBadge token={token} />
+        </Fragment>
+      ))}
     </>
   );
 }
@@ -221,6 +239,24 @@ export function resolveOutputRowLabel(out: OutputStatementRow): string {
   if (roundMatch) return `Round ${roundMatch[1]}`;
   if (blockKey.startsWith('rounds')) return 'Rounds';
 
+  if (String(out.outputType ?? '').toLowerCase() === 'event') {
+    for (const m of all) {
+      if (String(m.type ?? '').toLowerCase() === 'system') {
+        const rawEvt =
+          (typeof m.image === 'string' && m.image.trim()) ||
+          (typeof m.value === 'string' && m.value.trim()) ||
+          (typeof m.value === 'object' && m.value !== null && 'name' in m.value && typeof (m.value as { name?: unknown }).name === 'string'
+            ? (m.value as { name: string }).name
+            : '');
+        const cleaned = rawEvt.replace(/^event:\s*/i, '').trim();
+        if (cleaned) {
+          if (cleaned.toLowerCase() === 'abort') return 'Stop';
+          return humanizeSlug(cleaned);
+        }
+      }
+    }
+  }
+
   if (String(out.outputType ?? '').toLowerCase() === 'analytics' && all.length > 0) {
     const first = all[0]!;
     const meta = first.metadata as Record<string, unknown> | undefined;
@@ -228,7 +264,15 @@ export function resolveOutputRowLabel(out: OutputStatementRow): string {
       (typeof meta?.originalKey === 'string' && meta.originalKey) ||
       (typeof meta?.canonicalKey === 'string' && meta.canonicalKey) ||
       String(first.type ?? '');
-    if (summaryName) return summaryName;
+    if (summaryName) return computeColumnLabel(summaryName);
+  }
+
+  if (String(out.outputType ?? '').toLowerCase() === 'segment') {
+    const hasDuration = all.some((m) => {
+      const t = String(m.type ?? '').toLowerCase();
+      return t === 'duration' || t === 'time';
+    });
+    if (hasDuration) return blockKey.includes('amrap') ? 'AMRAP' : blockKey.includes('emom') ? 'EMOM' : 'Timer';
   }
 
   return formatOutputTypeLabel(out.outputType);
@@ -254,6 +298,11 @@ export function resolveOutputTypeBadgeLabel(out: OutputStatementRow): string {
       return t === 'rounds' || t === 'current-round';
     });
     if (hasRoundMetric || blockKey.startsWith('round')) return 'Rounds';
+    const hasDuration = all.some((m) => {
+      const t = String(m.type ?? '').toLowerCase();
+      return t === 'duration' || t === 'time';
+    });
+    if (hasDuration) return 'Timer';
   }
   return 'Segment';
 }
@@ -336,24 +385,15 @@ export interface CategorizedMetrics {
 }
 
 const EFFORT_TYPES = new Set(['effort', 'text', 'action', 'label']);
-const LOAD_TYPES = new Set([
-  'resistance',
-  'intensity',
-  'load',
-  'volume',
-  'work',
-  'calculated',
-  'totalwork',
-  'totalvolume',
-  'tis',
-  'sessionload',
-  'session-load',
-  'calc.metminutes',
-  'metminutes',
-  'totalmetminutes',
-]);
+// External resistance/load only — derived work/energy/analytics metrics (e.g.
+// MET-min, totalVolume, sessionLoad, tis) belong in their own dynamic columns,
+// never concatenated into the Load column (WW-092).
+const LOAD_TYPES = new Set(['resistance', 'intensity', 'load']);
 const ROUND_TYPES = new Set(['rounds', 'current-round', 'increment']);
-const DURATION_TYPES = new Set(['duration', 'time', 'elapsed']);
+// Target column carries prescribed duration/time only; actual `elapsed` already
+// lives in the Time column (WW-092).
+const DURATION_TYPES = new Set(['duration', 'time']);
+const TIME_ONLY_TYPES = new Set(['elapsed']);
 const HINT_TYPES = new Set(['hint', 'custom', 'system', 'sound', 'lap', 'group', 'diagnostic']);
 
 function isBaseBucketType(lowerType: string): boolean {
@@ -364,6 +404,7 @@ function isBaseBucketType(lowerType: string): boolean {
     LOAD_TYPES.has(lowerType) ||
     ROUND_TYPES.has(lowerType) ||
     DURATION_TYPES.has(lowerType) ||
+    TIME_ONLY_TYPES.has(lowerType) ||
     lowerType === 'distance' ||
     HINT_TYPES.has(lowerType)
   );
@@ -399,7 +440,8 @@ export function extractMetricsByCategory(metrics?: Iterable<IMetric>): Categoriz
       (typeof meta?.originalKey === 'string' && meta.originalKey) ||
       (typeof meta?.canonicalKey === 'string' && meta.canonicalKey);
     if (summaryName && first) {
-      result.efforts.push({ type: 'label' as IMetric['type'], value: summaryName, image: summaryName, origin: first.origin });
+      const displayLabel = computeColumnLabel(summaryName);
+      result.efforts.push({ type: 'label' as IMetric['type'], value: displayLabel, image: displayLabel, origin: first.origin });
     }
   }
   return result;
@@ -659,7 +701,16 @@ function extractMetricsForColumn(
 ): IMetric[] {
   const all = out.metrics ? Array.from(out.metrics) : [];
   if (col.kind === 'metric' && col.metricTypeLower) {
-    return all.filter((m) => String(m.type).toLowerCase() === col.metricTypeLower);
+    const matched = all.filter((m) => String(m.type).toLowerCase() === col.metricTypeLower);
+    // Avoid concatenating both speed (m/s) and pace (min/km) in the same Pace cell (WW-092).
+    if (col.metricTypeLower === 'pace' && matched.length > 1) {
+      const preferred = matched.filter((m) => {
+        const u = String(m.unit ?? '').trim().toLowerCase();
+        return u === 'min/km' || u === 'min/mi';
+      });
+      if (preferred.length > 0) return [preferred[0]!];
+    }
+    return matched;
   }
   switch (col.kind) {
     case 'effort': {
@@ -1283,9 +1334,11 @@ export function OutputStatementsTable({
                           <td key={col.id} className="p-2 whitespace-nowrap leading-tight">
                             <div className="flex items-center gap-1.5 font-mono text-[11px]">
                               <span className="font-bold text-primary tabular-nums">{offsetStr}</span>
+                              {' '}
                               <span className="text-[10px] text-muted-foreground/80 tabular-nums">({elapsedStr})</span>
                             </div>
                             <div className="font-mono text-[10px] text-muted-foreground/70 tabular-nums">
+                              <span className="sr-only"> · </span>
                               {wallTimeStr}
                             </div>
                           </td>

@@ -8,8 +8,11 @@ import type { Session } from '@/types/storage';
 import { NoteEditor } from '@/components/organisms/editor/NoteEditor';
 import {
   clearHaltedRun,
+  clearLiveRunCheckpoint,
   getHaltedRun,
+  getLiveRunCheckpoint,
   recordHaltedRun,
+  saveLiveRunCheckpoint,
   useActiveRunStore,
 } from '@/stores/activeRunStore';
 import {
@@ -56,6 +59,7 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
     window.sessionStorage.clear();
     localStorage.removeItem(PENDING_HALTED_KEY);
     clearHaltedRun();
+    clearLiveRunCheckpoint();
     useActiveRunStore.getState().setRuntime(null);
     useActiveRunStore.getState().setActiveSessionMeta(null, null);
   });
@@ -531,5 +535,72 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
     expect(screen.queryByTestId('halted-run-notice')).toBeNull();
     expect(getHaltedRun()).toBeNull();
     expect(localStorage.getItem(PENDING_HALTED_KEY)).toBeNull();
+  });
+
+  it('WW-142: writes a live checkpoint to localStorage while running, clears on stop, and offers Resume / Save partial / Discard on reload', async () => {
+    useActiveRunStore.getState().setActiveSessionMeta('sess-ww142-live', 'note-ww142');
+    const { rerender } = render(
+      <RuntimeTimerPanel
+        block={makeBlock('20:00 AMRAP\n  5 Pullups\n  10 Pushups')}
+        resultId="sess-ww142-live"
+        noteId="note-ww142"
+        autoStart={true}
+        externalStop={false}
+        onClose={() => {}}
+      />,
+    );
+
+    await startFromReadyGate();
+
+    const cp = getLiveRunCheckpoint('note-ww142');
+    expect(cp).not.toBeNull();
+    expect(cp?.sessionId).toBe('sess-ww142-live');
+    expect(cp?.blockContent).toContain('20:00 AMRAP');
+    expect(localStorage.getItem('wodwiki:active-run-checkpoint:v1')).toContain('sess-ww142-live');
+
+    // Explicit stop clears the live checkpoint cleanly
+    rerender(
+      <RuntimeTimerPanel
+        block={makeBlock('20:00 AMRAP\n  5 Pullups\n  10 Pushups')}
+        resultId="sess-ww142-live"
+        noteId="note-ww142"
+        autoStart={true}
+        externalStop={true}
+        onClose={() => {}}
+      />,
+    );
+    expect(getLiveRunCheckpoint('note-ww142')).toBeNull();
+    cleanup();
+
+    // Simulate reload with an interrupted checkpoint (no active runtime, no haltedRun marker)
+    useActiveRunStore.getState().setRuntime(null);
+    saveLiveRunCheckpoint({
+      sessionId: 'sess-ww142-reloaded',
+      noteId: 'note-ww142',
+      blockId: 'block-amrap-1',
+      blockContent: '20:00 AMRAP\n  5 Pullups',
+      workoutTitle: '20:00 AMRAP',
+      startedAt: Date.now() - 45_000,
+      lastCheckpointAt: Date.now(),
+      elapsedMs: 45_000,
+      status: 'running',
+      stepCount: 2,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/note/note-ww142']}>
+        <HaltedRunNotice noteId="note-ww142" />
+      </MemoryRouter>,
+    );
+
+    const notice = screen.getByTestId('halted-run-notice');
+    expect(notice.textContent).toContain('Interrupted workout session detected');
+    expect(screen.getByTestId(TEST_IDS.LIVE_RUN_RESUME)).toBeDefined();
+    expect(screen.getByTestId(TEST_IDS.LIVE_RUN_SAVE_PARTIAL)).toBeDefined();
+    expect(screen.getByTestId(TEST_IDS.LIVE_RUN_DISCARD)).toBeDefined();
+
+    fireEvent.click(screen.getByTestId(TEST_IDS.LIVE_RUN_DISCARD));
+    expect(getLiveRunCheckpoint('note-ww142')).toBeNull();
+    expect(screen.queryByTestId('halted-run-notice')).toBeNull();
   });
 });

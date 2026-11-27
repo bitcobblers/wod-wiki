@@ -947,6 +947,61 @@ describe('the notebook plane (ticket 08)', () => {
     expect(summary.roundsCompleted).toBe(0);
     expect(summary.totalVolume).toBe(840);
   });
+
+  it('WW-105: mid-Round-1 AMRAP abort with user-advance leaf movements carrying current-round=1 still reports 0 completed rounds', () => {
+    const t0 = 1_735_689_600_000;
+    const summary = computeRowsRunSummary(
+      {
+        resultId: 'run-ww105-amrap-r1',
+        noteId: 'n-ww105',
+        timestamp: t0,
+        durationMs: 51_000,
+        events: [
+          // 3 movements advanced via Next during Round 1 (completionReason: 'user-advance', current-round: 1)
+          ...['pull-ups', 'push-ups', 'air-squats'].map((slug, idx) => ({
+            id: `run-ww105-r1:${idx}`,
+            resultId: 'run-ww105-amrap-r1',
+            noteId: 'n-ww105',
+            timestamp: t0 + idx * 12_000,
+            grain: 'event' as const,
+            outputType: 'segment' as const,
+            effortSlug: slug,
+            sourceBlockKey: `stmt-${idx}`,
+            stackLevel: 2,
+            completionReason: 'user-advance' as const,
+            timeSpan: { started: t0 + idx * 12_000, ended: t0 + (idx + 1) * 12_000 },
+            metrics: [
+              { type: 'effort', value: slug, origin: 'parser' as const },
+              { type: 'rep', value: 10, origin: 'parser' as const },
+              { type: 'current-round', value: 1, origin: 'runtime' as const },
+            ],
+          })),
+          // Enclosing 20:00 AMRAP container aborted mid-Round-1 -> authoritative current-round: 0
+          {
+            id: 'run-ww105-r1:container',
+            resultId: 'run-ww105-amrap-r1',
+            noteId: 'n-ww105',
+            timestamp: t0,
+            grain: 'event',
+            outputType: 'segment',
+            sourceBlockKey: 'amrap-container',
+            stackLevel: 1,
+            completionReason: 'user-abort',
+            timeSpan: { started: t0, ended: t0 + 51_000 },
+            metrics: [
+              { type: 'duration', value: 1_200_000, origin: 'parser' },
+              { type: 'current-round', value: 0, origin: 'runtime' },
+            ],
+          },
+        ],
+      },
+      { completed: false },
+    );
+
+    expect(summary.completed).toBe(false);
+    expect(summary.roundsCompleted).toBe(0);
+    expect(summary.totalReps).toBe(30);
+  });
 });
 
 describe('WW-036: :note{} N+1-free execution and queryDomain fast path', () => {

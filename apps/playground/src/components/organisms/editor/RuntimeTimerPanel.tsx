@@ -19,7 +19,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useInRouterContext } from "react-router-dom";
+import { Link, useInRouterContext, useNavigate } from "react-router-dom";
 import type { EditorView } from "@codemirror/view";
 import { TimerDisplay } from "@/panels/wallclock-panel";
 import { TimerSurface } from "@/components/organisms/workout/TimerSurface";
@@ -27,20 +27,32 @@ import { VisualStatePanel } from "@/panels/visual-state-panel";
 import { PanelSizeProvider, usePanelSize } from "@/panels/panel-system/PanelSizeContext";
 import { ScriptRuntimeProvider, useRuntimeExecution, type UseRuntimeExecutionReturn, NextEvent, ScriptRuntime } from "@/hooks/useRuntimeTimer";
 import type { IScriptRuntime, StackSnapshot } from "@/hooks/useRuntimeTimer";
-import { clearHaltedRun, getHaltedRun, recordHaltedRun, useActiveRunStore } from "@/stores/activeRunStore";
+import {
+  clearHaltedRun,
+  clearLiveRunCheckpoint,
+  getHaltedRun,
+  getLiveRunCheckpoint,
+  pendingRuntimes,
+  recordHaltedRun,
+  sameRunNoteId,
+  saveLiveRunCheckpoint,
+  useActiveRunStore,
+  type LiveRunCheckpoint,
+} from "@/stores/activeRunStore";
 import {
   clearPendingUnloadResult,
   flushPendingUnloadResults,
   getPendingUnloadState,
   onPendingUnloadStateChange,
+  playgroundRecorder,
   stagePendingUnloadResult,
 } from "@/hooks/useWorkbenchServices";
-import { sessionDetailPath } from "@/lib/routes";
+import { runPath, sessionDetailPath } from "@/lib/routes";
 import { getActiveCastTransport } from "@/hooks/useCastSignaling";
 import { useSessionCastBridge } from "@/hooks/useSessionCastBridge";
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
 import { formatDurationMMSS } from '@bitcobblers/wod-wiki-core';
-import type { IOutputStatement } from '@bitcobblers/wod-wiki-engine';
+import { createParser, type IOutputStatement } from '@bitcobblers/wod-wiki-engine';
 import { dispatchGutterHighlights } from '@bitcobblers/wod-wiki-ui/extensions';
 import { buildCompletedRuntimeProjection } from "@/app/cast/workbenchProjection";
 import { useUserOverrides } from '@/components/organisms/review/useUserOverrides';
@@ -123,15 +135,39 @@ export interface HaltedRunNoticeProps {
   noteId?: string | null;
 }
 
+function RouterNavigateBridge({ onReady }: { onReady: (nav: (to: string) => void) => void }) {
+  const navigate = useNavigate();
+  useEffect(() => {
+    onReady((to) => { void navigate(to); });
+  }, [navigate, onReady]);
+  return null;
+}
+
 export const HaltedRunNotice: React.FC<HaltedRunNoticeProps> = ({ noteId }) => {
   const haltedRun = useActiveRunStore((state) => state.haltedRun);
+  const liveCheckpoint = useActiveRunStore((state) => state.liveCheckpoint);
+  const activeRuntime = useActiveRunStore((state) => state.runtime);
   const inRouter = useInRouterContext();
+  const navigateRef = useRef<((to: string) => void) | null>(null);
   const [, setUnloadTick] = useState(0);
+  const [savingPartial, setSavingPartial] = useState(false);
+
+  const goTo = useCallback((to: string) => {
+    if (navigateRef.current) {
+      navigateRef.current(to);
+    } else if (typeof window !== 'undefined') {
+      window.location.assign(to);
+    }
+  }, []);
 
   useEffect(() => {
     const stored = getHaltedRun();
     if (stored && !useActiveRunStore.getState().haltedRun) {
       useActiveRunStore.getState().setHaltedRun(stored);
+    }
+    const storedCp = getLiveRunCheckpoint();
+    if (storedCp && !useActiveRunStore.getState().liveCheckpoint) {
+      useActiveRunStore.getState().setLiveCheckpoint(storedCp);
     }
   }, []);
 
@@ -142,106 +178,273 @@ export const HaltedRunNotice: React.FC<HaltedRunNoticeProps> = ({ noteId }) => {
   }, []);
 
   const marker = haltedRun ?? getHaltedRun();
-  if (!marker) return null;
-  if (noteId && marker.noteId && marker.noteId !== noteId) return null;
+  const markerMatchesNote = Boolean(marker && sameRunNoteId(noteId, marker.noteId));
+  const activeMarker = markerMatchesNote ? marker : null;
 
-  const unloadState = getPendingUnloadState(marker.sessionId);
-  // Wait for staged reload persistence to settle before claiming the run was saved.
-  if (unloadState.status === 'pending' || unloadState.status === 'flushing') {
-    return null;
-  }
+  const checkpointCandidate = liveCheckpoint ?? getLiveRunCheckpoint();
+  const activeCheckpoint: LiveRunCheckpoint | null =
+    !activeRuntime && checkpointCandidate && sameRunNoteId(noteId, checkpointCandidate.noteId)
+      ? checkpointCandidate
+      : null;
 
-  if (unloadState.status === 'failed') {
-    const handleDismissFailure = () => {
-      clearPendingUnloadResult(marker.sessionId);
-      clearHaltedRun(marker.sessionId);
+  const handleResumeCheckpoint = useCallback((cp: LiveRunCheckpoint) => {
+    const content = cp.blockContent ?? '';
+    const block: ScriptBlock = {
+      id: cp.blockId,
+      dialect: (cp.blockDialect as ScriptBlock['dialect']) ?? 'time',
+      startLine: 0,
+      endLine: Math.max(0, content.split('\n').length - 1),
+      content,
+      statements: content ? createParser().read(content).statements : [],
+      state: 'idle',
+      version: cp.blockVersion ?? 1,
+      createdAt: cp.startedAt,
+      widgetIds: {},
+      ...(cp.blockContentId ? { contentId: cp.blockContentId } : {}),
+      ...(cp.blockSport ? { sport: cp.blockSport } : {}),
     };
+    const nextRuntimeId = cp.sessionId;
+    pendingRuntimes.set(nextRuntimeId, {
+      block,
+      noteId: cp.noteId ?? '',
+      returnTo: cp.returnTo,
+    });
+    clearLiveRunCheckpoint(cp.sessionId);
+    clearHaltedRun(cp.sessionId);
+    goTo(runPath(nextRuntimeId));
+  }, [goTo]);
+
+  const handleSaveCheckpointPartial = useCallback(async (cp: LiveRunCheckpoint) => {
+    if (savingPartial) return;
+    setSavingPartial(true);
+    try {
+      const partialData: Sessions = {
+        startTime: cp.startedAt,
+        endTime: cp.lastCheckpointAt,
+        duration: cp.elapsedMs,
+        completed: false,
+      };
+      await playgroundRecorder.record({
+        resultId: cp.sessionId,
+        noteId: cp.noteId ?? '',
+        blockId: cp.blockId,
+        ...(cp.blockVersion !== undefined ? { blockVersion: cp.blockVersion } : {}),
+        ...(cp.blockContentId ? { blockContentId: cp.blockContentId } : {}),
+        ...(cp.blockContent !== undefined ? { blockContent: cp.blockContent } : {}),
+        ...(cp.blockDialect ? { blockDialect: cp.blockDialect } : {}),
+        ...(cp.blockSport ? { blockSport: cp.blockSport } : {}),
+        data: partialData,
+        createdAt: cp.lastCheckpointAt,
+      });
+      clearLiveRunCheckpoint(cp.sessionId);
+      clearHaltedRun(cp.sessionId);
+      goTo(sessionDetailPath(cp.sessionId));
+    } finally {
+      setSavingPartial(false);
+    }
+  }, [savingPartial, goTo]);
+
+  const handleDiscardAll = useCallback((sessionId: string) => {
+    clearLiveRunCheckpoint(sessionId);
+    clearHaltedRun(sessionId);
+    clearPendingUnloadResult(sessionId);
+  }, []);
+
+  if (!activeMarker && !activeCheckpoint) return null;
+
+  const routerBridge = inRouter ? (
+    <RouterNavigateBridge onReady={(fn) => { navigateRef.current = fn; }} />
+  ) : null;
+
+  if (activeMarker) {
+    const unloadState = getPendingUnloadState(activeMarker.sessionId);
+    // Wait for staged reload persistence to settle before claiming the run was saved.
+    if (unloadState.status === 'pending' || unloadState.status === 'flushing') {
+      return routerBridge;
+    }
+
+    if (unloadState.status === 'failed') {
+      const handleDismissFailure = () => {
+        handleDiscardAll(activeMarker.sessionId);
+      };
+      return (
+        <>
+          {routerBridge}
+          <div
+            role="alert"
+            data-testid="halted-run-notice"
+            className="mx-4 my-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-foreground"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span>Previous workout run could not be saved on reload.</span>
+              {(activeMarker.workoutTitle || (activeMarker.elapsedMs !== undefined && activeMarker.elapsedMs > 0)) && (
+                <span className="font-medium text-muted-foreground">
+                  {activeMarker.workoutTitle}
+                  {activeMarker.elapsedMs !== undefined && activeMarker.elapsedMs > 0
+                    ? `${activeMarker.workoutTitle ? ' · ' : ''}${formatDurationMMSS(activeMarker.elapsedMs)}`
+                    : ''}
+                </span>
+              )}
+              {unloadState.error && (
+                <span className="text-destructive">{unloadState.error}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {activeCheckpoint?.blockContent && (
+                <button
+                  type="button"
+                  data-testid={TEST_IDS.LIVE_RUN_RESUME}
+                  onClick={() => handleResumeCheckpoint(activeCheckpoint)}
+                  className="min-h-11 rounded bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  Resume workout
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { void flushPendingUnloadResults(); }}
+                className="min-h-11 rounded border border-border/70 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                Retry save
+              </button>
+              <button
+                type="button"
+                onClick={handleDismissFailure}
+                aria-label="Dismiss partial results notice"
+                className="min-h-11 min-w-11 rounded border border-border/70 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    const resultsHref = sessionDetailPath(activeMarker.sessionId);
+
     return (
-      <div
-        role="alert"
-        data-testid="halted-run-notice"
-        className="mx-4 my-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-foreground"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <span>Previous workout run could not be saved on reload.</span>
-          {(marker.workoutTitle || (marker.elapsedMs !== undefined && marker.elapsedMs > 0)) && (
-            <span className="font-medium text-muted-foreground">
-              {marker.workoutTitle}
-              {marker.elapsedMs !== undefined && marker.elapsedMs > 0
-                ? `${marker.workoutTitle ? ' · ' : ''}${formatDurationMMSS(marker.elapsedMs)}`
-                : ''}
-            </span>
-          )}
-          {unloadState.error && (
-            <span className="text-destructive">{unloadState.error}</span>
-          )}
+      <>
+        {routerBridge}
+        <div
+          role="status"
+          data-testid="halted-run-notice"
+          className="mx-4 my-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <span>Previous workout run was saved as partial results on reload.</span>
+            {(activeMarker.workoutTitle || (activeMarker.elapsedMs !== undefined && activeMarker.elapsedMs > 0)) && (
+              <span className="font-medium text-muted-foreground">
+                {activeMarker.workoutTitle}
+                {activeMarker.elapsedMs !== undefined && activeMarker.elapsedMs > 0
+                  ? `${activeMarker.workoutTitle ? ' · ' : ''}${formatDurationMMSS(activeMarker.elapsedMs)}`
+                  : ''}
+              </span>
+            )}
+            {inRouter ? (
+              <Link
+                to={resultsHref}
+                onClick={() => {
+                  clearHaltedRun(activeMarker.sessionId);
+                  clearLiveRunCheckpoint(activeMarker.sessionId);
+                }}
+                className="font-semibold underline underline-offset-2 hover:text-primary"
+              >
+                View partial results
+              </Link>
+            ) : (
+              <a
+                href={resultsHref}
+                onClick={() => {
+                  clearHaltedRun(activeMarker.sessionId);
+                  clearLiveRunCheckpoint(activeMarker.sessionId);
+                }}
+                className="font-semibold underline underline-offset-2 hover:text-primary"
+              >
+                View partial results
+              </a>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {activeCheckpoint?.blockContent && (
+              <button
+                type="button"
+                data-testid={TEST_IDS.LIVE_RUN_RESUME}
+                onClick={() => handleResumeCheckpoint(activeCheckpoint)}
+                className="min-h-11 rounded bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                Resume workout
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => handleDiscardAll(activeMarker.sessionId)}
+              aria-label="Dismiss partial results notice"
+              className="min-h-11 min-w-11 rounded border border-border/70 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => { void flushPendingUnloadResults(); }}
-            className="min-h-11 rounded border border-border/70 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            Retry save
-          </button>
-          <button
-            type="button"
-            onClick={handleDismissFailure}
-            aria-label="Dismiss partial results notice"
-            className="min-h-11 min-w-11 rounded border border-border/70 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            Dismiss
-          </button>
-        </div>
-      </div>
+      </>
     );
   }
 
-  const resultsHref = sessionDetailPath(marker.sessionId);
-
+  // Case D (WW-142): Interrupted live session checkpoint found in localStorage
+  // without a committed halted-run marker — offer explicit Resume / Save Partial / Discard.
+  if (!activeCheckpoint) return routerBridge;
   return (
-    <div
-      role="status"
-      data-testid="halted-run-notice"
-      className="mx-4 my-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground"
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <span>Previous workout run was saved as partial results on reload.</span>
-        {(marker.workoutTitle || (marker.elapsedMs !== undefined && marker.elapsedMs > 0)) && (
-          <span className="font-medium text-muted-foreground">
-            {marker.workoutTitle}
-            {marker.elapsedMs !== undefined && marker.elapsedMs > 0
-              ? `${marker.workoutTitle ? ' · ' : ''}${formatDurationMMSS(marker.elapsedMs)}`
-              : ''}
-          </span>
-        )}
-        {inRouter ? (
-          <Link
-            to={resultsHref}
-            onClick={() => clearHaltedRun(marker.sessionId)}
-            className="font-semibold underline underline-offset-2 hover:text-primary"
-          >
-            View partial results
-          </Link>
-        ) : (
-          <a
-            href={resultsHref}
-            onClick={() => clearHaltedRun(marker.sessionId)}
-            className="font-semibold underline underline-offset-2 hover:text-primary"
-          >
-            View partial results
-          </a>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={() => clearHaltedRun(marker.sessionId)}
-        aria-label="Dismiss partial results notice"
-        className="min-h-11 min-w-11 rounded border border-border/70 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    <>
+      {routerBridge}
+      <div
+        role="status"
+        data-testid="halted-run-notice"
+        className="mx-4 my-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground"
       >
-        Dismiss
-      </button>
-    </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span>Interrupted workout session detected.</span>
+          {(activeCheckpoint.workoutTitle || activeCheckpoint.elapsedMs > 0) && (
+            <span className="font-medium text-muted-foreground">
+              {activeCheckpoint.workoutTitle}
+              {activeCheckpoint.elapsedMs > 0
+                ? `${activeCheckpoint.workoutTitle ? ' · ' : ''}${formatDurationMMSS(activeCheckpoint.elapsedMs)}`
+                : ''}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {activeCheckpoint.blockContent && (
+            <button
+              type="button"
+              data-testid={TEST_IDS.LIVE_RUN_RESUME}
+              onClick={() => handleResumeCheckpoint(activeCheckpoint)}
+              className="min-h-11 rounded bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              Resume workout
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={savingPartial}
+            aria-busy={savingPartial}
+            data-testid={TEST_IDS.LIVE_RUN_SAVE_PARTIAL}
+            onClick={() => void handleSaveCheckpointPartial(activeCheckpoint)}
+            className="min-h-11 rounded border border-border/70 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+          >
+            {savingPartial ? 'Saving…' : 'Save partial'}
+          </button>
+          <button
+            type="button"
+            data-testid={TEST_IDS.LIVE_RUN_DISCARD}
+            onClick={() => handleDiscardAll(activeCheckpoint.sessionId)}
+            aria-label="Discard interrupted workout session"
+            className="min-h-11 min-w-11 rounded border border-border/70 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            Discard
+          </button>
+        </div>
+      </div>
+    </>
   );
 };
 
@@ -637,6 +840,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     if (!externalStop || execution.status === 'completed') return;
     if (execution.status !== 'running' && execution.status !== 'paused' && !hasFiredRunStartedRef.current) return;
     explicitEndRef.current = true;
+    clearLiveRunCheckpoint(resultId ?? useActiveRunStore.getState().activeSessionId ?? block.id);
     useActiveRunStore.getState().setActiveSessionMeta(null, null);
     stopAndReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- execution identity is unstable each render; field deps avoid a setExecution loop
@@ -707,6 +911,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   useEffect(() => {
     if (execution.status === "completed" && !createdAt && !hasReportedCompletionRef.current) {
       explicitEndRef.current = true;
+      clearLiveRunCheckpoint(resultId ?? useActiveRunStore.getState().activeSessionId ?? block.id);
       useActiveRunStore.getState().setActiveSessionMeta(null, null);
       setCompletedAt(new Date());
       handleComplete(true);
@@ -724,7 +929,7 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
         try { castTransport.send(reviewMessage); } catch { /* ignore */ }
       }
     }
-  }, [execution, createdAt, handleComplete, castTransport, runtime]);
+  }, [execution, createdAt, handleComplete, castTransport, runtime, block.id, resultId]);
 
   // Halt + report shared by Stop and host-driven stops; a stack drained
   // before the halt is a natural finish, not a partial. Exiting at the
@@ -744,10 +949,11 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
 
   const handleStop = useCallback(() => {
     explicitEndRef.current = true;
+    clearLiveRunCheckpoint(resultId ?? useActiveRunStore.getState().activeSessionId ?? block.id);
     useActiveRunStore.getState().setActiveSessionMeta(null, null);
     stopAndReport();
     onClose();
-  }, [stopAndReport, onClose]);
+  }, [stopAndReport, onClose, resultId, block.id]);
 
   const resolvedSessionId = resultId ?? useActiveRunStore.getState().activeSessionId;
   const resolvedNoteId = noteId ?? useActiveRunStore.getState().activeNoteId;
@@ -757,12 +963,60 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
       outputCount > 0 ||
       hasFiredRunStartedRef.current) &&
     execution.status !== 'completed';
-  // Synchronous partial-session staging for hard reloads (WW-012): the async
-  // IndexedDB write started by stopAndReport is killed by document teardown,
-  // so the partial result is parked in localStorage FIRST and flushed into
-  // IndexedDB on the next page load (flushPendingUnloadResults).
-  const stagePartialUnload = useCallback(() => {
+
+  const persistCheckpointNow = useCallback(() => {
+    if (explicitEndRef.current || !isLiveRun) return;
+    const sessionId = resolvedSessionId || block.id;
+    saveLiveRunCheckpoint({
+      sessionId,
+      ...(resolvedNoteId ? { noteId: resolvedNoteId } : {}),
+      blockId: block.id,
+      ...(typeof block.version === 'number' ? { blockVersion: block.version } : {}),
+      ...(block.contentId ? { blockContentId: block.contentId } : {}),
+      ...(block.content ? { blockContent: block.content } : {}),
+      ...(block.dialect ? { blockDialect: block.dialect } : {}),
+      ...(block.sport ? { blockSport: block.sport } : {}),
+      workoutTitle: workoutIdentity.workoutTitle,
+      startedAt: execution.startTime ?? Date.now(),
+      lastCheckpointAt: Date.now(),
+      elapsedMs: execution.getElapsedTime(),
+      status: execution.status === 'paused' ? 'paused' : 'running',
+      stepCount: execution.stepCount,
+      ...(typeof window !== 'undefined' ? { returnTo: window.location.pathname } : {}),
+    });
+  }, [
+    isLiveRun,
+    resolvedSessionId,
+    resolvedNoteId,
+    block.id,
+    block.version,
+    block.contentId,
+    block.content,
+    block.dialect,
+    block.sport,
+    workoutIdentity.workoutTitle,
+    execution,
+  ]);
+
+  // Live checkpointing to localStorage during an active run (WW-142):
+  // writes on start, pause/resume, output emission, every 1s while running,
+  // and on tab backgrounding so abrupt reloads never silently drop the run.
+  useEffect(() => {
+    if (!isLiveRun || explicitEndRef.current) return;
+    persistCheckpointNow();
+    if (execution.status !== 'running') return;
+    const interval = window.setInterval(persistCheckpointNow, 1_000);
+    return () => window.clearInterval(interval);
+  }, [isLiveRun, execution.status, outputCount, persistCheckpointNow]);
+
+  // Synchronous partial-session staging + reporting for hard reloads (WW-012 / WW-142):
+  // stop the clock, abort the runtime ONCE so the active block's elapsed time & outputs
+  // are emitted, finalize analytics ONCE, stage synchronously into localStorage for
+  // next-boot flush, and fire onComplete with the identical completed:false snapshot.
+  const finalizePartialUnload = useCallback(() => {
+    execution.stop();
     if (!runtime) return;
+    runtime.handle({ name: 'abort', timestamp: runtime.clock.currentDate, data: {} });
     runtime.finalizeAnalytics();
     const results = buildSessions(runtime.getOutputStatements(), {
       startTime: execution.startTime ?? undefined,
@@ -782,15 +1036,19 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
       data: results,
       createdAt: Date.now(),
     });
-  }, [runtime, execution, block.id, block.version, block.contentId, block.content, block.dialect, block.sport, resolvedSessionId, resolvedNoteId]);
+    if (!hasReportedCompletionRef.current) {
+      hasReportedCompletionRef.current = true;
+      void onComplete?.(block.id, results);
+    }
+  }, [runtime, execution, onComplete, block.id, block.version, block.contentId, block.content, block.dialect, block.sport, resolvedSessionId, resolvedNoteId]);
   const unloadStateRef = useRef({
     isLive: isLiveRun,
     sessionId: resolvedSessionId,
     noteId: resolvedNoteId,
     workoutTitle: workoutIdentity.workoutTitle,
     elapsedMs: execution.getElapsedTime(),
-    stopAndReport,
-    stagePartialUnload,
+    finalizePartialUnload,
+    persistCheckpointNow,
   });
   unloadStateRef.current = {
     isLive: isLiveRun,
@@ -798,18 +1056,24 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     noteId: resolvedNoteId,
     workoutTitle: workoutIdentity.workoutTitle,
     elapsedMs: execution.getElapsedTime(),
-    stopAndReport,
-    stagePartialUnload,
+    finalizePartialUnload,
+    persistCheckpointNow,
   };
 
   useEffect(() => {
     let handled = false;
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        unloadStateRef.current.persistCheckpointNow();
+      }
+    };
     const handleUnload = () => {
       if (handled || explicitEndRef.current) return;
       const current = unloadStateRef.current;
       if (!current.isLive) return;
       handled = true;
       const sessionId = current.sessionId || block.id;
+      current.persistCheckpointNow();
       recordHaltedRun({
         sessionId,
         runtimeId: sessionId,
@@ -818,14 +1082,15 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
         timestamp: Date.now(),
         elapsedMs: current.elapsedMs,
       });
-      current.stagePartialUnload();
-      current.stopAndReport();
+      current.finalizePartialUnload();
     };
     window.addEventListener('beforeunload', handleUnload);
     window.addEventListener('pagehide', handleUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       window.removeEventListener('beforeunload', handleUnload);
       window.removeEventListener('pagehide', handleUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [block.id]);
 

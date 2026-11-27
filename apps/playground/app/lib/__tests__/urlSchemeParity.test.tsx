@@ -44,7 +44,7 @@ const CANONICAL_TITLED_ROUTES: ReadonlyArray<{ path: string; title: string }> = 
   { path: '/note/url-scheme-note', title: 'Wod.Wiki - Note' },
   { path: '/day/2099-12-31', title: 'Wod.Wiki - Day' },
   { path: '/feed/sport-crossfit', title: 'Wod.Wiki - Feed' },
-  { path: '/t/domain/url-scheme-e2e', title: 'Wod.Wiki - Tags' },
+  { path: '/t/domain/url-scheme-e2e', title: 'Wod.Wiki - #url-scheme-e2e' },
   { path: '/page/guide-start', title: 'Wod.Wiki - Pages' },
 ]
 

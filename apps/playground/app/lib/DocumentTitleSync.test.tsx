@@ -100,7 +100,7 @@ describe('DocumentTitleSync', () => {
     cleanup()
     document.title = 'Test Setup Title'
     renderAt('/t/domain/running')
-    expect(document.title).toBe('Wod.Wiki - Tags')
+    expect(document.title).toBe('Wod.Wiki - #running')
   })
 
   it('does not override the title for /effort/:slug', () => {

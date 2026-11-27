@@ -1082,6 +1082,7 @@ export function computeRowsRunSummary(
 
   // Preserve roundsCompleted reported on enclosing container segments (e.g. rounds blocks)
   // without inflating splitCount or double-counting leaf work metrics.
+  let hasAuthoritativeContainerRounds = false;
   for (const row of allSegmentRows) {
     if (splitRowSet.has(row)) continue;
     const key = String(row.sourceBlockKey ?? '').toLowerCase();
@@ -1102,6 +1103,7 @@ export function computeRowsRunSummary(
         roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
       } else if (mType === 'current-round' || canon === 'currentRound') {
         if (isPartialRow && m.origin === 'parser') continue;
+        hasAuthoritativeContainerRounds = true;
         roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
       }
     }
@@ -1164,6 +1166,12 @@ export function computeRowsRunSummary(
           rowElapsedMs = metricToMs(m) ?? 0;
         }
       } else if (canon === 'rounds' || mType === 'rounds' || mType === 'current-round' || canon === 'currentRound') {
+        if (hasAuthoritativeContainerRounds) {
+          // Enclosing container already reported authoritative completed rounds
+          // (including 0 on a mid-round partial abort). Leaf effort `current-round`
+          // marks in-progress round membership, not completed rounds (WW-105).
+          continue;
+        }
         const earlyTermination =
           row.completionReason === 'user-abort' ||
           row.completionReason === 'forced-pop' ||
@@ -1175,7 +1183,7 @@ export function computeRowsRunSummary(
           Boolean(rowEffortSlug) ||
           vis.some((x) => x.type === MetricType.Effort || x.type === 'effort');
         const effectiveRound =
-          earlyTermination && isLeafEffortRow
+          (earlyTermination || resolvedCompleted === false) && isLeafEffortRow
             ? Math.max(0, Math.round(m.value) - 1)
             : Math.round(m.value);
         roundsCompleted = Math.max(roundsCompleted, effectiveRound);
@@ -1297,6 +1305,7 @@ export function computeRowsRunSummary(
         const ms = metricToMs(m) ?? 0;
         summaryElapsedMs = Math.max(summaryElapsedMs ?? 0, ms);
       } else if (canon === 'rounds' || canon === 'currentRound') {
+        if (hasAuthoritativeContainerRounds) continue;
         if (resolvedCompleted === false && canon === 'rounds') continue;
         roundsCompleted = Math.max(roundsCompleted, Math.round(m.value));
       }
