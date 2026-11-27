@@ -48,13 +48,13 @@ describe('RowsTable — the Unified Session Results Table', () => {
     expect(table.querySelectorAll('tbody tr')).toHaveLength(1);
   });
 
-  it('renders all 9 base column headers aligning with row cells when no custom metrics exist', () => {
+  it('renders all 10 base column headers aligning with row cells when no custom metrics exist', () => {
     render(<RowsTable result={rowsResultWith([segmentEvent])} />);
     const table = screen.getByTestId('output-statements-table');
     const headers = table.querySelectorAll('thead th');
-    expect(headers).toHaveLength(9);
+    expect(headers).toHaveLength(10);
     const cells = table.querySelectorAll('tbody tr td');
-    expect(cells).toHaveLength(9);
+    expect(cells).toHaveLength(10);
   });
 
   it('automatically discovers dynamic custom & Property Note metric columns', () => {
@@ -74,11 +74,11 @@ describe('RowsTable — the Unified Session Results Table', () => {
     };
     render(<RowsTable result={rowsResultWith([customSegment])} />);
     const table = screen.getByTestId('output-statements-table');
-    // 9 base columns + 2 dynamic columns (calc.e1rm, watts) = 11 columns
-    expect(table.querySelectorAll('thead th')).toHaveLength(11);
+    // 10 base columns + 2 dynamic columns (calc.e1rm, watts) = 12 columns
+    expect(table.querySelectorAll('thead th')).toHaveLength(12);
     expect(screen.getByTestId('sort-col-calc.e1rm')).toBeDefined();
     expect(screen.getByTestId('sort-col-watts')).toBeDefined();
-    expect(table.querySelectorAll('tbody tr td')).toHaveLength(11);
+    expect(table.querySelectorAll('tbody tr td')).toHaveLength(12);
   });
 
   it('supports explicit YAML columns whitelist & column header sorting', () => {
@@ -243,7 +243,7 @@ describe('RowsTable — the Unified Session Results Table', () => {
     expect(screen.getAllByText('No output statements recorded for this run.').length).toBeGreaterThan(0);
   });
 
-  it('includes analytics summary rows under default segment filter and discovers power column', () => {
+  it('excludes analytics summary rows from default segment filter, discovers power column, and deduplicates analytics rows under All/Analytics', () => {
     const powerSegment = {
       id: 'test-run-1:dl1',
       grain: 'event',
@@ -291,7 +291,18 @@ describe('RowsTable — the Unified Session Results Table', () => {
     render(<RowsTable result={rowsResultWith([powerSegment, summaryRow, foldedSummaryRow])} />);
     const table = screen.getByTestId('output-statements-table');
     expect(screen.getByTestId('sort-col-power')).toBeDefined();
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(1);
+    expect(table.textContent).not.toContain('Total Work');
+
+    // Switching to All includes the deduplicated analytics summary row (omitting folded grain: 'summary' duplicate)
+    fireEvent.click(screen.getByTestId('output-filter-preset-all'));
     expect(table.querySelectorAll('tbody tr')).toHaveLength(2);
+    expect(table.textContent).toContain('Total Work');
+    expect(table.textContent).toContain('500 kg');
+
+    // Switching to Analytics isolates just the deduplicated analytics summary row
+    fireEvent.click(screen.getByTestId('output-filter-preset-analytics'));
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(1);
     expect(table.textContent).toContain('Total Work');
     expect(table.textContent).toContain('500 kg');
   });

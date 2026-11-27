@@ -67,18 +67,19 @@ export function RowsTable({
   const runs = useMemo(
     () =>
       result.runs.map((run) => {
-        const firstActive = run.events.find(
-          (e) =>
-            e.outputType === 'segment' &&
-            !String(e.sourceBlockKey ?? '').toLowerCase().startsWith('waiting-to-start') &&
-            e.timeSpan?.started !== undefined,
-        );
+        let minStart: number | undefined;
+        for (const e of run.events) {
+          const s = e.timeSpan?.started;
+          if (typeof s === 'number' && Number.isFinite(s)) {
+            minStart = minStart === undefined ? s : Math.min(minStart, s);
+          }
+        }
         return {
           run,
           // Event rows are the promoted statement snapshots — structurally the
           // same shape as stored output statements.
           statements: run.events as unknown as OutputStatementRow[],
-          startTime: firstActive?.timeSpan?.started ?? run.events[0]?.timeSpan?.started ?? run.timestamp,
+          startTime: minStart ?? run.timestamp,
         };
       }),
     [result],
