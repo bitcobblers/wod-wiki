@@ -41,6 +41,7 @@ let bootImportPending = false;
 let activeImportCount = 0;
 let activeImportLabel: string | null = null;
 let freshBootImporting = false;
+let feedImportEpoch = 0;
 const listeners = new Set<() => void>();
 let busyRetryTimer: RetryTimer | null = null;
 let busyChannel: BroadcastChannel | null = null;
@@ -104,7 +105,10 @@ export function endImportActivity(): void {
   if (activeImportCount === 0) return;
   const prevEffective = bootImportPending || activeImportCount > 0;
   activeImportCount = Math.max(0, activeImportCount - 1);
-  if (activeImportCount === 0) activeImportLabel = null;
+  if (activeImportCount === 0) {
+    activeImportLabel = null;
+    feedImportEpoch += 1;
+  }
   const nextEffective = bootImportPending || activeImportCount > 0;
   reflectImportPending(nextEffective);
   if (prevEffective !== nextEffective || activeImportCount === 0) notify();
@@ -158,9 +162,12 @@ export function markFeedSyncStarted(): void {
  * half-imported vault; Home (`/`) renders unblocked via `AppRoutes`.
  */
 export function markFeedFirstPaint(): void {
+  feedImportEpoch += 1;
   if (state === 'preparing' && !bootImportPending && activeImportCount === 0) {
     setState('ready');
+    return;
   }
+  notify();
 }
 
 function settleAtomically(next: 'ready' | 'error'): void {
@@ -188,6 +195,7 @@ export function markFeedSyncSettled(outcome: FeedSyncOutcome): void {
           if ((event.data as { kind?: string } | null)?.kind === 'seed-imported') {
             clearBusyWatch();
             freshBootImporting = false;
+            feedImportEpoch += 1;
             settleAtomically('ready');
           }
         };
@@ -210,6 +218,9 @@ export function markFeedSyncSettled(outcome: FeedSyncOutcome): void {
       // WW-019: never flip data-feed-state to 'ready' while freshBootImporting
       // still holds bootImportPending=true.
       if (freshBootImporting) return;
+      if (outcome === 'imported') {
+        feedImportEpoch += 1;
+      }
       settleAtomically('ready');
       break;
   }
@@ -223,6 +234,12 @@ export function getFeedReadiness(): FeedReadiness {
 /** Non-reactive read of whether any boot or sample corpus import is running. */
 export function isBootImportPending(): boolean {
   return bootImportPending || activeImportCount > 0;
+}
+
+/** Monotonic counter incremented ONLY when a real feed/sample import commits
+ *  rows — never on returning-visitor 'current' boot checks (WW-036 / WW-154). */
+export function getFeedImportEpoch(): number {
+  return feedImportEpoch;
 }
 
 /** Non-reactive read of the latest boot progress event. */
@@ -245,6 +262,11 @@ export function useFeedImportPending(): boolean {
   return useSyncExternalStore(subscribe, isBootImportPending);
 }
 
+/** Reactive counter that bumps only when new corpus/sample rows commit. */
+export function useFeedImportEpoch(): number {
+  return useSyncExternalStore(subscribe, getFeedImportEpoch);
+}
+
 /** Reactive boot-progress surface for the corpus gate. */
 export function useFeedSyncProgress(): FeedSyncProgress | null {
   return useSyncExternalStore(subscribe, getFeedSyncProgress);
@@ -259,7 +281,9 @@ export function resetFeedReadinessForTest(): void {
   bootImportPending = false;
   activeImportCount = 0;
   activeImportLabel = null;
+  feedImportEpoch = 0;
   state = 'idle';
+  writeRemoteProbedSession(false);
   reflectState('idle');
   reflectOutcome(null);
   reflectImportPending(false);
@@ -292,10 +316,31 @@ export function startFeedBootstrap(deps: FeedSyncDeps = {}): Promise<void> {
   return bootstrapPromise;
 }
 
+const OFFLINE_BOOT_PROBED_KEY = 'wodwiki.feedBootRemoteProbed';
+
+function readRemoteProbedSession(): boolean {
+  try {
+    return typeof sessionStorage !== 'undefined' && sessionStorage.getItem(OFFLINE_BOOT_PROBED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeRemoteProbedSession(probed: boolean): void {
+  try {
+    if (typeof sessionStorage === 'undefined') return;
+    if (probed) sessionStorage.setItem(OFFLINE_BOOT_PROBED_KEY, '1');
+    else sessionStorage.removeItem(OFFLINE_BOOT_PROBED_KEY);
+  } catch {
+    // Ignore storage unavailability
+  }
+}
+
 /** True when a subscribed auto-sync feed still lacks its first checkpoint. */
 async function hasUnimportedAutoSyncFeed(
   sources: NonNullable<FeedSyncDeps['sources']>,
   storage: NonNullable<FeedSyncDeps['storage']>,
+  skipPreviouslyFailedRemote: boolean,
 ): Promise<boolean> {
   for (const s of sources) {
     if (s.id === 'core' || !isFeedSubscribed(s.id) || !isFeedAutoSync(s.id)) continue;
@@ -307,6 +352,10 @@ async function hasUnimportedAutoSyncFeed(
       if (getFeedOfflinePolicy(s.id) === 'index-only' && storage.getMeta) {
         const catalog = await storage.getMeta<{ manifest?: { version?: number } }>(`catalog:${s.id}`);
         if (catalog && (catalog.manifest?.version ?? 0) > 0) continue;
+        // If an earlier boot in this same browser session already attempted
+        // remote index-only feeds and they were unreachable (offline / blocked),
+        // let them retry in the background without blocking data-agent-status.
+        if (skipPreviouslyFailedRemote) continue;
       }
       const meta = await storage.getSeedMeta(seedMetaKey(s.id));
       if (!meta || meta.seedVersion <= 0) return true;
@@ -350,7 +399,8 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
   }
   const enabled = (deps.isEnabled ?? isFeedImportEnabled)();
   const fresh = !coreMeta || coreMeta.seedVersion <= 0;
-  const hasPendingAutoSync = !fresh && await hasUnimportedAutoSyncFeed(all, storage);
+  const skipPreviouslyFailedRemote = !deps.storage && !deps.force && readRemoteProbedSession();
+  const hasPendingAutoSync = !fresh && await hasUnimportedAutoSyncFeed(all, storage, skipPreviouslyFailedRemote);
   if (enabled && (fresh || hasPendingAutoSync)) {
     freshBootImporting = true;
     markFeedSyncStarted();
@@ -380,8 +430,12 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
         outcome !== 'error' &&
         all.some((s) => s.id !== 'core' && isFeedSubscribed(s.id))
       ) {
-        await runBootFeedSync({ ...deps, sources: all.filter((s) => s.id !== 'core'), onProgress })
-          .catch((err) => console.error('[feedSync] background boot sync failed', err));
+        const subOutcome = await runBootFeedSync({ ...deps, sources: all.filter((s) => s.id !== 'core'), onProgress })
+          .catch((err) => {
+            console.error('[feedSync] background boot sync failed', err);
+            return 'error' as const;
+          });
+        if (!deps.storage && subOutcome === 'error') writeRemoteProbedSession(true);
       }
       freshBootImporting = false;
       markFeedSyncSettled(outcome);
@@ -395,7 +449,13 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
   }
   // Returning visitor: if a newly subscribed auto-sync feed was pending,
   // hold the gate until it finishes; otherwise background refreshes keep the
-  // settled gate untouched.
+  // settled gate untouched while yielding a macrotask so the active route's
+  // initial readonly IDB reads settle before spawning the background feed
+  // worker (WW-036 / WW-154). Every page load still runs its subscribed-feed
+  // update check (FED-01 auto-sync & Update available detection).
+  if (!freshBootImporting && !deps.storage && !deps.now && !deps.force) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
   let bgOutcome: FeedSyncOutcome = 'current';
   try {
     bgOutcome = await runBootFeedSync({ ...deps, sources: all, onProgress })
@@ -410,6 +470,9 @@ async function runFeedBootstrap(deps: FeedSyncDeps): Promise<void> {
       // external-feed errors must still surface via syncActivity without
       // flipping the app readiness gate to 'error'.
       markFeedSyncSettled(bgOutcome === 'error' ? 'current' : bgOutcome);
+    } else if (bgOutcome === 'imported') {
+      feedImportEpoch += 1;
+      notify();
     }
   }
 }

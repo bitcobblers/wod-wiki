@@ -294,8 +294,20 @@ export const CastButtonRpc: React.FC = () => {
                 await connectSession(transport);
             } catch (err) {
                 const message = describeCastError(err);
-                if (message === 'cancel' || message.includes('cancel')) {
+                const lower = message.toLowerCase();
+                if (lower === 'cancel' || lower.includes('cancel')) {
                     console.log('[CastButtonRpc] Cast request canceled or gesture expired');
+                } else if (
+                    lower.includes('receiver_unavailable') ||
+                    lower.includes('no_devices') ||
+                    lower.includes('not supported') ||
+                    lower.includes('not configured')
+                ) {
+                    console.warn('[CastButtonRpc] No Cast receiver available:', message);
+                    toast({
+                        title: 'No Cast receiver available',
+                        description: 'No Cast device or receiver is available in this browser.',
+                    });
                 } else {
                     console.error('[CastButtonRpc] Cast failed:', message);
                     toast({

@@ -327,20 +327,34 @@ export async function listRows(
   const idx = indexName ? indexDefinition(def, indexName) : undefined;
   const binaryField = binaryFieldOf(def);
   if (idx?.multiEntry) {
-    // JSON encoding preserves numeric/string equality in both SQL dialects.
-    const only = range?.only;
-    if (only === undefined || typeof only === 'object') {
-      throw new StorageError(400, `multi-entry index ${def.name}.${idx.name} supports exact-match queries only`);
-    }
+    // JSON encoding preserves numeric/string equality and ASCII/ISO string
+    // range ordering in both SQL dialects.
     const joinOn = keyCols(def).map((c) => `j."${c}" = e."${c}"`).join(' AND ');
     // IDB multi-entry ordering: junction value first, then the primary key.
     const order = ['j."v"', ...keyCols(def).map((c) => `j."${c}"`)].join(', ');
-    const rows = await conn.query(
-      `SELECT e."data" AS "data" FROM "${def.name}" e JOIN "${junctionTable(def, idx)}" j ON ${joinOn}` +
-        ` WHERE j."v" = ? ORDER BY ${order}${limitClause(count)}`,
-      [JSON.stringify(only)],
-    );
-    return parseRows(rows, binaryField);
+    const only = range?.only;
+    if (only !== undefined) {
+      if (typeof only === 'object') {
+        throw new StorageError(400, `multi-entry index ${def.name}.${idx.name} supports scalar queries only`);
+      }
+      const rows = await conn.query(
+        `SELECT e."data" AS "data" FROM "${def.name}" e JOIN "${junctionTable(def, idx)}" j ON ${joinOn}` +
+          ` WHERE j."v" = ? ORDER BY ${order}${limitClause(count)}`,
+        [JSON.stringify(only)],
+      );
+      return parseRows(rows, binaryField);
+    }
+    if (typeof range?.lower === 'string' && typeof range?.upper === 'string') {
+      const lowerOp = range.lowerOpen ? '>' : '>=';
+      const upperOp = range.upperOpen ? '<' : '<=';
+      const rows = await conn.query(
+        `SELECT e."data" AS "data" FROM "${def.name}" e JOIN "${junctionTable(def, idx)}" j ON ${joinOn}` +
+          ` WHERE j."v" ${lowerOp} ? AND j."v" ${upperOp} ? ORDER BY ${order}${limitClause(count)}`,
+        [JSON.stringify(range.lower), JSON.stringify(range.upper)],
+      );
+      return parseRows(rows, binaryField);
+    }
+    throw new StorageError(400, `multi-entry index ${def.name}.${idx.name} supports exact-match or bounded string range queries only`);
   }
   const cols = idx ? idx.keyPath.map((_, part) => indexCol(idx.name, part)) : keyCols(def);
   const params: SqlValue[] = [];

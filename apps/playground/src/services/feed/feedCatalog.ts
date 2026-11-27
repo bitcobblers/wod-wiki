@@ -191,15 +191,30 @@ export async function saveFeedCatalogManifest(
   manifest: SeedManifest,
   targetStorage?: IStorage,
 ): Promise<void> {
-  const rec: FeedCatalogMetaRecord = {
-    key: `${FEED_CATALOG_META_PREFIX}${feedId}`,
-    feedId,
-    manifest,
-    updatedAt: Date.now(),
-  };
+  const key = `${FEED_CATALOG_META_PREFIX}${feedId}`;
   try {
     const db = await resolveTargetStorage(targetStorage);
     if (!db) return;
+    const existing = await db.readonly('meta').get(key).catch(() => undefined);
+    if (isCatalogMeta(existing)) {
+      const prev = existing.manifest;
+      if (
+        prev.version === manifest.version &&
+        prev.builtAt === manifest.builtAt &&
+        prev.commit === manifest.commit &&
+        prev.schema === manifest.schema &&
+        (prev.notebooks?.length ?? 0) === (manifest.notebooks?.length ?? 0) &&
+        prev.chunks.length === manifest.chunks.length
+      ) {
+        return;
+      }
+    }
+    const rec: FeedCatalogMetaRecord = {
+      key,
+      feedId,
+      manifest,
+      updatedAt: Date.now(),
+    };
     await db.transaction(['meta'], 'readwrite', async (tx) => {
       await tx.readwrite('meta').put(rec);
     });

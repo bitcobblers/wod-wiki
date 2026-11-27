@@ -195,6 +195,31 @@ describe('sample analytics dataset', () => {
       metrics: [{ type: userFact.metricKey, value: userFact.value, unit: userFact.unit, origin: 'engine' }],
     } satisfies EventRecord]);
 
+    const userSessionId = `user-sess-${crypto.randomUUID()}`;
+    await service.storage.readwrite('block_revisions').put({
+      noteId: userNoteId,
+      blockId: 'user-block',
+      version: 1,
+      kind: 'wod',
+      dialect: 'time',
+      rawContent: '```time\n10 Burpees\n```',
+      savedAt: Date.now(),
+    });
+    await service.saveSession({
+      id: userSessionId,
+      noteId: userNoteId,
+      blockId: 'user-block',
+      blockVersion: 1,
+      blockContentId: 'bc-user-1',
+      origin: 'journal',
+      status: 'completed',
+      createdAt: Date.now(),
+      startTime: Date.now() - 60_000,
+      endTime: Date.now(),
+      duration: 60_000,
+      completed: true,
+    });
+
     const sampleNotes = await service.getNotesForTag('sample');
     const retainedNote = sampleNotes[0];
     if (!retainedNote) throw new Error('Sample Note missing');
@@ -206,8 +231,12 @@ describe('sample analytics dataset', () => {
     const events = await service.scanAll();
     const sampleEvents = events.filter((event) => event.noteId.startsWith('sample-'));
     expect(sampleEvents).toHaveLength(0);
-    expect(await service.getBlockRevision(retainedNote.id, retainedSession.blockId, retainedSession.blockVersion)).toBeDefined();
-    expect(await service.getSessionById(retainedSession.id)).toEqual(retainedSession);
+    // Purging sample data removes sample-* sessions so /sessions has no orphaned sample rows,
+    // while leaving user-owned sessions and events untouched.
+    expect(await service.getSessionById(retainedSession.id)).toBeUndefined();
+    const allSessionsAfter = await service.storage.readonly('sessions').getAll();
+    expect(allSessionsAfter.some((s) => s.id.startsWith('sample-'))).toBe(false);
+    expect(await service.getSessionById(userSessionId)).toBeDefined();
 
     const allEvents = await service.scanAll();
     const userEvents = allEvents.filter((event) => event.noteId === userNoteId);

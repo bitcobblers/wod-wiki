@@ -405,6 +405,48 @@ describe('DashboardViewPage L3 3-slot contract', () => {
       ]);
     });
   });
+
+  it('WW-155: Clone to vault shows pending state, prevents duplicate concurrent clones, and clears pending on completion', async () => {
+    spyOn(useDashboardsModule, 'useDashboardSource').mockImplementation(((slug: string | undefined, refreshKey?: number) => {
+      const base = useFakeDashboardSource(slug, refreshKey);
+      return { ...base, source: base.source ? { ...base.source, editable: false } : null };
+    }) as never);
+
+    const cloneGate = Promise.withResolvers<void>();
+    let cloneCalls = 0;
+    const { dashboardNotes } = await import('../../services/dashboardNotes');
+    spyOn(dashboardNotes, 'cloneDashboard').mockImplementation((async () => {
+      cloneCalls += 1;
+      await cloneGate.promise;
+    }) as never);
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard/stale-board']} initialIndex={0}>
+        <Routes>
+          <Route path="/dashboard/:slug" element={<DashboardViewPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const cloneBtn = await waitFor(() => screen.getByTestId('clone-dashboard') as HTMLButtonElement);
+    expect(cloneBtn.disabled).toBe(false);
+
+    // Double-click while in flight — must guard duplicate clone calls and show pending state.
+    fireEvent.click(cloneBtn);
+    fireEvent.click(cloneBtn);
+    await waitFor(() => {
+      expect(cloneBtn.disabled).toBe(true);
+      expect(cloneBtn.getAttribute('aria-busy')).toBe('true');
+      expect(cloneBtn.textContent).toContain('Cloning');
+    });
+    expect(cloneCalls).toBe(1);
+
+    cloneGate.resolve();
+    await waitFor(() => {
+      expect(cloneBtn.disabled).toBe(false);
+      expect(cloneBtn.textContent).toBe('Clone to vault');
+    });
+  });
 });
 
 describe('DashboardViewPage live reactivity (WW-056)', () => {

@@ -20,6 +20,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useInRouterContext, useNavigate } from "react-router-dom";
+import { v7 as uuidv7 } from "uuid";
 import type { EditorView } from "@codemirror/view";
 import { TimerDisplay } from "@/panels/wallclock-panel";
 import { TimerSurface } from "@/components/organisms/workout/TimerSurface";
@@ -203,7 +204,10 @@ export const HaltedRunNotice: React.FC<HaltedRunNoticeProps> = ({ noteId }) => {
       ...(cp.blockContentId ? { contentId: cp.blockContentId } : {}),
       ...(cp.blockSport ? { sport: cp.blockSport } : {}),
     };
-    const nextRuntimeId = cp.sessionId;
+    // Allocate a fresh continuation session ID so resuming after a mid-run
+    // reload (where `cp.sessionId` may already be committed as a partial
+    // session in IndexedDB) never collides with "Session already exists".
+    const nextRuntimeId = uuidv7();
     pendingRuntimes.set(nextRuntimeId, {
       block,
       noteId: cp.noteId ?? '',

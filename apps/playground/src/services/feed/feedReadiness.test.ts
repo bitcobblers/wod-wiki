@@ -11,6 +11,7 @@ import {
   beginImportActivity,
   endImportActivity,
   getActiveImportLabel,
+  getFeedImportEpoch,
   getFeedReadiness,
   getFeedSyncProgress,
   isBootImportPending,
@@ -410,5 +411,70 @@ describe('feedReadiness', () => {
     // Reject the hanging probe so boot finishes cleanly.
     heldManifest.reject(new Error('abort test probe'));
     await boot;
+  });
+
+  it('WW-036/WW-154: feedImportEpoch stays stable on returning-visitor current settle and increments only on real commits', async () => {
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    const storage = new InMemoryFeedStorage();
+    await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('core')), seedVersion: 1, builtAt: new Date(1).toISOString() });
+    const coreSrc = fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas');
+    const sources: FeedSourceSpec[] = [
+      { source: coreSrc, id: 'core', label: 'Core', url: 'https://feed.test/core/', embeddedVersion: 1 },
+    ];
+
+    expect(getFeedImportEpoch()).toBe(0);
+    await startFeedBootstrap({ sources, storage, isEnabled: () => true });
+    // Returning visitor with 'current' outcome must NOT bump import epoch (prevents Explorer/Dashboard double-runs).
+    expect(getFeedImportEpoch()).toBe(0);
+
+    // Real non-boot sample import DOES bump epoch once it finishes.
+    beginImportActivity('Loading sample data…');
+    expect(getFeedImportEpoch()).toBe(0);
+    endImportActivity();
+    expect(getFeedImportEpoch()).toBe(1);
+
+    // Explicit 'imported' settlement ALSO bumps epoch.
+    markFeedSyncStarted();
+    markFeedSyncSettled('imported');
+    expect(getFeedImportEpoch()).toBe(2);
+  });
+
+  it('FED-01: returning visitor still checks subscribed auto-sync feeds on consecutive reloads and applies updates', async () => {
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    const storage = new InMemoryFeedStorage();
+    await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('core')), seedVersion: 1, builtAt: new Date(1).toISOString() });
+    await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('manage-library')), seedVersion: 42, builtAt: new Date(1).toISOString() });
+    setFeedSubscribed('manage-library', true);
+    setFeedAutoSync('manage-library', true);
+
+    let remoteVersion = 42;
+    const makeSource = (): FeedSourceSpec[] => [
+      { source: fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas'), id: 'core', label: 'Core', url: 'https://feed.test/core/', embeddedVersion: 1 },
+      {
+        source: fixture([compileSeedRow('markdown/notebooks/demo/w1.md', `# W ${remoteVersion}`)], remoteVersion, 'notebook.demo'),
+        id: 'manage-library',
+        label: 'Manage Library',
+        url: 'https://feed.test/manage/',
+        embeddedVersion: 0,
+      },
+    ];
+
+    // Initial sync establishes v42 checkpoint + chunks.
+    await startFeedBootstrap({ sources: makeSource(), storage, isEnabled: () => true });
+    expect((await storage.getSeedMeta(seedMetaKey('manage-library')))?.seedVersion).toBe(42);
+
+    // First returning boot at v42 — stays current, epoch unchanged
+    resetFeedReadinessForTest();
+    await startFeedBootstrap({ sources: makeSource(), storage, isEnabled: () => true });
+    expect(getFeedImportEpoch()).toBe(0);
+
+    // Immediate reload after remote bumps to v43 — must re-check and import v43
+    resetFeedReadinessForTest();
+    remoteVersion = 43;
+    await startFeedBootstrap({ sources: makeSource(), storage, isEnabled: () => true });
+    expect((await storage.getSeedMeta(seedMetaKey('manage-library')))?.seedVersion).toBe(43);
+    expect(getFeedImportEpoch()).toBe(1);
   });
 });

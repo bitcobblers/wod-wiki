@@ -273,11 +273,42 @@ export async function purgeSampleData(): Promise<void> {
   beginImportActivity('Purging sample data…');
   try {
     const noteIds = await getSampleNoteIds();
-    if (noteIds.length === 0) return;
+    const noteIdSet = new Set(noteIds);
+    const allSessions = await service.storage.readonly('sessions').getAll().catch(() => [] as Session[]);
+    const sampleSessionIds = allSessions
+      .filter((s) => noteIdSet.has(s.noteId) || s.id.startsWith('sample-'))
+      .map((s) => s.id);
+    if (noteIds.length === 0 && sampleSessionIds.length === 0) return;
 
-    // Removing a sample Note does not garbage-collect its pinned history.
+    const eventIdsToDelete = new Set<string>();
     for (const noteId of noteIds) {
-      await service.deleteEvents((await service.getEventsForNote(noteId)).map(event => event.id));
+      for (const event of await service.getEventsForNote(noteId)) {
+        eventIdsToDelete.add(event.id);
+      }
+    }
+    if (sampleSessionIds.length > 0) {
+      const sampleSessionIdSet = new Set(sampleSessionIds);
+      const allEvents = await service.scanAll().catch(() => []);
+      for (const event of allEvents) {
+        if (sampleSessionIdSet.has(event.resultId)) {
+          eventIdsToDelete.add(event.id);
+        }
+      }
+    }
+    if (eventIdsToDelete.size > 0) {
+      await service.deleteEvents(Array.from(eventIdsToDelete));
+    }
+
+    if (sampleSessionIds.length > 0) {
+      await service.storage.transaction(['sessions'], 'readwrite', async (tx) => {
+        const store = tx.readwrite('sessions');
+        for (const sessionId of sampleSessionIds) {
+          await store.delete(sessionId);
+        }
+      });
+    }
+
+    for (const noteId of noteIds) {
       await service.deleteNote(noteId);
     }
 

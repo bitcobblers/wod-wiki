@@ -655,11 +655,20 @@ export class StorageService implements NotePersistenceStorage {
     const existing = await this.storage.readonly('tag_types').getAll();
     if (existing.length === 0) {
       const now = Date.now();
-      for (const def of DEFAULT_TAG_TYPES) {
-        try {
-          await this.storage.readwrite('tag_types').put({ ...def, createdAt: now });
-        } catch {
-          // ignore
+      try {
+        await this.storage.transaction(['tag_types'], 'readwrite', async (tx) => {
+          await tx.readwrite('tag_types').putMany(
+            DEFAULT_TAG_TYPES.map((def) => ({ ...def, createdAt: now })),
+          );
+        });
+      } catch {
+        // Fallback per-row if a concurrent tab inserted some defaults first.
+        for (const def of DEFAULT_TAG_TYPES) {
+          try {
+            await this.storage.readwrite('tag_types').put({ ...def, createdAt: now });
+          } catch {
+            // ignore
+          }
         }
       }
     }

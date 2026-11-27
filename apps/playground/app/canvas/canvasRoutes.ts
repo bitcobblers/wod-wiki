@@ -22,8 +22,12 @@ export interface CanvasRoute {
   page: ParsedCanvasPage
 }
 
+const canvasRoutesCache = new WeakMap<SeedContentFiles, CanvasRoute[]>()
+
 /** Pure derivation over the seeded corpus (canvas pages). */
 export function buildCanvasRoutes(files: SeedContentFiles): CanvasRoute[] {
+  const cached = canvasRoutesCache.get(files)
+  if (cached) return cached
   const canvas: CanvasRoute[] = []
   for (const [path, raw] of Object.entries(files)) {
     const canvasMatch = path.match(/^markdown\/canvas\/(.+\.md)$/)
@@ -35,6 +39,7 @@ export function buildCanvasRoutes(files: SeedContentFiles): CanvasRoute[] {
       if (page && page.route !== ROUTE_PATTERNS.home) canvas.push({ route: page.route, page })
     }
   }
+  canvasRoutesCache.set(files, canvas)
   return canvas
 }
 

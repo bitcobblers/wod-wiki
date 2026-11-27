@@ -731,4 +731,32 @@ describe('AnalyticsExplorerPage', () => {
     expect(screen.getByText('Untagged')).toBeDefined();
     expect(screen.getByText(/by tag/i)).toBeDefined();
   });
+
+  it('WW-154: defers hidden records find until primary ?q= aggregate query settles', async () => {
+    const primaryGate = Promise.withResolvers<void>();
+    const findCalls: string[] = [];
+    runQueryImpl = async (raw: string) => {
+      await primaryGate.promise;
+      return {
+        ...resultOf(raw),
+        series: [{ key: 'note', label: 'note', points: [{ ts: Date.now(), value: 2 }] }],
+        stages: { selected: 2, buckets: 1, aggregated: 1, groups: 1 },
+        matched: [{ timestamp: Date.now(), value: 1, metricKey: 'note' } as unknown as QueryResult['matched'][number]],
+      };
+    };
+    runFindImpl = async (raw: string) => {
+      findCalls.push(raw);
+      return { ...findResultOf(raw), notes: [FEED_NOTE], stages: { selected: 1, matched: 1 } };
+    };
+
+    renderPage('count:note{} by {week}');
+    await waitFor(() => expect(pageRuns()).toContain('count:note{} by {week}'));
+    // While primary query is in flight, secondary hidden records find must not run concurrently.
+    expect(findCalls).toHaveLength(0);
+
+    primaryGate.resolve();
+    await waitFor(() => expect(findCalls.length).toBeGreaterThan(0));
+    // Primary query ran exactly once.
+    expect(pageRuns().filter((q) => q === 'count:note{} by {week}')).toHaveLength(1);
+  });
 });

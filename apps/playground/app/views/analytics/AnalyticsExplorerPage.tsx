@@ -69,7 +69,7 @@ import { MobileNewEntryCombo } from '../../pages/shared/NewEntryCombo';
 import { PageActions } from '../../pages/shared/PageActions';
 import { SampleDataPrompt } from './SampleDataPrompt';
 import { onSampleDataChanged } from '@/services/analytics/sample';
-import { useFeedImportPending } from '@/services/feed/feedReadiness';
+import { useFeedImportEpoch } from '@/services/feed/feedReadiness';
 import { cn } from '@/lib/utils';
 import { registerActiveExplorerBridge, setSurfaceBusy } from '@/agent/surfaceBridges';
 
@@ -210,11 +210,12 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
     };
   }, [examplesOpen]);
   const [result, setResult] = useState<QueryResult | undefined>(undefined);
+  const [settledRunKey, setSettledRunKey] = useState<string | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
   const [entries, setEntries] = useState<Entry[] | undefined>(undefined);
   const [records, setRecords] = useState<Entry[] | undefined>(undefined);
   const [efforts, setEfforts] = useState<IEffort[] | undefined>(undefined);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => Boolean(submitted && !submittedInvalid));
   useEffect(() => setSurfaceBusy(loading), [loading]);
   const [dashOpen, setDashOpen] = useState(false);
   // The page's own query settings — the landing default and the scope
@@ -285,22 +286,11 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
     });
   }, [submitted, activeWeeks]);
 
-  useEffect(() => {
-    if (!recordsWql) {
-      setRecords(undefined);
-      return;
-    }
-    let cancelled = false;
-    searchEntries(recordsWql)
-      .then((rows) => { if (!cancelled) setRecords(rows); })
-      .catch(() => { if (!cancelled) setRecords(undefined); });
-    return () => { cancelled = true; };
-  }, [recordsWql]);
-
   const [refreshKey, setRefreshKey] = useState(0);
+  const queryRunKey = `${submitted}\0${activeWeeks}\0${refreshKey}\0${preferredUnit}`;
   const [samplePendingAction, setSamplePendingAction] = useState<'load' | 'purge' | null>(null);
-  const feedImportPending = useFeedImportPending();
-  const prevImportPendingRef = useRef(feedImportPending);
+  const feedImportEpoch = useFeedImportEpoch();
+  const prevImportEpochRef = useRef(feedImportEpoch);
 
   useEffect(() => {
     const unsubscribe = onSampleDataChanged(() => setRefreshKey((k) => k + 1));
@@ -308,11 +298,11 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
   }, []);
 
   useEffect(() => {
-    if (prevImportPendingRef.current && !feedImportPending) {
+    if (feedImportEpoch !== prevImportEpochRef.current) {
+      prevImportEpochRef.current = feedImportEpoch;
       setRefreshKey((k) => k + 1);
     }
-    prevImportPendingRef.current = feedImportPending;
-  }, [feedImportPending]);
+  }, [feedImportEpoch]);
 
   const [anatomyOpen, setAnatomyOpen] = useState(false);
   const [recordsOpen, setRecordsOpen] = useState(false);
@@ -322,6 +312,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
 
     if (!submitted) {
       setResult(undefined);
+      setSettledRunKey(null);
       setQueryError(null);
       setEntries(undefined);
       setEfforts(undefined);
@@ -342,6 +333,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
       // Content query — the shared WQL → Entry[] pipeline (same rows as the
       // Library, #833); effort targets come from the engine's effort plane.
       setResult(undefined);
+      setSettledRunKey(null);
       setQueryError(null);
       if (parsed.target === 'effort') {
         queryService.runFind(parsed)
@@ -373,6 +365,7 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
           }
           setQueryError(null);
           setResult(r);
+          setSettledRunKey(queryRunKey);
         })
         .catch((err) => {
           if (cancelled) return;
@@ -384,9 +377,26 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [submitted, activeWeeks, refreshKey, preferredUnit]);
+  }, [submitted, activeWeeks, refreshKey, preferredUnit, queryRunKey]);
 
   const shape = useChartShape(result);
+
+  // Defer the hidden "Records in this calculation" secondary find until the
+  // primary analytics query settles so cold loads & `?q=` reloads never run
+  // full-corpus note hydration concurrently with `runQuery` (WW-154).
+  const canLoadRecords = Boolean(recordsWql) && !loading && settledRunKey === queryRunKey;
+  useEffect(() => {
+    if (!recordsWql) {
+      setRecords(undefined);
+      return;
+    }
+    if (!canLoadRecords) return;
+    let cancelled = false;
+    searchEntries(recordsWql)
+      .then((rows) => { if (!cancelled) setRecords(rows); })
+      .catch(() => { if (!cancelled) setRecords(undefined); });
+    return () => { cancelled = true; };
+  }, [recordsWql, canLoadRecords]);
 
   /** Metric chip click: pivot to the metrics plane, set the metric, run. */
   const selectMetric = (metric: string) => {

@@ -385,6 +385,31 @@ export class NotebookService {
      */
     ensureNotebooks(): Promise<void> {
         return this.enqueue(async () => {
+            // Fast-path readonly check: returning boots skip the 15-store
+            // exclusive readwrite transaction and full `notes.getAll()` scan
+            // when onboarding is complete, `notebook/custom` exists, and no
+            // legacy `template` notes remain (WW-036).
+            try {
+                const alreadyReady = await this.store.storage.transaction(
+                    ['meta', 'notes'],
+                    'readonly',
+                    async (tx) => {
+                        const [seededMeta, customLanding, templates] = await Promise.all([
+                            tx.readonly('meta').get('onboarding:starterSeeded'),
+                            tx.readonly('notes').get(CUSTOM_NOTEBOOK_ID),
+                            tx.readonly('notes').getAllFromIndex('by-type', 'template'),
+                        ]);
+                        return (
+                            Boolean((seededMeta as { value?: unknown } | undefined)?.value) &&
+                            Boolean(customLanding && isNotebookLanding(customLanding)) &&
+                            templates.length === 0
+                        );
+                    },
+                );
+                if (alreadyReady) return;
+            } catch {
+                // Fall through to full readwrite setup on minimal mocks lacking `by-type`.
+            }
             // Compute deterministic starter ID before opening IDB transaction so
             // native IndexedDB never auto-commits across WebCrypto microtasks.
             const starterId = await seedNoteId('onboarding/my-workout');

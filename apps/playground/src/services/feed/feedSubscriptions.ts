@@ -318,11 +318,25 @@ export async function migrateFeedSubscriptions(
     writeAll(initialAll);
   }
   const checkpointIds: string[] = [];
+  let metaByKey: Map<string, { seedVersion?: number }> | null = null;
+  if (storage.getAllMeta) {
+    try {
+      const allMeta = await storage.getAllMeta();
+      metaByKey = new Map();
+      for (const row of allMeta) {
+        if (row && typeof row === 'object' && 'key' in row && typeof (row as { key?: unknown }).key === 'string') {
+          metaByKey.set((row as { key: string }).key, row as { seedVersion?: number });
+        }
+      }
+    } catch {
+      metaByKey = null;
+    }
+  }
   for (const { id } of sources) {
     if (id === 'core' || id in initialAll) continue;
     try {
-      const meta = await storage.getSeedMeta(seedMetaKey(id));
-      if (meta && meta.seedVersion > 0) {
+      const meta = metaByKey ? metaByKey.get(seedMetaKey(id)) : await storage.getSeedMeta(seedMetaKey(id));
+      if (meta && (meta.seedVersion ?? 0) > 0) {
         checkpointIds.push(id);
       }
     } catch {

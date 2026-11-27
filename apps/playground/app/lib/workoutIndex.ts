@@ -35,18 +35,20 @@ function deriveCategory(parts: string[]): string {
   return 'General'
 }
 
-function deriveSearchHidden(raw: string): boolean {
-  return String(getScalar(parseFrontmatter(raw).meta, 'search') ?? '').toLowerCase() === 'hidden'
+function deriveDateFromMeta(meta: Record<string, string | number | string[]>): number | undefined {
+  const value = getScalar(meta, 'date')
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined
+  const date = new Date(`${value}T12:00:00Z`)
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date.getTime() : undefined
 }
 
 /** `YYYY-MM-DD` frontmatter → epoch ms at noon UTC (matches FeedImporter's Note.date).
  *  Impossible calendar days (e.g. 2026-02-30) yield undefined, never NaN. */
 export function deriveDate(raw: string): number | undefined {
-  const value = getScalar(parseFrontmatter(raw).meta, 'date')
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined
-  const date = new Date(`${value}T12:00:00Z`)
-  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date.getTime() : undefined
+  return deriveDateFromMeta(parseFrontmatter(raw).meta)
 }
+
+const workoutItemsCache = new WeakMap<Record<string, string | unknown>, WorkoutItem[]>()
 
 /**
  * Pure front-matter shaping pass. Given the seeded-content entries, returns
@@ -55,11 +57,15 @@ export function deriveDate(raw: string): number | undefined {
 export function buildWorkoutItems(
   files: Record<string, string | unknown>,
 ): WorkoutItem[] {
-  return Object.entries(files).map(([path, fileContent]) => {
+  const cached = workoutItemsCache.get(files)
+  if (cached) return cached
+  const items = Object.entries(files).map(([path, fileContent]) => {
     const parts = path.split('/')
     const fileName = parts[parts.length - 1]!.replace('.md', '')
     const raw = fileContent as string
-    const titleOverride = getScalar(parseFrontmatter(raw).meta, 'title')
+    // Single frontmatter parse per file instead of 3 separate passes (WW-036).
+    const { meta } = parseFrontmatter(raw)
+    const titleOverride = getScalar(meta, 'title')
     return {
       id: path,
       name: fileName,
@@ -68,10 +74,12 @@ export function buildWorkoutItems(
         : fileToDisplayName(fileName),
       category: deriveCategory(parts),
       content: raw,
-      date: deriveDate(raw),
-      searchHidden: deriveSearchHidden(raw),
+      date: deriveDateFromMeta(meta),
+      searchHidden: String(getScalar(meta, 'search') ?? '').toLowerCase() === 'hidden',
     }
   })
+  workoutItemsCache.set(files, items)
+  return items
 }
 
 /**

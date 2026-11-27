@@ -164,4 +164,71 @@ describe('NotePromotionSheet', () => {
 
     await storage.close();
   });
+
+  it('lists existing notebook/custom membership in the sheet and allows removing it', async () => {
+    const storage = new SqlStorage(libsqlDatabase(createClient({ url: ':memory:' })));
+    const now = Date.now();
+    await storage.readwrite('notes').put({
+      id: 'notebook/custom',
+      title: 'Custom',
+      rawContent: '# Custom',
+      sourceRevision: 1,
+      blocks: {},
+      type: 'note',
+      notebookId: 'notebook/custom',
+      notebookIds: ['notebook/custom'],
+      seedOrigin: 'user',
+      createdAt: now,
+    });
+    await storage.readwrite('notes').put({
+      id: 'notebook/qa-kettlebell',
+      title: 'QA Kettlebell',
+      rawContent: '# QA Kettlebell',
+      sourceRevision: 1,
+      blocks: {},
+      type: 'note',
+      notebookId: 'notebook/qa-kettlebell',
+      notebookIds: ['notebook/qa-kettlebell'],
+      seedOrigin: 'user',
+      createdAt: now,
+    });
+    await storage.readwrite('notes').put({
+      id: 'note-with-custom',
+      title: 'My Custom Note',
+      rawContent: '# My Custom Note',
+      sourceRevision: 1,
+      blocks: {},
+      type: 'journal',
+      notebookId: 'notebook/qa-kettlebell',
+      notebookIds: ['notebook/qa-kettlebell', 'notebook/custom'],
+      seedOrigin: 'user',
+      createdAt: now,
+    });
+
+    render(
+      <MemoryRouter>
+        <PublicationPill
+          noteId="note-with-custom"
+          storageOverride={storage}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByTestId('publication-pill'));
+    const customRow = await waitFor(() => screen.getByTestId('promotion-notebook-chip-notebook/custom'));
+    expect(customRow.textContent).toContain('Custom');
+    expect(customRow.textContent).toContain('Private');
+    // Custom membership is non-publishable (no public toggle), but clicking the row removes membership.
+    expect(customRow.querySelector('input[type="checkbox"]')).toBeNull();
+
+    const toggleBtn = customRow.querySelector('button')!;
+    fireEvent.click(toggleBtn);
+    await waitFor(async () => {
+      const updated = await storage.readonly('notes').get('note-with-custom');
+      expect(updated?.notebookIds ?? []).not.toContain('notebook/custom');
+      expect(updated?.notebookIds ?? []).toContain('notebook/qa-kettlebell');
+    });
+
+    await storage.close();
+  });
 });
