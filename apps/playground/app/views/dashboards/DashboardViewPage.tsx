@@ -46,6 +46,7 @@ import { dashboardNotes } from '../../services/dashboardNotes';
 import { notifyDashboardsChanged } from '../../services/dashboardEvents';
 import { parseFrontmatter, serializeFrontmatter } from '@/lib/frontmatter';
 import { storageService } from '@/services/storage';
+import { toast } from '@/hooks/use-toast';
 import { setSurfaceBusy } from '@/agent/surfaceBridges';
 import { onSampleDataChanged } from '@/services/analytics/sample';
 import { onResultSaved } from '@/services/resultRecorder';
@@ -233,11 +234,31 @@ export function DashboardViewPage() {
     setConfirmDeleteOpen(false);
     void navigate(dashboardsPath());
   }, [source, navigate]);
+  const [cloning, setCloning] = useState(false);
+  const cloningRef = useRef(false);
   const handleClone = useCallback(async () => {
-    if (!source || source.editable) return;
-    await dashboardNotes.cloneDashboard(source.slug, source.rawContent, source.title);
-    notifyDashboardsChanged();
-    setRefreshKey((k) => k + 1); // re-resolve → vault clone shadows the seed
+    if (!source || source.editable || cloningRef.current) return;
+    cloningRef.current = true;
+    setCloning(true);
+    try {
+      await dashboardNotes.cloneDashboard(source.slug, source.rawContent, source.title);
+      notifyDashboardsChanged();
+      setRefreshKey((k) => k + 1); // re-resolve → vault clone shadows the seed
+      toast({
+        title: 'Cloned to vault',
+        description: `"${source.title}" is now an editable dashboard in your vault.`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Could not clone dashboard',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+      throw err;
+    } finally {
+      cloningRef.current = false;
+      setCloning(false);
+    }
   }, [source]);
   const handleCopyLink = useCallback(() => {
     void navigator.clipboard?.writeText(window.location.href)
@@ -300,10 +321,12 @@ export function DashboardViewPage() {
               ? [
                   {
                     id: 'helpful-clone',
-                    label: 'Clone to vault',
+                    label: cloning ? 'Cloning…' : 'Clone to vault',
                     testId: TEST_IDS.L3_DASHBOARD_CLONE,
                     group: 'primary' as const,
-                    onRun: () => void handleClone(),
+                    onRun: () => {
+                      if (!cloning) void handleClone().catch(() => {});
+                    },
                   },
                 ]
               : []),
@@ -317,7 +340,7 @@ export function DashboardViewPage() {
     ];
     setL3Actions?.(actions as L3ActionItem[]);
     return () => setL3Actions?.([]);
-  }, [editMode, source, handleClone, handleCopyLink, setL3Actions]);
+  }, [editMode, cloning, source, handleClone, handleCopyLink, setL3Actions]);
 
   // Outline clicks scroll and flash. The component `document` (parsed
   // DashboardDocument) shadows the DOM global here — hence globalThis.
@@ -628,10 +651,12 @@ export function DashboardViewPage() {
             <button
               type="button"
               data-testid="clone-dashboard"
-              onClick={handleClone}
-              className="font-medium text-primary hover:text-primary/80 transition-colors"
+              disabled={cloning}
+              aria-busy={cloning}
+              onClick={() => { void handleClone().catch(() => {}); }}
+              className="font-medium text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
             >
-              Clone to vault
+              {cloning ? 'Cloning…' : 'Clone to vault'}
             </button>
           </div>
         )}
@@ -771,15 +796,19 @@ export function DashboardViewPage() {
             <button
               type="button"
               data-testid="inspect-clone"
+              disabled={cloning}
+              aria-busy={cloning}
               onClick={() => {
-                void handleClone().then(() => {
-                  setComposer(null);
-                  setEditMode(true);
-                });
+                void handleClone()
+                  .then(() => {
+                    setComposer(null);
+                    setEditMode(true);
+                  })
+                  .catch(() => {});
               }}
-              className="px-3 py-1.5 text-xs font-medium text-primary hover:text-primary/80 rounded-lg border border-primary/40 hover:bg-primary/10 transition-colors"
+              className="px-3 py-1.5 text-xs font-medium text-primary hover:text-primary/80 rounded-lg border border-primary/40 hover:bg-primary/10 transition-colors disabled:opacity-50"
             >
-              Clone to vault to edit
+              {cloning ? 'Cloning…' : 'Clone to vault to edit'}
             </button>
           ) : undefined
         }

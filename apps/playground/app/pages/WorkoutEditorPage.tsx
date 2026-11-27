@@ -82,6 +82,14 @@ export interface WorkoutEditorPageProps {
   onScrollToSection?: (id: string) => void
 }
 
+function slugifyNoteTitle(raw: string): string {
+  return raw
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
 export function WorkoutEditorPage({
   category,
   name,
@@ -93,6 +101,11 @@ export function WorkoutEditorPage({
 }: WorkoutEditorPageProps) {
   const usePopup = runMode ? runMode === 'inline' : INLINE_RUNTIME_CATEGORIES.has(category)
   const isNotebookItem = !NOTEBOOK_EXCLUDED_CATEGORIES[category]
+  const hasBundledContent = mdContent.trim().length > 0
+  // Deep links to `/notebook/:slug/:target` (including `journal` / `playground`)
+  // must resolve existing member notes instead of fabricating empty placeholder
+  // notes in IndexedDB when no bundled markdown exists.
+  const shouldResolveLocalNotebook = isNotebookItem || (!hasBundledContent && category !== 'canvas' && category !== 'syntax')
   const noteId = pageId(category, name)
   const navigate = useNavigate()
   const { openPeek, closePeek } = useNav()
@@ -101,19 +114,18 @@ export function WorkoutEditorPage({
   const remoteParam = searchParams.get('remote') ?? undefined
   const [storedNote, setStoredNote] = useState<Note | null>(null)
   const [resolvedRemote, setResolvedRemote] = useState<ResolvedRemoteWorkout | null>(null)
-  const [resolvingNote, setResolvingNote] = useState(isNotebookItem)
+  const [resolvingNote, setResolvingNote] = useState(shouldResolveLocalNotebook)
   const [remoteLoading, setRemoteLoading] = useState(false)
   const [remoteError, setRemoteError] = useState<string | null>(null)
   const [remoteRetryTick, setRemoteRetryTick] = useState(0)
   const [sessions, setSessions] = useState<Session[]>([])
   const [forkOpen, setForkOpen] = useState(false)
-  // seedOnMount: collections are read-only bundled content — viewing one
-  // must not create an undated ghost note in the library (#856). Journal
-  // categories keep the seed (navigate-to-today creates the day's note).
-  const { content, loading, entryId, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange, onLineChange, onBlur, flush, committedSourceRevision } = usePlaygroundContent({ category, name, mdContent, seedOnMount: !isNotebookItem })
+  // seedOnMount: never fabricate an empty ghost note in IndexedDB when a
+  // deep link has no bundled markdown content (e.g. `/notebook/journal/my-workout`).
+  const { content, loading, entryId, noteBlocks, sourceRevision, onIdentityChange, onSaved, error, onChange, onLineChange, onBlur, flush, committedSourceRevision } = usePlaygroundContent({ category, name, mdContent, seedOnMount: !isNotebookItem && hasBundledContent })
 
   useEffect(() => {
-    if (!isNotebookItem) {
+    if (!shouldResolveLocalNotebook) {
       setStoredNote(null)
       setResolvedRemote(null)
       setRemoteError(null)
@@ -128,8 +140,13 @@ export function WorkoutEditorPage({
     setRemoteError(null)
     const resolveLocalOrRemote = async () => {
       try {
+        const decodedName = (() => {
+          try { return decodeURIComponent(name) } catch { return name }
+        })()
         const targetId = remoteParam ?? noteId
-        const direct = await storageService.getNote(targetId).catch(() => undefined)
+        const direct =
+          (await storageService.getNote(targetId).catch(() => undefined)) ??
+          (decodedName !== targetId ? await storageService.getNote(decodedName).catch(() => undefined) : undefined)
         if (cancelled) return
         if (direct) {
           setStoredNote(direct)
@@ -139,10 +156,20 @@ export function WorkoutEditorPage({
         const allNotes = await storageService.getAllNotes().catch(() => [] as Note[])
         if (cancelled) return
         const nbId = toNotebookId(category)
+        const nameLower = decodedName.toLowerCase()
+        const nameSlug = slugifyNoteTitle(decodedName)
+        const inNotebook = (n: Note): boolean =>
+          n.notebookId === nbId ||
+          Boolean(n.notebookIds?.includes(nbId)) ||
+          (category === 'journal' && (n.type === 'journal' || !n.notebookId))
         const matched = allNotes.find((n) =>
-          (n.id === remoteParam) ||
-          (n.sourceId === `notebook:${category}/${name}`) ||
-          (n.notebookIds?.includes(nbId) && n.title?.toLowerCase() === name.toLowerCase()),
+          (remoteParam && n.id === remoteParam) ||
+          n.id === decodedName ||
+          (n.sourceId === `notebook:${category}/${decodedName}`) ||
+          (inNotebook(n) && (
+            n.title?.toLowerCase() === nameLower ||
+            (nameSlug.length > 0 && slugifyNoteTitle(n.title ?? '') === nameSlug)
+          )),
         )
         if (matched) {
           setStoredNote(matched)
@@ -150,6 +177,9 @@ export function WorkoutEditorPage({
           return
         }
         if (mdContent && mdContent.trim().length > 0) {
+          return
+        }
+        if (!isNotebookItem) {
           return
         }
         const remoteCandidates = await playgroundFeedCatalogStore
@@ -200,7 +230,7 @@ export function WorkoutEditorPage({
     return () => {
       cancelled = true
     }
-  }, [isNotebookItem, remoteParam, feedParam, noteId, category, name, mdContent, remoteRetryTick])
+  }, [shouldResolveLocalNotebook, isNotebookItem, remoteParam, feedParam, noteId, category, name, mdContent, remoteRetryTick])
 
   const effectiveContent = resolvedRemote?.note.rawContent ?? storedNote?.rawContent ?? content
   const effectiveBlocks = resolvedRemote?.note.blocks ?? storedNote?.blocks ?? noteBlocks

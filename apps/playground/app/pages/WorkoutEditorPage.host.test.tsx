@@ -101,4 +101,41 @@ describe('WorkoutEditorPage virtual cloud workout start (P0 regression fix)', ()
       spy.mockRestore();
     }
   });
+
+  it('resolves existing member note by slugified title on /notebook/journal/:target without fabricating empty placeholder notes', async () => {
+    const existingId = '784250e6-fbd6-5344-97af-267ae3df6ed1';
+    const rawContent = '# My Workout\n\n```time\n5:00\n  10 Burpees\n```\n';
+    const host = await renderWithPlaygroundHost(
+      <WorkoutEditorPage category="journal" name="my-workout" mdContent="" theme="light" />,
+      {
+        route: '/notebook/journal/my-workout',
+        world: {
+          notes: [
+            {
+              id: existingId,
+              title: 'My Workout',
+              rawContent,
+              sourceRevision: 1,
+              type: 'journal',
+              notebookId: 'notebook/journal',
+              notebookIds: ['notebook/journal'],
+              seedOrigin: 'user',
+              createdAt: Date.now(),
+            },
+          ],
+        },
+      },
+    );
+    activeHosts.push(host);
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/My Workout/i).length).toBeGreaterThan(0);
+    });
+
+    // Wait past autosave debounce and verify zero fabricated placeholder notes exist.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const allNotes = await host.storage.readonly('notes').getAll();
+    expect(allNotes.find((n) => n.id === 'journal/my-workout')).toBeUndefined();
+    expect(allNotes.filter((n) => n.id === existingId)).toHaveLength(1);
+  });
 });

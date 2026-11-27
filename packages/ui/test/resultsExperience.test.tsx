@@ -608,6 +608,20 @@ describe('Results Experience Phase 2 UI components', () => {
               },
             ],
           },
+          {
+            id: 'ev-analytics-vol',
+            outputType: 'analytics',
+            sourceBlockKey: 'analytics-2',
+            timeSpan: { started: t0, ended: t0 + 51_000 },
+            metrics: [
+              {
+                type: 'totalVolume',
+                value: 360,
+                origin: 'runtime',
+                metadata: { canonicalKey: 'totalVolume', originalKey: 'totalVolume' },
+              },
+            ],
+          },
         ]}
       />,
     );
@@ -621,5 +635,25 @@ describe('Results Experience Phase 2 UI components', () => {
     expect(text).not.toContain('15.45 m/s1.08');
     expect(text).not.toContain('20:0000:51');
     expect(text).toContain('1:05 /km');
+
+    // WW-092 follow-up:
+    // 1. Time cell does not append composite wall-clock '· HH:MM:SS' text
+    const headers = Array.from(container.querySelectorAll('thead th')).map((th) => th.textContent ?? '');
+    const timeColIdx = headers.findIndex((h) => h.includes('Time'));
+    const loadColIdx = headers.findIndex((h) => h.includes('Load'));
+    const summaryColIdx = headers.findIndex((h) => h.includes('Summary'));
+    expect(timeColIdx).toBeGreaterThanOrEqual(0);
+    expect(loadColIdx).toBeGreaterThanOrEqual(0);
+    expect(summaryColIdx).toBeGreaterThanOrEqual(0);
+
+    const bodyRows = Array.from(container.querySelectorAll('tbody tr'));
+    const runCells = Array.from(bodyRows[0]!.querySelectorAll('td')).map((td) => td.textContent ?? '');
+    expect(runCells[timeColIdx]).not.toContain('·');
+    // 2. MET-min never lands in the Load column
+    expect(runCells[loadColIdx]).toContain('24 kg');
+    expect(runCells[loadColIdx]).not.toContain('MET-min');
+    // 3. Analytics summary rows consolidate into Summary column with inferred units (no bare unitless 360)
+    const volCells = Array.from(bodyRows[2]!.querySelectorAll('td')).map((td) => td.textContent ?? '');
+    expect(volCells[summaryColIdx]).toContain('360 kg');
   });
 });

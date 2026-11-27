@@ -110,13 +110,28 @@ export function NotebookItemPage({
     const targetSourceId = `notebook:${slug}/${itemDate}/${item}`;
     const resolveLocalOrRemote = async () => {
       try {
+        const decodedItem = (() => {
+          try { return decodeURIComponent(item); } catch { return item; }
+        })();
+        const itemLower = decodedItem.toLowerCase();
+        const itemSlug = itemLower.trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const nbId = toNotebookId(slug);
         const notes = await storageService.getAllNotes().catch(() => [] as Note[]);
         if (cancelled) return;
+        const inNotebook = (n: Note): boolean =>
+          n.notebookId === nbId ||
+          Boolean(n.notebookIds?.includes(nbId)) ||
+          (slug === 'journal' && (n.type === 'journal' || !n.notebookId));
         const found = notes.find(
           (n) =>
             (remoteParam && n.id === remoteParam) ||
+            n.id === decodedItem ||
             n.sourceId === targetSourceId ||
-            n.sourcePath?.includes(`${slug}/${itemDate}/${item}`),
+            n.sourcePath?.includes(`${slug}/${itemDate}/${decodedItem}`) ||
+            (inNotebook(n) && (
+              n.title?.toLowerCase() === itemLower ||
+              (itemSlug.length > 0 && n.title?.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') === itemSlug)
+            )),
         );
         if (found) {
           setStoredNote(found);

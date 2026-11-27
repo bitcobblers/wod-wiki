@@ -71,4 +71,21 @@ describe('WW-066 — CastButtonRpc user-visible feedback', () => {
       );
     });
   });
+
+  it('shows a clear non-destructive toast when no Cast receiver is available', async () => {
+    mockBackendState = 'ready';
+    startSessionMock.mockRejectedValueOnce({ code: 'receiver_unavailable' });
+    render(<CastButtonRpc />);
+
+    const btn = screen.getByRole('button', { name: 'Cast to TV' });
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'No Cast receiver available',
+        }),
+      );
+    });
+  });
 });

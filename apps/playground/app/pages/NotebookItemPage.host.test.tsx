@@ -101,4 +101,36 @@ describe('NotebookItemPage virtual cloud workout start (P0 regression fix)', () 
       spy.mockRestore();
     }
   });
+
+  it('resolves an existing member note by UUID on /notebook/:slug/:itemDate/:item instead of showing Workout unavailable', async () => {
+    const existingId = '784250e6-fbd6-5344-97af-267ae3df6ed1';
+    const rawContent = '# My Workout\n\n```time\n5:00\n  10 Burpees\n```\n';
+    const host = await renderWithPlaygroundHost(
+      <NotebookItemPage slug="journal" itemDate="2026-11-27" item={existingId} theme="light" />,
+      {
+        route: `/notebook/journal/2026-11-27/${existingId}`,
+        world: {
+          notes: [
+            {
+              id: existingId,
+              title: 'My Workout',
+              rawContent,
+              sourceRevision: 1,
+              type: 'journal',
+              notebookId: 'notebook/journal',
+              notebookIds: ['notebook/journal'],
+              seedOrigin: 'user',
+              createdAt: Date.now(),
+            },
+          ],
+        },
+      },
+    );
+    activeHosts.push(host);
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/My Workout/i).length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText('Workout unavailable')).toBeNull();
+  });
 });

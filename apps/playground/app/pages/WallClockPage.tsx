@@ -9,6 +9,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { FileQuestion, Home } from 'lucide-react'
+import { v7 as uuidv7 } from 'uuid'
 import { KNOWN_SECTION_WIDGETS, parseDocumentSections } from '@bitcobblers/wod-wiki-core'
 import { createParser, type IScriptRuntime } from '@bitcobblers/wod-wiki-engine'
 import { parseNoteId, noteRefToPath } from '@/lib/noteIdentity'
@@ -85,6 +86,12 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
   const [coldLoading, setColdLoading] = useState<boolean>(() => !initial.pending && Boolean(coldNoteParam))
   const [coldBootPending, setColdBootPending] = useState<PendingRuntime | undefined>(undefined)
   const captureRef = useRef<CapturedRun | null>(initial.pending?.captured ?? null)
+  // Effective result ID for this run — starts as `runtimeId`, but automatically
+  // branches to a fresh UUIDv7 if `runtimeId` already exists in IndexedDB (e.g.
+  // resuming from a saved partial reload session) so Retry never dead-ends.
+  const [effectiveResultId, setEffectiveResultId] = useState<string | undefined>(runtimeId)
+  const effectiveResultIdRef = useRef<string | undefined>(runtimeId)
+  const [hydratedNoteMeta, setHydratedNoteMeta] = useState<{ title?: string; sessionDate?: string } | null>(null)
   // Flips true once the run completes or is explicitly closed so unmount
   // disposes finished runtimes instead of parking them for Back/Forward resume.
   const discardRunRef = useRef(false)
@@ -148,17 +155,29 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
     const pending = pendingRef.current;
     if (!pending || !runtimeId) throw new Error('The pending workout is unavailable.');
     if (pending.captured) { captureRef.current = pending.captured; return pending.captured.block; }
-    if (!captureRef.current) captureRef.current = pending.snapshot
-      ? await captureRun(pending.snapshot, pending.block, runtimeId, pending.origin, undefined, {
-          deferPersist: true,
-          ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
-          ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
-        })
-      : await captureStoredRun(pending.noteId, pending.block, runtimeId, pending.origin, {
-          deferPersist: true,
-          ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
-          ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
-        });
+    let targetResultId = effectiveResultIdRef.current ?? runtimeId;
+    if (!captureRef.current) {
+      // Guard against resuming a URL whose sessionId is already persisted in
+      // IndexedDB (e.g. partial session saved on reload) — branch to a fresh
+      // continuation UUID instead of looping on "Session already exists".
+      const existing = await storageService.getSessionById(targetResultId).catch(() => undefined);
+      if (existing) {
+        targetResultId = uuidv7();
+        effectiveResultIdRef.current = targetResultId;
+        setEffectiveResultId(targetResultId);
+      }
+      captureRef.current = pending.snapshot
+        ? await captureRun(pending.snapshot, pending.block, targetResultId, pending.origin, undefined, {
+            deferPersist: true,
+            ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+            ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
+          })
+        : await captureStoredRun(pending.noteId, pending.block, targetResultId, pending.origin, {
+            deferPersist: true,
+            ...(pending.scheduleItemId ? { scheduleItemId: pending.scheduleItemId } : {}),
+            ...(pending.sessionDate ? { sessionDate: pending.sessionDate } : {}),
+          });
+    }
     return captureRef.current.block;
   }, [runtimeId]);
 
@@ -168,6 +187,32 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
   }, [runtimeId])
 
   const pending = initial.pending ?? coldBootPending
+  useEffect(() => {
+    const targetNoteId = pending?.noteId;
+    if (!targetNoteId) {
+      setHydratedNoteMeta(null);
+      return;
+    }
+    let cancelled = false;
+    storageService
+      .getNote(targetNoteId)
+      .then((note) => {
+        if (cancelled || !note) return;
+        const ts = note.date;
+        const sessionDate =
+          typeof ts === 'number' && Number.isFinite(ts)
+            ? new Date(ts).toISOString().slice(0, 10)
+            : undefined;
+        setHydratedNoteMeta({
+          ...(note.title ? { title: note.title } : {}),
+          ...(sessionDate ? { sessionDate } : {}),
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [pending?.noteId]);
   // The run reached natural completion — its review/queue dismissal routes to
   // the session detail (navigation is deferred until the overlay closes so
   // the post-run queue can run).
@@ -179,12 +224,13 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
       if (!results || !runtimeId || !pending) {
         return Promise.reject(new Error('Run cannot be saved — its session data or runtime id is missing.'))
       }
+      const saveResultId = effectiveResultIdRef.current ?? runtimeId;
       completedRef.current = results.completed
       return playgroundRecorder.record({
         runBlock: pending.block,
         blockId: pending.block.id,
         noteId: pending.noteId,
-        resultId: runtimeId,
+        resultId: saveResultId,
         ...(pending.block.content ? { blockContent: pending.block.content } : {}),
         ...(pending.block.dialect ? { blockDialect: pending.block.dialect } : {}),
         ...(pending.block.sport ? { blockSport: pending.block.sport } : {}),
@@ -199,7 +245,7 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
         clearParkedRun(runtimeId)
         if (results.completed) {
           try {
-            await injectSessionQueryIntoNote(pending.noteId, pending.block.id, runtimeId);
+            await injectSessionQueryIntoNote(pending.noteId, pending.block.id, saveResultId);
           } catch {
             // Best-effort post-run query injection
           }
@@ -217,8 +263,8 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
     if (!pending) { void navigate('/'); return }
     // A completed run's review/queue has been dismissed — the deferred
     // destination is the session detail page.
-    if (completedRef.current && runtimeId) {
-      void navigate(sessionDetailPath(runtimeId), { replace: true })
+    if (completedRef.current && (effectiveResultIdRef.current ?? runtimeId)) {
+      void navigate(sessionDetailPath((effectiveResultIdRef.current ?? runtimeId)!), { replace: true })
       return
     }
     if (pending.returnTo) {
@@ -331,11 +377,17 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
   }
 
   const noteContent = pending.captured?.note.rawContent ?? pending.snapshot?.rawContent;
+  const resolvedSessionDate = pending.sessionDate ?? hydratedNoteMeta?.sessionDate;
+  const resolvedNoteTitle = pending.captured?.note.title ?? hydratedNoteMeta?.title;
   const attributionLabel = pending.scheduleItemId
-    ? `Scheduled${pending.sessionDate ? ` · ${pending.sessionDate}` : ''}`
-    : pending.sessionDate
-      ? `Logged for ${pending.sessionDate}`
-      : 'Ad-hoc · Today';
+    ? `Scheduled${resolvedSessionDate ? ` · ${resolvedSessionDate}` : ''}`
+    : resolvedNoteTitle && resolvedSessionDate
+      ? `${resolvedNoteTitle} · ${resolvedSessionDate}`
+      : resolvedSessionDate
+        ? `Logged for ${resolvedSessionDate}`
+        : resolvedNoteTitle
+          ? `${resolvedNoteTitle} · Today`
+          : 'Ad-hoc · Today';
 
   return (
     <main data-agent-status="ready" aria-busy={false} className="contents">
@@ -351,7 +403,7 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
         prepareRun={prepareRun}
         onClose={handleClose}
         onCompleteWorkout={handleComplete}
-        resultId={runtimeId}
+        resultId={effectiveResultId ?? runtimeId}
         noteId={pending.noteId}
         autoStart
         adoptRuntime={initial.adoptedRuntime}

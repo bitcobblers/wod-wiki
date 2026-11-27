@@ -603,4 +603,63 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
     expect(getLiveRunCheckpoint('note-ww142')).toBeNull();
     expect(screen.queryByTestId('halted-run-notice')).toBeNull();
   });
+
+  it('resumes from a saved partial-reload checkpoint using a fresh continuation runtimeId instead of reusing the persisted sessionId', async () => {
+    const { pendingRuntimes } = await import('../../../../app/runtimeStore');
+    pendingRuntimes.clear();
+
+    const persistedSessionId = '01a21b00-6ee9-756d-bd7d-fabca4e7c40d';
+    recordHaltedRun({
+      sessionId: persistedSessionId,
+      noteId: 'note-resume-1',
+      workoutTitle: 'QA Runtime Workout 2099',
+      timestamp: Date.now(),
+      elapsedMs: 37_000,
+    });
+    saveLiveRunCheckpoint({
+      sessionId: persistedSessionId,
+      noteId: 'note-resume-1',
+      blockId: 'block-1',
+      blockContent: '10:00\n  10 Burpees',
+      workoutTitle: 'QA Runtime Workout 2099',
+      startedAt: Date.now() - 37_000,
+      lastCheckpointAt: Date.now(),
+      elapsedMs: 37_000,
+      status: 'running',
+      stepCount: 2,
+    });
+
+    let navigatedTo = '';
+    render(
+      <MemoryRouter initialEntries={['/note/note-resume-1']}>
+        <Routes>
+          <Route path="/note/:noteId" element={<HaltedRunNotice noteId="note-resume-1" />} />
+          <Route
+            path="/run/:runtimeId"
+            element={
+              <div
+                ref={(el) => {
+                  if (el) navigatedTo = el.dataset.path ?? '';
+                }}
+                data-testid="resumed-run-route"
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const resumeBtn = screen.getByTestId(TEST_IDS.LIVE_RUN_RESUME);
+    fireEvent.click(resumeBtn);
+
+    await waitFor(() => expect(screen.getByTestId('resumed-run-route')).toBeDefined());
+    // Must NOT reuse the already-persisted partial sessionId (which causes "Session already exists").
+    expect(pendingRuntimes.has(persistedSessionId)).toBe(false);
+    expect(pendingRuntimes.size).toBe(1);
+    const [[allocatedId, entry]] = Array.from(pendingRuntimes.entries());
+    expect(allocatedId).not.toBe(persistedSessionId);
+    expect(entry.noteId).toBe('note-resume-1');
+    expect(navigatedTo).toBe('');
+    pendingRuntimes.clear();
+  });
 });

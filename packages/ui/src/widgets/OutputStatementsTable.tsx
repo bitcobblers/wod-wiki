@@ -86,15 +86,83 @@ function formatDecimalPace(minutesPerUnit: number, unit: string): string {
   return `${mins}:${String(secs).padStart(2, '0')} ${suffix}`;
 }
 
+const CANONICAL_METRIC_UNITS: Record<string, string> = {
+  metminutes: 'MET-min',
+  'calc.metminutes': 'MET-min',
+  sessionload: 'AU',
+  'calc.sessionload': 'AU',
+  tis: 'pts',
+  'calc.tis': 'pts',
+  totalvolume: 'kg',
+  'calc.totalvolume': 'kg',
+  totalwork: 'kg',
+  'calc.totalwork': 'kg',
+  reps: 'reps',
+  totalreps: 'reps',
+  'calc.totalreps': 'reps',
+};
+
+function inferCanonicalUnit(m: IMetric): string | undefined {
+  if (typeof m.unit === 'string' && m.unit.trim().length > 0) return m.unit;
+  const meta = m.metadata as Record<string, unknown> | undefined;
+  const candidates = [
+    typeof meta?.canonicalKey === 'string' ? meta.canonicalKey : '',
+    typeof meta?.originalKey === 'string' ? meta.originalKey : '',
+    String(m.type ?? ''),
+  ];
+  for (const raw of candidates) {
+    const key = raw.trim().toLowerCase();
+    if (key && CANONICAL_METRIC_UNITS[key]) return CANONICAL_METRIC_UNITS[key];
+  }
+  return undefined;
+}
+
+function isMetMinutesMetric(m: IMetric): boolean {
+  const unitLower = String(m.unit ?? '').trim().toLowerCase();
+  if (unitLower === 'met-min') return true;
+  const typeLower = String(m.type ?? '').trim().toLowerCase();
+  if (typeLower.includes('metminute')) return true;
+  const meta = m.metadata as Record<string, unknown> | undefined;
+  const ck = String(meta?.canonicalKey ?? meta?.originalKey ?? '').trim().toLowerCase();
+  return ck.includes('metminute');
+}
+
+const INTERNAL_AUX_METRIC_TYPES = new Set(['metminutesestimated', 'rpeestimated']);
+
+function isInternalAuxMetric(m: IMetric): boolean {
+  return INTERNAL_AUX_METRIC_TYPES.has(String(m.type ?? '').trim().toLowerCase());
+}
+
 function sanitizeMetricForDisplay(m: IMetric): IMetric {
   if (typeof m.value !== 'number' || !Number.isFinite(m.value) || m.image !== undefined) return m;
-  const unitLower = String(m.unit ?? '').trim().toLowerCase();
-  if (String(m.type ?? '').toLowerCase() === 'pace' && (unitLower === 'min/km' || unitLower === 'min/mi')) {
+  const typeLower = String(m.type ?? '').toLowerCase();
+  const inferredUnit = inferCanonicalUnit(m);
+  const unitLower = String(inferredUnit ?? '').trim().toLowerCase();
+  if (typeLower === 'pace' && (unitLower === 'min/km' || unitLower === 'min/mi')) {
     const formatted = formatDecimalPace(m.value, unitLower);
-    return { ...m, image: formatted };
+    return { ...m, ...(inferredUnit ? { unit: inferredUnit } : {}), image: formatted };
   }
   const rounded = Math.round(m.value * 100) / 100;
-  return rounded === m.value ? m : { ...m, value: rounded };
+  // Format numeric metrics carrying an explicit or canonical unit so Raw Events
+  // & Analytics summary cells never render bare unitless numbers (WW-092).
+  const skipUnitImage =
+    typeLower === 'duration' ||
+    typeLower === 'time' ||
+    typeLower === 'elapsed' ||
+    typeLower === 'rounds' ||
+    typeLower === 'current-round' ||
+    typeLower === 'rep';
+  const formattedImage =
+    inferredUnit && !skipUnitImage
+      ? `${rounded} ${inferredUnit}`
+      : undefined;
+  if (rounded === m.value && inferredUnit === m.unit && formattedImage === undefined) return m;
+  return {
+    ...m,
+    value: rounded,
+    ...(inferredUnit && !m.unit ? { unit: inferredUnit } : {}),
+    ...(formattedImage ? { image: formattedImage } : {}),
+  };
 }
 
 /** Metric badges for a statement/output metric group. */
@@ -586,6 +654,7 @@ type BuiltinColKind =
   | 'rounds'
   | 'durations'
   | 'distances'
+  | 'summary'
   | 'hints'
   | 'metric';
 
@@ -668,13 +737,34 @@ function buildActiveColumns(
     return out.length > 0 ? out : [...BASE_COLUMNS];
   }
 
-  // Discover any custom / Property Note / #tag numeric metrics not covered by
-  // the 9 built-in buckets (e.g. calc.e1rm, pace, rpe, watts, cadence).
+  // Discover any custom / Property Note / #tag numeric metrics on non-analytics
+  // rows not covered by the 9 built-in buckets (e.g. pace, rpe, power, metMinutes).
+  // Analytics summary rows use a single consolidated Summary column instead of
+  // spawning 1-row sparse columns across the whole event table (WW-092).
   const dynamicCols: SessionColumnDef[] = [];
   const seenDynamic = new Set<string>();
+  let hasAnalyticsRows = false;
   for (const row of outputs) {
     if (!row.metrics) continue;
+    if (String(row.outputType ?? '').toLowerCase() === 'analytics') {
+      hasAnalyticsRows = true;
+      continue;
+    }
     for (const m of row.metrics) {
+      if (isInternalAuxMetric(m)) continue;
+      if (isMetMinutesMetric(m)) {
+        if (!seenDynamic.has('metminutes')) {
+          seenDynamic.add('metminutes');
+          dynamicCols.push({
+            id: 'metMinutes',
+            kind: 'metric',
+            header: 'MET-min',
+            className: 'p-2 font-sans min-w-[78px]',
+            metricTypeLower: 'metminutes',
+          });
+        }
+        continue;
+      }
       const rawType = String(m.type ?? '').trim();
       if (!rawType) continue;
       const lower = rawType.toLowerCase();
@@ -686,9 +776,14 @@ function buildActiveColumns(
     }
   }
 
-  if (dynamicCols.length === 0) return [...BASE_COLUMNS];
+  const summaryCols: SessionColumnDef[] = hasAnalyticsRows
+    ? [{ id: 'summary', kind: 'summary', header: 'Summary', className: 'p-2 font-sans min-w-[96px]' }]
+    : [];
+
+  if (dynamicCols.length === 0 && summaryCols.length === 0) return [...BASE_COLUMNS];
   return [
     ...BASE_COLUMNS.slice(0, BASE_COLUMNS.length - 1),
+    ...summaryCols,
     ...dynamicCols,
     BASE_COLUMNS[BASE_COLUMNS.length - 1]!,
   ];
@@ -699,9 +794,20 @@ function extractMetricsForColumn(
   col: SessionColumnDef,
   dynamicLowerTypes: ReadonlySet<string>,
 ): IMetric[] {
-  const all = out.metrics ? Array.from(out.metrics) : [];
+  const all = out.metrics ? Array.from(out.metrics).filter((m) => !isInternalAuxMetric(m)) : [];
+  const isAnalyticsRow = String(out.outputType ?? '').toLowerCase() === 'analytics';
+  if (col.kind === 'summary') {
+    if (!isAnalyticsRow) return [];
+    return all.filter((m) => typeof m.value === 'number' && Number.isFinite(m.value));
+  }
   if (col.kind === 'metric' && col.metricTypeLower) {
-    const matched = all.filter((m) => String(m.type).toLowerCase() === col.metricTypeLower);
+    if (isAnalyticsRow) return [];
+    if (col.metricTypeLower === 'metminutes') {
+      return all.filter((m) => isMetMinutesMetric(m));
+    }
+    const matched = all.filter(
+      (m) => !isMetMinutesMetric(m) && String(m.type).toLowerCase() === col.metricTypeLower,
+    );
     // Avoid concatenating both speed (m/s) and pace (min/km) in the same Pace cell (WW-092).
     if (col.metricTypeLower === 'pace' && matched.length > 1) {
       const preferred = matched.filter((m) => {
@@ -725,24 +831,31 @@ function extractMetricsForColumn(
       return [];
     }
     case 'reps':
+      if (isAnalyticsRow) return [];
       return all.filter((m) => {
         const t = String(m.type).toLowerCase();
         return t === 'rep' || t === 'reps';
       });
     case 'loads':
+      if (isAnalyticsRow) return [];
       return all.filter((m) => {
+        if (isMetMinutesMetric(m)) return false;
         const t = String(m.type).toLowerCase();
         if (dynamicLowerTypes.has(t)) return false;
         if (LOAD_TYPES.has(t)) return true;
         return !isBaseBucketType(t) && typeof m.value === 'number';
       });
     case 'rounds':
+      if (isAnalyticsRow) return [];
       return all.filter((m) => ROUND_TYPES.has(String(m.type).toLowerCase()));
     case 'durations':
+      if (isAnalyticsRow) return [];
       return all.filter((m) => DURATION_TYPES.has(String(m.type).toLowerCase()));
     case 'distances':
+      if (isAnalyticsRow) return [];
       return all.filter((m) => String(m.type).toLowerCase() === 'distance');
     case 'hints':
+      if (isAnalyticsRow) return [];
       return all.filter((m) => {
         const t = String(m.type).toLowerCase();
         return HINT_TYPES.has(t) || (!isBaseBucketType(t) && typeof m.value !== 'number');
@@ -1331,15 +1444,15 @@ export function OutputStatementsTable({
 
                       if (col.kind === 'time') {
                         return (
-                          <td key={col.id} className="p-2 whitespace-nowrap leading-tight">
+                          <td
+                            key={col.id}
+                            title={wallTimeStr !== '—' ? `Recorded at ${wallTimeStr}` : undefined}
+                            className="p-2 whitespace-nowrap leading-tight"
+                          >
                             <div className="flex items-center gap-1.5 font-mono text-[11px]">
                               <span className="font-bold text-primary tabular-nums">{offsetStr}</span>
                               {' '}
                               <span className="text-[10px] text-muted-foreground/80 tabular-nums">({elapsedStr})</span>
-                            </div>
-                            <div className="font-mono text-[10px] text-muted-foreground/70 tabular-nums">
-                              <span className="sr-only"> · </span>
-                              {wallTimeStr}
                             </div>
                           </td>
                         );

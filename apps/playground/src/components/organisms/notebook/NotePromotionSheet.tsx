@@ -14,7 +14,9 @@ import { X } from 'lucide-react';
 import {
   derivePublicationStatusLabel,
   isNonPublishableNotebook,
+  isNotebookLanding,
   isPublishableNotebookLanding,
+  isSystemReadOnlyNotebook,
   notebookSlugFromId,
   toNotebookId,
   type Note,
@@ -75,6 +77,7 @@ interface UserNotebookRow {
   slug: string;
   title: string;
   isPublic: boolean;
+  canPublish: boolean;
 }
 
 
@@ -136,8 +139,12 @@ export function NotePromotionSheet({
         setProvenance(null);
       }
 
+      const landingById = new Map<NotebookId, Note>();
       const byId = new Map<NotebookId, UserNotebookRow>();
       for (const n of allNotes) {
+        if (isNotebookLanding(n)) {
+          landingById.set(toNotebookId(n.id), n);
+        }
         if (isPublishableNotebookLanding(n)) {
           const nbId = toNotebookId(n.id);
           byId.set(nbId, {
@@ -145,16 +152,24 @@ export function NotePromotionSheet({
             slug: notebookSlugFromId(nbId),
             title: n.title || notebookSlugFromId(nbId),
             isPublic: n.public === true,
+            canPublish: true,
           });
         }
       }
+      // Include every linked non-Journal user notebook (including `notebook/custom`
+      // and `notebook/playground`) so the sheet's membership list always matches
+      // the note's actual `notebookIds` and allows viewing/removing membership.
       for (const linked of currentLinks) {
-        if (!isNonPublishableNotebook(linked) && !byId.has(linked)) {
+        if (linked === 'notebook/journal' || isSystemReadOnlyNotebook(linked)) continue;
+        if (!byId.has(linked)) {
+          const landing = landingById.get(linked);
+          const slug = notebookSlugFromId(linked);
           byId.set(linked, {
             id: linked,
-            slug: notebookSlugFromId(linked),
-            title: notebookSlugFromId(linked),
-            isPublic: false,
+            slug,
+            title: landing?.title || (slug.charAt(0).toUpperCase() + slug.slice(1)),
+            isPublic: landing?.public === true,
+            canPublish: !isNonPublishableNotebook(linked),
           });
         }
       }
@@ -262,6 +277,7 @@ export function NotePromotionSheet({
               slug: notebookSlugFromId(nbId),
               title: notebookSlugFromId(nbId),
               isPublic: nextPublic,
+              canPublish: !isNonPublishableNotebook(nbId),
             },
           ],
     );
@@ -553,23 +569,29 @@ export function NotePromotionSheet({
                       </button>
 
                       {isMember ? (
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer shrink-0 min-h-9 px-2 rounded-md border border-border bg-muted/30">
-                          <input
-                            type="checkbox"
-                            className="size-3.5 accent-primary"
-                            checked={nb.isPublic}
-                            disabled={busy}
-                            onChange={(e) => void handleToggleNotebookPublic(nb.id, e.target.checked)}
-                            data-testid={
-                              isPrimaryToggle
-                                ? 'publication-notebook-public-toggle'
-                                : `publication-notebook-public-toggle-${nb.slug}`
-                            }
-                          />
-                          <span className="font-mono text-[11px] uppercase tracking-wider">
-                            {nb.isPublic ? 'Public' : 'Private'}
+                        nb.canPublish ? (
+                          <label className="inline-flex items-center gap-1.5 cursor-pointer shrink-0 min-h-9 px-2 rounded-md border border-border bg-muted/30">
+                            <input
+                              type="checkbox"
+                              className="size-3.5 accent-primary"
+                              checked={nb.isPublic}
+                              disabled={busy}
+                              onChange={(e) => void handleToggleNotebookPublic(nb.id, e.target.checked)}
+                              data-testid={
+                                isPrimaryToggle
+                                  ? 'publication-notebook-public-toggle'
+                                  : `publication-notebook-public-toggle-${nb.slug}`
+                              }
+                            />
+                            <span className="font-mono text-[11px] uppercase tracking-wider">
+                              {nb.isPublic ? 'Public' : 'Private'}
+                            </span>
+                          </label>
+                        ) : (
+                          <span className="rounded-full bg-muted px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wider text-muted-foreground shrink-0">
+                            Private
                           </span>
-                        </label>
+                        )
                       ) : (
                         <Button
                           type="button"
