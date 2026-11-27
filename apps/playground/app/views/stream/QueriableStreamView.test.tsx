@@ -1758,7 +1758,7 @@ describe('QueriableStreamView — query truth and retained state', () => {
     const previousIO = scope.IntersectionObserver
     scope.IntersectionObserver = StubIO
     try {
-      const manyEntries: Entry[] = Array.from({ length: 220 }, (_, i) => ({
+      const manyEntries: Entry[] = Array.from({ length: 70 }, (_, i) => ({
         id: `note-${i}`,
         kind: 'note',
         sourceNotebook: 'journal',
@@ -1780,13 +1780,13 @@ describe('QueriableStreamView — query truth and retained state', () => {
       expect(sentinel.textContent).toContain('Show more')
       expect(sentinel.textContent).toContain('20 remaining')
       expect(sentinel.textContent?.toLowerCase()).not.toContain('loading')
-      expect(screen.getAllByTestId('library-row-note')).toHaveLength(200)
+      expect(screen.getAllByTestId('library-row-note')).toHaveLength(50)
 
       await act(async () => {
         fireEvent.click(within(sentinel).getByRole('button'))
       })
       await waitFor(() => {
-        expect(screen.getAllByTestId('library-row-note')).toHaveLength(220)
+        expect(screen.getAllByTestId('library-row-note')).toHaveLength(70)
       })
       // Fully materialized — the sentinel (and the button) go away.
       expect(screen.queryByTestId('stream-load-more')).toBeNull()
@@ -2416,5 +2416,47 @@ describe('QueriableStreamView — query truth and retained state', () => {
       expect(screen.getByText(/IDB transaction aborted/)).toBeDefined()
     })
     expect(screen.queryByTestId('route-wql-empty-options')).toBeNull()
+  })
+
+  it('WW-143: renders uncovered dated journal entries in /journal?q=:journal+last+2w even when unrelated schedule items exist', async () => {
+    setStorageForTesting(new InMemoryStorage())
+    try {
+      const todayKey = new Date().toISOString().slice(0, 10)
+      // Insert an unrelated note + schedule item so calendarOverlayEntries enters the overlay path
+      await storageService.saveNoteSource({
+        noteId: 'note-other-1',
+        rawContent: '# Other Workout\n',
+        blocks: {},
+        expectedSourceRevision: 0,
+        metadata: { title: 'Other Workout', type: 'note' },
+      })
+      await journalSchedule.scheduleNote({
+        id: 'sched-unrelated-1',
+        noteId: 'note-other-1',
+        date: todayKey,
+      })
+      const myWorkout: Entry = {
+        id: 'note-my-workout-ww143',
+        kind: 'note',
+        sourceNotebook: 'journal',
+        sourceNote: 'note-my-workout-ww143',
+        title: 'My Workout',
+        date: todayKey,
+      }
+      const { engine } = stubEngine(() => [myWorkout])
+
+      render(
+        <MemoryRouter initialEntries={['/journal?q=%3Ajournal+last+2w']}>
+          <QueriableStreamView profile={JOURNAL_STREAM_PROFILE} queryEngine={engine} />
+        </MemoryRouter>,
+      )
+
+      await waitFor(() => {
+        expect(screen.getByText('My Workout')).toBeDefined()
+      })
+      expect(screen.queryByText('No entries match your search.')).toBeNull()
+    } finally {
+      resetStorageForTesting()
+    }
   })
 })

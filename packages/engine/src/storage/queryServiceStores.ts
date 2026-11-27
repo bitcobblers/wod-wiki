@@ -249,6 +249,44 @@ export function buildQueryServiceStoresFromStorage(
         >();
         const uniqueIds = [...new Set(noteIds)];
         if (uniqueIds.length === 0) return bundles;
+        // Prefer chunked server-side detail reads when queryDomain is supported
+        // (ApiStorage / SqlStorage) to avoid 2N unbatched HTTP GETs (WW-036).
+        // Fall back to the direct store transaction if queryDomain returned no
+        // note rows (e.g. unit tests with relation rows without parent notes).
+        if (storage.queryDomain) {
+          const CHUNK_SIZE = 100;
+          let usedDomain = true;
+          let matchedRows = 0;
+          for (let offset = 0; offset < uniqueIds.length; offset += CHUNK_SIZE) {
+            const chunk = uniqueIds.slice(offset, offset + CHUNK_SIZE);
+            const result = await storage.queryDomain({
+              plan: 'detail',
+              selection: [{ field: 'id', values: chunk }],
+            });
+            if (!result || result.plan !== 'detail') {
+              usedDomain = false;
+              bundles.clear();
+              break;
+            }
+            matchedRows += result.rows.length;
+            for (const row of result.rows) {
+              bundles.set(row.note.id, {
+                tags: row.tags.map((t) => ({ label: t.label, ...(t.type ? { type: t.type } : {}) })),
+                links: [...row.links],
+                pages: [...row.pages],
+              });
+            }
+          }
+          if (usedDomain && matchedRows > 0) {
+            for (const id of uniqueIds) {
+              if (!bundles.has(id)) {
+                bundles.set(id, { tags: [], links: [], pages: [] });
+              }
+            }
+            return bundles;
+          }
+          bundles.clear();
+        }
         return storage.transaction(['page_notes', 'note_tags', 'tags', 'page'], 'readonly', async (tx) => {
           const [pageLinkGroups, tagLinkGroups] = await Promise.all([
             tx.readonly('page_notes').getAllFromIndexMany('by-note', uniqueIds),

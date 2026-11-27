@@ -252,6 +252,16 @@ export class IndexedDBNotePersistence implements INotePersistence, IContentProvi
   async listNotes(query: NoteQuery = {}): Promise<HistoryRecord[]> {
     if (query.ids && query.ids.length > 0) {
       const projection = query.projection ?? 'summary';
+      if (projection === 'summary') {
+        const bundles = await this.storage.getDetailBatches(query.ids);
+        return query.ids.map((id) => {
+          const bundle = bundles.get(id);
+          if (!bundle) {
+            throw new NotePersistenceError('NOTE_NOT_FOUND', `Note not found: id=${id}`);
+          }
+          return { ...entryFromDomainRow(bundle), sections: undefined };
+        });
+      }
       return Promise.all(
         query.ids.map(id => this.getNote(id, {
           projection,

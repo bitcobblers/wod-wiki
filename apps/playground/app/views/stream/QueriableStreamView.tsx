@@ -661,7 +661,7 @@ export function QueriableStreamView({
     return parsed.filters.find(f => f.key === 'feed' && !f.negate)?.values[0]?.value ?? null
   }, [parsed])
 
-  const seedFiles = useSeedContent()
+  const seedFiles = useSeedContent(Boolean(notebookStreamSlug))
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
   // WQL embed links (`[heading](:query)!`) — when any are present they
   // override the notebook's default item stream below the readme.
@@ -1097,6 +1097,22 @@ export function QueriableStreamView({
       setFeedSyncRunning(false)
     }
   }, [subscribedLibraryIds, openLibraryManager])
+  // Only re-query on feed readiness transitions when a real import was actually
+  // in progress (`feedReadiness === 'preparing'`), never on returning-visitor
+  // `'idle' -> 'ready'` no-op checks that otherwise double-run full-corpus
+  // queries and extend `data-agent-status="loading"` (WW-036).
+  const [feedImportEpoch, setFeedImportEpoch] = useState(0)
+  const sawPreparingRef = useRef(feedReadiness === 'preparing')
+  useEffect(() => {
+    if (feedReadiness === 'preparing') {
+      sawPreparingRef.current = true
+      return
+    }
+    if (sawPreparingRef.current && !feedImportPending) {
+      sawPreparingRef.current = false
+      setFeedImportEpoch((e) => e + 1)
+    }
+  }, [feedReadiness, feedImportPending])
   useEffect(() => {
     if (parsed.error) {
       setLoading(false)
@@ -1163,7 +1179,7 @@ export function QueriableStreamView({
       clearTimeout(timer)
       setQueryPending(false)
     }
-  }, [effectiveQuery, activeEngine, parsed, location.pathname, profile.route, isNotebooksRoute, feedReadiness, feedImportPending, savedTick])
+  }, [effectiveQuery, activeEngine, parsed, location.pathname, profile.route, isNotebooksRoute, feedImportEpoch, savedTick])
 
   // Usage counts & M:N schedule enrichment for Note rows + Calendar Overlay projection
   const [usageCounts, setUsageCounts] = useState<ReadonlyMap<string, NoteUsageCounts>>(
@@ -1288,6 +1304,7 @@ export function QueriableStreamView({
         const note = overlayNotesById.get(sess.noteId)
         const base = note ? toEntry(note) : enrichedEntries.find((e) => e.id === sess.noteId)
         if (!base) continue
+        coveredNoteDates.add(`${base.id}:${sessDate}`)
         overlay.push({
           ...base,
           id: base.id,
@@ -1307,11 +1324,12 @@ export function QueriableStreamView({
       }
     }
 
-    // Preserve any legacy dated or undated entries that didn't map through ScheduleItems yet
-    if (overlayMode === 'all') {
+    // Preserve any legacy dated or undated entries that didn't map through
+    // ScheduleItems or ad-hoc sessions yet (WW-143).
+    if (overlayMode === 'all' || overlayMode === 'planned') {
       for (const entry of enrichedEntries) {
         if (entry.date && coveredNoteDates.has(`${entry.id}:${entry.date}`)) continue
-        if (!entry.date) overlay.push(entry)
+        overlay.push(entry)
       }
     }
     return overlay

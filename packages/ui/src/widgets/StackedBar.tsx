@@ -66,6 +66,7 @@ export function StackedBar({ result, unit: unitProp }: StackedBarProps) {
           tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
         />
         <YAxis
+          allowDecimals={!(result.parsed?.agg === 'count' || unit === 'count' || unit === 'reps' || unit === 'rounds')}
           tickLine={false}
           axisLine={false}
           width={yAxisWidth}

@@ -93,14 +93,15 @@ describe('source: filter — runFind (Note[])', () => {
     expect(parseQuery(':note{source:feed}').error).toBeDefined();
   });
 
-  it(':note is the inclusive plane — notebooks, arbitrary sources, pages, typed dashboards', async () => {
+  it(':note excludes entity-catalog rows (efforts, equipment, guides, dashboards) by default (WW-094)', async () => {
     const service = makeService();
     const result = await service.runFind(parseQuery(':note') as ParsedFindQuery);
     expect(result.notes.map(n => n.id).sort()).toEqual([
-      'edited-effort', 'guide-1', 'jrnl-1', 'legacy-effort', 'legacy-equipment',
-      'nb-girls', 'nb-prog', 'page-1', 'pg-1', 'pg-legacy',
-      'seed-dash', 'seed-effort', 'user-dash', 'user-note',
+      'jrnl-1', 'nb-girls', 'nb-prog', 'page-1', 'pg-1', 'pg-legacy', 'user-note',
     ]);
+    // Explicit source: / type: filters still access catalog rows cleanly.
+    const efforts = await service.runFind(parseQuery(':note{source:efforts}') as ParsedFindQuery);
+    expect(efforts.notes.map(n => n.id)).toEqual(['seed-effort']);
   });
 
   it('keeps only guide notes when source:guides is set', async () => {

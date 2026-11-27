@@ -20,7 +20,7 @@ export const ExplorerAgentTools: React.FC<{ explorer: ActiveExplorerBridge }> = 
     name: 'ui_set_explorer_query',
     title: 'Set or Run Analytics Explorer WQL Query',
     description:
-      'Set or execute an aggregate or find WQL query on the Metric Explorer (`/dashboards`), change the week window (`4`, `8`, `16`), or open the Save-to-Dashboard / Query Settings dialogs.',
+      'Set or execute an aggregate or find WQL query on the Metric Explorer (`/dashboards`), change the lookback window (`4`, `8`, `16`, or `"all"`), or open the Save-to-Dashboard / Query Settings dialogs.',
     inputSchema: uiSetExplorerQuerySchema,
     annotations: {
       title: 'Set Analytics Explorer Query',

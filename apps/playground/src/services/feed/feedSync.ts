@@ -1187,9 +1187,20 @@ export async function adoptLegacyFeedCheckpoints(deps: Pick<FeedSyncDeps, 'stora
  * and without touching a note the user owns. Idempotent: a stamped note is
  * never stamped again. Returns the number of notes stamped.
  */
+const MIGRATION_FEED_PROVENANCE_KEY = 'migration:feedProvenance:v1';
+const MIGRATION_NOTEBOOK_VOCAB_KEY = 'migration:notebookVocabulary:v1';
+
 export async function adoptFeedProvenance(deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<number> {
   const storage = deps.storage ?? mainThreadFeedImportStorage();
-  return storage.backfillFeedProvenance();
+  if (storage.getMeta) {
+    const marker = await storage.getMeta<{ done?: boolean }>(MIGRATION_FEED_PROVENANCE_KEY).catch(() => undefined);
+    if (marker?.done) return 0;
+  }
+  const repaired = await storage.backfillFeedProvenance();
+  if (storage.putMeta) {
+    await storage.putMeta({ key: MIGRATION_FEED_PROVENANCE_KEY, done: true, completedAt: Date.now() }).catch(() => undefined);
+  }
+  return repaired;
 }
 
 /**
@@ -1202,7 +1213,15 @@ export async function adoptFeedProvenance(deps: Pick<FeedSyncDeps, 'storage'> = 
  */
 export async function adoptNotebookVocabulary(deps: Pick<FeedSyncDeps, 'storage'> = {}): Promise<number> {
   const storage = deps.storage ?? mainThreadFeedImportStorage();
-  return storage.migrateNotebookVocabulary();
+  if (storage.getMeta) {
+    const marker = await storage.getMeta<{ done?: boolean }>(MIGRATION_NOTEBOOK_VOCAB_KEY).catch(() => undefined);
+    if (marker?.done) return 0;
+  }
+  const migrated = await storage.migrateNotebookVocabulary();
+  if (storage.putMeta) {
+    await storage.putMeta({ key: MIGRATION_NOTEBOOK_VOCAB_KEY, done: true, completedAt: Date.now() }).catch(() => undefined);
+  }
+  return migrated;
 }
 
 /**

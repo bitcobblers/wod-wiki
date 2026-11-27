@@ -534,12 +534,66 @@ interface CompiledContentRead {
   scopeResidual: boolean;
 }
 
+const ENTITY_CATALOG_SOURCE_IDS = new Set(['efforts', 'equipment', 'dashboards', 'guides']);
+const ENTITY_CATALOG_CHUNK_IDS = new Set(['efforts', 'equipment', 'dashboards', 'canvas']);
+const ENTITY_CATALOG_PATH_RE = /^markdown\/(efforts|equipment|dashboards|canvas)\//;
+const ENTITY_CATALOG_TYPES = new Set(['dashboard']);
+const MIN_VALID_NOTE_TIMESTAMP = Date.UTC(2000, 0, 1);
+
+/**
+ * True when a note row belongs to the built-in entity/reference catalog
+ * (efforts, equipment, guides/canvas, dashboards) rather than user/workout notes.
+ * Unscoped `:note{}` / `count:note{}` queries exclude these catalog rows by
+ * default (WW-094) while dedicated heads (`:effort{}`, `:equipment{}`,
+ * `:dashboard{}`, `:notebook{}`) and explicit `source:`/`type:`/`notebook:`
+ * filters remain unrestricted.
+ */
+export function isEntityCatalogNote(note: {
+  sourceId?: string;
+  sourcePath?: string;
+  type?: string;
+  seedChunkId?: string;
+  notebookId?: string;
+}): boolean {
+  if (note.notebookId?.trim()) return false;
+  if (note.type && ENTITY_CATALOG_TYPES.has(note.type)) return true;
+  const sid = note.sourceId ?? '';
+  if (ENTITY_CATALOG_SOURCE_IDS.has(sid) || sid.startsWith('guides:')) return true;
+  if (note.sourcePath && ENTITY_CATALOG_PATH_RE.test(note.sourcePath)) return true;
+  if (note.seedChunkId && ENTITY_CATALOG_CHUNK_IDS.has(note.seedChunkId)) return true;
+  return false;
+}
+
+function shouldExcludeEntityCatalog(parsed: ParsedFindQuery): boolean {
+  if (parsed.target !== 'note') return false;
+  if (/^:notebook\b/i.test(parsed.raw.trim())) return false;
+  if (parsed.sourceScope?.length) return false;
+  if (
+    parsed.filters.some(
+      (f) =>
+        f.key === 'source' ||
+        f.key === 'type' ||
+        f.key === 'notebook' ||
+        f.key === 'note' ||
+        f.key === 'page',
+    )
+  ) {
+    return false;
+  }
+  return true;
+}
+
 /** Compile a plane's content filters for the domain candidate read — only
  *  clauses whose semantics match the storage wire exactly. Wildcards,
  *  negations, tags/effort/notebook/date/page, and `journal`/`all` source
  *  kinds stay residual JS filters. The candidate read is a SUPERSET either
  *  way; the JS pipeline re-applies every stage and owns the final slice. */
-function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourceScope?: string[]): CompiledContentRead {
+function compileContentRead(
+  filters: TagFilter[],
+  plane: 'note' | 'block',
+  sourceScope?: string[],
+  excludeCatalog = false,
+): CompiledContentRead {
   const selection: WqlDomainPredicate[] = [];
   const compiled: WqlDomainPredicate[] = [];
   let residual = false;
@@ -590,26 +644,29 @@ function compileContentRead(filters: TagFilter[], plane: 'note' | 'block', sourc
       scopeResidual = true;
     }
   }
-  // The note plane is inclusive — no defaultNotes clause, no source fence
-  // (generic :note surfaces every row). The block plane keeps its
-  // historical fence: candidates come from the WQL source domain.
+  if (plane === 'note' && excludeCatalog) {
+    selection.push({ field: 'source', values: ['efforts', 'equipment', 'dashboards', 'guides'], negate: true });
+    selection.push({ field: 'type', values: ['dashboard'], negate: true });
+  }
+  // The block plane keeps its historical fence: candidates come from the WQL source domain.
   if (plane === 'block') {
     selection.push({ field: 'sourceFence' });
   }
   return { selection, filters: compiled, residual, scopeResidual };
 }
 
-/** :note pre-count selection stages — authored source clauses and the
- *  parse-authored sourceScope, shared verbatim by the merged pipeline and
- *  the static-plane selected count. The generic note plane is inclusive:
- *  no default page exclusion and no source fence — feeds, arbitrary source
- *  strings, typed pages and dashboards all surface; positive `source:`
- *  filters and source negations do the scoping. */
+/** :note pre-count selection stages — authored source clauses, parse-authored
+ *  sourceScope, and default entity-catalog exclusion for unscoped `:note{}`
+ *  (WW-094). Explicit `source:`/`type:`/`notebook:`/`note:`/`page:` filters and
+ *  `:notebook{}` opt out of catalog exclusion. */
 function applyNoteSelectionStages(notes: Note[], parsed: ParsedFindQuery): Note[] {
   let rows = applySourceFilter(notes, parsed.filters);
   if (parsed.sourceScope?.length) {
     const scope = parsed.sourceScope;
     rows = rows.filter((n) => scope.some((k) => sourceMatches(n, k)));
+  }
+  if (shouldExcludeEntityCatalog(parsed)) {
+    rows = rows.filter((n) => !isEntityCatalogNote(n));
   }
   return rows;
 }
@@ -2496,7 +2553,7 @@ export class QueryService {
     // fence) narrows before the wire's selectedCount; compiled positive
     // literal type/id clauses ride as post-count FILTERS — never selection —
     // so the wire count baselines the historical pre-filter stages.selected.
-    const read = compileContentRead(parsed.filters, 'note', parsed.sourceScope);
+    const read = compileContentRead(parsed.filters, 'note', parsed.sourceScope, shouldExcludeEntityCatalog(parsed));
     const paging = domainPaging(parsed, options, read.residual);
     const fetchedNotes = this.noteStore.queryDomain
       ? await this.noteStore.queryDomain({
@@ -3165,14 +3222,25 @@ export class QueryService {
       ...(range ? { range } : {}),
     });
 
-    const points: AnalyticsDataPoint[] = findRes.notes.map((note) => {
+    const hasTemporalGrouping =
+      Boolean(parsed.groupBy?.some((g) => g === 'day' || g === 'week' || g === 'month')) ||
+      Boolean(parsed.rollup);
+
+    const points: AnalyticsDataPoint[] = [];
+    for (const note of findRes.notes) {
       const ts = noteEffectiveTimestamp(note, findRes.placements?.[note.id], ctx.timeZone);
+      // Guard against sentinel/epoch createdAt (e.g. legacy seed manifest version
+      // 3100 or 0) on undated notes so calendar buckets never synthesize a
+      // 1969-12-28 bucket and 57-year empty-week domain (WW-149).
+      if (hasTemporalGrouping && (!Number.isFinite(ts) || ts < MIN_VALID_NOTE_TIMESTAMP)) {
+        continue;
+      }
       const itemOrigin = notebookOriginOfItem(note);
       const dimensions: Record<string, string> = {};
       if (note.type) dimensions.type = note.type;
       if (itemOrigin) dimensions.origin = itemOrigin;
       if (note.sourceId) dimensions.notebook = note.sourceId;
-      return {
+      points.push({
         id: note.id,
         noteId: note.id,
         blockId: '',
@@ -3188,8 +3256,8 @@ export class QueryService {
         metricDate: civilDateOf(ts, ctx.timeZone),
         ...(itemOrigin === 'user' ? { origin: 'user' as const } : {}),
         ...(Object.keys(dimensions).length > 0 ? { dimensions } : {}),
-      };
-    });
+      });
+    }
 
     const factDims = await this.loadFactDimensions(points, [], parsed.groupBy);
     return this.buildResult(points, parsed, options, factDims, range);

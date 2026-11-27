@@ -136,4 +136,97 @@ describe('WW-094: count:note{} and by {month} bucketing', () => {
     expect(monthly.error).toBeUndefined();
     expect(monthly.series[0]!.points.map((p) => p.value)).toEqual([1000, 0, 1500]);
   });
+
+  it('excludes entity-catalog rows (efforts, equipment, guides, dashboards) from unscoped :note{} and count:note{} by {week} (WW-094)', async () => {
+    const effortRow: Note = {
+      id: 'effort-squat',
+      title: 'Back Squat',
+      rawContent: '# Back Squat\n',
+      blocks: {},
+      createdAt: 3100,
+      sourceRevision: 1,
+      type: 'note',
+      sourceId: 'efforts',
+      sourcePath: 'markdown/efforts/back-squat.md',
+      seedOrigin: 'seed',
+    };
+    const guideRow: Note = {
+      id: 'guide-intro',
+      title: 'Intro Guide',
+      rawContent: '# Intro\n',
+      blocks: {},
+      createdAt: 3100,
+      sourceRevision: 1,
+      type: 'note',
+      sourceId: 'guides:intro',
+      sourcePath: 'markdown/canvas/intro.md',
+      seedOrigin: 'seed',
+    };
+    const equipRow: Note = {
+      id: 'equip-kb',
+      title: 'Kettlebell',
+      rawContent: '# Kettlebell\n',
+      blocks: {},
+      createdAt: 3100,
+      sourceRevision: 1,
+      type: 'note',
+      sourceId: 'equipment',
+      sourcePath: 'markdown/equipment/kettlebell.md',
+      seedOrigin: 'seed',
+    };
+    const dashRow: Note = {
+      id: 'dash-overview',
+      title: 'Overview',
+      rawContent: '# Overview\n',
+      blocks: {},
+      createdAt: 3100,
+      sourceRevision: 1,
+      type: 'dashboard',
+      sourceId: 'dashboards',
+      sourcePath: 'markdown/dashboards/overview.md',
+      seedOrigin: 'seed',
+    };
+
+    const qs = makeNoteQueryService([janNote, marNote, effortRow, guideRow, equipRow, dashRow]);
+    const opts = { context: { instant: Date.UTC(2026, 3, 1, 12, 0, 0), timeZone: 'UTC' } };
+
+    const findRes = await qs.runFind(parseQuery(':note{}') as Parameters<QueryService['runFind']>[0]);
+    expect(findRes.notes.map((n) => n.id).sort()).toEqual(['note-jan-1', 'note-mar-1']);
+
+    const countScalar = await qs.runQuery('count:note{}', opts);
+    expect(countScalar.scalar).toBe(2);
+
+    const byWeek = await qs.runQuery('count:note{} by {week}', opts);
+    expect(byWeek.error).toBeUndefined();
+    const total = byWeek.series[0]!.points.reduce((sum, p) => sum + p.value, 0);
+    expect(total).toBe(2);
+    // Explicit source opt-in still accesses catalog rows
+    const efforts = await qs.runFind(parseQuery(':note{source:efforts}') as Parameters<QueryService['runFind']>[0]);
+    expect(efforts.notes.map((n) => n.id)).toEqual(['effort-squat']);
+  });
+
+  it('never buckets sentinel/epoch createdAt notes into 1969/1970 under count:note{} by {week} (WW-149)', async () => {
+    const legacyEpochNote: Note = {
+      id: 'legacy-epoch-1',
+      title: 'Undated Legacy Note',
+      rawContent: '# Legacy\n',
+      blocks: {},
+      createdAt: 3100, // legacy manifest.version sentinel
+      sourceRevision: 1,
+      type: 'note',
+      seedOrigin: 'user',
+    };
+    const qs = makeNoteQueryService([janNote, legacyEpochNote]);
+    const opts = { context: { instant: Date.UTC(2026, 1, 1, 12, 0, 0), timeZone: 'UTC' } };
+
+    // Ungrouped scalar still counts every matched note honestly
+    const scalar = await qs.runQuery('count:note{}', opts);
+    expect(scalar.scalar).toBe(2);
+
+    // Temporally grouped query never produces a 1969/1970 bucket
+    const byWeek = await qs.runQuery('count:note{} by {week}', opts);
+    expect(byWeek.error).toBeUndefined();
+    expect(byWeek.series[0]!.points.length).toBe(1);
+    expect(byWeek.series[0]!.points[0]!.ts).toBeGreaterThanOrEqual(Date.UTC(2026, 0, 1));
+  });
 });

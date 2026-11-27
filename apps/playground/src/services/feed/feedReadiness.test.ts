@@ -5,7 +5,7 @@ import { compileSeedRow } from '../../../../../packages/tools/src/seedbuild/comp
 import { emptySeedMeta, seedMetaKey } from '@/types/seed';
 import { InMemoryFeedStorage } from './FeedImportStorage';
 import { feedFixture as fixture } from './feedFixture';
-import { resetFeedSubscriptionsForTest, setFeedAutoSync, setFeedSubscribed } from './feedSubscriptions';
+import { resetFeedSubscriptionsForTest, setFeedAutoSync, setFeedOfflinePolicy, setFeedSubscribed } from './feedSubscriptions';
 import type { IFeedSource, SeedChunkPayload } from './IFeedSource';
 import {
   beginImportActivity,
@@ -369,5 +369,46 @@ describe('feedReadiness', () => {
     } finally {
       unmount();
     }
+  });
+
+  it('WW-036: returning visitor with already-indexed index-only auto-sync feed settles ready immediately without tripping preparing', async () => {
+    localStorage.clear();
+    resetFeedSubscriptionsForTest();
+    const storage = new InMemoryFeedStorage();
+    await storage.putSeedMeta({ ...emptySeedMeta(seedMetaKey('core')), seedVersion: 1, builtAt: new Date(1).toISOString() });
+    // Simulate prior index-only sync: catalog:<id> exists, seed:<id> does NOT.
+    await storage.putMeta({
+      key: 'catalog:samples-movement',
+      feedId: 'samples-movement',
+      manifest: { schema: 9, version: 1, builtAt: new Date(1).toISOString(), chunks: [] },
+      updatedAt: Date.now(),
+    });
+    setFeedSubscribed('samples-movement', true);
+    setFeedAutoSync('samples-movement', true);
+    setFeedOfflinePolicy('samples-movement', 'index-only');
+
+    const heldManifest = Promise.withResolvers<never>();
+    const manifestRequested = Promise.withResolvers<void>();
+    const slowSampleSource: IFeedSource = {
+      fetchManifest: () => {
+        manifestRequested.resolve();
+        return heldManifest.promise;
+      },
+      fetchChunk: () => heldManifest.promise,
+    };
+    const coreSrc = fixture([compileSeedRow('markdown/canvas/a.md', '# A')], 1, 'canvas');
+    const sources: FeedSourceSpec[] = [
+      { source: coreSrc, id: 'core', label: 'Core', url: 'https://feed.test/core/', embeddedVersion: 1 },
+      { source: slowSampleSource, id: 'samples-movement', label: 'Samples', url: 'https://feed.test/samples/', embeddedVersion: 1, autoImport: false },
+    ];
+
+    const boot = startFeedBootstrap({ sources, storage, isEnabled: () => true });
+    await manifestRequested.promise;
+    // Gate must already be settled to 'ready' without waiting for the slow remote manifest probe!
+    expect(getFeedReadiness()).toBe('ready');
+    expect(isBootImportPending()).toBe(false);
+    // Reject the hanging probe so boot finishes cleanly.
+    heldManifest.reject(new Error('abort test probe'));
+    await boot;
   });
 });

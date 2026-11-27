@@ -421,6 +421,13 @@ async function applyPreparedSeedChunkInTx(
           : existingRetention?.retention === 'schedule-pinned'
             ? ('schedule-pinned' as const)
             : undefined;
+      const parsedBuiltAt = typeof write.manifest.builtAt === 'string' ? Date.parse(write.manifest.builtAt) : Number.NaN;
+      const seedCreatedAt =
+        Number.isFinite(parsedBuiltAt) && parsedBuiltAt >= 946_684_800_000
+          ? parsedBuiltAt
+          : Number.isFinite(write.meta.importedAt) && write.meta.importedAt >= 946_684_800_000
+            ? write.meta.importedAt
+            : Date.now();
       const note: RetentionNote = {
         ...existing,
         id,
@@ -428,7 +435,7 @@ async function applyPreparedSeedChunkInTx(
         rawContent: row.content,
         sourceRevision,
         blocks: map,
-        createdAt: write.manifest.version,
+        createdAt: seedCreatedAt,
         ...(date === undefined ? {} : { date }),
         type: write.chunkId === DASHBOARDS_CHUNK_ID ? 'dashboard' : 'note',
         sourceId,
@@ -523,8 +530,8 @@ async function applyPreparedSeedChunkInTx(
       const slug = fm['slug'];
       if (typeof slug === 'string' && pagesBySlug.has(slug)) {
         const pageId = pagesBySlug.get(slug)!;
-        pages.push({ id: pageId, slug, title: titleFromPath(row.path), createdAt: write.manifest.version });
-        pageNotes.push({ id: linkIds.get(id)!, pageId, noteId: id, createdAt: write.manifest.version });
+        pages.push({ id: pageId, slug, title: titleFromPath(row.path), createdAt: seedCreatedAt });
+        pageNotes.push({ id: linkIds.get(id)!, pageId, noteId: id, createdAt: seedCreatedAt });
       }
       result.totalNotes++;
       result.totalBlocks += Object.keys(map).length;

@@ -35,9 +35,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseQuery } from '@bitcobblers/wod-wiki-engine'
 
 /** Range options offered by the explorer UI (single source for the domain). */
-export const EXPLORER_RANGE_OPTIONS = [4, 8, 16] as const
+export const EXPLORER_RANGE_OPTIONS = [4, 8, 16, 'all'] as const
 export type ExplorerRangeWeeks = (typeof EXPLORER_RANGE_OPTIONS)[number]
-export const DEFAULT_EXPLORER_WEEKS: ExplorerRangeWeeks = 16
+export const DEFAULT_EXPLORER_WEEKS: ExplorerRangeWeeks = 'all'
 
 export interface ExplorerQueryState {
   /** Live composer draft WQL (the composer's controlled `query` prop). */
@@ -77,8 +77,9 @@ export interface ExplorerQueryStateOptions {
 }
 
 function parseWeeks(raw: string | null): ExplorerRangeWeeks {
+  if (raw === 'all') return 'all'
   const n = Number.parseInt(raw ?? '', 10)
-  return (EXPLORER_RANGE_OPTIONS as readonly number[]).includes(n) ? (n as ExplorerRangeWeeks) : DEFAULT_EXPLORER_WEEKS
+  return (EXPLORER_RANGE_OPTIONS as readonly (number | 'all')[]).includes(n) ? (n as ExplorerRangeWeeks) : DEFAULT_EXPLORER_WEEKS
 }
 
 export function useExplorerQueryState(options: ExplorerQueryStateOptions = {}): ExplorerQueryState {

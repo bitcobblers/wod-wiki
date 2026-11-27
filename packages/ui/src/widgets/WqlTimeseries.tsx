@@ -97,6 +97,9 @@ export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
     return <WqlEmptyState result={result} fallbackMessage="No timeseries data available for this query." />;
   }
 
+  const isIntegerMetric =
+    result.parsed?.agg === 'count' || unit === 'count' || unit === 'reps' || unit === 'rounds';
+
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data as Array<Record<string, number | string | undefined>>} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
@@ -110,6 +113,7 @@ export function WqlTimeseries({ result, unit: unitProp }: WqlTimeseriesProps) {
           tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
         />
         <YAxis
+          allowDecimals={!isIntegerMetric}
           tickLine={false}
           axisLine={false}
           width={yAxisWidth}

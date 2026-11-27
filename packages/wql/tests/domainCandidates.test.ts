@@ -277,13 +277,13 @@ describe('domain candidate reads — parity with the whole-store path', () => {
   });
 
 
-  it(':note | limit 2 pages the inclusive note plane', async () => {
+  it(':note | limit 2 pages the note plane (excluding entity-catalog guides by default, WW-094)', async () => {
     const plain = makeService(false);
     const domain = makeService(true);
     const parsed = find('note', [], { limit: 2 });
     expect(await outcome(domain.service, parsed)).toEqual(await outcome(plain.service, parsed));
-    // The baseline includes authored and imported Notes exactly once.
-    expect((await outcome(domain.service, parsed)).stages.selected).toBe(5);
+    // Excludes `npage` (`sourceId: 'guides:my-guide'`) by default on unscoped :note.
+    expect((await outcome(domain.service, parsed)).stages.selected).toBe(4);
     expect((await outcome(domain.service, parsed)).stages.matched).toBe(2);
   });
 
