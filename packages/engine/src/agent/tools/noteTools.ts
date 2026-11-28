@@ -8,7 +8,7 @@ import {
   toNotebookId,
   type Note,
 } from '@bitcobblers/wod-wiki-core';
-import { notebookOfItem, notebookOriginOfItem, notebooksOfItem } from '@bitcobblers/wod-wiki-wql';
+import { isEntityCatalogNote, notebookOfItem, notebookOriginOfItem, notebooksOfItem } from '@bitcobblers/wod-wiki-wql';
 import { composeNoteMarkdown } from '../../exchange';
 import { getNotePublicationSummary } from '../../feed/ingestor';
 import { getNoteNotebooks, promoteNoteToNotebooks } from '../../notebook/membership';
@@ -42,6 +42,10 @@ const noteListInputSchema = z.strictObject({
     .boolean()
     .optional()
     .describe('Include read-only Seed/Feed notes (default true; pass false for user-authored notes only).'),
+  includeCatalog: z
+    .boolean()
+    .optional()
+    .describe('Include built-in entity catalog records (efforts, equipment, guides, dashboards). Defaults to false to match :note{}.'),
   orphanedOnly: z
     .boolean()
     .optional()
@@ -68,6 +72,7 @@ export const wodNoteListTool = defineAgentTool({
   async execute(args, ctx) {
     const targetNb = args.notebookId ? toNotebookId(args.notebookId) : undefined;
     const includeSeed = args.includeSeed ?? true;
+    const includeCatalog = args.includeCatalog === true || Boolean(targetNb);
     const origin = args.origin ?? 'all';
     const orphanedOnly = args.orphanedOnly === true;
     const searchLower = args.search?.trim().toLowerCase();
@@ -103,9 +108,14 @@ export const wodNoteListTool = defineAgentTool({
       },
     );
 
+    let excludedCatalogCount = 0;
     const filtered = allNotes
       .filter((n) => {
         if (isLandingNote(n)) return false;
+        if (!includeCatalog && isEntityCatalogNote(n)) {
+          excludedCatalogCount += 1;
+          return false;
+        }
         const isSeedOrFeed = n.seedOrigin === 'seed' || n.feedOrigin === 'feed';
         if (origin === 'user' && isSeedOrFeed) return false;
         if (origin === 'feed' && n.feedOrigin !== 'feed') return false;
@@ -140,6 +150,7 @@ export const wodNoteListTool = defineAgentTool({
 
     return {
       totalCount: filtered.length,
+      ...(excludedCatalogCount > 0 ? { excludedCatalogCount } : {}),
       notes: filtered.slice(0, limit).map((n) => {
         const nbOrigin = notebookOriginOfItem(n);
         const resolvedNb = notebookOfItem(n);

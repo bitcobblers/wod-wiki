@@ -110,13 +110,21 @@ describe('Candidate 02 — Many-to-many Notebook Membership & Private Journal', 
     await storage.close();
   });
 
-  it('refuses to mark notebook/journal, notebook/custom, notebook/defaults, or notebook/playground as public', async () => {
+  it('allows notebook/journal, notebook/custom, and notebook/playground to toggle public while keeping system notebooks gated (WW-128)', async () => {
     const storage = createRealSqlStorage();
 
-    await expect(setNotebookPublic(storage, 'notebook/journal', true)).rejects.toThrow(/cannot be published|private/i);
-    await expect(setNotebookPublic(storage, 'notebook/custom', true)).rejects.toThrow(/cannot be published|private/i);
-    await expect(setNotebookPublic(storage, 'notebook/defaults', true)).rejects.toThrow(/cannot be published|read-only/i);
-    await expect(setNotebookPublic(storage, 'notebook/playground', true)).rejects.toThrow(/cannot be published|private/i);
+    const pubJournal = await setNotebookPublic(storage, 'notebook/journal', true);
+    expect(pubJournal.public).toBe(true);
+    const pubCustom = await setNotebookPublic(storage, 'notebook/custom', true);
+    expect(pubCustom.public).toBe(true);
+    const pubPlayground = await setNotebookPublic(storage, 'notebook/playground', true);
+    expect(pubPlayground.public).toBe(true);
+
+    await expect(setNotebookPublic(storage, 'notebook/defaults', true)).rejects.toThrow(/cannot be published|read-only|private/i);
+    await expect(setNotebookPublic(storage, 'notebook/guides', true)).rejects.toThrow(/cannot be published|read-only|private/i);
+    await expect(setNotebookPublic(storage, 'notebook/efforts', true)).rejects.toThrow(/cannot be published|read-only|private/i);
+    await expect(setNotebookPublic(storage, 'notebook/equipment', true)).rejects.toThrow(/cannot be published|read-only|private/i);
+    await expect(setNotebookPublic(storage, 'notebook/dashboards', true)).rejects.toThrow(/cannot be published|read-only|private/i);
 
     await storage.close();
   });

@@ -14,7 +14,7 @@ export type DefaultNotebookSlug = (typeof DEFAULT_NOTEBOOK_SLUGS)[number];
 export type NotebookId = `notebook/${string}`;
 
 export const READONLY_SYSTEM_NOTEBOOK_SLUGS = ['defaults', 'guides', 'efforts', 'equipment', 'dashboards'] as const;
-export const NON_PUBLISHABLE_NOTEBOOK_SLUGS = ['journal', 'playground', 'defaults', 'custom', 'guides', 'efforts', 'equipment', 'dashboards'] as const;
+export const NON_PUBLISHABLE_NOTEBOOK_SLUGS = ['defaults', 'guides', 'efforts', 'equipment', 'dashboards'] as const;
 
 const READONLY_SET: ReadonlySet<string> = new Set(READONLY_SYSTEM_NOTEBOOK_SLUGS);
 const NON_PUBLISHABLE_SET: ReadonlySet<string> = new Set(NON_PUBLISHABLE_NOTEBOOK_SLUGS);
@@ -457,13 +457,14 @@ export function getNotebookCapabilities(input: {
   const isBuiltIn = BUILTIN_NOTEBOOKS.some((b) => b.slug === slug);
   const isSystem = isSystemReadOnlyNotebook(slug);
   const isUserOrigin = input.origin === 'user' || (!input.origin && input.feedId === 'local');
+  const isLocalOwned = isUserOrigin || input.origin === 'default';
   return {
     slug,
     isBuiltIn,
     isSystem,
     canEdit: isUserOrigin && !isBuiltIn && !isSystem,
     canDelete: isUserOrigin && !isBuiltIn && !isSystem,
-    canTogglePublic: isUserOrigin && !isNonPublishableNotebook(slug),
+    canTogglePublic: isLocalOwned && !isNonPublishableNotebook(slug) && !isSystem,
   };
 }
 

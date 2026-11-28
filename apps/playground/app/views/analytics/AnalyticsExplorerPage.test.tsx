@@ -759,4 +759,34 @@ describe('AnalyticsExplorerPage', () => {
     // Primary query ran exactly once.
     expect(pageRuns().filter((q) => q === 'count:note{} by {week}')).toHaveLength(1);
   });
+
+  it('WW-167: selecting a Time Window preset in WqlComposer immediately re-runs the query so chart and ?q= agree', async () => {
+    renderPage('sum:totalVolume{} by {week}');
+    await waitFor(() => expect(pageRuns()).toContain('sum:totalVolume{} by {week}'));
+
+    fireEvent.click(screen.getByTestId('token-slot-time'));
+    fireEvent.click(screen.getByRole('option', { name: /Past quarter/i }));
+
+    await waitFor(() => expect(pageRuns()).toContain('sum:totalVolume{} by {week} last 12w'));
+  });
+
+  it('WW-149: surfaces honest notices when undated or reference-catalog records are excluded from count:note{} by {week}', async () => {
+    runQueryImpl = async (raw: string) => ({
+      ...resultOf(raw),
+      series: [{ key: 'note', label: 'note', points: [{ ts: Date.now(), value: 58 }] }],
+      stages: {
+        selected: 58,
+        buckets: 1,
+        aggregated: 1,
+        groups: 1,
+        excludedCatalog: 278,
+        excludedUndated: 2,
+      },
+      matched: [{ timestamp: Date.now(), value: 1, metricKey: 'note' } as unknown as QueryResult['matched'][number]],
+    });
+
+    renderPage('count:note{} by {week}');
+    await waitFor(() => expect(screen.getByTestId('explorer-excluded-undated').textContent).toContain('2 undated notes'));
+    expect(screen.getByTestId('explorer-excluded-catalog').textContent).toContain('278 reference catalog records');
+  });
 });

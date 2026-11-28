@@ -1,4 +1,5 @@
 import { IBehaviorContext } from '../contracts/IBehaviorContext';
+import type { IScriptRuntime } from '../contracts/IScriptRuntime';
 import { TimerState } from '../memory/MemoryTypes';
 import { TimeSpan } from '../models/TimeSpan';
 
@@ -84,4 +85,30 @@ export function mutateTimerSpans(
     const spans = transform(timer.spans, ctx.clock.currentDate.getTime());
     ctx.updateMemory(TIME_TAG, [{ ...fragment, value: { ...timer, spans } }]);
     return true;
+}
+
+/**
+ * Seed a freshly constructed runtime's active block timers with prior elapsed
+ * milliseconds from a persisted mid-run checkpoint (WW-142). Prepends a closed
+ * prior `TimeSpan` ahead of each active block's live span so `SessionClockProjection`,
+ * countdown/countup displays, and session duration totals resume seamlessly
+ * instead of resetting to `00:00`.
+ */
+export function seedRuntimeElapsed(runtime: IScriptRuntime, elapsedMs: number): void {
+    if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return;
+    const nowMs = runtime.nowProvider.nowMs();
+    for (const block of runtime.stack.blocks) {
+        const loc = block.getMemoryByTag(TIME_TAG)[0];
+        const fragment = loc?.metrics[0];
+        const timer = fragment?.value as TimerState | undefined;
+        if (!loc || !fragment || !timer) continue;
+        const firstStart = timer.spans[0]?.started ?? nowMs;
+        const seeded =
+            timer.direction === 'down' && timer.durationMs !== undefined && elapsedMs >= timer.durationMs
+                ? Math.max(0, timer.durationMs - 1_000)
+                : elapsedMs;
+        if (seeded <= 0) continue;
+        const priorSpan = new TimeSpan(firstStart - seeded, firstStart);
+        loc.update([{ ...fragment, value: { ...timer, spans: [priorSpan, ...timer.spans] } }]);
+    }
 }

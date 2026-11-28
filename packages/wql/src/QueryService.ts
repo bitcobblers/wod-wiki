@@ -656,19 +656,36 @@ function compileContentRead(
 }
 
 /** :note pre-count selection stages — authored source clauses, parse-authored
- *  sourceScope, and default entity-catalog exclusion for unscoped `:note{}`
- *  (WW-094). Explicit `source:`/`type:`/`notebook:`/`note:`/`page:` filters and
- *  `:notebook{}` opt out of catalog exclusion. */
-function applyNoteSelectionStages(notes: Note[], parsed: ParsedFindQuery): Note[] {
+ *  sourceScope, notebook landing exclusion (WW-168), and default entity-catalog
+ *  exclusion for unscoped `:note{}` (WW-094). Explicit `source:`/`type:`/`notebook:`/
+ *  `note:`/`page:` filters and `:notebook{}` opt out of catalog exclusion. */
+function applyNoteSelectionStagesWithStats(
+  notes: Note[],
+  parsed: ParsedFindQuery,
+): { rows: Note[]; excludedCatalog: number } {
   let rows = applySourceFilter(notes, parsed.filters);
   if (parsed.sourceScope?.length) {
     const scope = parsed.sourceScope;
     rows = rows.filter((n) => scope.some((k) => sourceMatches(n, k)));
   }
-  if (shouldExcludeEntityCatalog(parsed)) {
-    rows = rows.filter((n) => !isEntityCatalogNote(n));
+  const isNotebookHead = /^:notebook\b/i.test(parsed.raw.trim());
+  const hasExplicitNoteId = parsed.filters.some((f) => f.key === 'note');
+  if (parsed.target === 'note' && !isNotebookHead && !hasExplicitNoteId) {
+    rows = rows.filter((n) => !isNotebookLanding(n));
   }
-  return rows;
+  let excludedCatalog = 0;
+  if (shouldExcludeEntityCatalog(parsed)) {
+    const kept: Note[] = [];
+    for (const n of rows) {
+      if (isEntityCatalogNote(n)) {
+        excludedCatalog += 1;
+      } else {
+        kept.push(n);
+      }
+    }
+    rows = kept;
+  }
+  return { rows, excludedCatalog };
 }
 
 /** Server order/page clauses for a candidate read. Natural id order rides
@@ -844,6 +861,8 @@ export interface FindQueryResult {
   /** Typed junction tags per note id when loaded via `relationStore`. */
   typedTags?: Record<string, Array<{ label: string; type?: string }>>;
   stages: { selected: number; matched: number };
+  /** Entity-catalog records (efforts, equipment, guides, dashboards) excluded by default on unscoped `:note{}` (WW-094 / WW-162). */
+  excludedCatalogCount?: number;
 }
 
 /** Highest-container link for a matched note (parent Page wins). `slug` and
@@ -914,7 +933,14 @@ export interface FindOptions {
 export interface QueryResult {
   parsed: ParsedAggregateQuery;
   series: Series[];
-  stages: { selected: number; buckets: number; aggregated: number; groups: number };
+  stages: {
+    selected: number;
+    buckets: number;
+    aggregated: number;
+    groups: number;
+    excludedCatalog?: number;
+    excludedUndated?: number;
+  };
   matched: AnalyticsDataPoint[];
   /** Single scalar value when the result has exactly one point. */
   scalar?: number;
@@ -2578,7 +2604,9 @@ export class QueryService {
     let notes = domainNotes ? domainNotes.rows : await this.noteStore.getAllNotes();
     const selectedFromDomain = domainNotes ? domainNotes.selectedCount : undefined;
     const notesPaged = !!domainNotes && paging.paged;
-    notes = applyNoteSelectionStages(notes, parsed);
+    const selectionStage = applyNoteSelectionStagesWithStats(notes, parsed);
+    notes = selectionStage.rows;
+    const excludedCatalog = selectionStage.excludedCatalog;
     // When the source scope stayed residual (journal/all), the wire's
     // selectedCount baselines the pre-scope population — the JS selection
     // stages over the complete, unpaged candidates are the truthful count.
@@ -2797,7 +2825,11 @@ export class QueryService {
             ...(Object.keys(relations.typedTags).length > 0 ? { typedTags: relations.typedTags } : {}),
           }
         : {}),
-      stages: { selected: selectedCount, matched: notes.length },
+      stages: {
+        selected: selectedCount,
+        matched: notes.length,
+      },
+      ...(excludedCatalog > 0 ? { excludedCatalogCount: excludedCatalog } : {}),
     };
   }
 
@@ -3236,12 +3268,14 @@ export class QueryService {
       Boolean(parsed.rollup);
 
     const points: AnalyticsDataPoint[] = [];
+    let excludedUndated = 0;
     for (const note of findRes.notes) {
       const ts = noteEffectiveTimestamp(note, findRes.placements?.[note.id], ctx.timeZone);
       // Guard against sentinel/epoch createdAt (e.g. legacy seed manifest version
       // 3100 or 0) on undated notes so calendar buckets never synthesize a
       // 1969-12-28 bucket and 57-year empty-week domain (WW-149).
       if (hasTemporalGrouping && (!Number.isFinite(ts) || ts < MIN_VALID_NOTE_TIMESTAMP)) {
+        excludedUndated += 1;
         continue;
       }
       const itemOrigin = notebookOriginOfItem(note);
@@ -3269,7 +3303,16 @@ export class QueryService {
     }
 
     const factDims = await this.loadFactDimensions(points, [], parsed.groupBy);
-    return this.buildResult(points, parsed, options, factDims, range);
+    const result = this.buildResult(points, parsed, options, factDims, range);
+    const excludedCatalog = findRes.excludedCatalogCount ?? 0;
+    if (excludedCatalog > 0 || excludedUndated > 0) {
+      result.stages = {
+        ...result.stages,
+        ...(excludedCatalog > 0 ? { excludedCatalog } : {}),
+        ...(excludedUndated > 0 ? { excludedUndated } : {}),
+      };
+    }
+    return result;
   }
 
   /**

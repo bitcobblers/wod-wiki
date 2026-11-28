@@ -102,8 +102,8 @@ export function useWqlComposerController({
   const emittedRef = useRef(query ?? initialQuery ?? ':note');
   const queryRef = useRef(query);
   const currentRef = useRef(resolveQueryDraft(base));
-  const callbacks = useRef({ onQueryChange, onValidationChange, onAstChange, onScopeOpenChange });
-  callbacks.current = { onQueryChange, onValidationChange, onAstChange, onScopeOpenChange };
+  const callbacks = useRef({ onQueryChange, onValidationChange, onAstChange, onScopeOpenChange, onSubmit });
+  callbacks.current = { onQueryChange, onValidationChange, onAstChange, onScopeOpenChange, onSubmit };
 
   const id = useId();
   const listId = `${id}-options`;
@@ -404,6 +404,9 @@ export function useWqlComposerController({
       return;
     }
     commit(next);
+    if (clause.type === 'time') {
+      callbacks.current.onSubmit?.(next.wql);
+    }
     if (active.kind === 'value') {
       const previousIndex = clause.filterIndex;
       const updated = astToPills(next.ast)?.find((pill) =>
@@ -420,7 +423,12 @@ export function useWqlComposerController({
   const removeClause = (clause: QueryClause) => {
     setUndo(currentRef.current.wql);
     const next = editQueryClause(currentRef.current.wql, clause, null);
-    if (next.valid) commit(next);
+    if (next.valid) {
+      commit(next);
+      if (clause.type === 'time') {
+        callbacks.current.onSubmit?.(next.wql);
+      }
+    }
     if (active.kind === 'value' && active.clause.id === clause.id) {
       setActive(expandedByDefault || isScopeOpen ? { kind: 'scope' } : { kind: 'closed' });
     }

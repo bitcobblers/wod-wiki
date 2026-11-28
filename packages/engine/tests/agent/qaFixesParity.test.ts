@@ -150,5 +150,28 @@ describe('QA Agent Parity & Lifecycle Fixes (WW-045, WW-046, WW-061, WW-082)', (
 
     const excludedSeed = await wodNoteListTool.execute({ includeSeed: false }, ctx);
     expect(excludedSeed.totalCount).toBe(1);
+
+    // WW-162: entity-catalog rows (efforts/equipment/guides/dashboards) are excluded by default to match :note{}
+    await storage.transaction(['notes'], 'readwrite', async (tx) => {
+      await tx.readwrite('notes').put({
+        id: 'effort-burpee-1',
+        title: 'Burpee',
+        rawContent: '# Burpee',
+        tags: [],
+        createdAt: 3100,
+        sourceRevision: 1,
+        blocks: {},
+        sourceId: 'efforts',
+        sourcePath: 'markdown/efforts/burpee.md',
+        seedOrigin: 'seed',
+      });
+    });
+
+    const withoutCatalog = await wodNoteListTool.execute({}, ctx);
+    expect(withoutCatalog.totalCount).toBe(2);
+    expect(withoutCatalog.excludedCatalogCount).toBe(1);
+
+    const withCatalog = await wodNoteListTool.execute({ includeCatalog: true }, ctx);
+    expect(withCatalog.totalCount).toBe(3);
   });
 });

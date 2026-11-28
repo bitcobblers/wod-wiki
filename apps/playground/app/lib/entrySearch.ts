@@ -225,15 +225,22 @@ function aggregateToEntries(result: QueryResult): Entry[] {
   });
 }
 
+export interface StreamQueryStages {
+  selected: number;
+  matched: number;
+  excludedCatalog?: number;
+}
+
 function emitStages(
-  onStages: ((stages: { selected: number; matched: number }) => void) | undefined,
-  stages: { selected: number; matched: number } | undefined,
+  onStages: ((stages: StreamQueryStages) => void) | undefined,
+  stages: { selected: number; matched: number; excludedCatalog?: number } | undefined,
   entries: Entry[],
 ): void {
   if (!onStages) return;
   onStages({
     selected: Math.max(stages?.selected ?? 0, entries.length),
     matched: entries.length,
+    ...(stages?.excludedCatalog ? { excludedCatalog: stages.excludedCatalog } : {}),
   });
 }
 
@@ -384,7 +391,7 @@ export class StreamQueryEngine {
       }
     }
   }
-  async query(input: string | AnyParsedQuery, onStages?: (stages: { selected: number; matched: number }) => void, options?: { notebookPlane?: 'notes' | 'containers' }): Promise<Entry[]> {
+  async query(input: string | AnyParsedQuery, onStages?: (stages: StreamQueryStages) => void, options?: { notebookPlane?: 'notes' | 'containers' }): Promise<Entry[]> {
     const parsed: AnyParsedQuery = typeof input === 'string' ? parseQuery(input) : input;
     if (!parsed || parsed.error) return [];
 
@@ -486,7 +493,13 @@ export class StreamQueryEngine {
       } else {
         await this.hydrateEntries(entries, true, primaryResult.placements, primaryResult.typedTags);
       }
-      emitStages(onStages, primaryResult.stages, entries);
+      emitStages(
+        onStages,
+        primaryResult.excludedCatalogCount
+          ? { ...primaryResult.stages, excludedCatalog: primaryResult.excludedCatalogCount }
+          : primaryResult.stages,
+        entries,
+      );
 
       if (this.noteBlockInfo) {
         for (let index = 0; index < entries.length; index++) {
@@ -527,7 +540,7 @@ export const defaultStreamQueryEngine = new StreamQueryEngine();
 export async function searchEntries(
   input: string | AnyParsedQuery,
   engine: StreamQueryEngine = defaultStreamQueryEngine,
-  onStages?: (stages: { selected: number; matched: number }) => void,
+  onStages?: (stages: StreamQueryStages) => void,
 ): Promise<Entry[]> {
   return engine.query(input, onStages);
 }

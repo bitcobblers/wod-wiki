@@ -33,6 +33,12 @@ export interface PendingRuntime {
   returnTo?: string;
   scheduleItemId?: string;
   sessionDate?: string;
+  /** Prior elapsed ms to restore when resuming an interrupted workout (WW-142). */
+  resumeElapsedMs?: number;
+  /** Original wall-clock start timestamp from the checkpoint (WW-142). */
+  resumeStartedAt?: number;
+  /** Execution state captured at checkpoint time (WW-142). */
+  resumeStatus?: 'running' | 'paused';
 }
 
 export interface ParkedRun {

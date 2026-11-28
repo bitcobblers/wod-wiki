@@ -281,8 +281,9 @@ describe('LibraryRow — field projection adaptation', () => {
     )
 
     expect(screen.getByTestId('library-row-visibility-journal').textContent).toContain('Private')
-    expect(screen.queryByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW)).toBeNull()
-    expect(screen.queryByTestId('row-toggle-public-journal')).toBeNull()
+    // WW-128: Journal exposes Make Public / Make Private while keeping Edit & Delete gated
+    fireEvent.click(screen.getByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW))
+    expect(screen.getByTestId('row-toggle-public-journal')).toBeDefined()
     expect(screen.queryByTestId('notebook-edit-journal')).toBeNull()
     expect(screen.queryByTestId('notebook-delete-journal')).toBeNull()
 
@@ -382,5 +383,29 @@ describe('LibraryRow — field projection adaptation', () => {
     )
     expect(screen.queryByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW)).toBeNull()
     expect(screen.queryByTestId('row-toggle-public-defaults')).toBeNull()
+
+    // WW-128: Journal, Playground, and Custom local notebooks also expose Make Public / Make Private
+    for (const slug of ['journal', 'playground', 'custom'] as const) {
+      cleanup()
+      const defaultLocal: Entry = {
+        id: `notebook/${slug}`,
+        kind: 'notebook',
+        feedId: 'local',
+        notebookId: `notebook/${slug}`,
+        sourceNotebook: slug,
+        sourceNote: slug,
+        title: slug.charAt(0).toUpperCase() + slug.slice(1),
+        date: null,
+        isPublic: false,
+      }
+      render(
+        <MemoryRouter>
+          <LibraryRow entry={defaultLocal} onTogglePublicNotebook={(e) => toggled.push(e)} />
+        </MemoryRouter>,
+      )
+      fireEvent.click(screen.getByTestId(TEST_IDS.LIBRARY_ROW_OVERFLOW))
+      const btn = screen.getByTestId(`row-toggle-public-${slug}`)
+      expect(btn.textContent).toContain('Make Public')
+    }
   })
 })

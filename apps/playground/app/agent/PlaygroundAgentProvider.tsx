@@ -507,6 +507,9 @@ export const PlaygroundAgentProvider: React.FC = () => {
               groupBy: activeStream.groupBy ?? null,
               loading: activeStream.loading,
               totalUnbatchedCount: matchedStream ? matchedStream.entries.length : null,
+              ...(matchedStream?.excludedCatalogCount
+                ? { excludedCatalogCount: matchedStream.excludedCatalogCount }
+                : {}),
               ...(includeSamples && matchedStream
                 ? {
                     entries: matchedStream.entries.slice(0, 50).map((e) => ({

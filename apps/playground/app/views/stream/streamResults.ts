@@ -19,6 +19,8 @@ export interface StreamResultSnapshot {
   query: string
   /** Full mapped result set — not a visible batch. */
   entries: Entry[]
+  /** Entity-catalog records excluded by default from unscoped `:note{}` (WW-094 / WW-162). */
+  excludedCatalogCount?: number
 }
 
 let snapshot: StreamResultSnapshot | null = null

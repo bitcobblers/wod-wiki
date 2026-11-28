@@ -33,7 +33,19 @@ describe('WW-062 / WW-037 / WW-101 — Notebook capabilities, listing counts, an
       isBuiltIn: true,
       canEdit: false,
       canDelete: false,
-      canTogglePublic: false,
+      canTogglePublic: true,
+    });
+    expect(getNotebookCapabilities({ slug: 'playground', origin: 'default' })).toMatchObject({
+      isBuiltIn: true,
+      canEdit: false,
+      canDelete: false,
+      canTogglePublic: true,
+    });
+    expect(getNotebookCapabilities({ slug: 'custom', origin: 'default' })).toMatchObject({
+      isBuiltIn: true,
+      canEdit: false,
+      canDelete: false,
+      canTogglePublic: true,
     });
     expect(getNotebookCapabilities({ slug: 'guides', feedId: 'local' })).toMatchObject({
       isBuiltIn: true,

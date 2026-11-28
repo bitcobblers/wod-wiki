@@ -406,6 +406,9 @@ function WallClockRouteView({ runtimeId }: { runtimeId: string | undefined }) {
         resultId={effectiveResultId ?? runtimeId}
         noteId={pending.noteId}
         autoStart
+        initialElapsedMs={pending.resumeElapsedMs}
+        initialStartedAt={pending.resumeStartedAt}
+        initialResumeStatus={pending.resumeStatus}
         adoptRuntime={initial.adoptedRuntime}
         parkOnUnmount
         onPark={handlePark}

@@ -256,6 +256,7 @@ function StreamQueryStatus({
   target,
   matched,
   total,
+  excludedCatalog,
   countsPending,
   applied,
   ignored,
@@ -272,6 +273,7 @@ function StreamQueryStatus({
   target: string | null
   matched: number
   total: number
+  excludedCatalog: number
   countsPending: boolean
   applied: number
   ignored: number
@@ -288,6 +290,19 @@ function StreamQueryStatus({
     isCustomQuery ||
     ignored > 0 ||
     advisories.length > 0
+
+  const catalogNote = !countsPending && excludedCatalog > 0 ? (
+    <>
+      <span aria-hidden="true">·</span>
+      <span
+        data-testid="stream-excluded-catalog"
+        title="Reference catalog records (efforts, equipment, guides, dashboards) are excluded from :note{} by default. Browse Efforts, Equipment, Guides, or Dashboards to view them."
+        className="text-muted-foreground/80"
+      >
+        {excludedCatalog.toLocaleString()} catalog {excludedCatalog === 1 ? 'item' : 'items'} excluded
+      </span>
+    </>
+  ) : null
 
   if (!showDiagnostics) {
     return (
@@ -309,6 +324,7 @@ function StreamQueryStatus({
             </span>
           </>
         )}
+        {catalogNote}
       </div>
     )
   }
@@ -342,6 +358,7 @@ function StreamQueryStatus({
           </span>
         </>
       )}
+      {catalogNote}
       {advisories.map(advisory => (
         <p key={advisory} className="w-full break-words text-amber-700 dark:text-amber-400">
           {advisory}
@@ -514,7 +531,7 @@ export function QueriableStreamView({
   )
   // The run's own stage counts (scope population vs matches) — captured from
   // the engine's stage callback, never a second scan.
-  const [stages, setStages] = useState<{ selected: number; matched: number } | undefined>(undefined)
+  const [stages, setStages] = useState<{ selected: number; matched: number; excludedCatalog?: number } | undefined>(undefined)
   // The committed run's query-leg `by {}` dims — stored together with the
   // results they grouped; null when that run carried no query grouping.
   const [queryRunDims, setQueryRunDims] = useState<string[] | null>(null)
@@ -1241,11 +1258,15 @@ export function QueriableStreamView({
       setLoading(true)
       setStages(undefined)
       setRuntimeQueryError(null)
+      let runExcludedCatalog = 0
       activeEngine
         .query(
           effectiveQuery,
           next => {
-            if (!cancelled) setStages(next)
+            if (!cancelled) {
+              runExcludedCatalog = next.excludedCatalog ?? 0
+              setStages(next)
+            }
           },
           {
             notebookPlane:
@@ -1271,7 +1292,12 @@ export function QueriableStreamView({
             setSettledRoute(profile.route)
             // One full execution per query change — nav facet panels read
             // this snapshot instead of re-running the query.
-            publishStreamResults({ pathname: location.pathname, query: effectiveQuery, entries: results })
+            publishStreamResults({
+              pathname: location.pathname,
+              query: effectiveQuery,
+              entries: results,
+              ...(runExcludedCatalog > 0 ? { excludedCatalogCount: runExcludedCatalog } : {}),
+            })
             setSavedTick((prev) => prev) // keep reference clean
           }
         })
@@ -2088,6 +2114,7 @@ export function QueriableStreamView({
           target={statusTarget}
           matched={entries.length}
           total={Math.max(stages?.selected ?? 0, entries.length)}
+          excludedCatalog={stages?.excludedCatalog ?? 0}
           countsPending={!parsed.error && (!hasSettledRun || (loading && !stages) || awaitingFeedEntries)}
           applied={appliedFilters}
           ignored={ignoredFilters}

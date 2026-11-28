@@ -120,6 +120,9 @@ export const AgentStateScript: React.FC = () => {
             loading: streamBridge.loading,
             ...(streamBridge.notebookDetail ? { notebookDetail: streamBridge.notebookDetail } : {}),
             totalUnbatchedCount: matchedStream ? matchedStream.entries.length : null,
+            ...(matchedStream?.excludedCatalogCount
+              ? { excludedCatalogCount: matchedStream.excludedCatalogCount }
+              : {}),
             sampleEntries: matchedStream
               ? matchedStream.entries.slice(0, 25).map((e) => ({
                   id: e.id,

@@ -71,6 +71,7 @@ export function PropertyOverrideSheet({
       setCustomHasOverride(overriddenNotebooks.has('notebook/custom'));
 
       const rows: TargetNotebookItem[] = [];
+      const seen = new Set<string>(['notebook/custom']);
       for (const n of allNotes) {
         const isTargetNotebook =
           isPublishableNotebookLanding(n) ||
@@ -81,6 +82,8 @@ export function PropertyOverrideSheet({
             n.seedOrigin !== 'seed');
         if (isTargetNotebook) {
           const nbId = toNotebookId(n.id);
+          if (seen.has(nbId)) continue;
+          seen.add(nbId);
           rows.push({
             id: nbId,
             slug: notebookSlugFromId(nbId),

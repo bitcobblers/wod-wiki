@@ -217,6 +217,22 @@ describe('current visible draft actions', () => {
     expect(screen.getByLabelText('WQL').textContent).toBe(query);
     expect(change).not.toHaveBeenCalled();
   });
+
+  it('WW-167: picking a Time Window option immediately submits the updated query', () => {
+    const change = vi.fn();
+    const submit = vi.fn();
+    render(
+      <WqlComposer
+        initialQuery="sum:totalVolume{} by {week}"
+        onQueryChange={change}
+        onSubmit={submit}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('token-slot-time'));
+    fireEvent.click(screen.getByRole('option', { name: /Past quarter/i }));
+    expect(change).toHaveBeenCalledWith('sum:totalVolume{} by {week} last 12w');
+    expect(submit).toHaveBeenCalledWith('sum:totalVolume{} by {week} last 12w');
+  });
 });
 
 describe('WQL text editor keyboard and lint', () => {

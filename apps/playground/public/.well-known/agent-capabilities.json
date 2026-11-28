@@ -208,6 +208,10 @@
             "description": "Include read-only Seed/Feed notes (default true; pass false for user-authored notes only).",
             "type": "boolean"
           },
+          "includeCatalog": {
+            "description": "Include built-in entity catalog records (efforts, equipment, guides, dashboards). Defaults to false to match :note{}.",
+            "type": "boolean"
+          },
           "orphanedOnly": {
             "description": "When true, return only user Notes not belonging to any Notebook (equivalent to `:note{!notebook:*}`).",
             "type": "boolean"

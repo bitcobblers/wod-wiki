@@ -32,19 +32,42 @@ export interface UseRuntimeExecutionReturn {
   step: () => void;
 }
 
+export interface UseRuntimeExecutionOptions {
+  /** Prior elapsed milliseconds to restore when resuming an interrupted run (WW-142). */
+  initialElapsedMs?: number;
+  /** Original wall-clock start timestamp to preserve across mid-run resume. */
+  initialStartTime?: number | null;
+}
+
 export const useRuntimeExecution = (
-  runtime: ScriptRuntime | null
+  runtime: ScriptRuntime | null,
+  options?: UseRuntimeExecutionOptions,
 ): UseRuntimeExecutionReturn => {
+  const seedElapsedMs =
+    typeof options?.initialElapsedMs === 'number' &&
+    Number.isFinite(options.initialElapsedMs) &&
+    options.initialElapsedMs > 0
+      ? options.initialElapsedMs
+      : 0;
+  const seedStartTime =
+    typeof options?.initialStartTime === 'number' && Number.isFinite(options.initialStartTime)
+      ? options.initialStartTime
+      : null;
+
   const [status, setStatus] = useState<ExecutionStatus>('idle');
-  const [elapsedTime, setElapsedTime] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(seedElapsedMs);
   const [stepCount, setStepCount] = useState(0);
-  const [startTime, setStartTime] = useState<number | null>(null);
+  const [startTime, setStartTime] = useState<number | null>(
+    seedElapsedMs > 0 ? (seedStartTime ?? null) : null,
+  );
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const statusRef = useRef<ExecutionStatus>('idle');
-  const accumulatedElapsedRef = useRef<number>(0);
+  const accumulatedElapsedRef = useRef<number>(seedElapsedMs);
   const segmentStartRef = useRef<number | null>(null);
-  const hasStartTimeRef = useRef(false);
+  const hasStartTimeRef = useRef(seedElapsedMs > 0 && seedStartTime !== null);
+  const seedRef = useRef({ elapsedMs: seedElapsedMs, startTime: seedStartTime });
+  seedRef.current = { elapsedMs: seedElapsedMs, startTime: seedStartTime };
 
   const readNowMs = useCallback(
     () => runtime?.nowProvider?.nowMs() ?? wallClockNow.nowMs(),
@@ -218,7 +241,15 @@ export const useRuntimeExecution = (
 
   useEffect(() => {
     reset();
-  }, [runtime, reset]);
+    const { elapsedMs: priorElapsed, startTime: priorStart } = seedRef.current;
+    if (runtime && priorElapsed > 0) {
+      accumulatedElapsedRef.current = priorElapsed;
+      setElapsedTime(priorElapsed);
+      const resolvedStart = priorStart ?? (readNowMs() - priorElapsed);
+      hasStartTimeRef.current = true;
+      setStartTime(resolvedStart);
+    }
+  }, [runtime, reset, readNowMs]);
 
   return useMemo(() => ({
     status,
