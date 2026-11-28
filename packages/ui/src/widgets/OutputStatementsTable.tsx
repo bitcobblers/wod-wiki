@@ -1179,6 +1179,20 @@ function StatementCards({
 }
 
 /** The Session Results surface — Card List below `sm`, dynamic sortable/editable table at `sm` and up. */
+/** Deduplicate folded summary rows and apply the table filter — shared with ResultsSpreadsheetGrid tab count. */
+export function filterOutputRows(
+  outputs: readonly OutputStatementRow[],
+  filter: string,
+): OutputStatementRow[] {
+  const hasEventAnalytics = outputs.some(
+    (out) => out.grain !== 'summary' && String(out.outputType ?? '').toLowerCase() === 'analytics',
+  );
+  const deduped = hasEventAnalytics ? outputs.filter((out) => out.grain !== 'summary') : outputs;
+  return !filter.trim()
+    ? [...deduped]
+    : deduped.filter((out) => matchesOutputFilter(out, filter));
+}
+
 export function OutputStatementsTable({
   outputs,
   filter = '',
@@ -1201,15 +1215,10 @@ export function OutputStatementsTable({
 
   const activeSort = controlledSort ?? internalSort;
 
-  const filteredUnordered = useMemo(() => {
-    const hasEventAnalytics = outputs.some(
-      (out) => out.grain !== 'summary' && String(out.outputType ?? '').toLowerCase() === 'analytics',
-    );
-    const deduped = hasEventAnalytics ? outputs.filter((out) => out.grain !== 'summary') : outputs;
-    return !filter.trim()
-      ? [...deduped]
-      : deduped.filter((out) => matchesOutputFilter(out, filter));
-  }, [outputs, filter]);
+  const filteredUnordered = useMemo(
+    () => filterOutputRows(outputs, filter),
+    [outputs, filter],
+  );
 
   const activeColumns = useMemo(
     () => buildActiveColumns(filteredUnordered, explicitColumns),

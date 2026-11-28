@@ -3684,6 +3684,7 @@ export class QueryService {
       }
     }
 
+    let cachedShortDateFmt: Intl.DateTimeFormat | null | undefined;
     const formatDimLabel = (dim: string, val: string, rows: readonly AnalyticsDataPoint[]): string => {
       if (val === UNASSIGNED) return 'unassigned';
       if (dim === 'session') {
@@ -3691,13 +3692,18 @@ export class QueryService {
         const title = first ? dimCtx.noteTitles?.get(first.noteId) : undefined;
         let shortDate = '';
         if (first) {
-          try {
-            shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: ctx.timeZone }).format(new Date(first.timestamp));
-          } catch {
-            shortDate = civilDateOf(first.timestamp, ctx.timeZone);
+          if (cachedShortDateFmt === undefined) {
+            try {
+              cachedShortDateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: ctx.timeZone });
+            } catch {
+              cachedShortDateFmt = null;
+            }
           }
+          shortDate = cachedShortDateFmt
+            ? cachedShortDateFmt.format(new Date(first.timestamp))
+            : civilDateOf(first.timestamp, ctx.timeZone);
         }
-        const tail = title?.trim() ? title.trim() : val.slice(0, 8);
+        const tail = title?.trim() ? title.trim() : String(val ?? '').slice(0, 8);
         return shortDate ? `${shortDate} · ${tail}` : tail;
       }
       if (dim === 'notebook') {

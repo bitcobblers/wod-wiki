@@ -81,7 +81,12 @@ function GlobalState() {
     // (the editor, the parser, the runtime) reads it from one cache, so it
     // is loaded once here — for the whole app, not just the workbench.
     void loadTagIndex().catch(() => { /* Tags are optional — a document without them still runs. */ })
-    void startFieldCatalogBackfill().catch(() => { /* Field catalog backfill is best-effort. */ })
+    // Defer field catalog backfill off the initial route render so IndexedDB
+    // read/write scans never contend with dashboard/journal hydration (WW-159).
+    const backfillTimer = setTimeout(() => {
+      void startFieldCatalogBackfill().catch(() => { /* Field catalog backfill is best-effort. */ })
+    }, 1500)
+    return () => clearTimeout(backfillTimer)
   }, [])
   return null
 }

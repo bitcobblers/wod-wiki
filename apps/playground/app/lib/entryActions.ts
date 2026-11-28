@@ -170,10 +170,10 @@ export function entryNotebookHref(entry: Entry): string | null {
 }
 
 /** Compare: any row with a blockContentId; routes to the WQL explorer on the
- *  dashboards list (the ?q= deep link pre-fills the query). */
+ *  dashboards list with a valid `:session{block:<id>}` query (WW-160). */
 export function entryCompareHref(entry: Entry): string | null {
   if (!entry.blockContentId) return null
-  return analyticsExplorerPath({ q: entry.blockContentId })
+  return analyticsExplorerPath({ q: `:session{block:${entry.blockContentId}}` })
 }
 
 /** Add to today: any note (journal, notebook member, dated post), and

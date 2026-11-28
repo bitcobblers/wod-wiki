@@ -141,4 +141,18 @@ describe('useJournalZipProcessor', () => {
     });
     expect(createNoteMock.mock.calls[0]?.[0]).toMatchObject({ journalDate: '2026-05-20' });
   });
+
+  it('WW-161: enters error state without creating a note when decodeZip returns null', async () => {
+    decodeMock.mockResolvedValueOnce(null);
+    const { result, landed } = renderAt('/load/journal', { zip: 'garbage-not-a-valid-bundle-12345' });
+
+    await waitFor(() => {
+      expect(result.current.state).toBe('error');
+    });
+
+    expect(result.current.error).toBe('Failed to decode the journal entry');
+    expect(createNoteMock).not.toHaveBeenCalled();
+    expect(landed()).toBe('/load/journal');
+    expect(toastMock).toHaveBeenCalled();
+  });
 });

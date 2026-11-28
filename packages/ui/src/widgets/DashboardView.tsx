@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, ChevronUp, Copy, Trash2 } from 'lucide-react';
 import { isFindQuery, isPipelineQuery, parseQuery, parseDocument, type AnyParsedQuery, defaultTokenValues, isDashboardWidgetType, resolveWidgetType, substituteTokens, unknownTokensMessage, unknownWidgetTypeMessage, type DashboardDocument, type DashboardWidget, SharedQueryDocumentRunner } from '@bitcobblers/wod-wiki-wql';
 import type { QueryExecutor } from '../contracts/query';
@@ -179,12 +179,15 @@ export function DashboardView({
       (pageSources ? `:ps=${[...pageSources.keys()].join(',')}` : ''),
     [resolved, pageSources],
   );
+  const resolvedRef = useRef(resolved);
+  resolvedRef.current = resolved;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
 
     async function load() {
+      const currentResolved = resolvedRef.current;
       const next: Record<string, WidgetRun> = {};
       const runnable: Array<{
         widget: DashboardWidget;
@@ -193,7 +196,7 @@ export function DashboardView({
         attributes: Record<string, string>;
       }> = [];
 
-      for (const { widget, query, missing, attributes } of resolved) {
+      for (const { widget, query, missing, attributes } of currentResolved) {
         if (widget.type !== '' && !isDashboardWidgetType(widget.type)) {
           next[widget.key] = { error: unknownWidgetTypeMessage(widget.type) };
           continue;
@@ -245,8 +248,13 @@ export function DashboardView({
         rollupEnsure: onEnsureRollupFacts,
       });
 
+      if (!cancelled && Object.keys(next).length > 0) {
+        setRuns({ ...next });
+      }
+
       await Promise.all(
         runnable.map(async ({ widget, query, parsed, attributes }) => {
+          let outcome: WidgetRun;
           try {
             const runner = new SharedQueryDocumentRunner(host, pageSources ? { pageSources } : undefined);
             const res = await runner.run(query);
@@ -254,18 +262,22 @@ export function DashboardView({
             // several bindings (`show a, b | :stacked-bar{}`) renders all
             // of them, not just the first.
             const error = res.outputs.find((o) => o.error !== undefined)?.error ?? res.diagnostics[0];
-            next[widget.key] = {
+            outcome = {
               result: outputsToRunResult(parsed, res, attributes),
               ...(error ? { error } : {}),
             };
           } catch (err) {
-            next[widget.key] = { error: err instanceof Error ? err.message : String(err) };
+            outcome = { error: err instanceof Error ? err.message : String(err) };
+          }
+          next[widget.key] = outcome;
+          if (!cancelled) {
+            setRuns((prev) => ({ ...prev, [widget.key]: outcome }));
           }
         }),
       );
 
       if (!cancelled) {
-        setRuns(next);
+        setRuns({ ...next });
         setLoading(false);
       }
     }
@@ -274,7 +286,7 @@ export function DashboardView({
     return () => {
       cancelled = true;
     };
-  }, [resolvedKey, resolved, executor, onEnsureRollupFacts, rangeStart, rangeEnd, preferredUnit, refreshKey, pageSources]);
+  }, [resolvedKey, executor, onEnsureRollupFacts, rangeStart, rangeEnd, preferredUnit, refreshKey, pageSources]);
 
   return (
     <div data-testid="dashboard-view">

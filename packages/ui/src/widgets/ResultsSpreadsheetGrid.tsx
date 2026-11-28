@@ -32,6 +32,7 @@ import {
   OutputFilterPills,
   OutputStatementsTable,
   DEFAULT_OUTPUT_FILTERS,
+  filterOutputRows,
   normalizeOutputFilter,
   type InlineMetricEditPayload,
   type OutputStatementRow,
@@ -815,6 +816,10 @@ export function ResultsSpreadsheetGrid({
     () => run.summary ?? computeRowsRunSummary(run, { noteTitle }),
     [run, noteTitle],
   );
+  const visibleRawCount = useMemo(
+    () => filterOutputRows(run.events as unknown as OutputStatementRow[], rawFilter).length,
+    [run.events, rawFilter],
+  );
   const rows = useMemo(() => buildSpreadsheetRows(run, prHighlights), [run, prHighlights]);
 
   const dynamicColumns = useMemo<ColumnDef[]>(() => {
@@ -1044,7 +1049,7 @@ export function ResultsSpreadsheetGrid({
               { id: 'splits', label: `Splits (${rows.length})`, icon: Table2 },
               { id: 'movement', label: `By Movement (${summary.movementRollup.length})`, icon: LayoutList },
               { id: 'compare', label: `Compare Runs (${compareRuns.length})`, icon: GitCompareArrows },
-              { id: 'raw', label: `Raw Events (${run.events.length})`, icon: Columns3 },
+              { id: 'raw', label: `Raw Events (${visibleRawCount})`, icon: Columns3 },
             ] as const
           ).map((tab) => {
             const Icon = tab.icon;

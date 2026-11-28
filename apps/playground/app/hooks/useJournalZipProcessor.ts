@@ -85,7 +85,11 @@ export function useJournalZipProcessor(deps: UseJournalZipProcessorDeps = {}): J
         // Step 1: Decode the zip
         let content: string;
         try {
-          content = await decode(zip);
+          const decoded = await decode(zip);
+          if (decoded === null || !decoded.trim()) {
+            throw new Error('Invalid or corrupted workout bundle');
+          }
+          content = decoded;
         } catch (err) {
           console.error('Failed to decode zip:', err);
           setState({

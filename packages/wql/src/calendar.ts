@@ -112,18 +112,31 @@ export function civilMonthAdd(iso: string, months: number): string {
   return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-01`;
 }
 
+const offsetFormatterCache = new Map<string, Intl.DateTimeFormat>();
+const startOfDayCache = new Map<string, number>();
+const MAX_START_OF_DAY_CACHE = 4096;
+
+function offsetFormatter(timeZone: string): Intl.DateTimeFormat {
+  let formatter = offsetFormatterCache.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    offsetFormatterCache.set(timeZone, formatter);
+  }
+  return formatter;
+}
+
 /** Offset (ms) of `timeZone` at `instant`: local = UTC + offset. */
 function zonedOffset(instant: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(instant);
+  const parts = offsetFormatter(timeZone).formatToParts(instant);
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? '0');
   const asUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'));
   return asUTC - instant;
@@ -133,12 +146,20 @@ function zonedOffset(instant: number, timeZone: string): number {
  *  `timeZone` — component math that survives DST boundaries (a 23h or 25h
  *  day still starts at its own local 00:00). */
 export function zonedStartOfDay(iso: string, timeZone: string): number {
+  const cacheKey = `${timeZone}|${iso}`;
+  const cached = startOfDayCache.get(cacheKey);
+  if (cached !== undefined) return cached;
   const { y, m, d } = civilParts(iso);
   // Two-iteration fixpoint: guess UTC midnight, correct by the zone's offset,
   // re-correct — settles DST shift edges (23h/25h days still start 00:00 local).
   const guess = Date.UTC(y, m - 1, d);
   const first = guess - zonedOffset(guess, timeZone);
-  return guess - zonedOffset(first, timeZone);
+  const result = guess - zonedOffset(first, timeZone);
+  if (startOfDayCache.size >= MAX_START_OF_DAY_CACHE) {
+    startOfDayCache.clear();
+  }
+  startOfDayCache.set(cacheKey, result);
+  return result;
 }
 
 /** Local noon of civil date `iso` in `timeZone` — the presentation-only
