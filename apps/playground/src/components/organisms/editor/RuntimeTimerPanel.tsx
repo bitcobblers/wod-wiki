@@ -53,7 +53,7 @@ import { getActiveCastTransport } from "@/hooks/useCastSignaling";
 import { useSessionCastBridge } from "@/hooks/useSessionCastBridge";
 import type { ScriptBlock, Sessions } from '@/components/Editor/types';
 import { formatDurationMMSS } from '@bitcobblers/wod-wiki-core';
-import { createParser, type IOutputStatement } from '@bitcobblers/wod-wiki-engine';
+import { createParser, seedRuntimeElapsed, type IOutputStatement } from '@bitcobblers/wod-wiki-engine';
 import { dispatchGutterHighlights } from '@bitcobblers/wod-wiki-ui/extensions';
 import { buildCompletedRuntimeProjection } from "@/app/cast/workbenchProjection";
 import { useUserOverrides } from '@/components/organisms/review/useUserOverrides';
@@ -130,6 +130,12 @@ export interface RuntimeTimerPanelProps {
   resultId?: string;
   /** Optional parent note identifier for scoping halted-run notices. */
   noteId?: string;
+  /** Prior elapsed ms to restore when resuming an interrupted run (WW-142). */
+  initialElapsedMs?: number;
+  /** Original wall-clock start timestamp from checkpoint (WW-142). */
+  initialStartedAt?: number;
+  /** Status to restore ('running' | 'paused') after mid-run reload (WW-142). */
+  initialResumeStatus?: 'running' | 'paused';
 }
 
 export interface HaltedRunNoticeProps {
@@ -212,6 +218,9 @@ export const HaltedRunNotice: React.FC<HaltedRunNoticeProps> = ({ noteId }) => {
       block,
       noteId: cp.noteId ?? '',
       returnTo: cp.returnTo,
+      ...(cp.elapsedMs > 0 ? { resumeElapsedMs: cp.elapsedMs } : {}),
+      ...(cp.startedAt > 0 ? { resumeStartedAt: cp.startedAt } : {}),
+      resumeStatus: cp.status,
     });
     clearLiveRunCheckpoint(cp.sessionId);
     clearHaltedRun(cp.sessionId);
@@ -623,6 +632,9 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
   onPark,
   resultId,
   noteId,
+  initialElapsedMs,
+  initialStartedAt,
+  initialResumeStatus,
 }) => {
   const [runtimeBlock] = useState(() => prepareRuntimeBlock(block));
   const [preRunScript] = useState(() => ({ statements: runtimeBlock.statements }));
@@ -778,7 +790,11 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adoptRuntime]);
 
-  const execution = useRuntimeExecution(runtime as ScriptRuntime | null);
+  const execution = useRuntimeExecution(runtime as ScriptRuntime | null, {
+    initialElapsedMs,
+    initialStartTime: initialStartedAt,
+  });
+  const hasAppliedResumeRef = useRef(false);
 
   // Sync the inline runtime's execution status into the active Workbench
   // Session store. Store-driven panels (StackIntegratedTimer reads
@@ -797,9 +813,36 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
 
   // Auto-start only after the runtime exists; if collection is required, the
   // wizard's Start button sets pendingStart after resolving the choices.
+  // When resuming from an interrupted mid-run checkpoint (`initialElapsedMs > 0`,
+  // WW-142), pop the Ready-to-Start gate, seed block timers with the prior
+  // elapsed span, and resume directly into running/paused state.
   useEffect(() => {
-    if ((autoStart || pendingStart) && ready && execution.status === 'idle') {
-      const waiting = runtime?.stack.current?.blockType === 'WaitingToStart';
+    if (!ready || !runtime) return;
+    const resumingElapsed =
+      typeof initialElapsedMs === 'number' &&
+      Number.isFinite(initialElapsedMs) &&
+      initialElapsedMs > 0 &&
+      !hasAppliedResumeRef.current;
+
+    if (resumingElapsed && execution.status === 'idle') {
+      hasAppliedResumeRef.current = true;
+      if (runtime.stack.current?.blockType === 'WaitingToStart') {
+        runtime.handle(new NextEvent(undefined, runtime.nowProvider));
+      }
+      seedRuntimeElapsed(runtime, initialElapsedMs);
+      if (runtime.stack.count > 0) {
+        if (initialResumeStatus === 'paused') {
+          execution.pause();
+        } else {
+          execution.start();
+        }
+      }
+      setPendingStart(false);
+      return;
+    }
+
+    if ((autoStart || pendingStart) && execution.status === 'idle') {
+      const waiting = runtime.stack.current?.blockType === 'WaitingToStart';
       if (waiting) {
         if (!pendingStart) {
           // autoStart opens the session at the Ready-to-Start gate (idle/ready);
@@ -809,13 +852,13 @@ export const RuntimeTimerPanel: React.FC<RuntimeTimerPanelProps> = ({
         }
         runtime.handle(new NextEvent(undefined, runtime.nowProvider));
       }
-      if (!runtime || runtime.stack.count > 0) {
+      if (runtime.stack.count > 0) {
         execution.start();
       }
       setPendingStart(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- execution identity is unstable each render; field deps avoid a setExecution loop
-  }, [autoStart, pendingStart, ready, execution.status, execution.start, runtime]);
+  }, [autoStart, pendingStart, ready, execution.status, execution.start, execution.pause, runtime, initialElapsedMs, initialResumeStatus]);
 
   // Surface the first transition to running so tour quest gating can observe
   // an actual run signal rather than just stage visibility.

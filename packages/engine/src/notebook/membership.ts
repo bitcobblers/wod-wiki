@@ -120,7 +120,14 @@ export async function createUserNotebookLanding(
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'notebook';
-  if (isNonPublishableNotebook(slug)) slug = `${slug}-user`;
+  if (
+    isNonPublishableNotebook(slug) ||
+    slug === 'journal' ||
+    slug === 'playground' ||
+    slug === 'custom'
+  ) {
+    slug = `${slug}-user`;
+  }
   const nbId = toNotebookId(slug);
   await storage.transaction(['notes'], 'readwrite', async (tx) => {
     const existing = await tx.readonly('notes').get(nbId);

@@ -67,6 +67,12 @@ export interface FullscreenTimerProps {
   noteId?: string;
   /** Whether the timer should start automatically on mount. */
   autoStart?: boolean;
+  /** Prior elapsed ms to restore when resuming an interrupted run (WW-142). */
+  initialElapsedMs?: number;
+  /** Original start timestamp from an interrupted run checkpoint (WW-142). */
+  initialStartedAt?: number;
+  /** Status to restore ('running' | 'paused') after mid-run reload (WW-142). */
+  initialResumeStatus?: 'running' | 'paused';
   /** Called when the inner runtime is created — host can send gate-popping events (e.g. Next to clear WaitingToStart). */
   onRuntimeReady?: (runtime: IScriptRuntime) => void;
   /** Called once when the inner runtime transitions from idle to running. */
@@ -108,6 +114,9 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
   resultId,
   noteId,
   autoStart,
+  initialElapsedMs,
+  initialStartedAt,
+  initialResumeStatus,
   onRuntimeReady,
   onRunStarted,
   externalStop,
@@ -652,6 +661,9 @@ export const FullscreenTimer: React.FC<FullscreenTimerProps> = ({
             onComplete={handleComplete}
             isExpanded={true}
             autoStart={autoStart}
+            initialElapsedMs={initialElapsedMs}
+            initialStartedAt={initialStartedAt}
+            initialResumeStatus={initialResumeStatus}
             onRuntimeReady={onRuntimeReady}
             onRunStarted={handleRunStarted}
             externalStop={externalStop || haltRequested}

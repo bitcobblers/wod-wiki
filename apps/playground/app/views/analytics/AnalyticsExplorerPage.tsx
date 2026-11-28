@@ -874,6 +874,24 @@ export function AnalyticsExplorerPage({ actions }: AnalyticsExplorerPageProps) {
                 </WidgetFrame>
               </div>
 
+              {result && !loading && ((result.stages.excludedUndated ?? 0) > 0 || (result.stages.excludedCatalog ?? 0) > 0) && (
+                <div
+                  role="status"
+                  className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
+                >
+                  {(result.stages.excludedUndated ?? 0) > 0 && (
+                    <span data-testid="explorer-excluded-undated">
+                      {result.stages.excludedUndated!.toLocaleString()} undated {result.stages.excludedUndated === 1 ? 'note' : 'notes'} without a valid date excluded from time buckets.
+                    </span>
+                  )}
+                  {(result.stages.excludedCatalog ?? 0) > 0 && (
+                    <span data-testid="explorer-excluded-catalog">
+                      {result.stages.excludedCatalog!.toLocaleString()} reference catalog {result.stages.excludedCatalog === 1 ? 'record' : 'records'} (efforts, equipment, guides, dashboards) excluded by default.
+                    </span>
+                  )}
+                </div>
+              )}
+
               {submitted && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {/* While loading, no Inspect toggle renders anywhere — it

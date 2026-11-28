@@ -18,7 +18,7 @@ describe('Note authorship, retention & publication helpers', () => {
     expect(resolveNoteOwnership(journalNote)).toEqual({
       kind: 'user',
       editable: true,
-      canPublish: false,
+      canPublish: true,
       sourceNotebookId: 'notebook/journal',
     });
 
@@ -42,7 +42,7 @@ describe('Note authorship, retention & publication helpers', () => {
     expect(resolveNoteOwnership(customNote)).toEqual({
       kind: 'user',
       editable: true,
-      canPublish: false,
+      canPublish: true,
       sourceNotebookId: 'notebook/custom',
     });
 

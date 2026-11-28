@@ -122,6 +122,7 @@ export {
   frozenNow,
   projectSessionClock,
   interpolateSessionClockFrame,
+  seedRuntimeElapsed,
   resolveVisualPolarity,
   isRequiredCountdownLocked,
   observeSessionClockInputs,

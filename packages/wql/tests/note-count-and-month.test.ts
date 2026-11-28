@@ -223,10 +223,46 @@ describe('WW-094: count:note{} and by {month} bucketing', () => {
     const scalar = await qs.runQuery('count:note{}', opts);
     expect(scalar.scalar).toBe(2);
 
-    // Temporally grouped query never produces a 1969/1970 bucket
+    // Temporally grouped query never produces a 1969/1970 bucket and honestly reports excludedUndated
     const byWeek = await qs.runQuery('count:note{} by {week}', opts);
     expect(byWeek.error).toBeUndefined();
     expect(byWeek.series[0]!.points.length).toBe(1);
     expect(byWeek.series[0]!.points[0]!.ts).toBeGreaterThanOrEqual(Date.UTC(2026, 0, 1));
+    expect(byWeek.stages.excludedUndated).toBe(1);
+  });
+
+  it('excludes notebook landing containers from :note{} (WW-168) and reports excludedCatalog counts (WW-162 / WW-149)', async () => {
+    const customLanding: Note = {
+      id: 'notebook/custom',
+      title: 'Custom',
+      rawContent: '# Custom\n',
+      blocks: {},
+      createdAt: Date.UTC(2026, 0, 10, 12, 0, 0),
+      sourceRevision: 1,
+      type: 'note',
+      notebookId: 'notebook/custom',
+      seedOrigin: 'user',
+    };
+    const effortRow: Note = {
+      id: 'effort-burpee',
+      title: 'Burpee',
+      rawContent: '# Burpee\n',
+      blocks: {},
+      createdAt: 3100,
+      sourceRevision: 1,
+      type: 'note',
+      sourceId: 'efforts',
+      sourcePath: 'markdown/efforts/burpee.md',
+      seedOrigin: 'seed',
+    };
+    const qs = makeNoteQueryService([janNote, customLanding, effortRow]);
+    const opts = { context: { instant: Date.UTC(2026, 3, 1, 12, 0, 0), timeZone: 'UTC' } };
+
+    const findRes = await qs.runFind(parseQuery(':note{}') as Parameters<QueryService['runFind']>[0]);
+    expect(findRes.notes.map((n) => n.id)).toEqual(['note-jan-1']);
+    expect(findRes.excludedCatalogCount).toBe(1);
+
+    const byWeek = await qs.runQuery('count:note{} by {week}', opts);
+    expect(byWeek.stages.excludedCatalog).toBe(1);
   });
 });

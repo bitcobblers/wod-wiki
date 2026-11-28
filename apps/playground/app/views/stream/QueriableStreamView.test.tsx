@@ -2030,10 +2030,16 @@ describe('QueriableStreamView — query truth and retained state', () => {
       )
 
       await waitFor(() => expect(screen.getByText('Open Prep')).toBeDefined())
-      // Built-in journal offers no overflow edit/delete actions.
-      const overflowButtons = screen.getAllByTestId('library-row-overflow')
-      expect(overflowButtons).toHaveLength(1)
-      fireEvent.click(overflowButtons[0]!)
+      // Built-in journal exposes Make Public (WW-128) but offers no edit/delete actions.
+      const journalOverflow = screen.getByRole('button', { name: 'Actions for Journal' })
+      fireEvent.click(journalOverflow)
+      expect(screen.getByTestId('row-toggle-public-journal')).toBeDefined()
+      expect(screen.queryByTestId('notebook-edit-journal')).toBeNull()
+      expect(screen.queryByTestId('notebook-delete-journal')).toBeNull()
+      fireEvent.click(journalOverflow)
+
+      const openPrepOverflow = screen.getByRole('button', { name: 'Actions for Open Prep' })
+      fireEvent.click(openPrepOverflow)
       fireEvent.click(screen.getByTestId('notebook-delete-open-prep'))
 
       const dialog = await waitFor(() => screen.getByTestId('notebook-delete-dialog'))
@@ -2514,9 +2520,52 @@ describe('QueriableStreamView — query truth and retained state', () => {
       await waitFor(() => {
         expect(screen.getByTestId(TEST_IDS.NOTEBOOK_DETAIL_TOGGLE_PUBLIC).textContent).toContain('Make Private')
       })
+      cleanup()
+
+      // 3. Built-in default notebooks (/notebook/journal, /notebook/playground, /notebook/custom)
+      // expose Make Public / Make Private while keeping Edit & Delete gated (WW-128)
+      render(
+        <MemoryRouter initialEntries={['/notebook/journal']}>
+          <QueriableStreamView profile={createNotebookProfile('journal')} queryEngine={emptyEngine} />
+        </MemoryRouter>,
+      )
+      const journalToggle = await waitFor(() => screen.getByTestId(TEST_IDS.NOTEBOOK_DETAIL_TOGGLE_PUBLIC))
+      expect(journalToggle.textContent).toContain('Make Public')
+      expect(screen.queryByTestId(TEST_IDS.NOTEBOOK_DETAIL_EDIT)).toBeNull()
+      expect(screen.queryByTestId(TEST_IDS.NOTEBOOK_DETAIL_DELETE)).toBeNull()
+      await act(async () => {
+        fireEvent.click(journalToggle)
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId(TEST_IDS.NOTEBOOK_DETAIL_TOGGLE_PUBLIC).textContent).toContain('Make Private')
+      })
     } finally {
       clearResolvedNotebookTitles()
       resetStorageForTesting()
     }
+  })
+
+  it('WW-162: displays honest catalog exclusion count in StreamQueryStatus when :note{} excludes reference catalog rows', async () => {
+    const engine = new StreamQueryEngine()
+    engine.query = async (_input, onStages) => {
+      onStages?.({ selected: 1, matched: 1, excludedCatalog: 278 })
+      return [
+        {
+          id: 'note-ww162-1',
+          kind: 'note',
+          sourceNotebook: 'journal',
+          sourceNote: 'note-ww162-1',
+          title: 'Monday Strength',
+          date: '2026-11-28',
+        },
+      ]
+    }
+    render(
+      <MemoryRouter initialEntries={['/notes']}>
+        <QueriableStreamView profile={NOTES_STREAM_PROFILE} queryEngine={engine} />
+      </MemoryRouter>,
+    )
+    const excluded = await waitFor(() => screen.getByTestId('stream-excluded-catalog'))
+    expect(excluded.textContent).toContain('278 catalog items excluded')
   })
 })

@@ -659,7 +659,34 @@ describe('WW-012: halted-run reload persistence and dismissible notice', () => {
     const [[allocatedId, entry]] = Array.from(pendingRuntimes.entries());
     expect(allocatedId).not.toBe(persistedSessionId);
     expect(entry.noteId).toBe('note-resume-1');
+    expect(entry.resumeElapsedMs).toBe(37_000);
+    expect(entry.resumeStatus).toBe('running');
     expect(navigatedTo).toBe('');
     pendingRuntimes.clear();
+  });
+
+  it('WW-142: restores elapsed time and active running state when mounting RuntimeTimerPanel with initialElapsedMs', async () => {
+    const block = makeBlock('10:00\n  10 Burpees');
+    const onComplete = mock(() => undefined);
+
+    render(
+      <RuntimeTimerPanel
+        block={block}
+        resultId="resumed-session-1"
+        noteId="note-resume-2"
+        autoStart
+        initialElapsedMs={51_342}
+        initialStartedAt={Date.now() - 51_342}
+        initialResumeStatus="running"
+        onClose={() => undefined}
+        onComplete={onComplete}
+      />,
+    );
+
+    await waitFor(() => {
+      const exec = useActiveRunStore.getState().execution;
+      expect(exec.status).toBe('running');
+      expect(exec.elapsedTime).toBeGreaterThanOrEqual(51_342);
+    });
   });
 });

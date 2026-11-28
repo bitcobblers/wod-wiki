@@ -218,8 +218,8 @@ describe('NotePromotionSheet', () => {
     const customRow = await waitFor(() => screen.getByTestId('promotion-notebook-chip-notebook/custom'));
     expect(customRow.textContent).toContain('Custom');
     expect(customRow.textContent).toContain('Private');
-    // Custom membership is non-publishable (no public toggle), but clicking the row removes membership.
-    expect(customRow.querySelector('input[type="checkbox"]')).toBeNull();
+    // WW-128: notebook/custom is now publishable (public toggle available) and clicking the row removes membership.
+    expect(customRow.querySelector('input[type="checkbox"]')).not.toBeNull();
 
     const toggleBtn = customRow.querySelector('button')!;
     fireEvent.click(toggleBtn);
