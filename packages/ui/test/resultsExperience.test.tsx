@@ -508,6 +508,8 @@ describe('Results Experience Phase 2 UI components', () => {
     expect(container.textContent).toContain('4 splits');
     expect(container.textContent).not.toContain('7 splits');
     expect(container.textContent).toContain('Splits (4)');
+    // Raw Events tab count matches the active filter (default Segments = 7 segment rows here)
+    expect(container.textContent).toContain('Raw Events (7)');
   });
 
   it('WW-092: OutputStatementsTable renders meaningful row labels and consistent offset/elapsed pairs', () => {

@@ -270,9 +270,9 @@ describe('entryNotebookHref', () => {
 })
 
 describe('entryCompareHref', () => {
-  it('routes any row with a blockContentId to /dashboards?q=<id>', () => {
+  it('routes any row with a blockContentId to /dashboards with a valid :session{block:<id>} query (WW-160)', () => {
     expect(entryCompareHref(makeEntry({ blockContentId: 'bc-fran' }))).toBe(
-      '/dashboards?q=bc-fran',
+      `/dashboards?q=${encodeURIComponent(':session{block:bc-fran}')}`,
     )
   })
 

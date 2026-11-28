@@ -109,7 +109,7 @@ export function WqlBars({ result, unit: unitProp }: WqlBarsProps) {
             labelFormatter={isOrdinal ? (v) => String(v) : (v) => tooltipTimestamp(v as number)}
             formatter={(v, name) => [formatMetricValue(v as number | string, unit), String(name ?? '')]}
           />
-          {result.series.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
+          {result.series.length > 1 && result.series.length <= 12 && <Legend wrapperStyle={{ fontSize: 11 }} />}
           {result.series.map((s, i) => (
             <Bar
               key={s.key}
@@ -117,6 +117,7 @@ export function WqlBars({ result, unit: unitProp }: WqlBarsProps) {
               name={s.label}
               fill={SERIES_COLORS[i % SERIES_COLORS.length]}
               radius={[4, 4, 0, 0]}
+              isAnimationActive={result.series.length <= 4 && seriesData.length <= 24}
             />
           ))}
         </BarChart>
